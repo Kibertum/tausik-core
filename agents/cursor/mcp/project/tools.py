@@ -1,0 +1,824 @@
+"""TAUSIK MCP tool definitions — JSON schemas for all project tools."""
+
+from __future__ import annotations
+
+TOOLS = [
+    # === Health ===
+    {
+        "name": "tausik_health",
+        "description": "Health check — version, DB status, table count. Use to verify server is alive.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    # === Core: task + session + status ===
+    {
+        "name": "tausik_status",
+        "description": "Get project status: task counts, active session, epics",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "tausik_task_list",
+        "description": "List tasks with optional filters. Returns slug, title, status, stack, complexity, role for each task",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "description": "Filter by status (comma-separated). Example: 'active,review'",
+                    "enum": ["planning", "active", "blocked", "review", "done"],
+                },
+                "story": {"type": "string", "description": "Filter by story slug"},
+                "epic": {"type": "string", "description": "Filter by epic slug"},
+                "role": {
+                    "type": "string",
+                    "description": "Filter by role (free text, e.g. developer, architect, qa)",
+                },
+                "stack": {
+                    "type": "string",
+                    "description": "Filter by technology stack",
+                    "enum": [
+                        "python",
+                        "fastapi",
+                        "django",
+                        "flask",
+                        "react",
+                        "next",
+                        "vue",
+                        "nuxt",
+                        "svelte",
+                        "typescript",
+                        "javascript",
+                        "go",
+                        "rust",
+                        "java",
+                        "kotlin",
+                        "swift",
+                        "flutter",
+                        "laravel",
+                        "php",
+                        "blade",
+                    ],
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max tasks to return (default: all)",
+                },
+            },
+        },
+    },
+    {
+        "name": "tausik_task_show",
+        "description": "Show full task details by slug — includes goal, AC, plan steps, decisions, notes, and status",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"slug": {"type": "string"}},
+            "required": ["slug"],
+        },
+    },
+    {
+        "name": "tausik_task_add",
+        "description": "Create a new task. Specify slug (kebab-case ID) and title. Set goal for QG-0 compliance. Optionally assign to a story",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "story_slug": {
+                    "type": "string",
+                    "description": "Parent story slug (optional, task can be standalone)",
+                },
+                "slug": {
+                    "type": "string",
+                    "description": "Unique task ID in kebab-case (e.g. fix-login-bug)",
+                },
+                "title": {"type": "string", "description": "Human-readable task title"},
+                "goal": {
+                    "type": "string",
+                    "description": "What this task achieves (REQUIRED for QG-0 to pass on task start)",
+                },
+                "role": {
+                    "type": "string",
+                    "description": "Free-text role (e.g. developer, architect, qa, tech-writer, ui-ux)",
+                },
+                "complexity": {
+                    "type": "string",
+                    "enum": ["simple", "medium", "complex"],
+                    "description": "Task complexity. Affects story points: simple=1, medium=3, complex=8",
+                },
+                "stack": {
+                    "type": "string",
+                    "description": "Technology stack for this task",
+                    "enum": [
+                        "python",
+                        "fastapi",
+                        "django",
+                        "flask",
+                        "react",
+                        "next",
+                        "vue",
+                        "nuxt",
+                        "svelte",
+                        "typescript",
+                        "javascript",
+                        "go",
+                        "rust",
+                        "java",
+                        "kotlin",
+                        "swift",
+                        "flutter",
+                        "laravel",
+                        "php",
+                        "blade",
+                    ],
+                },
+                "defect_of": {
+                    "type": "string",
+                    "description": "Parent task slug if this is a defect fix (triggers root cause requirement on done)",
+                },
+            },
+            "required": ["slug", "title"],
+        },
+    },
+    {
+        "name": "tausik_task_start",
+        "description": "Start working on a task (sets status to active). QG-0 enforced: task must have goal + acceptance_criteria",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"slug": {"type": "string"}},
+            "required": ["slug"],
+        },
+    },
+    {
+        "name": "tausik_task_done",
+        "description": "Complete a task (QG-2: requires ac_verified). Auto-closes parent story/epic if all tasks done",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string"},
+                "ac_verified": {
+                    "type": "boolean",
+                    "description": "Confirm AC verification evidence was logged (REQUIRED for QG-2)",
+                },
+                "no_knowledge": {
+                    "type": "boolean",
+                    "description": "Confirm no knowledge to capture (suppresses warning)",
+                },
+                "relevant_files": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["slug"],
+        },
+    },
+    {
+        "name": "tausik_task_block",
+        "description": "Block a task with optional reason. Sets status to 'blocked'. Reason is logged to task notes",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string"},
+                "reason": {"type": "string"},
+            },
+            "required": ["slug"],
+        },
+    },
+    {
+        "name": "tausik_task_unblock",
+        "description": "Unblock a blocked task (sets status back to active). Only works on tasks with status 'blocked'",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"slug": {"type": "string"}},
+            "required": ["slug"],
+        },
+    },
+    {
+        "name": "tausik_task_update",
+        "description": "Update task fields. Specify slug and any fields to change. Valid fields: title, status, goal, acceptance_criteria, scope, scope_exclude, complexity, stack, role, notes, defect_of",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string", "description": "Task slug to update"},
+                "title": {"type": "string", "description": "New task title"},
+                "status": {
+                    "type": "string",
+                    "enum": ["planning", "active", "blocked", "review", "done"],
+                    "description": "New status (prefer task_start/task_done/task_block for lifecycle transitions)",
+                },
+                "goal": {"type": "string", "description": "What this task achieves"},
+                "acceptance_criteria": {
+                    "type": "string",
+                    "description": "How to verify the task is done (REQUIRED for QG-0)",
+                },
+                "scope": {
+                    "type": "string",
+                    "description": "What files/modules to change (SENAR Rule 2)",
+                },
+                "scope_exclude": {
+                    "type": "string",
+                    "description": "What files/modules NOT to touch (SENAR Rule 2)",
+                },
+                "notes": {
+                    "type": "string",
+                    "description": "Freeform notes (prefer task_log for appending)",
+                },
+                "complexity": {
+                    "type": "string",
+                    "enum": ["simple", "medium", "complex"],
+                    "description": "Task complexity: simple=1sp, medium=3sp, complex=8sp",
+                },
+                "stack": {
+                    "type": "string",
+                    "description": "Technology stack",
+                    "enum": [
+                        "python",
+                        "fastapi",
+                        "django",
+                        "flask",
+                        "react",
+                        "next",
+                        "vue",
+                        "nuxt",
+                        "svelte",
+                        "typescript",
+                        "javascript",
+                        "go",
+                        "rust",
+                        "java",
+                        "kotlin",
+                        "swift",
+                        "flutter",
+                        "laravel",
+                        "php",
+                        "blade",
+                    ],
+                },
+                "role": {
+                    "type": "string",
+                    "description": "Free-text role (e.g. developer, architect, qa)",
+                },
+                "defect_of": {
+                    "type": "string",
+                    "description": "Parent task slug if this is a defect fix",
+                },
+            },
+            "required": ["slug"],
+        },
+    },
+    {
+        "name": "tausik_task_plan",
+        "description": "Set plan steps for a task. Steps are an ordered list of strings. Mark steps done with task_step",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string"},
+                "steps": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["slug", "steps"],
+        },
+    },
+    {
+        "name": "tausik_task_step",
+        "description": "Mark a plan step as done by step number (1-based). Use task_show to see current plan steps",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string"},
+                "step_num": {"type": "integer", "description": "Step number (1-based)"},
+            },
+            "required": ["slug", "step_num"],
+        },
+    },
+    {
+        "name": "tausik_task_delete",
+        "description": "Permanently delete a task by slug. Cannot be undone",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"slug": {"type": "string"}},
+            "required": ["slug"],
+        },
+    },
+    {
+        "name": "tausik_task_review",
+        "description": "Move task to review status. Use before task_done to signal code review is needed",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"slug": {"type": "string"}},
+            "required": ["slug"],
+        },
+    },
+    {
+        "name": "tausik_task_move",
+        "description": "Move task to a different story. Specify task slug and target story slug",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string"},
+                "new_story_slug": {"type": "string"},
+            },
+            "required": ["slug", "new_story_slug"],
+        },
+    },
+    {
+        "name": "tausik_task_log",
+        "description": "Append a timestamped log entry to task notes. Use for continuous journaling — crash-safe progress tracking",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string"},
+                "message": {
+                    "type": "string",
+                    "description": "Log message (appended with timestamp)",
+                },
+            },
+            "required": ["slug", "message"],
+        },
+    },
+    {
+        "name": "tausik_task_logs",
+        "description": "Read structured log entries for a task (with timestamps and phases)",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string"},
+                "phase": {
+                    "description": "Filter by phase: planning, implementation, review, testing, done",
+                    "type": "string",
+                },
+            },
+            "required": ["slug"],
+        },
+    },
+    {
+        "name": "tausik_task_claim",
+        "description": "Claim a task for an agent (prevents double-claiming)",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string"},
+                "agent_id": {"type": "string"},
+            },
+            "required": ["slug", "agent_id"],
+        },
+    },
+    {
+        "name": "tausik_task_unclaim",
+        "description": "Release task claim so another agent can pick it up",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"slug": {"type": "string"}},
+            "required": ["slug"],
+        },
+    },
+    {
+        "name": "tausik_session_current",
+        "description": "Get current active session info (ID, start time). Returns null if no active session",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "tausik_session_list",
+        "description": "List recent sessions",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "limit": {"type": "integer", "description": "Max results (default 10)"},
+            },
+        },
+    },
+    {
+        "name": "tausik_session_start",
+        "description": "Start a new work session",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "tausik_session_end",
+        "description": "End the current session with optional summary",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "summary": {"type": "string", "description": "Session summary"},
+            },
+        },
+    },
+    {
+        "name": "tausik_session_extend",
+        "description": "Extend current session duration limit by N minutes (SENAR Rule 9.2)",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "minutes": {
+                    "type": "integer",
+                    "description": "Minutes to extend (default: 60)",
+                },
+            },
+        },
+    },
+    {
+        "name": "tausik_session_handoff",
+        "description": "Save handoff data for session continuity",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "handoff": {
+                    "type": "object",
+                    "description": "Handoff data (what was done, next steps, blockers)",
+                },
+            },
+            "required": ["handoff"],
+        },
+    },
+    {
+        "name": "tausik_session_last_handoff",
+        "description": "Get last session's handoff data",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    # === Hierarchy: epic, story, roadmap ===
+    {
+        "name": "tausik_epic_add",
+        "description": "Create a new epic. Epics contain stories, which contain tasks. Slug must be kebab-case",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string"},
+                "title": {"type": "string"},
+                "description": {"type": "string"},
+            },
+            "required": ["slug", "title"],
+        },
+    },
+    {
+        "name": "tausik_epic_list",
+        "description": "List all epics",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "tausik_epic_done",
+        "description": "Mark epic as done",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"slug": {"type": "string"}},
+            "required": ["slug"],
+        },
+    },
+    {
+        "name": "tausik_epic_delete",
+        "description": "Delete an epic (cascades to stories and tasks)",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"slug": {"type": "string"}},
+            "required": ["slug"],
+        },
+    },
+    {
+        "name": "tausik_story_done",
+        "description": "Mark story as done",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"slug": {"type": "string"}},
+            "required": ["slug"],
+        },
+    },
+    {
+        "name": "tausik_story_delete",
+        "description": "Delete a story (cascades to tasks)",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"slug": {"type": "string"}},
+            "required": ["slug"],
+        },
+    },
+    {
+        "name": "tausik_story_add",
+        "description": "Create a new story inside an epic. Stories group related tasks. Requires epic_slug, slug, and title",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "epic_slug": {"type": "string"},
+                "slug": {"type": "string"},
+                "title": {"type": "string"},
+                "description": {"type": "string"},
+            },
+            "required": ["epic_slug", "slug", "title"],
+        },
+    },
+    {
+        "name": "tausik_story_list",
+        "description": "List stories, optionally filtered by epic",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "epic_slug": {"type": "string", "description": "Filter by epic slug"},
+            },
+        },
+    },
+    {
+        "name": "tausik_roadmap",
+        "description": "Full project roadmap: epics → stories → tasks tree",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "include_done": {
+                    "type": "boolean",
+                    "description": "Include done items",
+                },
+            },
+        },
+    },
+    # === Knowledge: memory, decisions, search ===
+    {
+        "name": "tausik_memory_add",
+        "description": "Save project memory (pattern, gotcha, convention, context, dead_end)",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": ["pattern", "gotcha", "convention", "context", "dead_end"],
+                },
+                "title": {"type": "string"},
+                "content": {"type": "string"},
+                "tags": {"type": "array", "items": {"type": "string"}},
+                "task_slug": {"type": "string"},
+            },
+            "required": ["type", "title", "content"],
+        },
+    },
+    {
+        "name": "tausik_memory_search",
+        "description": "Search project memory via FTS5 full-text search. Returns matching memories with relevance ranking",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"query": {"type": "string"}},
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "tausik_memory_list",
+        "description": "List project memories, optionally filtered by type",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": ["pattern", "gotcha", "convention", "context", "dead_end"],
+                },
+                "limit": {"type": "integer"},
+            },
+        },
+    },
+    {
+        "name": "tausik_memory_show",
+        "description": "Show a specific memory by ID",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"id": {"type": "integer"}},
+            "required": ["id"],
+        },
+    },
+    {
+        "name": "tausik_memory_delete",
+        "description": "Delete a memory by ID",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"id": {"type": "integer"}},
+            "required": ["id"],
+        },
+    },
+    # === Graph Memory ===
+    {
+        "name": "tausik_memory_link",
+        "description": "Create a graph edge between two memory/decision nodes (Graphiti-inspired). Relations: supersedes, caused_by, relates_to, contradicts",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "source_type": {"type": "string", "enum": ["memory", "decision"]},
+                "source_id": {"type": "integer"},
+                "target_type": {"type": "string", "enum": ["memory", "decision"]},
+                "target_id": {"type": "integer"},
+                "relation": {
+                    "type": "string",
+                    "enum": ["supersedes", "caused_by", "relates_to", "contradicts"],
+                },
+                "confidence": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "default": 1.0,
+                },
+                "created_by": {"type": "string"},
+            },
+            "required": [
+                "source_type",
+                "source_id",
+                "target_type",
+                "target_id",
+                "relation",
+            ],
+        },
+    },
+    {
+        "name": "tausik_memory_unlink",
+        "description": "Soft-invalidate a graph edge (never deletes — Graphiti approach)",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "edge_id": {"type": "integer"},
+                "replacement_id": {"type": "integer"},
+            },
+            "required": ["edge_id"],
+        },
+    },
+    {
+        "name": "tausik_memory_related",
+        "description": "Find related nodes via graph traversal (1-3 hops)",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "node_type": {"type": "string", "enum": ["memory", "decision"]},
+                "node_id": {"type": "integer"},
+                "max_hops": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 3,
+                    "default": 2,
+                },
+                "include_invalid": {"type": "boolean", "default": False},
+            },
+            "required": ["node_type", "node_id"],
+        },
+    },
+    {
+        "name": "tausik_memory_graph",
+        "description": "List graph edges with optional filters",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "node_type": {"type": "string", "enum": ["memory", "decision"]},
+                "node_id": {"type": "integer"},
+                "relation": {
+                    "type": "string",
+                    "enum": ["supersedes", "caused_by", "relates_to", "contradicts"],
+                },
+                "include_invalid": {"type": "boolean", "default": False},
+                "limit": {"type": "integer", "default": 50},
+            },
+        },
+    },
+    {
+        "name": "tausik_decide",
+        "description": "Record an architectural decision with rationale. Optionally link to a task via task_slug",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "decision": {"type": "string"},
+                "rationale": {"type": "string"},
+                "task_slug": {"type": "string"},
+            },
+            "required": ["decision"],
+        },
+    },
+    {
+        "name": "tausik_decisions_list",
+        "description": "List recent decisions",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "limit": {"type": "integer", "description": "Max results (default 20)"},
+            },
+        },
+    },
+    {
+        "name": "tausik_task_quick",
+        "description": "Quick-create a standalone task with auto-generated slug. No story required. Provide title and optionally goal, role, stack",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "title": {
+                    "type": "string",
+                    "description": "Task title (slug auto-generated from it)",
+                },
+                "goal": {
+                    "type": "string",
+                    "description": "What this task achieves (REQUIRED for QG-0)",
+                },
+                "role": {
+                    "type": "string",
+                    "description": "Free-text role (e.g. developer, architect, qa)",
+                },
+                "stack": {
+                    "type": "string",
+                    "description": "Technology stack",
+                    "enum": [
+                        "python",
+                        "fastapi",
+                        "django",
+                        "flask",
+                        "react",
+                        "next",
+                        "vue",
+                        "nuxt",
+                        "svelte",
+                        "typescript",
+                        "javascript",
+                        "go",
+                        "rust",
+                        "java",
+                        "kotlin",
+                        "swift",
+                        "flutter",
+                        "laravel",
+                        "php",
+                        "blade",
+                    ],
+                },
+            },
+            "required": ["title"],
+        },
+    },
+    {
+        "name": "tausik_task_next",
+        "description": "Pick next available planning task. With agent_id, auto-claim and start it",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "description": "Agent ID to auto-claim the task",
+                },
+            },
+        },
+    },
+    {
+        "name": "tausik_team",
+        "description": "Team status — tasks grouped by agent",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "tausik_search",
+        "description": "Full-text search across all project data (tasks, memory, decisions)",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+                "scope": {
+                    "type": "string",
+                    "enum": ["all", "tasks", "memory", "decisions"],
+                },
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "tausik_metrics",
+        "description": "Project metrics: completion %, velocity, session hours",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "tausik_events",
+        "description": "Audit event log — who changed what when",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "entity_type": {"type": "string"},
+                "entity_id": {"type": "string"},
+                "limit": {"type": "integer"},
+            },
+        },
+    },
+    # === cq — Cross-project Knowledge ===
+    {
+        "name": "tausik_cq_query",
+        "description": "Query Mozilla cq for cross-project knowledge (API patterns, gotchas, dead ends from other projects). Use BEFORE starting work.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "domains": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Knowledge domains (e.g. ['api', 'stripe', 'python'])",
+                },
+                "language": {"type": "string"},
+                "framework": {"type": "string"},
+                "limit": {"type": "integer", "default": 5},
+            },
+            "required": ["domains"],
+        },
+    },
+    {
+        "name": "tausik_cq_publish",
+        "description": "Publish a dead end, pattern, or gotcha to cq for other projects to benefit from",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "domains": {"type": "array", "items": {"type": "string"}},
+                "summary": {
+                    "type": "string",
+                    "description": "One-line summary of the insight",
+                },
+                "detail": {"type": "string", "description": "Fuller explanation"},
+                "action": {"type": "string", "description": "What to do about it"},
+                "languages": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["domains", "summary"],
+        },
+    },
+]
+
+# Merge extra tools (dead end, explore, audit, gates, skills, maintenance)
+from tools_extra import TOOLS_EXTRA  # noqa: E402
+
+TOOLS.extend(TOOLS_EXTRA)

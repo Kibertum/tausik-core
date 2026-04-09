@@ -1,0 +1,3 @@
+# TAUSIK core dependencies
+# Installed into .tausik/venv/ by bootstrap
+mcp>=1.0.0

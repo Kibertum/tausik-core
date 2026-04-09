@@ -1,0 +1,57 @@
+{
+  "sources": {
+    "tausik-official": {
+      "repo": "Kibertum/tausik-skills",
+      "ref": "main",
+      "description": "Official TAUSIK skills: review, test, debug, audit, security, ship, and more",
+      "skill_dirs": [
+        "review", "test", "debug", "audit", "security", "ship", "diff",
+        "docs", "optimize", "dispatch", "run", "loop-task", "ultra",
+        "init", "onboard", "retro", "daily", "sentry", "pdf", "excel"
+      ]
+    }
+  },
+  "external_skills": {
+    "seo": {
+      "repo": "AgriciDaniel/claude-seo",
+      "ref": "v1.5.0",
+      "description": "SEO analysis: site audits, technical SEO, schema markup, E-E-A-T, Core Web Vitals, AI Overviews optimization",
+      "triggers": ["SEO", "аудит сайта", "поисковая оптимизация", "structured data", "schema markup", "sitemap", "robots.txt", "метатеги", "индексация", "Core Web Vitals", "E-E-A-T"],
+      "skill_dirs": ["seo", "skills/seo-audit", "skills/seo-page", "skills/seo-technical", "skills/seo-content", "skills/seo-schema", "skills/seo-sitemap", "skills/seo-geo", "skills/seo-hreflang", "skills/seo-images", "skills/seo-plan", "skills/seo-programmatic", "skills/seo-competitor-pages"],
+      "scripts_dir": "scripts",
+      "agents_dir": "agents"
+    },
+    "ui-ux-pro-max": {
+      "repo": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "ref": "main",
+      "description": "UI/UX design: 50+ styles, 161 palettes, 57 font pairings, components, accessibility, responsive design",
+      "triggers": ["дизайн", "UI", "UX", "макет", "wireframe", "landing page", "компоненты", "палитра", "типографика", "Tailwind", "стили", "тема", "dark mode", "адаптивный"],
+      "skill_dirs": [".claude/skills/ui-ux-pro-max"],
+      "data_dirs": {
+        "src/ui-ux-pro-max/data": "data",
+        "src/ui-ux-pro-max/scripts": "scripts"
+      }
+    },
+    "trailofbits": {
+      "repo": "trailofbits/skills",
+      "ref": "main",
+      "description": "Security: static analysis, supply chain audit, semgrep rules, YARA, property-based testing, code review",
+      "triggers": ["security", "безопасность", "vulnerability", "уязвимость", "audit", "pentest", "static analysis", "semgrep", "SAST", "supply chain"],
+      "skill_dirs": ["plugins/static-analysis/skills/codeql", "plugins/static-analysis/skills/semgrep", "plugins/static-analysis/skills/sarif-parsing", "plugins/supply-chain-risk-auditor/skills/supply-chain-risk-auditor", "plugins/modern-python/skills/modern-python", "plugins/property-based-testing/skills/property-based-testing", "plugins/git-cleanup/skills/git-cleanup", "plugins/differential-review/skills/differential-review"]
+    },
+    "anthropic-official": {
+      "repo": "anthropics/skills",
+      "ref": "main",
+      "description": "Official Anthropic: PDF, Word, Excel, PowerPoint, MCP builder, webapp testing, skill creator",
+      "triggers": ["PDF", "Word", "DOCX", "Excel", "XLSX", "PowerPoint", "PPTX", "документ", "презентация", "таблица", "MCP", "тестирование веб"],
+      "skill_dirs": ["skills/pdf", "skills/docx", "skills/pptx", "skills/xlsx", "skills/mcp-builder", "skills/webapp-testing", "skills/skill-creator"]
+    },
+    "polyakov": {
+      "repo": "artwist-polyakov/polyakov-claude-skills",
+      "ref": "main",
+      "description": "Yandex tools (Webmaster, Wordstat, Metrika, Search API), agent orchestration, codex review, docx contracts, image generation",
+      "triggers": ["Яндекс", "Yandex", "Вебмастер", "Wordstat", "Метрика", "поисковая выдача", "агент", "sub-agent", "codex review", "договор", "контракт", "Word шаблон", "генерация изображений", "fal.ai"],
+      "skill_dirs": ["plugins/yandex-webmaster/skills/yandex-webmaster", "plugins/yandex-wordstat/skills/yandex-wordstat", "plugins/yandex-metrika/skills/yandex-metrika", "plugins/yandex-search-api/skills/yandex-search-api", "plugins/agent-deck/skills/agent-deck", "plugins/codex-review/skills/codex-review", "plugins/docx-contracts/skills/docx-contracts", "plugins/fal-ai-image/skills/fal-ai-image"]
+    }
+  }
+}

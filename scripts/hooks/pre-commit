@@ -1,0 +1,22 @@
+#!/bin/bash
+# KAI pre-commit hook: mypy type checking
+# Blocks commit if type errors are found in scripts/
+#
+# Install: cp scripts/hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+# Or: git config core.hooksPath scripts/hooks
+
+echo "Running mypy type check..."
+
+# Run mypy using project config from pyproject.toml
+python -m mypy 2>&1
+MYPY_EXIT=$?
+
+if [ $MYPY_EXIT -ne 0 ]; then
+    echo ""
+    echo "ERROR: mypy found type errors. Fix them before committing."
+    echo "Run 'python -m mypy' to see details."
+    exit 1
+fi
+
+echo "mypy: OK"
+exit 0

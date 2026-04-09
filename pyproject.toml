@@ -1,0 +1,93 @@
+[project]
+name = "tausik"
+version = "1.0.0"
+description = "Cross-IDE AI agent framework with task lifecycle, quality gates, and project memory"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.11"
+authors = [
+    { name = "Andrey Yumashev", email = "andrey.jumashev@gmail.com" },
+]
+keywords = ["ai", "agent", "framework", "ide", "quality-gates", "senar"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+
+[project.urls]
+Homepage = "https://github.com/Kibertum/tausik-core"
+Documentation = "https://github.com/Kibertum/tausik-core/tree/main/docs"
+Repository = "https://github.com/Kibertum/tausik-core"
+Changelog = "https://github.com/Kibertum/tausik-core/blob/main/CHANGELOG.md"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["scripts"]
+
+[tool.coverage.run]
+source = ["scripts"]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ ==",
+]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["scripts"]
+warn_return_any = true
+warn_unused_configs = true
+check_untyped_defs = true
+no_implicit_optional = true
+
+[[tool.mypy.overrides]]
+module = "project_types"
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "project_service"
+# Mixin classes — methods resolved at runtime
+disable_error_code = "attr-defined"
+
+[[tool.mypy.overrides]]
+module = "service_task"
+# Mixin — _require_task, _require_story resolved via ProjectService
+disable_error_code = "attr-defined"
+
+[[tool.mypy.overrides]]
+module = "service_knowledge"
+disable_error_code = "attr-defined"
+
+[[tool.mypy.overrides]]
+module = "backend_queries"
+# Mixin — _q, _q1, epic_list, session_current resolved via SQLiteBackend
+disable_error_code = ["attr-defined", "no-any-return"]
+
+[[tool.mypy.overrides]]
+module = "backend_migrations"
+# sqlite3 used in TYPE_CHECKING string annotation
+disable_error_code = "name-defined"
+
+[[tool.mypy.overrides]]
+module = "generate_cli_ref"
+# argparse internal API + sys.stdout reconfigure
+disable_error_code = "union-attr"
+
+[[tool.mypy.overrides]]
+module = "project_config"
+warn_return_any = false
+
+[[tool.mypy.overrides]]
+module = "project_cli_extra"
+warn_return_any = false
