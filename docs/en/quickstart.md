@@ -32,6 +32,7 @@ Make sure the following are installed on your computer:
 4. **AI IDE — one of the following:**
    - **Claude Code** — VSCode extension or CLI: `npm install -g @anthropic-ai/claude-code`
    - **Cursor** — download from [cursor.com](https://cursor.com)
+   - **Qwen Code (GigaCode)** — install from [qwen.ai/qwencode](https://qwen.ai/qwencode)
    - **Windsurf** — download from [windsurf.com](https://windsurf.com)
    - You'll need an API key or subscription for your chosen IDE
 
@@ -57,19 +58,19 @@ cd my-project
 
 > **Already have a project with code?** See [Migrating an Existing Project](#migrating-an-existing-project) below — TAUSIK merges into your setup without overwriting anything.
 
-There are two ways — via terminal or via Claude Code. We recommend the second.
+There are two ways — tell your AI agent, or do it manually. We recommend the first.
 
-### Option A: Via Claude Code (easier)
+### Option A: Tell your agent (easiest)
 
-Open your project in VSCode, open Claude Code and write:
+Open your project in the IDE, open your AI agent (Claude Code, Cursor, Qwen Code, Windsurf) and write:
 
 ```
-connect the TAUSIK framework from https://github.com/Kibertum/tausik-core
-as a git submodule in .tausik-lib, run bootstrap
+Add https://github.com/Kibertum/tausik-core as a git submodule in .tausik-lib,
+run python .tausik-lib/bootstrap/bootstrap.py --init,
+add .tausik/ to .gitignore
 ```
 
-Claude will execute all the commands itself: add the submodule, run bootstrap,
-configure `.gitignore`. You just need to confirm its actions.
+The agent will execute all three steps — you just confirm its actions.
 
 ### Option B: Manually via terminal
 
@@ -82,8 +83,8 @@ If you prefer doing everything by hand:
 git submodule add https://github.com/Kibertum/tausik-core .tausik-lib
 
 # Run bootstrap (one command does everything)
-# Replace "my-project" with a short name for your project (Latin letters, no spaces, e.g. "web-app")
-python .tausik-lib/bootstrap/bootstrap.py --smart --init my-project
+# Project name is auto-derived from the directory name
+python .tausik-lib/bootstrap/bootstrap.py --init
 
 # Add working data to .gitignore
 echo ".tausik/" >> .gitignore
@@ -91,7 +92,9 @@ echo ".tausik/" >> .gitignore
 
 ### Restart Your IDE
 
-**After bootstrap, restart your IDE window** (Claude Code, Cursor, Windsurf). Bootstrap generates `.mcp.json` with MCP server configuration, but the IDE only reads it on startup. Without a restart, the agent will fall back to CLI mode instead of using MCP tools.
+**After bootstrap, restart your IDE window** (Claude Code, Cursor, Qwen Code, Windsurf). Bootstrap generates `.mcp.json` with MCP server configuration, but the IDE only reads it on startup. Without a restart, the agent will fall back to CLI mode instead of using MCP tools.
+
+> **Qwen Code users:** Bootstrap also creates `.qwen/settings.json` with MCP config and `QWEN.md` with project instructions. Use `--ide qwen` if you only use Qwen Code, or `--ide all` for multi-IDE setups.
 
 ### What Happens After Bootstrap
 
@@ -248,10 +251,10 @@ If you already have a project with code and want to add TAUSIK:
 1. **Navigate to your project root** and connect TAUSIK as a submodule:
    ```bash
    git submodule add https://github.com/Kibertum/tausik-core .tausik-lib
-   python .tausik-lib/bootstrap/bootstrap.py --smart --init my-project
+   python .tausik-lib/bootstrap/bootstrap.py --init
    ```
 
-2. **`--smart` auto-detects your environment:**
+2. **Bootstrap auto-detects your environment:**
    - Recognizes your stack (Python, React, Go, etc.) and enables matching quality gates
    - Detects existing config files (`.eslintrc`, `pyproject.toml`, etc.)
    - Preserves your existing `.gitignore`, `CLAUDE.md`, and `.mcp.json` — merges instead of overwriting

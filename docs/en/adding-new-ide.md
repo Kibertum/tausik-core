@@ -52,25 +52,28 @@ In `tests/test_ide_utils.py` add tests for the new IDE.
 
 ## Currently Supported IDEs
 
-| IDE | Config dir | Rules file | Auto-detect |
-|-----|-----------|------------|-------------|
-| Claude Code | `.claude` | `CLAUDE.md` | default |
-| Cursor | `.cursor` | `.cursorrules` | `CURSOR_DIR` env |
-| Windsurf | `.windsurf` | `.windsurfrules` | `WINDSURF_DIR` env |
-| Codex/OpenCode | `.codex` | `AGENTS.md` | — |
+| IDE | Config dir | Rules file | Hooks | Auto-detect |
+|-----|-----------|------------|-------|-------------|
+| Claude Code | `.claude` | `CLAUDE.md` | 4 hooks | default |
+| Cursor | `.cursor` | `.cursorrules` | — | `CURSOR_DIR` env |
+| Qwen Code | `.qwen` | `QWEN.md` | 4 hooks | `--ide qwen` |
+| Windsurf | `.windsurf` | `.windsurfrules` | — | `WINDSURF_DIR` env |
+| Codex/OpenCode | `.codex` | `AGENTS.md` | — | — |
 
 ## How It Works
 
 ```
 agents/
-├── skills/          # 33 shared skills (all IDEs)
+├── skills/          # 34 shared skills (all IDEs)
 ├── roles/           # roles (all IDEs)
 ├── stacks/          # stacks (all IDEs)
 ├── overrides/       # IDE-specific override files
 │   ├── claude/
-│   └── cursor/
+│   ├── cursor/
+│   └── qwen/
 ├── claude/mcp/      # MCP servers for Claude Code
-└── cursor/mcp/      # MCP servers for Cursor
+├── cursor/mcp/      # MCP servers for Cursor
+└── qwen/ → claude/  # Qwen Code (falls back to Claude MCP)
 ```
 
 Bootstrap lookup chain: `agents/skills/` → `agents/{ide}/skills/` → `agents/claude/skills/`

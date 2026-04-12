@@ -2,7 +2,7 @@
 
 [English](QUICKSTART.en.md) | **Русский**
 
-Эта инструкция для AI-агента (Claude Code, Cursor, Windsurf), который впервые подключается к проекту с TAUSIK.
+Эта инструкция для AI-агента (Claude Code, Cursor, Qwen Code, Windsurf), который впервые подключается к проекту с TAUSIK.
 TAUSIK (**Т**ехнический **А**гент **У**нифицированного **С**опровождения, **И**нспекции и **К**онтроля) реализует [SENAR v1.3 Core](https://senar.tech) ([spec](https://github.com/Kibertum/SENAR)).
 
 См. также: [AGENTS.md](../AGENTS.md) — обзор правил и онбординг.
@@ -22,7 +22,7 @@ TAUSIK (**Т**ехнический **А**гент **У**нифицированн
 
 ```bash
 git submodule add https://github.com/Kibertum/tausik-core .tausik-lib
-python .tausik-lib/bootstrap/bootstrap.py --smart --init my-project
+python .tausik-lib/bootstrap/bootstrap.py --init
 echo ".tausik/" >> .gitignore
 ```
 

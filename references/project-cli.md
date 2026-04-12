@@ -5,7 +5,7 @@
 ## Инициализация
 
 ```bash
-init --name <slug>             # Инициализация проекта (создаёт .tausik/tausik.db)
+init [--name <slug>]           # Инициализация проекта (имя из папки если не указано)
 status                         # Обзор проекта + предупреждение SENAR о длительности сессии
 metrics                        # SENAR метрики: Throughput, Lead Time, FPSR, DER, Cycle Time, KCR
 ```

@@ -15,7 +15,7 @@ Load project context, start session. Always respond in the user's language.
 
 ### Phase 1 — Open Session + Gather State
 
-Check that `.tausik/tausik.db` exists. If not — tell the user to run bootstrap first: `python bootstrap/bootstrap.py --project . --ide claude`, then `.tausik/tausik init --name <project-slug>`. Stop here until DB exists.
+Check that `.tausik/tausik.db` exists. If not — tell the user to run bootstrap first: `python .tausik-lib/bootstrap/bootstrap.py --init`. Stop here until DB exists.
 
 Run in parallel (prefer MCP tools, CLI as fallback):
 - `tausik_session_start` MCP tool

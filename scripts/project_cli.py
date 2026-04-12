@@ -26,16 +26,23 @@ def _print_table(rows: list[dict[str, Any]], columns: list[str]) -> None:
 
 def cmd_init(svc: ProjectService, args: Any) -> None:
     """Initialize TAUSIK project."""
+    import re
+
+    name = args.name
+    if not name:
+        # Derive from directory name: "My Project" -> "my-project"
+        raw = os.path.basename(os.getcwd())
+        name = re.sub(r"[^a-z0-9]+", "-", raw.lower()).strip("-") or "my-project"
     tausik_dir = find_tausik_dir()
     os.makedirs(tausik_dir, exist_ok=True)
     cfg_path = get_config_path()
     if not os.path.exists(cfg_path):
-        save_config({"project": args.name, "version": 1})
+        save_config({"project": name, "version": 1})
         print(f"Config created: {cfg_path}")
     else:
         print(f"Config already exists: {cfg_path}")
     print(f"Database: {os.path.join(tausik_dir, 'tausik.db')}")
-    print(f"Project '{args.name}' initialized.")
+    print(f"Project '{name}' initialized.")
 
 
 def cmd_status(svc: ProjectService, args: Any) -> None:

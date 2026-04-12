@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import datetime
 import json
 import os
+import sys
 from typing import Any
 
 DEFAULT_CONFIG: dict[str, Any] = {
@@ -126,3 +128,60 @@ def detect_extension_skills(
             skills.append("docs")
             break
     return [s for s in set(skills) if s not in _core]
+
+
+def save_tausik_config(
+    tausik_config_path: str,
+    config: dict,
+    lib_commit: str | None,
+    stacks: list[str],
+    ides: list[str],
+    project_dir: str,
+    get_ide_target_fn: Any = None,
+    lib_dir: str | None = None,
+) -> None:
+    """Save unified config, auto-enable gates, clean up old files.
+
+    lib_dir: path to TAUSIK library root (for scripts/ import).
+    """
+    tausik_config: dict = {}
+    if os.path.exists(tausik_config_path):
+        try:
+            with open(tausik_config_path, encoding="utf-8") as f:
+                tausik_config = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            tausik_config = {}
+    config["_meta"] = {
+        "lib_commit": lib_commit or "unknown",
+        "generated_at": datetime.datetime.now().isoformat(),
+        "skills_included": config.get("core_skills", [])
+        + config.get("extension_skills", []),
+    }
+    tausik_config["bootstrap"] = config
+    tausik_config.setdefault("rag", {})["mode"] = "fts5"
+    if stacks:
+        _lib = lib_dir or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        scripts_path = os.path.join(_lib, "scripts")
+        if scripts_path not in sys.path:
+            sys.path.insert(0, scripts_path)
+        try:
+            from project_config import auto_enable_gates_for_stacks
+
+            newly = auto_enable_gates_for_stacks(tausik_config, stacks)
+            if newly:
+                print(
+                    f"  Gates auto-enabled for {', '.join(stacks)}: {', '.join(newly)}"
+                )
+        except ImportError:
+            pass
+    os.makedirs(os.path.dirname(tausik_config_path), exist_ok=True)
+    with open(tausik_config_path, "w", encoding="utf-8") as f:
+        json.dump(tausik_config, f, indent=2, ensure_ascii=False)
+    if get_ide_target_fn:
+        for ide in ides:
+            old = os.path.join(
+                get_ide_target_fn(project_dir, ide), ".tausik-bootstrap.json"
+            )
+            if os.path.exists(old):
+                os.remove(old)
+                print(f"  Migrated: removed old {old}")

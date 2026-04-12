@@ -2,7 +2,7 @@
 
 **English** | [Русский](QUICKSTART.md)
 
-This guide is for an AI agent (Claude Code, Cursor, Windsurf) connecting to a project with TAUSIK for the first time.
+This guide is for an AI agent (Claude Code, Cursor, Qwen Code, Windsurf) connecting to a project with TAUSIK for the first time.
 TAUSIK (**T**ask **A**gent **U**nified **S**upervision, **I**nspection & **K**nowledge) implements [SENAR v1.3 Core](https://senar.tech) ([spec](https://github.com/Kibertum/SENAR)).
 
 See also: [AGENTS.md](../AGENTS.md) — onboarding overview and rules.
@@ -22,7 +22,7 @@ If Python is not found, bootstrap shows download instructions for each platform.
 
 ```bash
 git submodule add https://github.com/Kibertum/tausik-core .tausik-lib
-python .tausik-lib/bootstrap/bootstrap.py --smart --init my-project
+python .tausik-lib/bootstrap/bootstrap.py --init
 echo ".tausik/" >> .gitignore
 ```
 

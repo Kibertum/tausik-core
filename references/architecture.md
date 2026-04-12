@@ -102,12 +102,13 @@ backend — только CRUD и SQL. CLI и MCP — два равноправн
 Skills, roles, stacks — shared across IDEs. MCP servers are IDE-specific:
 ```
 agents/
-├── skills/           # 33 skill (core + extension + solo)
+├── skills/           # 34 skill (core + extension + solo)
 ├── roles/            # 5 ролей (developer, architect, qa, tech-writer, ui-ux)
 ├── stacks/           # Гайды по стекам
-├── overrides/        # IDE-specific overrides
+├── overrides/        # Переопределения для сред (claude/, cursor/, qwen/)
 ├── claude/mcp/       # MCP-серверы (project, codebase-rag)
-└── cursor/mcp/       # MCP-серверы для Cursor
+├── cursor/mcp/       # MCP-серверы для Cursor
+└── qwen/ → claude/   # Qwen Code (fallback на Claude MCP)
 ```
 
 ## БД: Таблицы (Schema v15)
@@ -133,15 +134,15 @@ agents/
 ## Quality Gates
 
 ```
-project_config.py       → DEFAULT_GATES (15 gates)
+project_config.py       → DEFAULT_GATES (16 gates)
                         → STACK_GATE_MAP (auto-enable по стеку)
                         → auto_enable_gates_for_stacks()
 gate_runner.py          → run_gates(trigger, files)
-                        → run_command_gate() / run_filesize_gate()
+                        → run_command_gate() / run_filesize_gate() / run_tdd_order_gate()
 service_task.py         → _run_quality_gates() (вызывается из task_done)
 ```
 
-Gates: `pytest`, `ruff`, `mypy`, `bandit`, `filesize`, `tsc`, `eslint`,
+Gates: `pytest`, `ruff`, `mypy`, `bandit`, `filesize`, `tdd_order`, `tsc`, `eslint`,
 `go-vet`, `golangci-lint`, `cargo-check`, `clippy`, `phpstan`, `phpcs`, `javac`, `ktlint`.
 
 ## Тестирование

@@ -75,7 +75,7 @@ End session      →  /end (handoff saved for next session)
 | **CLI command reference** | [references/project-cli.md](references/project-cli.md) |
 | **Architecture & internals** | [references/architecture.en.md](references/architecture.en.md) (EN) / [references/architecture.md](references/architecture.md) (RU) |
 | **MCP tools (80 tools)** | [docs/en/mcp.md](docs/en/mcp.md) |
-| **Skills reference (33 skills)** | [docs/en/skills.md](docs/en/skills.md) |
+| **Skills reference (34 skills)** | [docs/en/skills.md](docs/en/skills.md) |
 | **Quality gates** | [docs/en/hooks.md](docs/en/hooks.md) |
 | **User-facing docs index** | [docs/README.md](docs/README.md) |
 | **SENAR compliance matrix** | [docs/en/senar-compliance-matrix.md](docs/en/senar-compliance-matrix.md) |
@@ -86,10 +86,10 @@ End session      →  /end (handoff saved for next session)
 scripts/           Core Python (CLI → Service → Backend)
 references/        Agent-facing technical docs
 agents/            Shared resources for all IDEs
-  skills/          33 skill definitions (SKILL.md)
+  skills/          34 skill definitions (SKILL.md)
   roles/           5 role profiles (developer, architect, qa, tech-writer, ui-ux)
   stacks/          20 stack guides (python, react, go, rust, ...)
-  overrides/       IDE-specific overrides (claude/, cursor/)
+  overrides/       IDE-specific overrides (claude/, cursor/, qwen/)
   claude/mcp/      MCP servers (project: 80 tools, RAG: 7 tools)
 bootstrap/         One-command project setup
 tests/             pytest suite (918 tests)

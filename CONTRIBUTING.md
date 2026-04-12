@@ -18,7 +18,7 @@ git clone https://github.com/Kibertum/tausik-core
 cd tausik-core
 
 # Bootstrap creates .tausik/venv/, installs dependencies (mcp), and initializes the project
-python bootstrap/bootstrap.py --smart --init tausik-dev
+python bootstrap/bootstrap.py --init
 
 # Activate the venv and install dev tools
 source .tausik/venv/bin/activate   # Linux/Mac
@@ -59,7 +59,7 @@ ruff format scripts/
 ```
 scripts/          # Core framework (CLI → Service → Backend)
 bootstrap/        # Installation and IDE setup
-agents/skills/    # 33 shared skills (SKILL.md files)
+agents/skills/    # 34 shared skills (SKILL.md files)
 agents/overrides/ # IDE-specific overrides
 tests/            # pytest test suite (918 tests)
 references/       # Technical documentation
@@ -113,7 +113,7 @@ git clone https://github.com/Kibertum/tausik-core
 cd tausik-core
 
 # Bootstrap создаёт .tausik/venv/, устанавливает зависимости (mcp) и инициализирует проект
-python bootstrap/bootstrap.py --smart --init tausik-dev
+python bootstrap/bootstrap.py --init
 
 # Активируйте venv и установите dev-инструменты
 source .tausik/venv/bin/activate   # Linux/Mac

@@ -31,7 +31,12 @@ def count_lines(filepath: str) -> int:
         return 0
 
 
-_FILESIZE_EXEMPT_DIRS = ("tests/", "agents/claude/mcp/", "agents/cursor/mcp/")
+_FILESIZE_EXEMPT_DIRS = (
+    "tests/",
+    "agents/claude/mcp/",
+    "agents/cursor/mcp/",
+    "agents/qwen/mcp/",
+)
 
 
 def run_filesize_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
@@ -53,6 +58,61 @@ def run_filesize_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
     if violations:
         return False, "Files exceeding line limit:\n" + "\n".join(violations)
     return True, "All files within line limit."
+
+
+def run_tdd_order_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
+    """Check that test files are present among changed files.
+
+    TDD enforcement: if source files were changed, test files should also be changed.
+    Skips if only non-code files were modified.
+    """
+    code_exts = {
+        ".py",
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".go",
+        ".rs",
+        ".java",
+        ".kt",
+        ".php",
+    }
+    test_patterns = (
+        "test_",
+        "_test.",
+        ".test.",
+        ".spec.",
+        "Test.",  # Java/Kotlin: FooTest.java, FooTest.kt
+        "Tests.",  # Java/Kotlin: FooTests.java
+        "tests/",
+        "test/",
+        "__tests__/",
+    )
+
+    code_files = []
+    test_files = []
+    for f in files:
+        normalized = f.replace("\\", "/")
+        _, ext = os.path.splitext(f)
+        if ext.lower() not in code_exts:
+            continue
+        if any(p in normalized for p in test_patterns):
+            test_files.append(f)
+        else:
+            code_files.append(f)
+
+    if not code_files:
+        return True, "No source code files changed — TDD check skipped."
+    if test_files:
+        return (
+            True,
+            f"TDD OK: {len(test_files)} test file(s) modified alongside {len(code_files)} source file(s).",
+        )
+    return False, (
+        f"{len(code_files)} source file(s) changed but no test files modified. "
+        "TDD requires tests to be written/updated alongside code changes."
+    )
 
 
 def run_command_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
@@ -123,6 +183,8 @@ def run_gates(trigger: str, files: list[str] | None = None) -> tuple[bool, list[
 
         if name == "filesize":
             passed, output = run_filesize_gate(gate, files or [])
+        elif name == "tdd_order":
+            passed, output = run_tdd_order_gate(gate, files or [])
         else:
             passed, output = run_command_gate(gate, files or [])
 

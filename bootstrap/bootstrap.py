@@ -25,6 +25,7 @@ from bootstrap_config import (
     detect_stacks,
     load_config,
     save_config,
+    save_tausik_config,
 )
 from bootstrap_copy import (
     copy_mcp,
@@ -35,21 +36,21 @@ from bootstrap_copy import (
     copy_stacks,
 )
 from bootstrap_vendor import (
-    get_vendor_agents,
-    get_vendor_scripts,
+    copy_vendor_assets,
     get_vendor_skill_dirs,
     load_skills_json,
     sync_deps,
 )
 from bootstrap_venv import ensure_venv, get_venv_python, install_requirements
+from bootstrap_catalog import generate_skill_catalog
 from bootstrap_generate import (
     generate_agents_md,
     generate_claude_md,
     generate_cursorrules,
     generate_mcp_json,
     generate_settings_claude,
-    generate_skill_catalog,
 )
+from bootstrap_qwen import generate_qwen_md, generate_settings_qwen
 
 
 def get_lib_commit(lib_dir: str) -> str | None:
@@ -72,6 +73,7 @@ _IDE_DIRS = {
     "cursor": ".cursor",
     "windsurf": ".windsurf",
     "codex": ".codex",
+    "qwen": ".qwen",
 }
 
 
@@ -122,6 +124,9 @@ def bootstrap_ide(
         generate_claude_md(project_dir, config.get("project", "my-project"), stacks)
     elif ide == "cursor":
         generate_cursorrules(project_dir, config.get("project", "my-project"), stacks)
+    elif ide == "qwen":
+        generate_settings_qwen(target_dir, project_dir, venv_python, lib_dir)
+        generate_qwen_md(project_dir, config.get("project", "my-project"), stacks)
 
     # Generate AGENTS.md for OpenCode/Codex (always, regardless of IDE)
     generate_agents_md(project_dir, config.get("project", "my-project"), stacks)
@@ -149,11 +154,19 @@ def main() -> None:
     parser.add_argument(
         "--ide",
         default="claude",
-        choices=["claude", "cursor", "all"],
+        choices=["claude", "cursor", "qwen", "all"],
         help="Target IDE (default: claude)",
     )
     parser.add_argument(
-        "--smart", action="store_true", help="Auto-detect stacks and skills"
+        "--smart",
+        action="store_true",
+        default=True,
+        help=argparse.SUPPRESS,  # default on since v1.1, kept for backward compat
+    )
+    parser.add_argument(
+        "--no-detect",
+        action="store_true",
+        help="Skip auto-detection of stacks and skills",
     )
     parser.add_argument(
         "--interactive", action="store_true", help="Interactive skill selection"
@@ -170,9 +183,11 @@ def main() -> None:
     )
     parser.add_argument(
         "--init",
+        nargs="?",
+        const="",
         default=None,
         metavar="NAME",
-        help="One-line setup: bootstrap + init project with given name",
+        help="Bootstrap + init project (default name: directory name)",
     )
     args = parser.parse_args()
 
@@ -218,8 +233,8 @@ def main() -> None:
         print(f"  Stacks detected: {', '.join(stacks)}")
         config["stacks"] = stacks
 
-    # Smart mode: auto-detect extension skills
-    if args.smart:
+    # Auto-detect extension skills (default on, --no-detect to skip)
+    if args.smart and not args.no_detect:
         ext = detect_extension_skills(project_dir, config.get("core_skills", []))
         if ext:
             print(f"  Extension skills detected: {', '.join(ext)}")
@@ -245,7 +260,7 @@ def main() -> None:
     config["ide"] = args.ide
 
     # Bootstrap
-    ides = ["claude", "cursor"] if args.ide == "all" else [args.ide]
+    ides = ["claude", "cursor", "qwen"] if args.ide == "all" else [args.ide]
 
     if args.dry_run:
         print("\n=== DRY RUN — no files will be written ===")
@@ -263,6 +278,8 @@ def main() -> None:
                 print(f"  Will generate: settings.json, CLAUDE.md, .mcp.json")
             elif ide == "cursor":
                 print(f"  Will generate: .cursorrules, .mcp.json")
+            elif ide == "qwen":
+                print(f"  Will generate: settings.json, QWEN.md, .mcp.json")
         print(f"\n  Config: .tausik/config.json")
         print(f"  RAG dir: .tausik/rag/")
         print(f"  CLI wrapper: .tausik/tausik")
@@ -310,26 +327,7 @@ def main() -> None:
     # Copy vendor scripts and agents to namespaced subdirs (prevent core overwrites)
     for ide in ides:
         target_dir = get_ide_target(project_dir, ide)
-        for scripts_src in get_vendor_scripts(vendor_dir):
-            vendor_name = os.path.basename(os.path.dirname(scripts_src))
-            scripts_dst = os.path.join(target_dir, "scripts", f"vendor_{vendor_name}")
-            os.makedirs(scripts_dst, exist_ok=True)
-            for f in os.listdir(scripts_src):
-                src = os.path.join(scripts_src, f)
-                if os.path.isfile(src):
-                    import shutil as _sh
-
-                    _sh.copy2(src, os.path.join(scripts_dst, f))
-        for agents_src in get_vendor_agents(vendor_dir):
-            vendor_name = os.path.basename(os.path.dirname(agents_src))
-            agents_dst = os.path.join(target_dir, "agents", f"vendor_{vendor_name}")
-            os.makedirs(agents_dst, exist_ok=True)
-            for f in os.listdir(agents_src):
-                src = os.path.join(agents_src, f)
-                if os.path.isfile(src):
-                    import shutil as _sh
-
-                    _sh.copy2(src, os.path.join(agents_dst, f))
+        copy_vendor_assets(vendor_dir, target_dir)
 
     # Generate skill catalog for agent context
     if manifest.get("external_skills"):
@@ -340,61 +338,22 @@ def main() -> None:
             generate_skill_catalog(target_dir, manifest, installed, vendor_dir)
         print(f"  Skill catalog generated")
 
-    # RAG setup: create data dir, detect capabilities
+    # RAG setup: create data dir
     rag_dir = os.path.join(project_dir, ".tausik", "rag")
     os.makedirs(rag_dir, exist_ok=True)
-    rag_mode = "fts5"
     print(f"\n  RAG: FTS5 mode (keyword search)")
 
-    # Save unified config to .tausik/config.json
-    import datetime
-    import json as _json
-
-    tausik_config: dict = {}
-    if os.path.exists(tausik_config_path):
-        try:
-            with open(tausik_config_path, encoding="utf-8") as _f:
-                tausik_config = _json.load(_f)
-        except (_json.JSONDecodeError, OSError) as e:
-            print(
-                f"  Warning: config corrupted ({tausik_config_path}): {e} — resetting"
-            )
-            tausik_config = {}
-    config["_meta"] = {
-        "lib_commit": get_lib_commit(lib_dir) or "unknown",
-        "generated_at": datetime.datetime.now().isoformat(),
-        "skills_included": config.get("core_skills", [])
-        + config.get("extension_skills", []),
-    }
-    tausik_config["bootstrap"] = config
-    tausik_config.setdefault("rag", {})["mode"] = rag_mode
-
-    # Auto-enable gates for detected stacks
-    if stacks:
-        sys.path.insert(0, os.path.join(lib_dir, "scripts"))
-        try:
-            from project_config import auto_enable_gates_for_stacks
-
-            newly_enabled = auto_enable_gates_for_stacks(tausik_config, stacks)
-            if newly_enabled:
-                print(
-                    f"  Gates auto-enabled for {', '.join(stacks)}: {', '.join(newly_enabled)}"
-                )
-        except ImportError:
-            pass  # scripts not yet copied; skip on first bootstrap
-
-    os.makedirs(os.path.dirname(tausik_config_path), exist_ok=True)
-    with open(tausik_config_path, "w", encoding="utf-8") as _f:
-        _json.dump(tausik_config, _f, indent=2, ensure_ascii=False)
-
-    # Clean up old per-IDE config files
-    for ide in ides:
-        old_path = os.path.join(
-            get_ide_target(project_dir, ide), ".tausik-bootstrap.json"
-        )
-        if os.path.exists(old_path):
-            os.remove(old_path)
-            print(f"  Migrated: removed old {old_path}")
+    # Save config, auto-enable gates, clean up old files
+    save_tausik_config(
+        tausik_config_path,
+        config,
+        get_lib_commit(lib_dir),
+        stacks,
+        ides,
+        project_dir,
+        get_ide_target,
+        lib_dir=lib_dir,
+    )
 
     # Copy AGENTS.md to project root (skip if lib == project)
     agents_md_src = os.path.join(lib_dir, "AGENTS.md")
@@ -424,24 +383,33 @@ def main() -> None:
     print("  CLI wrapper: .tausik/tausik (or .tausik/tausik.cmd on Windows)")
 
     # One-line setup: auto-init if --init provided
-    if args.init:
+    if args.init is not None:
+        import re
+
+        init_name = (
+            args.init
+            or re.sub(r"[^a-z0-9]+", "-", os.path.basename(project_dir).lower()).strip(
+                "-"
+            )
+            or "my-project"
+        )
         tausik_wrapper = os.path.join(project_dir, ".tausik", "tausik")
         if sys.platform == "win32":
             tausik_wrapper = os.path.join(project_dir, ".tausik", "tausik.cmd")
         try:
             subprocess.run(
-                [tausik_wrapper, "init", "--name", args.init],
+                [tausik_wrapper, "init", "--name", init_name],
                 cwd=project_dir,
                 check=True,
                 timeout=30,
             )
-            print(f"\nProject '{args.init}' initialized and ready!")
+            print(f"\nProject '{init_name}' initialized and ready!")
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             print(f"\nBootstrap complete but init failed: {e}")
-            print(f"  Run manually: .tausik/tausik init --name {args.init}")
+            print(f"  Run manually: .tausik/tausik init")
     else:
         print("\nBootstrap complete! Run:")
-        print(f"  .tausik/tausik init --name <project-slug>")
+        print(f"  .tausik/tausik init")
 
 
 if __name__ == "__main__":

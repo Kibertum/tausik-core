@@ -43,24 +43,32 @@ def _write_lock(vendor_dir: str, name: str, ref: str, sha: str) -> None:
     os.makedirs(lock_dir, exist_ok=True)
     lock_path = os.path.join(lock_dir, ".lock")
     with open(lock_path, "w", encoding="utf-8") as f:
-        json.dump({
-            "ref": ref,
-            "sha": sha,
-            "synced_at": datetime.now(timezone.utc).isoformat(),
-        }, f, indent=2)
+        json.dump(
+            {
+                "ref": ref,
+                "sha": sha,
+                "synced_at": datetime.now(timezone.utc).isoformat(),
+            },
+            f,
+            indent=2,
+        )
 
 
 def _download_tarball(repo: str, ref: str) -> bytes:
     """Download GitHub tarball for repo@ref. Returns raw bytes."""
     url = f"https://github.com/{repo}/archive/refs/tags/{ref}.tar.gz"
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "tausik-bootstrap/1.0"})
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "tausik-bootstrap/1.0"}
+        )
         with urllib.request.urlopen(req, timeout=60) as resp:
             return resp.read()
     except urllib.error.HTTPError:
         # Fallback: try as branch/commit ref
         url = f"https://github.com/{repo}/archive/{ref}.tar.gz"
-        req = urllib.request.Request(url, headers={"User-Agent": "tausik-bootstrap/1.0"})
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "tausik-bootstrap/1.0"}
+        )
         with urllib.request.urlopen(req, timeout=60) as resp:
             return resp.read()
 
@@ -113,7 +121,7 @@ def _extract_skill_dirs(
         symlink_map: dict[str, str] = {}
         for member in members:
             if member.issym() and member.name.startswith(root_prefix):
-                rel = member.name[len(root_prefix):]
+                rel = member.name[len(root_prefix) :]
                 if rel:
                     resolved = _resolve_symlink(rel, member.linkname)
                     # Security: reject symlinks that escape the repo root
@@ -124,7 +132,7 @@ def _extract_skill_dirs(
         for member in members:
             if not member.name.startswith(root_prefix):
                 continue
-            rel_path = member.name[len(root_prefix):]
+            rel_path = member.name[len(root_prefix) :]
             if not rel_path:
                 continue
 
@@ -133,7 +141,11 @@ def _extract_skill_dirs(
                 prefix = skill_dir.rstrip("/") + "/"
                 if rel_path == skill_dir.rstrip("/") or rel_path.startswith(prefix):
                     skill_name = os.path.basename(skill_dir.rstrip("/"))
-                    dest_rel = skill_name + "/" + rel_path[len(prefix):] if rel_path.startswith(prefix) else skill_name + "/"
+                    dest_rel = (
+                        skill_name + "/" + rel_path[len(prefix) :]
+                        if rel_path.startswith(prefix)
+                        else skill_name + "/"
+                    )
                     _extract_member(tar, member, vendor_skill_dir, dest_rel)
                     if member.isfile():
                         counts["skills"] += 1
@@ -150,8 +162,8 @@ def _extract_skill_dirs(
                     target_prefix = sym_target.rstrip("/") + "/"
                     if rel_path.startswith(target_prefix) and member.isfile():
                         # Map: target file -> skill/symlink_subdir/file
-                        sym_subdir = sym_path[len(prefix):]
-                        file_rel = rel_path[len(target_prefix):]
+                        sym_subdir = sym_path[len(prefix) :]
+                        file_rel = rel_path[len(target_prefix) :]
                         skill_name = os.path.basename(skill_dir.rstrip("/"))
                         dest_rel = f"{skill_name}/{sym_subdir}/{file_rel}"
                         _extract_member(tar, member, vendor_skill_dir, dest_rel)
@@ -161,13 +173,19 @@ def _extract_skill_dirs(
             if data_dirs:
                 for data_src, data_dest in data_dirs.items():
                     data_prefix = data_src.rstrip("/") + "/"
-                    if rel_path.startswith(data_prefix) or rel_path == data_src.rstrip("/"):
+                    if rel_path.startswith(data_prefix) or rel_path == data_src.rstrip(
+                        "/"
+                    ):
                         # Determine target skill (first skill in list, or use data_dest as-is)
-                        skill_name = os.path.basename(skill_dirs[0].rstrip("/")) if skill_dirs else "data"
+                        skill_name = (
+                            os.path.basename(skill_dirs[0].rstrip("/"))
+                            if skill_dirs
+                            else "data"
+                        )
                         if rel_path == data_src.rstrip("/"):
                             dest_rel = f"{skill_name}/{data_dest}/"
                         else:
-                            file_rel = rel_path[len(data_prefix):]
+                            file_rel = rel_path[len(data_prefix) :]
                             dest_rel = f"{skill_name}/{data_dest}/{file_rel}"
                         _extract_member(tar, member, vendor_skill_dir, dest_rel)
                         if member.isfile():
@@ -175,14 +193,14 @@ def _extract_skill_dirs(
 
             # Scripts
             if scripts_dir and rel_path.startswith(scripts_dir.rstrip("/") + "/"):
-                dest_rel = "scripts/" + rel_path[len(scripts_dir.rstrip("/") + "/"):]
+                dest_rel = "scripts/" + rel_path[len(scripts_dir.rstrip("/") + "/") :]
                 _extract_member(tar, member, vendor_skill_dir, dest_rel)
                 if member.isfile():
                     counts["scripts"] += 1
 
             # Agents
             if agents_dir and rel_path.startswith(agents_dir.rstrip("/") + "/"):
-                dest_rel = "agents/" + rel_path[len(agents_dir.rstrip("/") + "/"):]
+                dest_rel = "agents/" + rel_path[len(agents_dir.rstrip("/") + "/") :]
                 _extract_member(tar, member, vendor_skill_dir, dest_rel)
                 if member.isfile():
                     counts["agents"] += 1
@@ -190,7 +208,9 @@ def _extract_skill_dirs(
     return counts
 
 
-def _extract_member(tar: tarfile.TarFile, member: tarfile.TarInfo, base_dir: str, dest_rel: str) -> None:
+def _extract_member(
+    tar: tarfile.TarFile, member: tarfile.TarInfo, base_dir: str, dest_rel: str
+) -> None:
     """Safely extract a single tarfile member to base_dir/dest_rel."""
     # Allow regular files and directories — block hardlinks, devices
     # Symlinks are resolved in _extract_skill_dirs, not here
@@ -210,7 +230,9 @@ def _extract_member(tar: tarfile.TarFile, member: tarfile.TarInfo, base_dir: str
                     shutil.copyfileobj(src, dst)
 
 
-def _read_plugin_json(tarball_bytes: bytes, max_size: int = 1_000_000) -> dict[str, Any] | None:
+def _read_plugin_json(
+    tarball_bytes: bytes, max_size: int = 1_000_000
+) -> dict[str, Any] | None:
     """Read .claude-plugin/plugin.json from tarball if it exists. Capped at max_size bytes."""
     with tarfile.open(fileobj=io.BytesIO(tarball_bytes), mode="r:gz") as tar:
         members = tar.getmembers()
@@ -218,7 +240,11 @@ def _read_plugin_json(tarball_bytes: bytes, max_size: int = 1_000_000) -> dict[s
             return None
         root_prefix = members[0].name.split("/")[0] + "/"
         for member in members:
-            rel = member.name[len(root_prefix):] if member.name.startswith(root_prefix) else ""
+            rel = (
+                member.name[len(root_prefix) :]
+                if member.name.startswith(root_prefix)
+                else ""
+            )
             if rel == ".claude-plugin/plugin.json" and member.isfile():
                 with tar.extractfile(member) as f:
                     if f:
@@ -266,7 +292,9 @@ def sync_deps(lib_dir: str, vendor_dir: str, force: bool = False) -> dict[str, A
             continue
 
         vendor_skill_dir = os.path.join(vendor_dir, name)
-        counts = _extract_skill_dirs(tarball, vendor_skill_dir, skill_dirs, scripts_dir, agents_dir, data_dirs)
+        counts = _extract_skill_dirs(
+            tarball, vendor_skill_dir, skill_dirs, scripts_dir, agents_dir, data_dirs
+        )
         # Read plugin metadata if available
         plugin_meta = _read_plugin_json(tarball)
         if plugin_meta:
@@ -274,7 +302,9 @@ def sync_deps(lib_dir: str, vendor_dir: str, force: bool = False) -> dict[str, A
         _write_lock(vendor_dir, name, ref, hashlib.sha256(tarball).hexdigest())
         results[name] = {"status": "synced", "ref": ref, **counts}
         data_count = counts.get("data", 0)
-        print(f"  {name}: {counts['skills']} skill files, {data_count} data files, {counts['scripts']} scripts, {counts['agents']} agents")
+        print(
+            f"  {name}: {counts['skills']} skill files, {data_count} data files, {counts['scripts']} scripts, {counts['agents']} agents"
+        )
 
     return results
 
@@ -291,7 +321,11 @@ def get_vendor_skill_dirs(vendor_dir: str) -> dict[str, str]:
         # Each subdir inside the vendor skill is a skill directory
         for item in os.listdir(vendor_skill):
             item_path = os.path.join(vendor_skill, item)
-            if os.path.isdir(item_path) and item not in ("scripts", "agents", "__pycache__"):
+            if os.path.isdir(item_path) and item not in (
+                "scripts",
+                "agents",
+                "__pycache__",
+            ):
                 skill_md = os.path.join(item_path, "SKILL.md")
                 if os.path.exists(skill_md):
                     skill_map[item] = item_path
@@ -320,3 +354,26 @@ def get_vendor_agents(vendor_dir: str) -> list[str]:
         if os.path.isdir(agents_dir):
             dirs.append(agents_dir)
     return dirs
+
+
+def copy_vendor_assets(vendor_dir: str, target_dir: str) -> None:
+    """Copy vendor scripts and agents to namespaced subdirs.
+
+    Prevents core file overwrites by namespacing: scripts/vendor_{name}/.
+    """
+    for scripts_src in get_vendor_scripts(vendor_dir):
+        vendor_name = os.path.basename(os.path.dirname(scripts_src))
+        scripts_dst = os.path.join(target_dir, "scripts", f"vendor_{vendor_name}")
+        os.makedirs(scripts_dst, exist_ok=True)
+        for f in os.listdir(scripts_src):
+            src = os.path.join(scripts_src, f)
+            if os.path.isfile(src):
+                shutil.copy2(src, os.path.join(scripts_dst, f))
+    for agents_src in get_vendor_agents(vendor_dir):
+        vendor_name = os.path.basename(os.path.dirname(agents_src))
+        agents_dst = os.path.join(target_dir, "agents", f"vendor_{vendor_name}")
+        os.makedirs(agents_dst, exist_ok=True)
+        for f in os.listdir(agents_src):
+            src = os.path.join(agents_src, f)
+            if os.path.isfile(src):
+                shutil.copy2(src, os.path.join(agents_dst, f))

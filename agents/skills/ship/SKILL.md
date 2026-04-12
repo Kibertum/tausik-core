@@ -84,13 +84,22 @@ Reference task slug in the commit message body.
 
 **Only after successful commit.** Use `tausik_task_done` with `slug={slug}`, `ac_verified=true`, `relevant_files=[...]` (files from the commit).
 
-### 9. Push (optional)
+### 9. Update Documentation (auto)
+
+After commit, check if structural changes were made (new files, renamed modules, changed APIs):
+- Run `git diff --name-only HEAD~1` to see changed files
+- If files in `scripts/`, `agents/`, `bootstrap/`, or core modules changed — suggest updating `references/` documentation
+- Update only files in `references/` that are directly affected (e.g., `architecture.md`, `project-cli.md`)
+- Do NOT touch `CLAUDE.md`, `QWEN.md`, or `.cursorrules` — those are managed by bootstrap
+- If no structural changes — skip silently
+
+### 10. Push (optional)
 
 After commit + task close, ask the user: **"Push to remote? (y/n)"**
 
 If confirmed, follow the push procedure from `/commit` skill (step 8).
 
-### 10. Summary
+### 11. Summary
 
 Show:
 - Task completed: slug + title

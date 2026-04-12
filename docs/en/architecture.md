@@ -104,12 +104,13 @@ the Backend handles only CRUD and SQL. CLI and MCP are two equal entry points.
 Skills, roles, stacks -- shared across IDEs. MCP servers are IDE-specific:
 ```
 agents/
-+-- skills/           # 33 skills (core + extension + solo)
++-- skills/           # 34 skills (core + extension + solo)
 +-- roles/            # 5 roles (developer, architect, qa, tech-writer, ui-ux)
 +-- stacks/           # Stack guides
-+-- overrides/        # IDE-specific overrides
++-- overrides/        # IDE-specific overrides (claude/, cursor/, qwen/)
 +-- claude/mcp/       # MCP servers (project, codebase-rag)
 +-- cursor/mcp/       # MCP servers for Cursor
++-- qwen/ → claude/   # Qwen Code (falls back to Claude MCP)
 ```
 
 ## DB: Tables (Schema v15)
@@ -135,15 +136,15 @@ agents/
 ## Quality Gates
 
 ```
-project_config.py       -> DEFAULT_GATES (15 gates)
+project_config.py       -> DEFAULT_GATES (16 gates)
                         -> STACK_GATE_MAP (auto-enable by stack)
                         -> auto_enable_gates_for_stacks()
 gate_runner.py          -> run_gates(trigger, files)
-                        -> run_command_gate() / run_filesize_gate()
+                        -> run_command_gate() / run_filesize_gate() / run_tdd_order_gate()
 service_task.py         -> _run_quality_gates() (called from task_done)
 ```
 
-Gates: `pytest`, `ruff`, `mypy`, `bandit`, `filesize`, `tsc`, `eslint`,
+Gates: `pytest`, `ruff`, `mypy`, `bandit`, `filesize`, `tdd_order`, `tsc`, `eslint`,
 `go-vet`, `golangci-lint`, `cargo-check`, `clippy`, `phpstan`, `phpcs`, `javac`, `ktlint`.
 
 ## Testing

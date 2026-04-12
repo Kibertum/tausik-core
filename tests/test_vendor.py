@@ -341,7 +341,7 @@ class TestSkillCatalogGeneration:
     """Test that skill catalog is generated correctly."""
 
     def test_generates_catalog_with_installed_and_available(self, tmp_dir):
-        from bootstrap_generate import generate_skill_catalog
+        from bootstrap_catalog import generate_skill_catalog
 
         manifest = {
             "external_skills": {
@@ -374,7 +374,7 @@ class TestSkillCatalogGeneration:
         assert "Install:" in content  # only for non-installed
 
     def test_empty_manifest_no_catalog(self, tmp_dir):
-        from bootstrap_generate import generate_skill_catalog
+        from bootstrap_catalog import generate_skill_catalog
 
         target_dir = os.path.join(tmp_dir, ".claude")
         os.makedirs(target_dir)

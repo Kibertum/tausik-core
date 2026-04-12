@@ -2,128 +2,122 @@
 
 # TAUSIK
 
-**Task Agent Unified Supervision, Inspection & Knowledge**
+**AI development framework — plan, build, ship with quality control.**
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)](https://python.org)
 [![Tests](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml/badge.svg)](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml)
 [![918 tests](https://img.shields.io/badge/tests-918%20passed-brightgreen.svg)](#dogfooding-tausik-built-tausik)
-[![Zero deps](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#key-features)
+[![Zero deps](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#what-you-get)
 
-An engineering governance framework for AI coding agents. Forces planning before code, evidence before completion, and memory across sessions.
+Three messages. Full engineering cycle. Quality gates that the agent can't skip.
 
-> Your AI agent deleted production code again? TAUSIK won't let it.
+> Works with Claude Code, Cursor, Qwen Code (GigaCode), Windsurf.
 
-**Who it's for:** developers and teams who use AI coding agents (Claude Code, Cursor, Windsurf) and want predictable, auditable results instead of hoping the agent gets it right.
+## Try It Now
 
-## The Problem
+Tell your AI agent:
 
-AI coding agents are powerful, but without enforcement they:
-
-- **Skip planning** — jump straight into code without defining what "done" means
-- **Fake completion** — claim the task is done without running tests or checking acceptance criteria
-- **Lose context between sessions** — start from scratch every time, repeating the same mistakes
-- **Repeat failed approaches** — try the same broken solution three times because nothing tracks what already failed
-
-AGENTS.md and .cursorrules are _recommendations_ the agent can ignore. You need _enforcement_.
-
-## The Solution
-
-TAUSIK sits on top of your AI IDE and enforces an engineering process — not with prompts, but with hard blocks.
-
-| Without TAUSIK | With TAUSIK |
-|---|---|
-| Agent starts coding immediately | Must define goal + acceptance criteria before writing any code |
-| No verification of results | Task completion blocked until every criterion has documented evidence and all checks pass |
-| Context lost between sessions | Project memory persists patterns, decisions, and dead ends across sessions |
-| Same mistake repeated 3 times | Failed approaches are recorded — the agent sees what didn't work |
-| "Tests? What tests?" | 15 checks auto-run for your stack (pytest, ruff, tsc, eslint, cargo check, go vet...) |
-| No process visibility | 6 metrics tracked automatically: throughput, first-pass success rate, defect rate, lead time, and more |
-
-**Key difference:** TAUSIK quality gates are _enforcement_ — the CLI physically blocks the agent from skipping steps.
-
-## Quick Start
-
-```bash
-cd your-project
-git submodule add https://github.com/Kibertum/tausik-core .tausik-lib
-python .tausik-lib/bootstrap/bootstrap.py --smart --init my-project
+```
+Add https://github.com/Kibertum/tausik-core as a git submodule in .tausik-lib,
+run python .tausik-lib/bootstrap/bootstrap.py --init,
+add .tausik/ to .gitignore
 ```
 
-`--smart` auto-detects your tech stack and enables matching quality gates. `--init my-project` creates the project database (replace `my-project` with your project name).
+The agent will execute all three steps. Restart your IDE after — done.
 
-> **Important:** After bootstrap, restart your IDE window (Claude Code, Cursor, Windsurf) so that MCP servers are loaded. Without a restart the agent will fall back to CLI mode.
-
-Tell the agent in chat:
+Then just three messages:
 
 ```
 start working
 ```
-
-The agent opens a session, loads project context, and shows a dashboard. Then just describe a task:
-
 ```
 fix the bug — button doesn't work on mobile
 ```
+```
+ship it
+```
 
-The agent creates a task, starts working. When done — tell it `ship it`. Three messages, full engineering cycle with quality control.
+That's it. The agent opens a session, creates a task with acceptance criteria, writes the code, runs tests and code review, verifies each criterion with evidence, commits, and offers to push. Full engineering cycle — you just describe what you want.
+
+## What You Get
+
+| Without TAUSIK | With TAUSIK |
+|---|---|
+| Agent starts coding immediately | Must define goal + acceptance criteria first |
+| Claims "done" without proof | Completion blocked until every criterion has evidence |
+| Context lost between sessions | Decisions, patterns, and dead ends persist across sessions |
+| Same mistake repeated 3 times | Failed approaches recorded — agent sees what didn't work |
+| No tests, no linting | 16 checks auto-run for your stack (pytest, ruff, tsc, eslint, cargo, go vet...) |
+| No visibility into process | 6 metrics tracked automatically — throughput, defect rate, lead time |
+
+**The key difference:** TAUSIK quality gates are _enforcement_. The agent physically cannot skip steps — no prompts, no hoping, no "please remember to run tests."
+
+## Manual Quick Start
+
+If you prefer to set things up yourself:
+
+```bash
+cd your-project
+git submodule add https://github.com/Kibertum/tausik-core .tausik-lib
+python .tausik-lib/bootstrap/bootstrap.py --init
+```
+
+Bootstrap auto-detects your tech stack and enables matching quality gates. Project name is derived from the directory.
+
+> After bootstrap, restart your IDE so MCP servers load. Without a restart the agent falls back to CLI mode.
 
 **[Detailed quick start guide ->](docs/en/quickstart.md)**
 
 ## How It Works
 
-**Task lifecycle.** Every piece of work goes through a defined lifecycle: `plan -> start -> implement -> review -> done`. The agent cannot skip stages — quality gates enforce the sequence.
+**Plan before code.** `/plan` starts with an interview — the agent asks clarifying questions about behavior, edge cases, and constraints. Then it creates tasks with acceptance criteria. No coding until the goal is defined.
 
-**Quality gates.** Before starting, the agent must define what it's building and how success will be measured (QG-0: Context Gate). Before closing, it must prove each criterion was met with evidence — test output, verification steps (QG-2: Implementation Gate). Tests and linters run automatically.
+**Ship with confidence.** `/ship` runs code review (5 parallel agents), tests, verifies each acceptance criterion, commits, and suggests updating docs. One command — full quality pipeline.
 
-**Project memory.** Decisions, patterns, conventions, and failed approaches are stored in a local SQLite database with full-text search. When a new session starts, the agent loads this context — no more "who wrote this and why?" from scratch.
+**Remember everything.** Decisions, patterns, conventions, and failed approaches are stored in a local SQLite database with full-text search. New session? The agent picks up right where you left off.
 
-**Skills.** Skills are structured prompts that guide the agent through complex workflows. `/plan` breaks down a task, `/review` runs 5 parallel review agents, `/ship` wraps up with review + tests + commit in one step. 33 skills total — from code review to Excel export.
+**Enforce, not suggest.** Quality gates block the agent at two checkpoints: QG-0 (can't start without goal + criteria) and QG-2 (can't close without evidence + passing tests). Hooks block code edits without a task and dangerous shell commands in real time.
 
-**MCP tools.** 80 tools let the agent interact with the project database programmatically: create tasks, log progress, search memory, manage sessions. MCP (Model Context Protocol) is the standard interface between AI agents and external tools.
+## What's Inside
 
-**Metrics.** TAUSIK tracks throughput, first-pass success rate, defect escape rate, lead time, dead end rate, and cost per task — automatically, with no manual input.
-
-## Key Features
-
-- **Cross-IDE** — same workflow in Claude Code, Cursor, Windsurf
-- **Zero dependencies** — Python 3.11+ stdlib only for core; MCP deps auto-installed in isolated `.tausik/venv/`
-- **Quality gates** — agent can't start without a goal, can't close without evidence
-- **Project memory** — decisions, patterns, and dead ends persist across sessions (SQLite + FTS5)
-- **15 stack-aware checks** — pytest, ruff, tsc, eslint, cargo check, go vet, and more run automatically for your stack
-- **6 automatic metrics** — throughput, first-pass success rate, defect rate, lead time — no manual tracking
-- **33 skills** — `/plan`, `/ship`, `/review`, `/audit`, `/debug`, and more — structured agent workflows
-- **80 MCP tools** — full programmatic access to the project database for the agent
-- **Batch execution** — run multi-task plans autonomously with `/run plan.md`
+- **34 skills** — `/plan`, `/ship`, `/review`, `/audit`, `/debug`, `/test`, and more
+- **80 MCP tools** — full programmatic access to the project database
+- **16 quality checks** — pytest, ruff, tsc, eslint, cargo check, go vet, and more for your stack
+- **6 automatic metrics** — throughput, first-pass success rate, defect rate, lead time
+- **Project memory** — SQLite + FTS5, graph relations, dead-end tracking
+- **Batch execution** — `/run plan.md` executes multi-task plans autonomously
+- **Zero dependencies** — Python 3.11+ stdlib only; MCP deps in isolated `.tausik/venv/`
 
 ## Supported IDEs
 
-| IDE | MCP Tools | Skills | Hooks (real-time enforcement) | Rules |
-|-----|-----------|--------|-------------------------------|-------|
-| Claude Code | 80 tools | 33 skills | task gate, bash firewall, push gate, auto-format | CLAUDE.md |
-| Cursor | 80 tools | 33 skills | — | .cursorrules |
-| Windsurf | 80 tools | 33 skills | — | .windsurfrules |
+| IDE | MCP Tools | Skills | Hooks | Rules |
+|-----|-----------|--------|-------|-------|
+| Claude Code | 80 tools | 34 skills | task gate, bash firewall, push gate, auto-format | CLAUDE.md |
+| Qwen Code | 80 tools | 34 skills | task gate, bash firewall, push gate, auto-format | QWEN.md |
+| Cursor | 80 tools | 34 skills | — | .cursorrules |
+| Windsurf | 80 tools | 34 skills | — | .windsurfrules |
 | Codex | — | — | — | AGENTS.md only |
 
-**Hooks** are real-time enforcement scripts: block code without a task, block dangerous shell commands, block direct push to main. Currently Claude Code only. Other IDEs get the same MCP tools and skills — quality gates still run at `task start` and `task done`, but without pre-action blocking. Codex has minimal support (rules file only, no MCP).
+**Hooks** block code edits without a task, dangerous shell commands, and direct push to main — in real time. Available in Claude Code and Qwen Code. Cursor and Windsurf get the same MCP tools and skills, with quality gates at `task start` and `task done`.
 
 ## Dogfooding: TAUSIK Built TAUSIK
 
-TAUSIK was developed using itself from early on. Real numbers from the project:
+TAUSIK was developed using itself. Real numbers:
 
 | Metric | Value |
 |---|---|
-| Tasks completed | 266 |
-| Sessions | 15 |
-| Throughput | ~18 tasks/session |
+| Tasks completed | 291 |
+| Sessions | 22 |
+| Throughput | ~13 tasks/session |
 | Test count | 918 |
-| Dependencies | 0 core (MCP deps in venv) |
+| Dependencies | 0 core |
 
 Every feature, every refactor, every bug fix went through the same quality gates that ship with the framework.
 
 ## Methodology
 
-TAUSIK implements [SENAR](https://senar.tech) ([GitHub](https://github.com/Kibertum/SENAR)) — an open engineering standard for AI-assisted development that defines quality gates, session management, and metrics. If you're curious about the "why" behind TAUSIK's rules — that's SENAR.
+TAUSIK implements [SENAR](https://senar.tech) ([GitHub](https://github.com/Kibertum/SENAR)) — an open engineering standard for AI-assisted development. Quality gates, session management, metrics, verification checklists — it's all defined in SENAR.
 
 **[Read more about SENAR ->](docs/en/senar.md)**
 
@@ -132,23 +126,15 @@ TAUSIK implements [SENAR](https://senar.tech) ([GitHub](https://github.com/Kiber
 | Document | Description |
 |----------|-------------|
 | **[Quick Start](docs/en/quickstart.md)** | First setup — 10-15 minutes |
-| **[What is SENAR?](docs/en/senar.md)** | The methodology behind TAUSIK — in 5 minutes |
+| **[What is SENAR?](docs/en/senar.md)** | The methodology behind TAUSIK |
 | **[Workflow](docs/en/workflow.md)** | A typical day with TAUSIK |
-| **[Skills](docs/en/skills.md)** | 33 structured agent workflows |
-| **[Hooks](docs/en/hooks.md)** | Automatic enforcement: blockers, firewall |
-| **[CLI Commands](docs/en/cli.md)** | Full terminal command reference |
+| **[Skills](docs/en/skills.md)** | 34 structured agent workflows |
+| **[Hooks](docs/en/hooks.md)** | Real-time enforcement |
+| **[CLI Commands](docs/en/cli.md)** | Terminal command reference |
 | **[MCP Tools](docs/en/mcp.md)** | 80 tools for the AI agent |
 | **[Architecture](docs/en/architecture.md)** | How the framework works inside |
-| **[Agent Onboarding](AGENTS.md)** | Entry point for AI agents |
 
-**[Full documentation index ->](docs/README.md)**
-
-## Next Steps
-
-- **Try it:** [Quick Start in 10-15 minutes](docs/en/quickstart.md)
-- **Understand the methodology:** [What is SENAR?](docs/en/senar.md)
-- **See a typical workflow:** [A day with TAUSIK](docs/en/workflow.md)
-- **Contribute:** [CONTRIBUTING.md](CONTRIBUTING.md)
+**[Full documentation ->](docs/README.md)**
 
 ## License
 

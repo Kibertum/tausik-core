@@ -18,7 +18,7 @@ add an "Export to PDF" button
 refactor the payment module
 ```
 
-The agent will estimate complexity, create a task with goal and acceptance criteria, and break it into steps.
+The agent starts with an **interview phase** — asking 3+ clarifying questions about expected behavior, edge cases, and constraints. Then it estimates complexity, creates a task with goal and acceptance criteria, and breaks it into steps. Skip the interview with `--skip-interview` or by providing a detailed spec upfront.
 
 ### /ship — Completion
 
@@ -31,7 +31,7 @@ ship it
 ```
 
 The agent will review the code, run tests, verify that acceptance criteria are met,
-close the task, and offer to commit. All in one operation.
+close the task, and offer to commit. After commit, it checks for structural changes and suggests updating project documentation. All in one operation.
 
 ### /start — Session Start
 
@@ -142,10 +142,11 @@ Analyzes git diff with risk highlighting.
 | `/retro` | Retrospective: what worked, what didn't |
 | `/ultra` | Deep analysis of a complex architectural decision |
 | `/onboard` | Quick onboarding to an unfamiliar codebase |
+| `/skill-test` | Auto-generate and validate test scenarios for any skill |
 
 ## Extending with Custom Skills
 
-Everything above is **built-in** — these 33 skills ship with TAUSIK and are always available after bootstrap.
+Everything above is **built-in** — these 34 skills ship with TAUSIK and are always available after bootstrap.
 
 Beyond the built-in skills, TAUSIK has a **skill install system** for adding skill packages from GitHub. These extend the agent with new capabilities: Jira/Bitrix24 integration, Confluence publishing, Sentry monitoring, presale estimation, and more.
 

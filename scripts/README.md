@@ -31,7 +31,7 @@ TAUSIK framework modules. Python 3.11+ stdlib only.
 | `skill_repos.py` | Skill repository management |
 | `ide_utils.py` | IDE detection, registry, path helpers |
 | `plan_parser.py` | Markdown plan parser for `/run` batch execution |
-| `tausik_version.py` | Version: 1.0.0 |
+| `tausik_version.py` | Version: 1.1.0 |
 | `tausik_utils.py` | Utilities: utcnow_iso, ServiceError, validators |
 
 ## MCP Servers

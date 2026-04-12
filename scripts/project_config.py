@@ -188,6 +188,14 @@ DEFAULT_GATES: dict[str, dict] = {
         "description": "Kotlin code style check",
         "stacks": ["kotlin"],
     },
+    # TDD enforcement gate
+    "tdd_order": {
+        "enabled": False,
+        "severity": "warn",
+        "trigger": ["task-done"],
+        "command": None,
+        "description": "Verify test files were modified (TDD enforcement)",
+    },
 }
 
 

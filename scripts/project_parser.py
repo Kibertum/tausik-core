@@ -19,7 +19,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     # --- init ---
     init_p = sub.add_parser("init", help="Initialize project")
-    init_p.add_argument("--name", required=True, help="Project slug")
+    init_p.add_argument(
+        "--name", default=None, help="Project slug (default: directory name)"
+    )
 
     # --- status ---
     sub.add_parser("status", help="Project overview")

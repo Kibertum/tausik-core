@@ -120,7 +120,9 @@ Relation types: `supersedes`, `caused_by`, `relates_to`, `contradicts`
 | `tausik_gates_enable` | Enable gate | `name` |
 | `tausik_gates_disable` | Disable gate | `name` |
 
-Available gates: `pytest`, `ruff`, `mypy`, `bandit`, `tsc`, `eslint`, `go-vet`, `golangci-lint`, `cargo-check`, `clippy`, `phpstan`, `phpcs`, `javac`, `ktlint`, `filesize`
+Available gates: `pytest`, `ruff`, `mypy`, `bandit`, `tsc`, `eslint`, `go-vet`, `golangci-lint`, `cargo-check`, `clippy`, `phpstan`, `phpcs`, `javac`, `ktlint`, `filesize`, `tdd_order`
+
+> **`tdd_order`** (disabled by default) — TDD enforcement: verifies that test files are modified alongside source code. Enable via `tausik_gates_enable` with `name=tdd_order`.
 
 ## Skills
 

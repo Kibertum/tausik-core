@@ -120,7 +120,9 @@
 | `tausik_gates_enable` | Включить шлюз | `name` |
 | `tausik_gates_disable` | Выключить шлюз | `name` |
 
-Доступные шлюзы: `pytest`, `ruff`, `mypy`, `bandit`, `tsc`, `eslint`, `go-vet`, `golangci-lint`, `cargo-check`, `clippy`, `phpstan`, `phpcs`, `javac`, `ktlint`, `filesize`
+Доступные шлюзы: `pytest`, `ruff`, `mypy`, `bandit`, `tsc`, `eslint`, `go-vet`, `golangci-lint`, `cargo-check`, `clippy`, `phpstan`, `phpcs`, `javac`, `ktlint`, `filesize`, `tdd_order`
+
+> **`tdd_order`** (отключён по умолчанию) — TDD-контроль: проверяет, что тестовые файлы изменены вместе с исходным кодом. Включите через `tausik_gates_enable` с `name=tdd_order`.
 
 ## Навыки
 
