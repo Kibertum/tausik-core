@@ -168,12 +168,35 @@ def _do_story_list(svc: Any, args: dict) -> str:
     )
 
 
+def _coerce_tags(raw: Any) -> list[str] | None:
+    """Coerce tags from string or list to list[str].
+
+    MCP clients may serialize array params as JSON strings instead of arrays.
+    This handles both cases gracefully.
+    """
+    if raw is None:
+        return None
+    if isinstance(raw, list):
+        return raw
+    if isinstance(raw, str):
+        import json as _json
+
+        try:
+            parsed = _json.loads(raw)
+            if isinstance(parsed, list):
+                return parsed
+        except (ValueError, TypeError):
+            pass
+        return [t.strip() for t in raw.split(",") if t.strip()]
+    return None
+
+
 def _do_memory_add(svc: Any, args: dict) -> str:
     return svc.memory_add(
         args["type"],
         args["title"],
         args["content"],
-        args.get("tags"),
+        _coerce_tags(args.get("tags")),
         args.get("task_slug"),
     )
 
@@ -272,7 +295,7 @@ def _do_dead_end(svc: Any, args: dict) -> str:
     return svc.dead_end(
         args["approach"],
         args["reason"],
-        tags=args.get("tags"),
+        tags=_coerce_tags(args.get("tags")),
         task_slug=args.get("task_slug"),
     )
 

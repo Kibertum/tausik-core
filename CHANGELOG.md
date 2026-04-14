@@ -27,6 +27,11 @@ Inspired by ideas from [Molyanov AI Dev Framework](https://github.com/pavel-moly
 - Supported IDEs: Claude Code, Cursor, **Qwen Code**, Windsurf, Codex — 5 IDE
 - Skills count: 33 → 34 (added `/skill-test`) — 34 скилла
 - Filesize gate exempts `agents/qwen/mcp/` directory — Исключение для qwen mcp
+## [1.1.1] — 2026-04-14
+
+### Fixed
+
+- **MCP tags coercion** — `tausik_dead_end` and `tausik_memory_add` now accept `tags` as both JSON array and string. MCP clients (Claude Code) may serialize array params as JSON strings; added `_coerce_tags()` helper to handle both formats gracefully.
 
 ## [1.0.0] — 2026-04-05
 
