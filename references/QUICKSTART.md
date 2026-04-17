@@ -73,7 +73,21 @@ tausik_dead_end            — документировать неудачу
 tausik_memory_search       — поиск по памяти
 tausik_explore_start/end   — исследование
 tausik_metrics             — SENAR метрики
+tausik_memory_block        — re-inject последних decisions/conventions/dead ends (v1.2)
+tausik_memory_compact      — агрегация recent task_logs в паттерны (v1.2)
 ```
+
+## Anti-Drift Hooks (v1.2.0)
+
+TAUSIK 1.2 добавил drift-guards реального времени — фреймворк сам напоминает о себе:
+
+- **SessionStart** авто-инъекция состояния (status + active tasks + Memory Block) в каждую новую сессию
+- **UserPromptSubmit** детектит coding-intent в промптах и напоминает про активную задачу
+- **Stop keyword detector** ловит "I'll implement" / "сейчас напишу" в выводе агента и блокирует stop
+- **PostToolUse verify-fix-loop** аудит AC evidence после каждого `task_done` (5 rule-based checks)
+- **`/interview`** Сократический Q&A (≤3 вопросов) перед complex задачей
+
+Полный список хуков: [docs/ru/hooks.md](../docs/ru/hooks.md).
 
 ## Что нельзя
 

@@ -7,23 +7,23 @@ context: inline
 
 # /plan — Task Planning (SENAR-aligned)
 
-Plans a new feature with complexity scoring. Always respond in the user's language.
-
+Plans a new feature with complexity scoring.
 ## Algorithm
 
 ### 0. Interview phase (User Specification)
 
-Before decomposing, gather requirements through an interactive interview. This prevents missed requirements and scope drift.
+Before decomposing, gather requirements. This prevents missed requirements and scope drift.
 
-1. Ask the user **at least 3 clarifying questions** about:
+**For complex or vague requests:** invoke the `/interview` skill — it asks **at most 3** clarifying questions (prompt-master "max 3" principle) and stops as soon as answers would no longer change the plan. Prefer it over asking ad-hoc questions.
+
+**Fallback if /interview is not applicable:** ask the user up to 3 clarifying questions covering:
    - Expected behavior: "What should happen when...?"
    - Edge cases: "What if the user does...?"
    - Non-functional requirements: "Any performance/security constraints?"
-   - Integration points: "What existing systems does this touch?"
-2. Summarize answers into a **user specification** (3-5 bullet points).
-3. Confirm with the user: "Is this spec correct? Anything to add?"
 
-**Skip this phase** if the user passes `--skip-interview` or provides a detailed spec upfront (more than 3 sentences describing the feature).
+Then summarize answers into a **user specification** (3-5 bullet points) and confirm: "Is this spec correct? Anything to add?"
+
+**Skip this phase** if the user passes `--skip-interview` or provides a detailed spec upfront (more than 3 sentences describing the feature, or an obviously simple ask).
 
 Save the user specification via `tausik_task_log` after task creation.
 

@@ -2,7 +2,7 @@
 
 # TAUSIK MCP — Справочник инструментов
 
-80 инструментов для ИИ-агента (73 project + 7 RAG). Используй MCP-инструменты вместо CLI-вызовов через bash.
+82 инструмента для ИИ-агента (75 project + 7 RAG) начиная с v1.2.0. Используй MCP-инструменты вместо CLI-вызовов через bash.
 
 ## Статус и метрики
 
@@ -87,6 +87,8 @@
 | `tausik_memory_list` | Список записей (фильтр по типу) | — |
 | `tausik_memory_show` | Показать запись по ID | `id` |
 | `tausik_memory_delete` | Удалить запись | `id` |
+| `tausik_memory_block` (v1.2) | Компактный markdown: decisions + conventions + dead ends для re-injection на /start | — |
+| `tausik_memory_compact` (v1.2) | Агрегация recent task_logs (фазы + топ-слова + топ-файлы) — Dream-System-inspired | — |
 | `tausik_decide` | Зафиксировать архитектурное решение | `decision` |
 | `tausik_decisions_list` | Список решений | — |
 

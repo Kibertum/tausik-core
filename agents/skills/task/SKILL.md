@@ -7,8 +7,7 @@ context: inline
 
 # /task — Task Execution (SENAR-aligned)
 
-Work on tasks from project DB. Always respond in the user's language.
-
+Work on tasks from project DB.
 **STRICT: Never start coding without running `task start` first.**
 
 ## Argument Dispatch

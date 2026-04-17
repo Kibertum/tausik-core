@@ -109,6 +109,57 @@ def generate_settings_qwen(
                     }
                 ],
             },
+            {
+                "matcher": "mcp__tausik-project__tausik_task_done|Bash",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("task_done_verify.py"),
+                        "timeout": 6,
+                    }
+                ],
+            },
+        ],
+        "SessionStart": [
+            {
+                "matcher": "",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("session_start.py"),
+                        "timeout": 6,
+                    }
+                ],
+            }
+        ],
+        "UserPromptSubmit": [
+            {
+                "matcher": "",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("user_prompt_submit.py"),
+                        "timeout": 5,
+                    }
+                ],
+            }
+        ],
+        "Stop": [
+            {
+                "matcher": "",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("keyword_detector.py"),
+                        "timeout": 5,
+                    },
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("session_cleanup_check.py"),
+                        "timeout": 5,
+                    },
+                ],
+            }
         ],
         "SessionEnd": [
             {
@@ -131,42 +182,16 @@ def generate_settings_qwen(
 
 
 def generate_qwen_md(project_dir: str, project_name: str, stacks: list[str]) -> None:
-    """Generate QWEN.md project instructions for Qwen Code CLI."""
-    stack_str = ", ".join(stacks) if stacks else "not detected"
-    content = f"""# QWEN.md
+    """Generate QWEN.md for Qwen Code CLI — same constraints as CLAUDE.md.
 
-This file provides guidance to Qwen Code when working with this project.
+    Preserves existing QWEN.md if present.
+    """
+    from bootstrap_templates import build_full_body
 
-## Project: {project_name}
-
-Stack: {stack_str}
-Framework: TAUSIK (AI Agent Governance)
-
-## TAUSIK Commands
-
-```bash
-.tausik/tausik status                  # project overview
-.tausik/tausik session start           # start session
-.tausik/tausik task list               # list tasks
-.tausik/tausik task start <slug>       # claim + activate task
-.tausik/tausik task done <slug>        # complete task
-```
-
-Full CLI ref: `.qwen/references/project-cli.md`
-
-## Workflow
-- NEVER start coding without a task. Use `task start` first.
-- ALWAYS use `.tausik/tausik` to run CLI commands (ensures correct venv Python).
-- Always respond in the user's language.
-
-## External Skills
-External skills are managed via `skills.json` and auto-synced during bootstrap.
-See `.qwen/references/skill-catalog.md` for the full catalog with trigger keywords.
-**When a user's request matches a trigger keyword for a not-installed skill, proactively suggest installing it.**
-
-<!-- DYNAMIC:START -->
-<!-- DYNAMIC:END -->
-"""
+    body = build_full_body(
+        project_name, stacks, "Qwen Code (an AI coding agent)", ".qwen"
+    )
+    content = f"# QWEN.md\n\n{body}"
     path = os.path.join(project_dir, "QWEN.md")
     if not os.path.exists(path):
         with open(path, "w", encoding="utf-8") as f:

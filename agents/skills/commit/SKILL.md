@@ -7,8 +7,7 @@ context: inline
 
 # /commit — Git Commit
 
-Create well-structured commits with conventional commit messages. Always respond in the user's language.
-
+Create well-structured commits with conventional commit messages.
 ## Conventional Commit Format
 ```
 <type>(<scope>): <description>

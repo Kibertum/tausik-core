@@ -7,8 +7,7 @@ context: inline
 
 # /test — Tests
 
-Auto-detect test framework, run existing tests, generate missing ones. Always respond in the user's language.
-
+Auto-detect test framework, run existing tests, generate missing ones.
 ## Phase 0 — Load Context
 
 1. **Check active task** (if any):

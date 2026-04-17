@@ -216,6 +216,12 @@ class BackendCrudMixin:
             "SELECT * FROM task_logs WHERE task_slug=? ORDER BY id", (task_slug,)
         )
 
+    def task_log_recent(self, limit: int = 50) -> list[dict[str, Any]]:
+        """Most recent task_logs across ALL tasks — feeds memory_compact aggregation."""
+        return self._q(
+            "SELECT * FROM task_logs ORDER BY id DESC LIMIT ?", (int(limit),)
+        )
+
     # --- Events ---
 
     def event_add(

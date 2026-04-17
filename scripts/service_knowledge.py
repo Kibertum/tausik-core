@@ -108,6 +108,26 @@ class KnowledgeMixin:
     def decisions(self, n: int = 20) -> list[dict[str, Any]]:
         return self.be.decision_list(n)
 
+    def memory_block(
+        self,
+        max_decisions: int = 5,
+        max_conventions: int = 10,
+        max_deadends: int = 5,
+        max_lines: int = 50,
+    ) -> str:
+        """Thin delegator — real logic lives in service_knowledge_aggregates."""
+        from service_knowledge_aggregates import build_memory_block
+
+        return build_memory_block(
+            self.be, max_decisions, max_conventions, max_deadends, max_lines
+        )
+
+    def memory_compact(self, last_n: int = 50) -> str:
+        """Thin delegator — real logic lives in service_knowledge_aggregates."""
+        from service_knowledge_aggregates import build_memory_compact
+
+        return build_memory_compact(self.be, last_n)
+
     # --- Dead Ends (SENAR Rule 9.4) ---
 
     def dead_end(

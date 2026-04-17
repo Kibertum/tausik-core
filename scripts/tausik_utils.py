@@ -36,10 +36,33 @@ def utcnow_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def sanitize_slug(slug: str) -> str:
+    """Make a best-effort valid slug from arbitrary input.
+
+    Lowercase, replace runs of non-slug chars with a hyphen, strip leading/trailing
+    hyphens, trim to MAX_SLUG, ensure first char is alphanumeric.
+    Used only to SUGGEST a fix in error messages — never auto-applied.
+    """
+    import re as _re
+
+    cleaned = _re.sub(r"[^a-z0-9]+", "-", (slug or "").lower()).strip("-")
+    if not cleaned:
+        return ""
+    if not cleaned[0].isalnum():
+        cleaned = cleaned.lstrip("-")
+    return cleaned[:MAX_SLUG]
+
+
 def validate_slug(slug: str) -> None:
-    """Raise ValueError if slug is invalid."""
+    """Raise ValueError if slug is invalid. Error message suggests a sanitized alternative."""
     if not slug or not SLUG_RE.match(slug):
-        raise ValueError(f"Invalid slug '{slug}': must match [a-z0-9][a-z0-9-]*")
+        suggestion = sanitize_slug(slug)
+        hint = (
+            f" Did you mean '{suggestion}'?"
+            if suggestion and suggestion != slug
+            else ""
+        )
+        raise ValueError(f"Invalid slug '{slug}': must match [a-z0-9][a-z0-9-]*.{hint}")
     if len(slug) > MAX_SLUG:
         raise ValueError(f"Slug '{slug[:20]}...' is {len(slug)} chars, max {MAX_SLUG}")
 

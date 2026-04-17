@@ -96,6 +96,38 @@ SECURITY_AC_KEYWORDS = (
 )
 
 
+def qg0_dimensions_score(task: dict[str, Any]) -> dict[str, bool]:
+    """Score a task against 9 intent dimensions (prompt-master).
+
+    Returns {dimension: bool}. A task filling ≥5 is considered well-contextualized.
+    This is a soft signal — hard gates (goal, AC, negative scenario) are enforced elsewhere.
+    """
+    import re
+
+    def _has(field: str) -> bool:
+        val = task.get(field)
+        return bool(val and str(val).strip())
+
+    ac = (task.get("acceptance_criteria") or "") + " " + (task.get("notes") or "")
+    file_re = re.compile(
+        r"\b[\w/.-]+\.(py|js|ts|tsx|jsx|go|rs|java|kt|php|md|json|yaml|yml|sql|sh)\b"
+    )
+    memory_re = re.compile(r"\bmemory\s*#?\d+\b|\bmem_\d+\b|\b#\d+\s+\[", re.IGNORECASE)
+    evidence_plan = bool(file_re.search(ac) or memory_re.search(ac))
+
+    return {
+        "goal": _has("goal"),
+        "acceptance_criteria": _has("acceptance_criteria"),
+        "scope": _has("scope"),
+        "scope_exclude": _has("scope_exclude"),
+        "role": _has("role"),
+        "stack": _has("stack"),
+        "complexity": _has("complexity"),
+        "story_link": _has("story_slug") or _has("epic_slug"),
+        "evidence_plan": evidence_plan,
+    }
+
+
 class GatesMixin:
     """QG-0 and QG-2 verification methods for task lifecycle."""
 
@@ -170,6 +202,16 @@ class GatesMixin:
                     f"WARNING: Task '{slug}' appears security-relevant but AC has no security criteria. "
                     f"SENAR recommends identifying threat surface and adding security AC."
                 )
+        # QG-0: 9-dimension intent completeness (prompt-master pattern)
+        dims = qg0_dimensions_score(task)
+        filled = sum(1 for v in dims.values() if v)
+        if filled < 5:
+            missing_dims = [k for k, v in dims.items() if not v]
+            warnings.append(
+                f"CONTEXT: Task '{slug}' has only {filled}/9 intent dimensions defined. "
+                f"Consider adding: {', '.join(missing_dims)}. "
+                f"(prompt-master: thin context = drift risk)"
+            )
         return warnings
 
     def _verify_ac(

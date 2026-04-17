@@ -7,8 +7,7 @@ context: inline
 
 # /start — Session Start (SENAR-aligned)
 
-Load project context, start session. Always respond in the user's language.
-
+Load project context, start session.
 ## Algorithm
 
 **3 phases. Batch parallel calls aggressively.**
@@ -25,6 +24,7 @@ Run in parallel (prefer MCP tools, CLI as fallback):
 - `tausik_metrics` MCP tool
 - `tausik_explore_current` MCP tool
 - `tausik_audit_check` MCP tool
+- `tausik_memory_block` MCP tool — decisions + conventions + recent dead ends (re-inject project memory to prevent drift between sessions)
 
 ### Phase 2 — Update CLAUDE.md
 
@@ -43,7 +43,8 @@ Show the user a summary:
 8. Planning tasks available to pick up
 9. **Open exploration** (if any) — warn that it should be ended or continued
 10. **Audit status** — if audit is overdue, suggest running `/review` as quality sweep
-11. Suggested next action
+11. **Memory block** — mention that decisions/conventions/dead ends are loaded; keep them in mind for this session
+12. Suggested next action
 
 **If open exploration exists:** Suggest ending it with `/explore end` or continuing it.
 **If no tasks exist:** Suggest using `/plan` to create the first task.

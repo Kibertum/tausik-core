@@ -7,8 +7,7 @@ context: inline
 
 # /checkpoint — Context Snapshot (SENAR-aligned)
 
-Quick context save without ending the session. Always respond in the user's language.
-
+Quick context save without ending the session.
 **When to use:** After completing a task or step, before large operations, every 30-50 tool calls.
 
 **vs /end:** No session end, no commit prompt. ~4 tool calls vs ~8.
@@ -21,6 +20,7 @@ Run in parallel (prefer MCP tools, CLI as fallback):
 - `tausik_session_current` MCP tool
 - `tausik_task_list` MCP tool with status=active
 - `tausik_status` MCP tool
+- `tausik_memory_block` MCP tool — re-inject decisions/conventions/dead ends to refresh context before continuing
 - `git branch --show-current`
 
 **SENAR Rule 9.2:** If `status` shows a session duration warning — tell the user prominently:

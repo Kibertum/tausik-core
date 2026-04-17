@@ -7,8 +7,7 @@ context: inline
 
 # /end — Session End (SENAR-aligned)
 
-Archives session, updates CLAUDE.md for next session. Always respond in the user's language.
-
+Archives session, updates CLAUDE.md for next session.
 ## Algorithm
 
 ### 1. SENAR Metrics Dashboard

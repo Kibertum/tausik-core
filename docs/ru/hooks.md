@@ -17,6 +17,15 @@ TAUSIK использует хуки Claude Code для автоматическ
 | `bash_firewall.py` | Перед Bash | Блокирует опасные команды (rm -rf, DROP TABLE и т.д.) |
 | `git_push_gate.py` | Перед git push | Блокирует прямой push — используйте /ship или /commit |
 | `auto_format.py` | После Write/Edit | Автоформатирование (ruff/prettier/gofmt) + логирование файла |
+| `session_metrics.py` | При завершении сессии | Записывает метрики сессии в БД |
+| **`session_start.py`** (v1.2) | При старте сессии | Auto-inject состояния + Memory Block — ручной `/start` не нужен |
+| **`user_prompt_submit.py`** (v1.2) | На промпт пользователя | Детектит coding-intent (RU+EN) → напоминание про активную задачу |
+| **`keyword_detector.py`** (v1.2) | При завершении turn агента | Ловит drift-фразы "I'll implement"/"сейчас напишу" → блокирует stop |
+| **`session_cleanup_check.py`** (v1.2) | При завершении turn агента | Предупреждает про open exploration / review tasks / session timeout |
+| **`task_done_verify.py`** (v1.2) | После task_done | Аудит AC evidence через 5 rule-based проверок (Ralph-mode-lite) |
+| **`notify_on_done.py`** (v1.2, опционально) | После task_done | Webhook в Slack/Discord/Telegram если сконфигурировано |
+
+Общие helper-ы в `scripts/hooks/_common.py` (tausik_path, has_active_task, is_task_done_invocation).
 
 ## Как это работает
 

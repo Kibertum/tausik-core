@@ -73,7 +73,21 @@ tausik_dead_end            — document a failed approach
 tausik_memory_search       — search project memory
 tausik_explore_start/end   — exploration
 tausik_metrics             — SENAR metrics
+tausik_memory_block        — re-inject recent decisions/conventions/dead ends (v1.2)
+tausik_memory_compact      — aggregate recent task_logs into patterns (v1.2)
 ```
+
+## Anti-Drift Hooks (v1.2.0)
+
+TAUSIK 1.2 adds real-time drift guards so you don't need to remember the framework:
+
+- **SessionStart** auto-injects state (status + active tasks + Memory Block) into every new session
+- **UserPromptSubmit** detects coding-intent in your prompts and nudges if no task is active
+- **Stop keyword detector** catches "I'll implement" / "сейчас напишу" in agent output and blocks stop
+- **PostToolUse verify-fix-loop** audits AC evidence after every `task_done` (5 rule-based checks)
+- **`/interview`** runs a Socratic Q&A (≤3 questions) before complex tasks
+
+See [docs/en/hooks.md](../docs/en/hooks.md) for the full hook table.
 
 ## What You Must Not Do
 

@@ -145,10 +145,50 @@ service_task.py         → _run_quality_gates() (вызывается из task
 Gates: `pytest`, `ruff`, `mypy`, `bandit`, `filesize`, `tdd_order`, `tsc`, `eslint`,
 `go-vet`, `golangci-lint`, `cargo-check`, `clippy`, `phpstan`, `phpcs`, `javac`, `ktlint`.
 
+## Hooks (v1.2.0 anti-drift)
+
+Hook-файлы в `scripts/hooks/` регистрируются через `bootstrap/bootstrap_generate.py` (Claude Code) и `bootstrap/bootstrap_qwen.py` (Qwen Code) в `settings.json`. Все hook-скрипты **всегда возвращают exit 0** (non-blocking), ошибки логируются в stderr. Общие helper'ы в `scripts/hooks/_common.py`.
+
+```
+scripts/hooks/
+├── _common.py                   # tausik_path, has_active_task, is_task_done_invocation
+├── task_gate.py                 # PreToolUse (Write|Edit) — блок без активной задачи (v1.0)
+├── bash_firewall.py             # PreToolUse (Bash) — блок rm -rf /, git reset --hard (v1.0)
+├── git_push_gate.py             # PreToolUse (git push) — требует TAUSIK_ALLOW_PUSH=1 (v1.0)
+├── auto_format.py               # PostToolUse (Write|Edit) — авто-ruff/prettier (v1.0)
+├── session_metrics.py           # SessionEnd — запись метрик (v1.0)
+├── session_start.py             # SessionStart — auto-inject состояния + Memory Block (v1.2)
+├── user_prompt_submit.py        # UserPromptSubmit — nudge на coding-intent без задачи (v1.2)
+├── keyword_detector.py          # Stop — детектит "I'll implement" в выводе агента (v1.2)
+├── session_cleanup_check.py     # Stop — предупреждает про open exploration / review tasks / timeout (v1.2)
+├── task_done_verify.py          # PostToolUse (task_done) — 5-evidence audit, Ralph-mode-lite (v1.2)
+└── notify_on_done.py            # PostToolUse (task_done) — webhook Slack/Discord/Telegram (v1.2)
+```
+
+**Поток anti-drift:**
+
+```
+User prompt  → UserPromptSubmit (coding intent + no task?) → inject reminder
+Session open → SessionStart auto-injects state + Memory Block
+Agent output → Stop keyword_detector (drift phrase + no task?) → block stop
+Agent output → Stop session_cleanup_check (open exploration?) → warn
+task_done    → PostToolUse task_done_verify (thin evidence?) → stderr warning
+task_done    → PostToolUse notify_on_done → webhook (if configured)
+```
+
+## Memory Aggregates (v1.2.0)
+
+`service_knowledge_aggregates.py` содержит чистые функции для re-injection памяти:
+
+- `build_memory_block(be, ...)` — компактный markdown (decisions + conventions + dead ends) ≤50 строк, вызывается из `/start`, `/checkpoint`, SessionStart hook
+- `build_memory_compact(be, last_n)` — агрегация `task_logs`: фазы + топ-слова + топ-файлы (Dream-System-inspired)
+
+Аналогично `scripts/model_routing.py` + `notifier.py` + `plugin_data.py` — чистые модули, импортируемые из CLI/MCP handlers.
+
 ## Тестирование
 
 ```bash
-pytest tests/ -v                    # все тесты (918)
+pytest tests/ -v                    # все тесты (1095 в v1.2.0)
 pytest tests/test_tausik_backend.py   # backend CRUD
 pytest tests/test_tausik_service.py   # service logic
 pytest tests/test_tausik_cli.py       # CLI smoke

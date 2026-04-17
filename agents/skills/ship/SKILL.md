@@ -7,8 +7,7 @@ effort: slow
 
 # /ship — Ship It (Solo Workflow)
 
-Review + test + gates + AC verify + task done + commit — all in one. Always respond in the user's language.
-
+Review + test + gates + AC verify + task done + commit — all in one.
 ## When to Use
 
 - User says "ship it", "done", "wrap up", "готово", "отправляй"
@@ -34,11 +33,13 @@ Check all plan steps are done. If not — warn which steps are incomplete. Ask: 
 
 Run the full `/review` skill — NOT a lightweight check. Use the Agent tool to launch review in a subagent.
 
+**Auto-escalate to deep mode** when the diff touches security-sensitive code (auth, payment, crypto, session handling, PII, secrets management) OR >5 files across multiple modules OR the task role is `security`/`architect`. In that case, append `deep` to the review scope so `/review` runs two sequential critic passes (see `agents/skills/review/SKILL.md` → "Adversarial Mode (built-in) → Deep mode").
+
 **How to invoke:** Read `agents/skills/review/SKILL.md` yourself first, then pass the FULL contents as part of the Agent prompt (subagents cannot read files — they need instructions inline):
 
 ```
 Agent(prompt: "[Paste full contents of review SKILL.md here]
-Review scope: git diff (unstaged + staged changes).
+Review scope: git diff (unstaged + staged changes) [append 'deep' if critical].
 Task: {slug}, Goal: {goal}, AC: {AC}, Stack: {stack}.",
 subagent_type: "general-purpose")
 ```
@@ -115,3 +116,11 @@ Show:
 - **Multiple active tasks**: Compare `git diff --name-only` against each task's `scope` field (from `tausik_task_show`). If no scope set, ask the user which task to ship
 - **Nothing to commit**: Skip commit step, just close task
 - **Push gate blocks**: Use `TAUSIK_ALLOW_PUSH=1` env — this skill is authorized to push after user confirmation
+
+## Gotchas
+
+- **Do not ship without user confirmation for push.** The "Push to remote?" prompt is non-negotiable; CI auto-push is a separate story.
+- **Gate failures stop the ship early.** If ruff/pytest fails, do NOT force-commit — fix the root cause first.
+- **AC evidence format matters.** QG-2 parses notes for "✓" and test counts; commits without evidence in task_log will be blocked by the task_done gate.
+- **Multiple active tasks create scope ambiguity.** If the diff spans two tasks' scope, ask the user which task this ship belongs to — do not guess.
+- **Don't amend the ship commit after push.** Pushing then amending forces the user to force-push; create a follow-up commit instead.

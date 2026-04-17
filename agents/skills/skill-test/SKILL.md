@@ -7,8 +7,7 @@ context: fork
 
 # /skill-test — Skill Auto-Testing
 
-Generates test scenarios for a skill and validates them through subagents. Always respond in the user's language.
-
+Generates test scenarios for a skill and validates them through subagents.
 ## Algorithm
 
 ### 1. Validate skill exists

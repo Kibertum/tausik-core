@@ -103,6 +103,10 @@ memory link <source_type> <source_id> <target_type> <target_id> <relation> [--co
 memory unlink <edge_id> [--replacement EDGE_ID]  # Soft-invalidate (never deletes)
 memory related <node_type> <node_id> [--hops N] [--include-invalid]
 memory graph [--type {memory,decision}] [--id N] [--relation {supersedes,caused_by,relates_to,contradicts}] [--include-invalid] [--limit N]
+
+# Aggregators (v1.2.0) — Memory Block re-injection + Dream-System-inspired consolidation
+memory block [--max-decisions N] [--max-conventions N] [--max-deadends N] [--max-lines N]
+memory compact [--last N]
 ```
 
 **Memory types:** pattern, gotcha, convention, context, dead_end
@@ -155,8 +159,10 @@ events [--entity {task,epic,story}] [--id SLUG] [--limit N]
 ## Maintenance
 
 ```bash
-update-claudemd [--claudemd PATH]   # Update <!-- DYNAMIC --> section in CLAUDE.md
-fts optimize                        # Optimize FTS5 indexes
+update-claudemd [--claudemd PATH]     # Update <!-- DYNAMIC --> section in CLAUDE.md
+fts optimize                          # Optimize FTS5 indexes
+hud                                   # Live one-screen dashboard: task + session + gates + logs (v1.2.0)
+suggest-model [complexity]            # Recommend Claude model: simple→Haiku, medium→Sonnet, complex→Opus (v1.2.0)
 ```
 
 ## Constants

@@ -98,6 +98,18 @@ def cmd_memory(svc: ProjectService, args: Any) -> None:
                 f"--[{e['relation']}]--> {e['target_type']}#{e['target_id']}"
                 f"{conf}{valid}"
             )
+    elif c == "block":
+        output = svc.memory_block(
+            max_decisions=args.max_decisions,
+            max_conventions=args.max_conventions,
+            max_deadends=args.max_deadends,
+            max_lines=args.max_lines,
+        )
+        if output:
+            print(output)
+    elif c == "compact":
+        output = svc.memory_compact(last_n=args.last_n)
+        print(output if output else "No task logs yet.")
 
 
 def cmd_update_claudemd(svc: ProjectService, args: Any) -> None:

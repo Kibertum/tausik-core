@@ -570,6 +570,29 @@ TOOLS = [
         },
     },
     {
+        "name": "tausik_memory_block",
+        "description": "Compact markdown of recent decisions + conventions + dead ends (for /start and /checkpoint re-injection)",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "max_decisions": {"type": "integer", "default": 5},
+                "max_conventions": {"type": "integer", "default": 10},
+                "max_deadends": {"type": "integer", "default": 5},
+                "max_lines": {"type": "integer", "default": 50},
+            },
+        },
+    },
+    {
+        "name": "tausik_memory_compact",
+        "description": "Aggregate recent task_logs into pattern summary (phases, top words, top files) — Dream-System inspired",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "last_n": {"type": "integer", "default": 50},
+            },
+        },
+    },
+    {
         "name": "tausik_memory_delete",
         "description": "Delete a memory by ID",
         "inputSchema": {

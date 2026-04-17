@@ -7,8 +7,7 @@ effort: slow
 
 # /review — Code Review (SENAR-aligned)
 
-Zero-tolerance review. Find every bug, vulnerability, antipattern, and performance issue. Always respond in the user's language.
-
+Zero-tolerance review. Find every bug, vulnerability, antipattern, and performance issue.
 ## Mindset
 
 You are a hostile reviewer. Assume the code is broken until proven otherwise.
@@ -50,7 +49,7 @@ Read every file in scope. Do NOT skim. Check `CLAUDE.md` for project rules.
 
 ### 3. Launch Parallel Review Agents
 
-Launch **5 specialized review agents** in parallel via the Agent tool. Each agent receives the diff/files in scope, project context (CLAUDE.md, conventions, dead ends), and task info (goal, AC) if available.
+Launch **6 specialized review agents** in parallel via the Agent tool. Each agent receives the diff/files in scope, project context (CLAUDE.md, conventions, dead ends), and task info (goal, AC) if available.
 
 **Agent prompt template:**
 > Read the agent instructions from `agents/skills/review/agents/{agent}.md`.
@@ -60,7 +59,7 @@ Launch **5 specialized review agents** in parallel via the Agent tool. Each agen
 > Project conventions: {conventions}. Dead ends: {dead_ends}.
 > Return findings in the agent's output format.
 
-Launch all 5 agents in a **single message** with parallel Agent tool calls:
+Launch all 6 agents in a **single message** with parallel Agent tool calls:
 
 | Agent | File | Focus |
 |-------|------|-------|
@@ -69,6 +68,7 @@ Launch all 5 agents in a **single message** with parallel Agent tool calls:
 | **testing** | `agents/skills/review/agents/testing.md` | Test quality, coverage, fake test detection |
 | **simplification** | `agents/skills/review/agents/simplification.md` | Over-engineering, unnecessary complexity |
 | **documentation** | `agents/skills/review/agents/documentation.md` | Missing docs, changelog, CLAUDE.md |
+| **critic** | `agents/skills/review/agents/critic.md` | Adversarial: find **3 weaknesses** the others miss (hidden failure modes, silent contract drift, assumption gaps) |
 
 **Apply stack-specific review checklist** from the stack guide — include it in the quality agent prompt.
 
@@ -144,19 +144,19 @@ The parallel review agents (step 3) inherently provide separate context — each
 - When `$ARGUMENTS` contains "separate" or "independent" — launch one extra holistic review agent in addition to the 5 specialized ones
 - When the diff touches >5 files — the extra holistic view catches cross-cutting issues the specialists might miss
 
-## Adversarial Mode
+## Adversarial Mode (built-in)
 
-When `$ARGUMENTS` contains "adversarial" or "deep", activate adversarial review:
+The **critic** agent is launched as one of the 6 parallel reviewers on every `/review` run — adversarial review is default, not an opt-in mode. The critic's job is explicitly to find **3 weaknesses the other 5 agents miss** (see `agents/skills/review/agents/critic.md` for its hunting grounds).
 
-1. **First pass** — standard review via Separate Context Review
-2. **Launch critic subagent** — find what the first reviewer MISSED
-3. **Merge findings** — deduplicate, re-prioritize
-4. **Stop condition** — if the critic finds only LOW severity, stop.
+### Deep mode (extra pass)
 
-### When to activate automatically
+When `$ARGUMENTS` contains "adversarial" or "deep", run **two critic passes** sequentially, feeding the first critic's findings into the second so it hunts for what even the first critic missed. Stop if the second pass finds only LOW severity.
 
-- When reviewing security-sensitive code (auth, payments, crypto)
-- When the diff touches >5 files across multiple modules
+### When to auto-escalate to deep mode
+
+- Reviewing security-sensitive code (auth, payments, crypto, session handling)
+- Diff touches >5 files across multiple modules
+- User says "deep", "thorough", "hostile"
 
 ## Iterative Mode
 

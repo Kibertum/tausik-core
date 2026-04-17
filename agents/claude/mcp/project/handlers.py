@@ -222,6 +222,23 @@ def _do_memory_search(svc: Any, args: dict) -> str:
     )
 
 
+def _do_memory_block(svc: Any, args: dict) -> str:
+    output = svc.memory_block(
+        max_decisions=args.get("max_decisions", 5),
+        max_conventions=args.get("max_conventions", 10),
+        max_deadends=args.get("max_deadends", 5),
+        max_lines=args.get("max_lines", 50),
+    )
+    return (
+        output or "(memory block empty — no decisions, conventions, or dead ends yet)"
+    )
+
+
+def _do_memory_compact(svc: Any, args: dict) -> str:
+    output = svc.memory_compact(last_n=args.get("last_n", 50))
+    return output or "No task logs yet."
+
+
 def _do_memory_link(svc: Any, args: dict) -> str:
     return svc.memory_link(
         args["source_type"],
@@ -395,6 +412,8 @@ _DISPATCH: dict[str, _Handler] = {
     "tausik_memory_show": _do_memory_show,
     "tausik_memory_delete": lambda svc, args: svc.memory_delete(args["id"]),
     "tausik_memory_search": _do_memory_search,
+    "tausik_memory_block": _do_memory_block,
+    "tausik_memory_compact": _do_memory_compact,
     # --- Graph Memory ---
     "tausik_memory_link": _do_memory_link,
     "tausik_memory_unlink": lambda svc, args: svc.memory_unlink(

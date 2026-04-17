@@ -41,9 +41,11 @@ def main() -> None:
         cmd_dead_end,
         cmd_events,
         cmd_explore,
+        cmd_hud,
         cmd_metrics,
         cmd_run,
         cmd_search,
+        cmd_suggest_model,
     )
     from project_config import get_service
     from project_parser import build_parser
@@ -70,6 +72,8 @@ def main() -> None:
         "roadmap": cmd_roadmap,
         "search": cmd_search,
         "metrics": cmd_metrics,
+        "hud": cmd_hud,
+        "suggest-model": cmd_suggest_model,
         "team": cmd_team,
         "update-claudemd": cmd_update_claudemd,
         "events": cmd_events,

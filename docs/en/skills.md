@@ -88,6 +88,15 @@ explore caching options
 Time-limited exploration (30 minutes by default) without writing production code.
 Results are recorded, and a task can be created from the findings.
 
+### /interview — Socratic Q&A (v1.2)
+
+```
+interview me about this task
+уточни, что я хочу сделать
+```
+
+Asks **at most 3** clarifying questions before a complex task (prompt-master principle). Picks the questions that actually change the implementation plan — drops the rest. Stops as soon as enough context is collected. `/plan` and `/go` invoke this automatically for complex/unclear requests.
+
 ## Auxiliary
 
 ### /daily — Daily Summary

@@ -2,7 +2,7 @@
 
 # TAUSIK MCP — Tool Reference
 
-80 tools for the AI agent (73 project + 7 RAG). Use MCP tools instead of CLI bash calls.
+82 tools for the AI agent (75 project + 7 RAG) as of v1.2.0. Use MCP tools instead of CLI bash calls.
 
 ## Status and Metrics
 
@@ -87,6 +87,8 @@
 | `tausik_memory_list` | List entries (filter by type) | -- |
 | `tausik_memory_show` | Show entry by ID | `id` |
 | `tausik_memory_delete` | Delete entry | `id` |
+| `tausik_memory_block` (v1.2) | Compact markdown: recent decisions + conventions + dead ends for /start re-injection | -- |
+| `tausik_memory_compact` (v1.2) | Aggregate recent task_logs (phases + top words + top files) — Dream-System-inspired | -- |
 | `tausik_decide` | Record architectural decision | `decision` |
 | `tausik_decisions_list` | List decisions | -- |
 

@@ -269,6 +269,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     mgraph.add_argument("--include-invalid", action="store_true")
     mgraph.add_argument("--limit", type=int, default=50)
+    mblock = mem_sub.add_parser(
+        "block",
+        help="Print compact memory block (decisions + conventions + dead ends) for re-injection",
+    )
+    mblock.add_argument("--max-decisions", type=int, default=5)
+    mblock.add_argument("--max-conventions", type=int, default=10)
+    mblock.add_argument("--max-deadends", type=int, default=5)
+    mblock.add_argument("--max-lines", type=int, default=50)
+    mcompact = mem_sub.add_parser(
+        "compact",
+        help="Aggregate recent task_logs into pattern summary (phases, top words, top files)",
+    )
+    mcompact.add_argument("--last", type=int, default=50, dest="last_n")
 
     # --- gates ---
     gates_p = sub.add_parser("gates", help="Quality gates status")
@@ -290,8 +303,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--claudemd", default=None, help="Path to CLAUDE.md (auto-detected if omitted)"
     )
 
-    # --- metrics ---
+    # --- metrics / hud / suggest-model ---
     sub.add_parser("metrics", help="Project metrics and velocity")
+    sub.add_parser("hud", help="Live dashboard")
+    sub.add_parser(
+        "suggest-model", help="Suggest Claude model for complexity"
+    ).add_argument("complexity", nargs="?", default=None)
 
     # --- search ---
     sr_p = sub.add_parser("search", help="Full-text search")

@@ -7,7 +7,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)](https://python.org)
 [![Tests](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml/badge.svg)](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml)
-[![918 tests](https://img.shields.io/badge/tests-918%20passed-brightgreen.svg)](#dogfooding-tausik-built-tausik)
+[![1095 tests](https://img.shields.io/badge/tests-1095%20passed-brightgreen.svg)](#dogfooding-tausik-built-tausik)
 [![Zero deps](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#what-you-get)
 
 Three messages. Full engineering cycle. Quality gates that the agent can't skip.
@@ -79,13 +79,27 @@ Bootstrap auto-detects your tech stack and enables matching quality gates. Proje
 
 **Enforce, not suggest.** Quality gates block the agent at two checkpoints: QG-0 (can't start without goal + criteria) and QG-2 (can't close without evidence + passing tests). Hooks block code edits without a task and dangerous shell commands in real time.
 
+## Anti-Drift (v1.2.0)
+
+Agents in long sessions "drift" — ignore the framework, skip task creation, forget conventions. TAUSIK 1.2 adds real-time drift guards:
+
+- **SessionStart hook** auto-injects state (active tasks, Memory Block, conventions) into every new session — no manual `/start`.
+- **UserPromptSubmit hook** detects coding-intent phrases (EN+RU) and nudges the agent if no task is active.
+- **Stop hook keyword detector** catches "I'll implement" / "сейчас напишу" announcements and blocks the stop if no task exists.
+- **PostToolUse verify-fix-loop** audits every `task_done` against 5 rule-based checks (file paths, ✓ markers, test counts, file refs, lint status).
+- **Memory Block re-injection** — recent decisions + conventions + dead ends pushed back into context on `/start` and `/checkpoint`.
+- **Adversarial critic** — 6th parallel `/review` agent finds 3 weaknesses the others miss.
+
+Plus: `/interview` (Socratic Q&A before complex tasks), `tausik hud` (one-screen live dashboard), `tausik suggest-model` (Haiku/Sonnet/Opus routing), webhook notifications (Slack/Discord/Telegram).
+
 ## What's Inside
 
-- **34 skills** — `/plan`, `/ship`, `/review`, `/audit`, `/debug`, `/test`, and more
-- **80 MCP tools** — full programmatic access to the project database
+- **35 skills** — `/plan`, `/ship`, `/review`, `/audit`, `/debug`, `/test`, `/interview`, and more
+- **82 MCP tools** — full programmatic access to the project database
 - **16 quality checks** — pytest, ruff, tsc, eslint, cargo check, go vet, and more for your stack
 - **6 automatic metrics** — throughput, first-pass success rate, defect rate, lead time
-- **Project memory** — SQLite + FTS5, graph relations, dead-end tracking
+- **Project memory** — SQLite + FTS5, graph relations, dead-end tracking, Memory Block re-injection
+- **7 Claude Code hooks** — task gate, bash firewall, push gate, auto-format, SessionStart, UserPromptSubmit, Stop × 2, PostToolUse verify
 - **Batch execution** — `/run plan.md` executes multi-task plans autonomously
 - **Zero dependencies** — Python 3.11+ stdlib only; MCP deps in isolated `.tausik/venv/`
 

@@ -39,6 +39,81 @@ def cmd_metrics(svc: ProjectService, args: Any) -> None:
         print(f"Stories: {done_s}/{total_s} done")
 
 
+def cmd_hud(svc: ProjectService, args: Any) -> None:
+    """Live dashboard: active task + session + gates + recent logs.
+
+    Compact one-screen view for quick situational awareness.
+    """
+    print("═══ TAUSIK HUD ═══")
+    # Session
+    try:
+        session = svc.session_current()
+    except Exception:
+        session = None
+    if session:
+        print(
+            f"Session: #{session.get('id', '?')} started {session.get('started_at', '')}"
+        )
+    else:
+        print("Session: (none — use /start or tausik session start)")
+    # Active task
+    active = svc.task_list(status="active")
+    if active:
+        for t in active:
+            title = (t.get("title") or "")[:80]
+            slug = t.get("slug", "?")
+            print(f"\nActive: {slug} — {title}")
+            try:
+                full = svc.task_show(slug)
+                plan = full.get("plan")
+                plan_done = full.get("plan_done") or []
+                if isinstance(plan, list) and plan:
+                    print(f"  Plan progress: {len(plan_done)}/{len(plan)} steps")
+            except Exception:
+                pass
+            try:
+                logs = svc.task_logs(slug)
+                if logs:
+                    print("  Recent logs:")
+                    for log in logs[-3:]:
+                        msg = (log.get("message") or "")[:80]
+                        phase = log.get("phase") or "-"
+                        print(f"    [{phase}] {msg}")
+            except Exception:
+                pass
+    else:
+        print("\nActive: (no active task)")
+    # Gates
+    try:
+        from project_config import load_config
+
+        cfg = load_config()
+        gates = cfg.get("gates", {})
+        enabled = [
+            name
+            for name, g in gates.items()
+            if isinstance(g, dict) and g.get("enabled")
+        ]
+        disabled = [
+            name
+            for name, g in gates.items()
+            if isinstance(g, dict) and not g.get("enabled")
+        ]
+        print(
+            f"\nGates: {len(enabled)} ON ({', '.join(sorted(enabled)[:6])}), {len(disabled)} OFF"
+        )
+    except Exception:
+        print("\nGates: (config unavailable)")
+    print("═══════════════════")
+
+
+def cmd_suggest_model(svc: ProjectService, args: Any) -> None:
+    """Print the recommended Claude model for a given complexity tier."""
+    from model_routing import format_suggestion
+
+    print(format_suggestion(getattr(args, "complexity", None)))
+
+
 def cmd_search(svc: ProjectService, args: Any) -> None:
     results = svc.search(args.query, args.scope, getattr(args, "limit", 20))
     for scope, items in results.items():

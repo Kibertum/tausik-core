@@ -7,8 +7,7 @@ effort: medium
 
 # /explore — Time-Bounded Exploration (SENAR Section 5.1)
 
-Investigation without full task formality. Always respond in the user's language.
-
+Investigation without full task formality.
 **When to use:** Unfamiliar domain, multiple possible approaches, need to understand before planning.
 
 **Key rule:** If exploration yields implementation work, a task SHALL be created before changes are committed.

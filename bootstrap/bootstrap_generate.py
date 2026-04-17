@@ -87,6 +87,57 @@ def generate_settings_claude(
                         }
                     ],
                 },
+                {
+                    "matcher": "mcp__tausik-project__tausik_task_done|Bash",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": _hook_cmd("task_done_verify.py"),
+                            "timeout": 6,
+                        }
+                    ],
+                },
+            ],
+            "SessionStart": [
+                {
+                    "matcher": "",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": _hook_cmd("session_start.py"),
+                            "timeout": 6,
+                        }
+                    ],
+                }
+            ],
+            "UserPromptSubmit": [
+                {
+                    "matcher": "",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": _hook_cmd("user_prompt_submit.py"),
+                            "timeout": 5,
+                        }
+                    ],
+                }
+            ],
+            "Stop": [
+                {
+                    "matcher": "",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": _hook_cmd("keyword_detector.py"),
+                            "timeout": 5,
+                        },
+                        {
+                            "type": "command",
+                            "command": _hook_cmd("session_cleanup_check.py"),
+                            "timeout": 5,
+                        },
+                    ],
+                }
             ],
             "SessionEnd": [
                 {
@@ -154,42 +205,16 @@ def generate_mcp_json(
 
 
 def generate_claude_md(project_dir: str, project_name: str, stacks: list[str]) -> None:
-    """Generate CLAUDE.md project instructions."""
-    stack_str = ", ".join(stacks) if stacks else "not detected"
-    content = f"""# CLAUDE.md
+    """Generate CLAUDE.md — load-bearing instructions for Claude Code.
 
-This file provides guidance to Claude Code when working with this project.
+    Constraints-first structure prevents agent drift: hard rules before softer guidance.
+    Shared body lives in bootstrap_templates to keep CLAUDE.md / AGENTS.md / .cursorrules / QWEN.md in sync.
+    Preserves existing CLAUDE.md if present (user customizations).
+    """
+    from bootstrap_templates import build_full_body
 
-## Project: {project_name}
-
-Stack: {stack_str}
-Framework: TAUSIK (FRamework AI)
-
-## TAUSIK Commands
-
-```bash
-.tausik/tausik status                  # project overview
-.tausik/tausik session start           # start session
-.tausik/tausik task list               # list tasks
-.tausik/tausik task start <slug>       # claim + activate task
-.tausik/tausik task done <slug>        # complete task
-```
-
-Full CLI ref: `.claude/references/project-cli.md`
-
-## Workflow
-- NEVER start coding without a task. Use `task start` first.
-- ALWAYS use `.tausik/tausik` to run CLI commands (ensures correct venv Python).
-- Always respond in the user's language.
-
-## External Skills
-External skills are managed via `skills.json` and auto-synced during bootstrap.
-See `.claude/references/skill-catalog.md` for the full catalog with trigger keywords.
-**When a user's request matches a trigger keyword for a not-installed skill, proactively suggest installing it.**
-
-<!-- DYNAMIC:START -->
-<!-- DYNAMIC:END -->
-"""
+    body = build_full_body(project_name, stacks, "an AI agent (Claude Code)", ".claude")
+    content = f"# CLAUDE.md\n\n{body}"
     path = os.path.join(project_dir, "CLAUDE.md")
     if not os.path.exists(path):
         with open(path, "w", encoding="utf-8") as f:
@@ -197,46 +222,15 @@ See `.claude/references/skill-catalog.md` for the full catalog with trigger keyw
 
 
 def generate_agents_md(project_dir: str, project_name: str, stacks: list[str]) -> None:
-    """Generate AGENTS.md for OpenCode/Codex compatibility."""
-    stack_str = ", ".join(stacks) if stacks else "not detected"
-    content = f"""# AGENTS.md — AI Agent Onboarding
+    """Generate AGENTS.md — universal agent onboarding (OpenCode/Codex/Cursor/Claude compatible).
 
-**You are an AI agent working on a project that uses TAUSIK.**
+    Shares the same hard constraints and SENAR rules as CLAUDE.md so no IDE gets a weaker ruleset.
+    Preserves existing AGENTS.md if present.
+    """
+    from bootstrap_templates import build_full_body
 
-## Project: {project_name}
-
-Stack: {stack_str}
-Framework: [TAUSIK](https://github.com/Kibertum/tausik-core) — AI agent governance implementing [SENAR v1.3](https://senar.tech)
-
-## Rules
-
-1. **No code without a task.** Create a task before writing any code.
-2. **QG-0:** Every task needs a goal + acceptance criteria before `task start`.
-3. **QG-2:** Log AC verification evidence before `task done --ac-verified`.
-4. **Log progress.** Use `tausik task log <slug> "message"` after each step.
-5. **Document dead ends.** Use `tausik dead-end "what" "why"` on failures.
-6. **Session limit: 180 min.** Use checkpoints to save progress.
-7. **Ask before committing.** Never commit or push without user confirmation.
-8. **MCP-first.** Prefer MCP tools (`tausik_*`) over CLI when available.
-
-## Commands
-
-```bash
-.tausik/tausik status                        # project overview
-.tausik/tausik task start <slug>             # begin (QG-0: goal + AC required)
-.tausik/tausik task done <slug> --ac-verified # complete (QG-2: evidence required)
-.tausik/tausik task log <slug> "message"     # log progress
-.tausik/tausik dead-end "approach" "reason"  # document failed approach
-.tausik/tausik metrics                       # SENAR metrics
-```
-
-## Documentation
-
-- `CLAUDE.md` — project constraints and overview
-- `.tausik-lib/references/QUICKSTART.en.md` — detailed agent quickstart
-- `.tausik-lib/docs/en/` — full user documentation (EN + RU)
-- `.tausik-lib/references/project-cli.md` — CLI reference
-"""
+    body = build_full_body(project_name, stacks, "an AI agent", ".claude")
+    content = f"# AGENTS.md — AI Agent Onboarding\n\n{body}"
     path = os.path.join(project_dir, "AGENTS.md")
     if not os.path.exists(path):
         with open(path, "w", encoding="utf-8") as f:
@@ -249,28 +243,16 @@ Framework: [TAUSIK](https://github.com/Kibertum/tausik-core) — AI agent govern
 def generate_cursorrules(
     project_dir: str, project_name: str, stacks: list[str]
 ) -> None:
-    """Generate .cursorrules for Cursor IDE."""
-    stack_str = ", ".join(stacks) if stacks else "not detected"
-    content = f"""# Cursor Rules — {project_name}
+    """Generate .cursorrules for Cursor IDE — same constraints as CLAUDE.md.
 
-Stack: {stack_str}
-Framework: TAUSIK (FRamework AI)
+    Preserves existing .cursorrules if present.
+    """
+    from bootstrap_templates import build_full_body
 
-## TAUSIK Commands
-
-```bash
-.tausik/tausik status                  # project overview
-.tausik/tausik session start           # start session
-.tausik/tausik task list               # list tasks
-.tausik/tausik task start <slug>       # claim + activate task
-.tausik/tausik task done <slug>        # complete task
-```
-
-## Workflow
-- NEVER start coding without a task.
-- ALWAYS use `.tausik/tausik` to run CLI commands.
-- Always respond in the user's language.
-"""
+    body = build_full_body(
+        project_name, stacks, "Cursor (an AI coding agent)", ".cursor"
+    )
+    content = f"# Cursor Rules\n\n{body}"
     path = os.path.join(project_dir, ".cursorrules")
     if not os.path.exists(path):
         with open(path, "w", encoding="utf-8") as f:

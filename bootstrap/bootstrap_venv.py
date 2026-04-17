@@ -216,3 +216,19 @@ def install_requirements(tausik_dir: str, lib_dir: str) -> bool:
     except (FileNotFoundError, OSError) as e:
         print(f"  pip install error: {e}")
         return False
+
+
+def install_cli_wrapper(bootstrap_dir: str, tausik_dir: str) -> None:
+    """Copy tausik CLI wrapper scripts (bash + cmd) into .tausik/ and make them executable."""
+    import shutil
+    import stat
+
+    for wrapper in ("tausik_wrapper.sh", "tausik_wrapper.cmd"):
+        src = os.path.join(bootstrap_dir, wrapper)
+        if not os.path.exists(src):
+            continue
+        ext = os.path.splitext(wrapper)[1]
+        dst = os.path.join(tausik_dir, f"tausik{ext}" if ext == ".cmd" else "tausik")
+        shutil.copy2(src, dst)
+        if ext != ".cmd":
+            os.chmod(dst, os.stat(dst).st_mode | stat.S_IEXEC)

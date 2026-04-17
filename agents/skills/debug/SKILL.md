@@ -7,8 +7,7 @@ effort: medium
 
 # /debug — Debug
 
-Systematically reproduce, isolate, and fix bugs. Always respond in the user's language.
-
+Systematically reproduce, isolate, and fix bugs.
 ## Phase 0 — Load Context
 
 1. **Check active task** (if any):
