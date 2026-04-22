@@ -120,6 +120,16 @@ def generate_settings_qwen(
                 ],
             },
             {
+                "matcher": "Write|Edit|MultiEdit",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("memory_posttool_audit.py"),
+                        "timeout": 5,
+                    }
+                ],
+            },
+            {
                 "matcher": "mcp__tausik-project__tausik_task_done|Bash",
                 "hooks": [
                     {

@@ -113,6 +113,46 @@ class TestSessionStartHook:
         assert result.returncode == 0
 
 
+class TestMemoryPolicyReminder:
+    """SessionStart injection must carry the auto-memory policy reminder."""
+
+    def _setup_mock_tausik(self, tmp_path):
+        tausik_dir = tmp_path / ".tausik"
+        tausik_dir.mkdir()
+        (tausik_dir / "tausik.db").write_text("")
+        wrapper = "tausik.cmd" if sys.platform == "win32" else "tausik"
+        wrapper_path = tausik_dir / wrapper
+        if sys.platform == "win32":
+            wrapper_path.write_text("@echo off\r\necho Mock status line\r\n")
+        else:
+            wrapper_path.write_text("#!/bin/sh\necho 'Mock status line'\n")
+            os.chmod(wrapper_path, 0o755)
+
+    def test_reminder_includes_auto_memory_policy(self, tmp_path):
+        self._setup_mock_tausik(tmp_path)
+        result = _run_hook(tmp_path)
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip(), "hook produced no output"
+        parsed = json.loads(result.stdout)
+        ctx = parsed["hookSpecificOutput"]["additionalContext"]
+        assert "Project knowledge" in ctx
+        assert "tausik memory add" in ctx
+        assert "~/.claude/*/memory/" in ctx
+        assert "confirm: cross-project" in ctx
+
+    def test_policy_reminder_sits_with_other_reminders(self, tmp_path):
+        """NEGATIVE: the bullet must live under the Reminders section, not wander elsewhere."""
+        self._setup_mock_tausik(tmp_path)
+        result = _run_hook(tmp_path)
+        parsed = json.loads(result.stdout)
+        ctx = parsed["hookSpecificOutput"]["additionalContext"]
+        reminders_idx = ctx.find("**Reminders:**")
+        policy_idx = ctx.find("Project knowledge")
+        assert reminders_idx != -1
+        assert policy_idx != -1
+        assert reminders_idx < policy_idx
+
+
 class TestSettingsGeneration:
     """Generated settings.json must include SessionStart hook referencing session_start.py."""
 

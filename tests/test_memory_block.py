@@ -77,6 +77,29 @@ class TestMemoryBlockContent:
             if line.startswith("- #"):
                 assert len(line) <= 120  # 80 char title + prefix
 
+    def test_memory_policy_rule_at_top_of_block(self, tmp_path):
+        """Non-empty block must surface the memory policy rule before any sections."""
+        svc = _fresh_service(tmp_path)
+        svc.decide("something")
+        block = svc.memory_block()
+        lines = [line for line in block.splitlines() if line.strip()]
+        assert lines[0] == "## TAUSIK Memory Block"
+        rule_line = lines[1]
+        assert "⚠" in rule_line
+        assert "confirm: cross-project" in rule_line
+        assert "tausik memory add" in rule_line
+
+    def test_policy_rule_ordering_before_decisions(self, tmp_path):
+        """NEGATIVE: if the rule ever drifts below 'Recent decisions', this fails."""
+        svc = _fresh_service(tmp_path)
+        svc.decide("first decision")
+        block = svc.memory_block()
+        rule_idx = block.find("⚠")
+        decisions_idx = block.find("Recent decisions")
+        assert rule_idx != -1
+        assert decisions_idx != -1
+        assert rule_idx < decisions_idx
+
 
 class TestMemoryBlockCli:
     def test_cli_memory_block_outputs(self, tmp_path):

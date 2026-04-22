@@ -163,7 +163,9 @@ scripts/hooks/
 ├── session_cleanup_check.py     # Stop — предупреждает про open exploration / review tasks / timeout (v1.2)
 ├── task_done_verify.py          # PostToolUse (task_done) — 5-evidence audit, Ralph-mode-lite (v1.2)
 ├── notify_on_done.py            # PostToolUse (task_done) — webhook Slack/Discord/Telegram (v1.2)
-└── memory_pretool_block.py      # PreToolUse (Write|Edit|MultiEdit) — блок записи в ~/.claude/projects/*/memory/ (v1.3)
+├── memory_pretool_block.py      # PreToolUse (Write|Edit|MultiEdit) — блок записи в ~/.claude/projects/*/memory/ (v1.3)
+├── memory_posttool_audit.py     # PostToolUse (Write|Edit|MultiEdit) — аудит project-markers в auto-memory записях (v1.3)
+└── memory_markers.py            # shared regex-модуль для detect_markers: abs_path/slug/tausik_cmd/src_file (v1.3)
 ```
 
 **Поток anti-drift:**
@@ -175,6 +177,8 @@ Agent output → Stop keyword_detector (drift phrase + no task?) → block stop
 Agent output → Stop session_cleanup_check (open exploration?) → warn
 task_done    → PostToolUse task_done_verify (thin evidence?) → stderr warning
 task_done    → PostToolUse notify_on_done → webhook (if configured)
+Write/Edit   → PreToolUse memory_pretool_block (path under ~/.claude/*/memory? no `confirm: cross-project` marker?) → exit 2
+Write/Edit   → PostToolUse memory_posttool_audit (file has project markers?) → stderr warning (exit 0)
 ```
 
 ## Memory Aggregates (v1.2.0)

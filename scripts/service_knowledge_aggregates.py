@@ -31,7 +31,17 @@ def build_memory_block(
     if not decisions and not conventions and not deadends:
         return ""
 
-    lines: list[str] = ["## TAUSIK Memory Block"]
+    lines: list[str] = [
+        "## TAUSIK Memory Block",
+        "",
+        (
+            "⚠ **Memory Policy** — TAUSIK memory (`tausik memory add`) is the "
+            "**PRIMARY** store for anything about THIS project. "
+            "Claude auto-memory (`~/.claude/projects/*/memory/`) is ONLY for "
+            "cross-project user preferences; writes there are blocked unless the "
+            "user's last turn contains the marker `confirm: cross-project`."
+        ),
+    ]
 
     if decisions:
         lines.append("")

@@ -92,6 +92,14 @@ Bootstrap автоматически определяет стек и включ
 
 Плюс: `/interview` (Сократический Q&A перед complex задачей), `tausik hud` (live dashboard на один экран), `tausik suggest-model` (Haiku/Sonnet/Opus по complexity), webhook-уведомления (Slack/Discord/Telegram).
 
+## Memory Discipline (v1.3.0)
+
+Claude auto-memory (`~/.claude/projects/*/memory/`) — это кросс-проектное хранилище; проектные детали, случайно записанные туда, утекают между несвязанными репо. TAUSIK 1.3 разделяет две системы памяти:
+
+- **PreToolUse блок** — любая запись Write/Edit/MultiEdit в `~/.claude/projects/*/memory/` из TAUSIK-проекта блокируется с подсказкой; для реальных cross-project preferences работает escape через маркер `confirm: cross-project` в последнем user-промпте.
+- **PostToolUse audit** — после каждой записи в auto-memory файл сканируется на project-markers (абсолютные пути, kebab-slug'и, команды `.tausik/tausik`, ссылки на исходники); при детекте — warning в stderr, чтобы bypass-ы с проектным контекстом не ушли незамеченными.
+- **Правило политики в Memory Block** — каждая session-инъекция начинается с явного правила, где какая память хранится.
+
 ## Что внутри
 
 - **35 навыков** — `/plan`, `/ship`, `/review`, `/audit`, `/debug`, `/test`, `/interview` и другие
@@ -99,7 +107,7 @@ Bootstrap автоматически определяет стек и включ
 - **16 проверок качества** — pytest, ruff, tsc, eslint, cargo check, go vet и другие для вашего стека
 - **6 автоматических метрик** — производительность, FPSR, уровень дефектов, время выполнения
 - **Проектная память** — SQLite + FTS5, граф связей, трекинг тупиков, Memory Block re-injection
-- **10 Claude Code hooks** — task gate, bash firewall, push gate, auto-format, SessionStart, UserPromptSubmit, Stop × 2, PostToolUse × 2
+- **13 Claude Code hooks** — task gate, bash firewall, push gate, auto-format, SessionStart, UserPromptSubmit, Stop × 2, PostToolUse verify/notify/metrics, memory pre-write block, memory post-write audit
 - **Пакетное выполнение** — `/run plan.md` автономно выполняет многозадачные планы
 - **Ноль зависимостей** — Python 3.11+ stdlib; MCP-deps в изолированном `.tausik/venv/`
 

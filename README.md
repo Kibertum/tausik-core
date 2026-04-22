@@ -92,6 +92,14 @@ Agents in long sessions "drift" — ignore the framework, skip task creation, fo
 
 Plus: `/interview` (Socratic Q&A before complex tasks), `tausik hud` (one-screen live dashboard), `tausik suggest-model` (Haiku/Sonnet/Opus routing), webhook notifications (Slack/Discord/Telegram).
 
+## Memory Discipline (v1.3.0)
+
+Claude's auto-memory (`~/.claude/projects/*/memory/`) is cross-project — anything project-specific written there leaks context between unrelated repos. TAUSIK 1.3 keeps the two stores separate:
+
+- **PreToolUse block** — any Write/Edit/MultiEdit under `~/.claude/projects/*/memory/` from a TAUSIK project is blocked with a guidance message; genuine cross-project preferences bypass via the `confirm: cross-project` marker in the user's latest prompt.
+- **PostToolUse audit** — after every auto-memory write the file is scanned for project markers (absolute paths, kebab slugs, `.tausik/tausik` commands, source-file refs); matches produce a stderr warning so bypasses that still carry project traces don't slip through.
+- **Policy rule in Memory Block** — every session-start injection begins with an explicit rule on where project knowledge belongs.
+
 ## What's Inside
 
 - **35 skills** — `/plan`, `/ship`, `/review`, `/audit`, `/debug`, `/test`, `/interview`, and more
@@ -99,7 +107,7 @@ Plus: `/interview` (Socratic Q&A before complex tasks), `tausik hud` (one-screen
 - **16 quality checks** — pytest, ruff, tsc, eslint, cargo check, go vet, and more for your stack
 - **6 automatic metrics** — throughput, first-pass success rate, defect rate, lead time
 - **Project memory** — SQLite + FTS5, graph relations, dead-end tracking, Memory Block re-injection
-- **7 Claude Code hooks** — task gate, bash firewall, push gate, auto-format, SessionStart, UserPromptSubmit, Stop × 2, PostToolUse verify
+- **13 Claude Code hooks** — task gate, bash firewall, push gate, auto-format, SessionStart, UserPromptSubmit, Stop × 2, PostToolUse verify, memory pre-write block, memory post-write audit, notify-on-done, session-metrics
 - **Batch execution** — `/run plan.md` executes multi-task plans autonomously
 - **Zero dependencies** — Python 3.11+ stdlib only; MCP deps in isolated `.tausik/venv/`
 

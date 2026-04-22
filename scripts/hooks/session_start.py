@@ -67,6 +67,8 @@ def build_context(project_dir: str) -> str:
         "- `task start <slug>` is required before any Write/Edit (SENAR Rule 9.1).\n"
         "- Run `/start` for the full dashboard (handoff, metrics, explorations, audit).\n"
         "- Log progress with `task log`; document dead ends with `dead-end`.\n"
+        "- Project knowledge → `tausik memory add`, NOT `~/.claude/*/memory/` "
+        "(blocked by PreToolUse hook; bypass only with `confirm: cross-project`).\n"
     )
     return "".join(parts)
 

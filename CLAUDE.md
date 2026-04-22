@@ -133,7 +133,7 @@ pytest tests/ -v                         # 918 тестов
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: none | Branch: main | Version: 1.1.1
+Session: none | Branch: main | Version: 1.3.0
 Tasks: 0/1 done, 0 active, 0 blocked
 <!-- DYNAMIC:END -->
 

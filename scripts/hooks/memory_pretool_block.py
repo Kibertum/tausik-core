@@ -38,6 +38,11 @@ def _normalize(p: str) -> str:
     return n.lower() if sys.platform == "win32" else n
 
 
+def is_in_claude_memory(file_path: str) -> bool:
+    """Public alias — callable from other hooks without relying on private name."""
+    return _is_in_claude_memory(file_path)
+
+
 def _is_in_claude_memory(file_path: str) -> bool:
     """True iff file_path sits under $HOME/.claude/projects/<any>/memory/."""
     if not file_path:
