@@ -9,22 +9,21 @@ import pytest
 SCRIPTS_DIR = os.path.join(os.path.dirname(__file__), "..", "scripts")
 sys.path.insert(0, SCRIPTS_DIR)
 
-from project_config import (
-    ALLOWED_GATE_EXECUTABLES,
+from project_config import (  # noqa: E402
     DEFAULT_GATES,
-    load_gates,
-    get_gates_for_trigger,
     VALID_GATE_SEVERITIES,
     VALID_GATE_TRIGGERS,
     _validate_custom_gate,
+    get_gates_for_trigger,
+    load_gates,
 )
-from gate_runner import (
-    count_lines,
-    run_filesize_gate,
-    run_command_gate,
-    run_gates,
-    format_results,
+from gate_runner import (  # noqa: E402
     check_file_conflicts,
+    count_lines,
+    format_results,
+    run_command_gate,
+    run_filesize_gate,
+    run_gates,
 )
 
 
@@ -491,3 +490,150 @@ class TestFileConflicts:
         conflicts = check_file_conflicts(tasks)
         assert len(conflicts) == 1  # a-b conflict
         assert set(conflicts[0][2]) == {"x.py", "y.py"}
+
+
+class TestCommandGateFileExtensions:
+    """file_extensions filter in run_command_gate."""
+
+    class _FakeOk:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def test_mixed_list_filtered_to_matching(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(
+            "gate_runner.subprocess.run",
+            lambda cmd, **kw: calls.append(cmd) or self._FakeOk(),
+        )
+        gate = {"command": "ruff check {files}", "file_extensions": [".py"]}
+        passed, _ = run_command_gate(gate, ["a.py", "b.yml"])
+        assert passed is True
+        assert len(calls) == 1
+        argv = calls[0]
+        assert "a.py" in argv
+        assert "b.yml" not in argv
+
+    def test_empty_after_filter_skips_subprocess(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(
+            "gate_runner.subprocess.run",
+            lambda *a, **kw: calls.append(a) or None,
+        )
+        gate = {"command": "ruff check {files}", "file_extensions": [".py"]}
+        passed, output = run_command_gate(gate, ["a.yml", "b.json"])
+        assert passed is True
+        assert "No files matching" in output
+        assert calls == []
+
+    def test_extension_match_case_insensitive(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(
+            "gate_runner.subprocess.run",
+            lambda cmd, **kw: calls.append(cmd) or self._FakeOk(),
+        )
+        gate = {"command": "ruff check {files}", "file_extensions": [".PY"]}
+        passed, _ = run_command_gate(gate, ["Main.PY"])
+        assert passed is True
+        assert len(calls) == 1
+        assert "Main.PY" in calls[0]
+
+    def test_no_placeholder_filter_not_applied(self, monkeypatch):
+        """If command has no {files}, filter must not early-return."""
+        calls = []
+        monkeypatch.setattr(
+            "gate_runner.subprocess.run",
+            lambda cmd, **kw: calls.append(cmd) or self._FakeOk(),
+        )
+        gate = {"command": "ruff check .", "file_extensions": [".py"]}
+        passed, _ = run_command_gate(gate, ["a.yml"])
+        assert passed is True
+        assert len(calls) == 1  # ran despite no matching files
+
+    def test_no_extensions_config_behaves_as_before(self, monkeypatch):
+        """Backward compat: gate without file_extensions runs on everything."""
+        calls = []
+        monkeypatch.setattr(
+            "gate_runner.subprocess.run",
+            lambda cmd, **kw: calls.append(cmd) or self._FakeOk(),
+        )
+        gate = {"command": "ruff check {files}"}
+        passed, _ = run_command_gate(gate, ["a.py", "b.yml"])
+        assert passed is True
+        assert len(calls) == 1
+        assert "a.py" in calls[0]
+        assert "b.yml" in calls[0]
+
+    def test_real_py_violation_still_blocks(self, monkeypatch):
+        """Negative: filter doesn't over-exempt — real lint failures still fail."""
+
+        class FakeFail:
+            returncode = 1
+            stdout = "bad.py:1:1: E501 line too long"
+            stderr = ""
+
+        monkeypatch.setattr("gate_runner.subprocess.run", lambda *a, **kw: FakeFail())
+        gate = {"command": "ruff check {files}", "file_extensions": [".py"]}
+        passed, output = run_command_gate(gate, ["bad.py"])
+        assert passed is False
+        assert "E501" in output
+
+
+class TestFilesizeGateExemptFiles:
+    """exempt_files support in run_filesize_gate."""
+
+    def test_exempt_by_basename_matches_root_and_subdir(self, tmp_path):
+        (tmp_path / "deploy").mkdir()
+        root_ci = tmp_path / ".gitlab-ci.yml"
+        deploy_ci = tmp_path / "deploy" / ".gitlab-ci.yml"
+        root_ci.write_text("x\n" * 700)
+        deploy_ci.write_text("x\n" * 700)
+        gate = {"max_lines": 400, "exempt_files": [".gitlab-ci.yml"]}
+        passed, output = run_filesize_gate(gate, [str(root_ci), str(deploy_ci)])
+        assert passed is True, output
+
+    def test_exempt_by_path_matches_exact_only(self, tmp_path, monkeypatch):
+        (tmp_path / "config").mkdir()
+        (tmp_path / "other").mkdir()
+        target = tmp_path / "config" / "huge.json"
+        sibling = tmp_path / "other" / "huge.json"
+        target.write_text("x\n" * 700)
+        sibling.write_text("x\n" * 700)
+        monkeypatch.chdir(tmp_path)
+        gate = {"max_lines": 400, "exempt_files": ["config/huge.json"]}
+        passed, output = run_filesize_gate(
+            gate, ["config/huge.json", "other/huge.json"]
+        )
+        assert passed is False, output
+        norm_output = output.replace("\\", "/")
+        assert "other/huge.json" in norm_output
+        assert "config/huge.json" not in norm_output
+
+    def test_exempt_accepts_backslash_entries(self, tmp_path, monkeypatch):
+        """User on Windows may write config\\huge.json — must normalize."""
+        (tmp_path / "config").mkdir()
+        target = tmp_path / "config" / "huge.json"
+        target.write_text("x\n" * 700)
+        monkeypatch.chdir(tmp_path)
+        gate = {"max_lines": 400, "exempt_files": ["config\\huge.json"]}
+        passed, _ = run_filesize_gate(gate, ["config/huge.json"])
+        assert passed is True
+
+    def test_no_exempt_config_still_blocks_large_file(self, tmp_path):
+        """Baseline: without exempt_files, large files still fail."""
+        big = tmp_path / "big.yml"
+        big.write_text("x\n" * 700)
+        gate = {"max_lines": 400}
+        passed, output = run_filesize_gate(gate, [str(big)])
+        assert passed is False
+        assert "700 lines" in output
+
+
+class TestDefaultGatesHaveFileExtensions:
+    """DEFAULT_GATES: ruff and mypy ship with file_extensions=[".py"]."""
+
+    def test_ruff_has_py_extension(self):
+        assert DEFAULT_GATES["ruff"].get("file_extensions") == [".py"]
+
+    def test_mypy_has_py_extension(self):
+        assert DEFAULT_GATES["mypy"].get("file_extensions") == [".py"]

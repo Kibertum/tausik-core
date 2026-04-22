@@ -39,18 +39,40 @@ _FILESIZE_EXEMPT_DIRS = (
 )
 
 
+def _normalize_path(p: str) -> str:
+    """Canonicalize path for matching: forward slashes, strip leading './'."""
+    n = os.path.normpath(p).replace("\\", "/")
+    if n.startswith("./"):
+        n = n[2:]
+    return n
+
+
 def run_filesize_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
     """Check file sizes against max_lines threshold.
 
     Exempt: tests, MCP handlers (dispatchers, not creative logic).
+    Per-file exempts via gate.exempt_files: entries with '/' match by exact
+    path, bare names match by basename (covers a file anywhere in tree).
     """
     max_lines = gate.get("max_lines", 400)
+    exempt_paths: set[str] = set()
+    exempt_basenames: set[str] = set()
+    for entry in gate.get("exempt_files") or []:
+        norm = entry.replace("\\", "/")
+        if "/" in norm:
+            exempt_paths.add(_normalize_path(norm))
+        else:
+            exempt_basenames.add(norm)
+
     violations = []
     for f in files:
         if not os.path.isfile(f):
             continue
         normalized = f.replace("\\", "/")
         if any(d in normalized for d in _FILESIZE_EXEMPT_DIRS):
+            continue
+        canon = _normalize_path(f)
+        if canon in exempt_paths or os.path.basename(canon) in exempt_basenames:
             continue
         lines = count_lines(f)
         if lines > max_lines:
@@ -126,6 +148,16 @@ def run_command_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
     cmd = gate.get("command", "")
     if not cmd:
         return True, "No command configured."
+
+    file_exts_raw = gate.get("file_extensions") or []
+    if file_exts_raw and "{files}" in cmd:
+        allowed = {(e if e.startswith(".") else "." + e).lower() for e in file_exts_raw}
+        files = [f for f in files if os.path.splitext(f)[1].lower() in allowed]
+        if not files:
+            return True, (
+                "No files matching " + ", ".join(sorted(allowed)) + " — gate skipped."
+            )
+
     files_str = " ".join(shlex.quote(f) for f in files) if files else "."
     cmd = cmd.replace("{files}", files_str)
     # Detect shell operators -- need shell=True for pipes and redirects

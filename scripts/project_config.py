@@ -72,6 +72,7 @@ DEFAULT_GATES: dict[str, dict] = {
         "trigger": ["commit"],
         "command": "ruff check {files}",
         "description": "Lint with ruff before commit",
+        "file_extensions": [".py"],
     },
     "mypy": {
         "enabled": False,
@@ -79,6 +80,7 @@ DEFAULT_GATES: dict[str, dict] = {
         "trigger": ["commit"],
         "command": "mypy {files}",
         "description": "Type-check with mypy before commit",
+        "file_extensions": [".py"],
     },
     "filesize": {
         "enabled": True,
