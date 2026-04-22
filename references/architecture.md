@@ -162,7 +162,8 @@ scripts/hooks/
 ├── keyword_detector.py          # Stop — детектит "I'll implement" в выводе агента (v1.2)
 ├── session_cleanup_check.py     # Stop — предупреждает про open exploration / review tasks / timeout (v1.2)
 ├── task_done_verify.py          # PostToolUse (task_done) — 5-evidence audit, Ralph-mode-lite (v1.2)
-└── notify_on_done.py            # PostToolUse (task_done) — webhook Slack/Discord/Telegram (v1.2)
+├── notify_on_done.py            # PostToolUse (task_done) — webhook Slack/Discord/Telegram (v1.2)
+└── memory_pretool_block.py      # PreToolUse (Write|Edit|MultiEdit) — блок записи в ~/.claude/projects/*/memory/ (v1.3)
 ```
 
 **Поток anti-drift:**

@@ -55,6 +55,16 @@ def generate_settings_claude(
                     ],
                 },
                 {
+                    "matcher": "Write|Edit|MultiEdit",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": _hook_cmd("memory_pretool_block.py"),
+                            "timeout": 5,
+                        }
+                    ],
+                },
+                {
                     "matcher": "Bash",
                     "hooks": [
                         {
