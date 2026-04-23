@@ -218,6 +218,12 @@ def generate_mcp_json(
             "command": _p(python_exe),
             "args": [_p(project_server), "--project", _p(project_dir)],
         }
+    brain_server = os.path.join(ide_dir, "mcp", "brain", "server.py")
+    if os.path.exists(brain_server):
+        servers["tausik-brain"] = {
+            "command": _p(python_exe),
+            "args": [_p(brain_server), "--project", _p(project_dir)],
+        }
 
     mcp_config = {**existing, "mcpServers": servers}
     with open(path, "w", encoding="utf-8") as f:
