@@ -271,10 +271,10 @@ _TEXT_FIELDS_BY_CATEGORY = {
 
 
 def scrub_inputs(category: str, fields: dict, cfg: dict) -> dict:
-    """Join text fields and run scrub_with_config."""
+    """Join text fields and run scrub_with_config (union with global registry)."""
     keys = _TEXT_FIELDS_BY_CATEGORY.get(category, ())
     joined = "\n".join(str(fields.get(k) or "") for k in keys)
-    return brain_scrubbing.scrub_with_config(joined, cfg)
+    return brain_scrubbing.scrub_with_config(joined, cfg, union_with_registry=True)
 
 
 # ---- Orchestration ------------------------------------------------------

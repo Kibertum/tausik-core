@@ -15,6 +15,13 @@ import brain_init  # noqa: E402
 from brain_notion_client import NotionError  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _isolated_registry(tmp_path, monkeypatch):
+    """Redirect brain registry to a throwaway path so wizard tests don't touch ~."""
+    monkeypatch.setenv("TAUSIK_BRAIN_REGISTRY", str(tmp_path / "brain_registry.json"))
+    yield
+
+
 # --- Schema tests ---------------------------------------------------------
 
 

@@ -16,6 +16,7 @@ import os
 from typing import Any, Callable, Protocol
 
 import brain_config
+import brain_project_registry
 from brain_notion_client import NotionError
 
 
@@ -275,15 +276,25 @@ def run_wizard(
     except NotionError as e:
         raise WizardError(f"Notion databases_create failed: {e}") from e
 
+    registry_entry = brain_project_registry.register_project(project_name, os.getcwd())
+    resolved_name = registry_entry["name"]
+    if resolved_name != project_name:
+        io.print(
+            f"Project name {project_name!r} collides in the brain registry; "
+            f"using {resolved_name!r} instead."
+        )
+
     existing_names = list((existing.get("brain") or {}).get("project_names") or [])
-    if project_name and project_name not in existing_names:
-        existing_names.append(project_name)
+    union_names = list(existing_names)
+    for n in brain_project_registry.all_project_names():
+        if n not in union_names:
+            union_names.append(n)
 
     updates = {
         "enabled": True,
         "notion_integration_token_env": token_env,
         "database_ids": db_ids,
-        "project_names": existing_names,
+        "project_names": union_names,
     }
     new_cfg = merge_brain_config(existing, updates)
     config_ops.save(new_cfg)
@@ -294,6 +305,6 @@ def run_wizard(
     return {
         "parent_page_id": parent_page_id,
         "token_env": token_env,
-        "project_name": project_name,
+        "project_name": resolved_name,
         "database_ids": db_ids,
     }

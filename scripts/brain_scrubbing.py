@@ -171,9 +171,25 @@ def scrub(
     return {"ok": not any(i["severity"] == "block" for i in issues), "issues": issues}
 
 
-def scrub_with_config(content: str, cfg: dict) -> dict:
-    """Scrub using blocklist + url patterns read from a brain config dict."""
-    project_names = cfg.get("project_names") or []
+def scrub_with_config(
+    content: str,
+    cfg: dict,
+    *,
+    union_with_registry: bool = False,
+) -> dict:
+    """Scrub using blocklist + url patterns read from a brain config dict.
+
+    When union_with_registry=True, merges in names from the global brain
+    registry (~/.tausik-brain/projects.json) so a record generated inside
+    project A cannot accidentally mention project B's name.
+    """
+    project_names = list(cfg.get("project_names") or [])
+    if union_with_registry:
+        import brain_project_registry
+
+        for n in brain_project_registry.all_project_names():
+            if n not in project_names:
+                project_names.append(n)
     private_url_patterns = cfg.get("private_url_patterns") or []
     return scrub(
         content,

@@ -1,0 +1,224 @@
+"""Global registry of TAUSIK-enabled projects: ~/.tausik-brain/projects.json.
+
+Two concerns, one file:
+  1. Assign a unique canonical name for each project on the machine. If two
+     projects resolve to the same canonical name ("princess" vs. another
+     "princess"), auto-increment: "princess", "princess-2", ...
+  2. Expose all registered project names so the scrubbing linter can build
+     a union-blocklist across projects (so project A does not accidentally
+     leak project B's name into brain).
+
+Storage: plain JSON list of entries, each:
+  {"name": str, "path": str, "registered_at": ISO-UTC, "canonical": str,
+   "hash": 16-hex}
+
+Zero external deps. Atomic writes with .tmp unlink on failure. Path override
+via env TAUSIK_BRAIN_REGISTRY for tests and custom layouts.
+
+**Concurrency model: single writer.** Running `tausik brain init` in two
+processes against the same registry simultaneously is undefined — v1 assumes
+a developer only runs one wizard at a time. A coarse advisory lock is
+provided by `_with_lock`, but it is best-effort; on contention the second
+wizard raises `RegistryLockError`.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+import re
+import time
+from datetime import datetime, timezone
+
+import brain_config
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_REGISTRY_PATH = os.path.join("~", ".tausik-brain", "projects.json")
+_ENV_OVERRIDE = "TAUSIK_BRAIN_REGISTRY"
+
+
+def get_registry_path() -> str:
+    """Absolute path to projects.json, honoring the TAUSIK_BRAIN_REGISTRY env var."""
+    raw = os.environ.get(_ENV_OVERRIDE) or DEFAULT_REGISTRY_PATH
+    return os.path.abspath(os.path.expandvars(os.path.expanduser(raw)))
+
+
+def canonical_name(name: str) -> str:
+    """Normalize a project name: strip, lower, collapse whitespace to '-'."""
+    if not isinstance(name, str):
+        raise TypeError("name must be a string")
+    stripped = name.strip()
+    if not stripped:
+        raise ValueError("name must be non-empty")
+    return re.sub(r"\s+", "-", stripped.lower())
+
+
+def _normalize_path(path: str) -> str:
+    """Filesystem-safe path comparator: absolute + normcase (handles Win slash/case)."""
+    return os.path.normcase(os.path.abspath(path))
+
+
+def _now_iso() -> str:
+    return (
+        datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+
+
+def load_registry(path: str | None = None) -> list[dict]:
+    """Read projects.json. Returns [] if missing or corrupt.
+
+    Corrupt JSON is treated as empty (recoverable on next save). OSError
+    (permission/IO) is logged and also returns [] so the wizard remains
+    usable even on a temporarily unreadable registry — caller should expect
+    overwrite-on-save in that case.
+    """
+    p = path or get_registry_path()
+    if not os.path.exists(p):
+        return []
+    try:
+        with open(p, encoding="utf-8") as f:
+            data = json.load(f)
+    except json.JSONDecodeError:
+        logger.warning("Registry at %s is corrupt JSON; treating as empty", p)
+        return []
+    except OSError as e:
+        logger.warning("Registry at %s unreadable (%s); treating as empty", p, e)
+        return []
+    if not isinstance(data, list):
+        return []
+    return [e for e in data if isinstance(e, dict) and e.get("name")]
+
+
+def save_registry(entries: list[dict], path: str | None = None) -> None:
+    """Atomic write: temp file + fsync + os.replace, unlink .tmp on failure."""
+    p = path or get_registry_path()
+    parent = os.path.dirname(p)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    tmp = p + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(entries, f, indent=2, ensure_ascii=False)
+            f.flush()
+            try:
+                os.fsync(f.fileno())
+            except OSError:
+                pass
+        os.replace(tmp, p)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+# --- Advisory lock --------------------------------------------------------
+
+
+class RegistryLockError(RuntimeError):
+    """Raised when a concurrent wizard holds the registry lock."""
+
+
+def _acquire_lock(path: str, *, timeout_s: float = 2.0) -> str:
+    """Create a sibling .lock via O_EXCL. Returns lock path; raises on timeout."""
+    lock_path = path + ".lock"
+    deadline = time.monotonic() + timeout_s
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    while True:
+        try:
+            fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.write(fd, str(os.getpid()).encode())
+            os.close(fd)
+            return lock_path
+        except FileExistsError:
+            if time.monotonic() >= deadline:
+                raise RegistryLockError(
+                    f"Registry is locked by another process (see {lock_path!r})"
+                ) from None
+            time.sleep(0.05)
+
+
+def _release_lock(lock_path: str) -> None:
+    try:
+        os.unlink(lock_path)
+    except OSError:
+        pass
+
+
+def _find_by_path(entries: list[dict], norm_path: str) -> dict | None:
+    for e in entries:
+        if _normalize_path(e.get("path", "")) == norm_path:
+            return e
+    return None
+
+
+def _pick_unique_canonical(entries: list[dict], base_canonical: str) -> str:
+    taken = {
+        e.get("canonical") or canonical_name(e.get("name", ""))
+        for e in entries
+        if e.get("name")
+    }
+    if base_canonical not in taken:
+        return base_canonical
+    i = 2
+    while f"{base_canonical}-{i}" in taken:
+        i += 1
+    return f"{base_canonical}-{i}"
+
+
+def register_project(
+    name: str,
+    project_path: str,
+    *,
+    path: str | None = None,
+    now: str | None = None,
+) -> dict:
+    """Register (or re-resolve) a project entry.
+
+    Behavior:
+      - If an entry with the same normalized project_path already exists,
+        returns it unchanged (idempotent re-register).
+      - Otherwise canonicalizes `name`, auto-increments on collision with
+        a different path, appends entry + saves atomically. Returns the new entry.
+
+    Returns the entry dict with {name, path, canonical, hash, registered_at}.
+    """
+    if not project_path or not isinstance(project_path, str):
+        raise ValueError("project_path is required")
+    base_canonical = canonical_name(name)
+    norm_path = _normalize_path(project_path)
+
+    reg_path = path or get_registry_path()
+    lock = _acquire_lock(reg_path)
+    try:
+        entries = load_registry(path)
+        existing = _find_by_path(entries, norm_path)
+        if existing:
+            return existing
+
+        unique = _pick_unique_canonical(entries, base_canonical)
+        entry = {
+            "name": unique,
+            "path": norm_path,
+            "canonical": unique,
+            "hash": brain_config.compute_project_hash(unique),
+            "registered_at": now or _now_iso(),
+        }
+        entries.append(entry)
+        save_registry(entries, path)
+        return entry
+    finally:
+        _release_lock(lock)
+
+
+def all_project_names(path: str | None = None) -> list[str]:
+    """Union of `name` fields across all registered projects — feeds scrubbing blocklist."""
+    return [e["name"] for e in load_registry(path) if e.get("name")]
