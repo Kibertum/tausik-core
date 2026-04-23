@@ -9,8 +9,10 @@ return a "not configured" hint when called on a disabled brain.
 from __future__ import annotations
 
 import argparse
+import asyncio
 import os
 import sys
+import traceback
 
 
 def main() -> None:
@@ -19,11 +21,10 @@ def main() -> None:
     args = parser.parse_args()
 
     # Ensure project scripts/ and this mcp dir are on sys.path so handlers.py
-    # can import brain_* modules from the right place.
+    # can import brain_* modules. Layout: .claude/mcp/brain/ → .claude/scripts/
+    # (matches agents/claude/mcp/project/server.py).
     this_dir = os.path.dirname(os.path.abspath(__file__))
-    scripts_dir = os.path.normpath(
-        os.path.join(this_dir, "..", "..", "..", "..", "scripts")
-    )
+    scripts_dir = os.path.normpath(os.path.join(this_dir, "..", "..", "scripts"))
     for p in (this_dir, scripts_dir):
         if os.path.isdir(p) and p not in sys.path:
             sys.path.insert(0, p)
@@ -57,14 +58,16 @@ def main() -> None:
             for t in TOOLS
         ]
 
-    import asyncio
-
     @server.call_tool()
     async def call_tool(name: str, arguments: dict):
         try:
             result = await asyncio.to_thread(handle_tool, name, arguments)
             return [TextContent(type="text", text=result)]
         except Exception as e:
+            print(
+                f"[tausik-brain] tool {name!r} failed:\n{traceback.format_exc()}",
+                file=sys.stderr,
+            )
             return [TextContent(type="text", text=f"Error: {e}")]
 
     async def _run():

@@ -8,10 +8,16 @@ import sys
 from typing import Any
 
 _SCRIPTS_DIR = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "scripts")
+    os.path.join(os.path.dirname(__file__), "..", "..", "scripts")
 )
-if _SCRIPTS_DIR not in sys.path:
-    sys.path.insert(0, _SCRIPTS_DIR)
+if os.path.isdir(_SCRIPTS_DIR):
+    if _SCRIPTS_DIR not in sys.path:
+        sys.path.insert(0, _SCRIPTS_DIR)
+else:
+    print(
+        f"[tausik-brain] scripts dir missing: {_SCRIPTS_DIR}",
+        file=sys.stderr,
+    )
 
 import brain_config  # noqa: E402
 import brain_mcp_read  # noqa: E402
