@@ -36,6 +36,9 @@ _FILESIZE_EXEMPT_DIRS = (
     "agents/claude/mcp/",
     "agents/cursor/mcp/",
     "agents/qwen/mcp/",
+    "docs/content/",
+    "docs/architecture/",
+    "backend/configs/",
 )
 
 
