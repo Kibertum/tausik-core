@@ -130,6 +130,29 @@ class NotionClient:
 
     # --- Databases ---
 
+    def databases_create(
+        self,
+        *,
+        parent_page_id: str,
+        title: str,
+        properties: dict,
+    ) -> dict:
+        """Create a Notion database under parent_page_id with given schema.
+
+        Notion API reference: POST /v1/databases.
+        `properties` is a mapping of column-name -> type-config dict, e.g.
+        `{"Name": {"title": {}}, "Tags": {"multi_select": {"options": [...]}}}`.
+        Returns the created database object (contains "id").
+        """
+        if not parent_page_id or not isinstance(parent_page_id, str):
+            raise ValueError("parent_page_id is required")
+        body: dict[str, Any] = {
+            "parent": {"type": "page_id", "page_id": parent_page_id},
+            "title": [{"type": "text", "text": {"content": title[:2000]}}],
+            "properties": properties,
+        }
+        return self._request("POST", "/databases", body=body, is_write=True)
+
     def databases_query(
         self,
         database_id: str,

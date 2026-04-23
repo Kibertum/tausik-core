@@ -389,6 +389,26 @@ def build_parser() -> argparse.ArgumentParser:
     audit_sub.add_parser("check", help="Check if audit is overdue")
     audit_sub.add_parser("mark", help="Mark audit as completed")
 
+    # --- brain (shared cross-project knowledge) ---
+    brain_p = sub.add_parser("brain", help="Shared brain (cross-project knowledge)")
+    brain_sub = brain_p.add_subparsers(dest="brain_cmd")
+    bi = brain_sub.add_parser(
+        "init", help="Initialize brain: create 4 Notion databases + config"
+    )
+    bi.add_argument("--parent-page-id", default=None, dest="parent_page_id")
+    bi.add_argument("--token-env", default=None, dest="token_env")
+    bi.add_argument("--project-name", default=None, dest="project_name")
+    bi.add_argument("--yes", action="store_true", help="Skip confirmation prompt")
+    bi.add_argument(
+        "--force", action="store_true", help="Overwrite existing brain config"
+    )
+    bi.add_argument(
+        "--non-interactive",
+        action="store_true",
+        dest="non_interactive",
+        help="Fail instead of prompting for missing args",
+    )
+
     # --- run (batch execution) ---
     run_p = sub.add_parser(
         "run",

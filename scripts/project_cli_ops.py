@@ -1,4 +1,4 @@
-"""TAUSIK CLI handlers -- metrics, search, events, explore, audit, run, dead-end commands."""
+"""TAUSIK CLI handlers -- metrics, search, events, explore, audit, run, dead-end, brain commands."""
 
 from __future__ import annotations
 
@@ -187,6 +187,68 @@ def cmd_audit(svc: ProjectService, args: Any) -> None:
             print(f"WARNING: {warning}")
         else:
             print("Audit is up to date.")
+
+
+def cmd_brain(svc: ProjectService, args: Any) -> None:
+    """`tausik brain <subcommand>` — init wizard (more subcommands later)."""
+    sub = getattr(args, "brain_cmd", None)
+    if sub != "init":
+        print(
+            "Usage: tausik brain init [--parent-page-id X] [--token-env Y] "
+            "[--project-name Z] [--yes] [--force] [--non-interactive]",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    import brain_init
+    from brain_notion_client import NotionClient
+    from project_config import load_config, save_config
+
+    class _CliIO:
+        def __init__(self) -> None:
+            self.is_tty = sys.stdin.isatty()
+
+        def prompt(self, msg: str) -> str:
+            return input(msg)
+
+        def print(self, msg: str) -> None:
+            print(msg)
+
+    class _ConfigOps:
+        def load(self) -> dict:
+            return load_config()
+
+        def save(self, cfg: dict) -> None:
+            save_config(cfg)
+
+    def _factory(token: str):
+        return NotionClient(token)
+
+    interactive = None
+    if getattr(args, "non_interactive", False):
+        interactive = False
+
+    wizard_args = {
+        "parent_page_id": getattr(args, "parent_page_id", None),
+        "token_env": getattr(args, "token_env", None),
+        "project_name": getattr(args, "project_name", None),
+        "yes": getattr(args, "yes", False),
+        "force": getattr(args, "force", False),
+        "interactive": interactive,
+    }
+
+    try:
+        result = brain_init.run_wizard(wizard_args, _CliIO(), _factory, _ConfigOps())
+    except brain_init.WizardError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    print("\nBrain initialized.")
+    print(f"  parent_page_id: {result['parent_page_id']}")
+    print(f"  token_env:      {result['token_env']}")
+    print(f"  project_name:   {result['project_name']}")
+    for cat, db_id in result["database_ids"].items():
+        print(f"  {cat:>10}: {db_id}")
 
 
 def cmd_run(svc: ProjectService, args: Any) -> None:

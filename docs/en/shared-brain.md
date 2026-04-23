@@ -82,26 +82,15 @@ Nothing that identifies the project should ever reach the brain. Enforcement:
 | [scripts/brain_search.py](../../scripts/brain_search.py) | Local FTS5 search with bm25 ranking and SQL `snippet()` |
 | [references/brain-db-schema.md](../../references/brain-db-schema.md) | Design doc — database properties, JSON payload examples, trade-offs |
 
-## Setup (manual until `tausik brain init` wizard ships)
+## Setup
 
 Prerequisite: a Notion workspace you control.
 
 ### 1. Create the parent page
 
-In your Notion sidebar, create a new page named "TAUSIK Shared Brain" (or whatever you like). This hosts the 4 databases.
+In your Notion sidebar, create a new page named "TAUSIK Shared Brain" (or whatever you like). This hosts the 4 databases the wizard will create.
 
-### 2. Create 4 databases
-
-As inline databases inside the parent page — or as standalone pages, your choice:
-
-- `decisions`
-- `web_cache`
-- `patterns`
-- `gotchas`
-
-Property spec for each is in [references/brain-db-schema.md](../../references/brain-db-schema.md). Minimum required per database: the `Name` title, one or two text properties, `Source Project Hash` rich text, `Tags` multi-select. The sync will tolerate missing optional properties (sets them to NULL).
-
-### 3. Create the integration
+### 2. Create the integration
 
 1. https://www.notion.so/my-integrations → "New integration".
 2. Name it "TAUSIK Brain".
@@ -109,11 +98,11 @@ Property spec for each is in [references/brain-db-schema.md](../../references/br
 4. Capabilities: Read content, Update content, Insert content.
 5. Copy the **internal integration token** (starts with `secret_`).
 
-### 4. Grant the integration access to the databases
+### 3. Share the parent page with the integration
 
-For each of the 4 databases: open it → top-right `...` → "Add connections" → select "TAUSIK Brain".
+Open your "TAUSIK Shared Brain" page → top-right `...` → "Add connections" → select "TAUSIK Brain". The wizard creates databases under this page, so the integration must have access.
 
-### 5. Export the token
+### 4. Export the token
 
 ```bash
 export NOTION_TAUSIK_TOKEN='secret_xxx'
@@ -125,30 +114,33 @@ On Windows:
 setx NOTION_TAUSIK_TOKEN "secret_xxx"
 ```
 
-### 6. Configure
+### 5. Run the wizard
 
-Edit `.tausik/config.json` in your project:
+Interactive (prompts for parent page ID and confirms):
 
-```json
-{
-  "brain": {
-    "enabled": true,
-    "notion_integration_token_env": "NOTION_TAUSIK_TOKEN",
-    "database_ids": {
-      "decisions":  "<uuid from URL of the decisions db>",
-      "web_cache":  "<uuid>",
-      "patterns":   "<uuid>",
-      "gotchas":    "<uuid>"
-    },
-    "project_names": ["your-project-canonical-name"],
-    "ttl_web_cache_days": 30
-  }
-}
+```bash
+.tausik/tausik brain init
 ```
 
-The database UUID is in the Notion URL: `notion.so/...?v=<viewid>` — the 32-char hex id before the `?`, with hyphens inserted or omitted (Notion accepts both).
+Non-interactive (for CI / scripted setup):
 
-### 7. Smoke-test
+```bash
+.tausik/tausik brain init \
+  --parent-page-id 'abc123...' \
+  --token-env NOTION_TAUSIK_TOKEN \
+  --project-name my-project \
+  --yes --non-interactive
+```
+
+The parent page ID is the 32-char hex after `notion.so/...-` in the URL (with or without hyphens). The wizard:
+
+1. Calls `POST /v1/databases` four times to create `decisions`, `web_cache`, `patterns`, `gotchas` with the schemas from [references/brain-db-schema.md](../../references/brain-db-schema.md).
+2. Writes `.tausik/config.json` atomically with `brain.enabled=true`, the 4 `database_ids`, `notion_integration_token_env`, and your project name (for the scrubbing blocklist).
+3. **Never** stores the token itself — only the env var name.
+
+Re-running on an already-configured project fails loudly unless you pass `--force`.
+
+### 6. Smoke-test
 
 ```python
 from brain_config import load_brain, validate_brain, get_brain_mirror_path

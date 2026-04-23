@@ -82,26 +82,15 @@
 | [scripts/brain_search.py](../../scripts/brain_search.py) | Локальный FTS5 поиск с bm25 и SQL `snippet()` |
 | [references/brain-db-schema.md](../../references/brain-db-schema.md) | Design-doc — properties, JSON payload примеры, trade-offs |
 
-## Настройка (вручную, пока не вышел `tausik brain init`)
+## Настройка
 
 Предпосылка: Notion workspace, который ты контролируешь.
 
 ### 1. Создать parent page
 
-В сайдбаре Notion создай новую страницу "TAUSIK Shared Brain" (или любое имя). В ней разместятся 4 базы.
+В сайдбаре Notion создай страницу "TAUSIK Shared Brain" (или любое имя). Wizard создаст под ней 4 базы.
 
-### 2. Создать 4 базы
-
-Как inline databases внутри parent page — или как отдельные страницы:
-
-- `decisions`
-- `web_cache`
-- `patterns`
-- `gotchas`
-
-Полный property-spec каждой — в [references/brain-db-schema.md](../../references/brain-db-schema.md). Минимум на базу: `Name` title, 1-2 text-property, `Source Project Hash` rich text, `Tags` multi-select. Sync терпимо относится к отсутствию необязательных (ставит NULL).
-
-### 3. Создать integration
+### 2. Создать integration
 
 1. https://www.notion.so/my-integrations → "New integration".
 2. Имя: "TAUSIK Brain".
@@ -109,11 +98,11 @@
 4. Capabilities: Read, Update, Insert content.
 5. Скопируй **internal integration token** (начинается с `secret_`).
 
-### 4. Дать integration доступ к базам
+### 3. Дать integration доступ к parent page
 
-Для каждой из 4 баз: открыть → справа вверху `...` → "Add connections" → выбрать "TAUSIK Brain".
+Открой страницу "TAUSIK Shared Brain" → справа вверху `...` → "Add connections" → выбери "TAUSIK Brain". Wizard создаёт базы под этой страницей — integration должен её видеть.
 
-### 5. Экспортировать токен
+### 4. Экспортировать токен
 
 ```bash
 export NOTION_TAUSIK_TOKEN='secret_xxx'
@@ -125,30 +114,33 @@ Windows:
 setx NOTION_TAUSIK_TOKEN "secret_xxx"
 ```
 
-### 6. Настроить
+### 5. Запустить wizard
 
-Правь `.tausik/config.json` в проекте:
+Интерактивно (спросит parent page ID и подтверждение):
 
-```json
-{
-  "brain": {
-    "enabled": true,
-    "notion_integration_token_env": "NOTION_TAUSIK_TOKEN",
-    "database_ids": {
-      "decisions":  "<uuid из URL базы decisions>",
-      "web_cache":  "<uuid>",
-      "patterns":   "<uuid>",
-      "gotchas":    "<uuid>"
-    },
-    "project_names": ["имя-проекта-канонически"],
-    "ttl_web_cache_days": 30
-  }
-}
+```bash
+.tausik/tausik brain init
 ```
 
-UUID базы — в URL Notion: `notion.so/...?v=<viewid>` — 32-символьный hex-id перед `?`. Notion принимает и с дефисами и без.
+Non-interactive (для CI / скриптов):
 
-### 7. Smoke-тест
+```bash
+.tausik/tausik brain init \
+  --parent-page-id 'abc123...' \
+  --token-env NOTION_TAUSIK_TOKEN \
+  --project-name my-project \
+  --yes --non-interactive
+```
+
+Parent page ID — 32-символьный hex после `notion.so/...-` в URL (с дефисами или без). Wizard:
+
+1. Четыре раза вызывает `POST /v1/databases` для `decisions`, `web_cache`, `patterns`, `gotchas` со схемами из [references/brain-db-schema.md](../../references/brain-db-schema.md).
+2. Атомарно пишет `.tausik/config.json` с `brain.enabled=true`, 4 `database_ids`, `notion_integration_token_env`, именем проекта (для scrubbing blocklist).
+3. **Никогда** не сохраняет сам токен — только имя env-переменной.
+
+Повторный запуск в уже настроенном проекте упадёт с ошибкой; для перезаписи — `--force`.
+
+### 6. Smoke-тест
 
 ```python
 from brain_config import load_brain, validate_brain, get_brain_mirror_path

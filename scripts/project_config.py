@@ -301,10 +301,16 @@ def load_config() -> dict:
 
 
 def save_config(cfg: dict) -> None:
+    """Persist config.json atomically: write to .tmp + os.replace.
+
+    Atomicity guards against partial writes if the process is killed mid-write.
+    """
     path = get_config_path()
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=2, ensure_ascii=False)
+    os.replace(tmp, path)
 
 
 def load_gates(cfg: dict | None = None) -> dict[str, dict]:
