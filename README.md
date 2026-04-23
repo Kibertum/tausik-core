@@ -100,6 +100,12 @@ Claude's auto-memory (`~/.claude/projects/*/memory/`) is cross-project — anyth
 - **PostToolUse audit** — after every auto-memory write the file is scanned for project markers (absolute paths, kebab slugs, `.tausik/tausik` commands, source-file refs); matches produce a stderr warning so bypasses that still carry project traces don't slip through.
 - **Policy rule in Memory Block** — every session-start injection begins with an explicit rule on where project knowledge belongs.
 
+## Shared Brain (optional, in progress)
+
+A second, **cross-project** knowledge layer backed by Notion. Local `.tausik/tausik.db` keeps project-specific traces; the shared brain keeps only knowledge that's generalizable (architectural decisions, patterns, gotchas, web cache). Modules shipped: stdlib-only Notion REST client (throttle + retry + pagination), local SQLite FTS5 mirror with `unicode61` tokenizer, delta pull-sync, bm25-ranked search. 102/102 new tests passing, zero external deps. Privacy preserved via `SHA256(project_name)[:16]` hashes — no plaintext project names leave the machine.
+
+Still pending: MCP tools, init wizard, scrubbing linter, classifier. See **[Shared Brain docs ->](docs/en/shared-brain.md)** for setup and architecture.
+
 ## What's Inside
 
 - **35 skills** — `/plan`, `/ship`, `/review`, `/audit`, `/debug`, `/test`, `/interview`, and more

@@ -21,6 +21,7 @@ TAUSIK is an engineering governance framework for AI coding agents. It forces pl
 | 11 | **[Skill Adaptation](en/skill-adaptation.md)** | How to adapt any skill repo for TAUSIK |
 | 12 | **[SENAR Compliance](en/senar-compliance-matrix.md)** | Compliance matrix |
 | 13 | **[i18n Strategy](en/i18n-strategy.md)** | Localization approach |
+| 14 | **[Shared Brain](en/shared-brain.md)** | Optional cross-project Notion knowledge base |
 
 ## Русский
 
@@ -41,6 +42,7 @@ TAUSIK is an engineering governance framework for AI coding agents. It forces pl
 | 11 | **[Адаптация скиллов](ru/skill-adaptation.md)** | Как адаптировать скиллы под TAUSIK |
 | 12 | **[SENAR матрица](ru/senar-compliance-matrix.md)** | Матрица соответствия |
 | 13 | **[Стратегия i18n](ru/i18n-strategy.md)** | Локализация |
+| 14 | **[Shared Brain](ru/shared-brain.md)** | Опциональная кросс-проектная база знаний на Notion |
 
 ## Other
 
