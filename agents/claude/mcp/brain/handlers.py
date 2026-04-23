@@ -15,6 +15,7 @@ if _SCRIPTS_DIR not in sys.path:
 
 import brain_config  # noqa: E402
 import brain_mcp_read  # noqa: E402
+import brain_mcp_write  # noqa: E402
 import brain_notion_client  # noqa: E402
 import brain_sync  # noqa: E402
 
@@ -108,9 +109,59 @@ def handle_brain_get(args: dict) -> str:
     return body
 
 
+_STORE_CATEGORY_BY_TOOL = {
+    "brain_store_decision": "decisions",
+    "brain_store_pattern": "patterns",
+    "brain_store_gotcha": "gotchas",
+    "brain_cache_web": "web_cache",
+}
+
+
+def _extract_fields(tool_name: str, args: dict) -> dict:
+    """Pass-through dict trimmed to non-None values; drops project_name."""
+    return {k: v for k, v in args.items() if k != "project_name" and v is not None}
+
+
+def _handle_store(tool_name: str, args: dict) -> str:
+    category = _STORE_CATEGORY_BY_TOOL[tool_name]
+    conn, client, cfg = _open_deps()
+    if not cfg.get("enabled") or conn is None:
+        return _not_configured_msg()
+    if client is None:
+        return (
+            "_Brain integration token is not set in env. "
+            "Set the env var named by `brain.notion_integration_token_env` "
+            "and retry._"
+        )
+    fields = _extract_fields(tool_name, args)
+    project_name = args.get("project_name")
+    result = brain_mcp_write.store_record(
+        client, conn, category, fields, cfg, project_name=project_name
+    )
+    return brain_mcp_write.format_store_result(result, category)
+
+
+def handle_brain_store_decision(args: dict) -> str:
+    return _handle_store("brain_store_decision", args)
+
+
+def handle_brain_store_pattern(args: dict) -> str:
+    return _handle_store("brain_store_pattern", args)
+
+
+def handle_brain_store_gotcha(args: dict) -> str:
+    return _handle_store("brain_store_gotcha", args)
+
+
+def handle_brain_cache_web(args: dict) -> str:
+    return _handle_store("brain_cache_web", args)
+
+
 def handle_tool(name: str, args: dict) -> str:
     if name == "brain_search":
         return handle_brain_search(args)
     if name == "brain_get":
         return handle_brain_get(args)
+    if name in _STORE_CATEGORY_BY_TOOL:
+        return _handle_store(name, args)
     return f"Unknown tool: {name}"
