@@ -234,7 +234,11 @@ def test_search_fallback_network_error_returns_local_with_warning(conn):
     )
     assert len(out["results"]) == 1
     assert out["results"][0]["notion_page_id"] == "id1"
-    assert any("Notion fallback failed" in w for w in out["warnings"])
+    # brain_fallback classifies a generic Exception as 'unknown' (no Notion
+    # type) and renders "_Notion error: <detail>._". Either the unknown or
+    # the network markdown is acceptable.
+    joined = " ".join(out["warnings"]).lower()
+    assert "notion error" in joined or "local mirror" in joined or "offline" in joined
 
 
 def test_search_no_fallback_when_local_meets_limit(conn):
@@ -365,7 +369,8 @@ def test_get_notion_error_returns_warning(conn):
         conn, client, "remote1", "decisions"
     )
     assert rec is None
-    assert any("Notion fallback failed" in w for w in warnings)
+    joined = " ".join(warnings).lower()
+    assert "notion error" in joined or "local mirror" in joined
 
 
 def test_get_unknown_category_returns_error(conn):

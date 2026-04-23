@@ -27,6 +27,7 @@ from datetime import date as _date
 from typing import Any, Callable
 
 import brain_config
+import brain_fallback
 import brain_scrubbing
 import brain_sync
 
@@ -329,7 +330,12 @@ def store_record(
     try:
         page = client.pages_create(parent={"database_id": db_id}, properties=properties)
     except Exception as e:  # noqa: BLE001
-        return {"status": "notion_error", "error": str(e)}
+        return {
+            "status": "notion_error",
+            "error_category": brain_fallback.classify_error(e),
+            "error": str(e),
+            "retry_after": brain_fallback.retry_after_from(e),
+        }
 
     try:
         row = brain_sync.map_page_to_row(category, page)
@@ -370,7 +376,13 @@ def format_store_result(result: dict, category: str) -> str:
     if status == "scrub_blocked":
         return brain_scrubbing.format_issues(result.get("issues") or [])
     if status == "notion_error":
-        return f"**Notion write failed.** {result.get('error')}"
+        cat = result.get("error_category") or result.get("category") or "unknown"
+        return brain_fallback.user_message(
+            cat,
+            op="store",
+            detail=result.get("error") or "",
+            retry_after=result.get("retry_after"),
+        )
     if status == "config_error":
         return f"**Config error.** {result.get('error')}"
     if status == "bad_fields":

@@ -462,10 +462,11 @@ def test_format_result_scrub_block():
 
 
 def test_format_result_notion_error():
+    """Legacy error payload (no `category`) renders via brain_fallback's unknown path."""
     md = brain_mcp_write.format_store_result(
         {"status": "notion_error", "error": "timeout"}, "patterns"
     )
-    assert "Notion write failed" in md
+    assert "timeout" in md or "Notion error" in md
 
 
 # ---- Handler dispatch --------------------------------------------------

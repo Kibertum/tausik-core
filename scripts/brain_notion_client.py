@@ -52,6 +52,7 @@ class NotionError(Exception):
         super().__init__(message)
         self.status = status
         self.body = body or {}
+        self.retry_after: int | None = None
 
 
 class NotionAuthError(NotionError):
@@ -68,6 +69,10 @@ class NotionRateLimitError(NotionError):
 
 class NotionServerError(NotionError):
     """5xx retries exhausted."""
+
+
+class NotionNetworkError(NotionError):
+    """Transport-layer failure (DNS, connection refused, timeout, URLError)."""
 
 
 class NotionClient:
@@ -284,11 +289,19 @@ class NotionClient:
                         err_cls = (
                             NotionRateLimitError if status == 429 else NotionServerError
                         )
-                        raise err_cls(
+                        err = err_cls(
                             f"Notion retries exhausted ({status})",
                             status=status,
                             body=body_json,
-                        ) from e
+                        )
+                        if status == 429 and e.headers is not None:
+                            ra = e.headers.get("Retry-After")
+                            if ra:
+                                try:
+                                    err.retry_after = int(float(ra))
+                                except (TypeError, ValueError):
+                                    pass
+                        raise err from e
                     delay = self._compute_backoff(attempt, e)
                     logger.warning(
                         "Notion %s %s -> %d; retry in %.2fs (%d/%d)",
@@ -309,7 +322,7 @@ class NotionClient:
                 ) from e
             except urllib.error.URLError as e:
                 if attempt >= self._max_retries:
-                    raise NotionError(f"Notion network error: {e.reason}") from e
+                    raise NotionNetworkError(f"Notion network error: {e.reason}") from e
                 delay = self._compute_backoff(attempt, None)
                 logger.warning(
                     "Notion %s %s network error; retry in %.2fs",

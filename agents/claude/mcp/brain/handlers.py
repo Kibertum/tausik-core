@@ -53,9 +53,10 @@ def _open_deps() -> tuple[sqlite3.Connection | None, Any | None, dict]:
 def _not_configured_msg() -> str:
     return (
         "_Brain is not enabled in this project._\n\n"
-        "To enable: run `.tausik/tausik brain init` (coming soon) "
-        "or set `brain.enabled = true` + `brain.database_ids` in "
-        "`.tausik/config.json`, and export the integration token env var."
+        "To enable: run `.tausik/tausik brain init` — it creates the 4 "
+        "Notion databases and writes `.tausik/config.json` for you. "
+        "Non-interactive flags: `--parent-page-id X --token-env Y "
+        "--project-name Z --yes --non-interactive`."
     )
 
 

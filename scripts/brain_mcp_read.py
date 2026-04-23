@@ -24,6 +24,7 @@ import json
 import sqlite3
 from typing import Any
 
+import brain_fallback
 import brain_search
 import brain_sync
 
@@ -181,7 +182,15 @@ def search_with_fallback(
                 limit,
             )
         except Exception as e:  # noqa: BLE001
-            warnings.append(f"Notion fallback failed: {e}; showing local results only")
+            cat = brain_fallback.classify_error(e)
+            warnings.append(
+                brain_fallback.user_message(
+                    cat,
+                    op="search",
+                    detail=str(e),
+                    retry_after=brain_fallback.retry_after_from(e),
+                )
+            )
 
     seen = {r["notion_page_id"] for r in local if r.get("notion_page_id")}
     merged: list[dict] = list(local)
@@ -219,7 +228,15 @@ def get_with_fallback(
     try:
         page = client.pages_retrieve(notion_page_id)
     except Exception as e:  # noqa: BLE001
-        warnings.append(f"Notion fallback failed: {e}")
+        cat = brain_fallback.classify_error(e)
+        warnings.append(
+            brain_fallback.user_message(
+                cat,
+                op="get",
+                detail=str(e),
+                retry_after=brain_fallback.retry_after_from(e),
+            )
+        )
         return None, warnings
 
     try:
