@@ -42,22 +42,6 @@ class TestOpenBrainDbWalMode:
             conn.close()
         assert mode.lower() == "wal"
 
-    def test_memory_db_falls_back_silently(self):
-        # `:memory:` doesn't support WAL; open_brain_db should not raise.
-        # It also can't take ':memory:' literally because the path is abs'd
-        # into a file — simulate WAL failure by monkey-patching.
-        conn = sqlite3.connect(":memory:")
-        try:
-            # The real open_brain_db refuses to set WAL on :memory: via the
-            # PRAGMA trip; we directly assert the pragma call on an in-memory
-            # DB doesn't take. sqlite3 returns 'memory' for :memory: regardless.
-            mode = conn.execute("PRAGMA journal_mode=WAL").fetchone()[0]
-        finally:
-            conn.close()
-        # sqlite silently refuses WAL on :memory: — confirms our fallback is
-        # the right behaviour: caller sees a mode that isn't WAL and moves on.
-        assert mode.lower() != "wal"
-
     def test_wal_failure_does_not_raise(self, tmp_path, monkeypatch):
         """If the WAL pragma errors out, open_brain_db still returns a usable DB.
 
@@ -259,10 +243,48 @@ class TestMirrorPathContract:
     """The bug: get_brain_mirror_path(merged_brain_dict) silently ignores the
     user's local_mirror_path because load_brain() re-unpacks `cfg["brain"]`.
 
-    brain_runtime.try_brain_write_* used to call `get_brain_mirror_path(cfg)`
-    with the already-merged cfg — the fix is to call with no arg so
-    load_config() is consulted fresh.
+    Initial fix (brain-config-mirror-path-contract): brain_runtime.try_brain_write_*
+    call `get_brain_mirror_path()` with no arg.
+    Review3 fix (brain-review3-fixes): get_brain_mirror_path itself now detects
+    the merged-dict shape and unpacks correctly either way, so the no-arg
+    workaround is no longer load-bearing — but we keep it for clarity.
     """
+
+    def test_get_brain_mirror_path_accepts_merged_dict(self, tmp_path):
+        """The function must honor local_mirror_path from a merged brain dict
+        (the shape load_brain() returns), not just a top-level project config."""
+        custom = str(tmp_path / "merged-brain.db")
+        merged = {
+            "enabled": True,
+            "local_mirror_path": custom,
+            "notion_integration_token_env": "X",
+            "database_ids": {
+                "decisions": "d",
+                "web_cache": "w",
+                "patterns": "p",
+                "gotchas": "g",
+            },
+        }
+        path = brain_config.get_brain_mirror_path(merged)
+        assert path == os.path.abspath(custom)
+
+    def test_get_brain_mirror_path_still_accepts_top_level_config(self, tmp_path):
+        """The legacy shape — {"brain": {...}} — must keep working."""
+        custom = str(tmp_path / "top-level-brain.db")
+        top_level = {
+            "brain": {
+                "enabled": True,
+                "local_mirror_path": custom,
+                "database_ids": {
+                    "decisions": "d",
+                    "web_cache": "w",
+                    "patterns": "p",
+                    "gotchas": "g",
+                },
+            }
+        }
+        path = brain_config.get_brain_mirror_path(top_level)
+        assert path == os.path.abspath(custom)
 
     def test_try_brain_write_decision_opens_user_mirror_path(
         self, tmp_path, monkeypatch

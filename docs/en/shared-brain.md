@@ -148,15 +148,21 @@ from brain_notion_client import NotionClient
 from brain_sync import open_brain_db, sync_all
 import os
 
-cfg = {"brain": load_brain()}
-errors = validate_brain(cfg)
+brain = load_brain()
+errors = validate_brain()
 assert not errors, errors
 
 client = NotionClient(os.environ["NOTION_TAUSIK_TOKEN"])
-conn = open_brain_db(get_brain_mirror_path(cfg))
-result = sync_all(client, conn, cfg["brain"]["database_ids"])
+conn = open_brain_db(get_brain_mirror_path())
+result = sync_all(client, conn, brain["database_ids"])
 print(result)
 ```
+
+`get_brain_mirror_path()` accepts three input shapes: `None` (consults
+`load_config()` internally), a top-level project dict
+`{"brain": {...}}`, or an already-merged brain dict
+`{"enabled": ..., "local_mirror_path": ...}` (the shape `load_brain()`
+returns). All three resolve the same absolute path.
 
 Expected: 4 keys (decisions/web_cache/patterns/gotchas), each with `{fetched: N, upserted: N, last_edited_time: ...}` or `{error: ...}`. On a fresh empty setup, all four are `{fetched: 0, upserted: 0, last_edited_time: null}`.
 

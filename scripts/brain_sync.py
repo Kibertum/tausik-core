@@ -19,6 +19,7 @@ from typing import Any
 
 import brain_notion_props
 import brain_schema
+from brain_hook_utils import parse_iso_to_epoch
 
 logger = logging.getLogger(__name__)
 
@@ -246,8 +247,6 @@ def _iso_epoch(s: str) -> float:
     """
     if not s:
         return float("-inf")
-    from brain_hook_utils import parse_iso_to_epoch
-
     e = parse_iso_to_epoch(s)
     return e if e is not None else float("-inf")
 
@@ -275,6 +274,11 @@ def sync_category(
     upserted = 0
     max_edited = cursor
     max_edited_epoch = _iso_epoch(cursor or "")
+    # sqlite3's default isolation_level="" auto-BEGINs on the first DML,
+    # which is the `upsert_page` INSERT OR REPLACE inside the loop below.
+    # The `conn.rollback()` in the except branch relies on that implicit
+    # transaction being open — if a future refactor moves a DML earlier
+    # (e.g. into _get_sync_state), re-check the rollback boundary.
     try:
         for page in client.iter_database_query(
             database_id, filter=notion_filter, sorts=sorts

@@ -39,6 +39,16 @@ Cross-project knowledge layer backed by Notion, complementing the per-project `.
 
 - **brain_sync split** — Notion property readers + per-category mappers (`_concat_text`, `_read_prop`, `_prop_*`, `map_decision` / `map_web_cache` / `map_pattern` / `map_gotcha` + `MAPPERS_BY_CATEGORY`) вынесены в новый [scripts/brain_notion_props.py](scripts/brain_notion_props.py) (~142 lines). `brain_sync.py` сократился до 328 lines — под 400-line filesize gate. `map_page_to_row` остался в brain_sync как dispatcher — Выделение Notion parsers в отдельный модуль
 
+### Fixed / Исправлено — review3 pass
+
+4 findings from the third defensive review pass on commits af0a156 / 4a24c1a / 2e56a64:
+
+- **[M1] `get_brain_mirror_path` shape detection** ([scripts/brain_config.py](scripts/brain_config.py)) — функция теперь принимает три формы: `None` (consults load_config), top-level `{"brain": {...}}`, и already-merged brain dict `{"enabled": ..., "local_mirror_path": ...}`. Детектит merged по отсутствию ключа `"brain"` + наличию любого из merged-shape маркеров (`enabled` / `local_mirror_path` / `database_ids`). Устраняет footgun: предыдущий фикс в `brain_runtime.try_brain_write_*` обходил баг через `get_brain_mirror_path()` без аргумента, но сама функция оставалась миной для будущих callers. Regression-тесты для обеих shapes — Контракт функции поддерживает обе shape
+- **[M1 docs] docs/en|ru/shared-brain.md** — smoke-test snippet упрощён: `load_brain()` + `validate_brain()` + `get_brain_mirror_path()` все без аргументов, плюс параграф про три поддерживаемые формы входа — Документация смоук-теста без ambiguous cfg
+- **[M2] Hoisted import** ([scripts/brain_sync.py](scripts/brain_sync.py)) — `from brain_hook_utils import parse_iso_to_epoch` на module scope. Раньше импорт был внутри `_iso_epoch` (вызывается per-page в sync loop) — per-call attribute lookup на холодном sync'е тысяч страниц — Импорт вынесен из hot loop
+- **[L1] auto-BEGIN invariant comment** ([scripts/brain_sync.py](scripts/brain_sync.py) `sync_category`) — inline-комментарий фиксирует инвариант: `conn.rollback()` в except-ветке полагается на implicit BEGIN от первого `upsert_page`. Если рефакторинг добавит DML раньше в `_get_sync_state`, rollback boundary изменится — Комментарий защищает rollback-инвариант
+- **[L2] Dead test удалён** ([tests/test_brain_storage_hardening.py](tests/test_brain_storage_hardening.py)) — `test_memory_db_falls_back_silently` не вызывал `open_brain_db`, тестировал поведение sqlite3 напрямую. `test_wal_failure_does_not_raise` покрывает настоящий контракт — Лишний тест сняли
+
 ### Test Coverage / Тесты
 
 - **+102 new tests** — `test_brain_schema.py` (17), `test_brain_config.py` (20), `test_brain_notion_client.py` (26), `test_brain_sync.py` (15), `test_brain_search.py` (24). Entire brain-suite green in 2 s; no network I/O (client tests inject `_Recorder`/`_ClockSleep`). Pre-existing 918 tests unaffected.

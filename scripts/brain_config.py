@@ -110,11 +110,30 @@ def validate_brain(cfg: dict | None = None) -> list[str]:
 def get_brain_mirror_path(cfg: dict | None = None) -> str:
     """Absolute filesystem path to the local brain SQLite mirror.
 
-    Expands ~ and $ENV_VAR / ${ENV_VAR} references.
+    Accepts two input shapes:
+
+      1. None — reads the project config via load_config().
+      2. Top-level config: {"brain": {...}} — the "brain" key is unpacked.
+      3. Already-merged brain dict: {"enabled": ..., "local_mirror_path": ...}
+         — detected by the ABSENCE of a "brain" key and presence of any
+         merged-shape marker (enabled / local_mirror_path / database_ids).
+
+    The third shape is supported because several callers already have the
+    merged dict in hand (returned by load_brain()); without this detection
+    they would pass the merged dict, `load_brain({"enabled": ...}).get(
+    "brain", {})` would return `{}`, and the user's local_mirror_path
+    would silently be replaced by the default. See brain-review3-fixes.
+
+    Expands ~ and $ENV_VAR / ${ENV_VAR} references in the final path.
     """
+    merged_markers = ("enabled", "local_mirror_path", "database_ids")
+    if cfg is not None and "brain" not in cfg and any(k in cfg for k in merged_markers):
+        merged = cfg
+    else:
+        merged = load_brain(cfg)
     raw = cast(
         str,
-        load_brain(cfg).get("local_mirror_path") or DEFAULT_BRAIN["local_mirror_path"],
+        merged.get("local_mirror_path") or DEFAULT_BRAIN["local_mirror_path"],
     )
     return os.path.abspath(os.path.expandvars(os.path.expanduser(raw)))
 

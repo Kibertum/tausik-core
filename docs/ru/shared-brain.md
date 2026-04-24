@@ -148,15 +148,21 @@ from brain_notion_client import NotionClient
 from brain_sync import open_brain_db, sync_all
 import os
 
-cfg = {"brain": load_brain()}
-errors = validate_brain(cfg)
+brain = load_brain()
+errors = validate_brain()
 assert not errors, errors
 
 client = NotionClient(os.environ["NOTION_TAUSIK_TOKEN"])
-conn = open_brain_db(get_brain_mirror_path(cfg))
-result = sync_all(client, conn, cfg["brain"]["database_ids"])
+conn = open_brain_db(get_brain_mirror_path())
+result = sync_all(client, conn, brain["database_ids"])
 print(result)
 ```
+
+`get_brain_mirror_path()` принимает три формы входа: `None` (читает
+`load_config()` сам), top-level dict `{"brain": {...}}`, либо уже
+merged brain dict `{"enabled": ..., "local_mirror_path": ...}`
+(то что возвращает `load_brain()`). Все три разрешаются в один
+абсолютный путь.
 
 Ожидание: 4 ключа (decisions/web_cache/patterns/gotchas), каждый — `{fetched: N, upserted: N, last_edited_time: ...}` или `{error: ...}`. На свежем пустом setup все четыре — `{fetched: 0, upserted: 0, last_edited_time: null}`.
 
