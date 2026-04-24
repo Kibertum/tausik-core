@@ -47,8 +47,15 @@ def try_brain_write_decision(
         if status in ("ok", "ok_not_mirrored"):
             return True, result.get("notion_page_id", "")
         if status == "scrub_blocked":
+            # brain_mcp_write.store_record returns issues as list[dict] with
+            # keys {detector, severity, match, hint}. Surface only the detector
+            # names (closed set) — never the raw `match` values, which can
+            # contain user content / ANSI / prompt-injection payloads.
             issues = result.get("issues") or []
-            detail = ", ".join(issues) if issues else "matched patterns"
+            detectors = sorted(
+                {i.get("detector", "?") for i in issues if isinstance(i, dict)}
+            )
+            detail = ", ".join(detectors) if detectors else "matched patterns"
             return False, f"scrub_blocked: {detail}"
         return False, f"{status}: {result.get('error', 'unknown')}"
     except Exception as e:  # noqa: BLE001

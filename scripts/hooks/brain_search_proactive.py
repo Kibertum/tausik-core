@@ -36,10 +36,25 @@ _BYPASS_MARKER = "refresh: web_cache"
 _WATCHED_TOOLS = ("WebSearch", "WebFetch")
 
 
+# Claude Code hook payloads are small JSON dicts — cap the read to defuse
+# a malformed/huge stdin that could otherwise keep the hook alive past
+# the subprocess timeout.
+_STDIN_SIZE_CAP = 1_048_576  # 1 MiB
+
+
 def _read_stdin_json() -> dict:
     try:
-        data = json.load(sys.stdin)
-    except (json.JSONDecodeError, EOFError, ValueError, OSError):
+        raw = sys.stdin.read(_STDIN_SIZE_CAP + 1)
+    except (OSError, ValueError):
+        return {}
+    if len(raw) > _STDIN_SIZE_CAP:
+        # Oversized payload — refuse to parse. Hook degrades to allow-all,
+        # which is safe: a legitimately large payload would be a different
+        # kind of bug.
+        return {}
+    try:
+        data = json.loads(raw) if raw else {}
+    except (json.JSONDecodeError, ValueError):
         return {}
     return data if isinstance(data, dict) else {}
 
@@ -89,20 +104,34 @@ def _parse_iso_to_epoch(s: str) -> float | None:
 
 
 def _lookup_exact_url(conn: sqlite3.Connection, url: str) -> dict | None:
-    """Return the freshest web_cache row whose url matches exactly, or None."""
-    row = conn.execute(
-        "SELECT notion_page_id, url, fetched_at, name "
-        "FROM brain_web_cache WHERE url = ? "
-        "ORDER BY fetched_at DESC LIMIT 1",
-        (url,),
-    ).fetchone()
-    if row is None:
+    """Return the freshest web_cache row whose url matches exactly, or None.
+
+    ORDER BY on the raw TEXT fetched_at is lexicographic, which disagrees
+    with chronological order when different ISO formats co-exist (e.g.
+    '...Z' vs '...000Z'). Fetch all matches and sort in Python by the
+    parsed epoch — misparse sorts last (treated as oldest).
+    """
+    try:
+        rows = conn.execute(
+            "SELECT notion_page_id, url, fetched_at, name "
+            "FROM brain_web_cache WHERE url = ?",
+            (url,),
+        ).fetchall()
+    except sqlite3.Error:
         return None
+    if not rows:
+        return None
+
+    def _key(r: sqlite3.Row) -> float:
+        epoch = _parse_iso_to_epoch(r["fetched_at"] or "")
+        return epoch if epoch is not None else float("-inf")
+
+    best = max(rows, key=_key)
     return {
-        "notion_page_id": row["notion_page_id"],
-        "url": row["url"],
-        "fetched_at": row["fetched_at"],
-        "name": row["name"],
+        "notion_page_id": best["notion_page_id"],
+        "url": best["url"],
+        "fetched_at": best["fetched_at"],
+        "name": best["name"],
     }
 
 
@@ -124,7 +153,10 @@ def _lookup_fts(conn: sqlite3.Connection, query: str) -> dict | None:
     )
     try:
         row = conn.execute(sql, (safe,)).fetchone()
-    except sqlite3.OperationalError:
+    except sqlite3.Error:
+        # Broader than OperationalError: DatabaseError, IntegrityError etc.
+        # If the mirror DB is corrupt or locked mid-read, we fail closed
+        # (allow the net fetch) rather than crash the hook.
         return None
     if row is None:
         return None

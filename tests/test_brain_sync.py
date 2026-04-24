@@ -272,6 +272,49 @@ def test_upsert_page_rejects_unknown_category(conn):
     assert "Unknown category" in str(exc.value)
 
 
+def test_allowed_cols_matches_schema():
+    """Schema-drift guard: _ALLOWED_COLS_OF must exactly match the columns
+    declared for each brain_<category> table in brain_schema.SCHEMA_SQL.
+    If a future migration adds a column to the schema and the mapper starts
+    emitting it, this test fails BEFORE upsert_page silently starts raising
+    ValueError at runtime."""
+    import re
+
+    import brain_schema
+
+    schema_sql = brain_schema.SCHEMA_SQL
+    # Match `CREATE TABLE IF NOT EXISTS <name> ( ... );` blocks.
+    table_re = re.compile(
+        r"CREATE TABLE IF NOT EXISTS\s+(brain_\w+)\s*\((.*?)\);",
+        re.DOTALL,
+    )
+    tables = {m.group(1): m.group(2) for m in table_re.finditer(schema_sql)}
+
+    for category, table_name in brain_sync._TABLE_OF.items():
+        assert table_name in tables, f"Missing schema for {table_name}"
+        body = tables[table_name]
+        cols: set[str] = set()
+        for line in body.splitlines():
+            s = line.strip().rstrip(",")
+            if not s:
+                continue
+            # Skip CHECK(...) continuation lines and mid-column constraints.
+            if s.startswith(("CHECK", ")", "FOREIGN KEY")):
+                continue
+            name = s.split()[0].strip()
+            # First token of a column decl is the column name.
+            if name.isidentifier():
+                cols.add(name)
+        # `id` is auto-increment PK, never inserted by upsert.
+        expected = cols - {"id"}
+        actual = brain_sync._ALLOWED_COLS_OF[category]
+        assert expected == actual, (
+            f"{category}: schema has {expected - actual or '-'} "
+            f"not in whitelist; whitelist has {actual - expected or '-'} "
+            f"not in schema"
+        )
+
+
 def test_upsert_page_accepts_schema_exact_columns(conn):
     brain_sync.upsert_page(conn, "decisions", _minimal_decision_row())
     out = conn.execute(

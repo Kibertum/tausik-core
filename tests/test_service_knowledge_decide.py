@@ -146,7 +146,20 @@ def test_brain_scrub_blocked_falls_back_local(svc, monkeypatch):
             "brain_mcp_write.store_record",
             return_value={
                 "status": "scrub_blocked",
-                "issues": ["filesystem_paths", "slug_markers"],
+                "issues": [
+                    {
+                        "detector": "filesystem_paths",
+                        "severity": "block",
+                        "match": "/home/secret/path",
+                        "hint": "Remove absolute path.",
+                    },
+                    {
+                        "detector": "emails",
+                        "severity": "block",
+                        "match": "attacker@example.com",
+                        "hint": "Remove email.",
+                    },
+                ],
             },
         ),
     ):
@@ -155,7 +168,11 @@ def test_brain_scrub_blocked_falls_back_local(svc, monkeypatch):
     assert "saved to local" in msg
     assert "scrub_blocked" in msg
     assert "filesystem_paths" in msg
-    assert "slug_markers" in msg
+    assert "emails" in msg
+    # CRIT-1 regression: raw match values must NOT leak into the user-facing
+    # reason (they can contain user content / ANSI / prompt-injection payloads).
+    assert "/home/secret/path" not in msg
+    assert "attacker@example.com" not in msg
     assert "unknown" not in msg
     assert len(svc.decisions()) == 1
 

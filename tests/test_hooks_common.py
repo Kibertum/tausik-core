@@ -81,6 +81,49 @@ class TestMarkerPresentAnchored:
         text = "confirm: cross-project -- but only for this file"
         assert not marker_present_anchored(text, "confirm: cross-project")
 
+    # HIGH-2 regressions: close bypasses found in the second review pass.
+
+    def test_u2028_line_separator_does_NOT_trigger_bypass(self):
+        """U+2028 is invisible but splitlines() treats it as a line break —
+        an attacker could sneak the marker into prose with U+2028 on each
+        side and have it masquerade as a line of its own."""
+        text = "hook said confirm: cross-project right?"
+        assert not marker_present_anchored(text, "confirm: cross-project")
+
+    def test_u2029_paragraph_separator_does_NOT_trigger_bypass(self):
+        text = "hook said confirm: cross-project right?"
+        assert not marker_present_anchored(text, "confirm: cross-project")
+
+    def test_u0085_nel_does_NOT_trigger_bypass(self):
+        """NEL (next line, U+0085) — same bypass class."""
+        text = "hook saidconfirm: cross-projectright?"
+        assert not marker_present_anchored(text, "confirm: cross-project")
+
+    def test_tilde_fenced_block_does_NOT_trigger_bypass(self):
+        """CommonMark allows ~~~ as a fence alternative to ```. A marker
+        inside a tilde-fenced block must also be skipped."""
+        text = "The hook said:\n~~~\nconfirm: cross-project\n~~~\nWhat do I do?"
+        assert not marker_present_anchored(text, "confirm: cross-project")
+
+    def test_tilde_fence_with_language_tag_does_NOT_trigger_bypass(self):
+        text = "~~~text\nconfirm: cross-project\n~~~"
+        assert not marker_present_anchored(text, "confirm: cross-project")
+
+    def test_four_space_indented_line_does_NOT_trigger_bypass(self):
+        """Markdown indented-code block — 4+ leading spaces makes the line
+        render as code in most agents / UIs. Must not count as the marker."""
+        text = "The hook said:\n\n    confirm: cross-project\n\nWhat do I do?"
+        assert not marker_present_anchored(text, "confirm: cross-project")
+
+    def test_tab_indented_line_does_NOT_trigger_bypass(self):
+        text = "The hook said:\n\n\tconfirm: cross-project\n\nWhat do I do?"
+        assert not marker_present_anchored(text, "confirm: cross-project")
+
+    def test_three_space_indent_still_triggers_bypass(self):
+        """3 spaces is not an indented-code block — still a regular line."""
+        text = "   confirm: cross-project"
+        assert marker_present_anchored(text, "confirm: cross-project")
+
 
 class TestLastUserPromptText:
     def _write(self, tmp_path, events):

@@ -279,6 +279,32 @@ def test_blocklist_url_encoded_bypass_blocked():
     assert r["ok"] is False
 
 
+def test_blocklist_double_url_encoded_bypass_blocked():
+    """%2570 decodes to %70 on first round, then to 'p' on second round."""
+    r = brain_scrubbing.scrub(
+        "See https://example.com/?q=%2570rincess%20docs",
+        project_names=["princess"],
+    )
+    assert r["ok"] is False
+
+
+def test_blocklist_html_numeric_entity_bypass_blocked():
+    """&#112; is HTML decimal entity for 'p'."""
+    r = brain_scrubbing.scrub(
+        "Old docs said &#112;rincess is the next sprint target",
+        project_names=["princess"],
+    )
+    assert r["ok"] is False
+
+
+def test_blocklist_html_named_entity_bypass_blocked():
+    r = brain_scrubbing.scrub(
+        "Jump to &#x70;rincess channel",  # &#x70; = 'p'
+        project_names=["princess"],
+    )
+    assert r["ok"] is False
+
+
 def test_blocklist_mixed_homoglyph_and_zero_width_blocked():
     """Cyrillic Р + zero-width + Latin rincess."""
     r = brain_scrubbing.scrub(
@@ -293,6 +319,49 @@ def test_blocklist_greek_homoglyph_blocked():
         "Check Αpex dashboard",  # Greek Alpha (Α) + pex
         project_names=["apex"],
     )
+    assert r["ok"] is False
+
+
+def test_blocklist_greek_lowercase_alpha_blocked():
+    """Greek lowercase α (U+03B1) must map to Latin 'a'."""
+    r = brain_scrubbing.scrub("the αpex dashboard", project_names=["apex"])
+    assert r["ok"] is False
+
+
+def test_blocklist_cyrillic_lowercase_v_blocked():
+    """Cyrillic lowercase в (U+0432) must map to Latin 'b'."""
+    r = brain_scrubbing.scrub("Вrincess project", project_names=["brincess"])
+    assert r["ok"] is False
+
+
+def test_blocklist_cyrillic_lowercase_m_blocked():
+    r = brain_scrubbing.scrub("мanager of princess", project_names=["manager"])
+    assert r["ok"] is False
+
+
+def test_blocklist_cyrillic_lowercase_t_blocked():
+    r = brain_scrubbing.scrub("тrinket", project_names=["trinket"])
+    assert r["ok"] is False
+
+
+def test_blocklist_cyrillic_lowercase_k_blocked():
+    """Mixed-script attack: Cyrillic к (U+043A) + Latin ernel = 'kernel' after
+    normalization. Used in practice more than all-Cyrillic substitutions,
+    which would need every letter to have a confusable (not all do, e.g.
+    Cyrillic л has no plain Latin lookalike)."""
+    r = brain_scrubbing.scrub("кernel module", project_names=["kernel"])
+    assert r["ok"] is False
+
+
+def test_blocklist_greek_lowercase_nu_blocked():
+    """Greek ν (U+03BD) lookalike for 'v'."""
+    r = brain_scrubbing.scrub("νanguard tracker", project_names=["vanguard"])
+    assert r["ok"] is False
+
+
+def test_blocklist_greek_lowercase_rho_blocked():
+    """Greek ρ (U+03C1) lookalike for 'p'."""
+    r = brain_scrubbing.scrub("ρroject name here", project_names=["project"])
     assert r["ok"] is False
 
 

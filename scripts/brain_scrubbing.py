@@ -20,6 +20,7 @@ Design reference: references/brain-db-schema.md §2 (privacy model).
 
 from __future__ import annotations
 
+import html
 import re
 import unicodedata
 from typing import Iterable
@@ -140,32 +141,59 @@ def _detect_private_urls(content: str, patterns: list[re.Pattern]) -> list[dict]
 # The normalization below canonicalizes input so each of those bypasses is
 # collapsed to its plain form before substring matching.
 
-# Common script homoglyphs → Latin. NFKC alone does NOT remap Cyrillic/Greek
+# Common script homoglyphs → Latin. NFKD alone does NOT remap Cyrillic/Greek
 # lookalikes because they live in distinct scripts, not compatibility
-# decompositions.
+# decompositions. The table below covers the letters most commonly abused
+# in the Unicode Confusables database — it's not exhaustive, but it closes
+# trivial copy-paste bypasses.
 _HOMOGLYPHS: dict[int, str] = {
-    # Cyrillic lowercase
+    # Cyrillic lowercase letters that visually match Latin
     ord("а"): "a",
+    ord("в"): "b",
     ord("е"): "e",
+    ord("ё"): "e",
+    ord("з"): "3",
+    ord("и"): "u",  # common confusable for 'u' lookalike
+    ord("й"): "u",
+    ord("к"): "k",
+    ord("м"): "m",
+    ord("н"): "h",
     ord("о"): "o",
     ord("р"): "p",
     ord("с"): "c",
-    ord("х"): "x",
+    ord("т"): "t",
     ord("у"): "y",
+    ord("ф"): "f",
+    ord("х"): "x",
+    ord("ш"): "w",
+    ord("щ"): "w",
+    ord("ь"): "b",
+    ord("ъ"): "b",
     ord("і"): "i",
+    ord("ї"): "i",
     ord("ѕ"): "s",
     ord("ј"): "j",
+    ord("є"): "e",
     # Cyrillic uppercase
     ord("А"): "A",
+    ord("В"): "B",
     ord("Е"): "E",
+    ord("Ё"): "E",
+    ord("К"): "K",
+    ord("М"): "M",
+    ord("Н"): "H",
     ord("О"): "O",
     ord("Р"): "P",
     ord("С"): "C",
-    ord("Х"): "X",
+    ord("Т"): "T",
     ord("У"): "Y",
+    ord("Ф"): "F",
+    ord("Х"): "X",
     ord("І"): "I",
+    ord("Ї"): "I",
     ord("Ѕ"): "S",
     ord("Ј"): "J",
+    ord("Є"): "E",
     # Greek uppercase
     ord("Α"): "A",
     ord("Β"): "B",
@@ -181,6 +209,24 @@ _HOMOGLYPHS: dict[int, str] = {
     ord("Τ"): "T",
     ord("Υ"): "Y",
     ord("Χ"): "X",
+    # Greek lowercase — often used as Latin lookalikes despite different shapes
+    ord("α"): "a",
+    ord("β"): "b",
+    ord("ε"): "e",
+    ord("ζ"): "z",
+    ord("η"): "n",  # looks like n in many fonts
+    ord("ι"): "i",
+    ord("κ"): "k",
+    ord("μ"): "u",  # mu ~ u
+    ord("ν"): "v",
+    ord("ο"): "o",
+    ord("ρ"): "p",
+    ord("σ"): "o",  # sigma lowercase ~ o in some fonts
+    ord("τ"): "t",
+    ord("υ"): "y",
+    ord("φ"): "o",
+    ord("χ"): "x",
+    ord("ω"): "w",
 }
 
 # ZW joiners / spaces / bidi formatting + BOM. re: (​-‏‪-‮⁠-⁤﻿)
@@ -209,18 +255,36 @@ def _normalize_for_match(s: str) -> str:
     return s.lower()
 
 
+def _fully_decode(content: str) -> str:
+    """Iterate unquote + html.unescape until the string stops changing or
+    we've hit a small bound. Defeats multi-layer encoding bypasses like
+    `%2570rincess` → `%70rincess` → `princess` and `&#112;rincess`.
+
+    The loop bound is intentionally tiny (3) — legitimate content should
+    not need more than one round-trip; more iterations just waste cycles
+    while an adversary burns budget on unbounded encoding.
+    """
+    prev = content
+    for _ in range(3):
+        try:
+            step = html.unescape(unquote(prev))
+        except (UnicodeDecodeError, ValueError):
+            return prev
+        if step == prev:
+            return step
+        prev = step
+    return prev
+
+
 def _detect_blocklist(content: str, project_names: Iterable[str]) -> list[dict]:
     issues: list[dict] = []
     if not project_names:
         return issues
     haystack_normal = _normalize_for_match(content)
-    # Also scan the URL-decoded form — `%70rincess` → `princess` only after
-    # decode. unquote() is safe on strings that contain no percent-escapes
-    # (it returns the input unchanged).
-    try:
-        haystack_decoded = _normalize_for_match(unquote(content))
-    except (UnicodeDecodeError, ValueError):
-        haystack_decoded = haystack_normal
+    # Also scan the fully-decoded form — `%70rincess` → `princess` only after
+    # percent-decoding; `&#112;rincess` only after HTML-entity unescape; and
+    # `%2570rincess` needs two unquote rounds. See _fully_decode.
+    haystack_decoded = _normalize_for_match(_fully_decode(content))
     seen: set[str] = set()
     for name in project_names:
         if not isinstance(name, str):

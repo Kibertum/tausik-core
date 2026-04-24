@@ -86,7 +86,24 @@ def is_task_done_invocation(tool_name: str, tool_input: dict) -> bool:
 # outside any fenced code block, closes that hole.
 
 
-_FENCE_RE = re.compile(r"^```")
+# Open or close a fenced-code block. Covers both CommonMark fence styles
+# (backticks + tildes). We only recognise fences that start at column 0
+# — indented-fence bypass is covered by the separate "indented-line"
+# rejection below.
+_FENCE_RE = re.compile(r"^(?:`{3,}|~{3,})")
+
+# Unicode line separators that `str.splitlines()` splits on but which are
+# visually invisible — an attacker can paste them inside an inline prose
+# sentence to make any substring look like "its own line" under the naive
+# splitlines() contract. We collapse them to newlines BEFORE splitting on
+# "\n" so they disappear entirely.
+_UNICODE_LINE_SEPS_RE = re.compile(r"[  ]")
+
+# A line that begins with 4+ spaces or a tab is a markdown indented-code
+# block. Reject marker lines that live inside one - this closes the
+# pasted-hook-error bypass where the user formats the quote with leading
+# indentation instead of a fence.
+_INDENTED_RE = re.compile(r"^(?: {4,}|	)")
 
 
 def last_user_prompt_text(transcript_path: str) -> str:
@@ -133,13 +150,19 @@ def last_user_prompt_text(transcript_path: str) -> str:
 
 
 def marker_present_anchored(text: str, marker: str) -> bool:
-    """True iff `marker` appears on a line by itself outside fenced code blocks.
+    """True iff `marker` appears on a line by itself outside any code block.
 
     - Case-insensitive match.
-    - Leading/trailing whitespace on the marker line is tolerated.
+    - Leading/trailing whitespace on the marker line is tolerated, BUT lines
+      that begin with 4+ spaces or a tab are treated as indented code and
+      rejected even without a fence (closes pasted-hook-error bypass).
     - Any line whose content, stripped, matches the marker counts.
-    - Lines inside fenced code blocks (``` ... ```) are skipped — so quoting
-      the hook's own error text in a fenced block will NOT trigger the bypass.
+    - Lines inside fenced code blocks are skipped. Fences: triple backticks
+      ``` or triple tildes ~~~ at column 0 (after lstrip).
+    - Invisible unicode line/paragraph separators (U+2028, U+2029, U+0085,
+      vertical tab, form feed) are normalised to '\\n' BEFORE splitting, so
+      an attacker cannot smuggle the marker into inline prose by inserting
+      one of them.
     - Empty marker always returns False.
     """
     if not marker or not isinstance(text, str):
@@ -147,12 +170,19 @@ def marker_present_anchored(text: str, marker: str) -> bool:
     target = marker.strip().lower()
     if not target:
         return False
+    # Strip invisible line/paragraph separators entirely (do NOT convert to
+    # '\n') — an attacker embeds them in inline prose to fake a "line of its
+    # own"; removing them collapses the prose back to a single line where
+    # the marker is just a substring, not anchored.
+    normalised = _UNICODE_LINE_SEPS_RE.sub("", text)
     in_fence = False
-    for raw in text.splitlines():
+    for raw in normalised.split("\n"):
         if _FENCE_RE.match(raw.lstrip()):
             in_fence = not in_fence
             continue
         if in_fence:
+            continue
+        if _INDENTED_RE.match(raw):
             continue
         if raw.strip().lower() == target:
             return True

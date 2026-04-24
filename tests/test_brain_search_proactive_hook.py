@@ -509,6 +509,125 @@ def test_bootstrap_generate_registers_brain_search_proactive():
 # --- Fresh ISO variants parse correctly -----------------------------------
 
 
+# --- MED-4 hardening regressions --------------------------------------
+
+
+def test_oversized_stdin_exits_zero(tmp_path):
+    cfg = _fresh_config(tmp_path)
+    _setup_tausik(tmp_path, brain_cfg=cfg)
+    mirror = tmp_path / "brain.db"
+    _make_brain_db(mirror)
+    env = {
+        **os.environ,
+        "CLAUDE_PROJECT_DIR": str(tmp_path),
+        "TAUSIK_DIR": str(tmp_path / ".tausik"),
+    }
+    env.pop("TAUSIK_SKIP_HOOKS", None)
+    huge = "x" * (2 * 1024 * 1024)  # 2 MiB payload — above 1 MiB cap
+    result = subprocess.run(
+        [sys.executable, _HOOK_PATH],
+        input=huge,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        env=env,
+    )
+    assert result.returncode == 0
+    assert result.stderr == ""
+
+
+def test_mixed_iso_format_picks_freshest_not_lexicographically_largest(tmp_path):
+    """Two rows for the same URL, one '...Z' and one fresher '....123456Z' —
+    lexicographic sort picks the longer string first. We must pick the
+    freshest by parsed epoch."""
+    cfg = _fresh_config(tmp_path)
+    _setup_tausik(tmp_path, brain_cfg=cfg)
+    mirror = tmp_path / "brain.db"
+    _make_brain_db(mirror)
+    target_url = "https://mixed.example.com/x"
+    # Older row, short ISO form (sorts lexicographically LATER than shorter).
+    older = (
+        (_dt.datetime.now(tz=_dt.timezone.utc) - _dt.timedelta(days=10))
+        .isoformat()
+        .replace("+00:00", ".999999Z")
+    )
+    newer = (
+        (_dt.datetime.now(tz=_dt.timezone.utc) - _dt.timedelta(minutes=5))
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+    _insert_web_cache(
+        mirror,
+        notion_page_id="page-older",
+        url=target_url,
+        name="older",
+        content="older",
+        fetched_at=older,
+    )
+    _insert_web_cache(
+        mirror,
+        notion_page_id="page-newer",
+        url=target_url,
+        name="newer",
+        content="newer",
+        fetched_at=newer,
+    )
+
+    result = _run(
+        tmp_path,
+        {
+            "tool_name": "WebFetch",
+            "tool_input": {"url": target_url, "prompt": "q"},
+            "transcript_path": "",
+        },
+    )
+    assert result.returncode == 2
+    assert "page-newer" in result.stderr
+    assert "page-older" not in result.stderr
+
+
+def test_corrupt_mirror_db_exits_zero(tmp_path):
+    cfg = _fresh_config(tmp_path)
+    _setup_tausik(tmp_path, brain_cfg=cfg)
+    mirror = tmp_path / "brain.db"
+    # Not a valid SQLite file — sqlite3.connect succeeds, but query fails.
+    mirror.write_bytes(b"definitely not a sqlite database file " * 100)
+    result = _run(
+        tmp_path,
+        {
+            "tool_name": "WebFetch",
+            "tool_input": {"url": "https://x.example.com/", "prompt": "q"},
+            "transcript_path": "",
+        },
+    )
+    assert result.returncode == 0
+    assert result.stderr == ""
+
+
+def test_invalid_fetched_at_treated_as_stale(tmp_path):
+    cfg = _fresh_config(tmp_path)
+    _setup_tausik(tmp_path, brain_cfg=cfg)
+    mirror = tmp_path / "brain.db"
+    _make_brain_db(mirror)
+    _insert_web_cache(
+        mirror,
+        notion_page_id="page-bad-ts",
+        url="https://bad.example.com/",
+        name="bad ts",
+        content="bad",
+        fetched_at="not-a-valid-date",
+    )
+    result = _run(
+        tmp_path,
+        {
+            "tool_name": "WebFetch",
+            "tool_input": {"url": "https://bad.example.com/", "prompt": "q"},
+            "transcript_path": "",
+        },
+    )
+    assert result.returncode == 0
+
+
 @pytest.mark.parametrize(
     "ts",
     [
