@@ -129,19 +129,64 @@ def test_brain_write_failure_falls_back_local(svc):
     assert len(svc.decisions()) == 1
 
 
-def test_brain_scrub_blocked_falls_back_local(svc):
-    brain_cfg = {"enabled": True, "notion_integration_token_env": "TEST_TOKEN"}
+def test_brain_scrub_blocked_falls_back_local(svc, monkeypatch):
+    """Patches brain_mcp_write.store_record one layer deeper so the real
+    try_brain_write_decision exercises issues-list → message formatting."""
+    brain_cfg = {
+        "enabled": True,
+        "notion_integration_token_env": "TEST_TOKEN",
+        "database_ids": {"decisions": "db-dec-1"},
+    }
+    monkeypatch.setenv("TEST_TOKEN", "fake-token")
     with (
         patch("brain_config.load_brain", return_value=brain_cfg),
+        patch("brain_notion_client.NotionClient"),
+        patch("brain_sync.open_brain_db"),
         patch(
-            "brain_runtime.try_brain_write_decision",
-            return_value=(False, "scrub_blocked: filesystem_paths match"),
+            "brain_mcp_write.store_record",
+            return_value={
+                "status": "scrub_blocked",
+                "issues": ["filesystem_paths", "slug_markers"],
+            },
         ),
     ):
         msg = svc.decide("Clean generic text")
 
     assert "saved to local" in msg
     assert "scrub_blocked" in msg
+    assert "filesystem_paths" in msg
+    assert "slug_markers" in msg
+    assert "unknown" not in msg
+    assert len(svc.decisions()) == 1
+
+
+def test_brain_ok_not_mirrored_treated_as_success(svc, monkeypatch):
+    """AC1: status='ok_not_mirrored' (Notion ok, local mirror lagged) must
+    NOT trigger local decision_add — otherwise decision is double-written."""
+    brain_cfg = {
+        "enabled": True,
+        "notion_integration_token_env": "TEST_TOKEN",
+        "database_ids": {"decisions": "db-dec-1"},
+    }
+    monkeypatch.setenv("TEST_TOKEN", "fake-token")
+    with (
+        patch("brain_config.load_brain", return_value=brain_cfg),
+        patch("brain_notion_client.NotionClient"),
+        patch("brain_sync.open_brain_db"),
+        patch(
+            "brain_mcp_write.store_record",
+            return_value={
+                "status": "ok_not_mirrored",
+                "notion_page_id": "page-partial-xyz",
+                "warning": "mirror write failed: disk full",
+            },
+        ),
+    ):
+        msg = svc.decide("Prefer async context managers for network I/O")
+
+    assert "saved to brain" in msg
+    assert "page-partial-xyz" in msg
+    assert len(svc.decisions()) == 0  # NOT written locally
 
 
 # --- AC6: empty/whitespace text routes to local with "empty content" reason ---

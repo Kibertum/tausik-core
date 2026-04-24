@@ -44,8 +44,12 @@ def try_brain_write_decision(
             fields["rationale"] = rationale
         result = brain_mcp_write.store_record(client, conn, "decisions", fields, cfg)
         status = result.get("status", "")
-        if status == "ok":
+        if status in ("ok", "ok_not_mirrored"):
             return True, result.get("notion_page_id", "")
+        if status == "scrub_blocked":
+            issues = result.get("issues") or []
+            detail = ", ".join(issues) if issues else "matched patterns"
+            return False, f"scrub_blocked: {detail}"
         return False, f"{status}: {result.get('error', 'unknown')}"
     except Exception as e:  # noqa: BLE001
         return False, f"exception: {e}"
