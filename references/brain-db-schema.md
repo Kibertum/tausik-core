@@ -82,9 +82,13 @@ Design-doc для эпика `shared-brain`. Фиксирует структур
 }
 ```
 
-### 4.2 `web_cache` — кэш HTTP-ответов (WebFetch/WebSearch)
+### 4.2 `web_cache` — кэш HTTP-ответов (WebFetch)
 
-Каждый раз, когда агент делает `WebFetch` или `WebSearch`, PostToolUse-хук (задача `brain-webfetch-hook`) пишет сюда запись. Перед новым запросом агент сначала делает `brain_search_web_cache` — если есть свежая запись (не старше TTL), возвращает её без сетевого вызова.
+Когда агент делает `WebFetch`, PostToolUse-хук [`scripts/hooks/brain_post_webfetch.py`](../scripts/hooks/brain_post_webfetch.py) пишет сюда запись (url + content + prompt как query). PreToolUse-хук [`scripts/hooks/brain_search_proactive.py`](../scripts/hooks/brain_search_proactive.py) перед следующим `WebFetch`/`WebSearch` проверяет `brain_web_cache`: exact-URL hit для `WebFetch`, FTS5 по query для `WebSearch` — если есть свежая запись (в пределах `ttl_web_cache_days`), блокирует сетевой вызов.
+
+**Что пропускается записью:** приватные URL (`brain.private_url_patterns`), HTTP-ошибки (code ≥ 400), пустые ответы, URL уже в зеркале в пределах TTL, ответы > 200 KB (trim до 200 KB). `WebSearch`-ответы не кэшируются напрямую (несколько URL в одном блобе → нет канонического URL); `WebSearch`-запросы обслуживаются FTS5 по существующему контенту из `WebFetch`.
+
+**Non-blocking:** хук всегда exit 0; провал записи (scrub block, Notion down) не ломает основной флоу — диагностика только в stderr при `TAUSIK_BRAIN_HOOK_DEBUG=1`.
 
 | Property | Notion type | Обязат. | Назначение |
 |---|---|---|---|

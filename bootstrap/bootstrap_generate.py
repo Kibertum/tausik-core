@@ -127,6 +127,16 @@ def generate_settings_claude(
                         }
                     ],
                 },
+                {
+                    "matcher": "WebFetch",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": _hook_cmd("brain_post_webfetch.py"),
+                            "timeout": 10,
+                        }
+                    ],
+                },
             ],
             "SessionStart": [
                 {

@@ -165,8 +165,12 @@ scripts/hooks/
 ├── notify_on_done.py            # PostToolUse (task_done) — webhook Slack/Discord/Telegram (v1.2)
 ├── memory_pretool_block.py      # PreToolUse (Write|Edit|MultiEdit) — блок записи в ~/.claude/projects/*/memory/ (v1.3)
 ├── memory_posttool_audit.py     # PostToolUse (Write|Edit|MultiEdit) — аудит project-markers в auto-memory записях (v1.3)
-└── memory_markers.py            # shared regex-модуль для detect_markers: abs_path/slug/tausik_cmd/src_file (v1.3)
+├── memory_markers.py            # shared regex-модуль для detect_markers: abs_path/slug/tausik_cmd/src_file (v1.3)
+├── brain_search_proactive.py    # PreToolUse (WebSearch|WebFetch) — блок сетевого fetch'а при свежем brain_web_cache hit (v1.3)
+└── brain_post_webfetch.py       # PostToolUse (WebFetch) — auto-cache успешных ответов в brain_web_cache (v1.3)
 ```
+
+Brain-хуки делят хелперы в [`scripts/brain_hook_utils.py`](../scripts/brain_hook_utils.py) (`parse_iso_to_epoch`, `lookup_exact_url`, `is_fresh`) — одна реализация mirror-lookup + TTL семантики для пары Pre+Post.
 
 **Поток anti-drift:**
 
@@ -179,6 +183,8 @@ task_done    → PostToolUse task_done_verify (thin evidence?) → stderr warnin
 task_done    → PostToolUse notify_on_done → webhook (if configured)
 Write/Edit   → PreToolUse memory_pretool_block (path under ~/.claude/*/memory? no `confirm: cross-project` marker?) → exit 2
 Write/Edit   → PostToolUse memory_posttool_audit (file has project markers?) → stderr warning (exit 0)
+WebSearch/WebFetch → PreToolUse brain_search_proactive (fresh brain_web_cache hit? no `refresh: web_cache` marker?) → exit 2
+WebFetch     → PostToolUse brain_post_webfetch (public URL + content + not already fresh?) → write brain_web_cache (best-effort, exit 0)
 ```
 
 ## Memory Aggregates (v1.2.0)

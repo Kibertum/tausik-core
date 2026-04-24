@@ -30,6 +30,10 @@ if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
 from _common import last_user_prompt_text, marker_present_anchored  # noqa: E402
+from brain_hook_utils import (  # noqa: E402
+    is_fresh as _is_fresh_util,
+    lookup_exact_url as _lookup_exact_url_util,
+)
 
 
 _BYPASS_MARKER = "refresh: web_cache"
@@ -85,56 +89,6 @@ def _extract_query(tool_name: str, tool_input: dict) -> tuple[str, str]:
     return ("", "")
 
 
-def _parse_iso_to_epoch(s: str) -> float | None:
-    """Parse an ISO-8601 timestamp (Notion style) to a UTC epoch seconds float.
-
-    Accepts both '2026-04-24T10:00:00Z' and '2026-04-24T10:00:00.000Z' forms.
-    Returns None on any parse failure.
-    """
-    if not isinstance(s, str) or not s:
-        return None
-    try:
-        txt = s.replace("Z", "+00:00")
-        dt = _dt.datetime.fromisoformat(txt)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=_dt.timezone.utc)
-        return dt.timestamp()
-    except (ValueError, TypeError):
-        return None
-
-
-def _lookup_exact_url(conn: sqlite3.Connection, url: str) -> dict | None:
-    """Return the freshest web_cache row whose url matches exactly, or None.
-
-    ORDER BY on the raw TEXT fetched_at is lexicographic, which disagrees
-    with chronological order when different ISO formats co-exist (e.g.
-    '...Z' vs '...000Z'). Fetch all matches and sort in Python by the
-    parsed epoch — misparse sorts last (treated as oldest).
-    """
-    try:
-        rows = conn.execute(
-            "SELECT notion_page_id, url, fetched_at, name "
-            "FROM brain_web_cache WHERE url = ?",
-            (url,),
-        ).fetchall()
-    except sqlite3.Error:
-        return None
-    if not rows:
-        return None
-
-    def _key(r: sqlite3.Row) -> float:
-        epoch = _parse_iso_to_epoch(r["fetched_at"] or "")
-        return epoch if epoch is not None else float("-inf")
-
-    best = max(rows, key=_key)
-    return {
-        "notion_page_id": best["notion_page_id"],
-        "url": best["url"],
-        "fetched_at": best["fetched_at"],
-        "name": best["name"],
-    }
-
-
 def _lookup_fts(conn: sqlite3.Connection, query: str) -> dict | None:
     """FTS5 search on web_cache. Returns the top bm25 hit (freshest tiebreak)."""
     try:
@@ -166,18 +120,6 @@ def _lookup_fts(conn: sqlite3.Connection, query: str) -> dict | None:
         "fetched_at": row["fetched_at"],
         "name": row["name"],
     }
-
-
-def _is_fresh(fetched_at: str, ttl_days: int | None, now_epoch: float) -> bool:
-    """Return True if fetched_at is within ttl_days of now. ttl_days=None means never expire."""
-    if ttl_days is None:
-        return True
-    if not isinstance(ttl_days, int) or ttl_days <= 0:
-        return False
-    epoch = _parse_iso_to_epoch(fetched_at)
-    if epoch is None:
-        return False
-    return (now_epoch - epoch) <= (ttl_days * 86400)
 
 
 def _emit_block(hit: dict, query: str, tool_name: str) -> None:
@@ -247,7 +189,7 @@ def main() -> int:
     try:
         hit: dict | None = None
         if exact_url:
-            hit = _lookup_exact_url(conn, exact_url)
+            hit = _lookup_exact_url_util(conn, exact_url)
         if hit is None and query:
             hit = _lookup_fts(conn, query)
     finally:
@@ -258,7 +200,7 @@ def main() -> int:
 
     ttl_days = cfg.get("ttl_web_cache_days")
     now_epoch = _dt.datetime.now(tz=_dt.timezone.utc).timestamp()
-    if not _is_fresh(hit.get("fetched_at") or "", ttl_days, now_epoch):
+    if not _is_fresh_util(hit.get("fetched_at") or "", ttl_days, now_epoch):
         return 0
 
     if _bypass_present(event.get("transcript_path") or ""):
