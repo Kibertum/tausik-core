@@ -408,3 +408,96 @@ def test_reads_do_not_throttle():
     for _ in range(3):
         client.pages_retrieve("p")
     assert cs.sleeps == []
+
+
+# --- Token secret-leak defense ----------------------------------------
+
+
+_LEAK_TOKEN = "secret_rec_TOKEN_AAA_DO_NOT_LEAK_XYZ"  # noqa: S105
+
+
+def _leak_client(responses, *, throttle_ms: int = 350, max_retries: int = 5):
+    """Like _client() but with a recognizable token for leak-detection tests."""
+    cs = _ClockSleep()
+    opener = _Recorder(responses)
+    client = bnc.NotionClient(
+        _LEAK_TOKEN,
+        throttle_ms=throttle_ms,
+        max_retries=max_retries,
+        urlopen=opener,
+        clock=cs.clock,
+        sleep=cs.sleep,
+    )
+    return client, opener, cs
+
+
+def test_token_not_in_repr():
+    client, _, _ = _leak_client([_FakeResponse(200, {})])
+    assert _LEAK_TOKEN not in repr(client)
+    assert _LEAK_TOKEN not in str(client)
+
+
+def test_token_not_in_auth_error():
+    """401 → NotionAuthError; neither str() nor .body leaks token."""
+    client, _, _ = _leak_client([_FakeHTTPError("/pages", 401, {"message": "bad"})])
+    with pytest.raises(bnc.NotionAuthError) as ei:
+        client.pages_retrieve("p1")
+    err = ei.value
+    assert _LEAK_TOKEN not in str(err)
+    assert _LEAK_TOKEN not in repr(err)
+    assert _LEAK_TOKEN not in json.dumps(err.body)
+
+
+def test_token_not_in_not_found_error():
+    """404 → NotionNotFoundError; path echoed in message but not the token."""
+    client, _, _ = _leak_client([_FakeHTTPError("/pages", 404, {})])
+    with pytest.raises(bnc.NotionNotFoundError) as ei:
+        client.pages_retrieve("p1")
+    assert _LEAK_TOKEN not in str(ei.value)
+
+
+def test_token_not_in_rate_limit_error():
+    """429 with retries exhausted → NotionRateLimitError; no token in message."""
+    responses = [
+        _FakeHTTPError("/pages", 429, {}, headers={"Retry-After": "1"})
+        for _ in range(3)
+    ]
+    client, _, _ = _leak_client(responses, max_retries=2)
+    with pytest.raises(bnc.NotionRateLimitError) as ei:
+        client.pages_create(parent={"database_id": "db-1"}, properties={})
+    err = ei.value
+    assert _LEAK_TOKEN not in str(err)
+    assert _LEAK_TOKEN not in repr(err)
+
+
+def test_token_not_in_server_error():
+    """5xx retries exhausted → NotionServerError; no token in message."""
+    responses = [_FakeHTTPError("/pages", 503, {}) for _ in range(3)]
+    client, _, _ = _leak_client(responses, max_retries=2)
+    with pytest.raises(bnc.NotionServerError) as ei:
+        client.pages_create(parent={"database_id": "db-1"}, properties={})
+    assert _LEAK_TOKEN not in str(ei.value)
+
+
+def test_token_not_in_network_error():
+    """URLError retries exhausted → NotionNetworkError; no token in message."""
+    responses = [urllib.error.URLError("connection refused") for _ in range(3)]
+    client, _, _ = _leak_client(responses, max_retries=2)
+    with pytest.raises(bnc.NotionNetworkError) as ei:
+        client.pages_retrieve("p1")
+    assert _LEAK_TOKEN not in str(ei.value)
+
+
+def test_token_not_in_retry_log(caplog):
+    """Boundary case: during retry backoff, logger.warning must not echo token."""
+    responses = [
+        _FakeHTTPError("/pages", 503, {}),
+        _FakeResponse(200, {"id": "p1"}),
+    ]
+    client, _, _ = _leak_client(responses, max_retries=2)
+    with caplog.at_level("WARNING"):
+        out = client.pages_retrieve("p1")
+    assert out == {"id": "p1"}
+    combined = " ".join(rec.getMessage() for rec in caplog.records)
+    assert _LEAK_TOKEN not in combined
+    assert _LEAK_TOKEN not in caplog.text

@@ -37,6 +37,20 @@ def _not_configured_msg() -> str:
     )
 
 
+def _token_missing_warning(cfg: dict) -> str:
+    env_name = (cfg.get("notion_integration_token_env") or "").strip()
+    if env_name:
+        return (
+            f"Brain integration token is not set (env var `{env_name}` is empty). "
+            "Notion fallback disabled — only local mirror results shown. "
+            f"Set `{env_name}` to enable Notion fallback and writes."
+        )
+    return (
+        "Brain integration token is not set (no `notion_integration_token_env` "
+        "configured). Notion fallback disabled — only local mirror results shown."
+    )
+
+
 def handle_brain_search(args: dict) -> str:
     query = (args.get("query") or "").strip()
     if not query:
@@ -61,8 +75,11 @@ def handle_brain_search(args: dict) -> str:
         database_ids=cfg.get("database_ids"),
         enable_fallback=enable_fallback,
     )
+    warnings = list(result["warnings"])
+    if client is None:
+        warnings.insert(0, _token_missing_warning(cfg))
     return brain_mcp_read.format_search_results(
-        result["results"], result["warnings"], query=query
+        result["results"], warnings, query=query
     )
 
 
@@ -83,6 +100,9 @@ def handle_brain_get(args: dict) -> str:
         category,
         enable_fallback=enable_fallback,
     )
+    warnings = list(warnings)
+    if client is None:
+        warnings.insert(0, _token_missing_warning(cfg))
     if rec is None:
         tail = "\n".join(f"- {w}" for w in warnings)
         head = f"_No record: category=`{category}`, id=`{notion_page_id}`._"

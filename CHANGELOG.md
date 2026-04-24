@@ -49,9 +49,18 @@ Cross-project knowledge layer backed by Notion, complementing the per-project `.
 - **[L1] auto-BEGIN invariant comment** ([scripts/brain_sync.py](scripts/brain_sync.py) `sync_category`) — inline-комментарий фиксирует инвариант: `conn.rollback()` в except-ветке полагается на implicit BEGIN от первого `upsert_page`. Если рефакторинг добавит DML раньше в `_get_sync_state`, rollback boundary изменится — Комментарий защищает rollback-инвариант
 - **[L2] Dead test удалён** ([tests/test_brain_storage_hardening.py](tests/test_brain_storage_hardening.py)) — `test_memory_db_falls_back_silently` не вызывал `open_brain_db`, тестировал поведение sqlite3 напрямую. `test_wal_failure_does_not_raise` покрывает настоящий контракт — Лишний тест сняли
 
+### Added — MCP write/read hardening batch
+
+- **Token-missing warning in MCP read handlers** ([agents/{claude,cursor}/mcp/brain/handlers.py](agents/claude/mcp/brain/handlers.py)) — `handle_brain_search` и `handle_brain_get` теперь явно сигналят пользователю когда `cfg.enabled=true` но `client=None` (token env unset): инжектят warning с именем env-переменной из `cfg.notion_integration_token_env` в первый слот `result.warnings`. Раньше handler молча пропускал Notion fallback — пользователь не отличал offline от no-token. Generic fallback текст когда `notion_integration_token_env` отсутствует/пуст. Disabled brain не получает warning (status quo) (`brain-mcp-token-missing-warning`) — Явный warning о ненастроенном токене вместо тихого пропуска
+
+### Fixed — MCP write/read hardening batch
+
+- **Dead category-fallback removed** ([scripts/brain_mcp_write.py](scripts/brain_mcp_write.py) `format_store_result`) — `cat = result.get("error_category") or result.get("category") or "unknown"` упрощено до `result.get("error_category") or "unknown"`. `store_record` пишет только `error_category` — мёртвая ветка скрывала бы будущие typos (`brain-mcp-write-dead-code-cleanup`) — Убрана defensive ветка, скрывавшая typos
+
 ### Test Coverage / Тесты
 
 - **+102 new tests** — `test_brain_schema.py` (17), `test_brain_config.py` (20), `test_brain_notion_client.py` (26), `test_brain_sync.py` (15), `test_brain_search.py` (24). Entire brain-suite green in 2 s; no network I/O (client tests inject `_Recorder`/`_ClockSleep`). Pre-existing 918 tests unaffected.
+- **+19 hardening tests** — `test_brain_mcp_handlers.py` (+6 token-missing warning + boundary), `test_brain_mcp_write.py` (+3 NotionAuthError/RateLimitError(retry_after=42)/RateLimitError(retry_after=None default) + 2 ok_not_mirrored on upsert/map_page_to_row failure + 1 typo `category` → unknown), `test_brain_notion_client.py` (+7 secret-leak defense: `_LEAK_TOKEN` not in `repr(client)`, `NotionAuthError`/`NotionNotFoundError`/`NotionRateLimitError`/`NotionServerError`/`NotionNetworkError` strings + `caplog` retry log) (`brain-mcp-write-error-class-tests`, `brain-mcp-write-ok-not-mirrored-test`, `brain-notion-client-secret-leak-test`)
 
 ### Knowledge Captured / Накоплено знаний
 

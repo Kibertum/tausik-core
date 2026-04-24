@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import sqlite3
 import sys
 
 import pytest
@@ -62,15 +63,18 @@ def cfg():
 
 
 class FakeClient:
-    def __init__(self, *, raise_on_create=False, page_id="nid-1"):
+    def __init__(self, *, raise_on_create=False, raise_error=None, page_id="nid-1"):
         self.create_calls: list[dict] = []
         self.raise_on_create = raise_on_create
+        self.raise_error = raise_error
         self.page_id = page_id
 
     def pages_create(self, *, parent, properties, children=None):
         self.create_calls.append(
             {"parent": parent, "properties": properties, "children": children}
         )
+        if self.raise_error is not None:
+            raise self.raise_error
         if self.raise_on_create:
             raise ConnectionError("network down")
         # Echo back a minimal Notion-shaped page with the properties included.
@@ -406,11 +410,97 @@ def test_store_record_notion_error_propagates(conn, cfg):
     assert "network down" in r["error"]
 
 
+def test_store_record_notion_auth_error_classified(conn, cfg):
+    """NotionAuthError → error_category='auth', format renders auth hint."""
+    from brain_notion_client import NotionAuthError
+
+    client = FakeClient(raise_error=NotionAuthError("401 bad token"))
+    r = brain_mcp_write.store_record(
+        client, conn, "decisions", {"name": "X", "decision": "Y"}, cfg
+    )
+    assert r["status"] == "notion_error"
+    assert r["error_category"] == "auth"
+    md = brain_mcp_write.format_store_result(r, "decisions")
+    assert "auth failed" in md or "integration token" in md
+
+
+def test_store_record_notion_rate_limit_with_retry_after(conn, cfg):
+    """NotionRateLimitError.retry_after=42 → surfaced in result + rendered."""
+    from brain_notion_client import NotionRateLimitError
+
+    exc = NotionRateLimitError("429")
+    exc.retry_after = 42
+    client = FakeClient(raise_error=exc)
+    r = brain_mcp_write.store_record(
+        client, conn, "decisions", {"name": "X", "decision": "Y"}, cfg
+    )
+    assert r["status"] == "notion_error"
+    assert r["error_category"] == "rate_limit"
+    assert r["retry_after"] == 42
+    md = brain_mcp_write.format_store_result(r, "decisions")
+    assert "42 seconds" in md
+
+
+def test_store_record_notion_rate_limit_without_retry_after_uses_default(conn, cfg):
+    """NotionRateLimitError without retry_after → format uses default, no crash."""
+    from brain_notion_client import NotionRateLimitError
+
+    client = FakeClient(raise_error=NotionRateLimitError("429"))
+    r = brain_mcp_write.store_record(
+        client, conn, "decisions", {"name": "X", "decision": "Y"}, cfg
+    )
+    assert r["status"] == "notion_error"
+    assert r["error_category"] == "rate_limit"
+    assert r["retry_after"] is None
+    md = brain_mcp_write.format_store_result(r, "decisions")
+    assert "Retry in" in md
+    assert "seconds" in md
+
+
 def test_store_record_bad_category(conn, cfg):
     client = FakeClient()
     r = brain_mcp_write.store_record(client, conn, "nope", {"name": "X"}, cfg)
     assert r["status"] == "bad_category"
     assert not client.create_calls
+
+
+def test_store_record_ok_not_mirrored_when_upsert_fails(conn, cfg, monkeypatch):
+    """Notion succeeded, mirror upsert raised → status=ok_not_mirrored, page_id kept."""
+    client = FakeClient(page_id="nid-mirror-fail")
+
+    def boom(*_a, **_kw):
+        raise sqlite3.OperationalError("disk I/O error")
+
+    monkeypatch.setattr(brain_sync, "upsert_page", boom)
+
+    r = brain_mcp_write.store_record(
+        client, conn, "decisions", {"name": "X", "decision": "Y"}, cfg
+    )
+    assert r["status"] == "ok_not_mirrored"
+    assert r["notion_page_id"] == "nid-mirror-fail"
+    assert "disk I/O error" in r["warning"]
+    md = brain_mcp_write.format_store_result(r, "decisions")
+    assert "in Notion but local mirror lagged" in md
+    assert "nid-mirror-fail" in md
+
+
+def test_store_record_ok_not_mirrored_when_map_page_to_row_fails(
+    conn, cfg, monkeypatch
+):
+    """map_page_to_row raise (boundary: failure earlier than upsert) → ok_not_mirrored."""
+    client = FakeClient(page_id="nid-map-fail")
+
+    def boom(*_a, **_kw):
+        raise KeyError("missing column")
+
+    monkeypatch.setattr(brain_sync, "map_page_to_row", boom)
+
+    r = brain_mcp_write.store_record(
+        client, conn, "decisions", {"name": "X", "decision": "Y"}, cfg
+    )
+    assert r["status"] == "ok_not_mirrored"
+    assert r["notion_page_id"] == "nid-map-fail"
+    assert "missing column" in r["warning"]
 
 
 def test_store_record_missing_required_field(conn, cfg):
@@ -467,6 +557,19 @@ def test_format_result_notion_error():
         {"status": "notion_error", "error": "timeout"}, "patterns"
     )
     assert "timeout" in md or "Notion error" in md
+
+
+def test_format_result_typo_category_falls_back_to_unknown():
+    """Typo `category` (instead of `error_category`) → 'unknown' renderer.
+
+    Previously a defensive fallback `or result.get('category')` would silently
+    accept the wrong key. Now removed: typos surface as 'unknown' rendering.
+    """
+    md = brain_mcp_write.format_store_result(
+        {"status": "notion_error", "category": "auth", "error": "401"}, "decisions"
+    )
+    assert "auth failed" not in md
+    assert "Notion error" in md or "401" in md
 
 
 # ---- Handler dispatch --------------------------------------------------

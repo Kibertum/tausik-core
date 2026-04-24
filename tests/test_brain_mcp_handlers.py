@@ -190,3 +190,83 @@ def test_brain_get_enabled_miss_returns_no_record(brain_env, handlers, monkeypat
 def test_handle_tool_dispatches_brain_search(brain_env, handlers):
     out = handlers.handle_tool("brain_search", {"query": "noop"})
     assert "No matches" in out
+
+
+# ---- Token-missing warning (brain-mcp-token-missing-warning) -------------
+
+
+def test_brain_search_token_missing_emits_warning(brain_env, handlers, monkeypatch):
+    """enabled + no token → search result includes explicit env-var warning."""
+    monkeypatch.delenv("FAKE_BRAIN_TOKEN", raising=False)
+    out = handlers.handle_brain_search({"query": "nothing-matches"})
+    assert "Brain integration token is not set" in out
+    assert "FAKE_BRAIN_TOKEN" in out
+    assert "No matches" in out
+
+
+def test_brain_get_token_missing_emits_warning(brain_env, handlers, monkeypatch):
+    """enabled + no token → get result includes explicit env-var warning."""
+    monkeypatch.delenv("FAKE_BRAIN_TOKEN", raising=False)
+    out = handlers.handle_brain_get({"id": "absent", "category": "decisions"})
+    assert "Brain integration token is not set" in out
+    assert "FAKE_BRAIN_TOKEN" in out
+    assert "No record" in out
+
+
+def test_brain_search_token_present_no_warning(brain_env, handlers):
+    """enabled + token set → no token-missing warning (status quo)."""
+    out = handlers.handle_brain_search({"query": "nothing-matches"})
+    assert "Brain integration token is not set" not in out
+
+
+def test_brain_get_token_present_no_warning(brain_env, handlers):
+    """enabled + token set → no token-missing warning (status quo)."""
+    out = handlers.handle_brain_get({"id": "absent", "category": "decisions"})
+    assert "Brain integration token is not set" not in out
+
+
+def test_brain_search_disabled_no_token_warning(handlers, monkeypatch):
+    """disabled config → 'not enabled' hint, NOT the token-missing warning."""
+    import brain_config
+
+    monkeypatch.setattr(
+        brain_config,
+        "load_brain",
+        lambda: {
+            "enabled": False,
+            "local_mirror_path": "/nope",
+            "notion_integration_token_env": "X",
+            "database_ids": {},
+        },
+    )
+    out = handlers.handle_brain_search({"query": "anything"})
+    assert "Brain is not enabled" in out
+    assert "Brain integration token is not set" not in out
+
+
+def test_token_missing_warning_without_env_name_fallback(
+    tmp_path, handlers, monkeypatch
+):
+    """cfg missing notion_integration_token_env → generic warning, no crash."""
+    import brain_config
+    import brain_sync
+
+    db_path = tmp_path / "brain.db"
+    brain_sync.open_brain_db(str(db_path)).close()
+    fake_cfg = {
+        "enabled": True,
+        "local_mirror_path": str(db_path),
+        "notion_integration_token_env": "",
+        "database_ids": {
+            "decisions": "db-dec",
+            "web_cache": "db-wc",
+            "patterns": "db-pat",
+            "gotchas": "db-got",
+        },
+    }
+    monkeypatch.setattr(brain_config, "load_brain", lambda: fake_cfg)
+    monkeypatch.setattr(brain_config, "get_brain_mirror_path", lambda: str(db_path))
+
+    out = handlers.handle_brain_search({"query": "nothing-matches"})
+    assert "Brain integration token is not set" in out
+    assert "no `notion_integration_token_env`" in out

@@ -376,7 +376,7 @@ def format_store_result(result: dict, category: str) -> str:
     if status == "scrub_blocked":
         return brain_scrubbing.format_issues(result.get("issues") or [])
     if status == "notion_error":
-        cat = result.get("error_category") or result.get("category") or "unknown"
+        cat = result.get("error_category") or "unknown"
         return brain_fallback.user_message(
             cat,
             op="store",
