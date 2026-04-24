@@ -11,13 +11,13 @@ Design reference: references/brain-db-schema.md §5.
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import sqlite3
 from datetime import datetime, timezone
 from typing import Any
 
+import brain_notion_props
 import brain_schema
 
 logger = logging.getLogger(__name__)
@@ -110,75 +110,34 @@ _ALLOWED_COLS_OF: dict[str, frozenset[str]] = {
 
 
 def open_brain_db(path: str) -> sqlite3.Connection:
-    """Open brain SQLite mirror, creating parent dirs and applying schema."""
+    """Open brain SQLite mirror, creating parent dirs and applying schema.
+
+    Enables WAL journal mode so a concurrent sync and MCP read on the
+    same mirror don't deadlock each other on SQLITE_BUSY. WAL is a
+    best-effort request — sqlite silently returns the prior mode for
+    `:memory:` / read-only / network-share paths where WAL is unsupported,
+    and we accept that without raising.
+    """
     parent = os.path.dirname(os.path.abspath(path))
     if parent:
         os.makedirs(parent, exist_ok=True)
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
+    try:
+        conn.execute("PRAGMA journal_mode=WAL").fetchone()
+    except sqlite3.Error:
+        # Filesystem or connection setup refuses WAL — continue with the
+        # default rollback journal. Reads/writes still work, they just
+        # serialize more aggressively.
+        pass
     brain_schema.apply_schema(conn)
     return conn
 
 
-# --- Notion property readers -----------------------------------------
-
-
-def _concat_text(items: list | None) -> str:
-    if not items:
-        return ""
-    return "".join(item.get("plain_text", "") for item in items)
-
-
-def _read_prop(page: dict, name: str) -> dict:
-    return (page.get("properties") or {}).get(name) or {}
-
-
-def _prop_title(page: dict, name: str) -> str:
-    return _concat_text(_read_prop(page, name).get("title"))
-
-
-def _prop_rich_text(page: dict, name: str) -> str:
-    return _concat_text(_read_prop(page, name).get("rich_text"))
-
-
-def _prop_multi_select(page: dict, name: str) -> str:
-    items = _read_prop(page, name).get("multi_select") or []
-    return json.dumps([x.get("name") for x in items if x.get("name")])
-
-
-def _prop_select(page: dict, name: str) -> str | None:
-    sel = _read_prop(page, name).get("select")
-    if not sel:
-        return None
-    val = sel.get("name")
-    return val if isinstance(val, str) else None
-
-
-def _prop_date(page: dict, name: str) -> str | None:
-    d = _read_prop(page, name).get("date")
-    if not d:
-        return None
-    val = d.get("start")
-    return val if isinstance(val, str) else None
-
-
-def _prop_checkbox(page: dict, name: str, default: int = 0) -> int:
-    val = _read_prop(page, name).get("checkbox")
-    if val is None:
-        return default
-    return 1 if val else 0
-
-
-def _prop_url(page: dict, name: str) -> str | None:
-    return _read_prop(page, name).get("url") or None
-
-
-def _prop_number(page: dict, name: str) -> float | int | None:
-    val = _read_prop(page, name).get("number")
-    return val
-
-
-# --- Mappers ---------------------------------------------------------
+# --- Notion page → row dispatcher -----------------------------------
+#
+# Property readers + per-category mappers live in brain_notion_props.py
+# to keep this module under the 400-line filesize gate.
 
 
 def map_page_to_row(category: str, page: dict) -> dict:
@@ -190,73 +149,8 @@ def map_page_to_row(category: str, page: dict) -> dict:
         "last_edited_time": page.get("last_edited_time") or "",
         "created_time": page.get("created_time") or "",
     }
-    mapper = {
-        "decisions": _map_decision,
-        "web_cache": _map_web_cache,
-        "patterns": _map_pattern,
-        "gotchas": _map_gotcha,
-    }[category]
+    mapper = brain_notion_props.MAPPERS_BY_CATEGORY[category]
     return {**common, **mapper(page)}
-
-
-def _map_decision(page: dict) -> dict:
-    return {
-        "name": _prop_title(page, "Name"),
-        "context": _prop_rich_text(page, "Context"),
-        "decision": _prop_rich_text(page, "Decision"),
-        "rationale": _prop_rich_text(page, "Rationale"),
-        "tags": _prop_multi_select(page, "Tags"),
-        "stack": _prop_multi_select(page, "Stack"),
-        "date_value": _prop_date(page, "Date"),
-        "source_project_hash": _prop_rich_text(page, "Source Project Hash"),
-        "generalizable": _prop_checkbox(page, "Generalizable", default=1),
-        "superseded_by": _prop_url(page, "Superseded By"),
-    }
-
-
-def _map_web_cache(page: dict) -> dict:
-    ttl = _prop_number(page, "TTL Days")
-    return {
-        "name": _prop_title(page, "Name"),
-        "url": _prop_url(page, "URL"),
-        "query": _prop_rich_text(page, "Query"),
-        "content": _prop_rich_text(page, "Content"),
-        "fetched_at": _prop_date(page, "Fetched At") or "",
-        "ttl_days": int(ttl) if ttl is not None else 30,
-        "domain": _prop_select(page, "Domain"),
-        "tags": _prop_multi_select(page, "Tags"),
-        "source_project_hash": _prop_rich_text(page, "Source Project Hash"),
-        "content_hash": _prop_rich_text(page, "Content Hash"),
-    }
-
-
-def _map_pattern(page: dict) -> dict:
-    return {
-        "name": _prop_title(page, "Name"),
-        "description": _prop_rich_text(page, "Description"),
-        "when_to_use": _prop_rich_text(page, "When to Use"),
-        "example": _prop_rich_text(page, "Example"),
-        "tags": _prop_multi_select(page, "Tags"),
-        "stack": _prop_multi_select(page, "Stack"),
-        "source_project_hash": _prop_rich_text(page, "Source Project Hash"),
-        "date_value": _prop_date(page, "Date"),
-        "confidence": _prop_select(page, "Confidence"),
-    }
-
-
-def _map_gotcha(page: dict) -> dict:
-    return {
-        "name": _prop_title(page, "Name"),
-        "description": _prop_rich_text(page, "Description"),
-        "wrong_way": _prop_rich_text(page, "Wrong Way"),
-        "right_way": _prop_rich_text(page, "Right Way"),
-        "tags": _prop_multi_select(page, "Tags"),
-        "stack": _prop_multi_select(page, "Stack"),
-        "source_project_hash": _prop_rich_text(page, "Source Project Hash"),
-        "date_value": _prop_date(page, "Date"),
-        "severity": _prop_select(page, "Severity"),
-        "evidence_url": _prop_url(page, "Evidence URL"),
-    }
 
 
 # --- Upsert ----------------------------------------------------------
@@ -326,12 +220,36 @@ def _now_iso() -> str:
 
 
 def _make_filter(last_pull_at: str | None) -> dict | None:
+    """Build a Notion filter that excludes the boundary page.
+
+    `after` is strict `>` in Notion's API — the page that set the cursor
+    last sync is not re-fetched. Two pages edited at the exact same ms
+    could in theory slip past, but Notion's `last_edited_time` changes on
+    any edit, so the only way a missed page stays missed is if no one
+    touches it again — which means its content is already in the mirror.
+    """
     if not last_pull_at:
         return None
     return {
         "timestamp": "last_edited_time",
-        "last_edited_time": {"on_or_after": last_pull_at},
+        "last_edited_time": {"after": last_pull_at},
     }
+
+
+def _iso_epoch(s: str) -> float:
+    """Parse a Notion ISO timestamp to UTC epoch seconds.
+
+    Used to pick the maximum edited time across a batch without hitting
+    the lexicographic pitfall: `"...10:00:00Z"` > `"...10:00:00.000Z"`
+    under ASCII comparison but they're the SAME moment. Unparseable
+    values sort last (treated as oldest).
+    """
+    if not s:
+        return float("-inf")
+    from brain_hook_utils import parse_iso_to_epoch
+
+    e = parse_iso_to_epoch(s)
+    return e if e is not None else float("-inf")
 
 
 def sync_category(
@@ -340,7 +258,14 @@ def sync_category(
     database_id: str,
     category: str,
 ) -> dict:
-    """Pull delta for one category; return {fetched, upserted, last_edited_time}."""
+    """Pull delta for one category; return {fetched, upserted, last_edited_time}.
+
+    Atomicity: every upsert in the batch plus the `sync_state` cursor
+    bump live in a single transaction that commits on success. On
+    failure mid-batch we rollback the partial upserts and then, in a
+    separate (best-effort) tx, record the error into `sync_state` so the
+    next `tausik brain status` surfaces it.
+    """
     state = _get_sync_state(conn, category) or {}
     cursor = state.get("last_pull_at")
     notion_filter = _make_filter(cursor)
@@ -349,6 +274,7 @@ def sync_category(
     fetched = 0
     upserted = 0
     max_edited = cursor
+    max_edited_epoch = _iso_epoch(cursor or "")
     try:
         for page in client.iter_database_query(
             database_id, filter=notion_filter, sorts=sorts
@@ -358,16 +284,23 @@ def sync_category(
             upsert_page(conn, category, row)
             upserted += 1
             edited = row.get("last_edited_time") or ""
-            if edited and (max_edited is None or edited > max_edited):
-                max_edited = edited
+            if edited:
+                edited_epoch = _iso_epoch(edited)
+                if edited_epoch > max_edited_epoch:
+                    max_edited = edited
+                    max_edited_epoch = edited_epoch
+        _update_sync_state(conn, category, last_pull_at=max_edited, last_error=None)
+        conn.commit()
     except Exception as e:  # noqa: BLE001
-        conn.commit()
-        _update_sync_state(conn, category, last_error=str(e))
-        conn.commit()
+        conn.rollback()
+        try:
+            _update_sync_state(conn, category, last_error=str(e))
+            conn.commit()
+        except sqlite3.Error:
+            # Error-state write is best-effort — if the DB itself is now
+            # broken we've already failed, no point raising a second time.
+            pass
         raise
-
-    _update_sync_state(conn, category, last_pull_at=max_edited, last_error=None)
-    conn.commit()
     return {
         "fetched": fetched,
         "upserted": upserted,

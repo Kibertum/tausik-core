@@ -384,9 +384,11 @@ def test_sync_category_second_run_uses_last_pull_at_filter(conn):
     brain_sync.sync_category(client, conn, "db-1", "decisions")
 
     second_call = client.calls[1]
+    # brain-sync-cursor-advance: filter uses strict `after` so the boundary
+    # page is not re-fetched next sync. See scripts/brain_sync._make_filter.
     assert second_call["filter"] == {
         "timestamp": "last_edited_time",
-        "last_edited_time": {"on_or_after": "2026-04-23T10:00:00Z"},
+        "last_edited_time": {"after": "2026-04-23T10:00:00Z"},
     }
 
 

@@ -95,7 +95,11 @@ def try_brain_write_decision(
             return False, "token env var not set"
 
         client = brain_notion_client.NotionClient(token, timeout=5.0, max_retries=1)
-        conn = brain_sync.open_brain_db(get_brain_mirror_path(cfg))
+        # get_brain_mirror_path expects a top-level config (it re-enters
+        # load_brain for the merge) — passing the already-merged `cfg` would
+        # silently drop the user's `local_mirror_path`. Call with no arg so
+        # load_config() is consulted fresh. See task brain-config-mirror-path-contract.
+        conn = brain_sync.open_brain_db(get_brain_mirror_path())
         fields: dict[str, Any] = {"name": text[:60], "decision": text}
         if rationale:
             fields["rationale"] = rationale
@@ -144,7 +148,11 @@ def try_brain_write_web_cache(
             return False, "token env var not set"
 
         client = brain_notion_client.NotionClient(token, timeout=5.0, max_retries=1)
-        conn = brain_sync.open_brain_db(get_brain_mirror_path(cfg))
+        # get_brain_mirror_path expects a top-level config (it re-enters
+        # load_brain for the merge) — passing the already-merged `cfg` would
+        # silently drop the user's `local_mirror_path`. Call with no arg so
+        # load_config() is consulted fresh. See task brain-config-mirror-path-contract.
+        conn = brain_sync.open_brain_db(get_brain_mirror_path())
         # Notion's Name title is bounded at 60 chars; url is a safe fallback
         # (always non-empty by the guard above) when the tool returned no title.
         name_src = title.strip() if isinstance(title, str) and title.strip() else url

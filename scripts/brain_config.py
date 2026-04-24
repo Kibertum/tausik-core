@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import unicodedata
 from typing import cast
 
 from project_config import load_config
@@ -121,10 +122,16 @@ def get_brain_mirror_path(cfg: dict | None = None) -> str:
 def compute_project_hash(project_name: str) -> str:
     """SHA256(canonical_name)[:16] — 16 hex chars = 64-bit privacy-preserving id.
 
-    Canonicalization: strip(), lower(), collapse internal whitespace to '-'.
+    Canonicalization: NFC-normalize, strip(), lower(), collapse internal
+    whitespace to '-'. NFC is required because the same logical name
+    encoded differently (e.g. precomposed 'é' U+00E9 vs decomposed 'e'+U+0301)
+    would otherwise hash to different ids and register as two different
+    projects sharing the same brain workspace.
+
     See references/brain-db-schema.md §2 for the privacy rationale.
     """
     if not isinstance(project_name, str) or not project_name.strip():
         raise ValueError("project_name must be a non-empty string")
-    canonical = re.sub(r"\s+", "-", project_name.strip().lower())
+    normalized = unicodedata.normalize("NFC", project_name)
+    canonical = re.sub(r"\s+", "-", normalized.strip().lower())
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
