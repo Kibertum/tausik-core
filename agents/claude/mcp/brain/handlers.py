@@ -1,11 +1,14 @@
-"""tausik-brain MCP handlers — dispatch calls to brain_mcp_read helpers."""
+"""tausik-brain MCP handlers — dispatch calls to brain_mcp_read helpers.
+
+Connection + client setup lives in `brain_runtime.open_brain_deps` so
+the same contract is shared with service_knowledge, the PostToolUse
+WebFetch hook, and the cursor sibling of this module.
+"""
 
 from __future__ import annotations
 
 import os
-import sqlite3
 import sys
-from typing import Any
 
 _SCRIPTS_DIR = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "..", "..", "scripts")
@@ -19,35 +22,9 @@ else:
         file=sys.stderr,
     )
 
-import brain_config  # noqa: E402
 import brain_mcp_read  # noqa: E402
 import brain_mcp_write  # noqa: E402
-import brain_notion_client  # noqa: E402
-import brain_sync  # noqa: E402
-
-_FAST_FALLBACK_TIMEOUT = 5.0
-
-
-def _build_client(cfg: dict) -> Any | None:
-    token_env = cfg.get("notion_integration_token_env") or ""
-    token = os.environ.get(token_env, "") if token_env else ""
-    if not token:
-        return None
-    return brain_notion_client.NotionClient(
-        token,
-        timeout=_FAST_FALLBACK_TIMEOUT,
-        max_retries=1,
-    )
-
-
-def _open_deps() -> tuple[sqlite3.Connection | None, Any | None, dict]:
-    cfg = brain_config.load_brain()
-    if not cfg.get("enabled"):
-        return None, None, cfg
-    path = brain_config.get_brain_mirror_path()
-    conn = brain_sync.open_brain_db(path)
-    client = _build_client(cfg)
-    return conn, client, cfg
+from brain_runtime import open_brain_deps as _open_deps  # noqa: E402
 
 
 def _not_configured_msg() -> str:

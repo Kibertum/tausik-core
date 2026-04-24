@@ -1,21 +1,27 @@
 """Shared runtime helpers for brain read/write callers.
 
-Callers today: service_knowledge.decide() (auto-routing CLI path) and
-scripts/hooks/brain_post_webfetch.py (auto-cache WebFetch results).
-Likely next caller: brain-skill-ui.
+Callers today:
+- service_knowledge.decide() (auto-routing CLI path)
+- scripts/hooks/brain_post_webfetch.py (auto-cache WebFetch results)
+- agents/<ide>/mcp/brain/handlers.py (MCP read+write dispatch)
 
-The MCP handlers in agents/<ide>/mcp/brain/handlers.py also duplicate a
-similar `_open_deps` — when a third in-tree caller lands, fold them into
-this module. Not doing it now to keep the brain-decide-auto-route diff
-minimal.
+`open_brain_deps()` is the shared setup primitive — returns
+(conn, client, cfg) with None-semantics for "brain disabled" and
+"token missing". Fold-in point promised in the old brain_runtime
+docstring: it's now live and both handlers files use it.
 
-Zero external deps. Never raises: wrap failures as (False, reason) tuples.
+Zero external deps. Never raises: wrap failures as (False, reason) tuples
+in the try_brain_write_* wrappers. open_brain_deps propagates sqlite
+errors from open_brain_db — callers decide how to surface them.
 """
 
 from __future__ import annotations
 
 import os
+import sqlite3
 from typing import Any
+
+_FAST_FALLBACK_TIMEOUT = 5.0
 
 
 def _format_scrub_detectors(result: dict) -> str:
@@ -23,6 +29,49 @@ def _format_scrub_detectors(result: dict) -> str:
     issues = result.get("issues") or []
     detectors = sorted({i.get("detector", "?") for i in issues if isinstance(i, dict)})
     return ", ".join(detectors) if detectors else "matched patterns"
+
+
+def _build_notion_client(cfg: dict) -> Any | None:
+    """Return a NotionClient if the config's token env var is set, else None.
+
+    Connected with a short timeout + single retry so MCP calls fail fast
+    when Notion is unreachable; the brain's local mirror still serves reads.
+    """
+    import brain_notion_client
+
+    token_env = cfg.get("notion_integration_token_env") or ""
+    token = os.environ.get(token_env, "") if token_env else ""
+    if not token:
+        return None
+    return brain_notion_client.NotionClient(
+        token,
+        timeout=_FAST_FALLBACK_TIMEOUT,
+        max_retries=1,
+    )
+
+
+def open_brain_deps() -> tuple[sqlite3.Connection | None, Any | None, dict]:
+    """Open the brain mirror + (optional) Notion client based on config.
+
+    Returns:
+      (None, None, cfg)          if brain is disabled
+      (conn, None, cfg)          if brain is enabled but token env unset
+      (conn, client, cfg)        happy path — mirror open, client ready
+
+    The caller owns `conn` and is responsible for closing it. This matches
+    the pre-existing contract in the MCP handlers which never closed the
+    connection inside the request lifecycle (short-lived subprocess).
+    """
+    import brain_config
+    import brain_sync
+
+    cfg = brain_config.load_brain()
+    if not cfg.get("enabled"):
+        return None, None, cfg
+    path = brain_config.get_brain_mirror_path()
+    conn = brain_sync.open_brain_db(path)
+    client = _build_notion_client(cfg)
+    return conn, client, cfg
 
 
 def try_brain_write_decision(

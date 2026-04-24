@@ -69,6 +69,9 @@ _STUBS: dict[str, str] = {
         "def open_brain_db(*a, **k):\n"
         "    return sqlite3.connect(':memory:')\n"
     ),
+    "brain_runtime.py": (
+        "def open_brain_deps():\n    return None, None, {'enabled': False}\n"
+    ),
 }
 
 

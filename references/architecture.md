@@ -172,6 +172,8 @@ scripts/hooks/
 
 Brain-хуки делят хелперы в [`scripts/brain_hook_utils.py`](../scripts/brain_hook_utils.py) (`parse_iso_to_epoch`, `lookup_exact_url`, `is_fresh`) — одна реализация mirror-lookup + TTL семантики для пары Pre+Post.
 
+Brain-connection setup собран в [`scripts/brain_runtime.py`](../scripts/brain_runtime.py): `open_brain_deps() -> (conn, client, cfg)`, `try_brain_write_decision`, `try_brain_write_web_cache`. Callers: service_knowledge.decide, brain_post_webfetch, MCP handlers в `agents/{claude,cursor}/mcp/brain/handlers.py`. Диалоговый UI — skill `/brain` в [`agents/skills/brain/SKILL.md`](../agents/skills/brain/SKILL.md).
+
 **Поток anti-drift:**
 
 ```
