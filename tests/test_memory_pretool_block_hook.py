@@ -124,6 +124,50 @@ class TestBlocksMemoryWrites:
         )
         assert result.returncode == 2, result.stderr
 
+    def test_blocks_bare_claude_memory(self, tmp_path):
+        """Broadened guard: .claude/memory/ directly under home (no projects/)."""
+        _setup_tausik(tmp_path)
+        result = _run(
+            tmp_path,
+            {
+                "tool_name": "Write",
+                "tool_input": {"file_path": f"{_HOME}/.claude/memory/note.md"},
+                "transcript_path": "",
+            },
+        )
+        assert result.returncode == 2, result.stderr
+        assert "BLOCKED" in result.stderr
+
+    def test_blocks_agents_memory(self, tmp_path):
+        """Broadened guard: .claude/agents/<name>/memory/."""
+        _setup_tausik(tmp_path)
+        result = _run(
+            tmp_path,
+            {
+                "tool_name": "Write",
+                "tool_input": {
+                    "file_path": f"{_HOME}/.claude/agents/my-agent/memory/notes.md"
+                },
+                "transcript_path": "",
+            },
+        )
+        assert result.returncode == 2, result.stderr
+
+    def test_blocks_deeply_nested_memory(self, tmp_path):
+        """Broadened guard: memory segment can appear at any depth."""
+        _setup_tausik(tmp_path)
+        result = _run(
+            tmp_path,
+            {
+                "tool_name": "Write",
+                "tool_input": {
+                    "file_path": f"{_HOME}/.claude/plugins/foo/memory/sub/f.md"
+                },
+                "transcript_path": "",
+            },
+        )
+        assert result.returncode == 2, result.stderr
+
 
 class TestAllowsNonMemoryPaths:
     @pytest.mark.parametrize(
@@ -137,6 +181,11 @@ class TestAllowsNonMemoryPaths:
             lambda home: f"{home}/.claude/projects/test-proj/settings.json",
             lambda home: f"{home}/.claude/projects/test-proj/plans/plan.md",
             lambda home: f"{home}/Documents/note.md",
+            # Boundary: file literally named memory.md (not under a memory/ dir)
+            lambda home: f"{home}/.claude/projects/test-proj/memory.md",
+            # Boundary: substring `memory` in segment name but not exact
+            lambda home: f"{home}/.claude/projects/test-proj/somememory/note.md",
+            lambda home: f"{home}/.claude/projects/test-proj/memoryold/note.md",
         ],
     )
     def test_allows_path_outside_memory(self, tmp_path, file_path):

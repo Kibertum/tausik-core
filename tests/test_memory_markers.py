@@ -113,6 +113,59 @@ class TestEdgeCases:
             assert hasattr(pattern, "finditer")
 
 
+class TestTwoSegmentSlugs:
+    """2-seg slug regex widening (hooks-markers-slug-regex-widen).
+
+    Widened _SLUG_RE to {1,} captures 2-seg slugs (my-app, brain-init),
+    but detect_markers drops them unless corroborated by a higher-precision
+    detector or a 3+ seg slug — otherwise English kebab compounds would
+    flood the audit.
+    """
+
+    def test_two_seg_slug_alone_is_dropped(self):
+        """Standalone 2-seg slug looks like English — no match."""
+        assert detect_markers("closed brain-init today") == []
+        assert detect_markers("shipped my-app") == []
+
+    def test_two_seg_slug_with_abs_path_kept(self):
+        """Path fires → 2-seg slug corroborated, both returned."""
+        text = "task my-app done; edited /home/alice/projects/thing/x.py"
+        matches = detect_markers(text)
+        kinds = {m.kind for m in matches}
+        assert "slug" in kinds and "abs_path" in kinds
+        assert any(m.match == "my-app" for m in matches)
+
+    def test_two_seg_slug_with_src_file_kept(self):
+        """src_file fires → 2-seg slug corroborated."""
+        text = "brain-init tweak in scripts/brain_init.py"
+        matches = detect_markers(text)
+        assert any(m.kind == "slug" and m.match == "brain-init" for m in matches)
+        assert any(m.kind == "src_file" for m in matches)
+
+    def test_two_seg_slug_with_tausik_cmd_kept(self):
+        """tausik_cmd fires → 2-seg slug corroborated."""
+        text = "hystolab-ru: run .tausik/tausik status"
+        matches = detect_markers(text)
+        assert any(m.kind == "slug" and m.match == "hystolab-ru" for m in matches)
+        assert any(m.kind == "tausik_cmd" for m in matches)
+
+    def test_three_seg_slug_corroborates_two_seg_slug(self):
+        """3+ seg slug is strong enough to keep a 2-seg slug in the same text."""
+        text = "closed brain-init and mem-pretool-hook"
+        matches = [m.match for m in detect_markers(text) if m.kind == "slug"]
+        assert "mem-pretool-hook" in matches
+        assert "brain-init" in matches
+
+    def test_three_seg_slug_alone_still_fires(self):
+        """Regression: standalone 3+ seg slug was already strong — unchanged."""
+        matches = [
+            m.match
+            for m in detect_markers("task mem-pretool-hook done")
+            if m.kind == "slug"
+        ]
+        assert matches == ["mem-pretool-hook"]
+
+
 class TestPerformance:
     def test_large_text_under_budget(self):
         big = (

@@ -29,7 +29,7 @@ _ABS_PATH_RE = re.compile(
     r"(?:/(?:Users|home|opt|srv|var|workspace|projects)/[\w\-./]+)",
 )
 
-_SLUG_RE = re.compile(r"\b[a-z][a-z0-9]*(?:-[a-z0-9]+){2,}\b")
+_SLUG_RE = re.compile(r"\b[a-z][a-z0-9]*(?:-[a-z0-9]+){1,}\b")
 
 _TAUSIK_CMD_RE = re.compile(
     r"\.tausik[\\/]tausik(?:\.cmd)?"
@@ -56,6 +56,13 @@ def detect_markers(text: str) -> list[Match]:
 
     Returns unique matches sorted by position. An empty list means the text
     looks like a plausible cross-project preference.
+
+    2-segment slugs (`my-app`, `brain-init`, `kebab-case`) are structurally
+    indistinguishable from English kebab compounds. They are kept only when
+    corroborated — either another higher-precision detector fired
+    (abs_path / src_file / tausik_cmd), or a 3+ segment slug is present in
+    the same text. Standalone 2-seg slugs are dropped to keep audit signal
+    high.
     """
     if not text:
         return []
@@ -69,5 +76,9 @@ def detect_markers(text: str) -> list[Match]:
                 continue
             seen.add(key)
             results.append(Match(kind=kind, match=matched, span=m.span()))
+
+    has_strong = any(m.kind != "slug" or m.match.count("-") >= 2 for m in results)
+    if not has_strong:
+        return []
     results.sort(key=lambda r: r.span[0])
     return results

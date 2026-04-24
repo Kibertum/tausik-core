@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""PreToolUse hook: block Write/Edit/MultiEdit to ~/.claude/projects/*/memory/.
+"""PreToolUse hook: block Write/Edit/MultiEdit to ~/.claude/**/memory/.
 
 Protects Claude auto-memory from accidental project-specific records. Project
 knowledge belongs in TAUSIK memory (`.tausik/tausik memory add`); the user's
-home memory is for cross-project preferences only.
+home memory is for cross-project preferences only. Matches any `memory`
+directory under `.claude/` — `projects/<slug>/memory`, `agents/<name>/memory`,
+and bare `.claude/memory`.
 
 Bypass: if the last user turn in the transcript contains the marker
 `confirm: cross-project`, the hook allows the write (escape hatch for truly
@@ -48,16 +50,21 @@ def is_in_claude_memory(file_path: str) -> bool:
 
 
 def _is_in_claude_memory(file_path: str) -> bool:
-    """True iff file_path sits under $HOME/.claude/projects/<any>/memory/."""
+    """True iff file_path sits under a `memory` directory anywhere in $HOME/.claude/.
+
+    Matches .claude/**/memory/ — projects/<slug>/memory, agents/<name>/memory,
+    bare .claude/memory, etc. The `memory` segment must be a directory (not the
+    basename), so a file literally named memory.md is not blocked.
+    """
     if not file_path:
         return False
     home = _normalize(os.path.expanduser("~"))
     target = _normalize(os.path.expanduser(file_path))
-    prefix = f"{home}/.claude/projects/"
+    prefix = f"{home}/.claude/"
     if not target.startswith(prefix):
         return False
-    rest = target[len(prefix) :].split("/", 2)
-    return len(rest) >= 2 and rest[1] == "memory"
+    segments = target[len(prefix) :].split("/")
+    return "memory" in segments[:-1]
 
 
 def _bypass_present(transcript_path: str) -> bool:
@@ -91,7 +98,7 @@ def main() -> int:
         return 0
 
     print(
-        "BLOCKED: Writing to Claude auto-memory (~/.claude/projects/*/memory/) "
+        "BLOCKED: Writing to Claude auto-memory (~/.claude/**/memory/) "
         "from a TAUSIK project.\n"
         "Is this project-specific knowledge? -> .tausik/tausik memory add\n"
         "Is this a cross-project user preference? -> reply explicitly with "
