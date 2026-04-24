@@ -102,8 +102,39 @@ class KnowledgeMixin:
         self, text: str, task_slug: str | None = None, rationale: str | None = None
     ) -> str:
         validate_length("decision", text)
+
+        # Task-linked decisions are inherently project-specific — never route to brain.
+        if task_slug is not None:
+            did = self.be.decision_add(text, task_slug, rationale)
+            return (
+                f"Decision #{did} recorded — saved to local "
+                f"(reason: linked to task {task_slug})."
+            )
+
+        from brain_classifier import classify
+        from brain_config import load_brain
+
+        cfg = load_brain()
+        decision = classify(text, "decision", cfg=cfg)
+
+        if decision.target == "brain" and cfg.get("enabled"):
+            from brain_runtime import try_brain_write_decision
+
+            ok, detail = try_brain_write_decision(text, rationale, cfg)
+            if ok:
+                return (
+                    f"Decision recorded — saved to brain "
+                    f"(reason: {decision.reason}). Page: {detail}"
+                )
+            did = self.be.decision_add(text, task_slug, rationale)
+            return (
+                f"Decision #{did} recorded — saved to local "
+                f"(reason: brain write failed: {detail})."
+            )
+
         did = self.be.decision_add(text, task_slug, rationale)
-        return f"Decision #{did} recorded."
+        reason = decision.reason if decision.target == "local" else "brain not enabled"
+        return f"Decision #{did} recorded — saved to local (reason: {reason})."
 
     def decisions(self, n: int = 20) -> list[dict[str, Any]]:
         return self.be.decision_list(n)
