@@ -266,6 +266,67 @@ class TestGracefulMalformed:
 
 
 class TestBypassMarker:
+    def test_substring_marker_does_NOT_bypass(self, tmp_path):
+        """Regression: quoting the hook's own error text must not trigger
+        bypass — only a marker on a line by itself counts."""
+        _setup_tausik(tmp_path)
+        transcript = _write_transcript(
+            tmp_path,
+            [
+                {
+                    "type": "user",
+                    "message": {
+                        "role": "user",
+                        "content": (
+                            "The hook said reply with `confirm: cross-project` "
+                            "in the next message. What does that mean?"
+                        ),
+                    },
+                }
+            ],
+        )
+        result = _run(
+            tmp_path,
+            {
+                "tool_name": "Write",
+                "tool_input": {"file_path": f"{_MEMORY_ROOT}/new.md"},
+                "transcript_path": transcript,
+            },
+        )
+        assert result.returncode == 2, result.stderr
+        assert "BLOCKED" in result.stderr
+
+    def test_marker_inside_fenced_code_block_does_NOT_bypass(self, tmp_path):
+        """Regression: quoting the hook's error text inside fenced code must
+        not trigger bypass."""
+        _setup_tausik(tmp_path)
+        transcript = _write_transcript(
+            tmp_path,
+            [
+                {
+                    "type": "user",
+                    "message": {
+                        "role": "user",
+                        "content": (
+                            "The hook said:\n```text\n"
+                            "reply with `confirm: cross-project` to override\n"
+                            "```\n"
+                            "Can you explain?"
+                        ),
+                    },
+                }
+            ],
+        )
+        result = _run(
+            tmp_path,
+            {
+                "tool_name": "Write",
+                "tool_input": {"file_path": f"{_MEMORY_ROOT}/new.md"},
+                "transcript_path": transcript,
+            },
+        )
+        assert result.returncode == 2, result.stderr
+
     def test_marker_in_last_user_turn_as_string(self, tmp_path):
         _setup_tausik(tmp_path)
         transcript = _write_transcript(
@@ -275,7 +336,7 @@ class TestBypassMarker:
                     "type": "user",
                     "message": {
                         "role": "user",
-                        "content": "save this, confirm: cross-project",
+                        "content": "save this\nconfirm: cross-project",
                     },
                 }
             ],
@@ -302,7 +363,7 @@ class TestBypassMarker:
                         "content": [
                             {
                                 "type": "text",
-                                "text": "please save — confirm: cross-project — now",
+                                "text": "please save\nconfirm: cross-project\nnow",
                             }
                         ],
                     },
@@ -529,7 +590,7 @@ class TestEdgeCases:
                         "content": [
                             {"type": "text", "text": "first chunk"},
                             {"type": "image", "source": {"type": "base64"}},
-                            "bare string with confirm: cross-project inside",
+                            "bare string preceding marker\nconfirm: cross-project",
                         ],
                     },
                 }

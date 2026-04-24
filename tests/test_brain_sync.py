@@ -236,6 +236,65 @@ def test_map_unknown_category_raises():
         brain_sync.map_page_to_row("bogus", {"id": "x"})
 
 
+# --- upsert_page column whitelist (SQL-injection defense) ------------
+
+
+def _minimal_decision_row() -> dict:
+    return {
+        "notion_page_id": "page-1",
+        "name": "d1",
+        "context": "",
+        "decision": "x",
+        "rationale": "",
+        "tags": "[]",
+        "stack": "[]",
+        "date_value": None,
+        "source_project_hash": "abc123",
+        "generalizable": 1,
+        "superseded_by": None,
+        "last_edited_time": "2026-04-24T10:00:00.000Z",
+        "created_time": "2026-04-24T10:00:00.000Z",
+    }
+
+
+def test_upsert_page_rejects_unknown_column(conn):
+    row = _minimal_decision_row()
+    row["DROP TABLE brain_decisions--"] = "pwned"
+    with pytest.raises(ValueError) as exc:
+        brain_sync.upsert_page(conn, "decisions", row)
+    assert "Rejected unknown column" in str(exc.value)
+    assert "DROP TABLE" in str(exc.value)
+
+
+def test_upsert_page_rejects_unknown_category(conn):
+    with pytest.raises(ValueError) as exc:
+        brain_sync.upsert_page(conn, "bogus", {"notion_page_id": "x"})
+    assert "Unknown category" in str(exc.value)
+
+
+def test_upsert_page_accepts_schema_exact_columns(conn):
+    brain_sync.upsert_page(conn, "decisions", _minimal_decision_row())
+    out = conn.execute(
+        "SELECT notion_page_id, decision FROM brain_decisions"
+    ).fetchone()
+    assert out["notion_page_id"] == "page-1"
+    assert out["decision"] == "x"
+
+
+def test_upsert_page_accepts_subset_of_columns(conn):
+    """map_page_to_row does not emit every column; the whitelist MUST
+    allow subset-rows that happen to omit columns with DB defaults."""
+    row = _minimal_decision_row()
+    # Drop columns that have DB defaults — simulates a mapper that chose
+    # not to emit them. generalizable has DEFAULT 1, stack has DEFAULT '[]'.
+    del row["stack"]
+    del row["generalizable"]
+    brain_sync.upsert_page(conn, "decisions", row)
+    out = conn.execute("SELECT stack, generalizable FROM brain_decisions").fetchone()
+    assert out["stack"] == "[]"
+    assert out["generalizable"] == 1
+
+
 # --- sync_category ---------------------------------------------------
 
 

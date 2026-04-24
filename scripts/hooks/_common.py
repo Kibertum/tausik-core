@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
@@ -74,3 +75,85 @@ def is_task_done_invocation(tool_name: str, tool_input: dict) -> bool:
     if tool_name != "Bash":
         return False
     return bool(extract_task_done_slug_from_bash(tool_input.get("command") or ""))
+
+
+# --- Bypass-marker helpers (security-critical) -----------------------------
+#
+# Several PreToolUse hooks allow the user to override a guard by including a
+# marker phrase in their last prompt. A naive substring check is unsafe:
+# quoting the hook's own error text (which names the marker) would re-enable
+# the bypass on the *next* turn. Requiring the marker on a line by itself,
+# outside any fenced code block, closes that hole.
+
+
+_FENCE_RE = re.compile(r"^```")
+
+
+def last_user_prompt_text(transcript_path: str) -> str:
+    """Return the text of the most recent user message in the JSONL transcript.
+
+    Returns '' on any error (missing file, malformed JSON, unexpected shape).
+    Preserves the shape assumed by existing hooks: list-of-parts is joined
+    with newlines so anchored marker detection sees the original line
+    structure.
+    """
+    if not transcript_path or not os.path.isfile(transcript_path):
+        return ""
+    try:
+        with open(transcript_path, "r", encoding="utf-8", errors="replace") as f:
+            lines = f.readlines()
+    except OSError:
+        return ""
+    for line in reversed(lines):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict) or event.get("type") != "user":
+            continue
+        msg = event.get("message") or {}
+        if not isinstance(msg, dict):
+            continue
+        content = msg.get("content")
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts: list[str] = []
+            for item in content:
+                if isinstance(item, dict) and isinstance(item.get("text"), str):
+                    parts.append(item["text"])
+                elif isinstance(item, str):
+                    parts.append(item)
+            if parts:
+                return "\n".join(parts)
+    return ""
+
+
+def marker_present_anchored(text: str, marker: str) -> bool:
+    """True iff `marker` appears on a line by itself outside fenced code blocks.
+
+    - Case-insensitive match.
+    - Leading/trailing whitespace on the marker line is tolerated.
+    - Any line whose content, stripped, matches the marker counts.
+    - Lines inside fenced code blocks (``` ... ```) are skipped — so quoting
+      the hook's own error text in a fenced block will NOT trigger the bypass.
+    - Empty marker always returns False.
+    """
+    if not marker or not isinstance(text, str):
+        return False
+    target = marker.strip().lower()
+    if not target:
+        return False
+    in_fence = False
+    for raw in text.splitlines():
+        if _FENCE_RE.match(raw.lstrip()):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        if raw.strip().lower() == target:
+            return True
+    return False

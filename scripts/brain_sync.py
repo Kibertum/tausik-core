@@ -31,6 +31,80 @@ _TABLE_OF = {
     "gotchas": "brain_gotchas",
 }
 
+# Exact set of columns each brain_* table accepts via upsert. Keep in sync
+# with brain_schema.SCHEMA_SQL. `upsert_page` refuses any row key outside
+# this whitelist — defense against an untrusted mapper ever sneaking a
+# column name into the SQL string.
+_ALLOWED_COLS_OF: dict[str, frozenset[str]] = {
+    "decisions": frozenset(
+        {
+            "notion_page_id",
+            "name",
+            "context",
+            "decision",
+            "rationale",
+            "tags",
+            "stack",
+            "date_value",
+            "source_project_hash",
+            "generalizable",
+            "superseded_by",
+            "last_edited_time",
+            "created_time",
+        }
+    ),
+    "web_cache": frozenset(
+        {
+            "notion_page_id",
+            "name",
+            "url",
+            "query",
+            "content",
+            "fetched_at",
+            "ttl_days",
+            "domain",
+            "tags",
+            "source_project_hash",
+            "content_hash",
+            "last_edited_time",
+            "created_time",
+        }
+    ),
+    "patterns": frozenset(
+        {
+            "notion_page_id",
+            "name",
+            "description",
+            "when_to_use",
+            "example",
+            "tags",
+            "stack",
+            "source_project_hash",
+            "date_value",
+            "confidence",
+            "last_edited_time",
+            "created_time",
+        }
+    ),
+    "gotchas": frozenset(
+        {
+            "notion_page_id",
+            "name",
+            "description",
+            "wrong_way",
+            "right_way",
+            "tags",
+            "stack",
+            "source_project_hash",
+            "date_value",
+            "severity",
+            "evidence_url",
+            "last_edited_time",
+            "created_time",
+        }
+    ),
+}
+
 
 # --- DB setup ---------------------------------------------------------
 
@@ -189,9 +263,23 @@ def _map_gotcha(page: dict) -> dict:
 
 
 def upsert_page(conn: sqlite3.Connection, category: str, row: dict) -> None:
-    """INSERT OR REPLACE row into the brain_<category> table by notion_page_id."""
-    table = _TABLE_OF[category]
+    """INSERT OR REPLACE row into the brain_<category> table by notion_page_id.
+
+    Raises ValueError if `category` is unknown or `row` contains any column
+    outside the whitelist in `_ALLOWED_COLS_OF`. The f-string is only
+    interpolated with whitelisted identifiers, so even a buggy or malicious
+    mapper cannot steer the SQL text.
+    """
+    if category not in _TABLE_OF:
+        raise ValueError(f"Unknown category: {category!r}")
+    allowed = _ALLOWED_COLS_OF[category]
     cols = list(row.keys())
+    unknown = [c for c in cols if c not in allowed]
+    if unknown:
+        raise ValueError(
+            f"Rejected unknown column(s) for {category!r}: {sorted(unknown)!r}"
+        )
+    table = _TABLE_OF[category]
     placeholders = ", ".join("?" for _ in cols)
     col_list = ", ".join(cols)
     sql = f"INSERT OR REPLACE INTO {table} ({col_list}) VALUES ({placeholders})"

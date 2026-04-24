@@ -231,6 +231,108 @@ def test_unicode_content_with_russian_project_name_blocked():
     assert r["ok"] is False
 
 
+# ---- Homoglyph / zero-width / URL-encode bypass defenses --------------
+
+
+def test_blocklist_cyrillic_homoglyph_bypass_blocked():
+    """Cyrillic 'р' (U+0440) looks like Latin 'p' but has different bytes."""
+    r = brain_scrubbing.scrub(
+        "We deployed рrincess to staging",  # 'рrincess' — first char is Cyrillic
+        project_names=["princess"],
+    )
+    assert r["ok"] is False
+    detectors = [i["detector"] for i in r["issues"]]
+    assert "project_names_blocklist" in detectors
+
+
+def test_blocklist_all_cyrillic_homoglyphs_blocked():
+    """Full Cyrillic spelling: р(0440) с(0441) — lookalikes for p, c."""
+    r = brain_scrubbing.scrub(
+        "The ррincess project is confidential",  # 'ррincess'
+        project_names=["ppincess"],
+    )
+    assert r["ok"] is False
+
+
+def test_blocklist_zero_width_bypass_blocked():
+    """ZWSP inserted between letters splits a naive substring match."""
+    r = brain_scrubbing.scrub(
+        "Contact the pri​ncess team by Friday",
+        project_names=["princess"],
+    )
+    assert r["ok"] is False
+
+
+def test_blocklist_zero_width_joiner_bypass_blocked():
+    r = brain_scrubbing.scrub(
+        "the pri‍ncess deployment failed",
+        project_names=["princess"],
+    )
+    assert r["ok"] is False
+
+
+def test_blocklist_url_encoded_bypass_blocked():
+    r = brain_scrubbing.scrub(
+        "See https://example.com/path?q=%70rincess%20docs",
+        project_names=["princess"],
+    )
+    assert r["ok"] is False
+
+
+def test_blocklist_mixed_homoglyph_and_zero_width_blocked():
+    """Cyrillic Р + zero-width + Latin rincess."""
+    r = brain_scrubbing.scrub(
+        "Talk to Р​rincess tomorrow",
+        project_names=["princess"],
+    )
+    assert r["ok"] is False
+
+
+def test_blocklist_greek_homoglyph_blocked():
+    r = brain_scrubbing.scrub(
+        "Check Αpex dashboard",  # Greek Alpha (Α) + pex
+        project_names=["apex"],
+    )
+    assert r["ok"] is False
+
+
+def test_blocklist_combining_marks_stripped():
+    """Café (NFD: Cafe + U+0301) must match blocklist entry 'cafe'."""
+    r = brain_scrubbing.scrub(
+        "Deploying Café to prod",  # Cafe + combining acute
+        project_names=["cafe"],
+    )
+    assert r["ok"] is False
+
+
+def test_blocklist_no_false_positive_on_unrelated_substring():
+    """Regression: 'crate' should NOT match blocklist=['rate'] in this test,
+    but the substring-based blocklist DOES trigger on 'rate' inside 'crate'.
+    This test documents that behavior is UNCHANGED by the homoglyph fix —
+    the fix only defeats obfuscation, it does not tighten substring rules."""
+    r = brain_scrubbing.scrub(
+        "We ordered a wooden crate for the office",
+        project_names=["rate"],
+    )
+    # Pre-fix behavior is that 'rate' IS a substring of 'crate'; the fix
+    # preserves that. Asserting the unchanged behavior explicitly.
+    assert r["ok"] is False
+    r2 = brain_scrubbing.scrub(
+        "totally unrelated content about lumber",
+        project_names=["rate"],
+    )
+    assert r2["ok"] is True
+
+
+def test_blocklist_case_insensitive_regression():
+    """Existing behavior preserved: lowercase blocklist matches upper content."""
+    r = brain_scrubbing.scrub(
+        "PRINCESS ran out of budget",
+        project_names=["princess"],
+    )
+    assert r["ok"] is False
+
+
 # ---- Issue shape + format --------------------------------------------
 
 

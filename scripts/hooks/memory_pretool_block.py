@@ -19,6 +19,10 @@ import json
 import os
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from _common import last_user_prompt_text, marker_present_anchored  # noqa: E402
+
 
 _BYPASS_MARKER = "confirm: cross-project"
 _BLOCKED_TOOLS = ("Write", "Edit", "MultiEdit")
@@ -56,52 +60,9 @@ def _is_in_claude_memory(file_path: str) -> bool:
     return len(rest) >= 2 and rest[1] == "memory"
 
 
-def _last_user_prompt(transcript_path: str) -> str:
-    """Extract the last user message text from a Claude Code JSONL transcript.
-
-    Returns empty string on any error (graceful — the caller will then fall
-    through to 'no bypass found' and enforce the block).
-    """
-    if not transcript_path or not os.path.isfile(transcript_path):
-        return ""
-    try:
-        with open(transcript_path, "r", encoding="utf-8", errors="replace") as f:
-            lines = f.readlines()
-    except OSError:
-        return ""
-    for line in reversed(lines):
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if not isinstance(event, dict):
-            continue
-        if event.get("type") != "user":
-            continue
-        msg = event.get("message") or {}
-        if not isinstance(msg, dict):
-            continue
-        content = msg.get("content")
-        if isinstance(content, str):
-            return content
-        if isinstance(content, list):
-            parts: list[str] = []
-            for item in content:
-                if isinstance(item, dict) and isinstance(item.get("text"), str):
-                    parts.append(item["text"])
-                elif isinstance(item, str):
-                    parts.append(item)
-            if parts:
-                return "\n".join(parts)
-    return ""
-
-
 def _bypass_present(transcript_path: str) -> bool:
-    prompt = _last_user_prompt(transcript_path)
-    return _BYPASS_MARKER in prompt.lower()
+    prompt = last_user_prompt_text(transcript_path)
+    return marker_present_anchored(prompt, _BYPASS_MARKER)
 
 
 def main() -> int:
