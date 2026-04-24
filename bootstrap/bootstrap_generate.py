@@ -75,6 +75,16 @@ def generate_settings_claude(
                     ],
                 },
                 {
+                    "matcher": "WebSearch|WebFetch",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": _hook_cmd("brain_search_proactive.py"),
+                            "timeout": 5,
+                        }
+                    ],
+                },
+                {
                     "matcher": "Bash",
                     "if": "Bash(git push *)",
                     "hooks": [
