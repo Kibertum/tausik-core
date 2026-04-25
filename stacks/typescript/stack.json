@@ -1,0 +1,16 @@
+{
+  "name": "typescript",
+  "version": "1",
+  "detect": [{ "file": "tsconfig.json", "type": "exact" }],
+  "extensions": [".ts", ".tsx"],
+  "gates": {
+    "tsc": {
+      "enabled": false,
+      "severity": "block",
+      "trigger": ["task-done", "commit"],
+      "command": "npx tsc --noEmit 2>&1 | head -20",
+      "description": "TypeScript type-check",
+      "stacks": ["typescript", "react", "next", "vue", "nuxt", "svelte"]
+    }
+  }
+}

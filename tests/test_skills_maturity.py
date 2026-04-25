@@ -88,13 +88,16 @@ class TestStackGuides:
     ]
 
     def test_all_stack_files_exist(self):
+        # v1.6: stacks live in <repo>/stacks/<name>/guide.md (plugin layout).
+        repo_root = os.path.dirname(AGENTS_DIR)
         for stack in self.STACKS:
-            path = os.path.join(AGENTS_DIR, "stacks", f"{stack}.md")
+            path = os.path.join(repo_root, "stacks", stack, "guide.md")
             assert os.path.isfile(path), f"Missing stack file: {path}"
 
     @pytest.mark.parametrize("stack", STACKS)
     def test_stack_has_required_sections(self, stack):
-        path = os.path.join(AGENTS_DIR, "stacks", f"{stack}.md")
+        repo_root = os.path.dirname(AGENTS_DIR)
+        path = os.path.join(repo_root, "stacks", stack, "guide.md")
         with open(path, encoding="utf-8") as f:
             content = f.read()
         for section in self.REQUIRED_SECTIONS:
@@ -333,10 +336,13 @@ class TestBootstrapRolesStacks:
         n = copy_stacks(lib_dir, target, "claude", ["python", "react"])
         assert n >= 2
         stacks_dir = os.path.join(target, "stacks")
-        assert os.path.isfile(os.path.join(stacks_dir, "python.md"))
-        assert os.path.isfile(os.path.join(stacks_dir, "react.md"))
-        assert not os.path.isfile(os.path.join(stacks_dir, "go.md"))
-        assert not os.path.isfile(os.path.join(stacks_dir, "vue.md"))
+        # v1.6: each stack lives in stacks/<name>/{stack.json, guide.md}.
+        assert os.path.isfile(os.path.join(stacks_dir, "python", "stack.json"))
+        assert os.path.isfile(os.path.join(stacks_dir, "python", "guide.md"))
+        assert os.path.isfile(os.path.join(stacks_dir, "react", "stack.json"))
+        # Non-detected stacks must not be copied.
+        assert not os.path.isdir(os.path.join(stacks_dir, "go"))
+        assert not os.path.isdir(os.path.join(stacks_dir, "vue"))
 
     def test_copy_stacks_all_when_none_detected(self, tmp_path):
         sys.path.insert(0, BOOTSTRAP_DIR)

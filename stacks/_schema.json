@@ -1,0 +1,119 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://tausik.ai/schemas/stack-decl.json",
+  "title": "TAUSIK Stack Declaration",
+  "description": "Schema for stacks/<name>/stack.json files. Built-in stacks live in stacks/<name>/ and user overrides in .tausik/stacks/<name>/.",
+  "type": "object",
+  "required": ["name"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*$",
+      "description": "Stack identifier. Lowercase, starts with a letter, alphanumeric/underscore/dash."
+    },
+    "version": {
+      "type": "string",
+      "description": "Stack-decl version string (free-form). Default '1'."
+    },
+    "extends": {
+      "type": ["string", "null"],
+      "pattern": "^builtin:[a-z][a-z0-9_-]*$",
+      "description": "Optional inheritance: 'builtin:NAME' merges this decl on top of the named built-in stack. Used in .tausik/stacks/ to customize without redefining everything."
+    },
+    "detect": {
+      "type": "array",
+      "description": "Project-root signatures used by bootstrap_config.detect_stacks(). Empty/missing → stack is never auto-detected.",
+      "items": {
+        "type": "object",
+        "required": ["file", "type"],
+        "additionalProperties": false,
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "Filename, glob pattern, or dir name depending on `type`."
+          },
+          "type": {
+            "type": "string",
+            "enum": ["exact", "glob", "dir-marker"],
+            "description": "exact = isfile match; glob = recursive glob with depth cap; dir-marker = isdir match."
+          },
+          "keyword": {
+            "type": "string",
+            "description": "Optional substring required inside the matched file (only meaningful for type=exact|glob with files)."
+          }
+        }
+      }
+    },
+    "extensions": {
+      "type": "array",
+      "description": "File extensions (incl. leading dot, e.g. '.py') that signal this stack. Powers gate_stack_dispatch._EXT_TO_STACKS.",
+      "items": {
+        "type": "string",
+        "pattern": "^\\.[a-z0-9.]+$"
+      },
+      "uniqueItems": true
+    },
+    "filenames": {
+      "type": "array",
+      "description": "Lowercase filenames (e.g. 'dockerfile', 'chart.yaml') that signal this stack regardless of extension. Powers gate_stack_dispatch._FILENAME_TO_STACKS.",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9._-]+$"
+      },
+      "uniqueItems": true
+    },
+    "path_hints": {
+      "type": "array",
+      "description": "Path-fragment hints used to disambiguate YAML/JSON in IaC trees (e.g. '/playbooks/' → ansible). Each fragment must start and end with '/'.",
+      "items": {
+        "type": "string",
+        "pattern": "^/[^/].*/$"
+      },
+      "uniqueItems": true
+    },
+    "gates": {
+      "type": "object",
+      "description": "Stack-scoped gate definitions. Key = gate name, value = DEFAULT_GATES-shaped dict OR null to disable an inherited gate.",
+      "patternProperties": {
+        "^[a-z][a-z0-9_-]*$": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "severity": { "type": "string", "enum": ["warn", "block"] },
+                "trigger": {
+                  "type": "array",
+                  "items": { "type": "string", "enum": ["task-done", "commit", "review"] }
+                },
+                "command": { "type": ["string", "null"] },
+                "description": { "type": "string" },
+                "file_extensions": { "type": "array", "items": { "type": "string" } },
+                "stacks": { "type": "array", "items": { "type": "string" } },
+                "timeout": { "type": "integer", "minimum": 1 },
+                "max_lines": { "type": "integer", "minimum": 1 }
+              }
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "guide_path": {
+      "type": "string",
+      "description": "Path to the stack guide (relative to the stack dir). Default 'guide.md'."
+    },
+    "extensions_extra": {
+      "type": "array",
+      "description": "Additive extensions applied on top of inherited 'extends' target — does NOT replace, merges. Useful in user overrides.",
+      "items": {
+        "type": "string",
+        "pattern": "^\\.[a-z0-9.]+$"
+      },
+      "uniqueItems": true
+    }
+  }
+}

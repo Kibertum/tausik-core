@@ -832,8 +832,45 @@ class TestPytestGateScopeSubstitution:
         assert "tests/test_alpha.py" in rendered
         assert "tests/" not in rendered.replace("tests/test_alpha.py", "")
 
-    def test_substitution_falls_back_to_full_suite(self, tmp_path, monkeypatch):
-        """No mapping found → fall back to `tests/` (regression-safe)."""
+    def test_scoped_run_with_no_test_mapping_skips(self, tmp_path, monkeypatch):
+        """relevant_files non-empty + no test maps → SKIP, not full-suite fallback.
+
+        Defect fix: previously the gate ran the entire `tests/` suite when a
+        relevant_files set contained sources without matching test_<basename>.py.
+        That defeated scoping and burned 60+s on every task_done. The new
+        contract: scoped runs that miss the mapping return a sentinel so
+        run_gates emits a SKIP entry.
+        """
+        from gate_runner import _SCOPED_SKIP_SENTINEL
+
+        (tmp_path / "tests").mkdir()
+        monkeypatch.chdir(tmp_path)
+
+        called = {"ran": False}
+        import subprocess as _sp
+
+        def fake_run(args, **kwargs):
+            called["ran"] = True
+
+            class R:
+                returncode = 0
+                stdout = ""
+                stderr = ""
+
+            return R()
+
+        monkeypatch.setattr(_sp, "run", fake_run)
+        gate = {"command": "pytest -q {test_files_for_files}"}
+        ok, output = run_command_gate(gate, ["scripts/no_test_for_this.py"])
+        assert ok is True
+        assert output == _SCOPED_SKIP_SENTINEL
+        assert called["ran"] is False, (
+            "subprocess.run must NOT be invoked on a scoped-skip — full suite "
+            "would otherwise run for an unrelated module."
+        )
+
+    def test_unscoped_call_falls_back_to_full_suite(self, tmp_path, monkeypatch):
+        """relevant_files empty → fall back to `tests/` (regression-safe path)."""
         (tmp_path / "tests").mkdir()
         monkeypatch.chdir(tmp_path)
 
@@ -853,10 +890,56 @@ class TestPytestGateScopeSubstitution:
 
         monkeypatch.setattr(_sp, "run", fake_run)
         gate = {"command": "pytest -q {test_files_for_files}"}
-        ok, _ = run_command_gate(gate, ["scripts/no_test_for_this.py"])
+        ok, _ = run_command_gate(gate, [])
         assert ok is True
         rendered = captured["args"] if captured["shell"] else " ".join(captured["args"])
         assert "tests/" in rendered
+
+    def test_run_gates_translates_scoped_skip_into_skipped_result(
+        self, tmp_path, monkeypatch
+    ):
+        """run_gates converts the sentinel into a skipped=True result entry."""
+        (tmp_path / "tests").mkdir()
+        monkeypatch.chdir(tmp_path)
+
+        # Pretend a single pytest gate is configured for task-done.
+        gate_cfg = {
+            "name": "pytest",
+            "enabled": True,
+            "severity": "block",
+            "trigger": ["task-done"],
+            "command": "pytest -q {test_files_for_files}",
+            "stacks": ["python"],
+        }
+        monkeypatch.setattr(
+            "gate_runner.get_gates_for_trigger", lambda *_a, **_k: [gate_cfg]
+        )
+        monkeypatch.setattr("gate_runner.load_config", lambda: {})
+
+        called = {"ran": False}
+        import subprocess as _sp
+
+        def fake_run(args, **kwargs):
+            called["ran"] = True
+
+            class R:
+                returncode = 0
+                stdout = ""
+                stderr = ""
+
+            return R()
+
+        monkeypatch.setattr(_sp, "run", fake_run)
+
+        all_ok, results = run_gates("task-done", ["scripts/no_test_for_this.py"])
+        assert all_ok is True
+        assert len(results) == 1
+        r = results[0]
+        assert r["name"] == "pytest"
+        assert r.get("skipped") is True
+        assert r["passed"] is True
+        assert "scoped run" in r["output"]
+        assert called["ran"] is False
 
     def test_pytest_default_uses_new_substitution(self):
         """Regression: default pytest gate command uses the new substitution token."""

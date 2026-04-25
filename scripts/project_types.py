@@ -8,9 +8,15 @@ VALID_TASK_STATUSES = frozenset({"planning", "active", "blocked", "review", "don
 VALID_STORY_STATUSES = frozenset({"open", "active", "done"})
 VALID_EPIC_STATUSES = frozenset({"active", "done", "archived"})
 
-# Built-in stacks. Users extend this set via .tausik/config.json under the
-# top-level "custom_stacks" array — see get_valid_stacks() below.
-DEFAULT_STACKS = frozenset(
+# Built-in stacks. Single source of truth lives in `stacks/<name>/stack.json`
+# and is loaded by `stack_registry.default_registry()`. The hardcoded fallback
+# below is used ONLY when the registry can't load (missing dir, IO error,
+# import-time crash) — it keeps `from project_types import DEFAULT_STACKS`
+# safe so the rest of the framework boots.
+#
+# Users extend this set via .tausik/config.json under the top-level
+# "custom_stacks" array — see get_valid_stacks() below.
+_FALLBACK_STACKS = frozenset(
     {
         "python",
         "fastapi",
@@ -40,6 +46,33 @@ DEFAULT_STACKS = frozenset(
         "docker",
     }
 )
+
+
+def _load_default_stacks() -> frozenset[str]:
+    """Read built-in stack names from the plugin registry.
+
+    Defensive: any failure (missing dir, malformed JSON in user override,
+    import error) falls back to `_FALLBACK_STACKS` and logs a warning, so
+    `from project_types import DEFAULT_STACKS` never crashes module load.
+    """
+    try:
+        from stack_registry import default_registry
+
+        names = default_registry().all_stacks()
+        if not names:
+            return _FALLBACK_STACKS
+        return frozenset(names)
+    except Exception:  # noqa: BLE001 — module import must not crash
+        import logging
+
+        logging.getLogger("tausik.project_types").warning(
+            "Stack registry unavailable; falling back to hardcoded DEFAULT_STACKS",
+            exc_info=True,
+        )
+        return _FALLBACK_STACKS
+
+
+DEFAULT_STACKS = _load_default_stacks()
 # Backwards-compat alias — older code paths and tests reference VALID_STACKS
 # directly. New code should call get_valid_stacks(cfg) so that user-defined
 # custom stacks are honoured.

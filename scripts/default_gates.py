@@ -1,27 +1,23 @@
-"""Default quality gate configurations (extracted from project_config.py).
+"""Default quality gate configurations.
 
-Each entry is keyed by gate name and supports: enabled, severity, trigger,
-command, description, file_extensions, stacks, timeout, max_lines.
+`DEFAULT_GATES` is the union of:
+  * `UNIVERSAL_GATES` — hardcoded gates with no `stacks` filter (filesize,
+    tdd_order, ruff, mypy, bandit). They live here because they don't
+    belong to any single stack.
+  * Stack-scoped gates pulled from `stack_registry` — pytest, tsc, eslint,
+    cargo-*, phpstan, terraform-validate, etc. The canonical source is
+    each stack's `stacks/<name>/stack.json` gates section.
+
+If the registry can't load (early bootstrap, missing dir), we fall back
+to a full hardcoded set so the framework still boots — keeping the
+contract `from default_gates import DEFAULT_GATES` exception-free.
 """
 
 from __future__ import annotations
 
-DEFAULT_GATES: dict[str, dict] = {
-    "pytest": {
-        "enabled": True,
-        "severity": "block",
-        "trigger": ["task-done", "review"],
-        # SENAR Rule 5: scoped to relevant_files via {test_files_for_files}
-        # substitution. Falls back to full `tests/` when no test files map
-        # from relevant_files (regression-safe).
-        "command": "pytest -x -q {test_files_for_files}",
-        "description": "Run pytest scoped to task's relevant_files",
-        "timeout": 180,
-        # Stack-aware dispatch: only run on Python projects. Without this
-        # filter the gate would silently fall back to running an empty
-        # `tests/` directory on non-Python projects (false-pass).
-        "stacks": ["python", "fastapi", "django", "flask"],
-    },
+# --- Universal gates (no stacks filter) -------------------------------------
+
+UNIVERSAL_GATES: dict[str, dict] = {
     "ruff": {
         "enabled": True,
         "severity": "block",
@@ -53,7 +49,29 @@ DEFAULT_GATES: dict[str, dict] = {
         "command": "bandit -r {files} -q",
         "description": "Security scan with bandit",
     },
-    # TypeScript / JavaScript gates
+    "tdd_order": {
+        "enabled": False,
+        "severity": "warn",
+        "trigger": ["task-done"],
+        "command": None,
+        "description": "Verify test files were modified (TDD enforcement)",
+    },
+}
+
+
+# --- Hardcoded fallback for stack-scoped gates ------------------------------
+# Mirrors the pre-plugin hardcoded layout. Used when stack_registry is unavailable.
+
+_FALLBACK_STACK_GATES: dict[str, dict] = {
+    "pytest": {
+        "enabled": True,
+        "severity": "block",
+        "trigger": ["task-done", "review"],
+        "command": "pytest -x -q {test_files_for_files}",
+        "description": "Run pytest scoped to task's relevant_files",
+        "timeout": 180,
+        "stacks": ["python", "fastapi", "django", "flask"],
+    },
     "tsc": {
         "enabled": False,
         "severity": "block",
@@ -78,7 +96,6 @@ DEFAULT_GATES: dict[str, dict] = {
             "svelte",
         ],
     },
-    # Go gates
     "go-vet": {
         "enabled": False,
         "severity": "block",
@@ -104,7 +121,6 @@ DEFAULT_GATES: dict[str, dict] = {
         "stacks": ["go"],
         "timeout": 180,
     },
-    # Rust gates
     "cargo-check": {
         "enabled": False,
         "severity": "block",
@@ -130,7 +146,6 @@ DEFAULT_GATES: dict[str, dict] = {
         "stacks": ["rust"],
         "timeout": 240,
     },
-    # PHP gates
     "phpstan": {
         "enabled": False,
         "severity": "block",
@@ -173,7 +188,6 @@ DEFAULT_GATES: dict[str, dict] = {
         ],
         "timeout": 240,
     },
-    # Java / Kotlin gates
     "javac": {
         "enabled": False,
         "severity": "block",
@@ -190,17 +204,6 @@ DEFAULT_GATES: dict[str, dict] = {
         "description": "Kotlin code style check",
         "stacks": ["kotlin"],
     },
-    # TDD enforcement gate
-    "tdd_order": {
-        "enabled": False,
-        "severity": "warn",
-        "trigger": ["task-done"],
-        "command": None,
-        "description": "Verify test files were modified (TDD enforcement)",
-    },
-    # --- Infrastructure-as-Code: lint/syntax only, NOT policy-as-code ---
-    # OPA/Sentinel/Checkov/tfsec/Trivy are NOT included — add them as custom
-    # gates via .tausik/config.json under "gates" if your team needs them.
     "ansible-lint": {
         "enabled": False,
         "severity": "warn",
@@ -247,3 +250,43 @@ DEFAULT_GATES: dict[str, dict] = {
         "timeout": 60,
     },
 }
+
+
+def _build_stack_scoped_gates() -> dict[str, dict]:
+    """Read stack-scoped gates from the plugin registry.
+
+    Each registered stack contributes its `gates` map. If two stacks
+    declare the same gate name, the first one wins (registry iteration is
+    stable). On any error we return the hardcoded fallback so the rest
+    of TAUSIK still works.
+    """
+    try:
+        from stack_registry import default_registry
+
+        reg = default_registry()
+        out: dict[str, dict] = {}
+        for name in sorted(reg.all_stacks()):  # stable order for predictable wins
+            for gname, gcfg in reg.gates_for(name).items():
+                if gname not in out:
+                    out[gname] = dict(gcfg)
+        if not out:
+            return _FALLBACK_STACK_GATES
+        return out
+    except Exception:  # noqa: BLE001 — must not crash module import
+        import logging
+
+        logging.getLogger("tausik.default_gates").warning(
+            "Stack registry unavailable; using hardcoded stack-scoped gates",
+            exc_info=True,
+        )
+        return _FALLBACK_STACK_GATES
+
+
+def _build_default_gates() -> dict[str, dict]:
+    """DEFAULT_GATES = UNIVERSAL_GATES ∪ registry-derived stack-scoped gates."""
+    merged: dict[str, dict] = dict(UNIVERSAL_GATES)
+    merged.update(_build_stack_scoped_gates())
+    return merged
+
+
+DEFAULT_GATES: dict[str, dict] = _build_default_gates()

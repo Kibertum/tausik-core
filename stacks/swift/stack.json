@@ -1,0 +1,9 @@
+{
+  "name": "swift",
+  "version": "1",
+  "detect": [
+    { "file": "Package.swift", "type": "exact" },
+    { "file": "*.xcodeproj", "type": "dir-marker" }
+  ],
+  "extensions": [".swift"]
+}

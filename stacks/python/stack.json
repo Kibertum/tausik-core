@@ -1,0 +1,21 @@
+{
+  "name": "python",
+  "version": "1",
+  "detect": [
+    { "file": "pyproject.toml", "type": "exact" },
+    { "file": "requirements.txt", "type": "exact" },
+    { "file": "setup.py", "type": "exact" }
+  ],
+  "extensions": [".py"],
+  "gates": {
+    "pytest": {
+      "enabled": true,
+      "severity": "block",
+      "trigger": ["task-done", "review"],
+      "command": "pytest -x -q {test_files_for_files}",
+      "description": "Run pytest scoped to task's relevant_files",
+      "timeout": 180,
+      "stacks": ["python", "fastapi", "django", "flask"]
+    }
+  }
+}

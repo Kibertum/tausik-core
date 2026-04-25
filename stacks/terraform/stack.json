@@ -1,0 +1,20 @@
+{
+  "name": "terraform",
+  "version": "1",
+  "detect": [
+    { "file": "*.tf", "type": "glob" },
+    { "file": "*.tfvars", "type": "glob" }
+  ],
+  "extensions": [".tf", ".tfvars"],
+  "gates": {
+    "terraform-validate": {
+      "enabled": false,
+      "severity": "block",
+      "trigger": ["task-done", "commit"],
+      "command": "terraform fmt -check && terraform validate 2>&1 | head -30",
+      "description": "Terraform fmt+validate — syntax only, NOT policy-as-code (Checkov/tfsec/Sentinel NOT included).",
+      "stacks": ["terraform"],
+      "timeout": 120
+    }
+  }
+}

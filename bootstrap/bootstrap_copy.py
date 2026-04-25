@@ -284,66 +284,7 @@ def copy_roles(lib_dir: str, target_dir: str, ide: str) -> int:
     return len([f for f in os.listdir(roles_dst) if f.endswith(".md")])
 
 
-def copy_stacks(
-    lib_dir: str, target_dir: str, ide: str, detected_stacks: list[str]
-) -> int:
-    """Copy stack guides filtered by detected stacks.
-
-    Only copies guides for stacks that were detected in the project.
-    If no stacks detected, copies all available guides.
-    """
-    stacks_src = os.path.join(lib_dir, "agents", "stacks")
-    if not os.path.isdir(stacks_src):
-        stacks_src = os.path.join(lib_dir, "agents", ide, "stacks")
-    if not os.path.isdir(stacks_src):
-        stacks_src = os.path.join(lib_dir, "agents", "claude", "stacks")
-    if not os.path.isdir(stacks_src):
-        return 0
-    stacks_dst = os.path.join(target_dir, "stacks")
-    os.makedirs(stacks_dst, exist_ok=True)
-    count = 0
-    # Map detected stack names to guide filenames (stack -> [own file, base file])
-    stack_file_map: dict[str, list[str]] = {
-        "python": ["python.md"],
-        "fastapi": ["fastapi.md", "python.md"],
-        "django": ["django.md", "python.md"],
-        "flask": ["flask.md", "python.md"],
-        "react": ["react.md"],
-        "next": ["next.md", "react.md"],
-        "vue": ["vue.md"],
-        "nuxt": ["nuxt.md", "vue.md"],
-        "svelte": ["svelte.md"],
-        "typescript": ["typescript.md"],
-        "javascript": ["javascript.md"],
-        "go": ["go.md"],
-        "rust": ["rust.md"],
-        "java": ["java.md"],
-        "kotlin": ["kotlin.md", "java.md"],
-        "swift": ["swift.md"],
-        "flutter": ["flutter.md"],
-        "laravel": ["laravel.md", "php.md"],
-        "php": ["php.md"],
-        "blade": ["blade.md", "php.md"],
-    }
-    if detected_stacks:
-        files_to_copy = set()
-        for stack in detected_stacks:
-            for fname in stack_file_map.get(stack.lower(), []):
-                files_to_copy.add(fname)
-        # Always include typescript.md if JS-framework detected
-        if any(
-            s in detected_stacks for s in ("react", "next", "vue", "nuxt", "svelte")
-        ):
-            files_to_copy.add("typescript.md")
-    else:
-        # No stacks detected — copy all
-        files_to_copy = {f for f in os.listdir(stacks_src) if f.endswith(".md")}
-    for fname in files_to_copy:
-        src = os.path.join(stacks_src, fname)
-        if os.path.isfile(src):
-            shutil.copy2(src, os.path.join(stacks_dst, fname))
-            count += 1
-    return count
+from bootstrap_stacks import copy_stacks  # noqa: F401, E402
 
 
 def copy_references(lib_dir: str, target_dir: str, ide: str) -> int:

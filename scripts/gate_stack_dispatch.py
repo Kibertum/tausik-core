@@ -11,9 +11,9 @@ from __future__ import annotations
 import os
 
 
-# File extension → set of stacks. Used by gate_applies_to() to decide
-# whether a stack-scoped gate should run for a given relevant_files set.
-_EXT_TO_STACKS: dict[str, frozenset[str]] = {
+# Hardcoded fallback dispatch tables. Used only when stack_registry can't
+# load — keeps gate_applies_to working under partial-bootstrap conditions.
+_FALLBACK_EXT_TO_STACKS: dict[str, frozenset[str]] = {
     ".py": frozenset({"python", "fastapi", "django", "flask"}),
     ".ts": frozenset({"typescript", "react", "next", "vue", "nuxt", "svelte"}),
     ".tsx": frozenset({"typescript", "react", "next"}),
@@ -30,15 +30,11 @@ _EXT_TO_STACKS: dict[str, frozenset[str]] = {
     ".blade.php": frozenset({"blade", "laravel", "php"}),
     ".swift": frozenset({"swift"}),
     ".dart": frozenset({"flutter"}),
-    # Infrastructure-as-Code
     ".tf": frozenset({"terraform"}),
     ".tfvars": frozenset({"terraform"}),
 }
 
-# Filename-based detection (no extension, or special-case names).
-# Path basename is matched case-insensitively against each key; values
-# follow the same union-of-stacks shape as _EXT_TO_STACKS.
-_FILENAME_TO_STACKS: dict[str, frozenset[str]] = {
+_FALLBACK_FILENAME_TO_STACKS: dict[str, frozenset[str]] = {
     "dockerfile": frozenset({"docker"}),
     "containerfile": frozenset({"docker"}),
     "ansible.cfg": frozenset({"ansible"}),
@@ -48,17 +44,70 @@ _FILENAME_TO_STACKS: dict[str, frozenset[str]] = {
     "values.yml": frozenset({"helm"}),
 }
 
-# Path-fragment hints for ambiguous YAML/JSON in IaC trees. A file is
-# tagged with the stack only when its path contains one of these
-# fragments. Order doesn't matter — we union all matches.
-_PATH_HINTS: tuple[tuple[str, frozenset[str]], ...] = (
+_FALLBACK_PATH_HINTS: tuple[tuple[str, frozenset[str]], ...] = (
     ("/playbooks/", frozenset({"ansible"})),
     ("/roles/", frozenset({"ansible"})),
-    ("/templates/", frozenset({"helm"})),  # only with .yaml/.yml below
+    ("/templates/", frozenset({"helm"})),
     ("/k8s/", frozenset({"kubernetes"})),
     ("/manifests/", frozenset({"kubernetes"})),
     ("/.kube/", frozenset({"kubernetes"})),
 )
+
+
+def _build_dispatch_tables() -> tuple[
+    dict[str, frozenset[str]],
+    dict[str, frozenset[str]],
+    tuple[tuple[str, frozenset[str]], ...],
+]:
+    """Invert per-stack registry data into ext/filename/path-hint indexes.
+
+    Compound-extension semantics: `.blade.php` inherits the `.php` stack
+    set so a foo.blade.php file still matches php/laravel-scoped gates,
+    matching the previous hardcoded behaviour.
+    """
+    try:
+        from stack_registry import default_registry
+
+        reg = default_registry()
+        ext: dict[str, set[str]] = {}
+        files: dict[str, set[str]] = {}
+        hints: dict[str, set[str]] = {}
+        for name in reg.all_stacks():
+            for e in reg.extensions_for(name):
+                ext.setdefault(e, set()).add(name)
+            for fn in reg.filenames_for(name):
+                files.setdefault(fn, set()).add(name)
+            for h in reg.path_hints_for(name):
+                hints.setdefault(h, set()).add(name)
+        # Compound extension: .blade.php → union with .php.
+        if ".blade.php" in ext and ".php" in ext:
+            ext[".blade.php"] = ext[".blade.php"] | ext[".php"]
+        if not ext and not files and not hints:
+            return (
+                _FALLBACK_EXT_TO_STACKS,
+                _FALLBACK_FILENAME_TO_STACKS,
+                _FALLBACK_PATH_HINTS,
+            )
+        return (
+            {k: frozenset(v) for k, v in ext.items()},
+            {k: frozenset(v) for k, v in files.items()},
+            tuple((k, frozenset(v)) for k, v in hints.items()),
+        )
+    except Exception:  # noqa: BLE001 — gate dispatch must work even on broken registry
+        import logging
+
+        logging.getLogger("tausik.gate_dispatch").warning(
+            "Stack registry unavailable; using hardcoded dispatch tables",
+            exc_info=True,
+        )
+        return (
+            _FALLBACK_EXT_TO_STACKS,
+            _FALLBACK_FILENAME_TO_STACKS,
+            _FALLBACK_PATH_HINTS,
+        )
+
+
+_EXT_TO_STACKS, _FILENAME_TO_STACKS, _PATH_HINTS = _build_dispatch_tables()
 
 
 def _stacks_from_basename(basename: str) -> frozenset[str]:

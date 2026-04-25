@@ -1,0 +1,19 @@
+{
+  "name": "java",
+  "version": "1",
+  "detect": [
+    { "file": "pom.xml", "type": "exact" },
+    { "file": "build.gradle", "type": "exact" }
+  ],
+  "extensions": [".java"],
+  "gates": {
+    "javac": {
+      "enabled": false,
+      "severity": "block",
+      "trigger": ["task-done"],
+      "command": "mvn compile -q 2>&1 | head -20",
+      "description": "Java compilation check",
+      "stacks": ["java"]
+    }
+  }
+}

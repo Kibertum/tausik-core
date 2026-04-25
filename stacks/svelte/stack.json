@@ -1,0 +1,6 @@
+{
+  "name": "svelte",
+  "version": "1",
+  "detect": [{ "file": "package.json", "type": "exact", "keyword": "\"svelte\"" }],
+  "extensions": [".svelte", ".ts", ".js"]
+}

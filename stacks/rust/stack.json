@@ -1,0 +1,33 @@
+{
+  "name": "rust",
+  "version": "1",
+  "detect": [{ "file": "Cargo.toml", "type": "exact" }],
+  "extensions": [".rs"],
+  "gates": {
+    "cargo-check": {
+      "enabled": false,
+      "severity": "block",
+      "trigger": ["task-done", "commit"],
+      "command": "cargo check 2>&1 | head -20",
+      "description": "Rust compilation check",
+      "stacks": ["rust"]
+    },
+    "clippy": {
+      "enabled": false,
+      "severity": "warn",
+      "trigger": ["commit"],
+      "command": "cargo clippy — -D warnings 2>&1 | head -20",
+      "description": "Rust linter",
+      "stacks": ["rust"]
+    },
+    "cargo-test": {
+      "enabled": false,
+      "severity": "block",
+      "trigger": ["task-done"],
+      "command": "cargo test --quiet 2>&1 | tail -30",
+      "description": "Run Rust tests for the crate",
+      "stacks": ["rust"],
+      "timeout": 240
+    }
+  }
+}

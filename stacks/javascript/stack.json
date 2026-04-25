@@ -1,0 +1,25 @@
+{
+  "name": "javascript",
+  "version": "1",
+  "detect": [{ "file": "package.json", "type": "exact" }],
+  "extensions": [".js", ".jsx"],
+  "gates": {
+    "eslint": {
+      "enabled": false,
+      "severity": "warn",
+      "trigger": ["commit"],
+      "command": "npx eslint {files} --max-warnings 0 2>&1 | head -20",
+      "description": "ESLint check",
+      "stacks": ["typescript", "javascript", "react", "next", "vue", "nuxt", "svelte"]
+    },
+    "js-test": {
+      "enabled": false,
+      "severity": "block",
+      "trigger": ["task-done"],
+      "command": "npm test --silent 2>&1 | tail -30",
+      "description": "JS/TS tests (jest/vitest). Override gates.js-test.command for yarn/bun/pnpm.",
+      "stacks": ["javascript", "typescript", "react", "next", "vue", "nuxt", "svelte"],
+      "timeout": 240
+    }
+  }
+}

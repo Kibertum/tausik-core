@@ -27,7 +27,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "ide": "claude",
 }
 
-STACK_SIGNATURES: dict[str, list[tuple[str, str]]] = {
+# Hardcoded fallback signatures — used when stack_registry can't be loaded
+# (very early bootstrap, missing stacks/ dir). The canonical source is
+# `<repo>/stacks/<name>/stack.json` consumed via `stack_registry`.
+_FALLBACK_STACK_SIGNATURES: dict[str, list[tuple[str, str]]] = {
     "python": [("pyproject.toml", ""), ("requirements.txt", ""), ("setup.py", "")],
     "fastapi": [("requirements.txt", "fastapi"), ("pyproject.toml", "fastapi")],
     "django": [("manage.py", ""), ("requirements.txt", "django")],
@@ -40,15 +43,62 @@ STACK_SIGNATURES: dict[str, list[tuple[str, str]]] = {
     "java": [("pom.xml", ""), ("build.gradle", "")],
     "laravel": [("artisan", ""), ("composer.json", "laravel")],
     "php": [("composer.json", "")],
-    # Infrastructure-as-Code. Patterns with `*` are globs (recursive
-    # search up to a small depth); paths ending with `/` are directory
-    # markers. detect_stacks() handles all three forms.
     "terraform": [("*.tf", ""), ("*.tfvars", "")],
     "ansible": [("ansible.cfg", ""), ("playbooks/", ""), ("roles/", "")],
     "helm": [("Chart.yaml", ""), ("Chart.yml", "")],
     "kubernetes": [("k8s/", ""), ("manifests/", ""), (".kube/", "")],
     "docker": [("Dockerfile", ""), ("Containerfile", "")],
 }
+
+
+def _load_stack_signatures() -> dict[str, list[tuple[str, str]]]:
+    """Build STACK_SIGNATURES from stack_registry, falling back to hardcoded.
+
+    Each registry decl entry `{file, type, keyword}` is rendered to the
+    `(filename, keyword)` tuple form _signature_match() understands:
+      * type=exact   → use file as-is
+      * type=glob    → keep as-is (containing '*')
+      * type=dir-marker → append a trailing '/' so _signature_match treats it as dir
+    """
+    try:
+        import os as _os
+        import sys as _sys
+
+        # bootstrap/ → repo root → scripts/ for the registry import.
+        _scripts = _os.path.join(
+            _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "scripts"
+        )
+        if _scripts not in _sys.path:
+            _sys.path.insert(0, _scripts)
+        from stack_registry import default_registry
+
+        reg = default_registry()
+        out: dict[str, list[tuple[str, str]]] = {}
+        for name in reg.all_stacks():
+            entries: list[tuple[str, str]] = []
+            for sig in reg.signatures_for(name):
+                f = sig.get("file", "")
+                t = sig.get("type", "exact")
+                k = sig.get("keyword", "") or ""
+                if t == "dir-marker" and not f.endswith("/"):
+                    f = f + "/"
+                entries.append((f, k))
+            if entries:
+                out[name] = entries
+        if out:
+            return out
+        return _FALLBACK_STACK_SIGNATURES
+    except Exception:  # noqa: BLE001 — bootstrap must boot even on broken registry
+        import logging
+
+        logging.getLogger("tausik.bootstrap").warning(
+            "Stack registry unavailable; using hardcoded STACK_SIGNATURES",
+            exc_info=True,
+        )
+        return _FALLBACK_STACK_SIGNATURES
+
+
+STACK_SIGNATURES: dict[str, list[tuple[str, str]]] = _load_stack_signatures()
 
 # Extension skills are now in tausik/skills repo (official) or vendor repos.
 # This list is used only by the analyzer for auto-detection hints.

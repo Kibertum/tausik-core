@@ -4,7 +4,58 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased] — SENAR verify redesign + Shared Brain pipeline
+## [Unreleased] — Plugin stack architecture (stack-decl + user customization)
+
+### Added — Stack plugin foundation (Story 1, plugin-foundation)
+
+- **`stacks/_schema.json`** — JSON Schema (Draft-07) for stack declarations. Fields: `name` (required), `version`, `extends` (`builtin:NAME`), `detect` (list of `{file,type,keyword}` with `type ∈ exact|glob|dir-marker`), `extensions`, `filenames`, `path_hints`, `gates` (with `null` to disable), `guide_path`, `extensions_extra` (additive merge).
+- **`scripts/stack_schema.py`** — `validate_decl(decl, source) -> list[str]` returns actionable errors per offending field; never silently skips. 12 edge-cases covered via smoke harness.
+- **`scripts/stack_registry.py`** — `StackRegistry` class with `load_builtin`/`load_user`/`reload`, layered deep-merge (extensions_extra additive, gates per-key override + null disable), and accessors `signatures_for`/`extensions_for`/`filenames_for`/`path_hints_for`/`gates_for`/`guide_path_for`. Source tracking: `source_for(name)` returns `'builtin'|'user'|'overridden'|None`; `is_user_overridden(name)` for user-override detection.
+- **`tests/test_stack_registry.py`** — 27 tests across `TestLoadBuiltin`, `TestUserOverrides`, `TestReload`, `TestAccessors`, `TestSourceTracking`.
+
+### Added — 25 built-in stacks migrated to plugin layout (Story 2, migrate-builtins)
+
+Each stack is now `stacks/<name>/{stack.json, guide.md}`. Source of truth shifted from 5 hardcoded modules to a single declarative file.
+
+- **Python family** ([stacks/python/](stacks/python/), fastapi, django, flask) — pytest gate owns stacks=[python,fastapi,django,flask].
+- **Frontend** (react, next, vue, nuxt, svelte, typescript, javascript) — typescript owns `tsc`; javascript owns `eslint`+`js-test`. Both gates list all 6 frontend frameworks in `stacks` field.
+- **Native** (go, rust, java, kotlin, swift, flutter) — go owns `go-vet`+`golangci-lint`+`go-test`; rust owns `cargo-check`+`clippy`+`cargo-test`; java owns `javac`; kotlin owns `ktlint`.
+- **PHP family** (php, laravel, blade) — php owns `phpstan`+`phpcs`+`phpunit`; blade extension `.blade.php` is union'd with `.php` stacks via compound-extension logic in dispatch.
+- **IaC** (ansible, terraform, helm, kubernetes, docker) — each stack owns its lint gate (ansible-lint / terraform-validate / helm-lint / kubeval / hadolint). All three detect forms exercised: `exact` (Dockerfile, Chart.yaml), `glob` (`*.tf`), `dir-marker` (playbooks/, roles/, k8s/, manifests/, .kube/).
+- **`agents/stacks/*.md`** removed; legacy fallback in bootstrap still finds these for partial-migration repos.
+
+### Changed — 6 consumers refactored to use the registry (Story 3, refactor-consumers)
+
+Hardcoded data moved to defensive registry lookups with hardcoded fallbacks for boot safety.
+
+- **[scripts/project_types.py](scripts/project_types.py)** — `DEFAULT_STACKS` now computed from `default_registry().all_stacks()`; `_FALLBACK_STACKS` retains the pre-plugin hardcoded set. `VALID_STACKS` remains an alias for back-compat.
+- **[bootstrap/bootstrap_config.py](bootstrap/bootstrap_config.py)** — `STACK_SIGNATURES` built via `_load_stack_signatures()`. Each registry `{file, type, keyword}` entry is rendered to the `(filename, keyword)` tuple form `_signature_match()` understands; `dir-marker` types get the trailing `/` they need.
+- **[scripts/gate_stack_dispatch.py](scripts/gate_stack_dispatch.py)** — `_EXT_TO_STACKS`, `_FILENAME_TO_STACKS`, `_PATH_HINTS` invert per-stack registry data via `_build_dispatch_tables()`. Compound `.blade.php` keeps its `.blade.php ∪ .php` semantics.
+- **[scripts/default_gates.py](scripts/default_gates.py)** — split into `UNIVERSAL_GATES` (5 hardcoded: filesize, tdd_order, ruff, mypy, bandit) ∪ `_build_stack_scoped_gates()` (20 from registry). Gate ownership lives in each `stacks/<name>/stack.json`; first-stack-wins for duplicate names (alphabetical iteration). `DEFAULT_GATES` is the merged total — consumers untouched.
+- **[scripts/project_config.py](scripts/project_config.py)** — `STACK_GATE_MAP` is registry-derived transitively via DEFAULT_GATES; no code change needed.
+- **[agents/{claude,cursor}/mcp/project/tools.py](agents/claude/mcp/project/tools.py)** — 4 inline JSON-Schema stack enums replaced by `_STACKS_ENUM` constant under fenced `# === BEGIN/END STACKS_ENUM ===` markers. Bootstrap regenerates the constant from the registry via `bootstrap_stacks.regenerate_mcp_stack_enums()`. Also adds the 5 IaC stacks (ansible, terraform, helm, kubernetes, docker) which were missing from the legacy hardcoded list.
+
+### Added — User customization layer (Story 4, user-customization)
+
+- **`.tausik/stacks/<name>/`** is a first-class layered registry. `extends: "builtin:NAME"` deep-merges over a built-in entry; missing `extends` with a known name is full replace; new names are standalone stacks. `null` gate value disables an inherited gate. `extensions_extra` is additive.
+- **`bootstrap/bootstrap_stacks.py`** — extracted `copy_stacks` and added `regenerate_mcp_stack_enums()`. Bootstrap NEVER writes inside `.tausik/`; **`tests/test_bootstrap_non_destructive.py`** asserts this with 5 cases (override-untouched, override-of-builtin-name-untouched, target-isolation, no-`.tausik`-paths-written, idempotent across runs).
+- **CLI: `tausik stack {export,diff,reset,lint}`** ([scripts/project_cli_stack.py](scripts/project_cli_stack.py)) — `export` prints the resolved decl; `diff` shows unified diff between built-in and user override; `reset` removes `.tausik/stacks/<name>/` (with `--yes`); `lint` validates every user override against the schema. `info` and `list` retain previous behaviour.
+- **Bootstrap printout** — surfaces `.tausik/stacks/` overrides on every run; first-time users see a guidance line directing customization to the safe path.
+
+### Added — Documentation (Story 5, documentation-overhaul)
+
+- **[docs/en/stacks.md](docs/en/stacks.md)** — plugin layout, schema reference, adding new stacks, registry consumer table.
+- **[docs/en/customization.md](docs/en/customization.md)** — override rules, merge semantics, validation tools, do/don't list.
+- **[docs/en/upgrade.md](docs/en/upgrade.md)** — bootstrap-owned vs user-owned tree, upgrade workflow, breakage scenarios + recovery.
+- CLAUDE.md QG-2 description amended for scoped-skip behaviour and `.tausik/stacks/` invariant.
+
+### Fixed — pytest gate scoped-skip (defect of stack-schema-design)
+
+- **Scoped pytest gate must skip, not fall back to full suite** ([scripts/gate_runner.py](scripts/gate_runner.py)) — Previously, when `relevant_files` was non-empty but `resolve_test_files_for_relevant()` returned no matches (e.g. a brand-new module without `tests/test_<basename>.py` yet), the gate substituted `tests/` and ran the **entire** 900+ test suite as a "regression-safe fallback". This silently turned every `task_done` on a new module into a 60s+ wait and defeated the scoping promise in CLAUDE.md ("гонит только `tests/test_<basename>.py` для каждого relevant_files"). Fix: introduced `_SCOPED_SKIP_SENTINEL` returned by `run_command_gate` when scoped resolution fails; `run_gates` translates it to a `skipped=True` result with message `"No test file maps to relevant_files via tests/test_<basename>.py heuristic; gate skipped (scoped run)."`. Empty `relevant_files` (no scoping data at all) still falls back to the full suite — that path is regression-safe and unchanged. (`pytest-gate-must-skip-when-scoped-relevant-files-h`)
+
+### Test Coverage — pytest gate scoped-skip
+
+- **3 new + 1 rewritten** in [tests/test_gates.py](tests/test_gates.py) class `TestPytestGateScopeSubstitution`: `test_scoped_run_with_no_test_mapping_skips` asserts the sentinel is returned and `subprocess.run` is **not** invoked; `test_unscoped_call_falls_back_to_full_suite` covers the empty-relevant_files path; `test_run_gates_translates_scoped_skip_into_skipped_result` verifies end-to-end conversion to `skipped=True` result entries.
 
 ### Added — Backlog finish (4 final planning tasks)
 

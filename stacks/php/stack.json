@@ -1,0 +1,33 @@
+{
+  "name": "php",
+  "version": "1",
+  "detect": [{ "file": "composer.json", "type": "exact" }],
+  "extensions": [".php"],
+  "gates": {
+    "phpstan": {
+      "enabled": false,
+      "severity": "block",
+      "trigger": ["task-done", "commit"],
+      "command": "vendor/bin/phpstan analyse {files} --no-progress 2>&1 | head -20",
+      "description": "PHP static analysis",
+      "stacks": ["php", "laravel"]
+    },
+    "phpcs": {
+      "enabled": false,
+      "severity": "warn",
+      "trigger": ["commit"],
+      "command": "vendor/bin/phpcs {files} 2>&1 | head -20",
+      "description": "PHP code style check",
+      "stacks": ["php", "laravel"]
+    },
+    "phpunit": {
+      "enabled": false,
+      "severity": "block",
+      "trigger": ["task-done"],
+      "command": "vendor/bin/phpunit 2>&1 | tail -30",
+      "description": "PHPUnit/Pest. Override via gates.phpunit.command for composer/pest.",
+      "stacks": ["php", "laravel"],
+      "timeout": 240
+    }
+  }
+}

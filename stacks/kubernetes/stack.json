@@ -1,0 +1,21 @@
+{
+  "name": "kubernetes",
+  "version": "1",
+  "detect": [
+    { "file": "k8s", "type": "dir-marker" },
+    { "file": "manifests", "type": "dir-marker" },
+    { "file": ".kube", "type": "dir-marker" }
+  ],
+  "path_hints": ["/k8s/", "/manifests/", "/.kube/"],
+  "gates": {
+    "kubeval": {
+      "enabled": false,
+      "severity": "warn",
+      "trigger": ["task-done", "commit"],
+      "command": "kubeval {files} 2>&1 | head -30",
+      "description": "K8s manifest schema validation — schema only, NOT policy-as-code (kube-score/OPA Gatekeeper NOT included).",
+      "stacks": ["kubernetes"],
+      "timeout": 60
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "ansible",
+  "version": "1",
+  "detect": [
+    { "file": "ansible.cfg", "type": "exact" },
+    { "file": "playbooks", "type": "dir-marker" },
+    { "file": "roles", "type": "dir-marker" }
+  ],
+  "filenames": ["ansible.cfg"],
+  "path_hints": ["/playbooks/", "/roles/"],
+  "gates": {
+    "ansible-lint": {
+      "enabled": false,
+      "severity": "warn",
+      "trigger": ["task-done", "commit"],
+      "command": "ansible-lint {files} 2>&1 | head -30",
+      "description": "Ansible playbook linter — lint/syntax only, NOT policy-as-code (OPA/Sentinel/Checkov NOT included).",
+      "stacks": ["ansible"],
+      "timeout": 120
+    }
+  }
+}

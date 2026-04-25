@@ -117,6 +117,35 @@ def bootstrap_ide(
     n_stacks = copy_stacks(lib_dir, target_dir, ide, stacks)
     print(f"  Stacks: {n_stacks} copied")
 
+    # Stack customization hint — surfaced once on each bootstrap so users
+    # know the safe path to override stack behaviour without losing it on
+    # the next upgrade. Bootstrap NEVER touches .tausik/stacks/.
+    user_stacks_dir = os.path.join(project_dir, ".tausik", "stacks")
+    if os.path.isdir(user_stacks_dir):
+        existing = [
+            d
+            for d in os.listdir(user_stacks_dir)
+            if os.path.isdir(os.path.join(user_stacks_dir, d))
+        ]
+        if existing:
+            print(
+                f"  User stack overrides preserved in .tausik/stacks/: "
+                f"{', '.join(sorted(existing))}"
+            )
+    else:
+        print(
+            "  Stack customization: put overrides in .tausik/stacks/<name>/ "
+            "(do NOT edit stacks/<name>/ directly — bootstrap overwrites them)"
+        )
+
+    # Regenerate MCP tools.py _STACKS_ENUM block from registry. Done in lib_dir
+    # (source of truth), so the next copy_mcp picks up the fresh list.
+    from bootstrap_stacks import regenerate_mcp_stack_enums
+
+    n_mcp_enums = regenerate_mcp_stack_enums(lib_dir)
+    if n_mcp_enums:
+        print(f"  MCP stack enums regenerated: {n_mcp_enums} file(s)")
+
     # Generate IDE-specific files
     if ide == "claude":
         generate_settings_claude(target_dir, project_dir, lib_dir)

@@ -1,0 +1,9 @@
+{
+  "name": "django",
+  "version": "1",
+  "detect": [
+    { "file": "manage.py", "type": "exact" },
+    { "file": "requirements.txt", "type": "exact", "keyword": "django" }
+  ],
+  "extensions": [".py"]
+}

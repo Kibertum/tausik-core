@@ -1,0 +1,21 @@
+{
+  "name": "helm",
+  "version": "1",
+  "detect": [
+    { "file": "Chart.yaml", "type": "exact" },
+    { "file": "Chart.yml", "type": "exact" }
+  ],
+  "filenames": ["chart.yaml", "chart.yml", "values.yaml", "values.yml"],
+  "path_hints": ["/templates/"],
+  "gates": {
+    "helm-lint": {
+      "enabled": false,
+      "severity": "warn",
+      "trigger": ["task-done", "commit"],
+      "command": "helm lint . 2>&1 | head -30",
+      "description": "Helm chart linter — lint/syntax only, NOT policy-as-code.",
+      "stacks": ["helm"],
+      "timeout": 60
+    }
+  }
+}

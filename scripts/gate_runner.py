@@ -145,74 +145,22 @@ def run_tdd_order_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
     )
 
 
-def resolve_test_files_for_relevant(
-    relevant_files: list[str], *, root: str | None = None
-) -> list[str]:
-    """Map source files → existing test files via basename heuristic.
+from gate_test_resolver import resolve_test_files_for_relevant  # noqa: F401, E402
 
-    For each `relevant_files` entry like `scripts/brain_init.py`, look for
-    `tests/test_brain_init.py` and `tests/test_brain_init_*.py`. Also matches
-    when the relevant file IS already a test file (returns it as-is).
 
-    Returns a deduplicated list of existing test file paths (forward-slashed).
-    Empty list = no mapping; caller falls back to the full suite.
-    """
-    if not relevant_files:
-        return []
-    base = root or os.getcwd()
-    found: list[str] = []
-    seen: set[str] = set()
-
-    def _add(path: str) -> None:
-        norm = path.replace("\\", "/")
-        if norm in seen:
-            return
-        seen.add(norm)
-        found.append(norm)
-
-    tests_root = os.path.join(base, "tests")
-    # Walk tests/ once and bucket by basename; supports nested layouts
-    # (tests/integration/test_foo.py, tests/unit/scoped/test_bar.py, …).
-    tests_index: dict[str, list[str]] = {}
-    try:
-        for dirpath, _dirnames, filenames in os.walk(tests_root):
-            for fn in filenames:
-                if not (fn.startswith("test_") and fn.endswith(".py")):
-                    continue
-                abs_path = os.path.join(dirpath, fn)
-                rel_path = os.path.relpath(abs_path, base).replace("\\", "/")
-                tests_index.setdefault(fn, []).append(rel_path)
-    except OSError:
-        # Permission errors / missing tests/ → empty index, callers fall back
-        tests_index = {}
-
-    for raw in relevant_files:
-        if not raw or not isinstance(raw, str):
-            continue
-        rel = raw.replace("\\", "/")
-        # If the entry already points at a test file, accept it as-is.
-        if "/tests/" in f"/{rel}" or os.path.basename(rel).startswith("test_"):
-            abs_p = rel if os.path.isabs(rel) else os.path.join(base, rel)
-            if os.path.isfile(abs_p):
-                _add(rel)
-                continue
-        stem = os.path.splitext(os.path.basename(rel))[0]
-        if not stem:
-            continue
-        # Exact match: test_<stem>.py at any depth
-        for path in tests_index.get(f"test_{stem}.py", []):
-            _add(path)
-        # Glob suffix variants: test_<stem>_*.py at any depth
-        prefix = f"test_{stem}_"
-        for fn, paths in tests_index.items():
-            if fn.startswith(prefix) and fn.endswith(".py"):
-                for path in paths:
-                    _add(path)
-    return found
+# Sentinel returned by run_command_gate when a scoped relevant_files set
+# yields no matching test files. run_gates converts it into skipped_result.
+_SCOPED_SKIP_SENTINEL = "__TAUSIK_SCOPED_SKIP__"
 
 
 def run_command_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
-    """Run a command-based gate. Substitutes {files} / {test_files_for_files}."""
+    """Run a command-based gate. Substitutes {files} / {test_files_for_files}.
+
+    Special return: (True, _SCOPED_SKIP_SENTINEL) when {test_files_for_files}
+    is in cmd and no test files map from a non-empty relevant_files. The
+    caller (run_gates) translates this into a skipped_result entry so the
+    UI shows SKIP, not PASS, and we don't run an irrelevant full suite.
+    """
     import shlex
 
     cmd = gate.get("command", "")
@@ -230,10 +178,19 @@ def run_command_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
 
     if "{test_files_for_files}" in cmd:
         test_files = resolve_test_files_for_relevant(files)
-        # Fallback: no mapping → run the whole suite (regression-safe)
-        test_files_str = (
-            " ".join(shlex.quote(t) for t in test_files) if test_files else "tests/"
-        )
+        # Scoped-skip vs. unscoped-fallback:
+        #   - relevant_files non-empty + no test mapping → SKIP (scoped run; running
+        #     the full suite for an unrelated module defeats the scoping promise
+        #     in CLAUDE.md and burns 60+s on every task_done).
+        #   - relevant_files empty → fall back to full suite (caller couldn't
+        #     scope at all, so we honour the regression-safe default).
+        if not test_files:
+            if files:
+                # Sentinel return — run_gates picks this up and emits skipped_result.
+                return True, _SCOPED_SKIP_SENTINEL
+            test_files_str = "tests/"
+        else:
+            test_files_str = " ".join(shlex.quote(t) for t in test_files)
         cmd = cmd.replace("{test_files_for_files}", test_files_str)
 
     files_str = " ".join(shlex.quote(f) for f in files) if files else "."
@@ -301,6 +258,24 @@ def run_gates(trigger: str, files: list[str] | None = None) -> tuple[bool, list[
             passed, output = run_tdd_order_gate(gate, files or [])
         else:
             passed, output = run_command_gate(gate, files or [])
+
+        # Scoped-skip sentinel from run_command_gate: relevant_files were
+        # provided but no test files mapped. Show SKIP, don't run full suite.
+        if output == _SCOPED_SKIP_SENTINEL:
+            results.append(
+                {
+                    "name": name,
+                    "severity": severity,
+                    "passed": True,
+                    "skipped": True,
+                    "output": (
+                        "No test file maps to relevant_files via "
+                        "tests/test_<basename>.py heuristic; gate skipped "
+                        "(scoped run)."
+                    ),
+                }
+            )
+            continue
 
         results.append(
             {

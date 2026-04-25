@@ -165,10 +165,11 @@ class TestAutoEnable:
 class TestStackGuides:
     @pytest.mark.parametrize("stack", _IAC)
     def test_iac_stack_guide_exists(self, stack):
+        # v1.6: stack guides moved to <repo>/stacks/<name>/guide.md.
         path = os.path.join(
-            os.path.dirname(__file__), "..", "agents", "stacks", f"{stack}.md"
+            os.path.dirname(__file__), "..", "stacks", stack, "guide.md"
         )
-        assert os.path.isfile(path), f"missing {stack}.md"
+        assert os.path.isfile(path), f"missing stacks/{stack}/guide.md"
         with open(path, encoding="utf-8") as f:
             content = f.read()
         assert "Testing" in content or "Validation" in content

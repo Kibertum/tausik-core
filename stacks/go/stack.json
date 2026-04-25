@@ -1,0 +1,33 @@
+{
+  "name": "go",
+  "version": "1",
+  "detect": [{ "file": "go.mod", "type": "exact" }],
+  "extensions": [".go"],
+  "gates": {
+    "go-vet": {
+      "enabled": false,
+      "severity": "block",
+      "trigger": ["task-done", "commit"],
+      "command": "go vet ./... 2>&1 | head -20",
+      "description": "Go vet static analysis",
+      "stacks": ["go"]
+    },
+    "golangci-lint": {
+      "enabled": false,
+      "severity": "warn",
+      "trigger": ["commit"],
+      "command": "golangci-lint run {files} 2>&1 | head -20",
+      "description": "Go linter suite",
+      "stacks": ["go"]
+    },
+    "go-test": {
+      "enabled": false,
+      "severity": "block",
+      "trigger": ["task-done"],
+      "command": "go test ./... 2>&1 | tail -30",
+      "description": "Run Go tests for the module",
+      "stacks": ["go"],
+      "timeout": 180
+    }
+  }
+}
