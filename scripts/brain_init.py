@@ -141,20 +141,44 @@ def db_schema(category: str) -> dict:
 # --- Notion database creation ---
 
 
+class PartialCreateError(NotionError):
+    """Raised when create_brain_databases fails mid-batch.
+
+    Carries the `created_ids` dict of categories that DID land in Notion before
+    the failure so callers can emit accurate orphan-cleanup guidance instead of
+    `<missing>` placeholders.
+    """
+
+    def __init__(self, message: str, created_ids: dict[str, str]):
+        super().__init__(message)
+        self.created_ids = created_ids
+
+
 def create_brain_databases(client: Any, parent_page_id: str) -> dict[str, str]:
     """Create 4 brain databases under parent_page_id. Returns {category: db_id}.
 
-    Raises brain_notion_client.NotionError on any API failure.
+    Raises `PartialCreateError` (subclass of NotionError) when any category
+    fails after at least one succeeded — carries `created_ids` for cleanup.
+    On the very first call failure (zero successes), re-raises the original
+    NotionError unchanged.
     """
     if not parent_page_id:
         raise ValueError("parent_page_id is required")
     ids: dict[str, str] = {}
     for category in CATEGORIES:
-        resp = client.databases_create(
-            parent_page_id=parent_page_id,
-            title=DB_TITLES[category],
-            properties=db_schema(category),
-        )
+        try:
+            resp = client.databases_create(
+                parent_page_id=parent_page_id,
+                title=DB_TITLES[category],
+                properties=db_schema(category),
+            )
+        except NotionError as e:
+            if ids:
+                raise PartialCreateError(
+                    f"databases_create failed mid-batch on '{category}': {e}",
+                    ids,
+                ) from e
+            raise
         ids[category] = resp.get("id") or ""
     return ids
 
@@ -204,8 +228,12 @@ class CliIO:
     def prompt(self, msg: str) -> str:
         try:
             return input(msg)
-        except (EOFError, KeyboardInterrupt) as e:
-            raise WizardError("Aborted by user.") from e
+        except KeyboardInterrupt as e:
+            raise WizardError("Aborted by user (Ctrl+C).") from e
+        except EOFError as e:
+            raise WizardError(
+                "Aborted: no input available (stdin closed/piped)."
+            ) from e
 
     def print(self, msg: str) -> None:
         print(msg)
@@ -315,6 +343,13 @@ def run_wizard(
     client = client_factory(token)
     try:
         db_ids = create_brain_databases(client, parent_page_id)
+    except PartialCreateError as e:
+        # Surface real created_ids so user can archive partial orphans
+        _print_orphan_cleanup_guidance(io, e.created_ids, e)
+        raise WizardError(
+            f"Notion databases_create partially failed: {e}. "
+            "See orphan cleanup guidance above."
+        ) from e
     except NotionError as e:
         raise WizardError(f"Notion databases_create failed: {e}") from e
 

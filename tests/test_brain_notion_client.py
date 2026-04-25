@@ -495,9 +495,15 @@ def test_token_not_in_retry_log(caplog):
         _FakeResponse(200, {"id": "p1"}),
     ]
     client, _, _ = _leak_client(responses, max_retries=2)
-    with caplog.at_level("WARNING"):
+    with caplog.at_level("WARNING", logger="brain_notion_client"):
         out = client.pages_retrieve("p1")
     assert out == {"id": "p1"}
+    # Guard against silent-pass on empty caplog: the retry MUST have produced
+    # at least one warning record (we forced a 503 then a 200).
+    assert len(caplog.records) >= 1, (
+        "expected at least one retry warning; "
+        "if logger config drifted, the leak assertion below would silently pass"
+    )
     combined = " ".join(rec.getMessage() for rec in caplog.records)
     assert _LEAK_TOKEN not in combined
     assert _LEAK_TOKEN not in caplog.text

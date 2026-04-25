@@ -113,6 +113,58 @@ def test_create_brain_databases_sends_correct_schemas():
     assert titles == [brain_init.DB_TITLES[c] for c in brain_init.CATEGORIES]
 
 
+def test_partial_create_surfaces_created_ids():
+    """B4 fix: failure on Nth category surfaces N-1 created ids on the exception."""
+    # CATEGORIES order: decisions, web_cache, patterns, gotchas — fail on patterns
+    client = _FakeClient(fail_category="patterns")
+    with pytest.raises(brain_init.PartialCreateError) as ei:
+        brain_init.create_brain_databases(client, "p1")
+    err = ei.value
+    assert err.created_ids == {
+        "decisions": "db_decisions_id",
+        "web_cache": "db_web_cache_id",
+    }
+
+
+def test_first_category_failure_raises_plain_notion_error():
+    """If even the first databases_create fails, no PartialCreateError (no orphans)."""
+    client = _FakeClient(fail_category="decisions")
+    with pytest.raises(NotionError) as ei:
+        brain_init.create_brain_databases(client, "p1")
+    # Plain NotionError, not the partial subclass
+    assert not isinstance(ei.value, brain_init.PartialCreateError)
+
+
+def test_run_wizard_partial_create_prints_real_orphan_ids(monkeypatch):
+    """End-to-end: run_wizard surfaces partial-create orphan ids in guidance."""
+    monkeypatch.setenv("T", "tok")
+    io = _FakeIO(is_tty=False)
+    cfg_ops = _FakeConfigOps()
+
+    def factory(_token):
+        return _FakeClient(fail_category="patterns")
+
+    with pytest.raises(brain_init.WizardError, match="partially failed"):
+        brain_init.run_wizard(
+            {
+                "parent_page_id": "p1",
+                "token_env": "T",
+                "project_name": "x",
+                "yes": True,
+            },
+            io,
+            factory,
+            cfg_ops,
+        )
+    combined = "\n".join(io.prints)
+    # The two created ids must appear in cleanup guidance
+    assert "db_decisions_id" in combined
+    assert "db_web_cache_id" in combined
+    # Categories that never landed must NOT show fake ids
+    assert "db_patterns_id" not in combined
+    assert "db_gotchas_id" not in combined
+
+
 def test_create_brain_databases_empty_parent_raises():
     with pytest.raises(ValueError):
         brain_init.create_brain_databases(_FakeClient(), "")
@@ -520,7 +572,7 @@ class TestCliIOPrompt:
 
         monkeypatch.setattr("builtins.input", boom)
         io = brain_init.CliIO()
-        with pytest.raises(brain_init.WizardError, match="Aborted by user"):
+        with pytest.raises(brain_init.WizardError, match="no input available"):
             io.prompt("anything: ")
 
     def test_keyboard_interrupt_raises_wizard_error(self, monkeypatch):
@@ -529,8 +581,32 @@ class TestCliIOPrompt:
 
         monkeypatch.setattr("builtins.input", boom)
         io = brain_init.CliIO()
-        with pytest.raises(brain_init.WizardError, match="Aborted by user"):
+        with pytest.raises(brain_init.WizardError, match="Ctrl\\+C"):
             io.prompt("anything: ")
+
+    def test_eof_and_ctrl_c_messages_distinct(self, monkeypatch):
+        """B5: each exception type emits its own diagnostic wording."""
+
+        def eof(_msg):
+            raise EOFError()
+
+        monkeypatch.setattr("builtins.input", eof)
+        try:
+            brain_init.CliIO().prompt("x")
+        except brain_init.WizardError as e:
+            eof_msg = str(e)
+        assert "stdin" in eof_msg
+
+        def ctrl_c(_msg):
+            raise KeyboardInterrupt()
+
+        monkeypatch.setattr("builtins.input", ctrl_c)
+        try:
+            brain_init.CliIO().prompt("x")
+        except brain_init.WizardError as e:
+            kbi_msg = str(e)
+        assert "Ctrl+C" in kbi_msg
+        assert eof_msg != kbi_msg
 
 
 def test_run_wizard_happy_path_prints_no_orphan_guidance(monkeypatch):

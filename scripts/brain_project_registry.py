@@ -176,6 +176,14 @@ def _acquire_lock(path: str, *, timeout_s: float = 2.0) -> str:
 
     Recovers from stale locks left by SIGKILLed wizards: if the existing lock's
     PID is dead (or its mtime exceeds `_STALE_LOCK_AGE_S`), delete it and retry.
+
+    Contract: at most ONE stale-lock reclaim per call (`reclaimed` flag). After
+    one reclaim+retry, subsequent FileExistsError contention waits out the
+    `timeout_s` and raises `RegistryLockError`. This prevents an adversarial
+    loop where a third process keeps recreating the lock between our
+    `_is_stale_lock` and `os.unlink` (a small TOCTOU window: their fresh lock
+    looks live to the next caller's `_is_stale_lock` check, so the next call
+    will wait normally rather than incorrectly reclaim a live lock).
     """
     lock_path = path + ".lock"
     deadline = time.monotonic() + timeout_s

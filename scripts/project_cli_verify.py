@@ -65,6 +65,20 @@ def cmd_verify(svc: ProjectService, args: Any) -> None:
                 f"scope={hit['scope']}, exit={hit['exit_code']}). "
                 "Skipping gate run."
             )
+            try:
+                svc.be.event_add(
+                    "task",
+                    task_slug,
+                    "verify_cache_hit",
+                    f"verify_run_id={hit['id']} scope={hit['scope']}",
+                )
+            except Exception:
+                # Telemetry is best-effort; never block the verify flow.
+                import logging
+
+                logging.getLogger("tausik.verify").warning(
+                    "event_add failed for verify_cache_hit", exc_info=True
+                )
             return
 
     t0 = _time.monotonic()

@@ -167,6 +167,22 @@ def resolve_test_files_for_relevant(
         seen.add(norm)
         found.append(norm)
 
+    tests_root = os.path.join(base, "tests")
+    # Walk tests/ once and bucket by basename; supports nested layouts
+    # (tests/integration/test_foo.py, tests/unit/scoped/test_bar.py, …).
+    tests_index: dict[str, list[str]] = {}
+    try:
+        for dirpath, _dirnames, filenames in os.walk(tests_root):
+            for fn in filenames:
+                if not (fn.startswith("test_") and fn.endswith(".py")):
+                    continue
+                abs_path = os.path.join(dirpath, fn)
+                rel_path = os.path.relpath(abs_path, base).replace("\\", "/")
+                tests_index.setdefault(fn, []).append(rel_path)
+    except OSError:
+        # Permission errors / missing tests/ → empty index, callers fall back
+        tests_index = {}
+
     for raw in relevant_files:
         if not raw or not isinstance(raw, str):
             continue
@@ -180,17 +196,15 @@ def resolve_test_files_for_relevant(
         stem = os.path.splitext(os.path.basename(rel))[0]
         if not stem:
             continue
-        candidates = [f"tests/test_{stem}.py"]
-        try:
-            for entry in os.listdir(os.path.join(base, "tests")):
-                if entry.startswith(f"test_{stem}_") and entry.endswith(".py"):
-                    candidates.append(f"tests/{entry}")
-        except OSError:
-            pass
-        for cand in candidates:
-            abs_cand = os.path.join(base, cand)
-            if os.path.isfile(abs_cand):
-                _add(cand)
+        # Exact match: test_<stem>.py at any depth
+        for path in tests_index.get(f"test_{stem}.py", []):
+            _add(path)
+        # Glob suffix variants: test_<stem>_*.py at any depth
+        prefix = f"test_{stem}_"
+        for fn, paths in tests_index.items():
+            if fn.startswith(prefix) and fn.endswith(".py"):
+                for path in paths:
+                    _add(path)
     return found
 
 

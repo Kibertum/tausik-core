@@ -6,6 +6,25 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased] — SENAR verify redesign + Shared Brain pipeline
 
+### Fixed — Review findings MED/LOW (story review-findings-mlow-fix, 11 issues)
+
+Follow-up to the 5 HIGH fixes — 11 MEDIUM/LOW findings from the same multi-agent review:
+
+- **A7 MED** ([scripts/gate_runner.py](scripts/gate_runner.py) `resolve_test_files_for_relevant`) — Resolver теперь использует `os.walk(tests/)` вместо `os.listdir`. Tests в nested dirs (`tests/integration/`, `tests/unit/scoped/`) корректно матчатся вместо silent fallback на full suite. Single-pass index by basename, дедуп между путями. (`review-mlow-resolver-recursive`)
+- **B6+B7 MED** ([scripts/brain_schema.py](scripts/brain_schema.py) `_migrate`) — Добавлен `PRAGMA foreign_keys=OFF/ON` envelope (insurance для будущих FK-touching migrations) + `PRAGMA foreign_key_check` после COMMIT (raise on violations). Docstring документирует irreversibility контракт ("failed batch only rolls back current; previously committed migrations stay applied"). (`review-mlow-brain-safety`)
+- **B2 MED** ([scripts/brain_project_registry.py](scripts/brain_project_registry.py) `_acquire_lock`) — Docstring документирует "single reclaim per call (reclaimed flag)" контракт + acknowledge небольшой TOCTOU window между `_is_stale_lock` и `os.unlink`. (`review-mlow-brain-safety`)
+- **A5 LOW** ([scripts/service_verification.py](scripts/service_verification.py) `run_gates_with_cache`) — `append_notes_fn` теперь типизирован `Callable[[str, str], None] | None` (был `Any`). (`review-mlow-polish-batch`)
+- **A6 LOW** ([scripts/project_cli_verify.py](scripts/project_cli_verify.py) `cmd_verify`) — На cache HIT пишется `events` row `action='verify_cache_hit'` для telemetry. Best-effort try/except — никогда не блокирует verify. (`review-mlow-polish-batch`)
+- **B4 LOW** ([scripts/brain_init.py](scripts/brain_init.py) `create_brain_databases`) — Per-category try/except. Новый `PartialCreateError(NotionError)` с `created_ids` attribute — partial-create surface'ит реально-созданные ids в orphan-cleanup guidance вместо `<missing>`. (`review-mlow-polish-batch`)
+- **B5 LOW** ([scripts/brain_init.py](scripts/brain_init.py) `CliIO.prompt`) — EOF/KeyboardInterrupt branches: `KeyboardInterrupt` → "Aborted by user (Ctrl+C)", `EOFError` → "Aborted: no input available (stdin closed/piped)". Раньше — общее "Aborted by user" вне зависимости от типа. (`review-mlow-polish-batch`)
+- **C-L3 LOW** ([tests/test_brain_notion_client.py](tests/test_brain_notion_client.py) `test_token_not_in_retry_log`) — Добавлен `assert len(caplog.records) >= 1` чтобы поймать silent-pass на пустом caplog (дрейф logger config). (`review-mlow-polish-batch`)
+- **A2 docstring** ([scripts/service_verification.py](scripts/service_verification.py) `run_gates_with_cache`) — Concurrency note: "WAL safe but duplicate rows accepted; BEGIN IMMEDIATE worse" — accepted limitation. (`review-mlow-polish-batch`)
+- **A3 docstring** ([scripts/service_verification.py](scripts/service_verification.py) `compute_files_hash`) — mtime resolution caveat: NTFS 100ns / ext4 1μs / HFS+ 1s / FAT 2s — false cache hits possible на быстрых правках на FAT/HFS+, recommendation для таких FS. (`review-mlow-polish-batch`)
+
+### Test Coverage — Review fixes
+
+- **+8 hardening tests** — `test_gates.py` (+4 TestResolveTestFilesForRelevant: glob_subdirectory_test_files, glob_subdirectory_with_suffix_variants, dedup_when_test_appears_in_multiple_dirs, missing_tests_dir_returns_empty), `test_brain_init.py` (+3 partial create + EOF distinct messages), `test_brain_notion_client.py` (+1 caplog non-empty assertion).
+
 ### Fixed — Review findings (story review-findings-fix, 5 HIGH issues)
 
 Multi-agent review caught 5 HIGH-severity findings post-merge of the SENAR verify redesign + hooks widening; addressed in this batch:

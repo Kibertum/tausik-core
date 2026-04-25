@@ -651,7 +651,9 @@ class TestResolveTestFilesForRelevant:
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text("# src")
         for t in tests:
-            (tmp_path / t).write_text("# test")
+            p = tmp_path / t
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text("# test")
 
     def test_empty_relevant_returns_empty(self, tmp_path):
         assert resolve_test_files_for_relevant([], root=str(tmp_path)) == []
@@ -733,6 +735,60 @@ class TestResolveTestFilesForRelevant:
             [r"scripts\brain_init.py"], root=str(tmp_path)
         )
         assert out == ["tests/test_brain_init.py"]
+
+    def test_glob_subdirectory_test_files(self, tmp_path):
+        """A7 fix: tests in nested dirs (integration/, unit/) match too."""
+        self._setup_repo(
+            tmp_path,
+            ["scripts/foo.py", "scripts/bar.py"],
+            [
+                "tests/test_foo.py",
+                "tests/integration/test_foo.py",
+                "tests/unit/scoped/test_bar.py",
+            ],
+        )
+        out = resolve_test_files_for_relevant(
+            ["scripts/foo.py", "scripts/bar.py"], root=str(tmp_path)
+        )
+        assert "tests/test_foo.py" in out
+        assert "tests/integration/test_foo.py" in out
+        assert "tests/unit/scoped/test_bar.py" in out
+
+    def test_glob_subdirectory_with_suffix_variants(self, tmp_path):
+        """Suffix variants (test_foo_extra.py) match in subdirs too."""
+        self._setup_repo(
+            tmp_path,
+            ["scripts/baz.py"],
+            [
+                "tests/integration/test_baz.py",
+                "tests/integration/test_baz_extra.py",
+                "tests/integration/test_baz_more.py",
+            ],
+        )
+        out = resolve_test_files_for_relevant(["scripts/baz.py"], root=str(tmp_path))
+        assert "tests/integration/test_baz.py" in out
+        assert "tests/integration/test_baz_extra.py" in out
+        assert "tests/integration/test_baz_more.py" in out
+
+    def test_dedup_when_test_appears_in_multiple_dirs(self, tmp_path):
+        """Same source file mapped twice → unique test paths only."""
+        self._setup_repo(
+            tmp_path,
+            ["scripts/x.py"],
+            ["tests/test_x.py", "tests/integration/test_x.py"],
+        )
+        out = resolve_test_files_for_relevant(
+            ["scripts/x.py", "scripts/x.py"], root=str(tmp_path)
+        )
+        # Both subdirs return distinct paths, but each only once
+        assert sorted(out) == sorted(["tests/test_x.py", "tests/integration/test_x.py"])
+
+    def test_missing_tests_dir_returns_empty(self, tmp_path):
+        """No tests/ directory → empty list, no crash."""
+        (tmp_path / "scripts").mkdir()
+        (tmp_path / "scripts" / "lone.py").write_text("x")
+        out = resolve_test_files_for_relevant(["scripts/lone.py"], root=str(tmp_path))
+        assert out == []
 
 
 class TestPytestGateScopeSubstitution:

@@ -246,27 +246,44 @@ def _migrate(conn, from_version: int) -> int:
     Iterates `BRAIN_MIGRATIONS` in ascending order, applying every migration
     with key > from_version. Updates brain_meta.schema_version after each
     successful batch.
+
+    Migrations are irreversible — on a failed batch, only that batch rolls
+    back; previously committed migrations stay applied. There is no
+    "downgrade" path, so a failed migration leaves the DB at the last
+    successfully migrated version.
+
+    FK enforcement is disabled for the duration of the call (matches
+    backend_migrations.py:run_migrations) — SQLite cannot ALTER TABLE with
+    CASCADE/CHECK against active FKs. After all batches commit, FK integrity
+    is re-checked via PRAGMA foreign_key_check; violations raise.
     """
     cur = conn.cursor()
     current = from_version
-    for ver in sorted(BRAIN_MIGRATIONS.keys()):
-        if ver <= from_version:
-            continue
-        cur.execute("BEGIN")
-        try:
-            for stmt in BRAIN_MIGRATIONS[ver]:
-                stmt = stmt.strip()
-                if stmt and not stmt.startswith("--"):
-                    cur.execute(stmt)
-            cur.execute(
-                "UPDATE brain_meta SET value = ? WHERE key = 'schema_version'",
-                (str(ver),),
-            )
-            cur.execute("COMMIT")
-        except Exception:
-            cur.execute("ROLLBACK")
-            raise
-        current = ver
+    cur.execute("PRAGMA foreign_keys=OFF")
+    try:
+        for ver in sorted(BRAIN_MIGRATIONS.keys()):
+            if ver <= from_version:
+                continue
+            cur.execute("BEGIN")
+            try:
+                for stmt in BRAIN_MIGRATIONS[ver]:
+                    stmt = stmt.strip()
+                    if stmt and not stmt.startswith("--"):
+                        cur.execute(stmt)
+                cur.execute(
+                    "UPDATE brain_meta SET value = ? WHERE key = 'schema_version'",
+                    (str(ver),),
+                )
+                cur.execute("COMMIT")
+            except Exception:
+                cur.execute("ROLLBACK")
+                raise
+            current = ver
+    finally:
+        cur.execute("PRAGMA foreign_keys=ON")
+    violations = cur.execute("PRAGMA foreign_key_check").fetchall()
+    if violations:
+        raise RuntimeError(f"Brain migration broke FK integrity: {violations}")
     return current
 
 
