@@ -101,6 +101,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     tstart = task_sub.add_parser("start")
     tstart.add_argument("slug")
+    tstart.add_argument(
+        "--force",
+        action="store_true",
+        help="Bypass session capacity gate (logs audit event + notes)",
+    )
 
     tdone = task_sub.add_parser("done")
     tdone.add_argument("slug")

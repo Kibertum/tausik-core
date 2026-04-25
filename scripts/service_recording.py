@@ -14,6 +14,37 @@ if TYPE_CHECKING:
     from project_backend import SQLiteBackend
 
 
+def apply_force_capacity_audit(
+    be: "SQLiteBackend", slug: str, task: dict[str, Any]
+) -> str:
+    """Compute + persist force-bypass audit; return user-facing line ('' = no-op)."""
+    msg = force_audit_message(be, slug, task)
+    if msg:
+        be.task_append_notes(slug, msg)
+        be.event_add("task", slug, "capacity_force_start", msg)
+    return msg
+
+
+def force_audit_message(be: "SQLiteBackend", slug: str, task: dict[str, Any]) -> str:
+    """MED-7: Audit-trail line when `task_start --force` bypasses capacity.
+
+    Empty when the bypass is a no-op (no budget / no session / fits).
+    """
+    budget = task.get("call_budget")
+    if not budget or budget <= 0:
+        return ""
+    from project_config import DEFAULT_SESSION_CAPACITY_CALLS, load_config
+
+    cap = load_config().get("session_capacity_calls", DEFAULT_SESSION_CAPACITY_CALLS)
+    summary = be.session_capacity_summary(cap)
+    if summary["session"] is None or budget <= summary["remaining"]:
+        return ""
+    return (
+        f"FORCED start: budget={budget} exceeds remaining "
+        f"{summary['remaining']}/{cap} this session"
+    )
+
+
 def check_session_capacity(
     be: "SQLiteBackend", slug: str, task: dict[str, Any]
 ) -> None:

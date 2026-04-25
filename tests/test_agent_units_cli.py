@@ -90,15 +90,15 @@ class TestServiceUpdate:
         task = svc.be.task_get("t1")
         assert task["tier"] == "deep"
 
-    def test_update_explicit_tier_overrides_auto(self, svc):
-        # When BOTH budget and tier are passed to update, explicit tier wins
-        # (last write semantics — opposite of add, where budget always wins).
+    def test_update_explicit_tier_overridden_by_budget(self, svc):
+        """MED-6 review fix: task_update aligns with task_add — budget wins."""
         svc.task_add("s1", "t1", "Task 1", role="developer")
-        svc.task_update("t1", call_budget=5, tier="deep")
+        result = svc.task_update("t1", call_budget=5, tier="deep")
         task = svc.be.task_get("t1")
         assert task["call_budget"] == 5
-        # Tier explicitly set to 'deep' wins over auto-derived 'trivial'
-        assert task["tier"] == "deep"
+        # Explicit 'deep' is dropped; auto-derived 'trivial' wins (budget=5)
+        assert task["tier"] == "trivial"
+        assert "overridden" in result.lower()
 
     def test_update_negative_budget_rejected(self, svc):
         from tausik_utils import ServiceError

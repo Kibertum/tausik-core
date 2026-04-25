@@ -33,6 +33,7 @@ _MISSING = object()
 
 from service_validation import load_stacks as _load_stacks  # noqa: E402,F401
 from service_validation import update_enums as _update_enums  # noqa: E402,F401
+from service_recording import apply_force_capacity_audit as _apply_force_audit  # noqa: E402,F401
 
 
 class TaskMixin(GatesMixin, CascadeMixin):
@@ -57,26 +58,12 @@ class TaskMixin(GatesMixin, CascadeMixin):
             self._require_story(story_slug)
         validate_slug(slug)
         validate_length("title", title)
-        if complexity and complexity not in VALID_COMPLEXITIES:
-            raise ServiceError(
-                f"Invalid complexity '{complexity}', must be one of {sorted(VALID_COMPLEXITIES)}"
-            )
-        valid_stacks = _load_stacks()
-        if stack and stack not in valid_stacks:
-            raise ServiceError(
-                f"Invalid stack '{stack}'. Valid: {', '.join(sorted(valid_stacks))}"
-            )
+        from service_validation import validate_task_add_inputs
+
+        validate_task_add_inputs(stack, complexity, call_budget, tier)
         if defect_of:
-            self._require_task(defect_of)  # parent must exist
+            self._require_task(defect_of)
         validate_content("goal", goal)
-        if call_budget is not None and call_budget < 0:
-            raise ServiceError(
-                f"Invalid call_budget '{call_budget}'; must be >=0 or omitted"
-            )
-        if tier is not None and tier not in VALID_TIERS:
-            raise ServiceError(
-                f"Invalid tier '{tier}'. Valid: {', '.join(sorted(VALID_TIERS))}"
-            )
         score = COMPLEXITY_SP.get(complexity, 1) if complexity else 1
         self.be.task_add(
             story_slug, slug, title, stack, complexity, score, goal, role, defect_of
@@ -90,7 +77,7 @@ class TaskMixin(GatesMixin, CascadeMixin):
             self.be.task_update(slug, tier=tier)
         msg = f"Task '{slug}' created."
         if not goal or not goal.strip():
-            msg += "\n⚠ QG-0 warning: missing goal. Task won't start without goal + acceptance_criteria."
+            msg += "\n⚠ QG-0 warning: missing goal."
         return msg + notice
 
     def task_list(
@@ -117,17 +104,22 @@ class TaskMixin(GatesMixin, CascadeMixin):
         task["decisions"] = self.be.decisions_for_task(slug)
         return task
 
-    def task_start(self, slug: str, _internal_force: bool = False) -> str:
+    def task_start(
+        self, slug: str, _internal_force: bool = False, force: bool = False
+    ) -> str:
         task = self._require_task(slug)
         if task["status"] == "done":
             raise ServiceError(f"Task '{slug}' is already done")
         if task["status"] == "active":
             return f"Task '{slug}' is already active."
-        # QG-0: Context Gate — delegated to GatesMixin
         qg0_warnings: list[str] = []
+        capacity_audit = ""
         if not _internal_force:
             qg0_warnings = self._check_qg0_start(slug, task)
-            check_session_capacity(self.be, slug, task)
+            if force:
+                capacity_audit = _apply_force_audit(self.be, slug, task)
+            else:
+                check_session_capacity(self.be, slug, task)
         updates: dict[str, Any] = {
             "status": "active",
             "attempts": task.get("attempts", 0) + 1,
@@ -144,6 +136,8 @@ class TaskMixin(GatesMixin, CascadeMixin):
             raise
         msgs = [f"Task '{slug}' started (attempt #{updates['attempts']})."]
         msgs.extend(qg0_warnings)
+        if capacity_audit:
+            msgs.append(f"⚠ {capacity_audit}")
         return "\n".join(msgs) if len(msgs) > 1 else msgs[0]
 
     def task_done(
@@ -260,6 +254,7 @@ class TaskMixin(GatesMixin, CascadeMixin):
                     f"Invalid {name} '{v}'. Valid: {', '.join(sorted(valid))}"
                 )
         cb = fields.pop("call_budget", _MISSING)
+        notice = ""
         if cb is not _MISSING:
             if cb is not None and cb < 0:
                 raise ServiceError(
@@ -267,11 +262,16 @@ class TaskMixin(GatesMixin, CascadeMixin):
                 )
             if cb is not None:
                 self.be.task_set_call_budget(slug, cb)
-                # explicit tier (if any) wins over auto-derived
-                if "tier" not in fields:
-                    return f"Task '{slug}' updated."
+                # MED-6: budget wins, drop explicit tier so auto-derived stays.
+                explicit_tier = fields.pop("tier", None)
+                if explicit_tier is not None:
+                    notice = (
+                        f"\nNote: tier '{explicit_tier}' overridden by call_budget."
+                    )
+                if not fields:
+                    return f"Task '{slug}' updated.{notice}"
         self.be.task_update(slug, **fields)
-        return f"Task '{slug}' updated."
+        return f"Task '{slug}' updated.{notice}"
 
     def task_delete(self, slug: str) -> str:
         self._require_task(slug)

@@ -135,7 +135,7 @@ TOOLS = [
                 "call_budget": {
                     "type": "integer",
                     "minimum": 0,
-                    "description": "Planned tool-call budget (in TOOL CALLS, not hours). Auto-derives tier — trivial≤10, light≤25, moderate≤60, substantial≤150, deep≤400. Overrides explicit tier when both given.",
+                    "description": "Planned tool-call budget (in TOOL CALLS, not hours). Auto-derives tier — trivial≤10, light≤25, moderate≤60, substantial≤150, deep≤400. Values >400 still record as 'deep' tier; the budget itself is preserved (warn-at-1.5×budget continues to work). Overrides explicit tier when both given.",
                 },
                 "tier": {
                     "type": "string",

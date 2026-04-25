@@ -10,6 +10,10 @@ import re
 from typing import Any
 
 
+def _session_hours(stats: dict | None) -> float:
+    return round(stats["hours"], 1) if stats and stats.get("hours") else 0
+
+
 def _sanitize_fts5(query: str) -> str:
     """Sanitize query for FTS5 MATCH -- preserve phrases in quotes, escape the rest."""
     phrases: list[str] = []
@@ -107,7 +111,6 @@ class BackendQueriesMixin:
         }
 
     def get_metrics(self) -> dict[str, Any]:
-        """Aggregate project metrics: SENAR mandatory + recommended."""
         task_counts = {
             r["status"]: r["cnt"]
             for r in self._q(
@@ -176,14 +179,12 @@ class BackendQueriesMixin:
                 "avg_hours": round(row["avg_hours"], 2) if row["avg_hours"] else 0,
             }
 
-        # Query 4: Story counts
         story_counts = {
             r["status"]: r["cnt"]
             for r in self._q(
                 "SELECT status, COUNT(*) as cnt FROM stories GROUP BY status"
             )
         }
-
         from backend_tier_metrics import calibration_drift, per_tier_metrics
 
         return {
@@ -204,9 +205,7 @@ class BackendQueriesMixin:
             "calibration_drift": calibration_drift(self._q),
             "avg_task_hours": avg_hours,
             "sessions_total": sessions_total,
-            "session_hours": round(session_stats["hours"], 1)
-            if session_stats and session_stats["hours"]
-            else 0,
+            "session_hours": _session_hours(session_stats),
             "stories": story_counts,
         }
 
@@ -384,16 +383,18 @@ class BackendQueriesMixin:
         has no started_at recorded (cannot define a window).
 
         Used by task_done to derive a baseline call_actual when a richer
-        per-tool counter is unavailable.
+        per-tool counter is unavailable. MED-9 review fix: comparisons
+        run through julianday() so the window is robust against ISO-8601
+        format drift (microseconds, +00:00 vs Z suffix).
         """
         row = self._q1(
             "SELECT COUNT(*) AS cnt FROM events e "
             "JOIN tasks t ON t.slug = e.entity_id "
             "WHERE e.entity_type='task' AND e.entity_id=? "
             "AND t.started_at IS NOT NULL "
-            "AND e.created_at >= t.started_at "
-            "AND e.created_at <= COALESCE(t.completed_at, "
-            "    strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))",
+            "AND julianday(e.created_at) >= julianday(t.started_at) "
+            "AND julianday(e.created_at) <= "
+            "    julianday(COALESCE(t.completed_at, 'now'))",
             (slug,),
         )
         return int(row["cnt"]) if row else 0

@@ -31,3 +31,27 @@ def update_enums() -> tuple[tuple[str, frozenset[str]], ...]:
         ("stack", load_stacks()),
         ("tier", VALID_TIERS),
     )
+
+
+def validate_task_add_inputs(
+    stack: str | None,
+    complexity: str | None,
+    call_budget: int | None,
+    tier: str | None,
+) -> None:
+    """Raise ServiceError if any task_add input is out of range."""
+    from tausik_utils import ServiceError
+
+    if complexity and complexity not in VALID_COMPLEXITIES:
+        raise ServiceError(
+            f"Invalid complexity '{complexity}'. Valid: {sorted(VALID_COMPLEXITIES)}"
+        )
+    valid_stacks = load_stacks()
+    if stack and stack not in valid_stacks:
+        raise ServiceError(f"Invalid stack '{stack}'. Valid: {sorted(valid_stacks)}")
+    if call_budget is not None and call_budget < 0:
+        raise ServiceError(
+            f"Invalid call_budget '{call_budget}'; must be >=0 or omitted"
+        )
+    if tier is not None and tier not in VALID_TIERS:
+        raise ServiceError(f"Invalid tier '{tier}'. Valid: {sorted(VALID_TIERS)}")

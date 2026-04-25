@@ -152,7 +152,9 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
         task = svc.task_show(args.slug)
         _print_task_detail(task)
     elif c == "start":
-        _print_with_warnings(svc.task_start(args.slug))
+        _print_with_warnings(
+            svc.task_start(args.slug, force=getattr(args, "force", False))
+        )
     elif c == "done":
         _print_with_warnings(
             svc.task_done(
