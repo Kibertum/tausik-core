@@ -503,6 +503,36 @@ def test_run_wizard_config_save_failure_prints_orphan_guidance(monkeypatch):
     )
 
 
+# --- CliIO EOF / KeyboardInterrupt handling (brain-init-input-error-handling) ---
+
+
+class TestCliIOPrompt:
+    """Default CliIO turns input() failures into clean WizardError aborts."""
+
+    def test_returns_input_normally(self, monkeypatch):
+        monkeypatch.setattr("builtins.input", lambda _msg: "page-xyz")
+        io = brain_init.CliIO()
+        assert io.prompt("Notion parent page id: ") == "page-xyz"
+
+    def test_eof_raises_wizard_error(self, monkeypatch):
+        def boom(_msg):
+            raise EOFError()
+
+        monkeypatch.setattr("builtins.input", boom)
+        io = brain_init.CliIO()
+        with pytest.raises(brain_init.WizardError, match="Aborted by user"):
+            io.prompt("anything: ")
+
+    def test_keyboard_interrupt_raises_wizard_error(self, monkeypatch):
+        def boom(_msg):
+            raise KeyboardInterrupt()
+
+        monkeypatch.setattr("builtins.input", boom)
+        io = brain_init.CliIO()
+        with pytest.raises(brain_init.WizardError, match="Aborted by user"):
+            io.prompt("anything: ")
+
+
 def test_run_wizard_happy_path_prints_no_orphan_guidance(monkeypatch):
     """Regression: happy path must NOT print orphan warning."""
     monkeypatch.setenv("T", "tok")

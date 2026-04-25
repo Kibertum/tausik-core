@@ -204,16 +204,6 @@ def cmd_brain(svc: ProjectService, args: Any) -> None:
     from brain_notion_client import NotionClient
     from project_config import load_config, save_config
 
-    class _CliIO:
-        def __init__(self) -> None:
-            self.is_tty = sys.stdin.isatty()
-
-        def prompt(self, msg: str) -> str:
-            return input(msg)
-
-        def print(self, msg: str) -> None:
-            print(msg)
-
     class _ConfigOps:
         def load(self) -> dict:
             return load_config()
@@ -238,7 +228,9 @@ def cmd_brain(svc: ProjectService, args: Any) -> None:
     }
 
     try:
-        result = brain_init.run_wizard(wizard_args, _CliIO(), _factory, _ConfigOps())
+        result = brain_init.run_wizard(
+            wizard_args, brain_init.CliIO(), _factory, _ConfigOps()
+        )
     except brain_init.WizardError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)

@@ -188,6 +188,29 @@ class WizardError(Exception):
     """Wizard-level failure — missing required args, user abort, API error."""
 
 
+class CliIO:
+    """Default WizardIO impl: stdin/stdout with EOF / Ctrl+C → WizardError.
+
+    `input()` raises EOFError when stdin is piped/closed and KeyboardInterrupt
+    on Ctrl+C — both should surface as a clean wizard abort rather than a
+    Python traceback.
+    """
+
+    def __init__(self) -> None:
+        import sys
+
+        self.is_tty = sys.stdin.isatty()
+
+    def prompt(self, msg: str) -> str:
+        try:
+            return input(msg)
+        except (EOFError, KeyboardInterrupt) as e:
+            raise WizardError("Aborted by user.") from e
+
+    def print(self, msg: str) -> None:
+        print(msg)
+
+
 def _print_orphan_cleanup_guidance(
     io: "WizardIO", db_ids: dict[str, str], exc: BaseException
 ) -> None:
