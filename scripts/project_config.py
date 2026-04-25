@@ -47,161 +47,40 @@ ALLOWED_GATE_EXECUTABLES = frozenset(
         "python",
         "ruby",
         "php",
+        # IaC tooling — added when stack-iac-vertical introduced default gates
+        # (HIGH-1 review fix: without this, user overrides like
+        # vendor/bin/ansible-lint silently fail _validate_custom_gate).
+        "ansible-lint",
+        "ansible",
+        "terraform",
+        "tflint",
+        "tofu",
+        "helm",
+        "kubeval",
+        "kube-score",
+        "hadolint",
     }
 )
 
 # Shell operators forbidden in commands that use {files} placeholder
+# (broader rule because file paths are user-controlled in {files}).
 _SHELL_INJECTION_PATTERN = re.compile(r"\||\&\&|\|\||;|\$\(|`")
+
+# Shell chain/substitution operators that are NEVER acceptable in custom
+# gates regardless of {files} — legitimate static gates may pipe stdout
+# to head/tail (single `|`), but command chaining (&&, ||, ;) and
+# command-substitution ($(, backtick) signal an attempt to escape the
+# allowed-executable whitelist. HIGH-2 review fix.
+_SHELL_CHAIN_PATTERN = re.compile(r"&&|\|\||;|\$\(|`")
 
 # --- SENAR Rule 9.2: Session duration limit (minutes) ---
 # SENAR v1.3: sessions exceeding 180 min show diminishing returns
 DEFAULT_SESSION_MAX_MINUTES = 180
 
-DEFAULT_GATES: dict[str, dict] = {
-    "pytest": {
-        "enabled": True,
-        "severity": "block",
-        "trigger": ["task-done", "review"],
-        # SENAR Rule 5: scoped to relevant_files via {test_files_for_files}
-        # substitution. Falls back to full `tests/` when no test files map
-        # from relevant_files (regression-safe).
-        "command": "pytest -x -q {test_files_for_files}",
-        "description": "Run pytest scoped to task's relevant_files",
-        "timeout": 180,
-    },
-    "ruff": {
-        "enabled": True,
-        "severity": "block",
-        "trigger": ["commit"],
-        "command": "ruff check {files}",
-        "description": "Lint with ruff before commit",
-        "file_extensions": [".py"],
-    },
-    "mypy": {
-        "enabled": False,
-        "severity": "warn",
-        "trigger": ["commit"],
-        "command": "mypy {files}",
-        "description": "Type-check with mypy before commit",
-        "file_extensions": [".py"],
-    },
-    "filesize": {
-        "enabled": True,
-        "severity": "block",
-        "trigger": ["task-done", "commit"],
-        "command": None,
-        "description": "Warn if files exceed max_lines threshold",
-        "max_lines": 400,
-    },
-    "bandit": {
-        "enabled": False,
-        "severity": "warn",
-        "trigger": ["review"],
-        "command": "bandit -r {files} -q",
-        "description": "Security scan with bandit",
-    },
-    # TypeScript / JavaScript gates
-    "tsc": {
-        "enabled": False,
-        "severity": "block",
-        "trigger": ["task-done", "commit"],
-        "command": "npx tsc --noEmit 2>&1 | head -20",
-        "description": "TypeScript type-check",
-        "stacks": ["typescript", "react", "next", "vue", "nuxt", "svelte"],
-    },
-    "eslint": {
-        "enabled": False,
-        "severity": "warn",
-        "trigger": ["commit"],
-        "command": "npx eslint {files} --max-warnings 0 2>&1 | head -20",
-        "description": "ESLint check",
-        "stacks": [
-            "typescript",
-            "javascript",
-            "react",
-            "next",
-            "vue",
-            "nuxt",
-            "svelte",
-        ],
-    },
-    # Go gates
-    "go-vet": {
-        "enabled": False,
-        "severity": "block",
-        "trigger": ["task-done", "commit"],
-        "command": "go vet ./... 2>&1 | head -20",
-        "description": "Go vet static analysis",
-        "stacks": ["go"],
-    },
-    "golangci-lint": {
-        "enabled": False,
-        "severity": "warn",
-        "trigger": ["commit"],
-        "command": "golangci-lint run {files} 2>&1 | head -20",
-        "description": "Go linter suite",
-        "stacks": ["go"],
-    },
-    # Rust gates
-    "cargo-check": {
-        "enabled": False,
-        "severity": "block",
-        "trigger": ["task-done", "commit"],
-        "command": "cargo check 2>&1 | head -20",
-        "description": "Rust compilation check",
-        "stacks": ["rust"],
-    },
-    "clippy": {
-        "enabled": False,
-        "severity": "warn",
-        "trigger": ["commit"],
-        "command": "cargo clippy — -D warnings 2>&1 | head -20",
-        "description": "Rust linter",
-        "stacks": ["rust"],
-    },
-    # PHP gates
-    "phpstan": {
-        "enabled": False,
-        "severity": "block",
-        "trigger": ["task-done", "commit"],
-        "command": "vendor/bin/phpstan analyse {files} --no-progress 2>&1 | head -20",
-        "description": "PHP static analysis",
-        "stacks": ["php", "laravel"],
-    },
-    "phpcs": {
-        "enabled": False,
-        "severity": "warn",
-        "trigger": ["commit"],
-        "command": "vendor/bin/phpcs {files} 2>&1 | head -20",
-        "description": "PHP code style check",
-        "stacks": ["php", "laravel"],
-    },
-    # Java / Kotlin gates
-    "javac": {
-        "enabled": False,
-        "severity": "block",
-        "trigger": ["task-done"],
-        "command": "mvn compile -q 2>&1 | head -20",
-        "description": "Java compilation check",
-        "stacks": ["java"],
-    },
-    "ktlint": {
-        "enabled": False,
-        "severity": "warn",
-        "trigger": ["commit"],
-        "command": "ktlint {files} 2>&1 | head -20",
-        "description": "Kotlin code style check",
-        "stacks": ["kotlin"],
-    },
-    # TDD enforcement gate
-    "tdd_order": {
-        "enabled": False,
-        "severity": "warn",
-        "trigger": ["task-done"],
-        "command": None,
-        "description": "Verify test files were modified (TDD enforcement)",
-    },
-}
+# --- Agent-native session capacity (tool calls, not minutes) ---
+DEFAULT_SESSION_CAPACITY_CALLS = 200
+
+from default_gates import DEFAULT_GATES  # noqa: E402
 
 
 def _build_stack_gate_map() -> dict[str, list[str]]:
@@ -238,6 +117,9 @@ def _validate_custom_gate(name: str, gate: dict) -> str | None:
     """Validate a custom gate command for security.
 
     Returns None if valid, or an error message string if invalid.
+    HIGH-2 review fix: shell metachars are blocked unconditionally now —
+    previously the guard required `{files}` placeholder, which let a
+    custom gate run pipelines under shell=True without scrutiny.
     """
     command = gate.get("command")
     if not command or command is None:
@@ -254,7 +136,18 @@ def _validate_custom_gate(name: str, gate: dict) -> str | None:
             f"Allowed: {sorted(ALLOWED_GATE_EXECUTABLES)}"
         )
 
-    # Check for shell injection when {files} is used
+    # Always reject command chaining / substitution — these escape the
+    # allowed-executable whitelist regardless of placeholder usage.
+    if _SHELL_CHAIN_PATTERN.search(command):
+        return (
+            f"Custom gate '{name}': command contains shell operators "
+            f"(&&/||/;/$(/`) — refused. Use a wrapper script or split "
+            f"into multiple gates."
+        )
+
+    # Stricter rule when the user-controlled {files} placeholder is in
+    # play: block bare pipes too, since they let user input redirect
+    # to an arbitrary downstream command.
     if "{files}" in command and _SHELL_INJECTION_PATTERN.search(command):
         return (
             f"Custom gate '{name}': command contains shell operators "

@@ -36,6 +36,14 @@ _FILESIZE_EXEMPT_DIRS = (
     "agents/claude/mcp/",
     "agents/cursor/mcp/",
     "agents/qwen/mcp/",
+    ".claude/mcp/",
+)
+
+
+from gate_stack_dispatch import (  # noqa: E402,F401
+    gate_applies_to,
+    infer_stacks_from_files,
+    skipped_result,
 )
 
 
@@ -146,13 +154,8 @@ def resolve_test_files_for_relevant(
     `tests/test_brain_init.py` and `tests/test_brain_init_*.py`. Also matches
     when the relevant file IS already a test file (returns it as-is).
 
-    Returns a deduplicated list of existing test file paths (relative to `root`,
-    forward-slashed). Empty list means no mapping found — caller's contract is
-    to fall back to the full suite.
-
-    Stack-agnostic in spirit: the basename heuristic is python-flavoured
-    (`tests/test_<name>.py`), but other stacks can extend by overriding the
-    `[tausik.verify]` config or adding stack-specific patterns later.
+    Returns a deduplicated list of existing test file paths (forward-slashed).
+    Empty list = no mapping; caller falls back to the full suite.
     """
     if not relevant_files:
         return []
@@ -209,17 +212,7 @@ def resolve_test_files_for_relevant(
 
 
 def run_command_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
-    """Run a command-based gate.
-
-    Uses shell=True when the command contains shell operators (|, &&, >, 2>&1).
-    File arguments are always shlex.quote'd to prevent injection.
-
-    Substitutions in `command`:
-      {files}                 — space-separated quoted relevant_files
-      {test_files_for_files}  — space-separated quoted test files mapped from
-                                relevant_files via basename heuristic; falls
-                                back to "tests/" when no mapping found
-    """
+    """Run a command-based gate. Substitutes {files} / {test_files_for_files}."""
     import shlex
 
     cmd = gate.get("command", "")
@@ -298,6 +291,10 @@ def run_gates(trigger: str, files: list[str] | None = None) -> tuple[bool, list[
         name = gate["name"]
         severity = gate.get("severity", "warn")
 
+        if not gate_applies_to(gate, files or []):
+            results.append(skipped_result(gate, files or []))
+            continue
+
         if name == "filesize":
             passed, output = run_filesize_gate(gate, files or [])
         elif name == "tdd_order":
@@ -326,7 +323,12 @@ def format_results(results: list[dict]) -> str:
         return "No gates configured for this trigger."
     lines = []
     for r in results:
-        icon = "PASS" if r["passed"] else "FAIL"
+        if r.get("skipped"):
+            icon = "SKIP"
+        elif r["passed"]:
+            icon = "PASS"
+        else:
+            icon = "FAIL"
         sev = f" ({r['severity']})" if not r["passed"] else ""
         lines.append(f"  [{icon}] {r['name']}{sev}")
         if not r["passed"] and r["output"]:

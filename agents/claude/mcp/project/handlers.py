@@ -70,6 +70,8 @@ def _do_task_add(svc: Any, args: dict) -> str:
         goal=args.get("goal"),
         role=args.get("role"),
         defect_of=args.get("defect_of"),
+        call_budget=args.get("call_budget"),
+        tier=args.get("tier"),
     )
 
 

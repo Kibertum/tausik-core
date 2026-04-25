@@ -137,6 +137,14 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
         "CREATE INDEX IF NOT EXISTS idx_verify_task ON verification_runs(task_slug, ran_at DESC)",
         "CREATE INDEX IF NOT EXISTS idx_verify_files_hash ON verification_runs(files_hash)",
     ],
+    # --- v17: agent-native planning units (call_budget/call_actual/tier) ---
+    17: [
+        "ALTER TABLE tasks ADD COLUMN call_budget INTEGER",
+        "ALTER TABLE tasks ADD COLUMN call_actual INTEGER",
+        "ALTER TABLE tasks ADD COLUMN tier TEXT "
+        "CHECK(tier IS NULL OR tier IN "
+        "('trivial','light','moderate','substantial','deep'))",
+    ],
 }
 
 # Merged: legacy + current

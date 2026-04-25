@@ -199,7 +199,6 @@ def cmd_update_claudemd(svc: ProjectService, args: Any) -> None:
 
 
 def _get_version() -> str:
-    """Get TAUSIK version from tausik_version.py."""
     try:
         from tausik_version import __version__
 
@@ -326,10 +325,12 @@ def _print_gate(name: str, gate: dict, indent: str, verbose: bool) -> None:
         print(f"{indent}       cmd: {cmd}")
 
 
+from project_cli_stack import cmd_stack  # noqa: F401,E402
+
+
 def cmd_gates(svc: ProjectService, args: Any) -> None:
     """Handle gates subcommands: status, list, enable, disable."""
     c = args.gates_cmd or "status"
-
     if c in ("status", "list"):
         data = svc.gates_status()
         gates = data["gates"]
@@ -339,7 +340,6 @@ def cmd_gates(svc: ProjectService, args: Any) -> None:
         stack_groups = data["stack_groups"]
         active_stacks = data["active_stacks"]
         verbose = c == "status"
-
         print("Quality Gates:")
         shown: set[str] = set()
         for name in stack_groups.get("general", []):

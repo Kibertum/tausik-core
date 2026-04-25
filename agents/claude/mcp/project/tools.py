@@ -76,7 +76,7 @@ TOOLS = [
     },
     {
         "name": "tausik_task_add",
-        "description": "Create a new task. Specify slug (kebab-case ID) and title. Set goal for QG-0 compliance. Optionally assign to a story",
+        "description": "Create a new task. Specify slug (kebab-case ID) and title. Set goal for QG-0 compliance. Optionally assign to a story. Estimate effort via call_budget (in TOOL CALLS, not hours): trivial≤10, light≤25, moderate≤60, substantial≤150, deep≤400.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -131,6 +131,16 @@ TOOLS = [
                 "defect_of": {
                     "type": "string",
                     "description": "Parent task slug if this is a defect fix (triggers root cause requirement on done)",
+                },
+                "call_budget": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Planned tool-call budget (in TOOL CALLS, not hours). Auto-derives tier — trivial≤10, light≤25, moderate≤60, substantial≤150, deep≤400. Overrides explicit tier when both given.",
+                },
+                "tier": {
+                    "type": "string",
+                    "enum": ["trivial", "light", "moderate", "substantial", "deep"],
+                    "description": "Planning tier. Ignored if call_budget is also provided.",
                 },
             },
             "required": ["slug", "title"],
@@ -254,6 +264,16 @@ TOOLS = [
                 "defect_of": {
                     "type": "string",
                     "description": "Parent task slug if this is a defect fix",
+                },
+                "call_budget": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Planned tool-call budget. Auto-derives tier on update.",
+                },
+                "tier": {
+                    "type": "string",
+                    "enum": ["trivial", "light", "moderate", "substantial", "deep"],
+                    "description": "Planning tier (overridden by call_budget if both passed).",
                 },
             },
             "required": ["slug"],

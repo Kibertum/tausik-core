@@ -77,6 +77,32 @@ If the work is part of a larger initiative, create or reuse an epic/story:
 .tausik/tausik story add <epic-slug> <story-slug> "Story title"
 ```
 
+### 4b. Estimate tier (agent-native sizing)
+
+After the task exists, set a tool-call budget — **NOT human hours**. Agents are
+measured in tool calls, not wall-clock time. Pick `--call-budget` (preferred,
+auto-derives `--tier`) or `--tier` directly.
+
+| Tier | Budget | Real-session example |
+|---|---|---|
+| `trivial` | ≤10 | one-line config tweak, doc fix, single-arg flag |
+| `light` | ≤25 | schema migration + helpers + tests (`agent-units-schema`) |
+| `moderate` | ≤60 | recording wiring + hook + service edit + tests |
+| `substantial` | ≤150 | CLI + service + MCP + mirror + tests across many files |
+| `deep` | ≤400 | full vertical (new stack support, end-to-end feature) |
+
+**MCP-first:** `tausik_task_update` with `slug="{slug}"`, `call_budget=25`.
+
+**CLI fallback:**
+```bash
+.tausik/tausik task update <slug> --call-budget 25
+# or, if you prefer the tier directly:
+.tausik/tausik task update <slug> --tier light
+```
+
+Skipping estimation is allowed but flag it explicitly — the task closes
+without `call_budget`/`call_actual` data, hurting future tier calibration.
+
 ### 5. Set acceptance criteria (SENAR QG-0 MANDATORY)
 
 **CRITICAL: Without acceptance criteria, `task start` will be blocked by QG-0 Context Gate.**

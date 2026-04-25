@@ -16,14 +16,23 @@ from tausik_utils import (
 from project_types import (
     COMPLEXITY_SP,
     VALID_COMPLEXITIES,
-    VALID_STACKS,
     VALID_TASK_STATUSES,
+    VALID_TIERS,
+    get_valid_stacks,
 )
 from service_cascade import CascadeMixin
 from service_gates import GatesMixin
+from service_recording import check_session_capacity, record_call_actual
 
 if TYPE_CHECKING:
     from project_backend import SQLiteBackend
+
+
+_MISSING = object()
+
+
+from service_validation import load_stacks as _load_stacks  # noqa: E402,F401
+from service_validation import update_enums as _update_enums  # noqa: E402,F401
 
 
 class TaskMixin(GatesMixin, CascadeMixin):
@@ -41,6 +50,8 @@ class TaskMixin(GatesMixin, CascadeMixin):
         goal: str | None = None,
         role: str | None = None,
         defect_of: str | None = None,
+        call_budget: int | None = None,
+        tier: str | None = None,
     ) -> str:
         if story_slug:
             self._require_story(story_slug)
@@ -50,25 +61,37 @@ class TaskMixin(GatesMixin, CascadeMixin):
             raise ServiceError(
                 f"Invalid complexity '{complexity}', must be one of {sorted(VALID_COMPLEXITIES)}"
             )
-        if stack and stack not in VALID_STACKS:
+        valid_stacks = _load_stacks()
+        if stack and stack not in valid_stacks:
             raise ServiceError(
-                f"Invalid stack '{stack}'. Valid: {', '.join(sorted(VALID_STACKS))}"
+                f"Invalid stack '{stack}'. Valid: {', '.join(sorted(valid_stacks))}"
             )
         if defect_of:
             self._require_task(defect_of)  # parent must exist
         validate_content("goal", goal)
+        if call_budget is not None and call_budget < 0:
+            raise ServiceError(
+                f"Invalid call_budget '{call_budget}'; must be >=0 or omitted"
+            )
+        if tier is not None and tier not in VALID_TIERS:
+            raise ServiceError(
+                f"Invalid tier '{tier}'. Valid: {', '.join(sorted(VALID_TIERS))}"
+            )
         score = COMPLEXITY_SP.get(complexity, 1) if complexity else 1
         self.be.task_add(
             story_slug, slug, title, stack, complexity, score, goal, role, defect_of
         )
-        warnings: list[str] = []
-        if not goal or not goal.strip():
-            warnings.append("goal")
-        # AC is set via task update, so warn if goal is missing (AC likely missing too)
+        notice = ""
+        if call_budget is not None:
+            self.be.task_set_call_budget(slug, call_budget)
+            if tier is not None:
+                notice = f"\nNote: --tier '{tier}' overridden by --call-budget."
+        elif tier is not None:
+            self.be.task_update(slug, tier=tier)
         msg = f"Task '{slug}' created."
-        if warnings:
-            msg += f"\n⚠ QG-0 warning: missing {', '.join(warnings)}. Task won't start without goal + acceptance_criteria."
-        return msg
+        if not goal or not goal.strip():
+            msg += "\n⚠ QG-0 warning: missing goal. Task won't start without goal + acceptance_criteria."
+        return msg + notice
 
     def task_list(
         self,
@@ -104,6 +127,7 @@ class TaskMixin(GatesMixin, CascadeMixin):
         qg0_warnings: list[str] = []
         if not _internal_force:
             qg0_warnings = self._check_qg0_start(slug, task)
+            check_session_capacity(self.be, slug, task)
         updates: dict[str, Any] = {
             "status": "active",
             "attempts": task.get("attempts", 0) + 1,
@@ -190,6 +214,9 @@ class TaskMixin(GatesMixin, CascadeMixin):
                 msgs.append(checklist_warning)
             if root_cause_warning:
                 msgs.append(root_cause_warning)
+            budget_warning = record_call_actual(self.be, slug, task)
+            if budget_warning:
+                msgs.append(budget_warning)
             msgs.extend(self._cascade_done(slug))
             self.be.commit_tx()
         except Exception:
@@ -220,34 +247,29 @@ class TaskMixin(GatesMixin, CascadeMixin):
     def task_review(self, slug: str) -> str:
         task = self._require_task(slug)
         if task["status"] == "done":
-            raise ServiceError(
-                f"Cannot move '{slug}' to review — task is already done"
-            )
+            raise ServiceError(f"Cannot move '{slug}' to review — task is already done")
         self.be.task_update(slug, status="review")
         return f"Task '{slug}' moved to review."
 
     def task_update(self, slug: str, **fields: Any) -> str:
         self._require_task(slug)
-        if "status" in fields and fields["status"] not in VALID_TASK_STATUSES:
-            raise ServiceError(
-                f"Invalid status '{fields['status']}'. Valid: {', '.join(sorted(VALID_TASK_STATUSES))}"
-            )
-        if (
-            "complexity" in fields
-            and fields["complexity"]
-            and fields["complexity"] not in VALID_COMPLEXITIES
-        ):
-            raise ServiceError(
-                f"Invalid complexity '{fields['complexity']}'. Valid: {', '.join(sorted(VALID_COMPLEXITIES))}"
-            )
-        if (
-            "stack" in fields
-            and fields["stack"]
-            and fields["stack"] not in VALID_STACKS
-        ):
-            raise ServiceError(
-                f"Invalid stack '{fields['stack']}'. Valid: {', '.join(sorted(VALID_STACKS))}"
-            )
+        for name, valid in _update_enums():
+            v = fields.get(name)
+            if v and v not in valid:
+                raise ServiceError(
+                    f"Invalid {name} '{v}'. Valid: {', '.join(sorted(valid))}"
+                )
+        cb = fields.pop("call_budget", _MISSING)
+        if cb is not _MISSING:
+            if cb is not None and cb < 0:
+                raise ServiceError(
+                    f"Invalid call_budget '{cb}'; must be >=0 or omitted"
+                )
+            if cb is not None:
+                self.be.task_set_call_budget(slug, cb)
+                # explicit tier (if any) wins over auto-derived
+                if "tier" not in fields:
+                    return f"Task '{slug}' updated."
         self.be.task_update(slug, **fields)
         return f"Task '{slug}' updated."
 

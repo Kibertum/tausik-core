@@ -107,10 +107,7 @@ class BackendQueriesMixin:
         }
 
     def get_metrics(self) -> dict[str, Any]:
-        """Aggregate project metrics: SENAR mandatory (throughput, lead time, FPSR, DER)
-        plus recommended (cycle time, knowledge capture rate, cost/task).
-        Optimized: 4 queries instead of 8 (combined COUNTs)."""
-        # Query 1: task counts + FPSR + DER counts in one pass
+        """Aggregate project metrics: SENAR mandatory + recommended."""
         task_counts = {
             r["status"]: r["cnt"]
             for r in self._q(
@@ -187,23 +184,24 @@ class BackendQueriesMixin:
             )
         }
 
+        from backend_tier_metrics import calibration_drift, per_tier_metrics
+
         return {
             "tasks": task_counts,
             "tasks_total": total,
             "tasks_done": done,
             "completion_pct": round(done / total * 100, 1) if total else 0,
-            # SENAR mandatory metrics
             "throughput": throughput,
             "lead_time_hours": lead_hours,
             "fpsr": fpsr,
             "der": der,
-            # SENAR recommended metrics
             "cycle_time_hours": avg_hours,
             "knowledge_capture_rate": kcr,
             "dead_end_rate": dead_end_rate,
             "dead_end_count": dead_end_count,
             "cost_per_task": cost_by_complexity,
-            # Legacy
+            "per_tier": per_tier_metrics(self._q),
+            "calibration_drift": calibration_drift(self._q),
             "avg_task_hours": avg_hours,
             "sessions_total": sessions_total,
             "session_hours": round(session_stats["hours"], 1)
@@ -211,6 +209,11 @@ class BackendQueriesMixin:
             else 0,
             "stories": story_counts,
         }
+
+    def session_capacity_summary(self, capacity: int) -> dict[str, Any]:
+        from backend_tier_metrics import session_capacity_summary as _s
+
+        return _s(self._q, self._q1, capacity)
 
     # --- Roadmap ---
 
@@ -371,3 +374,26 @@ class BackendQueriesMixin:
         sql += " ORDER BY created_at DESC LIMIT ?"
         params.append(n)
         return self._q(sql, tuple(params))
+
+    def task_event_count_in_window(self, slug: str) -> int:
+        """Count task lifecycle events within the task's active window.
+
+        Counts rows in `events` where entity_type='task', entity_id=slug,
+        and created_at falls between tasks.started_at and a closing bound:
+        completed_at if set, otherwise current time. Returns 0 if the task
+        has no started_at recorded (cannot define a window).
+
+        Used by task_done to derive a baseline call_actual when a richer
+        per-tool counter is unavailable.
+        """
+        row = self._q1(
+            "SELECT COUNT(*) AS cnt FROM events e "
+            "JOIN tasks t ON t.slug = e.entity_id "
+            "WHERE e.entity_type='task' AND e.entity_id=? "
+            "AND t.started_at IS NOT NULL "
+            "AND e.created_at >= t.started_at "
+            "AND e.created_at <= COALESCE(t.completed_at, "
+            "    strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))",
+            (slug,),
+        )
+        return int(row["cnt"]) if row else 0

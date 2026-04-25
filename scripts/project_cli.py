@@ -71,6 +71,23 @@ def cmd_status(svc: ProjectService, args: Any) -> None:
         print("Session: none active")
     if data["epics"]:
         print(f"Epics: {len(data['epics'])}")
+    drift = svc.get_metrics().get("calibration_drift")
+    if drift:
+        print(
+            f"Calibration: {drift['label']} "
+            f"(actual/budget={drift['avg_ratio']}, n={drift['samples']})"
+        )
+    if data["session"]:
+        from project_config import DEFAULT_SESSION_CAPACITY_CALLS, load_config
+
+        cfg2 = load_config()
+        cap = cfg2.get("session_capacity_calls", DEFAULT_SESSION_CAPACITY_CALLS)
+        cs = svc.be.session_capacity_summary(cap)
+        marker = " ⚠ overshoot" if cs["remaining"] < 0 else ""
+        print(
+            f"Capacity: {cs['used']}/{cs['capacity']} used, "
+            f"{cs['planned_active']} planned, {cs['remaining']} remaining{marker}"
+        )
 
 
 def cmd_epic(svc: ProjectService, args: Any) -> None:
@@ -117,6 +134,8 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                 args.goal,
                 args.role,
                 defect_of,
+                getattr(args, "call_budget", None),
+                getattr(args, "tier", None),
             )
         )
     elif c == "list":
@@ -160,6 +179,8 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
             "role",
             "scope",
             "scope_exclude",
+            "call_budget",
+            "tier",
         ):
             v = getattr(args, k, None)
             if v is not None:

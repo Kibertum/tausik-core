@@ -265,6 +265,66 @@ class ProjectService(
         self.be.meta_set("last_audit_session", str(current["id"]))
         return f"Audit marked at session #{current['id']}."
 
+    # --- Stacks ---
+
+    def stack_info(self, stack: str) -> dict[str, Any]:
+        """Return per-stack gate inventory + honest gap notice."""
+        from difflib import get_close_matches
+
+        from project_config import DEFAULT_GATES, load_gates
+        from project_config import load_config
+        from project_types import get_valid_stacks
+
+        valid = get_valid_stacks(load_config())
+        if stack not in valid:
+            from tausik_utils import ServiceError
+
+            suggest = get_close_matches(stack, sorted(valid), n=2, cutoff=0.5)
+            hint = f" Did you mean: {', '.join(suggest)}?" if suggest else ""
+            raise ServiceError(
+                f"Unknown stack '{stack}'. Valid: {', '.join(sorted(valid))}.{hint}"
+            )
+        gates = load_gates()
+        applicable: list[dict[str, Any]] = []
+        for name, gate_def in DEFAULT_GATES.items():
+            stacks = gate_def.get("stacks") or []
+            if not stacks or stack in stacks:
+                merged = dict(gate_def)
+                if name in gates:
+                    merged.update(gates[name])
+                merged["name"] = name
+                applicable.append(merged)
+        gap_notice = ""
+        if not applicable:
+            gap_notice = (
+                f"No gates configured for stack '{stack}'. Add a custom gate via "
+                '`.tausik/config.json` under "gates" (see references/project-cli.md).'
+            )
+        return {"stack": stack, "gates": applicable, "gap_notice": gap_notice}
+
+    def stack_list(self) -> list[dict[str, Any]]:
+        """List all known stacks with applicable gate count."""
+        from project_config import DEFAULT_GATES
+        from project_config import load_config
+        from project_types import DEFAULT_STACKS, get_valid_stacks
+
+        valid = get_valid_stacks(load_config())
+        out = []
+        for stack in sorted(valid):
+            count = sum(
+                1
+                for g in DEFAULT_GATES.values()
+                if not g.get("stacks") or stack in g.get("stacks", [])
+            )
+            out.append(
+                {
+                    "stack": stack,
+                    "applicable_gates": count,
+                    "is_custom": stack not in DEFAULT_STACKS,
+                }
+            )
+        return out
+
     # --- Gates ---
 
     def gates_status(self) -> dict[str, Any]:

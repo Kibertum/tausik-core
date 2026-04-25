@@ -34,6 +34,7 @@ def main() -> None:
         cmd_gates,
         cmd_memory,
         cmd_skill,
+        cmd_stack,
         cmd_update_claudemd,
     )
     from project_cli_verify import cmd_verify
@@ -83,6 +84,7 @@ def main() -> None:
         "events": cmd_events,
         "fts": cmd_fts,
         "skill": cmd_skill,
+        "stack": cmd_stack,
         "dead-end": cmd_dead_end,
         "explore": cmd_explore,
         "audit": cmd_audit,

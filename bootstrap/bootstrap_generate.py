@@ -137,6 +137,19 @@ def generate_settings_claude(
                         }
                     ],
                 },
+                {
+                    # HIGH-5 review fix: only Write/Edit/MultiEdit/Bash count
+                    # toward call_actual. Read/Grep/Glob are research, not work
+                    # — including them inflates the calibration drift metric.
+                    "matcher": "Write|Edit|MultiEdit|Bash",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": _hook_cmd("task_call_counter.py"),
+                            "timeout": 5,
+                        }
+                    ],
+                },
             ],
             "SessionStart": [
                 {

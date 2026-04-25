@@ -9,8 +9,14 @@ from project_types import (
     VALID_EDGE_RELATIONS,
     VALID_MEMORY_TYPES,
     VALID_NODE_TYPES,
-    VALID_STACKS,
+    VALID_TIERS,
 )
+
+
+def _add_unit_flags(parser: argparse.ArgumentParser) -> None:
+    """Attach --call-budget / --tier flags to a task add/update sub-parser."""
+    parser.add_argument("--call-budget", type=int, default=None, dest="call_budget")
+    parser.add_argument("--tier", default=None, choices=sorted(VALID_TIERS))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -79,9 +85,8 @@ def build_parser() -> argparse.ArgumentParser:
     ta.add_argument("--complexity", default=None, choices=sorted(VALID_COMPLEXITIES))
     ta.add_argument("--goal", default=None)
     ta.add_argument("--role", default=None)
-    ta.add_argument(
-        "--defect-of", default=None, help="Parent task slug (marks this as a defect)"
-    )
+    ta.add_argument("--defect-of", default=None, help="Parent task slug (defect fix)")
+    _add_unit_flags(ta)
 
     tl = task_sub.add_parser("list")
     tl.add_argument("--status", default=None)
@@ -128,17 +133,16 @@ def build_parser() -> argparse.ArgumentParser:
     tupdate.add_argument("--goal", default=None)
     tupdate.add_argument("--notes", default=None)
     tupdate.add_argument("--acceptance-criteria", default=None, dest="ac")
-    tupdate.add_argument(
-        "--stack",
-        default=None,
-        choices=sorted(VALID_STACKS),
-    )
+    # --stack is validated in the service layer so config-defined custom
+    # stacks (cfg.custom_stacks) work alongside the built-in DEFAULT_STACKS.
+    tupdate.add_argument("--stack", default=None)
     tupdate.add_argument(
         "--complexity", default=None, choices=sorted(VALID_COMPLEXITIES)
     )
     tupdate.add_argument("--role", default=None)
     tupdate.add_argument("--scope", default=None)
     tupdate.add_argument("--scope-exclude", default=None, dest="scope_exclude")
+    _add_unit_flags(tupdate)
 
     tdel = task_sub.add_parser("delete")
     tdel.add_argument("slug")
@@ -207,6 +211,12 @@ def build_parser() -> argparse.ArgumentParser:
     sext.add_argument(
         "--minutes", type=int, default=60, help="Minutes to extend (default: 60)"
     )
+
+    stack_sub = sub.add_parser(
+        "stack", help="Stack info — gates per language"
+    ).add_subparsers(dest="stack_cmd")
+    stack_sub.add_parser("info").add_argument("stack")  # validated by service
+    stack_sub.add_parser("list")
 
     # --- decide ---
     dec_p = sub.add_parser("decide", help="Record a decision")
@@ -293,20 +303,11 @@ def build_parser() -> argparse.ArgumentParser:
     gd = gates_sub.add_parser("disable")
     gd.add_argument("name", help="Gate name to disable")
 
-    # --- verify (SENAR Rule 5: scoped per-task verification) ---
-    vp = sub.add_parser(
-        "verify",
-        help="Run quality gates scoped to a task's relevant_files; record result",
-    )
-    vp.add_argument("--task", help="Task slug (uses its relevant_files for scope)")
-    vp.add_argument(
-        "--scope",
-        choices=["lightweight", "standard", "high", "critical", "manual"],
-        default="manual",
-        help="Verification tier label recorded with the run (default: manual)",
-    )
+    vp = sub.add_parser("verify", help="Run scoped quality gates")
+    vp.add_argument("--task")
+    _scopes = ["lightweight", "standard", "high", "critical", "manual"]
+    vp.add_argument("--scope", choices=_scopes, default="manual")
 
-    # --- roadmap ---
     rm_p = sub.add_parser("roadmap", help="Project roadmap")
     rm_p.add_argument("--include-done", action="store_true")
 

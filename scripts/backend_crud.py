@@ -15,6 +15,32 @@ if TYPE_CHECKING:
     def _ins(self, sql: str, params: tuple[Any, ...] = ()) -> int: ...
 
 
+# Tool-call budget thresholds for agent-native task tiers (SENAR sizing).
+# Inclusive upper bound per tier; budgets above 'deep' threshold cap at 'deep'.
+_TIER_THRESHOLDS: tuple[tuple[int, str], ...] = (
+    (10, "trivial"),
+    (25, "light"),
+    (60, "moderate"),
+    (150, "substantial"),
+    (400, "deep"),
+)
+
+
+def derive_tier_from_budget(budget: int | None) -> str | None:
+    """Map a call-budget integer to a tier label.
+
+    Returns None for None or 0 (no plan recorded). Negative budgets are
+    rejected upstream — this helper assumes a normalised, non-negative
+    int. Budgets exceeding the 'deep' threshold are capped at 'deep'.
+    """
+    if budget is None or budget <= 0:
+        return None
+    for upper, label in _TIER_THRESHOLDS:
+        if budget <= upper:
+            return label
+    return _TIER_THRESHOLDS[-1][1]
+
+
 class BackendCrudMixin:
     """Session, decision, memory, meta, and events CRUD. Mixed into SQLiteBackend."""
 
@@ -221,6 +247,33 @@ class BackendCrudMixin:
         return self._q(
             "SELECT * FROM task_logs ORDER BY id DESC LIMIT ?", (int(limit),)
         )
+
+    # --- Agent-native planning units (call budget / actual / tier) ---
+
+    def task_set_call_budget(self, slug: str, budget: int | None) -> bool:
+        """Set planned tool-call budget for a task; auto-derives tier.
+
+        budget=None clears both call_budget and tier. Negative budgets rejected.
+        Returns True if a row was updated, False if slug not found.
+        """
+        if budget is not None and budget < 0:
+            raise ValueError(f"call_budget must be >=0 or None, got {budget}")
+        tier = derive_tier_from_budget(budget)
+        rows = self._ex(
+            "UPDATE tasks SET call_budget=?, tier=?, updated_at=? WHERE slug=?",
+            (budget, tier, utcnow_iso(), slug),
+        )
+        return rows > 0
+
+    def task_set_call_actual(self, slug: str, actual: int | None) -> bool:
+        """Record observed tool-call count for a task. Does not touch tier."""
+        if actual is not None and actual < 0:
+            raise ValueError(f"call_actual must be >=0 or None, got {actual}")
+        rows = self._ex(
+            "UPDATE tasks SET call_actual=?, updated_at=? WHERE slug=?",
+            (actual, utcnow_iso(), slug),
+        )
+        return rows > 0
 
     # --- Events ---
 

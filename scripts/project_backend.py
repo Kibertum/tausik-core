@@ -48,6 +48,9 @@ _TASK_FIELDS = frozenset(
         "defect_of",
         "updated_at",
         "scope_exclude",
+        "call_budget",
+        "call_actual",
+        "tier",
     }
 )
 

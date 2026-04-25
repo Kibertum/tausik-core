@@ -32,6 +32,27 @@ def cmd_metrics(svc: ProjectService, args: Any) -> None:
         print("\n--- Cost per Task ---")
         for complexity, data in sorted(cost.items()):
             print(f"  {complexity}: {data['avg_hours']}h avg ({data['count']} tasks)")
+    # Per-tier (agent-native sizing)
+    per_tier = m.get("per_tier") or {}
+    if per_tier:
+        print("\n--- Per-tier (agent-native units) ---")
+        order = ["trivial", "light", "moderate", "substantial", "deep", "unset"]
+        for tier in order:
+            d = per_tier.get(tier)
+            if not d:
+                continue
+            ab = d["avg_budget"] if d["avg_budget"] is not None else "-"
+            aa = d["avg_actual"] if d["avg_actual"] is not None else "-"
+            print(
+                f"  {tier:>11}: count={d['count']:<4} budget={ab:<6} "
+                f"actual={aa:<6} fpsr={d['fpsr_pct']}%"
+            )
+    drift = m.get("calibration_drift")
+    if drift:
+        print(
+            f"\nCalibration drift: {drift['label']} "
+            f"(avg actual/budget = {drift['avg_ratio']}, n={drift['samples']})"
+        )
     print(f"\nSessions: {m['sessions_total']} ({m['session_hours']}h total)")
     if m["stories"]:
         total_s = sum(m["stories"].values())

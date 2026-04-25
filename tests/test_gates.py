@@ -348,11 +348,19 @@ class TestStackGates:
         assert "tsc" in enabled
         assert "go-vet" in enabled
 
-    def test_python_gates_not_in_stack_map(self):
-        """Python gates (pytest, ruff) are always-on, not stack-gated."""
+    def test_pytest_is_stack_gated_to_python(self):
+        """pytest gate is filtered to Python stacks (Epic 2 bug fix).
+
+        Previously pytest was always-on, which silently false-passed on
+        non-Python projects. With stack-aware dispatch the gate must
+        appear in STACK_GATE_MAP under python and Python web frameworks.
+        """
         from project_config import STACK_GATE_MAP
 
-        assert "python" not in STACK_GATE_MAP
+        assert "pytest" in STACK_GATE_MAP.get("python", [])
+        assert "pytest" in STACK_GATE_MAP.get("fastapi", [])
+        assert "pytest" in STACK_GATE_MAP.get("django", [])
+        assert "pytest" in STACK_GATE_MAP.get("flask", [])
 
     def test_react_enables_tsc_and_eslint(self):
         from project_config import STACK_GATE_MAP
