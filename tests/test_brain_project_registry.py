@@ -181,6 +181,90 @@ def test_register_lock_prevents_concurrent_write(reg_path):
     assert entry["name"] == "foo"
 
 
+# --- Stale-lock recovery (brain-registry-stale-lock-recovery) -----------
+
+
+def _unused_pid() -> int:
+    """Pick a PID guaranteed not to be in use (very high, not in /proc scope)."""
+    candidate = 999_999
+    while candidate > 0:
+        if not bpr._pid_alive(candidate):
+            return candidate
+        candidate -= 1
+    raise RuntimeError("couldn't find an unused pid")
+
+
+def test_dead_pid_lock_is_reclaimed(reg_path):
+    """Lock with a dead PID is treated as stale → reclaimed on next acquire."""
+    lock_path = str(reg_path) + ".lock"
+    os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+    with open(lock_path, "w") as f:
+        f.write(str(_unused_pid()))
+    entry = bpr.register_project("foo", "/a")
+    assert entry["name"] == "foo"
+
+
+def test_expired_mtime_lock_is_reclaimed(reg_path):
+    """Lock with a live PID but old mtime is still reclaimed."""
+    import time as _time
+
+    lock_path = str(reg_path) + ".lock"
+    os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+    with open(lock_path, "w") as f:
+        f.write(str(os.getpid()))  # live pid — would normally block
+    # Backdate mtime beyond the stale threshold
+    old = _time.time() - (bpr._STALE_LOCK_AGE_S + 10)
+    os.utime(lock_path, (old, old))
+    entry = bpr.register_project("bar", "/b")
+    assert entry["name"] == "bar"
+
+
+def test_live_fresh_lock_not_reclaimed(reg_path):
+    """Regression: lock with live PID + recent mtime still blocks."""
+    lock_path = bpr._acquire_lock(str(reg_path), timeout_s=0.1)
+    try:
+        with pytest.raises(bpr.RegistryLockError):
+            bpr.register_project("foo", "/a", path=str(reg_path))
+    finally:
+        bpr._release_lock(lock_path)
+
+
+def test_malformed_lock_reclaimed_after_ttl(reg_path):
+    """Lock with non-integer content is stale once mtime exceeds the threshold."""
+    import time as _time
+
+    lock_path = str(reg_path) + ".lock"
+    os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+    with open(lock_path, "w") as f:
+        f.write("not-a-pid-at-all")
+    old = _time.time() - (bpr._STALE_LOCK_AGE_S + 5)
+    os.utime(lock_path, (old, old))
+    entry = bpr.register_project("foo", "/a")
+    assert entry["name"] == "foo"
+
+
+def test_malformed_lock_not_yet_stale_blocks(reg_path):
+    """Boundary: malformed lock with fresh mtime still blocks (no PID to verify)."""
+    lock_path = str(reg_path) + ".lock"
+    os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+    with open(lock_path, "w") as f:
+        f.write("junk")
+    with pytest.raises(bpr.RegistryLockError):
+        bpr._acquire_lock(str(reg_path), timeout_s=0.1)
+    # Cleanup so other tests don't inherit a blocked lock
+    os.unlink(lock_path)
+
+
+def test_is_stale_lock_missing_file_returns_false(tmp_path):
+    """No file to inspect → not stale (caller will create fresh on next try)."""
+    assert bpr._is_stale_lock(str(tmp_path / "missing.lock")) is False
+
+
+def test_pid_alive_rejects_nonpositive():
+    assert bpr._pid_alive(0) is False
+    assert bpr._pid_alive(-1) is False
+
+
 def test_explicit_canonical_collides_with_auto_suffix(reg_path):
     """Pin current behavior: explicit `princess-2` input after the auto suffix exists.
 

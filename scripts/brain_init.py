@@ -188,6 +188,25 @@ class WizardError(Exception):
     """Wizard-level failure — missing required args, user abort, API error."""
 
 
+def _print_orphan_cleanup_guidance(
+    io: "WizardIO", db_ids: dict[str, str], exc: BaseException
+) -> None:
+    """After databases_create succeeded but a post-create step failed, emit
+    manual-cleanup guidance so the user can archive the orphan databases.
+    """
+    io.print(
+        f"\n⚠ Post-create step failed: {type(exc).__name__}: {exc}\n"
+        "The 4 Notion databases below were already created — "
+        "config was NOT written, so they are orphaned.\n"
+        "Archive each one manually (open page in Notion → … → Archive) "
+        "before re-running `brain init`:"
+    )
+    for category in CATEGORIES:
+        db_id = db_ids.get(category) or "<missing>"
+        title = DB_TITLES.get(category, category)
+        io.print(f"  - {category}: {db_id}  ({title})")
+
+
 def _has_existing_brain(cfg: dict) -> bool:
     brain = cfg.get("brain") or {}
     if not brain.get("enabled"):
@@ -276,28 +295,38 @@ def run_wizard(
     except NotionError as e:
         raise WizardError(f"Notion databases_create failed: {e}") from e
 
-    registry_entry = brain_project_registry.register_project(project_name, os.getcwd())
-    resolved_name = registry_entry["name"]
-    if resolved_name != project_name:
-        io.print(
-            f"Project name {project_name!r} collides in the brain registry; "
-            f"using {resolved_name!r} instead."
+    try:
+        registry_entry = brain_project_registry.register_project(
+            project_name, os.getcwd()
         )
+        resolved_name = registry_entry["name"]
+        if resolved_name != project_name:
+            io.print(
+                f"Project name {project_name!r} collides in the brain registry; "
+                f"using {resolved_name!r} instead."
+            )
 
-    existing_names = list((existing.get("brain") or {}).get("project_names") or [])
-    union_names = list(existing_names)
-    for n in brain_project_registry.all_project_names():
-        if n not in union_names:
-            union_names.append(n)
+        existing_names = list((existing.get("brain") or {}).get("project_names") or [])
+        union_names = list(existing_names)
+        for n in brain_project_registry.all_project_names():
+            if n not in union_names:
+                union_names.append(n)
 
-    updates = {
-        "enabled": True,
-        "notion_integration_token_env": token_env,
-        "database_ids": db_ids,
-        "project_names": union_names,
-    }
-    new_cfg = merge_brain_config(existing, updates)
-    config_ops.save(new_cfg)
+        updates = {
+            "enabled": True,
+            "notion_integration_token_env": token_env,
+            "database_ids": db_ids,
+            "project_names": union_names,
+        }
+        new_cfg = merge_brain_config(existing, updates)
+        config_ops.save(new_cfg)
+    except Exception as e:
+        _print_orphan_cleanup_guidance(io, db_ids, e)
+        raise WizardError(
+            f"Post-create step failed ({type(e).__name__}): {e}. "
+            f"The 4 Notion databases were created but config was NOT saved — "
+            f"see the cleanup guidance above to archive them manually."
+        ) from e
 
     io.print(
         "Brain configured. Next: run `.tausik/tausik brain sync` to pull existing data."

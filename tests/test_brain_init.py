@@ -419,3 +419,107 @@ def test_run_wizard_token_never_persisted(monkeypatch):
     blob = json.dumps(cfg_ops.saved[-1])
     assert "do-not-leak" not in blob
     assert "SUPER_SECRET" in blob
+
+
+# --- Orphan cleanup guidance (brain-init-orphan-cleanup) -----------------
+
+
+def _assert_orphan_guidance_printed(io, db_ids: dict) -> None:
+    """Every created db_id must appear in io.prints, with cleanup framing."""
+    combined = "\n".join(io.prints)
+    assert "orphan" in combined.lower() or "Archive" in combined, combined
+    for category, db_id in db_ids.items():
+        assert db_id in combined, f"{category}={db_id} not in output: {combined}"
+
+
+def test_run_wizard_registry_failure_prints_orphan_guidance(monkeypatch):
+    """register_project raises after databases are created → orphan guidance."""
+    monkeypatch.setenv("T", "tok")
+    io = _FakeIO(is_tty=False)
+    cfg_ops = _FakeConfigOps()
+
+    def boom(*_a, **_kw):
+        raise brain_init.brain_project_registry.RegistryLockError("locked by pid 42")
+
+    monkeypatch.setattr(brain_init.brain_project_registry, "register_project", boom)
+
+    with pytest.raises(brain_init.WizardError, match="Post-create step failed"):
+        brain_init.run_wizard(
+            {
+                "parent_page_id": "p1",
+                "token_env": "T",
+                "project_name": "x",
+                "yes": True,
+            },
+            io,
+            _client_factory([]),
+            cfg_ops,
+        )
+
+    assert cfg_ops.saved == []
+    _assert_orphan_guidance_printed(
+        io,
+        {
+            "decisions": "db_decisions_id",
+            "web_cache": "db_web_cache_id",
+            "patterns": "db_patterns_id",
+            "gotchas": "db_gotchas_id",
+        },
+    )
+
+
+def test_run_wizard_config_save_failure_prints_orphan_guidance(monkeypatch):
+    """config_ops.save raises after register → orphan guidance, all 4 db_ids printed."""
+    monkeypatch.setenv("T", "tok")
+    io = _FakeIO(is_tty=False)
+
+    class FailingSaveConfigOps(_FakeConfigOps):
+        def save(self, cfg):
+            raise OSError("disk full")
+
+    cfg_ops = FailingSaveConfigOps()
+
+    with pytest.raises(brain_init.WizardError, match="Post-create step failed"):
+        brain_init.run_wizard(
+            {
+                "parent_page_id": "p1",
+                "token_env": "T",
+                "project_name": "x",
+                "yes": True,
+            },
+            io,
+            _client_factory([]),
+            cfg_ops,
+        )
+
+    _assert_orphan_guidance_printed(
+        io,
+        {
+            "decisions": "db_decisions_id",
+            "web_cache": "db_web_cache_id",
+            "patterns": "db_patterns_id",
+            "gotchas": "db_gotchas_id",
+        },
+    )
+
+
+def test_run_wizard_happy_path_prints_no_orphan_guidance(monkeypatch):
+    """Regression: happy path must NOT print orphan warning."""
+    monkeypatch.setenv("T", "tok")
+    io = _FakeIO(is_tty=False)
+    cfg_ops = _FakeConfigOps()
+
+    brain_init.run_wizard(
+        {
+            "parent_page_id": "p1",
+            "token_env": "T",
+            "project_name": "x",
+            "yes": True,
+        },
+        io,
+        _client_factory([]),
+        cfg_ops,
+    )
+    combined = "\n".join(io.prints).lower()
+    assert "orphan" not in combined
+    assert "archive" not in combined

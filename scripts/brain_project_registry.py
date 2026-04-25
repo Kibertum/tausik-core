@@ -125,13 +125,64 @@ class RegistryLockError(RuntimeError):
     """Raised when a concurrent wizard holds the registry lock."""
 
 
+_STALE_LOCK_AGE_S = 30.0
+
+
+def _pid_alive(pid: int) -> bool:
+    """True iff the process with this PID exists. OS-agnostic via os.kill(pid, 0)."""
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        # Exists but we can't signal — still alive from our point of view.
+        return True
+    except OSError:
+        # Windows returns ERROR_INVALID_PARAMETER for non-existent PIDs.
+        return False
+    return True
+
+
+def _is_stale_lock(lock_path: str) -> bool:
+    """Lock is stale if (a) pid inside does not exist, or (b) mtime older than threshold.
+
+    Malformed / empty lock: fall back to mtime check. Read errors → False
+    (conservative — keep blocking rather than racing on unreadable state).
+    """
+    try:
+        mtime = os.path.getmtime(lock_path)
+    except OSError:
+        return False
+    try:
+        with open(lock_path, encoding="utf-8") as f:
+            raw = f.read().strip()
+    except OSError as e:
+        logger.warning("Lock %s unreadable (%s); treating as not stale", lock_path, e)
+        return False
+    age = time.time() - mtime
+    try:
+        pid = int(raw)
+    except ValueError:
+        return age > _STALE_LOCK_AGE_S
+    if not _pid_alive(pid):
+        return True
+    return age > _STALE_LOCK_AGE_S
+
+
 def _acquire_lock(path: str, *, timeout_s: float = 2.0) -> str:
-    """Create a sibling .lock via O_EXCL. Returns lock path; raises on timeout."""
+    """Create a sibling .lock via O_EXCL. Returns lock path; raises on timeout.
+
+    Recovers from stale locks left by SIGKILLed wizards: if the existing lock's
+    PID is dead (or its mtime exceeds `_STALE_LOCK_AGE_S`), delete it and retry.
+    """
     lock_path = path + ".lock"
     deadline = time.monotonic() + timeout_s
     parent = os.path.dirname(path)
     if parent:
         os.makedirs(parent, exist_ok=True)
+    reclaimed = False
     while True:
         try:
             fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
@@ -139,6 +190,14 @@ def _acquire_lock(path: str, *, timeout_s: float = 2.0) -> str:
             os.close(fd)
             return lock_path
         except FileExistsError:
+            if not reclaimed and _is_stale_lock(lock_path):
+                try:
+                    os.unlink(lock_path)
+                    logger.warning("Reclaimed stale registry lock at %s", lock_path)
+                except OSError:
+                    pass
+                reclaimed = True
+                continue
             if time.monotonic() >= deadline:
                 raise RegistryLockError(
                     f"Registry is locked by another process (see {lock_path!r})"
