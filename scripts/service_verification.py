@@ -181,3 +181,82 @@ def is_cache_allowed(file_paths: list[str]) -> bool:
     stale green never masks a regression in security-critical code.
     """
     return not is_security_sensitive(file_paths)
+
+
+def run_gates_with_cache(
+    conn: sqlite3.Connection,
+    slug: str,
+    relevant_files: list[str] | None,
+    *,
+    scope: str = "lightweight",
+    append_notes_fn: Any = None,
+) -> tuple[bool, list[dict[str, Any]], str | None]:
+    """SENAR Rule 5 cache-aware gate run.
+
+    Returns (passed, results, cache_status) where:
+      passed: bool — final gate verdict (True if cache hit OR fresh green)
+      results: gate_runner result list (empty when cache hit)
+      cache_status: "hit" / "miss" / "bypass" / None (no caching done)
+
+    On a cache miss this records the run on green so future calls can hit.
+    Security-sensitive file sets bypass the cache (always re-verify).
+    `append_notes_fn(slug, msg)` is called once with a one-line summary so
+    the caller does not need to know cache details.
+    """
+    import time as _time
+
+    from gate_runner import run_gates
+
+    files = relevant_files or []
+    files_hash = compute_files_hash(files)
+    cache_command = f"trigger=task-done|files={','.join(sorted(files))}"
+    cache_ok = is_cache_allowed(files)
+
+    if cache_ok:
+        hit = lookup_recent_for_task(
+            conn, slug, files_hash=files_hash, command=cache_command
+        )
+        if hit is not None:
+            if append_notes_fn is not None:
+                append_notes_fn(
+                    slug,
+                    f"Gates: cache hit (verify run #{hit['id']}, "
+                    f"ran_at={hit['ran_at']}, scope={hit['scope']})",
+                )
+            return True, [], "hit"
+
+    t0 = _time.monotonic()
+    passed, results = run_gates("task-done", relevant_files)
+    duration_ms = int((_time.monotonic() - t0) * 1000)
+    if results and append_notes_fn is not None:
+        summary = ", ".join(
+            r["name"] + "=" + ("PASS" if r["passed"] else "FAIL") for r in results
+        )
+        append_notes_fn(slug, f"Gates: {summary}")
+    if passed and cache_ok:
+        try:
+            summary = (
+                ", ".join(
+                    r["name"] + "=" + ("PASS" if r["passed"] else "FAIL")
+                    for r in results
+                )
+                or "ok"
+            )
+            record_run(
+                conn,
+                task_slug=slug,
+                scope=scope,
+                command=cache_command,
+                exit_code=0,
+                summary=summary,
+                files_hash=files_hash,
+                duration_ms=duration_ms,
+            )
+        except Exception:
+            import logging
+
+            logging.getLogger("tausik.gates").warning(
+                "Failed to record verification run for %s", slug, exc_info=True
+            )
+    cache_status = "miss" if cache_ok else "bypass"
+    return passed, results, cache_status

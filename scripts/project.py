@@ -35,8 +35,8 @@ def main() -> None:
         cmd_memory,
         cmd_skill,
         cmd_update_claudemd,
-        cmd_verify,
     )
+    from project_cli_verify import cmd_verify
     from project_cli_ops import (
         cmd_audit,
         cmd_brain,

@@ -356,87 +356,34 @@ class GatesMixin:
         return ""
 
     def _run_quality_gates(self, slug: str, relevant_files: list[str] | None) -> None:
-        """QG-2 Implementation Gate: run quality gates (pytest, ruff, etc.).
+        """QG-2 Implementation Gate: scoped gates with verify cache.
 
-        Uses the verification_runs cache (SENAR Rule 5) to skip when a recent
-        green run for this task with the same files_hash exists. Security-
-        sensitive file sets bypass the cache (always re-verify).
+        Delegates to `service_verification.run_gates_with_cache` — see that
+        module for cache rules (10 min TTL, files_hash invalidation,
+        security-sensitive bypass).
         """
         try:
-            from gate_runner import run_gates
-            from service_verification import (
-                compute_files_hash,
-                is_cache_allowed,
-                lookup_recent_for_task,
-                record_run,
-            )
-
-            files = relevant_files or []
-            files_hash = compute_files_hash(files)
-            scope = "lightweight"  # task-tier resolution lives in checklist; cache key is by hash
-            cache_command = f"trigger=task-done|files={','.join(sorted(files))}"
-
-            cache_ok = is_cache_allowed(files)
-            if cache_ok:
-                hit = lookup_recent_for_task(
-                    self.be._conn,
-                    slug,
-                    files_hash=files_hash,
-                    command=cache_command,
-                )
-                if hit is not None:
-                    self.be.task_append_notes(
-                        slug,
-                        f"Gates: cache hit (verify run #{hit['id']}, "
-                        f"ran_at={hit['ran_at']}, scope={hit['scope']})",
-                    )
-                    return
-
-            import time as _time
-
-            t0 = _time.monotonic()
-            gate_passed, gate_results = run_gates("task-done", relevant_files)
-            duration_ms = int((_time.monotonic() - t0) * 1000)
-            if gate_results:
-                summary = ", ".join(
-                    r["name"] + "=" + ("PASS" if r["passed"] else "FAIL")
-                    for r in gate_results
-                )
-                self.be.task_append_notes(slug, f"Gates: {summary}")
-            else:
-                summary = ""
-            if not gate_passed:
-                failed = [
-                    r
-                    for r in gate_results
-                    if not r["passed"] and r["severity"] == "block"
-                ]
-                details = "; ".join(f"{r['name']}: {r['output'][:100]}" for r in failed)
-                raise ServiceError(
-                    f"QG-2 Implementation Gate: blocking gates failed for '{slug}'. "
-                    f"Fix issues first: {details}"
-                )
-            if cache_ok:
-                try:
-                    record_run(
-                        self.be._conn,
-                        task_slug=slug,
-                        scope=scope,
-                        command=cache_command,
-                        exit_code=0,
-                        summary=summary or "ok",
-                        files_hash=files_hash,
-                        duration_ms=duration_ms,
-                    )
-                except Exception:
-                    import logging
-
-                    logging.getLogger("tausik.gates").warning(
-                        "Failed to record verification run for %s", slug, exc_info=True
-                    )
+            from service_verification import run_gates_with_cache
         except ImportError:
             import logging
 
             logging.getLogger("tausik.gates").warning(
-                "gate_runner not available: %s", "ImportError"
+                "service_verification not available"
+            )
+            return
+        passed, results, _status = run_gates_with_cache(
+            self.be._conn,
+            slug,
+            relevant_files,
+            scope="lightweight",
+            append_notes_fn=self.be.task_append_notes,
+        )
+        if not passed:
+            failed = [
+                r for r in results if not r["passed"] and r["severity"] == "block"
+            ]
+            details = "; ".join(f"{r['name']}: {r['output'][:100]}" for r in failed)
+            raise ServiceError(
+                f"QG-2 Implementation Gate: blocking gates failed for '{slug}'. "
+                f"Fix issues first: {details}"
             )
