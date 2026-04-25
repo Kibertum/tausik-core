@@ -226,8 +226,57 @@ CREATE INDEX IF NOT EXISTS idx_brain_gotchas_date
 """
 
 
+BRAIN_MIGRATIONS: dict[int, list[str]] = {
+    # Migration contract (applied in ascending key order, irreversible):
+    # ver: ["SQL stmt 1", "SQL stmt 2", ...]
+    # Example for a future v2:
+    #   2: [
+    #       "ALTER TABLE brain_decisions ADD COLUMN priority INTEGER",
+    #       "CREATE INDEX idx_brain_decisions_priority ON brain_decisions(priority)",
+    #   ]
+    # Each migration runs inside a single transaction; on failure the entire
+    # batch rolls back and apply_schema raises. brain_meta.schema_version is
+    # bumped only after the full batch commits.
+}
+
+
+def _migrate(conn, from_version: int) -> int:
+    """Apply pending brain migrations. Returns the new schema_version.
+
+    Iterates `BRAIN_MIGRATIONS` in ascending order, applying every migration
+    with key > from_version. Updates brain_meta.schema_version after each
+    successful batch.
+    """
+    cur = conn.cursor()
+    current = from_version
+    for ver in sorted(BRAIN_MIGRATIONS.keys()):
+        if ver <= from_version:
+            continue
+        cur.execute("BEGIN")
+        try:
+            for stmt in BRAIN_MIGRATIONS[ver]:
+                stmt = stmt.strip()
+                if stmt and not stmt.startswith("--"):
+                    cur.execute(stmt)
+            cur.execute(
+                "UPDATE brain_meta SET value = ? WHERE key = 'schema_version'",
+                (str(ver),),
+            )
+            cur.execute("COMMIT")
+        except Exception:
+            cur.execute("ROLLBACK")
+            raise
+        current = ver
+    return current
+
+
 def apply_schema(conn):
-    """Apply DDL to a sqlite3.Connection. Idempotent (uses IF NOT EXISTS)."""
+    """Apply DDL to a sqlite3.Connection. Idempotent (uses IF NOT EXISTS).
+
+    Reads brain_meta.schema_version after the base DDL: if it exists and is
+    older than `SCHEMA_VERSION`, runs `_migrate`. If it is newer, raises —
+    the local tausik-lib is older than the on-disk DB and would corrupt it.
+    """
     cur = conn.cursor()
     cur.executescript(SCHEMA_SQL)
     cur.executescript(FTS_SQL)
@@ -238,3 +287,15 @@ def apply_schema(conn):
         (str(SCHEMA_VERSION),),
     )
     conn.commit()
+    row = cur.execute(
+        "SELECT value FROM brain_meta WHERE key = 'schema_version'"
+    ).fetchone()
+    db_version = int(row[0]) if row else SCHEMA_VERSION
+    if db_version > SCHEMA_VERSION:
+        raise RuntimeError(
+            f"Brain DB schema v{db_version} is newer than code v{SCHEMA_VERSION}; "
+            "update tausik-lib to the latest version."
+        )
+    if db_version < SCHEMA_VERSION:
+        _migrate(conn, db_version)
+        conn.commit()

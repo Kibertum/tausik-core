@@ -62,6 +62,12 @@ def generate_settings_qwen(
             "command": _p(python_exe),
             "args": [_p(project_server), "--project", _p(project_dir)],
         }
+    brain_server = os.path.join(target_dir, "mcp", "brain", "server.py")
+    if os.path.exists(brain_server):
+        servers["tausik-brain"] = {
+            "command": _p(python_exe),
+            "args": [_p(brain_server), "--project", _p(project_dir)],
+        }
 
     # Hooks — same SENAR enforcement as Claude Code
     hooks = {

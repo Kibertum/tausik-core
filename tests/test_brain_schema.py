@@ -103,6 +103,105 @@ def test_schema_version_recorded(conn):
     assert row[0] == str(brain_schema.SCHEMA_VERSION)
 
 
+# --- Migration path (brain-schema-migration-path) -------------------------
+
+
+def test_brain_migrations_dict_exists():
+    """BRAIN_MIGRATIONS is a dict ready for future versions."""
+    assert isinstance(brain_schema.BRAIN_MIGRATIONS, dict)
+
+
+def test_apply_schema_idempotent_when_migrations_empty(conn):
+    """Re-applying on a current-version DB is a no-op when no migrations defined."""
+    brain_schema.apply_schema(conn)
+    row = conn.execute(
+        "SELECT value FROM brain_meta WHERE key='schema_version'"
+    ).fetchone()
+    assert row[0] == str(brain_schema.SCHEMA_VERSION)
+
+
+def test_apply_schema_raises_when_db_newer():
+    """If the on-disk DB schema is from a newer code version → raise."""
+    c = sqlite3.connect(":memory:")
+    brain_schema.apply_schema(c)
+    # Bump version higher than code knows about
+    c.execute(
+        "UPDATE brain_meta SET value = ? WHERE key='schema_version'",
+        (str(brain_schema.SCHEMA_VERSION + 5),),
+    )
+    c.commit()
+    with pytest.raises(RuntimeError, match="newer than code"):
+        brain_schema.apply_schema(c)
+    c.close()
+
+
+def test_migrate_applies_pending_versions(monkeypatch):
+    """_migrate runs every migration with key > from_version, in order."""
+    c = sqlite3.connect(":memory:")
+    brain_schema.apply_schema(c)
+    # Install a fake migration set: v2 adds a sentinel column
+    fake_migrations = {
+        2: ["ALTER TABLE brain_meta ADD COLUMN extra_v2 TEXT DEFAULT 'v2'"],
+        3: ["ALTER TABLE brain_meta ADD COLUMN extra_v3 TEXT DEFAULT 'v3'"],
+    }
+    monkeypatch.setattr(brain_schema, "BRAIN_MIGRATIONS", fake_migrations)
+    monkeypatch.setattr(brain_schema, "SCHEMA_VERSION", 3)
+    brain_schema.apply_schema(c)
+    cols = [r[1] for r in c.execute("PRAGMA table_info(brain_meta)").fetchall()]
+    assert "extra_v2" in cols
+    assert "extra_v3" in cols
+    row = c.execute(
+        "SELECT value FROM brain_meta WHERE key='schema_version'"
+    ).fetchone()
+    assert row[0] == "3"
+    c.close()
+
+
+def test_migrate_skips_already_applied(monkeypatch):
+    """from_version > some keys → only newer migrations run; older skipped."""
+    c = sqlite3.connect(":memory:")
+    brain_schema.apply_schema(c)
+    # Pretend we are currently at v2; only v3 should be applied
+    c.execute(
+        "UPDATE brain_meta SET value = '2' WHERE key='schema_version'",
+    )
+    c.commit()
+    fake_migrations = {
+        2: ["ALTER TABLE brain_meta ADD COLUMN should_not_appear TEXT"],
+        3: ["ALTER TABLE brain_meta ADD COLUMN added_at_v3 TEXT"],
+    }
+    monkeypatch.setattr(brain_schema, "BRAIN_MIGRATIONS", fake_migrations)
+    monkeypatch.setattr(brain_schema, "SCHEMA_VERSION", 3)
+    brain_schema.apply_schema(c)
+    cols = [r[1] for r in c.execute("PRAGMA table_info(brain_meta)").fetchall()]
+    assert "should_not_appear" not in cols
+    assert "added_at_v3" in cols
+    c.close()
+
+
+def test_migrate_rolls_back_on_failure(monkeypatch):
+    """Failed migration: rollback batch, raise; schema_version not bumped."""
+    c = sqlite3.connect(":memory:")
+    brain_schema.apply_schema(c)
+    fake_migrations = {
+        2: [
+            "ALTER TABLE brain_meta ADD COLUMN good_col TEXT",
+            "INVALID SQL THAT WILL FAIL",
+        ],
+    }
+    monkeypatch.setattr(brain_schema, "BRAIN_MIGRATIONS", fake_migrations)
+    monkeypatch.setattr(brain_schema, "SCHEMA_VERSION", 2)
+    with pytest.raises(sqlite3.OperationalError):
+        brain_schema.apply_schema(c)
+    cols = [r[1] for r in c.execute("PRAGMA table_info(brain_meta)").fetchall()]
+    assert "good_col" not in cols  # rollback
+    row = c.execute(
+        "SELECT value FROM brain_meta WHERE key='schema_version'"
+    ).fetchone()
+    assert row[0] == "1"  # not bumped
+    c.close()
+
+
 def test_fts_search_finds_ascii(conn):
     conn.execute(
         """INSERT INTO brain_decisions
