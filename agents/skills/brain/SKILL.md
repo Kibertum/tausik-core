@@ -51,9 +51,36 @@ Render a single record in full.
 2. Render via `brain_mcp_read.format_record`.
 3. If not found locally, the MCP handler auto-falls back to Notion; warnings are surfaced below the body.
 
+### `$ARGUMENTS = "move <id> --to-brain --kind <decision|pattern|gotcha>"` or `"move <notion_page_id> --to-local --category <decisions|patterns|gotchas>"`
+
+Move a record between local TAUSIK and the shared brain. Useful when a record landed in the wrong store and should be reclassified.
+
+1. Run `.tausik/tausik brain move <id> --to-brain --kind <kind> [--keep-source]` for local→brain.
+2. Run `.tausik/tausik brain move <notion_page_id> --to-local --category <category> [--force] [--keep-source]` for brain→local.
+3. Cross-project ownership: `--to-local` refuses when the brain row's `source_project_hash` doesn't match the current project. Override with `--force` (you'll claim another project's data — rarely correct).
+4. `web_cache` cannot be moved to local (no counterpart table). The CLI refuses.
+5. Source row is deleted on success unless `--keep-source` is passed. For `--to-local`, the Notion page is archived (`pages.update(archived=true)`) and the mirror row deleted.
+
+**Examples:**
+- `/brain move 42 --to-brain --kind decision` — promote local decision #42 to the shared brain
+- `/brain move npg-abc123 --to-local --category patterns` — pull a brain pattern back into local memory
+- `/brain move 7 --to-brain --kind gotcha --keep-source` — copy without deleting the local row
+
+### `$ARGUMENTS = "status"`
+
+Snapshot brain health: enabled flag, mirror path/size/last-modified, per-category row counts and last_pull_at / last_error from `sync_state`, registered projects, last `web_cache` write.
+
+1. Run `.tausik/tausik brain status` — returns markdown.
+2. For machine-readable output use `.tausik/tausik brain status --json` (same data structure as `brain_status.collect_status()`).
+3. If brain is disabled, the report is short — just enabled flag + project list. Suggest `tausik brain init` to enable.
+
+**Examples:**
+- `/brain status` → human-readable health report
+- `/brain status --json` → JSON for piping into another tool
+
 ### `$ARGUMENTS = ""` or `"help"`
 
-Print a three-line usage reminder (query / store / show) and link to [docs/en/shared-brain.md](../../../docs/en/shared-brain.md).
+Print a four-line usage reminder (query / store / show / status) and link to [docs/en/shared-brain.md](../../../docs/en/shared-brain.md).
 
 ## Bypass markers
 
@@ -87,14 +114,9 @@ If `brain.enabled=false` in the project config, every subcommand short-circuits 
 
 Setup docs: [docs/en/shared-brain.md](../../../docs/en/shared-brain.md) (EN), [docs/ru/shared-brain.md](../../../docs/ru/shared-brain.md) (RU).
 
-## Not (yet) implemented
+## Subcommand status
 
-These subcommands are mentioned in the original plan but need backend work:
-
-- `move <id> --to-local` / `--to-brain` — retroactive reclassification of a record that landed in the wrong store. Tracked as task `brain-skill-move` (backlog).
-- `status` — summary of mirror freshness + registered projects + last sync error. Tracked as task `brain-skill-status` (backlog).
-
-If the user asks for one, redirect them to the right existing tool or explain it's not yet built.
+All four subcommands are now implemented: `query`, `store`, `show`, `move`, `status`. See examples above for usage.
 
 ## Gotchas
 

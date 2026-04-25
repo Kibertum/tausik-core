@@ -377,6 +377,7 @@ def build_parser() -> argparse.ArgumentParser:
         add_audit,
         add_brain,
         add_dead_end,
+        add_doc,
         add_explore,
         add_run,
     )
@@ -386,5 +387,6 @@ def build_parser() -> argparse.ArgumentParser:
     add_audit(sub)
     add_brain(sub)
     add_run(sub)
+    add_doc(sub)
 
     return p

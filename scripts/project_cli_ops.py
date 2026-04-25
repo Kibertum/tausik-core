@@ -190,12 +190,62 @@ def cmd_audit(svc: ProjectService, args: Any) -> None:
 
 
 def cmd_brain(svc: ProjectService, args: Any) -> None:
-    """`tausik brain <subcommand>` — init wizard (more subcommands later)."""
+    """`tausik brain <subcommand>` — init wizard, status."""
     sub = getattr(args, "brain_cmd", None)
+    if sub == "status":
+        import json as _json
+
+        import brain_status
+
+        snapshot = brain_status.collect_status()
+        if getattr(args, "as_json", False):
+            print(_json.dumps(snapshot, indent=2, ensure_ascii=False))
+        else:
+            print(brain_status.format_status(snapshot))
+        return
+    if sub == "move":
+        import json as _json
+
+        import brain_move
+
+        if getattr(args, "to_brain", False):
+            kind = getattr(args, "kind", None)
+            if not kind:
+                print("Error: --kind is required with --to-brain", file=sys.stderr)
+                sys.exit(2)
+            try:
+                src_id = int(args.source_id)
+            except (TypeError, ValueError):
+                print(
+                    f"Error: source_id must be an integer, got {args.source_id!r}",
+                    file=sys.stderr,
+                )
+                sys.exit(2)
+            result = brain_move.move_to_brain(
+                svc, kind, src_id, keep_source=args.keep_source
+            )
+        else:
+            cat = getattr(args, "category", None)
+            if not cat:
+                print("Error: --category is required with --to-local", file=sys.stderr)
+                sys.exit(2)
+            result = brain_move.move_to_local(
+                svc,
+                args.source_id,
+                cat,
+                force=args.force,
+                keep_source=args.keep_source,
+            )
+        print(_json.dumps(result, indent=2, ensure_ascii=False))
+        if result.get("status") not in ("ok",):
+            sys.exit(1 if result.get("status") in ("failed", "not_found") else 0)
+        return
     if sub != "init":
         print(
-            "Usage: tausik brain init [--parent-page-id X] [--token-env Y] "
-            "[--project-name Z] [--yes] [--force] [--non-interactive]",
+            "Usage:\n"
+            "  tausik brain init [--parent-page-id X] [--token-env Y] "
+            "[--project-name Z] [--yes] [--force] [--non-interactive]\n"
+            "  tausik brain status [--json]",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -241,6 +291,25 @@ def cmd_brain(svc: ProjectService, args: Any) -> None:
     print(f"  project_name:   {result['project_name']}")
     for cat, db_id in result["database_ids"].items():
         print(f"  {cat:>10}: {db_id}")
+
+
+def cmd_doc(svc: ProjectService, args: Any) -> None:
+    """`tausik doc <subcommand>` — optional document extraction via markitdown."""
+    sub = getattr(args, "doc_cmd", None)
+    if sub != "extract":
+        print(
+            "Usage: tausik doc extract <file> [--format=X]",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    import doc_extract
+
+    md = doc_extract.extract_to_markdown(
+        args.path, format_hint=getattr(args, "format_hint", None)
+    )
+    if md is None:
+        sys.exit(1)
+    print(md)
 
 
 def cmd_run(svc: ProjectService, args: Any) -> None:

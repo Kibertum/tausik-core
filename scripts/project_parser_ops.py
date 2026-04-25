@@ -61,6 +61,47 @@ def add_brain(sub: argparse._SubParsersAction) -> None:
         dest="non_interactive",
         help="Fail instead of prompting for missing args",
     )
+    bs = brain_sub.add_parser(
+        "status",
+        help="Show brain mirror freshness, sync state, registered projects",
+    )
+    bs.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Emit raw JSON instead of human-readable markdown",
+    )
+    bm = brain_sub.add_parser(
+        "move",
+        help="Move a record between local TAUSIK and the shared brain",
+    )
+    bm.add_argument(
+        "source_id", help="Local id (--to-brain) or notion_page_id (--to-local)"
+    )
+    direction = bm.add_mutually_exclusive_group(required=True)
+    direction.add_argument("--to-brain", action="store_true", dest="to_brain")
+    direction.add_argument("--to-local", action="store_true", dest="to_local")
+    bm.add_argument(
+        "--kind",
+        choices=["decision", "pattern", "gotcha"],
+        help="Source kind (--to-brain only)",
+    )
+    bm.add_argument(
+        "--category",
+        choices=["decisions", "patterns", "gotchas", "web_cache"],
+        help="Brain category (--to-local only)",
+    )
+    bm.add_argument(
+        "--force",
+        action="store_true",
+        help="Override cross-project ownership check (--to-local only)",
+    )
+    bm.add_argument(
+        "--keep-source",
+        action="store_true",
+        dest="keep_source",
+        help="Don't delete the source row after a successful move",
+    )
 
 
 def add_run(sub: argparse._SubParsersAction) -> None:
@@ -70,3 +111,19 @@ def add_run(sub: argparse._SubParsersAction) -> None:
         epilog="Example: tausik run plan.md",
     )
     run_p.add_argument("plan_file", help="Path to markdown plan file")
+
+
+def add_doc(sub: argparse._SubParsersAction) -> None:
+    """`tausik doc <subcommand>` — optional document extraction via markitdown."""
+    doc_p = sub.add_parser(
+        "doc", help="Document extraction (DOCX/XLSX/PPTX/HTML/...) via markitdown"
+    )
+    doc_sub = doc_p.add_subparsers(dest="doc_cmd")
+    de = doc_sub.add_parser("extract", help="Convert a document to markdown on stdout")
+    de.add_argument("path", help="Path to document file")
+    de.add_argument(
+        "--format",
+        dest="format_hint",
+        default=None,
+        help="Optional format hint (logged, markitdown auto-detects)",
+    )

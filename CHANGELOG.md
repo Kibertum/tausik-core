@@ -6,6 +6,19 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased] — SENAR verify redesign + Shared Brain pipeline
 
+### Added — Backlog finish (4 final planning tasks)
+
+Last 4 planning tasks shipped — backlog drained to **388/388 done** (100%):
+
+- **Brain status CLI + skill** ([scripts/brain_status.py](scripts/brain_status.py), [agents/skills/brain/SKILL.md](agents/skills/brain/SKILL.md)) — `tausik brain status [--json]` снапшот состояния brain: enabled, mirror path/size/last-modified, per-category row counts + last_pull_at + last_error from `sync_state`, registered projects (name/canonical/hash), last web_cache write. `collect_status()` graceful: missing mirror / unreadable config / empty registry → consistent dict с `error` field, без crash. Skill SKILL.md документирует. (`brain-skill-status`)
+- **Brain move CLI + skill** ([scripts/brain_move.py](scripts/brain_move.py)) — `tausik brain move <id> --to-brain --kind <decision|pattern|gotcha>` или `--to-local --category <decisions|patterns|gotchas>`. Cross-project ownership check (source_project_hash должен совпадать с current project's hash; `--force` override). Web_cache → refused (no local counterpart). На to-local после успеха: archive Notion page (`pages.update(archived=true)`) + delete from mirror, unless `--keep-source`. Story `brain-tausik-integration` + epic `shared-brain` auto-closed. (`brain-skill-move`)
+- **Anthropic OSS research** ([references/anthropic-oss-applicability.md](references/anthropic-oss-applicability.md)) — Surveyed 7 наиболее релевантных Anthropic OSS репозиториев (knowledge-work-plugins, anthropic-cli, agent-sdk-workshop, original_performance_takehome, skills, claude-code-action, financial-services-plugins). Identified 9 applicable patterns (5 simple, 3 medium, 1 complex). Top 3 recommended next tasks: `tausik-skill-manifest` (skill.yaml registry), `tausik-metrics-tiers` (bronze/silver/gold/platinum), `tausik-brain-swappable-backend` (decouple from Notion). (`research-anthropic-repos`)
+- **markitdown opt-in integration** ([scripts/doc_extract.py](scripts/doc_extract.py), [agents/skills/markitdown/SKILL.md](agents/skills/markitdown/SKILL.md), [references/markitdown-integration.md](references/markitdown-integration.md)) — Discovery: TAUSIK не имел "ручных парсеров документов" — pdf/excel skills делегируют Claude Code `Read` tool. markitdown добавлен как **opt-in** capability (convention #19 zero-deps сохранён): lazy import + graceful `None` если не установлен. CLI `tausik doc extract <file>` + Python API `extract_to_markdown(path)`. Когда использовать: DOCX/PPTX/XLSX/HTML/EPUB. PDF redirect → `/pdf` skill. Future hook: `brain_post_webfetch` мог бы использовать для HTML conversion (noted, not implemented). (`markitdown-integration`)
+
+### Test Coverage — Backlog finish
+
+- **+39 tests** — `test_brain_status.py` (9 tests: disabled, config_load_error, missing_mirror, enabled_empty/with_data, registered_projects, registry_missing, format_status×2), `test_brain_move.py` (19 tests: TestMoveToBrain×10 включая happy paths + scrub_blocked + notion_error + token_missing + brain_disabled + bad_input + not_found + keep_source; TestMoveToLocal×8 включая cross-project ownership × force, web_cache refused, mirror archive), `test_doc_extract.py` (11 tests + 1 skipif integration: is_available, happy path, format_hint, falls_back_to_markdown_attr, missing markitdown/path/empty/exception/unexpected shape).
+
 ### Fixed — Review findings MED/LOW (story review-findings-mlow-fix, 11 issues)
 
 Follow-up to the 5 HIGH fixes — 11 MEDIUM/LOW findings from the same multi-agent review:

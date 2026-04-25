@@ -41,6 +41,7 @@ def main() -> None:
         cmd_audit,
         cmd_brain,
         cmd_dead_end,
+        cmd_doc,
         cmd_events,
         cmd_explore,
         cmd_hud,
@@ -86,6 +87,7 @@ def main() -> None:
         "explore": cmd_explore,
         "audit": cmd_audit,
         "brain": cmd_brain,
+        "doc": cmd_doc,
         "run": cmd_run,
     }
 
