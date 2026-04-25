@@ -120,6 +120,23 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
         "CREATE INDEX IF NOT EXISTS idx_edges_relation ON memory_edges(relation)",
         "CREATE INDEX IF NOT EXISTS idx_edges_valid ON memory_edges(valid_to)",
     ],
+    # --- v16: verification_runs table for SENAR Rule 5 scoped verify cache ---
+    16: [
+        """CREATE TABLE IF NOT EXISTS verification_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_slug TEXT,
+            scope TEXT NOT NULL CHECK(scope IN
+                ('lightweight', 'standard', 'high', 'critical', 'manual')),
+            command TEXT NOT NULL,
+            exit_code INTEGER NOT NULL,
+            summary TEXT,
+            files_hash TEXT NOT NULL,
+            ran_at TEXT NOT NULL,
+            duration_ms INTEGER
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_verify_task ON verification_runs(task_slug, ran_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_verify_files_hash ON verification_runs(files_hash)",
+    ],
 }
 
 # Merged: legacy + current

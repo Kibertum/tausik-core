@@ -35,6 +35,7 @@ def main() -> None:
         cmd_memory,
         cmd_skill,
         cmd_update_claudemd,
+        cmd_verify,
     )
     from project_cli_ops import (
         cmd_audit,
@@ -70,6 +71,7 @@ def main() -> None:
         "decisions": cmd_decisions,
         "memory": cmd_memory,
         "gates": cmd_gates,
+        "verify": cmd_verify,
         "roadmap": cmd_roadmap,
         "search": cmd_search,
         "metrics": cmd_metrics,

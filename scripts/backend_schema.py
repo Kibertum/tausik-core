@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 16
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -118,6 +118,19 @@ CREATE TABLE IF NOT EXISTS events (
     actor TEXT,
     details TEXT,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+
+CREATE TABLE IF NOT EXISTS verification_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_slug TEXT,
+    scope TEXT NOT NULL CHECK(scope IN
+        ('lightweight', 'standard', 'high', 'critical', 'manual')),
+    command TEXT NOT NULL,
+    exit_code INTEGER NOT NULL,
+    summary TEXT,
+    files_hash TEXT NOT NULL,
+    ran_at TEXT NOT NULL,
+    duration_ms INTEGER
 );
 """
 
@@ -237,4 +250,6 @@ CREATE INDEX IF NOT EXISTS idx_edges_source ON memory_edges(source_type, source_
 CREATE INDEX IF NOT EXISTS idx_edges_target ON memory_edges(target_type, target_id);
 CREATE INDEX IF NOT EXISTS idx_edges_relation ON memory_edges(relation);
 CREATE INDEX IF NOT EXISTS idx_edges_valid ON memory_edges(valid_to);
+CREATE INDEX IF NOT EXISTS idx_verify_task ON verification_runs(task_slug, ran_at DESC);
+CREATE INDEX IF NOT EXISTS idx_verify_files_hash ON verification_runs(files_hash);
 """

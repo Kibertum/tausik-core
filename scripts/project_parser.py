@@ -293,6 +293,19 @@ def build_parser() -> argparse.ArgumentParser:
     gd = gates_sub.add_parser("disable")
     gd.add_argument("name", help="Gate name to disable")
 
+    # --- verify (SENAR Rule 5: scoped per-task verification) ---
+    vp = sub.add_parser(
+        "verify",
+        help="Run quality gates scoped to a task's relevant_files; record result",
+    )
+    vp.add_argument("--task", help="Task slug (uses its relevant_files for scope)")
+    vp.add_argument(
+        "--scope",
+        choices=["lightweight", "standard", "high", "critical", "manual"],
+        default="manual",
+        help="Verification tier label recorded with the run (default: manual)",
+    )
+
     # --- roadmap ---
     rm_p = sub.add_parser("roadmap", help="Project roadmap")
     rm_p.add_argument("--include-done", action="store_true")
