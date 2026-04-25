@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased] — SENAR verify redesign + Shared Brain pipeline
+
+### Added — SENAR verify redesign (epic senar-verify-redesign)
+
+- **Scoped per-task pytest gate** ([scripts/gate_runner.py](scripts/gate_runner.py), [scripts/project_config.py](scripts/project_config.py)) — новый `{test_files_for_files}` substitution + `resolve_test_files_for_relevant(relevant_files)` (basename heuristic + glob `tests/test_<stem>_*.py` варианты + test-file passthrough). Default pytest gate command изменён на `pytest -x -q {test_files_for_files}`. Без `relevant_files` substitution выдаёт `tests/` — fallback на полный suite (regression-safe). Раньше: full pytest на каждом `task done` (~3 мин), что нарушало SENAR Rule 5 tiering и делало Rule 9.5 audit redundant. Теперь: scoped по relevant_files задачи (`senar-verify-tiered`, Phase 1) — Pytest gate теперь scoped, не full suite
+- **Verification cache (verification_runs table + lookup)** ([scripts/service_verification.py](scripts/service_verification.py), schema v16) — `compute_files_hash` (SHA256 over canonical path + mtime_ns + size, sorted), `record_run`, `lookup_recent_for_task` (misses on red/files_hash mismatch/command mismatch/stale ≥10 мин), `is_security_sensitive` (hooks/, /auth/, /payment/, /payments/, /billing/ → cache disabled). `service_gates._run_quality_gates` теперь делает lookup до запуска gates — cache hit пропускает их + лог в notes "Gates: cache hit (verify run #X)". Security-sensitive файлы всегда re-verify, не доверяем cache (`senar-verify-tiered`, Phase 2) — Cache reuse: повторный task done на тех же файлах в окне 10 мин — мгновенно
+- **`tausik verify` CLI** ([scripts/project_parser.py](scripts/project_parser.py), [scripts/project_cli_extra.py](scripts/project_cli_extra.py)) — `tausik verify [--task slug] [--scope {lightweight,standard,high,critical,manual}]` запускает gates scoped к relevant_files задачи (или unscoped) и записывает результат в `verification_runs`. Полезно для ad-hoc проверки в середине работы (`senar-verify-tiered`, Phase 2) — Ad-hoc verify CLI с записью в кэш
+- **CLAUDE.md QG-2/Rule 5 переписаны** — раздел "QG-2 Implementation Gate" (`Ограничения`) явно описывает scoped pytest + cache window + security bypass; раздел "Rule 5 Verification Checklist" в SENAR Compliance таблице обновлён с упоминанием scope-by-relevant_files; Архитектура секция добавляет `service_verification.py` к Gates слою (`senar-verify-tiered`, Phase 3) — Документация QG-2 отражает новый scoped + cache flow
+
+### Test Coverage — SENAR verify
+
+- **+30 unit tests** в `test_service_verification.py` — `compute_files_hash` (empty, none, mtime change, order-independent, missing sentinel, file appearance, skip non-string), `is_security_sensitive` (5 positive paths, 4 negative, empty/none, any-match), `record_run` + `lookup_recent_for_task` (hit, no-runs, files_hash mismatch, command mismatch, red run, stale, takes most recent, empty slug), `is_cache_allowed` (safe/security/empty)
+- **+13 unit tests** в `test_gates.py` — `TestResolveTestFilesForRelevant` (empty, basename match, glob suffixes, no match, test-file passthrough, dedup, nonexistent paths, non-string entries, Windows backslash) + `TestPytestGateScopeSubstitution` (substitution uses mapped tests, falls back to full suite, default uses new substitution token)
+
 ## [Unreleased] — Shared Brain pipeline
 
 Cross-project knowledge layer backed by Notion, complementing the per-project `.tausik/tausik.db`. Only knowledge flagged as *generalizable* reaches the brain; project-specific traces stay local. Read-path fully implemented and offline-tested end-to-end; write-path and MCP tooling are the next story. 6 tasks done from epic `shared-brain` / 22 total. Кросс-проектный слой знаний на базе Notion.

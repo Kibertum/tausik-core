@@ -396,7 +396,12 @@ def cmd_verify(svc: ProjectService, args: Any) -> None:
     import time as _time
 
     from gate_runner import format_results, run_gates
-    from service_verification import compute_files_hash, record_run
+    from service_verification import (
+        compute_files_hash,
+        is_cache_allowed,
+        lookup_recent_for_task,
+        record_run,
+    )
 
     relevant_files: list[str] = []
     task_slug = getattr(args, "task", None)
@@ -414,6 +419,22 @@ def cmd_verify(svc: ProjectService, args: Any) -> None:
     scope = getattr(args, "scope", "manual")
     files_hash = compute_files_hash(relevant_files)
     cache_command = f"trigger=task-done|files={','.join(sorted(relevant_files))}"
+
+    if task_slug and is_cache_allowed(relevant_files):
+        hit = lookup_recent_for_task(
+            svc.be._conn,
+            task_slug,
+            files_hash=files_hash,
+            command=cache_command,
+        )
+        if hit is not None:
+            print(
+                f"Verify cache HIT for '{task_slug}' "
+                f"(verify run #{hit['id']}, ran_at={hit['ran_at']}, "
+                f"scope={hit['scope']}, exit={hit['exit_code']}). "
+                "Skipping gate run."
+            )
+            return
 
     t0 = _time.monotonic()
     passed, results = run_gates("task-done", relevant_files)
