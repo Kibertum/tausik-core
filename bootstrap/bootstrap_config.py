@@ -40,6 +40,14 @@ STACK_SIGNATURES: dict[str, list[tuple[str, str]]] = {
     "java": [("pom.xml", ""), ("build.gradle", "")],
     "laravel": [("artisan", ""), ("composer.json", "laravel")],
     "php": [("composer.json", "")],
+    # Infrastructure-as-Code. Patterns with `*` are globs (recursive
+    # search up to a small depth); paths ending with `/` are directory
+    # markers. detect_stacks() handles all three forms.
+    "terraform": [("*.tf", ""), ("*.tfvars", "")],
+    "ansible": [("ansible.cfg", ""), ("playbooks/", ""), ("roles/", "")],
+    "helm": [("Chart.yaml", ""), ("Chart.yml", "")],
+    "kubernetes": [("k8s/", ""), ("manifests/", ""), (".kube/", "")],
+    "docker": [("Dockerfile", ""), ("Containerfile", "")],
 }
 
 # Extension skills are now in tausik/skills repo (official) or vendor repos.
@@ -86,24 +94,55 @@ def save_config(config_path: str, cfg: dict[str, Any]) -> None:
         json.dump(cfg, f, indent=2, ensure_ascii=False)
 
 
+def _signature_match(project_dir: str, filename: str) -> str | None:
+    """Resolve a signature pattern to a concrete path, or None if no match.
+
+    Supports three forms:
+      - exact filename → os.path.isfile
+      - glob pattern (contains '*') → recursive glob with small depth cap
+      - path ending with '/' → os.path.isdir
+    """
+    if filename.endswith("/"):
+        return (
+            os.path.join(project_dir, filename.rstrip("/"))
+            if os.path.isdir(os.path.join(project_dir, filename.rstrip("/")))
+            else None
+        )
+    if "*" in filename:
+        import glob
+
+        # Search up to 3 levels deep — covers monorepos like modules/aws/main.tf
+        for depth in ("", "*/", "*/*/"):
+            for hit in glob.glob(os.path.join(project_dir, depth + filename)):
+                if os.path.isfile(hit):
+                    return hit
+        return None
+    candidate = os.path.join(project_dir, filename)
+    return candidate if os.path.isfile(candidate) else None
+
+
 def detect_stacks(project_dir: str) -> list[str]:
     """Detect technology stacks by file signatures."""
     found: list[str] = []
     for stack, signatures in STACK_SIGNATURES.items():
         for filename, keyword in signatures:
-            filepath = os.path.join(project_dir, filename)
-            if os.path.exists(filepath):
-                if not keyword:
+            match = _signature_match(project_dir, filename)
+            if match is None:
+                continue
+            if not keyword:
+                found.append(stack)
+                break
+            # Keyword check only meaningful for files (not directories).
+            if not os.path.isfile(match):
+                continue
+            try:
+                with open(match, encoding="utf-8", errors="ignore") as f:
+                    content = f.read(65536)
+                if keyword in content:
                     found.append(stack)
                     break
-                try:
-                    with open(filepath, encoding="utf-8", errors="ignore") as f:
-                        content = f.read(65536)
-                    if keyword in content:
-                        found.append(stack)
-                        break
-                except OSError:
-                    pass
+            except OSError:
+                pass
     return list(set(found))
 
 
