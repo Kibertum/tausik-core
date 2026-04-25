@@ -168,6 +168,28 @@ class TestBlocksMemoryWrites:
         )
         assert result.returncode == 2, result.stderr
 
+    def test_blocks_memory_dir_basename_no_file(self, tmp_path):
+        """C1 regression fix: path ending in 'memory' (no file inside) blocks.
+
+        Before: `[:-1]` slice excluded the basename → directory-form path
+        sneaked past. Old guard `rest[1] == 'memory'` caught it.
+        """
+        _setup_tausik(tmp_path)
+        for path in (
+            f"{_HOME}/.claude/projects/test-proj/memory",
+            f"{_HOME}/.claude/memory",
+            f"{_HOME}/.claude/agents/x/memory",
+        ):
+            result = _run(
+                tmp_path,
+                {
+                    "tool_name": "Write",
+                    "tool_input": {"file_path": path},
+                    "transcript_path": "",
+                },
+            )
+            assert result.returncode == 2, (path, result.stderr)
+
 
 class TestAllowsNonMemoryPaths:
     @pytest.mark.parametrize(

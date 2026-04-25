@@ -50,11 +50,12 @@ def is_in_claude_memory(file_path: str) -> bool:
 
 
 def _is_in_claude_memory(file_path: str) -> bool:
-    """True iff file_path sits under a `memory` directory anywhere in $HOME/.claude/.
+    """True iff file_path has a `memory` segment anywhere in $HOME/.claude/.
 
-    Matches .claude/**/memory/ — projects/<slug>/memory, agents/<name>/memory,
-    bare .claude/memory, etc. The `memory` segment must be a directory (not the
-    basename), so a file literally named memory.md is not blocked.
+    Matches .claude/**/memory[/...]: projects/<slug>/memory, agents/<name>/memory,
+    bare .claude/memory, also paths whose basename is exactly `memory` (the
+    directory itself, no trailing file). A file with extension like `memory.md`
+    is NOT blocked because the segment compares exactly to `memory`.
     """
     if not file_path:
         return False
@@ -64,7 +65,7 @@ def _is_in_claude_memory(file_path: str) -> bool:
     if not target.startswith(prefix):
         return False
     segments = target[len(prefix) :].split("/")
-    return "memory" in segments[:-1]
+    return "memory" in segments
 
 
 def _bypass_present(transcript_path: str) -> bool:

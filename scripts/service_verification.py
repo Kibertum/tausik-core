@@ -25,13 +25,56 @@ from typing import Any
 # cadence (30-50 tool calls ≈ 5-15 min) — cache covers a coherent work session.
 DEFAULT_CACHE_TTL_S = 600
 
-# File-tree segments that always force re-verification (security-sensitive).
+# File-tree segments / basenames / extensions that force re-verification.
+# Stale-green for these is worse than redundant gates.
 _SECURITY_PATH_TOKENS = (
     "scripts/hooks/",
     "/auth/",
     "/payment/",
     "/payments/",
     "/billing/",
+    "/oauth/",
+    "/sso/",
+    "/saml/",
+    "/crypto/",
+    "/secrets/",
+    "/keys/",
+    "/admin/",
+    "/rbac/",
+    "/webhook/",
+    "/jwt/",
+    "/session/",
+    "/2fa/",
+    "/mfa/",
+    "/signup/",
+    "/login/",
+    "password",  # bare token: matches /password/, password.py, *password*
+)
+
+_SECURITY_BASENAMES = frozenset(
+    {
+        "auth.py",
+        "payment.py",
+        "billing.py",
+        "secret.py",
+        "secrets.py",
+        "credentials.py",
+        "jwt.py",
+        "session.py",
+        "login.py",
+        "signup.py",
+        "password.py",
+        "auth.ts",
+        "auth.tsx",
+        "auth.js",
+        "auth.go",
+        "auth.rs",
+        "auth.php",
+    }
+)
+
+_SECURITY_EXTENSIONS = frozenset(
+    {".env", ".pem", ".key", ".p12", ".pfx", ".crt", ".asc", ".gpg"}
 )
 
 
@@ -75,10 +118,12 @@ def compute_files_hash(file_paths: list[str], *, root: str | None = None) -> str
 
 
 def is_security_sensitive(file_paths: list[str]) -> bool:
-    """True iff any path in `file_paths` matches a security-sensitive segment.
+    """True iff any path matches a security-sensitive segment, basename, or ext.
 
-    These tasks always re-verify (cache disabled) — the cost of a stale green
-    on auth/payment/hook code is higher than the cost of redundant gates.
+    Three signals (any one triggers): path-tokens (e.g. `/auth/`, `/oauth/`),
+    root-level basenames (`auth.py`, `payment.py`), or sensitive extensions
+    (`.env`, `.pem`, `.key`). Stale green for these is more expensive than
+    redundant gates.
     """
     for raw in file_paths or []:
         if not raw or not isinstance(raw, str):
@@ -86,6 +131,13 @@ def is_security_sensitive(file_paths: list[str]) -> bool:
         norm = "/" + raw.replace("\\", "/").lstrip("/")
         if any(tok in norm for tok in _SECURITY_PATH_TOKENS):
             return True
+        basename = os.path.basename(norm)
+        if basename in _SECURITY_BASENAMES:
+            return True
+        # extension match — handles `.env`, `foo.pem`, etc.
+        for ext in _SECURITY_EXTENSIONS:
+            if basename.endswith(ext):
+                return True
     return False
 
 
@@ -183,6 +235,32 @@ def is_cache_allowed(file_paths: list[str]) -> bool:
     return not is_security_sensitive(file_paths)
 
 
+def resolve_gate_signature(trigger: str = "task-done") -> str:
+    """Stable hash of the active gate commands for `trigger`.
+
+    Used as part of the verify-cache key so changing a gate's command in
+    `project_config.DEFAULT_GATES` (or via `[tausik.verify]` overrides)
+    invalidates stale-green runs that were recorded against the previous
+    command. On config-load failure returns a sentinel so verification is
+    not blocked.
+    """
+    try:
+        from project_config import get_gates_for_trigger, load_config
+
+        gates = get_gates_for_trigger(trigger, load_config())
+    except Exception:
+        return "unavailable"
+    if not gates:
+        return "empty"
+    parts = sorted(
+        f"{g.get('name', '?')}={(g.get('command') or '')}|sev={g.get('severity', '')}"
+        for g in gates
+    )
+    h = hashlib.sha256()
+    h.update("\n".join(parts).encode("utf-8"))
+    return h.hexdigest()[:16]
+
+
 def run_gates_with_cache(
     conn: sqlite3.Connection,
     slug: str,
@@ -209,7 +287,8 @@ def run_gates_with_cache(
 
     files = relevant_files or []
     files_hash = compute_files_hash(files)
-    cache_command = f"trigger=task-done|files={','.join(sorted(files))}"
+    gate_sig = resolve_gate_signature("task-done")
+    cache_command = f"trigger=task-done|sig={gate_sig}|files={','.join(sorted(files))}"
     cache_ok = is_cache_allowed(files)
 
     if cache_ok:

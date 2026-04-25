@@ -360,10 +360,14 @@ class GatesMixin:
 
         Delegates to `service_verification.run_gates_with_cache` — see that
         module for cache rules (10 min TTL, files_hash invalidation,
-        security-sensitive bypass).
+        security-sensitive bypass). The scope passed in (and recorded with
+        the verify run) is derived from the task's complexity tier per
+        SENAR Rule 5: simple→lightweight, medium→standard, complex→high.
+        Security-sensitive `relevant_files` (per `is_security_sensitive`)
+        promote to `critical`.
         """
         try:
-            from service_verification import run_gates_with_cache
+            from service_verification import is_security_sensitive, run_gates_with_cache
         except ImportError:
             import logging
 
@@ -371,11 +375,15 @@ class GatesMixin:
                 "service_verification not available"
             )
             return
+        task = self.be.task_get(slug) or {}
+        scope = self._determine_checklist_tier(task)
+        if is_security_sensitive(relevant_files or []):
+            scope = "critical"
         passed, results, _status = run_gates_with_cache(
             self.be._conn,
             slug,
             relevant_files,
-            scope="lightweight",
+            scope=scope,
             append_notes_fn=self.be.task_append_notes,
         )
         if not passed:

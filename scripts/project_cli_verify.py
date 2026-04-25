@@ -28,6 +28,7 @@ def cmd_verify(svc: ProjectService, args: Any) -> None:
         is_cache_allowed,
         lookup_recent_for_task,
         record_run,
+        resolve_gate_signature,
     )
 
     relevant_files: list[str] = []
@@ -45,7 +46,10 @@ def cmd_verify(svc: ProjectService, args: Any) -> None:
 
     scope = getattr(args, "scope", "manual")
     files_hash = compute_files_hash(relevant_files)
-    cache_command = f"trigger=task-done|files={','.join(sorted(relevant_files))}"
+    gate_sig = resolve_gate_signature("task-done")
+    cache_command = (
+        f"trigger=task-done|sig={gate_sig}|files={','.join(sorted(relevant_files))}"
+    )
 
     if task_slug and is_cache_allowed(relevant_files):
         hit = lookup_recent_for_task(
