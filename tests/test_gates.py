@@ -21,6 +21,7 @@ from gate_runner import (  # noqa: E402
     check_file_conflicts,
     count_lines,
     format_results,
+    resolve_test_files_for_relevant,
     run_command_gate,
     run_filesize_gate,
     run_gates,
@@ -637,3 +638,163 @@ class TestDefaultGatesHaveFileExtensions:
 
     def test_mypy_has_py_extension(self):
         assert DEFAULT_GATES["mypy"].get("file_extensions") == [".py"]
+
+
+class TestResolveTestFilesForRelevant:
+    """SENAR Rule 5: scope pytest to test files mapped from relevant_files."""
+
+    def _setup_repo(self, tmp_path, sources, tests):
+        (tmp_path / "scripts").mkdir(exist_ok=True)
+        (tmp_path / "tests").mkdir(exist_ok=True)
+        for s in sources:
+            p = tmp_path / s
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text("# src")
+        for t in tests:
+            (tmp_path / t).write_text("# test")
+
+    def test_empty_relevant_returns_empty(self, tmp_path):
+        assert resolve_test_files_for_relevant([], root=str(tmp_path)) == []
+        assert resolve_test_files_for_relevant(None, root=str(tmp_path)) == []
+
+    def test_basename_match(self, tmp_path):
+        self._setup_repo(
+            tmp_path, ["scripts/brain_init.py"], ["tests/test_brain_init.py"]
+        )
+        out = resolve_test_files_for_relevant(
+            ["scripts/brain_init.py"], root=str(tmp_path)
+        )
+        assert out == ["tests/test_brain_init.py"]
+
+    def test_glob_suffix_variants(self, tmp_path):
+        self._setup_repo(
+            tmp_path,
+            ["scripts/brain_sync.py"],
+            [
+                "tests/test_brain_sync.py",
+                "tests/test_brain_sync_extra.py",
+                "tests/test_brain_sync_more.py",
+            ],
+        )
+        out = resolve_test_files_for_relevant(
+            ["scripts/brain_sync.py"], root=str(tmp_path)
+        )
+        assert "tests/test_brain_sync.py" in out
+        assert "tests/test_brain_sync_extra.py" in out
+        assert "tests/test_brain_sync_more.py" in out
+        assert len(out) == 3
+
+    def test_no_match_returns_empty(self, tmp_path):
+        self._setup_repo(tmp_path, ["scripts/nothing_here.py"], [])
+        out = resolve_test_files_for_relevant(
+            ["scripts/nothing_here.py"], root=str(tmp_path)
+        )
+        assert out == []
+
+    def test_test_file_passthrough(self, tmp_path):
+        """When relevant_files already lists a test file, accept it as-is."""
+        self._setup_repo(tmp_path, [], ["tests/test_something.py"])
+        out = resolve_test_files_for_relevant(
+            ["tests/test_something.py"], root=str(tmp_path)
+        )
+        assert out == ["tests/test_something.py"]
+
+    def test_dedup_when_multiple_sources_share_test(self, tmp_path):
+        self._setup_repo(
+            tmp_path,
+            ["scripts/brain_init.py"],
+            ["tests/test_brain_init.py"],
+        )
+        out = resolve_test_files_for_relevant(
+            ["scripts/brain_init.py", "scripts/brain_init.py"],
+            root=str(tmp_path),
+        )
+        assert out == ["tests/test_brain_init.py"]
+
+    def test_handles_nonexistent_paths_gracefully(self, tmp_path):
+        """Non-existent source paths still get their stem looked up; missing test → skip."""
+        out = resolve_test_files_for_relevant(
+            ["scripts/never_existed.py"], root=str(tmp_path)
+        )
+        assert out == []
+
+    def test_skips_empty_or_non_string_entries(self, tmp_path):
+        out = resolve_test_files_for_relevant(
+            ["", None, 123, "scripts/missing.py"],  # type: ignore[list-item]
+            root=str(tmp_path),
+        )
+        assert out == []
+
+    def test_windows_backslash_path_normalized(self, tmp_path):
+        self._setup_repo(
+            tmp_path, ["scripts/brain_init.py"], ["tests/test_brain_init.py"]
+        )
+        out = resolve_test_files_for_relevant(
+            [r"scripts\brain_init.py"], root=str(tmp_path)
+        )
+        assert out == ["tests/test_brain_init.py"]
+
+
+class TestPytestGateScopeSubstitution:
+    """{test_files_for_files} substitution wires relevant_files → pytest target."""
+
+    def test_substitution_uses_mapped_test_files(self, tmp_path, monkeypatch):
+        """When relevant_files map to existing tests, command gets only those."""
+        (tmp_path / "tests").mkdir()
+        (tmp_path / "tests" / "test_alpha.py").write_text("def test_x(): pass")
+        (tmp_path / "scripts").mkdir()
+        (tmp_path / "scripts" / "alpha.py").write_text("# src")
+        monkeypatch.chdir(tmp_path)
+
+        captured = {}
+        import subprocess as _sp
+
+        def fake_run(args, **kwargs):
+            captured["args"] = args
+            captured["shell"] = kwargs.get("shell", False)
+
+            class R:
+                returncode = 0
+                stdout = "1 passed"
+                stderr = ""
+
+            return R()
+
+        monkeypatch.setattr(_sp, "run", fake_run)
+        gate = {"command": "pytest -q {test_files_for_files}"}
+        ok, _ = run_command_gate(gate, ["scripts/alpha.py"])
+        assert ok is True
+        rendered = captured["args"] if captured["shell"] else " ".join(captured["args"])
+        assert "tests/test_alpha.py" in rendered
+        assert "tests/" not in rendered.replace("tests/test_alpha.py", "")
+
+    def test_substitution_falls_back_to_full_suite(self, tmp_path, monkeypatch):
+        """No mapping found → fall back to `tests/` (regression-safe)."""
+        (tmp_path / "tests").mkdir()
+        monkeypatch.chdir(tmp_path)
+
+        captured = {}
+        import subprocess as _sp
+
+        def fake_run(args, **kwargs):
+            captured["args"] = args
+            captured["shell"] = kwargs.get("shell", False)
+
+            class R:
+                returncode = 0
+                stdout = ""
+                stderr = ""
+
+            return R()
+
+        monkeypatch.setattr(_sp, "run", fake_run)
+        gate = {"command": "pytest -q {test_files_for_files}"}
+        ok, _ = run_command_gate(gate, ["scripts/no_test_for_this.py"])
+        assert ok is True
+        rendered = captured["args"] if captured["shell"] else " ".join(captured["args"])
+        assert "tests/" in rendered
+
+    def test_pytest_default_uses_new_substitution(self):
+        """Regression: default pytest gate command uses the new substitution token."""
+        cmd = DEFAULT_GATES["pytest"]["command"]
+        assert "{test_files_for_files}" in cmd

@@ -62,8 +62,11 @@ DEFAULT_GATES: dict[str, dict] = {
         "enabled": True,
         "severity": "block",
         "trigger": ["task-done", "review"],
-        "command": "pytest tests/ -x -q",
-        "description": "Run pytest before task completion",
+        # SENAR Rule 5: scoped to relevant_files via {test_files_for_files}
+        # substitution. Falls back to full `tests/` when no test files map
+        # from relevant_files (regression-safe).
+        "command": "pytest -x -q {test_files_for_files}",
+        "description": "Run pytest scoped to task's relevant_files",
         "timeout": 180,
     },
     "ruff": {

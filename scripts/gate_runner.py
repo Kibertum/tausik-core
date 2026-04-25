@@ -137,11 +137,74 @@ def run_tdd_order_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
     )
 
 
+def resolve_test_files_for_relevant(
+    relevant_files: list[str], *, root: str | None = None
+) -> list[str]:
+    """Map source files → existing test files via basename heuristic.
+
+    For each `relevant_files` entry like `scripts/brain_init.py`, look for
+    `tests/test_brain_init.py` and `tests/test_brain_init_*.py`. Also matches
+    when the relevant file IS already a test file (returns it as-is).
+
+    Returns a deduplicated list of existing test file paths (relative to `root`,
+    forward-slashed). Empty list means no mapping found — caller's contract is
+    to fall back to the full suite.
+
+    Stack-agnostic in spirit: the basename heuristic is python-flavoured
+    (`tests/test_<name>.py`), but other stacks can extend by overriding the
+    `[tausik.verify]` config or adding stack-specific patterns later.
+    """
+    if not relevant_files:
+        return []
+    base = root or os.getcwd()
+    found: list[str] = []
+    seen: set[str] = set()
+
+    def _add(path: str) -> None:
+        norm = path.replace("\\", "/")
+        if norm in seen:
+            return
+        seen.add(norm)
+        found.append(norm)
+
+    for raw in relevant_files:
+        if not raw or not isinstance(raw, str):
+            continue
+        rel = raw.replace("\\", "/")
+        # If the entry already points at a test file, accept it as-is.
+        if "/tests/" in f"/{rel}" or os.path.basename(rel).startswith("test_"):
+            abs_p = rel if os.path.isabs(rel) else os.path.join(base, rel)
+            if os.path.isfile(abs_p):
+                _add(rel)
+                continue
+        stem = os.path.splitext(os.path.basename(rel))[0]
+        if not stem:
+            continue
+        candidates = [f"tests/test_{stem}.py"]
+        try:
+            for entry in os.listdir(os.path.join(base, "tests")):
+                if entry.startswith(f"test_{stem}_") and entry.endswith(".py"):
+                    candidates.append(f"tests/{entry}")
+        except OSError:
+            pass
+        for cand in candidates:
+            abs_cand = os.path.join(base, cand)
+            if os.path.isfile(abs_cand):
+                _add(cand)
+    return found
+
+
 def run_command_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
     """Run a command-based gate.
 
     Uses shell=True when the command contains shell operators (|, &&, >, 2>&1).
     File arguments are always shlex.quote'd to prevent injection.
+
+    Substitutions in `command`:
+      {files}                 — space-separated quoted relevant_files
+      {test_files_for_files}  — space-separated quoted test files mapped from
+                                relevant_files via basename heuristic; falls
+                                back to "tests/" when no mapping found
     """
     import shlex
 
@@ -157,6 +220,14 @@ def run_command_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
             return True, (
                 "No files matching " + ", ".join(sorted(allowed)) + " — gate skipped."
             )
+
+    if "{test_files_for_files}" in cmd:
+        test_files = resolve_test_files_for_relevant(files)
+        # Fallback: no mapping → run the whole suite (regression-safe)
+        test_files_str = (
+            " ".join(shlex.quote(t) for t in test_files) if test_files else "tests/"
+        )
+        cmd = cmd.replace("{test_files_for_files}", test_files_str)
 
     files_str = " ".join(shlex.quote(f) for f in files) if files else "."
     cmd = cmd.replace("{files}", files_str)
