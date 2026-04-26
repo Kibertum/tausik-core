@@ -150,6 +150,21 @@ def generate_settings_claude(
                         }
                     ],
                 },
+                {
+                    # v1.3: writes one row per tool call to the events table
+                    # so backend_session_metrics.compute_active_minutes
+                    # actually has data to sum. Without it the 180-min SENAR
+                    # Rule 9.2 active-time gate never trips on read-heavy
+                    # work. Wide matcher (covers Read/Grep/Glob too).
+                    "matcher": "Write|Edit|MultiEdit|Bash|Read|Grep|Glob|WebFetch|WebSearch",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": _hook_cmd("activity_event.py"),
+                            "timeout": 2,
+                        }
+                    ],
+                },
             ],
             "SessionStart": [
                 {

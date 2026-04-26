@@ -50,22 +50,25 @@ def is_in_claude_memory(file_path: str) -> bool:
 
 
 def _is_in_claude_memory(file_path: str) -> bool:
-    """True iff file_path has a `memory` segment anywhere in $HOME/.claude/.
-
-    Matches .claude/**/memory[/...]: projects/<slug>/memory, agents/<name>/memory,
-    bare .claude/memory, also paths whose basename is exactly `memory` (the
-    directory itself, no trailing file). A file with extension like `memory.md`
-    is NOT blocked because the segment compares exactly to `memory`.
-    """
     if not file_path:
         return False
     home = _normalize(os.path.expanduser("~"))
-    target = _normalize(os.path.expanduser(file_path))
+    candidates = [_normalize(os.path.expanduser(file_path))]
+    try:
+        parent = os.path.dirname(os.path.expanduser(file_path)) or "."
+        resolved_parent = os.path.realpath(parent)
+        resolved_full = os.path.join(resolved_parent, os.path.basename(file_path))
+        candidates.append(_normalize(resolved_full))
+    except (OSError, ValueError):
+        pass
     prefix = f"{home}/.claude/"
-    if not target.startswith(prefix):
-        return False
-    segments = target[len(prefix) :].split("/")
-    return "memory" in segments
+    for target in candidates:
+        if not target.startswith(prefix):
+            continue
+        segments = target[len(prefix) :].split("/")
+        if "memory" in segments:
+            return True
+    return False
 
 
 def _bypass_present(transcript_path: str) -> bool:
@@ -74,7 +77,7 @@ def _bypass_present(transcript_path: str) -> bool:
 
 
 def main() -> int:
-    if os.environ.get("TAUSIK_SKIP_HOOKS"):
+    if os.environ.get("TAUSIK_SKIP_MEMORY_HOOK") == "1":
         return 0
 
     project_dir = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()

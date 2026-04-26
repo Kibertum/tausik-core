@@ -7,7 +7,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)](https://python.org)
 [![Tests](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml/badge.svg)](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml)
-[![1095 tests](https://img.shields.io/badge/tests-1095%20passed-brightgreen.svg)](#dogfooding-tausik-built-tausik)
+[![2232 tests](https://img.shields.io/badge/tests-2232%20passed-brightgreen.svg)](#dogfooding-tausik-built-tausik)
 [![Zero deps](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#what-you-get)
 
 Three messages. Full engineering cycle. Quality gates that the agent can't skip.
@@ -79,7 +79,7 @@ Bootstrap auto-detects your tech stack and enables matching quality gates. Proje
 
 **Enforce, not suggest.** Quality gates block the agent at two checkpoints: QG-0 (can't start without goal + criteria) and QG-2 (can't close without evidence + passing tests). Hooks block code edits without a task and dangerous shell commands in real time.
 
-## Anti-Drift (v1.2.0)
+## Anti-Drift (v1.3)
 
 Agents in long sessions "drift" — ignore the framework, skip task creation, forget conventions. TAUSIK 1.2 adds real-time drift guards:
 
@@ -108,12 +108,12 @@ Still pending: MCP tools, init wizard, scrubbing linter, classifier. See **[Shar
 
 ## What's Inside
 
-- **35 skills** — `/plan`, `/ship`, `/review`, `/audit`, `/debug`, `/test`, `/interview`, and more
-- **82 MCP tools** — full programmatic access to the project database
+- **38 skills** (16 built-in + external) — `/plan`, `/ship`, `/review`, `/brain`, `/zero-defect`, `/doctor`, `/audit`, `/debug`, `/test`, `/interview`, and more
+- **106 MCP tools** (96 project + 10 brain) — full programmatic access to the project database
 - **16 quality checks** — pytest, ruff, tsc, eslint, cargo check, go vet, and more for your stack
 - **6 automatic metrics** — throughput, first-pass success rate, defect rate, lead time
 - **Project memory** — SQLite + FTS5, graph relations, dead-end tracking, Memory Block re-injection
-- **13 Claude Code hooks** — task gate, bash firewall, push gate, auto-format, SessionStart, UserPromptSubmit, Stop × 2, PostToolUse verify, memory pre-write block, memory post-write audit, notify-on-done, session-metrics
+- **19 Claude Code hooks** — task gate, bash firewall, push gate, auto-format, activity event, SessionStart, UserPromptSubmit, Stop × 2, PostToolUse verify, memory pre-write block, memory post-write audit, brain post-WebFetch cache, brain pre-search proactive, notify-on-done, session-metrics, session-cleanup-check, task-call-counter
 - **Batch execution** — `/run plan.md` executes multi-task plans autonomously
 - **Zero dependencies** — Python 3.11+ stdlib only; MCP deps in isolated `.tausik/venv/`
 
@@ -121,10 +121,10 @@ Still pending: MCP tools, init wizard, scrubbing linter, classifier. See **[Shar
 
 | IDE | MCP Tools | Skills | Hooks | Rules |
 |-----|-----------|--------|-------|-------|
-| Claude Code | 80 tools | 34 skills | task gate, bash firewall, push gate, auto-format | CLAUDE.md |
-| Qwen Code | 80 tools | 34 skills | task gate, bash firewall, push gate, auto-format | QWEN.md |
-| Cursor | 80 tools | 34 skills | — | .cursorrules |
-| Windsurf | 80 tools | 34 skills | — | .windsurfrules |
+| Claude Code | 106 tools | 38 skills | 19 hooks (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md |
+| Qwen Code | 106 tools | 38 skills | 19 hooks (same as Claude) | QWEN.md |
+| Cursor | 106 tools | 38 skills | — | .cursorrules |
+| Windsurf | 106 tools | 38 skills | — | .windsurfrules |
 | Codex | — | — | — | AGENTS.md only |
 
 **Hooks** block code edits without a task, dangerous shell commands, and direct push to main — in real time. Available in Claude Code and Qwen Code. Cursor and Windsurf get the same MCP tools and skills, with quality gates at `task start` and `task done`.
@@ -159,7 +159,7 @@ TAUSIK implements [SENAR](https://senar.tech) ([GitHub](https://github.com/Kiber
 | **[Skills](docs/en/skills.md)** | 34 structured agent workflows |
 | **[Hooks](docs/en/hooks.md)** | Real-time enforcement |
 | **[CLI Commands](docs/en/cli.md)** | Terminal command reference |
-| **[MCP Tools](docs/en/mcp.md)** | 80 tools for the AI agent |
+| **[MCP Tools](docs/en/mcp.md)** | 106 tools for the AI agent |
 | **[Architecture](docs/en/architecture.md)** | How the framework works inside |
 
 **[Full documentation ->](docs/README.md)**

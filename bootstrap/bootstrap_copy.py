@@ -62,13 +62,77 @@ def validate_skill_frontmatter(skill_name: str, fields: dict[str, str]) -> list[
     return warnings
 
 
+def _on_rmtree_error(func, path, exc_info):
+    import logging
+    import stat as _stat
+
+    try:
+        os.chmod(path, _stat.S_IWRITE)
+        func(path)
+    except Exception as e:
+        logging.getLogger("tausik.bootstrap").warning(
+            "rmtree retry failed for %s: %s (orig %s)", path, e, exc_info
+        )
+        raise
+
+
+def _on_rmtree_exc(func, path, exc):
+    _on_rmtree_error(func, path, (type(exc), exc, exc.__traceback__))
+
+
+def _files_identical(a: str, b: str) -> bool:
+    try:
+        if os.path.getsize(a) != os.path.getsize(b):
+            return False
+        with open(a, "rb") as fa, open(b, "rb") as fb:
+            return fa.read() == fb.read()
+    except OSError:
+        return False
+
+
+def _conditional_copy(src: str, dst: str) -> None:
+    if os.path.isfile(dst) and _files_identical(src, dst):
+        return
+    shutil.copy2(src, dst)
+
+
 def copy_dir(src: str, dst: str) -> None:
-    """Copy directory recursively, overwriting destination. Raises on failure."""
-    if os.path.exists(dst):
-        shutil.rmtree(dst)
-    shutil.copytree(
-        src, dst, ignore=shutil.ignore_patterns("__pycache__", ".git", "*.pyc")
-    )
+    """Copy src→dst, skipping byte-identical files. Removes orphans."""
+    _IGNORED = ("__pycache__", ".git")
+    if not os.path.exists(dst):
+        shutil.copytree(
+            src,
+            dst,
+            ignore=shutil.ignore_patterns("__pycache__", ".git", "*.pyc"),
+        )
+        return
+    expected: set[str] = set()
+    for root, dirs, files in os.walk(src):
+        dirs[:] = [d for d in dirs if d not in _IGNORED]
+        for fname in files:
+            if fname.endswith(".pyc"):
+                continue
+            rel = os.path.relpath(os.path.join(root, fname), src)
+            expected.add(rel)
+            target = os.path.join(dst, rel)
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            _conditional_copy(os.path.join(root, fname), target)
+    for root, dirs, files in os.walk(dst, topdown=False):
+        for fname in files:
+            full = os.path.join(root, fname)
+            rel = os.path.relpath(full, dst)
+            if rel not in expected:
+                try:
+                    os.unlink(full)
+                except OSError:
+                    pass
+        for d in dirs:
+            full = os.path.join(root, d)
+            try:
+                if not os.listdir(full):
+                    os.rmdir(full)
+            except OSError:
+                pass
 
 
 def _resolve_skill(
@@ -191,9 +255,24 @@ def copy_skills(
     installed = set(config.get("installed_skills", []))
     installed.update(vendor_activated)
 
-    # Collect all skill names to process
-    all_skills = config.get("core_skills", []) + config.get("extension_skills", [])
-    all_skills_with_vendor = list(dict.fromkeys(all_skills + vendor_activated))
+    # Built-in skills under agents/skills/ are source-of-truth.
+    builtin_names: list[str] = []
+    if os.path.isdir(builtin_dir):
+        for name in sorted(os.listdir(builtin_dir)):
+            if os.path.isdir(os.path.join(builtin_dir, name)) and not name.startswith(
+                "."
+            ):
+                builtin_names.append(name)
+    if not builtin_names:
+        print(
+            f"  WARN: agents/skills/ empty or missing at {builtin_dir} — "
+            "core skills will not be deployed (config-only fallback active).",
+            file=sys.stderr,
+        )
+    config_skills = config.get("core_skills", []) + config.get("extension_skills", [])
+    all_skills_with_vendor = list(
+        dict.fromkeys(builtin_names + config_skills + vendor_activated)
+    )
     # Also add official skills from registry (as stubs)
     if registry:
         for name in registry:
@@ -224,13 +303,15 @@ def copy_skills(
         else:
             missing.append(skill)
 
-    # Clean up skills that are no longer in the active list
     preserve = set(all_skills_with_vendor)
     if os.path.isdir(skills_dst):
         for existing in os.listdir(skills_dst):
             existing_path = os.path.join(skills_dst, existing)
             if os.path.isdir(existing_path) and existing not in preserve:
-                shutil.rmtree(existing_path)
+                if sys.version_info >= (3, 12):
+                    shutil.rmtree(existing_path, onexc=_on_rmtree_exc)
+                else:
+                    shutil.rmtree(existing_path, onerror=_on_rmtree_error)
 
     # Validate frontmatter of all copied skills
     if os.path.isdir(skills_dst):
@@ -288,27 +369,20 @@ from bootstrap_stacks import copy_stacks  # noqa: F401, E402
 
 
 def copy_references(lib_dir: str, target_dir: str, ide: str) -> int:
-    """Copy shared + IDE-specific references."""
-    refs_dst = os.path.join(target_dir, "references")
-    os.makedirs(refs_dst, exist_ok=True)
-    count = 0
-    # Shared references
-    shared_src = os.path.join(lib_dir, "references")
-    if os.path.isdir(shared_src):
-        for item in os.listdir(shared_src):
-            src = os.path.join(shared_src, item)
-            dst = os.path.join(refs_dst, item)
-            if os.path.isdir(src):
-                copy_dir(src, dst)
-            else:
-                shutil.copy2(src, dst)
-            count += 1
-    # IDE-specific references
+    """v1.3+: references/ merged into docs/. Copy docs/ to target instead."""
+    docs_dst = os.path.join(target_dir, "docs")
+    docs_src = os.path.join(lib_dir, "docs")
+    if not os.path.isdir(docs_src):
+        return 0
+    copy_dir(docs_src, docs_dst)
+    count = sum(1 for _ in os.walk(docs_dst))
     ide_refs = os.path.join(lib_dir, "agents", ide, "references")
     if os.path.isdir(ide_refs):
+        legacy_dst = os.path.join(target_dir, "references")
+        os.makedirs(legacy_dst, exist_ok=True)
         for item in os.listdir(ide_refs):
             src = os.path.join(ide_refs, item)
-            dst = os.path.join(refs_dst, item)
+            dst = os.path.join(legacy_dst, item)
             if os.path.isdir(src):
                 copy_dir(src, dst)
             else:

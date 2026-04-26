@@ -59,9 +59,9 @@ ruff format scripts/
 ```
 scripts/          # Core framework (CLI → Service → Backend)
 bootstrap/        # Installation and IDE setup
-agents/skills/    # 34 shared skills (SKILL.md files)
+agents/skills/    # 16 built-in skills + external = 38 deployed
 agents/overrides/ # IDE-specific overrides
-tests/            # pytest test suite (918 tests)
+tests/            # pytest test suite (2226 tests)
 references/       # Technical documentation
 docs/             # User-facing documentation
 ```

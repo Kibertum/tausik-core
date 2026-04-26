@@ -145,7 +145,65 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
         "CHECK(tier IS NULL OR tier IN "
         "('trivial','light','moderate','substantial','deep'))",
     ],
+    # --- v18: roles table — DDL only. Seeding moved to Python helper
+    # (backend_migrations_v18_seed) so it can normalize legacy free-text
+    # values (whitespace, mixed case, unicode) and rewrite tasks.role to
+    # match — preventing orphan rows where tasks.role doesn't appear in
+    # the new roles table.
+    18: [
+        """CREATE TABLE IF NOT EXISTS roles (
+            slug TEXT PRIMARY KEY CHECK(length(slug) <= 64),
+            title TEXT NOT NULL,
+            description TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )""",
+    ],
 }
+
+
+def seed_v18_roles(conn) -> dict:
+    """Post-migration seed for v18 roles table."""
+    import re
+    import sqlite3 as _sqlite3
+
+    try:
+        rows = conn.execute(
+            "SELECT DISTINCT role FROM tasks WHERE role IS NOT NULL AND role != ''"
+        ).fetchall()
+    except _sqlite3.OperationalError:
+        return {"seeded": 0, "tasks_rewritten": 0, "dropped_legacy_values": []}
+    legacy = {r[0] for r in rows if r[0]}
+    seeded = 0
+    rewritten = 0
+    dropped: list[str] = []
+    for original in legacy:
+        norm = re.sub(r"[^a-z0-9-]+", "-", original.strip().lower()).strip("-")
+        if not norm or not re.match(r"^[a-z0-9][a-z0-9-]*$", norm):
+            dropped.append(original)
+            continue
+        if len(norm) > 64:
+            norm = norm[:64].rstrip("-")
+        title = norm.replace("-", " ").title()
+        conn.execute(
+            "INSERT OR IGNORE INTO roles(slug, title, description, created_at, updated_at) "
+            "VALUES (?, ?, NULL, "
+            "strftime('%Y-%m-%dT%H:%M:%SZ','now'), "
+            "strftime('%Y-%m-%dT%H:%M:%SZ','now'))",
+            (norm, title),
+        )
+        seeded += 1
+        if original != norm:
+            cur = conn.execute(
+                "UPDATE tasks SET role = ? WHERE role = ?", (norm, original)
+            )
+            rewritten += cur.rowcount
+    return {
+        "seeded": seeded,
+        "tasks_rewritten": rewritten,
+        "dropped_legacy_values": dropped,
+    }
+
 
 # Merged: legacy + current
 MIGRATIONS: dict[int, list[str]] = {**LEGACY_MIGRATIONS, **_CURRENT_MIGRATIONS}
@@ -180,4 +238,46 @@ def run_migrations(conn: "sqlite3.Connection", current_version: int) -> int:  # 
             if violations:
                 raise RuntimeError(f"Migration v{ver} broke FK integrity: {violations}")
             current_version = ver
+    if current_version >= 18:
+        try:
+            already = conn.execute(
+                "SELECT value FROM meta WHERE key='v18_seeded'"
+            ).fetchone()
+        except Exception:
+            already = None
+        try:
+            roles_exists = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='roles'"
+            ).fetchone()
+        except Exception:
+            roles_exists = None
+        if not already and roles_exists:
+            report = None
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                report = seed_v18_roles(conn)
+                conn.execute(
+                    "INSERT OR REPLACE INTO meta(key, value) VALUES('v18_seeded', '1')"
+                )
+                conn.commit()
+            except Exception as e:
+                import logging
+
+                logging.getLogger("tausik.migrations").warning(
+                    "v18 seed/flag failed: %s", e
+                )
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+            if report and report["dropped_legacy_values"]:
+                import sys
+
+                print(
+                    f"  v18 role normalization: {report['seeded']} seeded, "
+                    f"{report['tasks_rewritten']} tasks rewritten, "
+                    f"dropped {len(report['dropped_legacy_values'])} unparseable: "
+                    f"{report['dropped_legacy_values']}",
+                    file=sys.stderr,
+                )
     return current_version

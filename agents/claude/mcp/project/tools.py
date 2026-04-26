@@ -161,6 +161,10 @@ TOOLS = [
                     "description": "Confirm no knowledge to capture (suppresses warning)",
                 },
                 "relevant_files": {"type": "array", "items": {"type": "string"}},
+                "evidence": {
+                    "type": "string",
+                    "description": 'Inline AC verification log (e.g. "AC verified: 1. ✓ 2. ✓ ..."). Replaces a separate task_log call.',
+                },
             },
             "required": ["slug"],
         },

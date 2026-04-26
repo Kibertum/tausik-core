@@ -40,7 +40,7 @@
               ↓
   ┌─────────────────────────┐
   │ SQLite (WAL mode)       │  ← .tausik/tausik.db
-  │ 11 таблиц + 4 FTS5     │
+  │ 18 таблиц + FTS5        │
   └─────────────────────────┘
 ```
 
@@ -48,35 +48,33 @@
 
 ### Скрипты (бизнес-логика)
 
-| Файл | Строк | Назначение |
-|------|-------|------------|
-| `project.py` | ~120 | Точка входа CLI, диспетчеризация |
-| `project_parser.py` | ~380 | Дерево команд argparse |
-| `project_cli.py` | ~345 | Обработчики CLI (статус, задачи, сессии, дорожная карта) |
-| `project_cli_extra.py` | ~375 | Обработчики CLI (память, шлюзы, навыки, FTS) |
-| `project_cli_ops.py` | ~145 | Обработчики CLI (метрики, поиск, события, исследования, аудит, run) |
-| `project_service.py` | ~340 | Сервис проекта + миксины сессий и иерархии |
-| `service_task.py` | ~375 | Миксин задач: жизненный цикл, QG-0, QG-2 |
-| `service_knowledge.py` | ~325 | Миксин знаний: память, решения, граф, исследования |
-| `service_skills.py` | ~220 | Миксин навыков: activate, deactivate, list, install |
-| `service_gates.py` | ~340 | Миксин шлюзов: QG-0, QG-2, SENAR чеклист |
-| `service_cascade.py` | ~45 | Миксин каскадов: auto-start/close story/epic |
-| `project_backend.py` | ~395 | Хранилище SQLite: WAL, FTS5, иерархия + задачи CRUD |
-| `backend_crud.py` | ~230 | BackendCrudMixin: сессии, решения, память, мета, события |
-| `backend_queries.py` | ~375 | Метрики, дорожная карта, поиск, обход графа |
-| `backend_graph.py` | ~110 | Графовая память (связи) + исследования |
-| `backend_schema.py` | ~240 | DDL: 11 таблиц + 4 FTS + триггеры + индексы |
-| `backend_migrations.py` | ~160 | Миграции v10→v15 + import legacy |
-| `backend_migrations_legacy.py` | ~280 | Legacy миграции v2→v9 |
-| `project_config.py` | ~350 | Загрузчик конфигурации, настройка шлюзов, автовключение |
-| `gate_runner.py` | ~215 | Выполнение шлюзов качества |
-| `skill_manager.py` | ~360 | Установка/удаление навыков из репозиториев |
-| `skill_repos.py` | ~200 | Управление skill-репозиториями |
-| `ide_utils.py` | ~125 | Определение IDE, пути, реестр |
-| `plan_parser.py` | ~125 | Парсер markdown-планов для /run |
-| `tausik_utils.py` | ~50 | Валидация slug, метки времени, slugify |
-| `project_types.py` | ~40 | Типы данных, константы |
-| `tausik_version.py` | ~3 | Версия |
+73 source-файла в `scripts/` (v1.3). Хайлайты:
+
+| Файл | Назначение |
+|------|------------|
+| `project.py` | Точка входа CLI, диспетчеризация |
+| `project_parser.py` | Дерево команд argparse |
+| `project_cli.py` / `_extra.py` / `_ops.py` | CLI-обработчики (статус, задачи, сессии, память, шлюзы, навыки, FTS, метрики, поиск, события, исследования, аудит, run) |
+| `project_cli_doctor.py` / `_role.py` / `_stack.py` / `_verify.py` | v1.3 CLI-обработчики (doctor, roles, stacks, verify) |
+| `project_service.py` + миксины `service_*.py` | Бизнес-логика: задачи, знания, навыки, шлюзы, каскады, роли, верификация |
+| `service_verification.py` | Scoped pytest gate + verify cache (10 min TTL) |
+| `service_roles.py` | Гибридное хранение ролей (DB-метаданные + agents/roles/*.md) |
+| `service_stack_ops.py` | Stack scaffold, lint, diff, reset |
+| `project_backend.py` + `backend_*.py` | SQLite + FTS5 backend (WAL mode, 18 таблиц) |
+| `backend_session_metrics.py` | Gap-based active-time computation |
+| `backend_tier_metrics.py` | call_budget vs call_actual tier-метрики |
+| `backend_migrations.py` / `_legacy.py` | Миграции схемы до v18 |
+| `project_config.py` + `default_gates.py` | Загрузчик конфигурации, настройка шлюзов, автовключение |
+| `gate_runner.py` + `gate_stack_dispatch.py` + `gate_test_resolver.py` | Scoped pytest mapping + dispatch |
+| `skill_manager.py` + `skill_repos.py` | Установка/удаление навыков из репозиториев |
+| `brain_*.py` | Shared Brain (Notion mirror, sync, classifier, registry) |
+| `cq_client.py` | Cross-project queue клиент |
+| `doc_extract.py` | markitdown интеграция |
+| `docs_lint.py` | Warning-only stale-version линтер |
+| `plan_parser.py` | Парсер markdown-планов для `/run` |
+| `model_routing.py` + `notifier.py` | Выбор модели + webhooks |
+| `ide_utils.py` | Определение IDE, пути, реестр |
+| `tausik_utils.py` + `tausik_version.py` + `project_types.py` | Хелперы, версия, типы |
 
 ### Начальная настройка (генерация)
 
@@ -94,17 +92,19 @@
 | Файл | Назначение |
 |------|------------|
 | `agents/claude/mcp/project/server.py` | JSON-RPC stdio-сервер |
-| `agents/claude/mcp/project/tools.py` | 54 определения инструментов (основные) |
-| `agents/claude/mcp/project/tools_extra.py` | 19 определений (навыки, шлюзы, обслуживание) |
+| `agents/claude/mcp/project/tools.py` | core tool definitions |
+| `agents/claude/mcp/project/tools_extra.py` | расширенные tool definitions (skills, gates, doctor, verify, roles, stacks, brain) |
 | `agents/claude/mcp/project/handlers.py` | Диспетчеризация: имя инструмента → метод сервиса |
 | `agents/claude/mcp/project/handlers_skill.py` | Обработчики навыков + обслуживания (split) |
+
+Полный MCP-surface: **96 project + 10 brain = 106 инструментов**.
 
 ### Поддержка разных сред разработки
 
 Навыки, роли, стеки — общие для всех сред. MCP-серверы — специфичны для среды:
 ```
 agents/
-├── skills/           # 34 навыка (основные + расширенные + автономные)
+├── skills/           # 16 core + 22 vendor = 38 deployed
 ├── roles/            # 5 ролей (developer, architect, qa, tech-writer, ui-ux)
 ├── stacks/           # Руководства по стекам
 ├── overrides/        # Переопределения для конкретных сред (claude/, cursor/, qwen/)
@@ -113,7 +113,7 @@ agents/
 └── qwen/ → claude/   # Qwen Code (fallback на Claude MCP)
 ```
 
-## БД: Таблицы (Schema v15)
+## БД: Таблицы (Schema v18)
 
 | Таблица | Назначение |
 |---------|------------|
@@ -132,6 +132,9 @@ agents/
 | `fts_decisions` | FTS5 индекс по решениям |
 | `task_logs` | Структурированные логи задач (phase, message) |
 | `fts_task_logs` | FTS5 индекс по логам задач |
+| `roles` | Реестр ролей (гибрид: метаданные + agents/roles/{slug}.md) |
+| `session_activity` | Per-tool-call таймстемпы для gap-based active time |
+| `verification_runs` | Verify cache: file_hash + timestamp для QG-2 reuse (10 min TTL) |
 
 ## Шлюзы качества
 
@@ -147,10 +150,25 @@ service_task.py         → _run_quality_gates() (вызывается из task
 Gates: `pytest`, `ruff`, `mypy`, `bandit`, `filesize`, `tdd_order`, `tsc`, `eslint`,
 `go-vet`, `golangci-lint`, `cargo-check`, `clippy`, `phpstan`, `phpcs`, `javac`, `ktlint`.
 
+## Hooks (anti-drift, см. [hooks.md](hooks.md))
+
+Все hook-файлы в `scripts/hooks/` регистрируются через `bootstrap/bootstrap_generate.py` (Claude Code) и `bootstrap/bootstrap_qwen.py` (Qwen Code). Hook-скрипты non-blocking (exit 0), ошибки в stderr. Общие helper'ы в `scripts/hooks/_common.py`.
+
+Brain-хуки делят helpers в `scripts/brain_hook_utils.py` — одна реализация mirror-lookup + TTL семантики. Brain-connection setup в `scripts/brain_runtime.py`: `open_brain_deps() -> (conn, client, cfg)`. Skill `/brain` — диалоговый UI.
+
+## Memory Aggregates
+
+`service_knowledge_aggregates.py` содержит чистые функции для re-injection памяти:
+
+- `build_memory_block(be, ...)` — компактный markdown (decisions + conventions + dead ends) ≤50 строк, вызывается из `/start`, `/checkpoint`, SessionStart hook
+- `build_memory_compact(be, last_n)` — агрегация `task_logs`: фазы + топ-слова + топ-файлы
+
+Аналогично `scripts/model_routing.py` + `notifier.py` + `plugin_data.py` — чистые модули, импортируемые из CLI/MCP handlers.
+
 ## Тестирование
 
 ```bash
-pytest tests/ -v                    # все тесты (918)
+pytest tests/ -v                    # все тесты (2235)
 pytest tests/test_tausik_backend.py   # backend CRUD
 pytest tests/test_tausik_service.py   # service logic
 pytest tests/test_tausik_cli.py       # CLI smoke

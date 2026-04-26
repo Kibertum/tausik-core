@@ -74,8 +74,15 @@ _SHELL_INJECTION_PATTERN = re.compile(r"\||\&\&|\|\||;|\$\(|`")
 _SHELL_CHAIN_PATTERN = re.compile(r"&&|\|\||;|\$\(|`")
 
 # --- SENAR Rule 9.2: Session duration limit (minutes) ---
-# SENAR v1.3: sessions exceeding 180 min show diminishing returns
+# SENAR v1.3: sessions exceeding 180 min show diminishing returns.
+# Measured against ACTIVE minutes (gap-based), not wall clock — AFK breaks
+# don't count. See backend_session_metrics.compute_active_minutes.
 DEFAULT_SESSION_MAX_MINUTES = 180
+
+# Gap (in minutes) above which a pause between events is treated as AFK
+# and excluded from active-time totals. Tunable via .tausik/config.json
+# under "session_idle_threshold_minutes".
+DEFAULT_SESSION_IDLE_THRESHOLD_MINUTES = 10
 
 # --- Agent-native session capacity (tool calls, not minutes) ---
 DEFAULT_SESSION_CAPACITY_CALLS = 200

@@ -7,7 +7,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)](https://python.org)
 [![Tests](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml/badge.svg)](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml)
-[![1095 tests](https://img.shields.io/badge/tests-1095%20passed-brightgreen.svg)](#dogfooding-tausik-создан-с-помощью-себя)
+[![2226 tests](https://img.shields.io/badge/tests-2226%20passed-brightgreen.svg)](#dogfooding-tausik-создан-с-помощью-себя)
 [![Zero deps](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#что-внутри)
 
 Три сообщения. Полный инженерный цикл. Quality gates, которые агент не может обойти.
@@ -79,7 +79,7 @@ Bootstrap автоматически определяет стек и включ
 
 **Контроль, а не рекомендации.** Quality gates блокируют агента в двух точках: QG-0 (нельзя начать без цели и критериев) и QG-2 (нельзя закрыть без доказательств и пройденных тестов). Хуки блокируют редактирование кода без задачи и опасные shell-команды в реальном времени.
 
-## Anti-Drift (v1.2.0)
+## Anti-Drift (v1.3)
 
 Агенты в длинных сессиях «плавают» — игнорируют фреймворк, забывают создавать задачи, теряют соглашения. TAUSIK 1.2 добавляет защиту от дрейфа в реальном времени:
 
@@ -108,12 +108,13 @@ Claude auto-memory (`~/.claude/projects/*/memory/`) — это кросс-про
 
 ## Что внутри
 
-- **35 навыков** — `/plan`, `/ship`, `/review`, `/audit`, `/debug`, `/test`, `/interview` и другие
-- **82 MCP-инструмента** — полный программный доступ к базе проекта
-- **16 проверок качества** — pytest, ruff, tsc, eslint, cargo check, go vet и другие для вашего стека
-- **6 автоматических метрик** — производительность, FPSR, уровень дефектов, время выполнения
+- **38 навыков** (16 встроенных + внешние) — `/plan`, `/ship`, `/review`, `/brain`, `/zero-defect`, `/doctor`, `/audit`, `/debug`, `/test`, `/interview` и другие
+- **106 MCP-инструментов** (96 project + 10 brain) — полный программный доступ к базе проекта
+- **16+ проверок качества** — pytest, ruff, tsc, eslint, cargo check, go vet и другие для вашего стека
+- **6 автоматических метрик** — производительность, FPSR, уровень дефектов, активное время сессий
 - **Проектная память** — SQLite + FTS5, граф связей, трекинг тупиков, Memory Block re-injection
-- **13 Claude Code hooks** — task gate, bash firewall, push gate, auto-format, SessionStart, UserPromptSubmit, Stop × 2, PostToolUse verify/notify/metrics, memory pre-write block, memory post-write audit
+- **Cross-project Brain** — Notion-mirror для обмена знаний между проектами (опционально)
+- **19 Claude Code hooks** — task gate, bash firewall, push gate, auto-format, activity event, SessionStart, UserPromptSubmit, Stop × 2, PostToolUse verify, memory pre/post audit, brain proactive lookup и кэш WebFetch, notify, session metrics
 - **Пакетное выполнение** — `/run plan.md` автономно выполняет многозадачные планы
 - **Ноль зависимостей** — Python 3.11+ stdlib; MCP-deps в изолированном `.tausik/venv/`
 

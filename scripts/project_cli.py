@@ -56,8 +56,16 @@ def cmd_status(svc: ProjectService, args: Any) -> None:
             print(f", {counts[st]} {st}", end="")
     print()
     if data["session"]:
+        active = svc.session_active_minutes()
+        wall = svc.session_wall_minutes()
+        idle_pct = (
+            f", {round((1 - active / wall) * 100)}% idle"
+            if wall > 0 and active < wall
+            else ""
+        )
         print(
-            f"Session: #{data['session']['id']} (started {data['session']['started_at']})"
+            f"Session: #{data['session']['id']} ({active} min active / "
+            f"{wall} min wall{idle_pct})"
         )
         # SENAR Rule 9.2: session duration warning
         from project_config import load_config, DEFAULT_SESSION_MAX_MINUTES
@@ -162,6 +170,7 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                 args.relevant_files,
                 args.ac_verified,
                 getattr(args, "no_knowledge", False),
+                evidence=getattr(args, "evidence", None),
             )
         )
     elif c == "block":
@@ -282,9 +291,14 @@ def cmd_session(svc: ProjectService, args: Any) -> None:
             print("No handoff found.")
     elif c == "extend":
         print(svc.session_extend(args.minutes))
+    elif c == "recompute":
+        from project_cli_ops import cmd_session_recompute
+
+        cmd_session_recompute(svc, args)
     else:
         print(
-            "Usage: tausik session [start|end|current|list|handoff|last-handoff|extend]"
+            "Usage: tausik session "
+            "[start|end|current|list|handoff|last-handoff|extend|recompute]"
         )
 
 

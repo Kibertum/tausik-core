@@ -18,7 +18,7 @@ TAUSIK implements [SENAR v1.3 Core](https://senar.tech) ([GitHub](https://github
 
 After bootstrap, you have these tools available:
 
-**MCP tools** (preferred — 80 tools via `tausik-project` server):
+**MCP tools** (preferred — 106 tools via `tausik-project` + `tausik-brain` servers):
 ```
 tausik_status              — see project state
 tausik_task_quick          — create a task
@@ -71,11 +71,11 @@ End session      →  /end (handoff saved for next session)
 
 | Need | Go to |
 |------|-------|
-| **Quick start for agents** | [references/QUICKSTART.en.md](references/QUICKSTART.en.md) (EN) / [references/QUICKSTART.md](references/QUICKSTART.md) (RU) |
-| **CLI command reference** | [references/project-cli.md](references/project-cli.md) |
-| **Architecture & internals** | [references/architecture.en.md](references/architecture.en.md) (EN) / [references/architecture.md](references/architecture.md) (RU) |
-| **MCP tools (80 tools)** | [docs/en/mcp.md](docs/en/mcp.md) |
-| **Skills reference (34 skills)** | [docs/en/skills.md](docs/en/skills.md) |
+| **Quick start for agents** | [docs/en/quickstart.md](docs/en/quickstart.md) (EN) / [docs/ru/quickstart.md](docs/ru/quickstart.md) (RU) |
+| **CLI command reference** | [docs/en/cli.md](docs/en/cli.md) (EN) / [docs/ru/cli.md](docs/ru/cli.md) (RU) |
+| **Architecture & internals** | [docs/en/architecture.md](docs/en/architecture.md) (EN) / [docs/ru/architecture.md](docs/ru/architecture.md) (RU) |
+| **MCP tools (106 tools)** | [docs/en/mcp.md](docs/en/mcp.md) |
+| **Skills reference (38 skills)** | [docs/en/skills.md](docs/en/skills.md) |
 | **Quality gates** | [docs/en/hooks.md](docs/en/hooks.md) |
 | **User-facing docs index** | [docs/README.md](docs/README.md) |
 | **SENAR compliance matrix** | [docs/en/senar-compliance-matrix.md](docs/en/senar-compliance-matrix.md) |
@@ -84,16 +84,15 @@ End session      →  /end (handoff saved for next session)
 
 ```
 scripts/           Core Python (CLI → Service → Backend)
-references/        Agent-facing technical docs
+docs/              Documentation (en/, ru/, research/)
 agents/            Shared resources for all IDEs
-  skills/          34 skill definitions (SKILL.md)
+  skills/          16 built-in skill definitions (SKILL.md) + ~22 external = 38 deployed
   roles/           5 role profiles (developer, architect, qa, tech-writer, ui-ux)
-  stacks/          20 stack guides (python, react, go, rust, ...)
+  stacks/          25 stack guides (python, react, go, rust, ansible, terraform, ...)
   overrides/       IDE-specific overrides (claude/, cursor/, qwen/)
-  claude/mcp/      MCP servers (project: 80 tools, RAG: 7 tools)
+  claude/mcp/      MCP servers (project: 96 tools, brain: 10 tools)
 bootstrap/         One-command project setup
-tests/             pytest suite (918 tests)
-docs/              User documentation (EN + RU, 13 files each)
+tests/             pytest suite (2226 tests)
 .tausik/           Runtime data (DB, config) — gitignored
 ```
 

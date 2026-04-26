@@ -258,7 +258,7 @@ class TestAllowsOutsideTausik:
                 "tool_input": {"file_path": f"{_MEMORY_ROOT}/foo.md"},
                 "transcript_path": "",
             },
-            extra_env={"TAUSIK_SKIP_HOOKS": "1"},
+            extra_env={"TAUSIK_SKIP_MEMORY_HOOK": "1"},
         )
         assert result.returncode == 0, result.stderr
 

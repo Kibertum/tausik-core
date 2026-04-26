@@ -9,11 +9,17 @@ Exit codes: 0 = allow, 2 = block.
 
 import json
 import os
+import re
 import sys
+
+_GIT_PUSH_RE = re.compile(
+    r"(?:^|[\s;&|()`])(?:[/\w.\\-]*[/\\])?git(?:\s+-c\s+\S+)*\s+push\b",
+    re.IGNORECASE,
+)
 
 
 def main() -> int:
-    if os.environ.get("TAUSIK_SKIP_HOOKS"):
+    if os.environ.get("TAUSIK_SKIP_PUSH_HOOK") == "1":
         return 0
 
     try:
@@ -21,16 +27,10 @@ def main() -> int:
     except (json.JSONDecodeError, EOFError):
         return 0
 
-    command = data.get("tool_input", {}).get("command", "").strip()
+    command = data.get("tool_input", {}).get("command", "")
     if not command:
         return 0
-
-    # Check if this is a git push command
-    cmd_parts = command.split()
-    if len(cmd_parts) < 2:
-        return 0
-
-    if cmd_parts[0] != "git" or cmd_parts[1] != "push":
+    if not _GIT_PUSH_RE.search(command):
         return 0
 
     # Allow push if explicitly authorized by a skill (/ship or /commit)

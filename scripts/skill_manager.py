@@ -260,9 +260,20 @@ def install_skill_deps(
 
     Dependencies come from skill_info["requires"] list.
     """
+    import re as _re
+
     requires = skill_info.get("requires", [])
     if not requires:
         return True
+
+    _SAFE_PKG = _re.compile(
+        r"^[A-Za-z0-9][A-Za-z0-9._-]*(?:\[[A-Za-z0-9._,-]+\])?"
+        r"(?:[<>=!~]=?[\w.+*-]+)?$"
+    )
+    bad = [r for r in requires if not isinstance(r, str) or not _SAFE_PKG.match(r)]
+    if bad:
+        print(f"  REFUSED: unsafe package specs in 'requires': {bad}")
+        return False
 
     print(f"  Installing dependencies: {', '.join(requires)}")
     print(
@@ -286,7 +297,7 @@ def install_skill_deps(
 
     try:
         result = subprocess.run(
-            [venv_python, "-m", "pip", "install", "--quiet"] + requires,
+            [venv_python, "-m", "pip", "install", "--quiet", "--"] + requires,
             capture_output=True,
             text=True,
             encoding="utf-8",

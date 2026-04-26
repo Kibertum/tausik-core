@@ -95,6 +95,7 @@ def _do_task_done(svc: Any, args: dict) -> str:
         args.get("relevant_files"),
         ac_verified=args.get("ac_verified", False),
         no_knowledge=args.get("no_knowledge", False),
+        evidence=args.get("evidence"),
     )
 
 
@@ -470,7 +471,220 @@ _DISPATCH: dict[str, _Handler] = {
     # --- cq (Cross-project Knowledge) ---
     "tausik_cq_query": lambda svc, args: _handle_cq_query(args),
     "tausik_cq_publish": lambda svc, args: _handle_cq_publish(args),
+    # --- Stack registry (read + scaffold) ---
+    "tausik_stack_list": lambda svc, args: _handle_stack_list(svc),
+    "tausik_stack_show": lambda svc, args: _handle_stack_show(args["name"]),
+    "tausik_stack_lint": lambda svc, args: _handle_stack_lint(),
+    "tausik_stack_diff": lambda svc, args: _handle_stack_diff(args["name"]),
+    "tausik_stack_scaffold": lambda svc, args: _handle_stack_scaffold(args),
+    # --- Doctor / verify / stack reset+export ---
+    "tausik_doctor": lambda svc, args: _handle_doctor(svc),
+    "tausik_verify": lambda svc, args: _handle_verify(svc, args["task_slug"]),
+    "tausik_stack_reset": lambda svc, args: _handle_stack_reset(args["name"]),
+    "tausik_stack_export": lambda svc, args: _handle_stack_export(args["name"]),
+    # --- Roles (CRUD) ---
+    "tausik_role_list": lambda svc, args: _handle_role_list(svc),
+    "tausik_role_show": lambda svc, args: _handle_role_show(svc, args["slug"]),
+    "tausik_role_create": lambda svc, args: _handle_role_create(svc, args),
+    "tausik_role_update": lambda svc, args: _handle_role_update(svc, args),
+    "tausik_role_delete": lambda svc, args: _handle_role_delete(svc, args),
+    "tausik_role_seed": lambda svc, args: _handle_role_seed(svc),
 }
+
+
+def _handle_role_list(svc: Any) -> str:
+    import json as _json
+
+    from service_roles import role_list
+
+    return _json.dumps(role_list(svc.be), indent=2, ensure_ascii=False)
+
+
+def _handle_role_show(svc: Any, slug: str) -> str:
+    import json as _json
+
+    from service_roles import role_show
+
+    try:
+        return _json.dumps(role_show(svc.be, slug), indent=2, ensure_ascii=False)
+    except Exception as e:
+        return f"Error: {e}"
+
+
+def _handle_role_create(svc: Any, args: dict) -> str:
+    import json as _json
+
+    from service_roles import role_create
+
+    try:
+        row = role_create(
+            svc.be,
+            args["slug"],
+            args["title"],
+            args.get("description"),
+            args.get("extends"),
+        )
+        return _json.dumps(row, indent=2, ensure_ascii=False)
+    except Exception as e:
+        return f"Error: {e}"
+
+
+def _handle_role_update(svc: Any, args: dict) -> str:
+    import json as _json
+
+    from service_roles import role_update
+
+    try:
+        row = role_update(
+            svc.be, args["slug"], args.get("title"), args.get("description")
+        )
+        return _json.dumps(row, indent=2, ensure_ascii=False)
+    except Exception as e:
+        return f"Error: {e}"
+
+
+def _handle_role_delete(svc: Any, args: dict) -> str:
+    from service_roles import role_delete
+
+    try:
+        return role_delete(svc.be, args["slug"], args.get("force", False))
+    except Exception as e:
+        return f"Error: {e}"
+
+
+def _handle_role_seed(svc: Any) -> str:
+    import json as _json
+
+    from service_roles import seed_existing_roles
+
+    return _json.dumps(seed_existing_roles(svc.be), indent=2)
+
+
+def _handle_doctor(svc: Any) -> str:
+    import io as _io
+    import sys as _sys
+
+    from project_cli_doctor import _capture_db_state, cmd_doctor
+
+    _capture_db_state()
+    buf = _io.StringIO()
+    saved_out, saved_err = _sys.stdout, _sys.stderr
+    _sys.stdout = _sys.stderr = buf
+
+    class _Ns:
+        pass
+
+    try:
+        cmd_doctor(svc, _Ns())
+    except SystemExit:
+        pass
+    finally:
+        _sys.stdout, _sys.stderr = saved_out, saved_err
+    return buf.getvalue()
+
+
+def _handle_verify(svc: Any, task_slug: str) -> str:
+    import sqlite3 as _s
+
+    from service_verification import run_gates_with_cache
+
+    task = svc.be.task_get(task_slug)
+    if not task:
+        return f"Error: task '{task_slug}' not found"
+    relevant = []
+    raw = task.get("relevant_files")
+    if raw:
+        try:
+            import json as _json
+
+            relevant = _json.loads(raw)
+        except Exception:
+            relevant = []
+    try:
+        passed, results, status = run_gates_with_cache(
+            svc.be._conn, task_slug, relevant or None, scope="standard"
+        )
+    except _s.Error as e:
+        return f"Error: {e}"
+    return f"verify task='{task_slug}' passed={passed} status={status} gates={[r['name'] for r in results]}"
+
+
+def _handle_stack_reset(name: str) -> str:
+    import shutil as _sh
+
+    from tausik_utils import validate_slug
+
+    try:
+        validate_slug(name)
+    except Exception as e:
+        return f"Error: {e}"
+    user_dir = os.path.join(os.getcwd(), ".tausik", "stacks", name)
+    if not os.path.isdir(user_dir):
+        return f"No user override at {user_dir}"
+    _sh.rmtree(user_dir)
+    return f"Removed {user_dir}"
+
+
+def _handle_stack_export(name: str) -> str:
+    import json as _json
+
+    from service_stack_ops import stack_show
+
+    try:
+        return _json.dumps(stack_show(name), indent=2, ensure_ascii=False)
+    except KeyError as e:
+        return f"Error: {e}"
+
+
+def _handle_stack_list(svc: Any) -> str:
+    import json as _json
+
+    return _json.dumps(svc.stack_list(), indent=2, ensure_ascii=False)
+
+
+def _handle_stack_show(name: str) -> str:
+    import json as _json
+
+    from service_stack_ops import stack_show
+
+    try:
+        return _json.dumps(stack_show(name), indent=2, ensure_ascii=False)
+    except KeyError as e:
+        return f"Error: {e}"
+
+
+def _handle_stack_lint() -> str:
+    import json as _json
+
+    from service_stack_ops import stack_lint
+
+    return _json.dumps(stack_lint(), indent=2, ensure_ascii=False)
+
+
+def _handle_stack_diff(name: str) -> str:
+    import json as _json
+
+    from service_stack_ops import stack_diff
+
+    return _json.dumps(stack_diff(name), indent=2, ensure_ascii=False)
+
+
+def _handle_stack_scaffold(args: dict) -> str:
+    import json as _json
+
+    from service_stack_ops import stack_scaffold
+
+    try:
+        result = stack_scaffold(
+            args["name"],
+            args.get("extends_builtin"),
+            args.get("force", False),
+        )
+        return _json.dumps(result, indent=2, ensure_ascii=False)
+    except FileExistsError as e:
+        return f"Refused: {e}"
+    except (ValueError, KeyError) as e:
+        return f"Error: {e}"
 
 
 def _dispatch_tool(svc: Any, name: str, args: dict) -> str:

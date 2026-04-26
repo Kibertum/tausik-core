@@ -106,6 +106,10 @@ class SQLiteBackend(BackendQueriesMixin, BackendGraphMixin, BackendCrudMixin):
                 "INSERT INTO meta(key,value) VALUES('schema_version',?)",
                 (str(SCHEMA_VERSION),),
             )
+            self._conn.commit()
+            from backend_migrations import run_migrations as _rm
+
+            _rm(self._conn, SCHEMA_VERSION)
         else:
             current_ver = int(row[0])
             if current_ver < SCHEMA_VERSION:

@@ -319,11 +319,22 @@ class TestSessionDuration:
 
     def test_check_duration_over_limit(self, svc):
         svc.session_start()
-        # Manually set a started_at in the past to trigger warning
+        # v1.3: warning is gated on ACTIVE minutes (gap-based from events table).
+        # Backdate started_at AND seed events with sub-threshold gaps so the
+        # active-minute sum exceeds the limit.
         svc.be._ex(
             "UPDATE sessions SET started_at='2020-01-01T00:00:00Z' WHERE ended_at IS NULL"
         )
-        warning = svc.session_check_duration(max_minutes=60)
+        # Seed 13 events at 5-min intervals → 12 gaps × 5 min = 60 min active
+        # which exceeds max_minutes=30 below.
+        for n in range(13):
+            ts = f"2020-01-01T00:{n * 5:02d}:00Z"
+            svc.be._ex(
+                "INSERT INTO events(entity_type, entity_id, action, created_at) "
+                "VALUES ('test', 'x', 'tick', ?)",
+                (ts,),
+            )
+        warning = svc.session_check_duration(max_minutes=30)
         assert warning is not None
         assert "min" in warning
 

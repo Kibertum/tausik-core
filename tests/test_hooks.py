@@ -105,13 +105,35 @@ class TestGitPushGate:
         )
         assert r.returncode == 0
 
-    def test_skip_hooks_env(self):
+    def test_skip_push_hook_env(self):
+        r = run_hook(
+            "git_push_gate.py",
+            {"tool_input": {"command": "git push origin main"}},
+            env_extra={"TAUSIK_SKIP_PUSH_HOOK": "1"},
+        )
+        assert r.returncode == 0
+
+    def test_skip_hooks_no_longer_bypasses_push(self):
         r = run_hook(
             "git_push_gate.py",
             {"tool_input": {"command": "git push origin main"}},
             env_extra={"TAUSIK_SKIP_HOOKS": "1"},
         )
-        assert r.returncode == 0
+        assert r.returncode == 2
+
+    def test_chained_command_blocked(self):
+        r = run_hook(
+            "git_push_gate.py",
+            {"tool_input": {"command": "cd . && git push origin main"}},
+        )
+        assert r.returncode == 2
+
+    def test_absolute_path_git_blocked(self):
+        r = run_hook(
+            "git_push_gate.py",
+            {"tool_input": {"command": "/usr/bin/git push origin main"}},
+        )
+        assert r.returncode == 2
 
 
 class TestAutoFormat:

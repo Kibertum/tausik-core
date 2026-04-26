@@ -40,7 +40,7 @@ the Backend handles only CRUD and SQL. CLI and MCP are two equal entry points.
               |
   +---------------------------+
   | SQLite (WAL mode)         |  <- .tausik/tausik.db
-  | 11 tables + 4 FTS5        |
+  | 18 tables + FTS5 indexes  |
   +---------------------------+
 ```
 
@@ -50,33 +50,33 @@ the Backend handles only CRUD and SQL. CLI and MCP are two equal entry points.
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `project.py` | ~120 | CLI entry point, dispatch |
-| `project_parser.py` | ~380 | argparse command tree |
-| `project_cli.py` | ~345 | CLI handlers (status, task, session, roadmap) |
-| `project_cli_extra.py` | ~375 | CLI handlers (memory, gates, skills, fts) |
-| `project_cli_ops.py` | ~145 | CLI handlers (metrics, search, events, explore, audit, run) |
-| `project_service.py` | ~340 | ProjectService + SessionMixin + HierarchyMixin |
-| `service_task.py` | ~375 | TaskMixin: task lifecycle, QG-0, QG-2 |
-| `service_knowledge.py` | ~325 | KnowledgeMixin: memory, decisions, graph, explorations |
-| `service_skills.py` | ~220 | SkillsMixin: activate, deactivate, list, install |
-| `service_gates.py` | ~340 | GatesMixin: QG-0, QG-2, SENAR checklist |
-| `service_cascade.py` | ~45 | CascadeMixin: auto-start/close story/epic |
-| `project_backend.py` | ~395 | SQLiteBackend: WAL, FTS5, hierarchy + task CRUD |
-| `backend_crud.py` | ~230 | BackendCrudMixin: session, decision, memory, meta, events |
-| `backend_queries.py` | ~375 | Metrics, roadmap, search, graph traversal |
-| `backend_graph.py` | ~110 | Graph memory (edges) + explorations |
-| `backend_schema.py` | ~240 | DDL: 11 tables + 4 FTS + triggers + indexes |
-| `backend_migrations.py` | ~160 | Migrations v10→v15 + import legacy |
-| `backend_migrations_legacy.py` | ~280 | Legacy migrations v2→v9 |
-| `project_config.py` | ~350 | Config loader, gates config, auto-enable |
-| `gate_runner.py` | ~215 | Quality gates execution |
-| `skill_manager.py` | ~360 | Skill install/uninstall from repositories |
-| `skill_repos.py` | ~200 | Skill repository management |
-| `ide_utils.py` | ~125 | IDE detection, paths, registry |
-| `plan_parser.py` | ~125 | Markdown plan parser for /run |
-| `tausik_utils.py` | ~50 | Slug validation, timestamps, slugify |
-| `project_types.py` | ~40 | TypedDict, constants |
-| `tausik_version.py` | ~3 | Version |
+73 source files in `scripts/` (v1.3). Highlights:
+
+| File | Purpose |
+|------|---------|
+| `project.py` | CLI entry point, dispatch |
+| `project_parser.py` | argparse command tree |
+| `project_cli.py` / `_extra.py` / `_ops.py` | CLI handlers (status, task, session, memory, gates, skills, fts, metrics, search, events, explore, audit, run) |
+| `project_cli_doctor.py` / `_role.py` / `_stack.py` / `_verify.py` | v1.3 CLI handlers (doctor, roles, stacks, verify) |
+| `project_service.py` + `service_*.py` mixins | Business logic: tasks, knowledge, skills, gates, cascade, roles, verification |
+| `service_verification.py` | Scoped pytest gate + verify cache (10 min TTL) |
+| `service_roles.py` | Hybrid role storage (DB metadata + agents/roles/*.md) |
+| `service_stack_ops.py` | Stack scaffold, lint, diff, reset |
+| `project_backend.py` + `backend_*.py` | SQLite + FTS5 backend (WAL mode, 18 tables) |
+| `backend_session_metrics.py` | Gap-based active-time computation |
+| `backend_tier_metrics.py` | call_budget vs call_actual tier metrics |
+| `backend_migrations.py` / `_legacy.py` | Schema migrations through v18 |
+| `project_config.py` + `default_gates.py` | Config loader, gates config, auto-enable |
+| `gate_runner.py` + `gate_stack_dispatch.py` + `gate_test_resolver.py` | Scoped pytest mapping + dispatch |
+| `skill_manager.py` + `skill_repos.py` | Skill install/uninstall from repositories |
+| `brain_*.py` | Shared Brain (Notion mirror, sync, classifier, registry) |
+| `cq_client.py` | Cross-project queue client |
+| `doc_extract.py` | markitdown integration |
+| `docs_lint.py` | Warning-only stale-version linter |
+| `plan_parser.py` | Markdown plan parser for `/run` |
+| `model_routing.py` + `notifier.py` | Model selection + webhooks |
+| `ide_utils.py` | IDE detection, paths, registry |
+| `tausik_utils.py` + `tausik_version.py` + `project_types.py` | Helpers, version, types |
 
 ### Bootstrap (Generation)
 
@@ -94,17 +94,19 @@ the Backend handles only CRUD and SQL. CLI and MCP are two equal entry points.
 | File | Purpose |
 |------|---------|
 | `agents/claude/mcp/project/server.py` | JSON-RPC stdio server |
-| `agents/claude/mcp/project/tools.py` | 54 tool definitions (core) |
-| `agents/claude/mcp/project/tools_extra.py` | 19 tool definitions (skills, gates, maintenance) |
+| `agents/claude/mcp/project/tools.py` | core tool definitions |
+| `agents/claude/mcp/project/tools_extra.py` | extended tool definitions (skills, gates, doctor, verify, roles, stacks, brain) |
 | `agents/claude/mcp/project/handlers.py` | Dispatch: tool name -> service method |
 | `agents/claude/mcp/project/handlers_skill.py` | Skill + maintenance handlers (split) |
+
+Total MCP surface: **96 project tools + 10 brain tools = 106**.
 
 ### Cross-IDE Support
 
 Skills, roles, stacks -- shared across IDEs. MCP servers are IDE-specific:
 ```
 agents/
-+-- skills/           # 34 skills (core + extension + solo)
++-- skills/           # 16 built-in + 22 vendor = 38 deployed
 +-- roles/            # 5 roles (developer, architect, qa, tech-writer, ui-ux)
 +-- stacks/           # Stack guides
 +-- overrides/        # IDE-specific overrides (claude/, cursor/, qwen/)
@@ -113,7 +115,7 @@ agents/
 +-- qwen/ → claude/   # Qwen Code (falls back to Claude MCP)
 ```
 
-## DB: Tables (Schema v15)
+## DB: Tables (Schema v18)
 
 | Table | Purpose |
 |-------|---------|
@@ -132,6 +134,9 @@ agents/
 | `fts_decisions` | FTS5 index for decisions |
 | `task_logs` | Structured task logs (phase, message) |
 | `fts_task_logs` | FTS5 index for task logs |
+| `roles` | Role registry (hybrid: metadata + agents/roles/{slug}.md) |
+| `session_activity` | Per-tool-call timestamps for gap-based active time |
+| `verification_runs` | Verify cache: file_hash + timestamp for QG-2 reuse (10 min TTL) |
 
 ## Quality Gates
 
@@ -150,7 +155,7 @@ Gates: `pytest`, `ruff`, `mypy`, `bandit`, `filesize`, `tdd_order`, `tsc`, `esli
 ## Testing
 
 ```bash
-pytest tests/ -v                    # all tests (918)
+pytest tests/ -v                    # all tests (2235)
 pytest tests/test_tausik_backend.py   # backend CRUD
 pytest tests/test_tausik_service.py   # service logic
 pytest tests/test_tausik_cli.py       # CLI smoke

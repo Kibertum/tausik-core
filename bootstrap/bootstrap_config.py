@@ -264,8 +264,17 @@ def save_tausik_config(
         except ImportError:
             pass
     os.makedirs(os.path.dirname(tausik_config_path), exist_ok=True)
-    with open(tausik_config_path, "w", encoding="utf-8") as f:
-        json.dump(tausik_config, f, indent=2, ensure_ascii=False)
+    tmp = tausik_config_path + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(tausik_config, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, tausik_config_path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
     if get_ide_target_fn:
         for ide in ides:
             old = os.path.join(

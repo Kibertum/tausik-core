@@ -56,8 +56,9 @@ def canonical_name(name: str) -> str:
 
 
 def _normalize_path(path: str) -> str:
-    """Filesystem-safe path comparator: absolute + normcase (handles Win slash/case)."""
-    return os.path.normcase(os.path.abspath(path))
+    import unicodedata as _u
+
+    return _u.normalize("NFC", os.path.normcase(os.path.abspath(path)))
 
 
 def _now_iso() -> str:

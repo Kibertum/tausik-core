@@ -72,11 +72,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     ta = task_sub.add_parser(
         "add",
-        epilog='Example: tausik task add "Task title" --group my-story --slug my-task --complexity medium',
+        epilog='Example: tausik task add "Task title" --story my-story --slug my-task --complexity medium',
     )
     ta.add_argument("title", help="Task title (in quotes)")
     ta.add_argument(
-        "--group", default=None, dest="story_slug", help="Parent story slug (optional)"
+        "--story",
+        "--group",
+        default=None,
+        dest="story_slug",
+        help="Parent story slug (optional). --group is deprecated alias.",
     )
     ta.add_argument(
         "--slug", default=None, help="Task slug (auto-generated from title if omitted)"
@@ -121,6 +125,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Confirm no knowledge to capture",
     )
     tdone.add_argument("--relevant-files", nargs="*", default=None)
+    tdone.add_argument(
+        "--evidence",
+        default=None,
+        help='Inline AC verification log — e.g. "AC verified: 1. ✓ 2. ✓ ...". '
+        "Saves a separate task_log call.",
+    )
 
     tblock = task_sub.add_parser("block")
     tblock.add_argument("slug")
@@ -201,43 +211,16 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("team", help="Team status — tasks by agent")
 
     # --- session ---
-    sess_p = sub.add_parser("session", help="Session management")
-    sess_sub = sess_p.add_subparsers(dest="session_cmd")
-    sess_sub.add_parser("start")
-    se = sess_sub.add_parser("end")
-    se.add_argument("--summary", default=None)
-    sess_sub.add_parser("current")
-    ssl = sess_sub.add_parser("list")
-    ssl.add_argument("--limit", type=int, default=10)
-    sh = sess_sub.add_parser("handoff")
-    sh.add_argument("json_data", help="Handoff JSON string")
-    sess_sub.add_parser("last-handoff")
-    sext = sess_sub.add_parser("extend", help="Extend session duration by N minutes")
-    sext.add_argument(
-        "--minutes", type=int, default=60, help="Minutes to extend (default: 60)"
-    )
+    from project_parser_session import build_session_subparsers
 
-    stack_sub = sub.add_parser(
-        "stack", help="Stack info — gates per language + user override management"
-    ).add_subparsers(dest="stack_cmd")
-    stack_sub.add_parser("info").add_argument("stack")  # validated by service
-    stack_sub.add_parser("list")
-    stack_sub.add_parser(
-        "export", help="Print resolved stack decl as JSON"
-    ).add_argument("stack")
-    stack_sub.add_parser(
-        "diff", help="Show diff between built-in and user override"
-    ).add_argument("stack")
-    reset_sub = stack_sub.add_parser(
-        "reset", help="Remove user override for a stack (.tausik/stacks/<stack>/)"
-    )
-    reset_sub.add_argument("stack")
-    reset_sub.add_argument(
-        "--yes", action="store_true", help="Skip confirmation prompt"
-    )
-    stack_sub.add_parser(
-        "lint", help="Validate user-override stack.json files against the schema"
-    )
+    build_session_subparsers(sub)
+
+    from project_parser_role import build_role_subparsers
+    from project_parser_stack import build_stack_subparsers
+
+    build_stack_subparsers(sub)
+    build_role_subparsers(sub)
+    sub.add_parser("doctor", help="Health check: venv + DB + MCP + skills + drift")
 
     # --- decide ---
     dec_p = sub.add_parser("decide", help="Record a decision")

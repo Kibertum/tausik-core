@@ -24,9 +24,12 @@ class HierarchyMixin:
     be: SQLiteBackend
 
     def epic_add(self, slug: str, title: str, description: str | None = None) -> str:
+        from tausik_utils import safe_single_line
+
         validate_slug(slug)
         validate_length("title", title)
-        self.be.epic_add(slug, title, description)
+        title = safe_single_line(title) or title
+        self.be.epic_add(slug, title, safe_single_line(description))
         return f"Epic '{slug}' created."
 
     def epic_list(self) -> list[dict[str, Any]]:
@@ -45,10 +48,13 @@ class HierarchyMixin:
     def story_add(
         self, epic_slug: str, slug: str, title: str, description: str | None = None
     ) -> str:
+        from tausik_utils import safe_single_line
+
         self._require_epic(epic_slug)
         validate_slug(slug)
         validate_length("title", title)
-        self.be.story_add(epic_slug, slug, title, description)
+        title = safe_single_line(title) or title
+        self.be.story_add(epic_slug, slug, title, safe_single_line(description))
         return f"Story '{slug}' created in epic '{epic_slug}'."
 
     def story_list(self, epic_slug: str | None = None) -> list[dict[str, Any]]:
@@ -77,85 +83,48 @@ class SessionMixin:
         sid = self.be.session_start()
         return f"Session #{sid} started."
 
+    def session_active_minutes(
+        self, session_id: int | None = None, idle_threshold: int | None = None
+    ) -> int:
+        from service_session_metrics import session_active_minutes as _f
+
+        return _f(self.be, session_id, idle_threshold)
+
+    def session_wall_minutes(self, session_id: int | None = None) -> int:
+        from service_session_metrics import session_wall_minutes as _f
+
+        return _f(self.be, session_id)
+
     def session_check_duration(self, max_minutes: int | None = None) -> str | None:
-        """Check if current session exceeds max duration. Returns warning or None."""
-        current = self.be.session_current()
-        if not current or not current.get("started_at"):
-            return None
-        from datetime import datetime, timezone
+        from service_session_metrics import session_overrun_warning
 
-        try:
-            started = datetime.fromisoformat(
-                current["started_at"].replace("Z", "+00:00")
-            )
-            elapsed = (datetime.now(timezone.utc) - started).total_seconds() / 60
-            from project_config import DEFAULT_SESSION_MAX_MINUTES
-
-            limit = max_minutes or DEFAULT_SESSION_MAX_MINUTES
-            # Account for session extensions via events
-            all_events = self.be.events_list(
-                entity_type="session",
-                entity_id=str(current["id"]),
-            )
-            for ev in all_events:
-                if ev.get("action") != "session_extend":
-                    continue
-                try:
-                    data = json.loads(ev.get("details", "{}"))
-                    limit = max(limit, data.get("new_limit", limit))
-                except (ValueError, TypeError):
-                    pass
-            if elapsed > limit:
-                return (
-                    f"Session #{current['id']} has been running for {int(elapsed)} min "
-                    f"(limit: {limit} min). Consider ending with /end."
-                )
-        except (ValueError, TypeError):
-            pass
-        return None
+        return session_overrun_warning(self.be, max_minutes)
 
     def session_extend(self, minutes: int = 60) -> str:
-        """Extend session duration limit by N minutes."""
+        """Extend session active-time limit by N minutes (SENAR Rule 9.2)."""
+        from project_config import DEFAULT_SESSION_MAX_MINUTES, load_config
+        from service_session_metrics import (
+            effective_session_limit,
+            session_active_minutes,
+        )
+
         current = self.be.session_current()
         if not current:
             raise ServiceError("No active session to extend.")
-        from datetime import datetime, timezone
-
-        try:
-            started = datetime.fromisoformat(
-                current["started_at"].replace("Z", "+00:00")
-            )
-            elapsed = int((datetime.now(timezone.utc) - started).total_seconds() / 60)
-        except (ValueError, TypeError):
-            elapsed = 0
-        from project_config import DEFAULT_SESSION_MAX_MINUTES
-
-        # Read current effective limit from existing extensions
-        effective_limit = DEFAULT_SESSION_MAX_MINUTES
-        all_events = self.be.events_list(
-            entity_type="session",
-            entity_id=str(current["id"]),
-        )
-        for ev in all_events:
-            if ev.get("action") != "session_extend":
-                continue
-            try:
-                data = json.loads(ev.get("details", "{}"))
-                effective_limit = max(
-                    effective_limit, data.get("new_limit", effective_limit)
-                )
-            except (ValueError, TypeError):
-                pass
+        cfg = load_config()
+        base = cfg.get("session_max_minutes", DEFAULT_SESSION_MAX_MINUTES)
+        effective_limit = effective_session_limit(self.be, current["id"], base)
         new_limit = effective_limit + minutes
+        active = session_active_minutes(self.be, current["id"])
         self.be.event_add(
             "session",
             str(current["id"]),
             "session_extend",
-            f'{{"old_limit":{effective_limit},"new_limit":{new_limit},"elapsed":{elapsed}}}',
+            f'{{"old_limit":{effective_limit},"new_limit":{new_limit},"active":{active}}}',
         )
         return (
             f"Session #{current['id']} extended by {minutes} min. "
-            f"New limit: {new_limit} min (elapsed: {elapsed} min)."
+            f"New limit: {new_limit} min (active: {active} min)."
         )
 
     def session_end(self, summary: str | None = None) -> str:

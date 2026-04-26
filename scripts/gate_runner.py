@@ -178,19 +178,17 @@ def run_command_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
 
     if "{test_files_for_files}" in cmd:
         test_files = resolve_test_files_for_relevant(files)
-        # Scoped-skip vs. unscoped-fallback:
-        #   - relevant_files non-empty + no test mapping → SKIP (scoped run; running
-        #     the full suite for an unrelated module defeats the scoping promise
-        #     in CLAUDE.md and burns 60+s on every task_done).
-        #   - relevant_files empty → fall back to full suite (caller couldn't
-        #     scope at all, so we honour the regression-safe default).
+        # Scoped-only semantics:
+        #   - relevant_files non-empty + no test mapping → SKIP (scoped run for
+        #     a module without test_<basename>.py — running the full suite for
+        #     an unrelated module defeats the scoping promise).
+        #   - relevant_files empty → SKIP (was: fall back to full suite).
+        #     MCP task_done has a 10s budget; the suite always exceeds it and
+        #     burns budget for zero verification value. Forces callers to pass
+        #     relevant_files to opt in to actual verification.
         if not test_files:
-            if files:
-                # Sentinel return — run_gates picks this up and emits skipped_result.
-                return True, _SCOPED_SKIP_SENTINEL
-            test_files_str = "tests/"
-        else:
-            test_files_str = " ".join(shlex.quote(t) for t in test_files)
+            return True, _SCOPED_SKIP_SENTINEL
+        test_files_str = " ".join(shlex.quote(t) for t in test_files)
         cmd = cmd.replace("{test_files_for_files}", test_files_str)
 
     files_str = " ".join(shlex.quote(f) for f in files) if files else "."
@@ -259,20 +257,26 @@ def run_gates(trigger: str, files: list[str] | None = None) -> tuple[bool, list[
         else:
             passed, output = run_command_gate(gate, files or [])
 
-        # Scoped-skip sentinel from run_command_gate: relevant_files were
-        # provided but no test files mapped. Show SKIP, don't run full suite.
+        # Scoped-skip sentinel from run_command_gate: either relevant_files
+        # were provided but no test files mapped, OR no relevant_files at
+        # all (full-suite fallback removed in v1.3 — burns MCP 10s budget).
         if output == _SCOPED_SKIP_SENTINEL:
+            skip_reason = (
+                "No test file maps to relevant_files via "
+                "tests/test_<basename>.py heuristic; gate skipped (scoped run)."
+                if files
+                else (
+                    "No relevant_files passed; gate skipped. Pass relevant_files "
+                    "for actual verification (e.g. --relevant-files src/foo.py)."
+                )
+            )
             results.append(
                 {
                     "name": name,
                     "severity": severity,
                     "passed": True,
                     "skipped": True,
-                    "output": (
-                        "No test file maps to relevant_files via "
-                        "tests/test_<basename>.py heuristic; gate skipped "
-                        "(scoped run)."
-                    ),
+                    "output": skip_reason,
                 }
             )
             continue

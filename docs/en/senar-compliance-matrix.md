@@ -2,7 +2,7 @@
 
 # SENAR v1.3 Core — Compliance Matrix
 
-**Date:** 2026-04-05 | **Auditors:** 3 independent agents | **Framework:** TAUSIK v1.0.0
+**Date:** 2026-04-26 | **Auditors:** 6+ independent review cycles | **Framework:** TAUSIK v1.3.0
 
 ## Quality Gates
 
@@ -13,14 +13,16 @@
 | QG-0 | Negative scenario in AC | ✅ Implemented | Hard block | `service_gates.py` `NEGATIVE_SCENARIO_KEYWORDS` (30+ en+ru) |
 | QG-0 | Scope warning | ✅ Implemented | Warning | `service_gates.py` — scope + scope_exclude stderr |
 | QG-0 | Security surface detection | ✅ Implemented | Warning | `service_gates.py` `SECURITY_KEYWORDS` + `SECURITY_AC_KEYWORDS` |
-| QG-2 | AC verified with evidence | ✅ Implemented | Hard block | `service_gates.py` `_verify_ac()` — flag + notes + per-criterion |
+| QG-2 | AC verified with evidence | ✅ Implemented | Hard block | `service_gates.py` `_verify_ac()` — flag + notes + per-criterion. NO `--force` bypass. |
 | QG-2 | Plan steps complete | ✅ Implemented | Hard block | `service_gates.py` `_verify_plan_complete()` — JSON plan check |
+| QG-2 | Scoped pytest gate | ✅ Implemented | Hard block | `service_verification.py` — basename match `tests/test_<file>.py` per `relevant_files` (no fallback to full suite when files supplied) |
+| QG-2 | Verify cache (10 min TTL) | ✅ Implemented | Skip-on-hit | `verification_runs` table — same `files_hash` + green = skip; security paths bypass cache |
 | QG-2 | Quality gates (pytest/ruff) | ✅ Implemented | Hard block | `gate_runner.py` + `service_gates.py` `_run_quality_gates()` |
 | QG-2 | Verification checklist (4 tiers) | ✅ Implemented | Warning | `service_gates.py` `_check_verification_checklist()` auto-tier |
 | QG-2 | Root cause for defects | ✅ Implemented | Warning | `service_task.py` `task_done()` — keyword check |
 | QG-2 | Knowledge capture | ✅ Implemented | Warning | `service_task.py` `task_done()` — memory/decision count |
 
-**Result: 11/11 implemented.** Enforcement levels match SENAR spec.
+**Result: 13/13 implemented.** Enforcement levels match SENAR spec.
 
 ## Rules
 
@@ -33,7 +35,7 @@
 | 7 | Root cause for defects | ✅ Implemented | Warning | Keyword detection in notes |
 | 8 | Knowledge capture | ✅ Implemented | Warning | memory/decision count + `--no-knowledge` opt-out |
 | 9.1 | No code without task | ✅ Implemented | Hard (hook) | Same as Rule 1 |
-| 9.2 | Session time limit (180 min) | ✅ Implemented | Hard block | `service_gates.py` blocks `task_start` at >180 min; `session extend` to override |
+| 9.2 | Session time limit (180 min **active**) | ✅ Implemented | Hard block | Gap-based active time (≥10 min idle = AFK, not counted). `service_gates.py` blocks `task_start` at >180 min active; `status` shows "X min active / Y min wall"; `session extend` and `session recompute` available. Threshold configurable via `session_idle_threshold_minutes`. |
 | 9.3 | Checkpoint every 30-50 calls | ✅ Implemented | Warning (auto) | MCP counter in meta table, warning at 40 calls, reset on handoff |
 | 9.4 | Document dead ends | ✅ Implemented | Instruction + tooling | `dead_end()` + skill instructions + `/end` check |
 | 9.5 | Periodic audit | ✅ Implemented | Warning | `audit_check/mark` + `/start` integration |
@@ -74,20 +76,25 @@
 
 | Feature | Status | Evidence |
 |---------|--------|----------|
-| Multi-language gates | ✅ Implemented | `project_config.py` — 20 stacks auto-detection |
-| MCP coverage 80 tools | ✅ Implemented | `handlers.py` — 73 project + 7 RAG |
+| Multi-language gates | ✅ Implemented | `project_config.py` — 25 default stacks + custom_stacks override |
+| MCP coverage 106 tools | ✅ Implemented | `handlers.py` — 96 project + 10 brain |
 | Batch execution (`/run`) | ✅ Implemented | `plan_parser.py` + `/run` skill |
 | Structured logs (task_logs + FTS5) | ✅ Implemented | `backend_schema.py` + `service_task.py:task_log` |
 | Fake test detection | ✅ Implemented | `/review` skill — 10 patterns |
+| Skills system | ✅ Implemented | 38 skills (16 core + 22 vendor) — `service_skills.py` + `tausik-skills` repo |
+| Hooks system | ✅ Implemented | 19 hooks across PreToolUse / PostToolUse / SessionStart / Stop / pre-commit |
+| Roles registry | ✅ Implemented | Hybrid: SQLite metadata + `agents/roles/{role}.md` profile; CRUD CLI + 6 MCP tools |
+| Doctor health check | ✅ Implemented | `tausik doctor` + `tausik_doctor` MCP — 4 groups (venv/DB/MCP/skills) + drift |
+| Zero-defect skill | ✅ Implemented | `/zero-defect` (Maestro-inspired): read-before-write, verify-before-claim, never-hallucinate-APIs |
 
 ## Overall Score
 
 | Category | Implemented | Partial | Missing | Score |
 |----------|-------------|---------|---------|-------|
-| Quality Gates (11) | 11 | 0 | 0 | **100%** |
+| Quality Gates (13) | 13 | 0 | 0 | **100%** |
 | Rules (11) | 11 | 0 | 0 | **100%** |
 | Metrics (6) | 6 | 0 | 0 | **100%** |
 | Explorations (3) | 3 | 0 | 0 | **100%** |
-| **Total (31)** | **31** | **0** | **0** | **100%** |
+| **Total (33)** | **33** | **0** | **0** | **100%** |
 
 **SENAR v1.3 Core compliance: 100%.** All gaps closed.

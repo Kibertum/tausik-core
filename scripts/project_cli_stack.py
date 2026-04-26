@@ -33,7 +33,29 @@ def cmd_stack(svc: ProjectService, args: Any) -> None:
         return _cmd_reset(args.stack, getattr(args, "yes", False))
     if cmd == "lint":
         return _cmd_lint()
+    if cmd == "scaffold":
+        return _cmd_scaffold(
+            args.stack,
+            getattr(args, "extends", None),
+            getattr(args, "force", False),
+        )
     print(f"Unknown stack subcommand: {cmd!r}")
+
+
+def _cmd_scaffold(stack: str, extends: str | None, force: bool) -> None:
+    """Create .tausik/stacks/<stack>/{stack.json, guide.md} skeleton."""
+    from service_stack_ops import stack_scaffold
+
+    try:
+        result = stack_scaffold(stack, extends, force)
+    except FileExistsError as e:
+        print(f"Refused: {e}")
+        return
+    print(f"Created skeleton at {result['dir']}")
+    for p in result["created"]:
+        print(f"  - {p}")
+    if result["existed"] and force:
+        print("Overwrote existing files (force=True).")
 
 
 def _cmd_list(svc: ProjectService) -> None:

@@ -869,17 +869,21 @@ class TestPytestGateScopeSubstitution:
             "would otherwise run for an unrelated module."
         )
 
-    def test_unscoped_call_falls_back_to_full_suite(self, tmp_path, monkeypatch):
-        """relevant_files empty → fall back to `tests/` (regression-safe path)."""
+    def test_unscoped_call_skips_instead_of_full_suite(self, tmp_path, monkeypatch):
+        """v1.3: relevant_files empty → SKIP (was: fall back to tests/).
+
+        Full-suite fallback removed in v1.3 — burned MCP 10s budget for no
+        verification value. Callers must pass relevant_files to opt in.
+        """
+        from gate_runner import _SCOPED_SKIP_SENTINEL
+
         (tmp_path / "tests").mkdir()
         monkeypatch.chdir(tmp_path)
-
-        captured = {}
+        called = {"ran": False}
         import subprocess as _sp
 
         def fake_run(args, **kwargs):
-            captured["args"] = args
-            captured["shell"] = kwargs.get("shell", False)
+            called["ran"] = True
 
             class R:
                 returncode = 0
@@ -890,10 +894,10 @@ class TestPytestGateScopeSubstitution:
 
         monkeypatch.setattr(_sp, "run", fake_run)
         gate = {"command": "pytest -q {test_files_for_files}"}
-        ok, _ = run_command_gate(gate, [])
+        ok, output = run_command_gate(gate, [])
         assert ok is True
-        rendered = captured["args"] if captured["shell"] else " ".join(captured["args"])
-        assert "tests/" in rendered
+        assert output == _SCOPED_SKIP_SENTINEL
+        assert called["ran"] is False
 
     def test_run_gates_translates_scoped_skip_into_skipped_result(
         self, tmp_path, monkeypatch

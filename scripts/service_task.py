@@ -54,10 +54,13 @@ class TaskMixin(GatesMixin, CascadeMixin):
         call_budget: int | None = None,
         tier: str | None = None,
     ) -> str:
+        from tausik_utils import safe_single_line
+
         if story_slug:
             self._require_story(story_slug)
         validate_slug(slug)
         validate_length("title", title)
+        title = safe_single_line(title) or title
         from service_validation import validate_task_add_inputs
 
         validate_task_add_inputs(stack, complexity, call_budget, tier)
@@ -146,11 +149,14 @@ class TaskMixin(GatesMixin, CascadeMixin):
         relevant_files: list[str] | None = None,
         ac_verified: bool = False,
         no_knowledge: bool = False,
+        evidence: str | None = None,
     ) -> str:
         task = self._require_task(slug)
         if task["status"] == "done":
             raise ServiceError(f"Task '{slug}' is already done")
-        ac_warnings: list[str] = []
+        if evidence:
+            self.task_log(slug, evidence)  # one call instead of log+done (v1.3 DX)
+            task = self._require_task(slug)
         ac_warnings = self._verify_ac(slug, task, ac_verified)
         self._verify_plan_complete(slug, task)
         self._run_quality_gates(slug, relevant_files)
@@ -175,16 +181,14 @@ class TaskMixin(GatesMixin, CascadeMixin):
                 )
 
         # Knowledge capture warning (SENAR Rule 8)
+        _kw = ("dead end", "decided", "decision", "memory", "pattern", "gotcha")
         notes = task.get("notes") or ""
-        has_knowledge = any(
-            kw in notes.lower()
-            for kw in ("dead end", "decided", "decision", "memory", "pattern", "gotcha")
-        )
         knowledge_warning = ""
-        if not has_knowledge and not no_knowledge:
-            mem_cnt = self.be.memory_count_for_task(slug)
-            dec_cnt = self.be.decision_count_for_task(slug)
-            if mem_cnt == 0 and dec_cnt == 0:
+        if not any(kw in notes.lower() for kw in _kw) and not no_knowledge:
+            if (
+                self.be.memory_count_for_task(slug) == 0
+                and self.be.decision_count_for_task(slug) == 0
+            ):
                 knowledge_warning = "NOTE: No knowledge captured for this task (no memories, decisions, or dead ends). Use --no-knowledge to confirm none needed."
         if no_knowledge:
             self.be.event_add(
@@ -270,6 +274,12 @@ class TaskMixin(GatesMixin, CascadeMixin):
                     )
                 if not fields:
                     return f"Task '{slug}' updated.{notice}"
+        from tausik_utils import safe_single_line
+
+        if "title" in fields and fields["title"] is not None:
+            fields["title"] = safe_single_line(fields["title"]) or fields["title"]
+        if "goal" in fields and fields["goal"] is not None:
+            fields["goal"] = safe_single_line(fields["goal"]) or fields["goal"]
         self.be.task_update(slug, **fields)
         return f"Task '{slug}' updated.{notice}"
 

@@ -1,6 +1,6 @@
 # Skill Specification
 
-Formal contract for SKILL.md files in the KAI framework.
+Formal contract for SKILL.md files in the TAUSIK framework.
 
 ## File Structure
 

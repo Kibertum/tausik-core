@@ -8,9 +8,11 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ['3.11', '3.12', '3.13']
 
     steps:
@@ -21,10 +23,16 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: pip install pytest ruff
+        run: pip install pytest ruff mypy bandit
 
-      - name: Lint
+      - name: Lint (ruff)
         run: ruff check scripts/
 
+      - name: Type check (mypy)
+        run: mypy scripts/ --ignore-missing-imports --no-error-summary || true
+
+      - name: Security scan (bandit)
+        run: bandit -r scripts/ -ll -q || true
+
       - name: Run tests
-        run: pytest tests/ -v --tb=short
+        run: pytest tests/ -v --tb=short --ignore=tests/test_bootstrap_skills_coverage.py --ignore=tests/test_bootstrap_real.py

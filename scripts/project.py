@@ -13,9 +13,10 @@ if _script_dir not in sys.path:
 
 
 def main() -> None:
-    from tausik_utils import fix_stdio_encoding
+    from tausik_utils import fix_stdio_encoding, install_file_logging
 
     fix_stdio_encoding()
+    install_file_logging()
 
     from project_cli import (
         cmd_decide,
@@ -37,6 +38,8 @@ def main() -> None:
         cmd_stack,
         cmd_update_claudemd,
     )
+    from project_cli_doctor import cmd_doctor
+    from project_cli_role import cmd_role
     from project_cli_verify import cmd_verify
     from project_cli_ops import (
         cmd_audit,
@@ -85,6 +88,8 @@ def main() -> None:
         "fts": cmd_fts,
         "skill": cmd_skill,
         "stack": cmd_stack,
+        "role": cmd_role,
+        "doctor": cmd_doctor,
         "dead-end": cmd_dead_end,
         "explore": cmd_explore,
         "audit": cmd_audit,
@@ -93,6 +98,10 @@ def main() -> None:
         "run": cmd_run,
     }
 
+    if args.command == "doctor":
+        from project_cli_doctor import _capture_db_state
+
+        _capture_db_state()
     fn = dispatch.get(args.command)
     if not fn:
         # Suggest similar commands

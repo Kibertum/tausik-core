@@ -262,6 +262,17 @@ class TestMCPHandlerDispatch:
             "tausik_skill_uninstall",
             "tausik_skill_repo_add",
             "tausik_skill_repo_remove",
+            # v1.3: stack/role/verify tools require args (name/slug/task_slug)
+            "tausik_stack_show",
+            "tausik_stack_diff",
+            "tausik_stack_scaffold",
+            "tausik_stack_reset",
+            "tausik_stack_export",
+            "tausik_role_show",
+            "tausik_role_create",
+            "tausik_role_update",
+            "tausik_role_delete",
+            "tausik_verify",
         }
         for tool in TOOLS:
             if tool["name"] in skip_tools:

@@ -2,7 +2,7 @@
 
 # SENAR v1.3 Core — Матрица соответствия
 
-**Дата:** 2026-04-05 | **Аудиторы:** 3 независимых агента | **Фреймворк:** TAUSIK v1.0.0
+**Дата:** 2026-04-26 | **Аудиторы:** 6+ независимых review-циклов | **Фреймворк:** TAUSIK v1.3.0
 
 ## Quality Gates
 
@@ -13,14 +13,16 @@
 | QG-0 | Негативный сценарий в AC | ✅ Реализовано | Hard block | `service_gates.py` `NEGATIVE_SCENARIO_KEYWORDS` (30+ en+ru) |
 | QG-0 | Предупреждение о scope | ✅ Реализовано | Warning | `service_gates.py` — scope + scope_exclude в stderr |
 | QG-0 | Обнаружение security surface | ✅ Реализовано | Warning | `service_gates.py` `SECURITY_KEYWORDS` + `SECURITY_AC_KEYWORDS` |
-| QG-2 | AC проверены с evidence | ✅ Реализовано | Hard block | `service_gates.py` `_verify_ac()` — flag + notes + per-criterion |
+| QG-2 | AC проверены с evidence | ✅ Реализовано | Hard block | `service_gates.py` `_verify_ac()` — flag + notes + per-criterion. НЕТ `--force` байпаса. |
 | QG-2 | Шаги плана выполнены | ✅ Реализовано | Hard block | `service_gates.py` `_verify_plan_complete()` — JSON план |
+| QG-2 | Scoped pytest gate | ✅ Реализовано | Hard block | `service_verification.py` — basename match `tests/test_<file>.py` per `relevant_files` (нет fallback на full suite, когда files supplied) |
+| QG-2 | Verify cache (10 min TTL) | ✅ Реализовано | Skip-on-hit | таблица `verification_runs` — same `files_hash` + green = skip; security paths байпасят cache |
 | QG-2 | Quality gates (pytest/ruff) | ✅ Реализовано | Hard block | `gate_runner.py` + `service_gates.py` `_run_quality_gates()` |
 | QG-2 | Checklist верификации (4 тира) | ✅ Реализовано | Warning | `service_gates.py` `_check_verification_checklist()` авто-тир |
 | QG-2 | Root cause для дефектов | ✅ Реализовано | Warning | `service_task.py` `task_done()` — проверка ключевых слов |
 | QG-2 | Захват знаний | ✅ Реализовано | Warning | `service_task.py` `task_done()` — подсчёт memory/decision |
 
-**Результат: 11/11 реализовано.** Уровни enforcement соответствуют спецификации SENAR.
+**Результат: 13/13 реализовано.** Уровни enforcement соответствуют спецификации SENAR.
 
 ## Правила
 
@@ -33,7 +35,7 @@
 | 7 | Root cause для дефектов | ✅ Реализовано | Warning | Обнаружение ключевых слов в notes |
 | 8 | Захват знаний | ✅ Реализовано | Warning | Подсчёт memory/decision + `--no-knowledge` opt-out |
 | 9.1 | Нет кода без задачи | ✅ Реализовано | Hard (hook) | То же что Rule 1 |
-| 9.2 | Лимит сессии (180 мин) | ✅ Реализовано | Hard block | `service_gates.py` блокирует `task_start` при >180 мин; `session extend` для продления |
+| 9.2 | Лимит сессии (180 мин **active**) | ✅ Реализовано | Hard block | Gap-based active time (≥10 мин idle = AFK, не учитывается). `service_gates.py` блокирует `task_start` при >180 мин active; `status` показывает "X min active / Y min wall"; `session extend` и `session recompute` доступны. Threshold настраивается через `session_idle_threshold_minutes`. |
 | 9.3 | Checkpoint каждые 30-50 вызовов | ✅ Реализовано | Warning (авто) | MCP счётчик в meta, warning при 40 вызовах, сброс при handoff |
 | 9.4 | Документирование dead ends | ✅ Реализовано | Instruction + tooling | `dead_end()` + инструкции в скиллах + `/end` проверка |
 | 9.5 | Периодический аудит | ✅ Реализовано | Warning | `audit_check/mark` + интеграция в `/start` |
@@ -67,20 +69,25 @@
 
 | Функция | Статус | Evidence |
 |---------|--------|----------|
-| Multi-language gates | ✅ Реализовано | `project_config.py` — 20 стеков авто-детекция |
-| MCP coverage (80 инструментов) | ✅ Реализовано | `handlers.py` — 73 project + 7 RAG |
+| Multi-language gates | ✅ Реализовано | `project_config.py` — 25 default стеков + custom_stacks override |
+| MCP coverage (106 инструментов) | ✅ Реализовано | `handlers.py` — 96 project + 10 brain |
 | Batch execution (`/run`) | ✅ Реализовано | `plan_parser.py` + скилл `/run` |
 | Structured logs (task_logs + FTS5) | ✅ Реализовано | `backend_schema.py` + `service_task.py:task_log` |
 | Fake test detection | ✅ Реализовано | `/review` — 10 паттернов |
+| Skills система | ✅ Реализовано | 38 skill'ов (16 core + 22 vendor) — `service_skills.py` + `tausik-skills` репо |
+| Hooks система | ✅ Реализовано | 19 хуков на PreToolUse / PostToolUse / SessionStart / Stop / pre-commit |
+| Реестр ролей | ✅ Реализовано | Гибрид: SQLite-метаданные + `agents/roles/{role}.md` профиль; CRUD CLI + 6 MCP инструментов |
+| Doctor health check | ✅ Реализовано | `tausik doctor` + `tausik_doctor` MCP — 4 группы (venv/DB/MCP/skills) + drift |
+| Zero-defect skill | ✅ Реализовано | `/zero-defect` (Maestro-inspired): read-before-write, verify-before-claim, never-hallucinate-APIs |
 
 ## Общий результат
 
 | Категория | Реализовано | Частично | Нет | Оценка |
 |-----------|-------------|----------|-----|--------|
-| Quality Gates (11) | 11 | 0 | 0 | **100%** |
+| Quality Gates (13) | 13 | 0 | 0 | **100%** |
 | Правила (11) | 11 | 0 | 0 | **100%** |
 | Метрики (6) | 6 | 0 | 0 | **100%** |
 | Исследования (3) | 3 | 0 | 0 | **100%** |
-| **Итого (31)** | **31** | **0** | **0** | **100%** |
+| **Итого (33)** | **33** | **0** | **0** | **100%** |
 
 **Соответствие SENAR v1.3 Core: 100%.** Все gaps закрыты.

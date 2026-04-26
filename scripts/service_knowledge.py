@@ -31,8 +31,11 @@ class KnowledgeMixin:
             raise ServiceError(
                 f"Invalid memory type '{mem_type}'. Valid: {', '.join(sorted(VALID_MEMORY_TYPES))}"
             )
+        from tausik_utils import safe_single_line
+
         validate_length("title", title)
         validate_content("content", content)
+        title = safe_single_line(title) or title
         mid = self.be.memory_add(mem_type, title, content, tags, task_slug)
         return f"Memory #{mid} ({mem_type}) saved."
 

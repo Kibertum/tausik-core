@@ -362,3 +362,37 @@ def cmd_run(svc: ProjectService, args: Any) -> None:
         if task.files:
             print(f"     Files: {', '.join(task.files)}")
     print("\nTo execute this plan, use /run in an interactive session.")
+
+
+def cmd_session_recompute(svc: ProjectService, args: Any) -> None:
+    """tausik session recompute — wall vs active minutes for all sessions."""
+    import json as _json
+
+    from backend_session_metrics import recompute_all_sessions
+    from service_session_metrics import resolve_idle_threshold
+
+    threshold = resolve_idle_threshold(args.threshold)
+    rows = recompute_all_sessions(svc.be._q, svc.be._q1, threshold)
+    if args.limit:
+        rows = rows[-args.limit :]
+    if args.json:
+        print(_json.dumps({"threshold_min": threshold, "sessions": rows}, indent=2))
+        return
+    if not rows:
+        print("No sessions to recompute.")
+        return
+    print(f"Idle threshold: {threshold} min  |  showing {len(rows)} session(s)")
+    print(f"{'#':>4} {'wall':>6} {'active':>7} {'idle%':>6}  started_at")
+    total_wall = 0
+    total_active = 0
+    for r in rows:
+        wall = r["wall_minutes"]
+        active = r["active_minutes"]
+        total_wall += wall
+        total_active += active
+        idle_pct = f"{round((1 - active / wall) * 100)}%" if wall > 0 else "  -"
+        print(f"{r['id']:>4} {wall:>6} {active:>7} {idle_pct:>6}  {r['started_at']}")
+    total_idle = (
+        f"{round((1 - total_active / total_wall) * 100)}%" if total_wall > 0 else "  -"
+    )
+    print(f"{'TOTAL':>4} {total_wall:>6} {total_active:>7} {total_idle:>6}")

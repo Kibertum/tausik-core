@@ -4,7 +4,190 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased] — Plugin stack architecture (stack-decl + user customization)
+## [1.3.0] — 2026-04-26 — Big release: MCP expansion + session discipline + plugin stacks
+
+Single consolidated entry covering everything since v1.2.0 (40+ commits).
+
+### 🧠 Shared Brain — cross-project knowledge base (Notion-backed)
+- 4 Notion DBs (decisions, patterns, gotchas, web_cache) + local SQLite mirror with FTS5 (Cyrillic-aware).
+- Notion REST client, stdlib-only, with retry/backoff + 350ms write throttle.
+- Pull-sync engine with delta-fetch (`last_edited_time` cursor), atomic single-tx, WAL mode.
+- `tausik brain init` wizard creates 4 DBs + atomic config in one shot.
+- MCP server `tausik-brain` (7 tools) + skill `/brain` (query/store/show/status/move).
+- Auto-route `tausik decide` via rule-based local↔brain classifier.
+- PostToolUse `WebFetch` auto-cache hook → next fetch of same URL is blocked by mirror.
+- Proactive lookup before WebSearch/WebFetch — instant hit from mirror.
+- Privacy: project names hashed (SHA256[:16]) — no plaintext in Notion.
+- Stale-lock recovery for SIGKILL'd wizard. NFC normalization for unicode-equivalent names.
+- Brain schema migration scaffold (forward-only, single-tx).
+- Qwen Code: brain MCP registered via bootstrap.
+
+### 🧩 Plugin stack architecture (single source of truth)
+- `stacks/<name>/{stack.json, guide.md}` declarative format (was: 5 hardcoded modules).
+- JSON Schema (Draft-07) + actionable validator.
+- `StackRegistry` with layered deep-merge: built-in ← `.tausik/stacks/<name>/` user override.
+- 25 built-in stacks migrated (incl. 5 IaC: ansible/terraform/helm/k8s/docker).
+- 6 consumers refactored to use registry with hardcoded fallback for boot safety.
+- CLI: `tausik stack {list,info,export,diff,reset,lint,scaffold}` for full lifecycle.
+- 5 MCP tools: `tausik_stack_{list,show,lint,diff,scaffold}` for agent-driven use.
+- Bootstrap NEVER writes to `.tausik/stacks/` (test-enforced invariant).
+
+### 🎭 Roles — first-class CRUD with hybrid storage
+- New SQLite `roles` table (migration v18) — slug PK + title + description.
+- Auto-seed from `DISTINCT tasks.role` on migration (no orphan task references).
+- Hybrid storage: metadata in DB, markdown profile in `.tausik/roles/<slug>.md` (user) or `agents/roles/<slug>.md` (built-in).
+- Bootstrap NEVER overwrites `.tausik/roles/` — user profiles survive re-bootstrap.
+- CLI: `tausik role {list,show,create,update,delete,seed}` with `--extends` profile cloning.
+- 6 MCP tools: `tausik_role_{list,show,create,update,delete,seed}` for CRUD.
+- Delete refuses if tasks reference role (force=true → cascade NULL the references).
+
+### ⏱️ Session active-time (gap-based) replaces wall clock
+- Sessions exceeding 180-min SENAR Rule 9.2 are now measured by ACTIVE minutes, not wall clock.
+- Activity counted via `events` table; gaps ≥ idle threshold (default 10 min) excluded as AFK.
+- New PostToolUse hook `activity_event.py` writes one row per tool call so the metric works for any agent activity (not just MCP/CLI).
+- `tausik status` shows both numbers: "Session: #N (X min active / Y min wall, Z% idle)".
+- New CLI `tausik session recompute` retro-analyses prior sessions (real numbers vs claimed wall clock).
+- Threshold tunable via `.tausik/config.json` `session_idle_threshold_minutes`.
+- session_extend now respects project's configured `session_max_minutes` (was: hardcoded 180).
+
+### 🔬 SENAR verification — scoped + cached
+- Pytest gate runs ONLY tests for `relevant_files` (was: full suite always).
+- `verification_runs` cache reuses green runs within 10-min TTL on same `files_hash`.
+- Cache key includes resolved gate command — config changes invalidate stale entries.
+- Security-sensitive files (auth/payment/jwt/oauth/sso/etc + .env/.pem/.key) bypass cache, always re-verify.
+- Tier mapping fixed: simple→lightweight, medium→standard, complex→high (was hardcoded `lightweight`).
+- v1.3 fix: `relevant_files=None` SKIPS instead of falling back to full suite (burned MCP 10s budget).
+- Scoped-skip results NOT cached as verified — prevents silent QG-2 weakening.
+- `tausik verify --task <slug>` for ad-hoc verification.
+
+### 🎯 Agent-native planning (tool calls, not hours)
+- Tier scale: trivial(≤10) / light(≤25) / moderate(≤60) / substantial(≤150) / deep(≤400+).
+- `--call-budget` auto-derives tier; warning at 1.5×budget for re-calibration.
+- `task start <slug> --force` bypasses session capacity gate (audit-logged).
+- Custom stacks via `.tausik/config.json` (`custom_stacks`) without code changes.
+
+### 🛡️ Memory Discipline — auto-memory protection
+- PreToolUse hook blocks Write/Edit to `~/.claude/projects/*/memory/` from TAUSIK projects.
+- Bypass via explicit `confirm: cross-project` marker in last user prompt.
+- PostToolUse audit catches project-specific content that bypassed via regex (paths, slugs, tausik commands).
+- Memory-block guard widened to ALL `~/.claude/**/memory/` (was: only `projects/<slug>/memory/`).
+
+### 📦 Bootstrap deploy fix (CRITICAL — caught in v1.3 dogfooding)
+- Built-in skills under `agents/skills/` are NOW source-of-truth — force-included in deploy.
+- Was: explicit allowlist via `core_skills`/`extension_skills`/`installed_skills`. Saved config froze old list.
+- Result: 9 missing core skills restored (review, brain, commit, debug, interview, markitdown, ship, skill-test, test).
+- Smoke-test in `tests/test_bootstrap_skills_coverage.py` guards against future drift (4 cases).
+
+### 🪝 Hooks
+- `activity_event.py` (PostToolUse, broad matcher) — feeds active-time metric.
+- `brain_post_webfetch.py` (PostToolUse, WebFetch) — auto-cache web responses.
+- `brain_search_proactive.py` (PreToolUse, WebSearch|WebFetch) — mirror lookup before fetch.
+- `memory_pretool_block.py` + `memory_posttool_audit.py` (Write|Edit|MultiEdit).
+- Shared helpers in `_common.py`.
+- Strip invisible separators (U+2028/2029/0085/VT/FF) before marker anchor matching.
+
+### 🧪 DX & Framework Polish
+- `task_done` accepts inline `--evidence` arg → log+done in one CLI call (was: two).
+- `_verify_ac` accepts ✓/verified markers + literal "AC verified" — broader format tolerance.
+- Refactored 4 files to stay under 400-line filesize gate: split session/role/stack subparsers + service helpers.
+- 3 rounds of post-merge review: 5 HIGH + 11 MED + 4 LOW findings closed.
+- Quality reviews + SENAR audit + adversarial critic spawn via `/review`.
+
+### 📚 Docs
+- `docs/en/{stacks, customization, upgrade, shared-brain}.md`.
+- `docs/ru/shared-brain.md`.
+- README EN/RU with v1.3 features.
+- `references/anthropic-oss-applicability.md` — patterns survey.
+- `references/markitdown-integration.md` — opt-in DOCX/PPTX/XLSX/HTML/EPUB.
+
+### 🛠️ Misc
+- `markitdown` opt-in capability (lazy import, zero-deps invariant preserved) + `tausik doc extract`.
+- `tausik brain status` snapshot CLI.
+- `tausik brain move <id> --to-brain|--to-local` cross-project ownership transfer.
+- 5 SENAR Compliance table rows updated with v1.3 semantics.
+
+### ⚙️ Config knobs (hardcode → `.tausik/config.json`)
+
+Documented in `references/configuration.md`. Project-level overrides without forking:
+
+- `verify_cache_ttl_seconds` (default 600) — verify-run reuse window.
+- `session_warn_threshold_minutes` (default 150) — stop-hook reminder threshold.
+- `session_idle_threshold_minutes` (default 10) — gap above which pause = AFK.
+- `session_max_minutes` (default 180) — hard SENAR Rule 9.2 limit.
+- `session_capacity_calls` (default 200) — per-session tool-call budget.
+- `custom_stacks`, `gates`, `brain.*` — already documented in earlier tiers.
+
+### 🩺 `tausik doctor` — health diagnostic
+Single-command sanity check: venv + DB + MCP servers + core skills + bootstrap drift + config knobs + gates registry + active session. Exits 1 on any FAIL so CI can gate on it.
+
+### 🛡️ `/zero-defect` skill (Maestro-inspired)
+Session-scoped precision mode: 8 rules (read-before-write, verify-before-claim, no API hallucination, etc) for high-stakes work. Inspired by [Maestro](https://github.com/sharpdeveye/maestro) `/zero-defect`.
+
+### 🔒 Hardening Pass (post-cycle audits)
+
+6 audit cycles, 35+ findings closed:
+
+- **Newline injection** scrubbed across epic/story/task/role/memory write paths via shared `safe_single_line` helper.
+- **role_create** writes profile FS-first via temp+rename, then DB INSERT — no orphan files on either failure path.
+- **role_delete** uses begin_tx/commit_tx (not raw BEGIN) so audit `event_add` honors transaction; cascade-NULLs `tasks.role` on `force=true`.
+- **Migration v18** auto-seeds `roles` from `DISTINCT tasks.role` with normalization (lowercase, strip, space→hyphen) and rewrites `tasks.role` in-place — no orphan rows. `v18_seeded` meta flag set in BEGIN IMMEDIATE tx WITH the seed (atomic, idempotent across concurrent inits).
+- **Bootstrap rmtree** now uses `onexc=` on Python 3.12+, `onerror=` legacy fallback, with chmod-and-retry for Windows readonly files.
+- **Stack scaffold** atomic write retries on Windows `PermissionError` (4×100ms); cleans up `.tmp` on any failure path.
+- **Doctor** ASCII fallback (`OK`/`WARN`/`FAIL`) when stdout encoding lacks UTF-8 (Windows cp1251); CRLF normalization in drift compare; pre-svc DB existence captured to surface "never initialized" cases.
+- **Activity hook** uses `PRAGMA journal_mode=WAL` + `synchronous=NORMAL` to reduce per-call fsync overhead.
+- **session_warn_threshold** clamped to `max(1, …)`.
+- **Quality-gate WARN** when scoped-skip fires with no `relevant_files` (visible to user, not silent).
+- **MCP handlers** parity: claude+cursor byte-identical for `_handle_stack_scaffold` (catches `ValueError`/`KeyError`).
+
+### 🔐 Independent 6-agent review pass — 31 findings closed
+
+After cycle-6 SHIP verdict, ran a SEPARATE round of 6 parallel independent reviewers (architecture / public API / security / performance / docs / cross-platform). Closed 31 additional findings across waves:
+
+**Security (Wave 1)**
+- `git push` gate now uses regex matching `(?:^|[\s;&|()` + variant`])git push\b` — catches `cd && git push`, `(git push)`, `/usr/bin/git push`, `git -c x=y push`. Old token-split bypass eliminated.
+- Memory pretool block resolves symlinks/junctions: `os.path.realpath(parent)` after the literal-path check — symlink-into-`~/.claude/**/memory/` is now blocked.
+- `TAUSIK_SKIP_HOOKS` no longer disables security gates blanket. Per-hook scoped: `TAUSIK_SKIP_PUSH_HOOK=1` / `TAUSIK_SKIP_MEMORY_HOOK=1`.
+- Vendor skill `requires` validated against PEP 508 simple-spec regex; rejects entries starting with `-`. `pip install --` separator added so positional args can't be re-interpreted as flags.
+
+**Data integrity (Wave 2)**
+- `brain_project_registry._normalize_path` adds `unicodedata.normalize('NFC', ...)` — fixes macOS HFS+ NFD double-registration.
+- `bootstrap_config.save_tausik_config` writes to `*.tmp` then `os.replace` — atomic, SIGINT-safe.
+
+**Truth (Wave 3)**
+- README badges and stat lines updated: 35 → 38 skills, 82 → 106 MCP tools, 13 → 19 hooks, 1095 → 2232 tests.
+- CLAUDE.md "Команды" section expanded with full top-level command list.
+
+**Performance (Wave 4)**
+- `compute_active_minutes` SQL drops `julianday()` from WHERE clause — events `created_at` index now used. ~50× speedup on 100k-row tables.
+- `bootstrap copy_dir` byte-compares before write — no-op re-bootstrap is now near-instant on Windows+AV.
+
+**API parity (Wave 5)**
+- `--group` → `--story` rename for `task add` (with `--group` deprecated alias for back-compat).
+- 4 new MCP tools: `tausik_doctor`, `tausik_verify`, `tausik_stack_reset`, `tausik_stack_export` — close CLI/MCP parity gap.
+
+**Operations (Wave 6-7)**
+- File logging: `RotatingFileHandler` at `.tausik/tausik.log` (5MB × 3 backups) for WARNING+. Errors no longer disappear in MCP context.
+- CI matrix expanded to `[ubuntu, windows, macos]` × `[3.11, 3.12, 3.13]` — Windows-only bugs caught.
+- CI now runs mypy + bandit (warning-only) alongside ruff.
+
+### 📊 Stats
+- **2226 tests passing** (1183 → 2226 over the cycle, +23 new from hardening waves).
+- **106 MCP tools** (+4 net from review parity: doctor / verify / stack_reset / stack_export).
+- **106 MCP tools** (80 → 106): +5 stacks, +6 roles, +1 task_done evidence inline, +misc.
+- **38 skills deployed** (was 29 — 9 missing built-ins restored + `/zero-defect` added).
+- Schema version: 17 → 18 (roles table).
+- 11 new modules (4 service helpers, 3 parser splits, 2 hooks, 1 CLI handler, 1 doctor).
+
+### Compatibility
+- No breaking changes. Existing `.tausik/config.json` merges cleanly.
+- Re-bootstrap recommended to pull deployed scripts/MCP servers/skills up to date.
+- Migration v18 auto-seeds `roles` table from `DISTINCT tasks.role` — no manual setup needed.
+
+---
+
+## [1.3.0-detail-stacks] — historical detail (folded into 1.3.0 above)
+
+> Per-story detail of plugin stack architecture work. Shipped as part of v1.3.0 — listed here for archive only.
 
 ### Added — Stack plugin foundation (Story 1, plugin-foundation)
 
@@ -111,7 +294,9 @@ Multi-agent review caught 5 HIGH-severity findings post-merge of the SENAR verif
 - **+30 unit tests** в `test_service_verification.py` — `compute_files_hash` (empty, none, mtime change, order-independent, missing sentinel, file appearance, skip non-string), `is_security_sensitive` (5 positive paths, 4 negative, empty/none, any-match), `record_run` + `lookup_recent_for_task` (hit, no-runs, files_hash mismatch, command mismatch, red run, stale, takes most recent, empty slug), `is_cache_allowed` (safe/security/empty)
 - **+13 unit tests** в `test_gates.py` — `TestResolveTestFilesForRelevant` (empty, basename match, glob suffixes, no match, test-file passthrough, dedup, nonexistent paths, non-string entries, Windows backslash) + `TestPytestGateScopeSubstitution` (substitution uses mapped tests, falls back to full suite, default uses new substitution token)
 
-## [Unreleased] — Shared Brain pipeline
+## [1.3.0-detail-brain] — historical detail (folded into 1.3.0 above)
+
+> Per-story detail of Shared Brain work. Shipped as part of v1.3.0 — listed here for archive only.
 
 Cross-project knowledge layer backed by Notion, complementing the per-project `.tausik/tausik.db`. Only knowledge flagged as *generalizable* reaches the brain; project-specific traces stay local. Read-path fully implemented and offline-tested end-to-end; write-path and MCP tooling are the next story. 6 tasks done from epic `shared-brain` / 22 total. Кросс-проектный слой знаний на базе Notion.
 
@@ -199,7 +384,7 @@ Cross-project knowledge layer backed by Notion, complementing the per-project `.
 - **Gotcha #34** — FTS5 MATCH treats `-` as column-qualifier; wrap queries in `"..."` or avoid hyphens in markers
 - **Convention #35** — `brain-*` modules are separate files (`brain_config.py`, `brain_schema.py`, ...), never folded into `project_config.py` — the 400-line file limit is real
 
-## [1.3.0] — 2026-04-23
+## [1.3.0-pre] — 2026-04-23 — Memory Discipline (folded into 1.3.0 release above)
 
 ### Memory-Discipline Epic — auto-memory protection
 

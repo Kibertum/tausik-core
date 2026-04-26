@@ -305,8 +305,14 @@ def run_gates_with_cache(
     cache_ok = is_cache_allowed(files)
 
     if cache_ok:
+        try:
+            from project_config import load_config
+
+            ttl = load_config().get("verify_cache_ttl_seconds", DEFAULT_CACHE_TTL_S)
+        except Exception:
+            ttl = DEFAULT_CACHE_TTL_S
         hit = lookup_recent_for_task(
-            conn, slug, files_hash=files_hash, command=cache_command
+            conn, slug, files_hash=files_hash, command=cache_command, max_age_s=ttl
         )
         if hit is not None:
             if append_notes_fn is not None:
@@ -325,7 +331,19 @@ def run_gates_with_cache(
             r["name"] + "=" + ("PASS" if r["passed"] else "FAIL") for r in results
         )
         append_notes_fn(slug, f"Gates: {summary}")
-    if passed and cache_ok:
+    if not files and any(r.get("skipped") for r in results):
+        if append_notes_fn is not None:
+            append_notes_fn(
+                slug,
+                "WARN: no relevant_files passed — scoped gates SKIPPED. "
+                "v1.3 removed full-suite fallback. Pass --relevant-files for verification.",
+            )
+    # Don't cache an "all-skipped" run as if it were verified — that would
+    # let the next caller's gates be silently skipped via cache hit on the
+    # same files_hash for 10 minutes. SCOPED-SKIP means "no test mapped" —
+    # not "verified clean". Require at least one real (non-skipped) PASS.
+    has_real_pass = any(r.get("passed") and not r.get("skipped") for r in results)
+    if passed and cache_ok and has_real_pass:
         try:
             summary = (
                 ", ".join(

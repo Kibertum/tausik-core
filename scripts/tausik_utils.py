@@ -19,8 +19,47 @@ def fix_stdio_encoding() -> None:
                 stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
 
 
+_LOG_INSTALLED = False
+
+
+def install_file_logging(project_dir: str | None = None) -> None:
+    """Install rotating file handler at .tausik/tausik.log (5MB × 3)."""
+    global _LOG_INSTALLED
+    if _LOG_INSTALLED:
+        return
+    import logging
+    import os
+    from logging.handlers import RotatingFileHandler
+
+    base = project_dir or os.getcwd()
+    log_dir = os.path.join(base, ".tausik")
+    if not os.path.isdir(log_dir):
+        return
+    try:
+        handler = RotatingFileHandler(
+            os.path.join(log_dir, "tausik.log"),
+            maxBytes=5 * 1024 * 1024,
+            backupCount=3,
+            encoding="utf-8",
+        )
+        handler.setLevel(logging.WARNING)
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s %(name)s %(levelname)s: %(message)s")
+        )
+        logging.getLogger("tausik").addHandler(handler)
+        _LOG_INSTALLED = True
+    except OSError:
+        pass
+
+
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 MAX_SLUG = 64
+
+
+def safe_single_line(value: str | None) -> str | None:
+    if value is None:
+        return None
+    return value.replace("\n", " ").replace("\r", " ").strip()
 
 
 class ServiceError(Exception):

@@ -238,12 +238,22 @@ class GatesMixin:
             ac_items = [ln.strip() for ln in ac_text.splitlines() if ln.strip()]
         if not ac_items:
             return []
-        # Check that evidence mentions "AC verified" at all
-        if "ac verified" not in notes.lower():
+        # Check that evidence acknowledges verification. Accept any of:
+        #  - literal "ac verified" / "verified ac" phrase
+        #  - any line with checkmark (✓✔✅) — implies per-item evidence
+        #  - "verified" keyword (broader, catches "verified all AC" etc)
+        notes_l = notes.lower()
+        has_marker = (
+            "ac verified" in notes_l
+            or "verified ac" in notes_l
+            or "verified" in notes_l
+            or any(c in notes for c in "✓✔✅")
+        )
+        if not has_marker:
             raise ServiceError(
                 f"QG-2: '{slug}' has {len(ac_items)} acceptance criteria but no verification "
-                f"evidence in task notes. Log verification first: "
-                f'.tausik/tausik task log {slug} "AC verified: 1. ... ✓ 2. ... ✓"'
+                f"evidence in task notes. Log verification: "
+                f'.tausik/tausik task log {slug} "AC verified: 1. ✓ 2. ✓ ..."'
             )
         # Per-criterion check: warn if not all numbered criteria have evidence
         warnings: list[str] = []

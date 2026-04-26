@@ -22,17 +22,35 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _common import tausik_path as _tausik_path  # noqa: E402
 
 
-SESSION_WARN_MIN = 150  # warn when session has been active this long
+def _session_warn_min(project_dir: str) -> int:
+    import json
+
+    cfg_path = os.path.join(project_dir, ".tausik", "config.json")
+    try:
+        with open(cfg_path, encoding="utf-8") as f:
+            data = json.load(f)
+        v = data.get("session_warn_threshold_minutes", 150)
+        n = int(v) if isinstance(v, (int, float)) else 150
+        return max(1, n)
+    except (OSError, ValueError, TypeError):
+        return 150
+
+
+SESSION_WARN_MIN = 150  # legacy fallback when project_dir unknown
 
 
 def _run(cmd: str, args: list[str], project_dir: str, timeout: int = 4) -> str:
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
     try:
         result = subprocess.run(
             [cmd, *args],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=timeout,
             cwd=project_dir,
+            env=env,
         )
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         return ""
@@ -63,15 +81,16 @@ def _review_task_count(out: str) -> int:
     return count
 
 
-def _session_overrun_minutes(status_out: str) -> int:
-    """Extract session-duration minutes from `tausik status` output if overrun."""
+def _session_overrun_minutes(status_out: str, warn_min: int = SESSION_WARN_MIN) -> int:
     if not status_out:
         return 0
-    match = re.search(r"running for\s+(\d+)\s*min", status_out, re.IGNORECASE)
+    match = re.search(r"(\d+)\s*min active", status_out, re.IGNORECASE)
+    if not match:
+        match = re.search(r"running for\s+(\d+)\s*min", status_out, re.IGNORECASE)
     if not match:
         return 0
     minutes = int(match.group(1))
-    return minutes if minutes >= SESSION_WARN_MIN else 0
+    return minutes if minutes >= warn_min else 0
 
 
 def build_warnings(project_dir: str) -> list[str]:
@@ -98,7 +117,7 @@ def build_warnings(project_dir: str) -> list[str]:
         )
 
     status_out = _run(tausik_cmd, ["status"], project_dir)
-    minutes = _session_overrun_minutes(status_out)
+    minutes = _session_overrun_minutes(status_out, _session_warn_min(project_dir))
     if minutes:
         warnings.append(
             f"- **Session running {minutes} min** (limit 180). "
