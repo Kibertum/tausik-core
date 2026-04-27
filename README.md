@@ -7,7 +7,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)](https://python.org)
 [![Tests](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml/badge.svg)](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml)
-[![2232 tests](https://img.shields.io/badge/tests-2232%20passed-brightgreen.svg)](#dogfooding-tausik-built-tausik)
+[![2246 tests](https://img.shields.io/badge/tests-2246%20passed-brightgreen.svg)](#dogfooding-tausik-built-tausik)
 [![Zero deps](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#what-you-get)
 
 Three messages. Full engineering cycle. Quality gates that the agent can't skip.
@@ -109,7 +109,7 @@ Still pending: MCP tools, init wizard, scrubbing linter, classifier. See **[Shar
 ## What's Inside
 
 - **38 skills** (16 built-in + external) — `/plan`, `/ship`, `/review`, `/brain`, `/zero-defect`, `/doctor`, `/audit`, `/debug`, `/test`, `/interview`, and more
-- **106 MCP tools** (96 project + 10 brain) — full programmatic access to the project database
+- **100 MCP tools** (90 project + 10 brain) — full programmatic access to the project database
 - **16 quality checks** — pytest, ruff, tsc, eslint, cargo check, go vet, and more for your stack
 - **6 automatic metrics** — throughput, first-pass success rate, defect rate, lead time
 - **Project memory** — SQLite + FTS5, graph relations, dead-end tracking, Memory Block re-injection
@@ -121,7 +121,7 @@ Still pending: MCP tools, init wizard, scrubbing linter, classifier. See **[Shar
 
 | IDE | MCP Tools | Skills | Hooks | Rules |
 |-----|-----------|--------|-------|-------|
-| Claude Code | 106 tools | 38 skills | 19 hooks (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md |
+| Claude Code | 100 tools | 38 skills | 19 hooks (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md |
 | Qwen Code | 106 tools | 38 skills | 19 hooks (same as Claude) | QWEN.md |
 | Cursor | 106 tools | 38 skills | — | .cursorrules |
 | Windsurf | 106 tools | 38 skills | — | .windsurfrules |

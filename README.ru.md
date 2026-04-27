@@ -7,7 +7,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)](https://python.org)
 [![Tests](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml/badge.svg)](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml)
-[![2226 tests](https://img.shields.io/badge/tests-2226%20passed-brightgreen.svg)](#dogfooding-tausik-создан-с-помощью-себя)
+[![2226 tests](https://img.shields.io/badge/tests-2246%20passed-brightgreen.svg)](#dogfooding-tausik-создан-с-помощью-себя)
 [![Zero deps](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#что-внутри)
 
 Три сообщения. Полный инженерный цикл. Quality gates, которые агент не может обойти.
@@ -109,7 +109,7 @@ Claude auto-memory (`~/.claude/projects/*/memory/`) — это кросс-про
 ## Что внутри
 
 - **38 навыков** (16 встроенных + внешние) — `/plan`, `/ship`, `/review`, `/brain`, `/zero-defect`, `/doctor`, `/audit`, `/debug`, `/test`, `/interview` и другие
-- **106 MCP-инструментов** (96 project + 10 brain) — полный программный доступ к базе проекта
+- **100 MCP-инструментов** (90 project + 10 brain) — полный программный доступ к базе проекта
 - **16+ проверок качества** — pytest, ruff, tsc, eslint, cargo check, go vet и другие для вашего стека
 - **6 автоматических метрик** — производительность, FPSR, уровень дефектов, активное время сессий
 - **Проектная память** — SQLite + FTS5, граф связей, трекинг тупиков, Memory Block re-injection

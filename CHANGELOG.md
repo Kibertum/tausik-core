@@ -154,7 +154,7 @@ After cycle-6 SHIP verdict, ran a SEPARATE round of 6 parallel independent revie
 - `bootstrap_config.save_tausik_config` writes to `*.tmp` then `os.replace` — atomic, SIGINT-safe.
 
 **Truth (Wave 3)**
-- README badges and stat lines updated: 35 → 38 skills, 82 → 106 MCP tools, 13 → 19 hooks, 1095 → 2232 tests.
+- README badges and stat lines updated: 35 → 38 skills, 82 → 100 MCP tools, 13 → 19 hooks, 1095 → 2246 tests.
 - CLAUDE.md "Команды" section expanded with full top-level command list.
 
 **Performance (Wave 4)**
@@ -172,8 +172,8 @@ After cycle-6 SHIP verdict, ran a SEPARATE round of 6 parallel independent revie
 
 ### 📊 Stats
 - **2226 tests passing** (1183 → 2226 over the cycle, +23 new from hardening waves).
-- **106 MCP tools** (+4 net from review parity: doctor / verify / stack_reset / stack_export).
-- **106 MCP tools** (80 → 106): +5 stacks, +6 roles, +1 task_done evidence inline, +misc.
+- **100 MCP tools** (+4 net from review parity: doctor / verify / stack_reset / stack_export).
+- **100 MCP tools** (80 → 106): +5 stacks, +6 roles, +1 task_done evidence inline, +misc.
 - **38 skills deployed** (was 29 — 9 missing built-ins restored + `/zero-defect` added).
 - Schema version: 17 → 18 (roles table).
 - 11 new modules (4 service helpers, 3 parser splits, 2 hooks, 1 CLI handler, 1 doctor).

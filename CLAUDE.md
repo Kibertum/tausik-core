@@ -110,7 +110,7 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 | Метрика: Cost per Task | avg hours by complexity | Hard (auto) |
 | Section 5.1 Explorations | `tausik_explore_*` MCP + CLI | Hard |
 | Multi-lang Gates | Auto-enable по стеку (TS, Go, Rust, PHP, Java) | Hard (auto) |
-| MCP Coverage | 106 инструментов (96 project + 10 brain), 0 CLI-only gaps | Hard |
+| MCP Coverage | 100 инструментов (90 project + 10 brain), 0 CLI-only gaps | Hard |
 | Batch Execution | `/run plan.md` — автономное выполнение планов | Instruction |
 | Structured Logs | `task_logs` таблица с phase + FTS5 | Hard (auto) |
 | Fake Test Detection | 10 паттернов в testing review agent | Warning |
@@ -136,7 +136,7 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 .tausik/tausik session recompute             # retro wall vs active minutes
 .tausik/tausik role list                     # список ролей (CRUD: list/show/create/update/delete/seed)
 .tausik/tausik stack scaffold <name>         # skeleton .tausik/stacks/<name>/
-pytest tests/ -v                         # 2232 тестов
+pytest tests/ -v                         # 2246 тестов
 ```
 
 **Полные команды:** `epic | story | task | session | gates | skill | brain | stack | role | memory | doctor | hud | metrics | roadmap | events | search | decide | dead-end | explore | audit | run | doc | verify | suggest-model | team | update-claudemd | fts | init`. Подробности — `docs/ru/cli.md`.

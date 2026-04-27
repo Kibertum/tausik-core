@@ -2,11 +2,11 @@
 
 # TAUSIK MCP — Tool Reference (v1.3)
 
-**106 tools** for AI agents (96 project + 10 brain). The MCP surface mirrors the CLI 1:1 with zero CLI-only gaps. Prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
+**100 tools** for AI agents (90 project + 10 brain). The MCP surface mirrors the CLI 1:1 with zero CLI-only gaps. Prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
 
 Two MCP servers live in this project:
 
-- `tausik-project` — project-scoped tools (96): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify.
+- `tausik-project` — project-scoped tools (90): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify.
 - `tausik-brain` — cross-project Shared Brain tools (10).
 
 There is also an optional `codebase-rag` server documented at the bottom.

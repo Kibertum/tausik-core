@@ -97,7 +97,7 @@
 | `agents/claude/mcp/project/handlers.py` | Диспетчеризация: имя инструмента → метод сервиса |
 | `agents/claude/mcp/project/handlers_skill.py` | Обработчики навыков + обслуживания (split) |
 
-Полный MCP-surface: **96 project + 10 brain = 106 инструментов**.
+Полный MCP-surface: **90 project + 10 brain = 100 инструментов**.
 
 ### Поддержка разных сред разработки
 
@@ -168,7 +168,7 @@ Brain-хуки делят helpers в `scripts/brain_hook_utils.py` — одна 
 ## Тестирование
 
 ```bash
-pytest tests/ -v                    # все тесты (2235)
+pytest tests/ -v                    # все тесты (2246)
 pytest tests/test_tausik_backend.py   # backend CRUD
 pytest tests/test_tausik_service.py   # service logic
 pytest tests/test_tausik_cli.py       # CLI smoke

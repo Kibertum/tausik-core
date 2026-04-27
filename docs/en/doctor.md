@@ -2,7 +2,7 @@
 
 # Doctor — Health Check
 
-`doctor` is a single command that diagnoses the four moving parts of a TAUSIK install. It does **not** auto-fix — it tells you what is wrong and how to fix it.
+`doctor` is a single command that runs eight checks across the moving parts of a TAUSIK install (venv / DB / MCP / Skills / Drift / Config / Gates / Session). It does **not** auto-fix — it tells you what is wrong and how to fix it.
 
 ## Run It
 
@@ -25,7 +25,7 @@ Or via MCP: `tausik_doctor` (no parameters). The MCP variant returns the same da
 | **MCP** | Brain server | `.claude/mcp/brain/server.py` exists |
 | **MCP** | Server can start | `python server.py --probe` returns success |
 | **Skills** | Deployment | Skills present in `.claude/skills/` (count) |
-| **Skills** | Critical skills | core skills (`start`, `end`, `plan`, `task`, `ship`, `commit`, `review`) all present |
+| **Skills** | Critical skills | core skills `start`, `end`, `task`, `plan`, `review`, `brain`, `ship`, `checkpoint` all present |
 | **Drift** | Bootstrap freshness | Files in `.claude/` match generators in `agents/`/`bootstrap/`. Drift = stale generated copy. |
 | **Config** | Knobs | `session_max_minutes`, `session_warn_threshold_minutes`, `session_idle_threshold_minutes`, `session_capacity_minutes`, `verify_cache_ttl_seconds` |
 | **Gates** | Registered gates | Stack-detected + universal gates count |

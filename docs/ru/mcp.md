@@ -2,11 +2,11 @@
 
 # TAUSIK MCP — Справочник инструментов (v1.3)
 
-**106 инструментов** для ИИ-агентов (96 project + 10 brain). MCP-surface зеркалит CLI 1:1 без CLI-only пробелов. Предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
+**100 инструментов** для ИИ-агентов (90 project + 10 brain). MCP-surface зеркалит CLI 1:1 без CLI-only пробелов. Предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
 
 В проекте живут два MCP-сервера:
 
-- `tausik-project` — project-scoped инструменты (96): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify.
+- `tausik-project` — project-scoped инструменты (90): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify.
 - `tausik-brain` — cross-project Shared Brain инструменты (10).
 
 Опционально доступен `codebase-rag` сервер (документирован в конце).
