@@ -96,6 +96,21 @@ Gates auto-run on commits, task done, and explicit checks. Stack-specific lint/t
 Check status: `.tausik/tausik gates status`. Fix blocking failures before committing.
 """
 
+TOOL_ROUTING = """## Tool Routing — when to use which
+
+Don't reach for `Grep`/`Glob` first. TAUSIK ships dedicated retrieval MCP servers; using them keeps context lean and surfaces project-specific knowledge that raw text search cannot.
+
+| Need | Primary | Fallback |
+|---|---|---|
+| Find a function/symbol/usage in code | `mcp__codebase-rag__search_code` | `Grep` (only if RAG returns no hits or index is stale) |
+| Recall a past project decision | `tausik_decisions_list` / `tausik_memory_search` (`type=convention/pattern`) | — |
+| Cross-project pattern or gotcha | `mcp__tausik-brain__brain_search` | — |
+| Web lookup (docs, API, errors) | `mcp__tausik-brain__brain_get` against the cached web result first | `WebFetch` (auto-cached on success) |
+| Understand the project structure | `tausik_status` + `tausik_roadmap` | `Glob` for raw file listing |
+
+Run `mcp__codebase-rag__rag_status` once per session to confirm the index is fresh. If `chunks=0`, run `mcp__codebase-rag__reindex` before any `search_code` call.
+"""
+
 RESPONSE_LANGUAGE = """## Response Language
 
 Always respond in the user's language.
@@ -148,6 +163,7 @@ def build_full_body(
         build_header(project_name, stacks, agent_name),
         HARD_CONSTRAINTS,
         WORKFLOW,
+        TOOL_ROUTING,
         MEMORY,
         SENAR_RULES,
         COMMANDS,

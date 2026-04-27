@@ -25,53 +25,19 @@ from typing import Any, Callable
 # cadence (30-50 tool calls ≈ 5-15 min) — cache covers a coherent work session.
 DEFAULT_CACHE_TTL_S = 600
 
-# File-tree segments / basenames / extensions that force re-verification.
-# Stale-green for these is worse than redundant gates.
-_SECURITY_PATH_TOKENS = (
-    "scripts/hooks/",
-    "/auth/",
-    "/payment/",
-    "/payments/",
-    "/billing/",
-    "/oauth/",
-    "/sso/",
-    "/saml/",
-    "/crypto/",
-    "/secrets/",
-    "/keys/",
-    "/admin/",
-    "/rbac/",
-    "/webhook/",
-    "/jwt/",
-    "/session/",
-    "/2fa/",
-    "/mfa/",
-    "/signup/",
-    "/login/",
-    "password",  # bare token: matches /password/, password.py, *password*
+# Security path tokens — bare match anywhere, slashes match only as path.
+_SECURITY_PATH_TOKENS = tuple(
+    "scripts/hooks/ /auth/ /payment/ /payments/ /billing/ /oauth/ /sso/ "
+    "/saml/ /crypto/ /secrets/ /keys/ /admin/ /iam/ /permissions/ "
+    "password webhook oauth csrf xsrf rbac acl jwt mfa 2fa totp api_key "
+    "apikey session signup login".split()
 )
-
-_SECURITY_BASENAMES = frozenset(
-    {
-        "auth.py",
-        "payment.py",
-        "billing.py",
-        "secret.py",
-        "secrets.py",
-        "credentials.py",
-        "jwt.py",
-        "session.py",
-        "login.py",
-        "signup.py",
-        "password.py",
-        "auth.ts",
-        "auth.tsx",
-        "auth.js",
-        "auth.go",
-        "auth.rs",
-        "auth.php",
-    }
-)
+_SEC_BASE = (
+    "auth payment billing secret secrets credentials jwt session login "
+    "signup password webhook webhooks csrf xsrf totp permissions acl rbac iam"
+).split()
+_SEC_EXT = (".py", ".ts", ".tsx", ".js", ".go", ".rs", ".php")
+_SECURITY_BASENAMES = frozenset(f"{b}{e}" for b in _SEC_BASE for e in _SEC_EXT)
 
 _SECURITY_EXTENSIONS = frozenset(
     {".env", ".pem", ".key", ".p12", ".pfx", ".crt", ".asc", ".gpg"}
@@ -338,6 +304,26 @@ def run_gates_with_cache(
                 "WARN: no relevant_files passed — scoped gates SKIPPED. "
                 "v1.3 removed full-suite fallback. Pass --relevant-files for verification.",
             )
+    # v1.3.1: If relevant_files was supplied but EVERY gate was skipped (no
+    # test mapped, source-without-test), don't pass as green. Report a synthetic
+    # blocking failure so QG-2 surfaces the missing tests instead of silently
+    # closing the task. This is the "auth/login.py exists, no tests/test_login.py"
+    # bypass discovered by the v1.3 blind review.
+    if files and results and all(r.get("skipped") for r in results):
+        if append_notes_fn is not None:
+            append_notes_fn(
+                slug,
+                f"FAIL: relevant_files {files} mapped to NO test files. "
+                "Add tests/test_<basename>.py or pass --no-knowledge if intentional.",
+            )
+        synth = {
+            "name": "scoped-pytest",
+            "passed": False,
+            "skipped": False,
+            "severity": "block",
+            "output": f"No tests mapped for {files}",
+        }
+        return False, [synth], "no-test-mapped"
     # Don't cache an "all-skipped" run as if it were verified — that would
     # let the next caller's gates be silently skipped via cache hit on the
     # same files_hash for 10 minutes. SCOPED-SKIP means "no test mapped" —

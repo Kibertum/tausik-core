@@ -1,21 +1,9 @@
 """Brain MCP write-path — build Notion payloads, scrub, create, mirror.
 
-Pure-function core for the four `brain_store_*` MCP tools. The module
-knows the shape of each Notion database (mirrors brain_sync._map_*)
-and is responsible for:
-
-  1) Composing the `pages.create` payload for the category.
-  2) Running the concatenated text through `brain_scrubbing.scrub_with_config`.
-     A block-severity match short-circuits the write and returns the
-     formatted issue list.
-  3) Calling `client.pages_create` and, on success, mirroring the
-     returned page JSON into the local SQLite (brain_sync.map_page_to_row
-     + upsert_page) for instant read-consistency.
-
-Project hash resolution cascade:
-  explicit arg > env TAUSIK_PROJECT_NAME > os.path.basename(cwd)
-
-Design reference: references/brain-db-schema.md §3 + §5.
+Composes pages.create payload → scrubs ALL string fields (incl. tags/stack/
+domain/severity) → calls client.pages_create → mirrors to local SQLite.
+Project hash: explicit arg > TAUSIK_PROJECT_NAME env > basename(cwd).
+See docs/en/brain-db-schema.md §3 + §5.
 """
 
 from __future__ import annotations
@@ -61,11 +49,10 @@ def compute_content_hash(content: str) -> str:
 def _chunk_rich_text(text: str | None) -> list[dict]:
     if not text:
         return []
-    chunks: list[dict] = []
-    for i in range(0, len(text), _NOTION_RICH_TEXT_CHUNK):
-        chunk = text[i : i + _NOTION_RICH_TEXT_CHUNK]
-        chunks.append({"text": {"content": chunk}})
-    return chunks
+    return [
+        {"text": {"content": text[i : i + _NOTION_RICH_TEXT_CHUNK]}}
+        for i in range(0, len(text), _NOTION_RICH_TEXT_CHUNK)
+    ]
 
 
 def _title_prop(name: str) -> dict:
@@ -81,35 +68,27 @@ def _rich_text_prop(text: str | None) -> dict:
 def _multi_select_prop(names: list[str] | tuple[str, ...] | None) -> dict:
     if not names:
         return {"multi_select": []}
-    out: list[dict] = []
     seen: set[str] = set()
+    out: list[dict] = []
     for n in names:
-        if not isinstance(n, str):
-            continue
-        nv = n.strip()
-        if not nv or nv in seen:
-            continue
-        out.append({"name": nv})
-        seen.add(nv)
+        if isinstance(n, str) and (nv := n.strip()) and nv not in seen:
+            out.append({"name": nv})
+            seen.add(nv)
     return {"multi_select": out}
 
 
 def _select_prop(name: str | None) -> dict | None:
-    if name is None or not str(name).strip():
-        return None
-    return {"select": {"name": str(name).strip()}}
+    return (
+        {"select": {"name": str(name).strip()}} if name and str(name).strip() else None
+    )
 
 
 def _date_prop(iso: str | None) -> dict | None:
-    if not iso:
-        return None
-    return {"date": {"start": iso}}
+    return {"date": {"start": iso}} if iso else None
 
 
 def _url_prop(url: str | None) -> dict | None:
-    if not url:
-        return None
-    return {"url": url}
+    return {"url": url} if url else None
 
 
 def _checkbox_prop(val: bool) -> dict:
@@ -117,9 +96,7 @@ def _checkbox_prop(val: bool) -> dict:
 
 
 def _number_prop(val: int | float | None) -> dict | None:
-    if val is None:
-        return None
-    return {"number": val}
+    return {"number": val} if val is not None else None
 
 
 def _today_iso() -> str:
@@ -127,7 +104,6 @@ def _today_iso() -> str:
 
 
 def _clean_props(props: dict) -> dict:
-    """Drop keys whose value is None (optional Notion props)."""
     return {k: v for k, v in props.items() if v is not None}
 
 
@@ -263,18 +239,25 @@ _BUILDERS: dict[str, Callable[..., dict]] = {
 # ---- Scrubbing bridge ---------------------------------------------------
 
 
+# All string-valued fields are scrubbed (v1.3.1 closed leak via tags/stack/domain).
 _TEXT_FIELDS_BY_CATEGORY = {
-    "decisions": ("name", "context", "decision", "rationale"),
-    "web_cache": ("name", "content", "query", "url"),
-    "patterns": ("name", "description", "when_to_use", "example"),
-    "gotchas": ("name", "description", "wrong_way", "right_way"),
+    "decisions": "name context decision rationale tags stack superseded_by".split(),
+    "web_cache": "name content query url tags domain".split(),
+    "patterns": "name description when_to_use example tags stack confidence".split(),
+    "gotchas": "name description wrong_way right_way tags stack severity evidence_url".split(),
 }
 
 
+def _stringify(v: Any) -> str:
+    if isinstance(v, (list, tuple)):
+        return " ".join(str(x) for x in v)
+    return str(v) if v is not None else ""
+
+
 def scrub_inputs(category: str, fields: dict, cfg: dict) -> dict:
-    """Join text fields and run scrub_with_config (union with global registry)."""
+    """Join ALL string-valued fields (incl. tags/stack/domain/etc) and scrub."""
     keys = _TEXT_FIELDS_BY_CATEGORY.get(category, ())
-    joined = "\n".join(str(fields.get(k) or "") for k in keys)
+    joined = "\n".join(_stringify(fields.get(k)) for k in keys)
     return brain_scrubbing.scrub_with_config(joined, cfg, union_with_registry=True)
 
 

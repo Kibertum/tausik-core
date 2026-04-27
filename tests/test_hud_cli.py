@@ -38,7 +38,7 @@ class TestHudCli:
     def test_with_active_task(self, tmp_path):
         svc = _fresh_svc(tmp_path)
         svc.task_add(None, "demo", "Demo task")
-        svc.task_update("demo", status="active")
+        svc.be.task_update("demo", status="active")  # bypass QG-0 for HUD smoke-test
         out = _run_hud(svc)
         assert "demo" in out
         assert "Demo task" in out
@@ -46,7 +46,7 @@ class TestHudCli:
     def test_with_session_and_logs(self, tmp_path):
         svc = _fresh_svc(tmp_path)
         svc.task_add(None, "demo", "Demo task")
-        svc.task_update("demo", status="active")
+        svc.be.task_update("demo", status="active")  # bypass QG-0 for HUD smoke-test
         svc.be.task_log_add("demo", "First log", phase="implementation")
         svc.be.task_log_add("demo", "Second log", phase="testing")
         out = _run_hud(svc)
@@ -57,7 +57,7 @@ class TestHudCli:
         svc = _fresh_svc(tmp_path)
         long_title = "X" * 200
         svc.task_add(None, "big", long_title)
-        svc.task_update("big", status="active")
+        svc.be.task_update("big", status="active")  # bypass QG-0 for HUD smoke-test
         out = _run_hud(svc)
         # Title should be truncated to 80 chars in the header line
         header = [line for line in out.splitlines() if line.startswith("Active:")]

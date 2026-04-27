@@ -21,7 +21,7 @@ For the rest of this session:
 
 1. **Read before write** — every Edit must be preceded by Read of the same file in the same turn (or a verified prior Read).
 2. **Verify before claim** — never write "tests pass" / "feature works" without running the test or operation in this session.
-3. **Don't hallucinate APIs** — if uncertain, grep the codebase or read upstream docs before invoking.
+3. **Don't hallucinate APIs** — if uncertain, run `mcp__codebase-rag__search_code` (RAG) for the symbol; fall back to `Grep` only if RAG is empty or stale. Then read upstream docs.
 4. **Re-derive don't recall** — for tricky logic, re-derive from current code state; don't trust memory of a previous read.
 5. **Smaller edits** — prefer many small Edits with verification between, over one large rewrite.
 6. **Atomic commits** — group changes by concern; never bundle a refactor with a feature.

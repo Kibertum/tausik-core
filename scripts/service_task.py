@@ -27,6 +27,8 @@ from service_recording import check_session_capacity, record_call_actual
 if TYPE_CHECKING:
     from project_backend import SQLiteBackend
 
+_LIFECYCLE_STATUSES = frozenset({"done", "active", "blocked", "review"})
+
 
 _MISSING = object()
 
@@ -251,35 +253,31 @@ class TaskMixin(GatesMixin, CascadeMixin):
 
     def task_update(self, slug: str, **fields: Any) -> str:
         self._require_task(slug)
+        if fields.get("status") in _LIFECYCLE_STATUSES:
+            raise ServiceError(
+                f"status='{fields['status']}' must use lifecycle method "
+                f"(task_done/start/block/review) — would bypass QG-2."
+            )
         for name, valid in _update_enums():
             v = fields.get(name)
             if v and v not in valid:
-                raise ServiceError(
-                    f"Invalid {name} '{v}'. Valid: {', '.join(sorted(valid))}"
-                )
+                raise ServiceError(f"Invalid {name} '{v}'. Valid: {sorted(valid)}")
         cb = fields.pop("call_budget", _MISSING)
         notice = ""
-        if cb is not _MISSING:
-            if cb is not None and cb < 0:
-                raise ServiceError(
-                    f"Invalid call_budget '{cb}'; must be >=0 or omitted"
-                )
-            if cb is not None:
-                self.be.task_set_call_budget(slug, cb)
-                # MED-6: budget wins, drop explicit tier so auto-derived stays.
-                explicit_tier = fields.pop("tier", None)
-                if explicit_tier is not None:
-                    notice = (
-                        f"\nNote: tier '{explicit_tier}' overridden by call_budget."
-                    )
-                if not fields:
-                    return f"Task '{slug}' updated.{notice}"
+        if cb is not _MISSING and cb is not None:
+            if cb < 0:
+                raise ServiceError(f"Invalid call_budget '{cb}'; must be >=0")
+            self.be.task_set_call_budget(slug, cb)
+            tier = fields.pop("tier", None)
+            if tier is not None:
+                notice = f"\nNote: tier '{tier}' overridden by call_budget."
+            if not fields:
+                return f"Task '{slug}' updated.{notice}"
         from tausik_utils import safe_single_line
 
-        if "title" in fields and fields["title"] is not None:
-            fields["title"] = safe_single_line(fields["title"]) or fields["title"]
-        if "goal" in fields and fields["goal"] is not None:
-            fields["goal"] = safe_single_line(fields["goal"]) or fields["goal"]
+        for f in ("title", "goal"):
+            if fields.get(f) is not None:
+                fields[f] = safe_single_line(fields[f]) or fields[f]
         self.be.task_update(slug, **fields)
         return f"Task '{slug}' updated.{notice}"
 
@@ -331,23 +329,16 @@ class TaskMixin(GatesMixin, CascadeMixin):
         return self.task_add(None, slug, title, stack=stack, goal=goal, role=role)
 
     def task_next(self, agent_id: str | None = None) -> dict[str, Any] | None:
-        """Pick the next available task: highest-score unclaimed planning task.
-
-        QG-0 is enforced — only tasks with goal + AC can be started.
-        Tasks without goal/AC are returned but NOT auto-started.
-        """
+        """Pick next available task; auto-start if agent_id given (QG-0 enforced)."""
         task = self.be.task_next_candidate()
         if not task:
             return None
         if agent_id:
             self.task_claim(task["slug"], agent_id)
-            # QG-0 enforced: try without force, handle gracefully if gate fails
             try:
                 self.task_start(task["slug"])
             except ServiceError:
-                task["_qg0_failed"] = (
-                    True  # Task claimed but not started — agent must set goal/AC first
-                )
+                task["_qg0_failed"] = True
             task = self.be.task_get(task["slug"]) or task
         return task
 

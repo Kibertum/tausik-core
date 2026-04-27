@@ -165,8 +165,8 @@ pytest tests/ -v                         # 2232 тестов
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #37 (active) | Branch: main | Version: 1.3.0
-Tasks: 506/506 done, 0 active, 0 blocked
+Session: none | Branch: main | Version: 1.3.0
+Tasks: 0/1 done, 0 active, 0 blocked
 <!-- DYNAMIC:END -->
 
 Полная история изменений: `CHANGELOG.md`

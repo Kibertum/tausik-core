@@ -39,9 +39,11 @@ def _read_stdin_json() -> dict:
 
 
 def _normalize(p: str) -> str:
-    """Lowercase + forward-slash path; strips drive-letter case differences on Windows."""
-    n = os.path.normpath(p).replace("\\", "/")
-    return n.lower() if sys.platform == "win32" else n
+    """Forward-slash + lowercase path. Lowercase is unconditional so that
+    `~/.claude/projects/foo/MEMORY/x.md` (uppercase or mixed-case) is detected
+    on Linux/macOS too — was win32-only and bypassable. (v1.3.1 review HIGH)
+    """
+    return os.path.normpath(p).replace("\\", "/").lower()
 
 
 def is_in_claude_memory(file_path: str) -> bool:

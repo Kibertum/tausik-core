@@ -50,7 +50,7 @@ Work backwards from the symptom:
 4. Check stack-specific pitfalls from the stack guide
 5. Search for related code that might affect the issue:
    - Recent changes: `git log --oneline -10 -- {file}`
-   - Similar patterns: grep for the function/variable name across codebase
+   - Similar patterns: `mcp__codebase-rag__search_code` for the function/variable name; `Grep` only as fallback when RAG is empty or stale
 
 ### 4. Identify the Bug Category
 - **Logic error**: wrong condition, off-by-one, incorrect operator
