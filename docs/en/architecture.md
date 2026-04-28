@@ -155,7 +155,7 @@ Gates: `pytest`, `ruff`, `mypy`, `bandit`, `filesize`, `tdd_order`, `tsc`, `esli
 ## Testing
 
 ```bash
-pytest tests/ -v                    # all tests (2246)
+pytest tests/ -v                    # all tests (2270)
 pytest tests/test_tausik_backend.py   # backend CRUD
 pytest tests/test_tausik_service.py   # service logic
 pytest tests/test_tausik_cli.py       # CLI smoke

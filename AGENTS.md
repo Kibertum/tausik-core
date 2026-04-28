@@ -92,7 +92,7 @@ agents/            Shared resources for all IDEs
   overrides/       IDE-specific overrides (claude/, cursor/, qwen/)
   claude/mcp/      MCP servers (project: 90 tools, brain: 6 tools)
 bootstrap/         One-command project setup
-tests/             pytest suite (2246 tests)
+tests/             pytest suite (2270 tests)
 .tausik/           Runtime data (DB, config) — gitignored
 ```
 

@@ -61,7 +61,7 @@ scripts/          # Core framework (CLI → Service → Backend)
 bootstrap/        # Installation and IDE setup
 agents/skills/    # 13 core skills (always deployed) + 25+ official/vendor available via tausik skill install
 agents/overrides/ # IDE-specific overrides
-tests/            # pytest test suite (2246 tests)
+tests/            # pytest test suite (2270 tests)
 docs/             # User-facing + technical documentation (was references/)
 ```
 
