@@ -60,7 +60,7 @@ UNIVERSAL_GATES: dict[str, dict] = {
 
 
 # Stack-scoped gates come EXCLUSIVELY from the plugin registry
-# (`stacks/<name>/stack.json`). v1.3.1 dropped the 190-line hardcoded fallback
+# (`stacks/<name>/stack.json`). v1.3 blind-review pass dropped the 190-line hardcoded fallback
 # because it silently drifted from the source-of-truth files — adding a new
 # gate to a stack.json would not appear if the registry import failed; a
 # removed gate would still appear. Now: registry failure logs WARNING and

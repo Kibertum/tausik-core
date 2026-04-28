@@ -104,7 +104,7 @@
 Навыки, роли, стеки — общие для всех сред. MCP-серверы — специфичны для среды:
 ```
 agents/
-├── skills/           # 16 core + 22 vendor = 38 deployed
+├── skills/           # 13 core (auto-deployed) + 25+ в skills-official/ (по запросу)
 ├── roles/            # 5 ролей (developer, architect, qa, tech-writer, ui-ux)
 ├── stacks/           # Руководства по стекам
 ├── overrides/        # Переопределения для конкретных сред (claude/, cursor/, qwen/)

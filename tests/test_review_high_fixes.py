@@ -1,4 +1,4 @@
-"""Tests for v1.3.1 HIGH review findings 1-5."""
+"""Tests for v1.3 blind-review HIGH review findings 1-5."""
 
 from __future__ import annotations
 

@@ -40,7 +40,7 @@ TAUSIK doctor — health check
   OK    Project DB                .tausik/tausik.db (3136 KB)
   OK    MCP server (project)      .claude/mcp/project/server.py
   OK    MCP server (brain)        .claude/mcp/brain/server.py
-  OK    Core skills               38 deployed (all critical present)
+  OK    Core skills               13 core + 25+ vendor (all critical present)
   WARN  Bootstrap drift           1 script(s) differ — restart MCP server or re-bootstrap
   OK    Config knobs              max=180m warn=150m idle=10m capacity=200 cache_ttl=600s
   OK    Quality gates             6 registered

@@ -76,16 +76,23 @@ class TestBootstrapSkillsCoverage:
         assert not empty_dirs, f"Deployed skills with no SKILL.md: {empty_dirs}"
 
     def test_critical_skills_present(self, tmp_path):
-        """Hard list — these must exist for /review, /brain, /commit etc to work."""
+        """Hard list — the 13 core skills required for any TAUSIK project.
+
+        Workflow primitives: start/end/checkpoint (session), plan/task/ship/
+        commit (task lifecycle), review/test/debug (quality), explore/
+        interview (SENAR primitives), brain (cross-project knowledge UI).
+
+        v1.3 vendor split: markitdown, zero-defect, skill-test moved to
+        skills-official/ — opt-in / niche / meta skills not required for
+        baseline operation. brain stays core because cross-project memory
+        is a v1.3 headline feature.
+        """
         critical = {
             "review",
-            "brain",
             "commit",
             "debug",
             "interview",
-            "markitdown",
             "ship",
-            "skill-test",
             "test",
             "start",
             "end",
@@ -93,6 +100,7 @@ class TestBootstrapSkillsCoverage:
             "plan",
             "checkpoint",
             "explore",
+            "brain",
         }
         result = _run_bootstrap(str(tmp_path))
         assert result.returncode == 0, f"bootstrap failed: {result.stderr}"

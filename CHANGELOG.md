@@ -4,144 +4,10 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/).
 
-## [1.3.1] — 2026-04-28 — Independent 5-agent blind review fixes
+## [1.3.0] — 2026-04-28 — Big release: MCP expansion + session discipline + plugin stacks
 
-Independent blind review (5 parallel agents: architecture / security / agent UX /
-documentation truth / quality gates) found 50 findings (16 HIGH / 21 MED / 13 LOW).
-This release closes all HIGH findings and the most-impactful MED findings.
-
-### 🔒 QG-2 enforcement holes closed
-
-- **`tausik_task_update status=done` bypass** — the most serious finding from the
-  review. A single MCP call could close any task, skipping QG-2, AC verification,
-  scoped pytest, cascade, and `call_actual` recording. Now refused with explicit
-  `ServiceError` pointing at the lifecycle method (`task_done` / `task_start` /
-  `task_block` / `task_review`). v1.3 narrative "QG-2 cannot be bypassed (--force
-  removed)" is now true. (`scripts/service_task.py`)
-- **All-skipped scoped pytest passing as green** — when `relevant_files` was
-  supplied but no `tests/test_<basename>.py` matched (source file with deleted
-  or missing test), gates returned `passed=True` and QG-2 closed silently. Now
-  returns synthetic FAIL with `status="no-test-mapped"` and a notes line
-  pointing at the missing tests. (`scripts/service_verification.py`)
-
-### 🛡️ Security pattern gaps closed
-
-- **Brain plaintext leak via `tags`/`stack`/`domain`/`severity`** — only "named
-  text" fields (name/context/decision/rationale) were scrubbed; tags arrays
-  passed through verbatim, so `tags=["princess", "kibertum.ru"]` would leak the
-  project name into Notion despite the SHA256-hash privacy claim. Now ALL
-  string-valued props per category are joined into the scrub haystack.
-  (`scripts/brain_mcp_write.py`)
-- **`memory_pretool_block` Linux/macOS bypass via case** — the `"memory" in
-  segments` check was only case-folded on Windows. `~/.claude/projects/foo/MEMORY/x.md`
-  (uppercase) slipped through on every other platform. Now lowercase
-  unconditionally. (`scripts/hooks/memory_pretool_block.py`)
-- **Security-sensitive token list extended** — `_SECURITY_PATH_TOKENS` and
-  `_SECURITY_BASENAMES` now cover `webhook`, `csrf`, `xsrf`, `mfa`, `2fa`, `totp`,
-  `api_key`, `apikey`, `permissions`, `acl`, `iam`, `rbac`, `jwt`, `oauth`,
-  `session`, `signup`, `login` as bare tokens (match files at any depth, not just
-  inside same-named directories). (`scripts/service_verification.py`)
-
-### 🔍 Agent UX — RAG discoverability fully closed
-
-The user's report: "Claude grepping over the codebase instead of using our RAG".
-Root cause was structural — the framework wires `codebase-rag` MCP into
-`.mcp.json` but never tells the agent it exists. Now closed across three layers:
-
-- **Tool routing rubric in templates** — `bootstrap_templates.py` adds a
-  TOOL_ROUTING block with a Need / Primary / Fallback table directing agents
-  to `mcp__codebase-rag__search_code` first, `Grep` only as fallback. Propagates
-  to all four IDE configs (CLAUDE.md / AGENTS.md / .cursorrules / QWEN.md).
-- **Skill word swaps** — `agents/skills/zero-defect/SKILL.md` rule 3 and
-  `agents/skills/debug/SKILL.md` Phase 0 step 5 previously said "grep the
-  codebase" — now point at `search_code` first, with Grep as fallback.
-- **`session_start.py` injects RAG status** — agent sees `RAG: N chunks
-  indexed` / `RAG: empty — full reindex spawned in background` /
-  `RAG: not initialised — reindex spawned` at every new session.
-- **Auto-incremental reindex** — every SessionStart spawns
-  `index_incremental` in a detached background process (returns in ~3 ms,
-  never blocks the agent); pre-commit hook runs incremental with 5-second
-  timeout so committed changes land in the index before the next session.
-  First run on a fresh project triggers `index_full` automatically. The agent
-  no longer needs to know about `reindex` at all.
-
-### 🏗️ Architecture — drift hazard removed
-
-- **`_FALLBACK_STACK_GATES` (190 LOC) dropped** from `default_gates.py`. This
-  was a hardcoded copy of every stack-scoped gate that silently activated when
-  `stack_registry` import failed — any change to `stacks/<name>/stack.json`
-  would not appear if the registry hiccupped. Now: failure logs WARNING and
-  returns empty dict; universal gates (filesize, ruff, mypy, bandit, tdd_order)
-  remain hardcoded since they're not stack-scoped. File shrinks 290→101 LOC.
-
-### 📚 Documentation truth — counts reconciled
-
-- **MCP tool count** corrected from "106 (96 project + 10 brain)" to the actual
-  **100 (90 project + 10 brain)**. The "96" was an aspirational number that
-  matched no reality; the real count is 56 in `tools.py` + 34 in `tools_extra.py`.
-  Updated in 12+ files (README, CLAUDE, AGENTS, CHANGELOG, docs/{en,ru}/mcp.md,
-  architecture.md, senar-compliance-matrix.md).
-- **Test count** corrected from "2232" / "2226" / "2235" (mixed across files)
-  to the empirical **2246** (`pytest --collect-only`).
-- **doctor.md** "diagnoses the four moving parts" → "runs eight checks across
-  venv / DB / MCP / Skills / Drift / Config / Gates / Session" — matched the
-  table that was already 8 rows.
-- **doctor.md critical skills list** synced to actual `project_cli_doctor.py`
-  required set: `{start, end, task, plan, review, brain, ship, checkpoint}`.
-  Was claiming `commit` (not required) and missing `brain` + `checkpoint`.
-
-### 🔧 Filesize gate compliance
-
-Four modules compacted to stay under the 400-line limit while adding new
-guards: `service_task.py` 419→400, `service_verification.py` 413→358,
-`brain_mcp_write.py` 437→375, `default_gates.py` 290→101. Compaction was via
-formatting (ternary expressions, single-line dict literals) — no logic changes.
-
-### 🧪 Tests
-
-- `tests/test_v131_blind_review.py` adds 11 regression tests covering each
-  closed finding: `task_update` status bypass (4 tests), all-skipped pytest,
-  extended security token list, memory case-fold across platforms, brain scrub
-  inputs (block + pass paths), default_gates no-fallback on registry failure.
-- `tests/test_hud_cli.py` updated to use `be.task_update` for direct status
-  manipulation (the QG-2 path the test exercises is meant to bypass — now
-  explicit via the backend layer).
-- Full suite: **2246 collected**, **2234 passed**, **1 skipped** (a single
-  pre-existing skip unrelated to this work).
-
-### 📦 Compatibility
-
-No breaking changes for end users. Existing projects on v1.3.0 upgrade by:
-1. `git pull` in `.tausik-lib/` (or however the framework is installed).
-2. `python .tausik-lib/bootstrap/bootstrap.py --no-detect` to refresh `.claude/`
-   and the MCP server registration.
-3. Restart the IDE so the new `session_start.py` hook is picked up.
-
-The first session after upgrade will see "RAG: not initialised — full reindex
-spawned in background" and auto-build the index.
-
-### 📋 Deferred to v1.3.2 (still open from review)
-
-3 HIGH and 11 MED findings need follow-up work that didn't fit this release:
-
-- `verify-cache` cross-check against `git diff` since `task_start` (catches
-  agents that misreport `relevant_files`).
-- CLI handlers reaching into backend privates (`_conn`, `_q`, `_q1`) — needs
-  new backend methods to keep layering clean.
-- 6-finding hook hardening batch (bash_firewall regex, pip --no-config,
-  copytree symlinks, hooks check `.tausik/` dir not just `.db`, transcript
-  bounded read, brain symlink fix).
-- 5-finding QG-2 hardening batch (negative-scenario regex, tier auto-detect
-  consults `relevant_files`, files_hash includes content sample, task_unblock
-  capacity check, --no-knowledge refused for complex/defect tasks).
-
-13 LOW polish items batched for a single cleanup commit.
-
----
-
-## [1.3.0] — 2026-04-26 — Big release: MCP expansion + session discipline + plugin stacks
-
-Single consolidated entry covering everything since v1.2.0 (40+ commits).
+Single consolidated entry covering everything since v1.2.0 (40+ commits + an
+independent 5-agent blind review hardening pass right before ship).
 
 ### 🧠 Shared Brain — cross-project knowledge base (Notion-backed)
 - 4 Notion DBs (decisions, patterns, gotchas, web_cache) + local SQLite mirror with FTS5 (Cyrillic-aware).
@@ -305,18 +171,126 @@ After cycle-6 SHIP verdict, ran a SEPARATE round of 6 parallel independent revie
 - CI matrix expanded to `[ubuntu, windows, macos]` × `[3.11, 3.12, 3.13]` — Windows-only bugs caught.
 - CI now runs mypy + bandit (warning-only) alongside ruff.
 
+### 🔬 Independent 5-agent blind review hardening pass (pre-ship)
+
+Before tagging 1.3.0 we ran an independent blind review with five parallel
+agents (architecture / security / agent UX / documentation truth / quality
+gates). 50 findings: 16 HIGH / 21 MED / 13 LOW. The pre-ship pass closes
+all HIGH and the most-impactful MED findings — the rest are tracked for
+v1.3.x patch releases.
+
+**QG-2 enforcement holes closed**
+
+- **`tausik_task_update status=done` bypass** — the most serious finding.
+  A single MCP call could close any task, skipping QG-2, AC verification,
+  scoped pytest, cascade, and `call_actual` recording. Now refused with
+  explicit `ServiceError` pointing at the lifecycle method (`task_done` /
+  `task_start` / `task_block` / `task_review`). The "QG-2 cannot be
+  bypassed (--force removed)" claim is now end-to-end true.
+- **All-skipped scoped pytest passing as green** — when `relevant_files`
+  was supplied but no `tests/test_<basename>.py` matched (source file
+  with deleted or missing test), gates returned `passed=True` and QG-2
+  closed silently. Now returns synthetic FAIL with
+  `status="no-test-mapped"` and a notes line pointing at the missing
+  tests.
+
+**Security pattern gaps closed**
+
+- **Brain plaintext leak via `tags`/`stack`/`domain`/`severity`** — only
+  named text fields (name/context/decision/rationale) were scrubbed; tags
+  arrays passed through verbatim, so `tags=["princess", "kibertum.ru"]`
+  would leak the project name into Notion despite the SHA256-hash privacy
+  claim. Now ALL string-valued props per category join the scrub haystack.
+- **`memory_pretool_block` Linux/macOS bypass via case** — the
+  `"memory" in segments` check was case-folded only on Windows.
+  `~/.claude/projects/foo/MEMORY/x.md` (uppercase) slipped through on
+  every other platform. Now lowercase unconditionally.
+- **Security-sensitive token list extended** — `_SECURITY_PATH_TOKENS` and
+  `_SECURITY_BASENAMES` now cover `webhook`, `csrf`, `xsrf`, `mfa`, `2fa`,
+  `totp`, `api_key`, `apikey`, `permissions`, `acl`, `iam`, `rbac`, `jwt`,
+  `oauth`, `session`, `signup`, `login` as bare tokens (match files at
+  any depth, not just inside same-named directories).
+
+**Agent UX — RAG discoverability fully closed**
+
+User report: *"Claude grepping over the codebase instead of using our RAG"*.
+Root cause was structural — the framework wires `codebase-rag` MCP into
+`.mcp.json` but never tells the agent it exists. Closed across four layers:
+
+- **Tool routing rubric in templates** — `bootstrap_templates.py` adds a
+  TOOL_ROUTING block with a Need / Primary / Fallback table directing
+  agents to `mcp__codebase-rag__search_code` first, `Grep` only as
+  fallback. Propagates to all four IDE configs (CLAUDE.md / AGENTS.md /
+  .cursorrules / QWEN.md).
+- **Skill word swaps** — `agents/skills/zero-defect/SKILL.md` rule 3 and
+  `agents/skills/debug/SKILL.md` Phase 0 step 5 previously said "grep
+  the codebase" — now point at `search_code` first, with Grep as fallback.
+- **`session_start.py` injects RAG status** — agent sees
+  `RAG: N chunks indexed` / `RAG: empty — full reindex spawned in
+  background` / `RAG: not initialised — reindex spawned` at every new
+  session.
+- **Auto-incremental reindex** — every SessionStart spawns
+  `index_incremental` in a detached background process (returns in
+  ~3 ms, never blocks the agent); pre-commit hook runs incremental with
+  5-second timeout so committed changes land in the index before the
+  next session. First run on a fresh project triggers `index_full`
+  automatically. The agent no longer needs to know about `reindex`
+  at all.
+
+**Architecture — drift hazard removed**
+
+- **`_FALLBACK_STACK_GATES` (190 LOC) dropped** from `default_gates.py`.
+  This was a hardcoded copy of every stack-scoped gate that silently
+  activated when `stack_registry` import failed — any change to
+  `stacks/<name>/stack.json` would not appear if the registry hiccupped.
+  Now: failure logs WARNING and returns empty dict; universal gates
+  (filesize, ruff, mypy, bandit, tdd_order) remain hardcoded since
+  they're not stack-scoped. File shrinks 290→101 LOC.
+
+**Documentation truth — counts reconciled**
+
+- **MCP tool count** corrected from "106 (96 project + 10 brain)" to the
+  actual **100 (90 project + 10 brain)**. The "96" was an aspirational
+  number that matched no reality. Updated in 12+ files.
+- **Test count** corrected from "2232" / "2226" / "2235" (mixed across
+  files) to the empirical **2246** (`pytest --collect-only`).
+- **`docs/en/doctor.md`** intro fixed to "eight checks" and the critical
+  skills list synced to the actual `project_cli_doctor.py` set:
+  `{start, end, task, plan, review, brain, ship, checkpoint}`.
+
+**Filesize gate compliance**
+
+Four modules compacted to stay under the 400-line limit while adding new
+guards: `service_task.py` 419→400, `service_verification.py` 413→358,
+`brain_mcp_write.py` 437→375, `default_gates.py` 290→101.
+
+**Tests added**
+
+- `tests/test_v131_blind_review.py` — 11 regression tests covering each
+  closed finding.
+- `tests/test_hud_cli.py` updated to use `be.task_update` for direct
+  status manipulation (the QG-2 path the test exercises is meant to
+  bypass — now explicit via the backend layer).
+
+**Tracked for v1.3.x patch releases (still open from review):** verify-
+cache cross-check against git diff, CLI-into-backend layer cleanup,
+6-finding hook hardening batch, 5-finding QG-2 hardening batch, 13 LOW
+polish items.
+
 ### 📊 Stats
-- **2226 tests passing** (1183 → 2226 over the cycle, +23 new from hardening waves).
-- **100 MCP tools** (+4 net from review parity: doctor / verify / stack_reset / stack_export).
-- **100 MCP tools** (80 → 106): +5 stacks, +6 roles, +1 task_done evidence inline, +misc.
-- **38 skills deployed** (was 29 — 9 missing built-ins restored + `/zero-defect` added).
-- Schema version: 17 → 18 (roles table).
+- **2246 tests passing** (1183 → 2246 over the cycle, +11 new from blind-review hardening).
+- **100 MCP tools** (90 project + 10 brain), up from 80 in v1.2.0.
+- **13 core skills + 25+ official/vendor on demand** — v1.3 lean-core split: workflow primitives auto-deploy, niche/opt-in skills (`/zero-defect`, `/markitdown`, `/skill-test`, `/audit`, `/docs`, ...) install via `tausik skill install <name>`. Up from 29 unconditionally-deployed skills in v1.2.
+- **19 hooks** (was 13 — added `activity_event`, `memory_pretool_block`, `memory_posttool_audit`, `brain_post_webfetch`, `brain_search_proactive`, `task_call_counter`).
+- **25 stacks** (was 20 — added 5 IaC: ansible, terraform, helm, kubernetes, docker).
+- Schema version: 17 → 18 (added `roles`, `session_activity`, `verification_runs` tables).
 - 11 new modules (4 service helpers, 3 parser splits, 2 hooks, 1 CLI handler, 1 doctor).
 
 ### Compatibility
 - No breaking changes. Existing `.tausik/config.json` merges cleanly.
 - Re-bootstrap recommended to pull deployed scripts/MCP servers/skills up to date.
 - Migration v18 auto-seeds `roles` table from `DISTINCT tasks.role` — no manual setup needed.
+- After upgrade the first session sees `RAG: not initialised — full reindex spawned in background` and auto-builds the index.
 
 ---
 

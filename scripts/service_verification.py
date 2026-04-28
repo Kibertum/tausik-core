@@ -304,7 +304,7 @@ def run_gates_with_cache(
                 "WARN: no relevant_files passed — scoped gates SKIPPED. "
                 "v1.3 removed full-suite fallback. Pass --relevant-files for verification.",
             )
-    # v1.3.1: If relevant_files was supplied but EVERY gate was skipped (no
+    # v1.3 blind-review pass: If relevant_files was supplied but EVERY gate was skipped (no
     # test mapped, source-without-test), don't pass as green. Report a synthetic
     # blocking failure so QG-2 surfaces the missing tests instead of silently
     # closing the task. This is the "auth/login.py exists, no tests/test_login.py"

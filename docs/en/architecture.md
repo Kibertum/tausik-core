@@ -106,7 +106,7 @@ Total MCP surface: **90 project tools + 10 brain tools = 100**.
 Skills, roles, stacks -- shared across IDEs. MCP servers are IDE-specific:
 ```
 agents/
-+-- skills/           # 16 built-in + 22 vendor = 38 deployed
++-- skills/           # 13 core (auto-deployed) + 25+ in skills-official/ (on demand)
 +-- roles/            # 5 roles (developer, architect, qa, tech-writer, ui-ux)
 +-- stacks/           # Stack guides
 +-- overrides/        # IDE-specific overrides (claude/, cursor/, qwen/)

@@ -1,4 +1,4 @@
-"""Regression tests for v1.3.1 blind-review HIGH/MED findings."""
+"""Regression tests for v1.3 blind-review HIGH/MED findings."""
 
 from __future__ import annotations
 
@@ -72,7 +72,7 @@ def test_task_update_other_fields_still_works(svc):
 # QG-2: source-without-test must fail, not pass silently
 # ---------------------------------------------------------------------------
 def test_run_gates_with_cache_source_no_test_fails(tmp_path):
-    """v1.3.1: source file with no matching test must NOT pass as green."""
+    """v1.3 blind-review: source file with no matching test must NOT pass as green."""
     from service_verification import run_gates_with_cache
     from project_backend import SQLiteBackend
 
@@ -132,7 +132,7 @@ def test_security_sensitive_recognises_extended_basenames():
 # Memory pretool block: case-insensitive segment match
 # ---------------------------------------------------------------------------
 def test_memory_block_detects_uppercase_memory_dir():
-    """v1.3.1: MEMORY/, Memory/, memory/ all blocked on every platform."""
+    """v1.3 blind-review: MEMORY/, Memory/, memory/ all blocked on every platform."""
     sys.path.insert(
         0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks")
     )
@@ -161,7 +161,7 @@ def test_memory_block_detects_uppercase_memory_dir():
 # Brain plaintext leak: tags/stack/etc must be scrubbed
 # ---------------------------------------------------------------------------
 def test_brain_scrub_inputs_covers_tags_and_stack():
-    """v1.3.1: project name in tags array must be caught by scrubber."""
+    """v1.3 blind-review: project name in tags array must be caught by scrubber."""
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
     from brain_mcp_write import scrub_inputs
 
@@ -199,7 +199,7 @@ def test_brain_scrub_inputs_passes_clean_data():
 # Stack registry: no hardcoded fallback drift
 # ---------------------------------------------------------------------------
 def test_default_gates_no_fallback_on_registry_failure(monkeypatch):
-    """v1.3.1: registry failure must return empty dict + log, not stale hardcode."""
+    """v1.3 blind-review: registry failure must return empty dict + log, not stale hardcode."""
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
     import default_gates as dg
 

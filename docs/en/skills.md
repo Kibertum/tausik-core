@@ -4,11 +4,11 @@
 
 Skills are intent-based instructions that define agent behaviour. You don't memorize names or syntax — you write what you want, and the agent picks the right skill. Slash-prefix (`/plan`, `/ship`) explicitly invokes one.
 
-After bootstrap, **38 skills** are deployed: **16 core** ship with TAUSIK from `agents/skills/`, **22 vendor** are installed from `tausik-skills` repo into `.claude/skills/`.
+After bootstrap, **13 core skills** ship with TAUSIK from `agents/skills/`. Additional **vendor / official skills** (25+) are available via `tausik skill install <name>` from the `tausik-skills` repo (or the bundled `skills-official/` directory).
 
-## Core Skills (16)
+## Core Skills (13)
 
-These are always available after bootstrap.
+These are always available after bootstrap — the workflow primitives every TAUSIK project needs.
 
 ### Workflow
 
@@ -26,7 +26,7 @@ These are always available after bootstrap.
 
 | Skill | When |
 |-------|------|
-| `/brain` | Query/store cross-project knowledge in the Shared Brain (Notion + local mirror) |
+| `/brain` | Query/store cross-project knowledge in the Shared Brain (Notion + local mirror) — v1.3 headline feature |
 | `/explore` | Time-boxed investigation (default 30 min) before committing to an approach |
 | `/interview` | Socratic Q&A — at most 3 questions to pin down requirements |
 
@@ -37,16 +37,23 @@ These are always available after bootstrap.
 | `/review` | Code review against 28-point SENAR checklist (5 parallel agents, iterative) |
 | `/test` | Run or write tests, track coverage |
 | `/debug` | Reproduce → isolate root cause → fix |
-| `/zero-defect` | Session-scoped precision mode: read-before-write, verify-before-claim, never-hallucinate-APIs (Maestro-inspired). Use for security/payment/migration |
 
-### Meta
+## Vendor / Official Skills (25+)
+
+Not auto-deployed — install on demand. Lives in `skills-official/` (bundled) and the `tausik-skills` repo (external). Use `tausik skill install <name>` to add, `tausik skill activate <name>` to enable.
+
+### Quality / Discipline (opt-in)
 
 | Skill | When |
 |-------|------|
-| `/skill-test` | Auto-generate and run test scenarios for any skill |
-| `/markitdown` | Convert DOCX/PPTX/XLSX/HTML/EPUB/PDF to markdown via the markitdown CLI |
+| `/zero-defect` | Session-scoped precision mode for high-stakes work (auth/payment/migration). Slows velocity 2–3× but reduces defects. Maestro-inspired. |
+| `/skill-test` | Meta tool for skill authors — auto-generate and run scenarios for any skill |
 
-## Vendor Skills (22)
+### Document Extraction (opt-in)
+
+| Skill | When |
+|-------|------|
+| `/markitdown` | Convert DOCX/PPTX/XLSX/HTML/EPUB/PDF to markdown via the markitdown CLI (requires `pip install markitdown`) |
 
 Installed from the `tausik-skills` repo. Use `tausik skill install <name>` to add, `tausik skill activate <name>` to enable.
 

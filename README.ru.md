@@ -108,7 +108,7 @@ Claude auto-memory (`~/.claude/projects/*/memory/`) — это кросс-про
 
 ## Что внутри
 
-- **38 навыков** (16 встроенных + внешние) — `/plan`, `/ship`, `/review`, `/brain`, `/zero-defect`, `/doctor`, `/audit`, `/debug`, `/test`, `/interview` и другие
+- **13 core навыков** (всегда развёрнуты) — `/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, `/review`, `/test`, `/debug`, `/explore`, `/interview`, `/brain`. Плюс **25+ official/vendor навыков** (`/audit`, `/zero-defect`, `/markitdown`, `/docs`, `/security`, `/onboard`, …) ставятся по запросу через `tausik skill install`.
 - **100 MCP-инструментов** (90 project + 10 brain) — полный программный доступ к базе проекта
 - **16+ проверок качества** — pytest, ruff, tsc, eslint, cargo check, go vet и другие для вашего стека
 - **6 автоматических метрик** — производительность, FPSR, уровень дефектов, активное время сессий

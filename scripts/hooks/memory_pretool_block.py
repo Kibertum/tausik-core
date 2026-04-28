@@ -41,7 +41,7 @@ def _read_stdin_json() -> dict:
 def _normalize(p: str) -> str:
     """Forward-slash + lowercase path. Lowercase is unconditional so that
     `~/.claude/projects/foo/MEMORY/x.md` (uppercase or mixed-case) is detected
-    on Linux/macOS too — was win32-only and bypassable. (v1.3.1 review HIGH)
+    on Linux/macOS too — was win32-only and bypassable. (v1.3 blind-review HIGH)
     """
     return os.path.normpath(p).replace("\\", "/").lower()
 

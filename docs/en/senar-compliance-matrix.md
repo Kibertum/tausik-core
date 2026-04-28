@@ -81,7 +81,7 @@
 | Batch execution (`/run`) | ✅ Implemented | `plan_parser.py` + `/run` skill |
 | Structured logs (task_logs + FTS5) | ✅ Implemented | `backend_schema.py` + `service_task.py:task_log` |
 | Fake test detection | ✅ Implemented | `/review` skill — 10 patterns |
-| Skills system | ✅ Implemented | 38 skills (16 core + 22 vendor) — `service_skills.py` + `tausik-skills` repo |
+| Skills system | ✅ Implemented | 13 core skills + 25+ official/vendor on demand — `service_skills.py` + `tausik-skills` repo |
 | Hooks system | ✅ Implemented | 19 hooks across PreToolUse / PostToolUse / SessionStart / Stop / pre-commit |
 | Roles registry | ✅ Implemented | Hybrid: SQLite metadata + `agents/roles/{role}.md` profile; CRUD CLI + 6 MCP tools |
 | Doctor health check | ✅ Implemented | `tausik doctor` + `tausik_doctor` MCP — 4 groups (venv/DB/MCP/skills) + drift |

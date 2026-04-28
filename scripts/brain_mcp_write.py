@@ -239,7 +239,7 @@ _BUILDERS: dict[str, Callable[..., dict]] = {
 # ---- Scrubbing bridge ---------------------------------------------------
 
 
-# All string-valued fields are scrubbed (v1.3.1 closed leak via tags/stack/domain).
+# All string-valued fields are scrubbed (v1.3 blind-review pass closed leak via tags/stack/domain).
 _TEXT_FIELDS_BY_CATEGORY = {
     "decisions": "name context decision rationale tags stack superseded_by".split(),
     "web_cache": "name content query url tags domain".split(),
