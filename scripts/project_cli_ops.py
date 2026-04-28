@@ -10,6 +10,19 @@ from project_service import ProjectService
 
 
 def cmd_metrics(svc: ProjectService, args: Any) -> None:
+    if getattr(args, "metrics_cmd", None) == "record-session":
+        print(
+            svc.metrics_record_session(
+                tokens_input=args.tokens_input,
+                tokens_output=args.tokens_output,
+                tokens_total=args.tokens_total,
+                cost_usd=args.cost_usd,
+                tool_calls=getattr(args, "tool_calls", 0),
+                model=getattr(args, "model", ""),
+                session_id=getattr(args, "session_id", None),
+            )
+        )
+        return
     m = svc.get_metrics()
     print(f"Tasks: {m['tasks_done']}/{m['tasks_total']} done ({m['completion_pct']}%)")
     for status, cnt in sorted(m["tasks"].items()):
@@ -58,6 +71,22 @@ def cmd_metrics(svc: ProjectService, args: Any) -> None:
         total_s = sum(m["stories"].values())
         done_s = m["stories"].get("done", 0)
         print(f"Stories: {done_s}/{total_s} done")
+    usage = m.get("session_usage") or {}
+    if usage.get("sessions_with_usage"):
+        print("\n--- LLM Usage ---")
+        print(
+            f"Sessions tracked: {usage['sessions_with_usage']}, "
+            f"tokens: {usage['tokens_total']:,}, cost: ${usage['cost_usd']:.4f}"
+        )
+        last = usage.get("last_session") or {}
+        if last:
+            print(
+                "Last session: "
+                f"#{last.get('session_id')} "
+                f"{int(last.get('tokens_total') or 0):,} tokens, "
+                f"${float(last.get('cost_usd') or 0):.4f}, "
+                f"model={last.get('model') or '-'}"
+            )
 
 
 def cmd_hud(svc: ProjectService, args: Any) -> None:

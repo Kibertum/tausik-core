@@ -159,6 +159,23 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
             updated_at TEXT NOT NULL
         )""",
     ],
+    # --- v19: session token/cost usage metrics ---
+    19: [
+        """CREATE TABLE IF NOT EXISTS session_usage_metrics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+            tokens_input INTEGER NOT NULL DEFAULT 0,
+            tokens_output INTEGER NOT NULL DEFAULT 0,
+            tokens_total INTEGER NOT NULL DEFAULT 0,
+            cost_usd REAL NOT NULL DEFAULT 0,
+            tool_calls INTEGER NOT NULL DEFAULT 0,
+            model TEXT,
+            recorded_at TEXT NOT NULL,
+            UNIQUE(session_id)
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_session_usage_session_id ON session_usage_metrics(session_id)",
+        "CREATE INDEX IF NOT EXISTS idx_session_usage_recorded_at ON session_usage_metrics(recorded_at)",
+    ],
 }
 
 

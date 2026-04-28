@@ -9,6 +9,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from tausik_utils import utcnow_iso
+
 
 def _session_hours(stats: dict | None) -> float:
     return round(stats["hours"], 1) if stats and stats.get("hours") else 0
@@ -110,6 +112,66 @@ class BackendQueriesMixin:
             "session": self.session_current(),
         }
 
+    def session_usage_record(
+        self,
+        session_id: int,
+        tokens_input: int,
+        tokens_output: int,
+        tokens_total: int,
+        cost_usd: float,
+        tool_calls: int = 0,
+        model: str | None = None,
+    ) -> None:
+        now = utcnow_iso()
+        self._ex(
+            "INSERT INTO session_usage_metrics("
+            "session_id,tokens_input,tokens_output,tokens_total,cost_usd,tool_calls,model,recorded_at"
+            ") VALUES(?,?,?,?,?,?,?,?) "
+            "ON CONFLICT(session_id) DO UPDATE SET "
+            "tokens_input=excluded.tokens_input, "
+            "tokens_output=excluded.tokens_output, "
+            "tokens_total=excluded.tokens_total, "
+            "cost_usd=excluded.cost_usd, "
+            "tool_calls=excluded.tool_calls, "
+            "model=excluded.model, "
+            "recorded_at=excluded.recorded_at",
+            (
+                int(session_id),
+                int(tokens_input),
+                int(tokens_output),
+                int(tokens_total),
+                float(cost_usd),
+                int(tool_calls),
+                (model or "").strip() or None,
+                now,
+            ),
+        )
+
+    def session_usage_summary(self) -> dict[str, Any]:
+        agg = self._q1(
+            "SELECT COUNT(*) as sessions_with_usage, "
+            "COALESCE(SUM(tokens_input),0) as tokens_input, "
+            "COALESCE(SUM(tokens_output),0) as tokens_output, "
+            "COALESCE(SUM(tokens_total),0) as tokens_total, "
+            "COALESCE(SUM(cost_usd),0) as cost_usd, "
+            "COALESCE(SUM(tool_calls),0) as tool_calls "
+            "FROM session_usage_metrics"
+        ) or {}
+        last = self._q1(
+            "SELECT session_id, tokens_input, tokens_output, tokens_total, "
+            "cost_usd, tool_calls, model, recorded_at "
+            "FROM session_usage_metrics ORDER BY recorded_at DESC LIMIT 1"
+        )
+        return {
+            "sessions_with_usage": int(agg.get("sessions_with_usage") or 0),
+            "tokens_input": int(agg.get("tokens_input") or 0),
+            "tokens_output": int(agg.get("tokens_output") or 0),
+            "tokens_total": int(agg.get("tokens_total") or 0),
+            "cost_usd": round(float(agg.get("cost_usd") or 0.0), 4),
+            "tool_calls": int(agg.get("tool_calls") or 0),
+            "last_session": last,
+        }
+
     def get_metrics(self) -> dict[str, Any]:
         task_counts = {
             r["status"]: r["cnt"]
@@ -207,6 +269,7 @@ class BackendQueriesMixin:
             "sessions_total": sessions_total,
             "session_hours": _session_hours(session_stats),
             "stories": story_counts,
+            "session_usage": self.session_usage_summary(),
         }
 
     def session_capacity_summary(self, capacity: int) -> dict[str, Any]:

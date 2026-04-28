@@ -7,6 +7,29 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 > Russian mirror: [`CHANGELOG.ru.md`](CHANGELOG.ru.md). Both files cover
 > the same releases — keep them in sync when adding a new entry.
 
+## [1.3.5] — 2026-04-28 — Cursor session cost metrics (auto + CLI)
+
+### Added
+- `tausik metrics record-session` CLI subcommand to persist per-session
+  token/cost/tool/model usage into project DB.
+- New table `session_usage_metrics` (schema `v19`) with upsert by
+  `session_id` and query/index support.
+- `tausik metrics` output now includes `LLM Usage` summary and last
+  recorded session details.
+
+### Changed
+- `session end` now attempts a best-effort call to
+  `scripts/hooks/session_metrics.py --auto --record` (non-blocking).
+- `scripts/hooks/session_metrics.py --auto` now searches both
+  `~/.claude/projects` and `~/.cursor/projects` transcript roots.
+
+### Tests
+- Added `tests/test_metrics_session_usage.py`.
+- Added `tests/test_session_end_metrics_hook.py`.
+
+### Versioning
+- `__version__` bumped `1.3.4` -> `1.3.5`.
+
 ## [1.3.4] — 2026-04-28 — Security & QG hardening + doc-truth
 
 Closes the v1.3.1 blind-review HIGH/MED security and QG bypasses that

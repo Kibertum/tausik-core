@@ -128,35 +128,48 @@ def auto_find_transcript() -> str | None:
     Checks ~/.claude/projects/<project-slug>/*.jsonl
     Project slug is derived from CWD by replacing path separators with dashes.
     """
-    home = os.path.expanduser("~")
-    projects_dir = os.path.join(home, ".claude", "projects")
-    if not os.path.isdir(projects_dir):
-        return None
+    def _auto_find_in_projects_root(projects_dir: str) -> str | None:
+        if not os.path.isdir(projects_dir):
+            return None
+        # Build slug from CWD (shared across IDEs: path separators -> dashes)
+        cwd = os.getcwd()
+        cwd_normalized = cwd.replace("\\", "/").replace(":", "")
+        slug_candidate = cwd_normalized.replace("/", "-")
 
-    # Build slug from CWD (Claude Code convention: drive-letter--path--components)
-    cwd = os.getcwd()
-    # Try to find matching project dir
-    cwd_normalized = cwd.replace("\\", "/").replace(":", "")
-    slug_candidate = cwd_normalized.replace("/", "-")
+        # Search for matching directory first
+        for entry in os.listdir(projects_dir):
+            entry_lower = entry.lower()
+            if (
+                slug_candidate.lower() in entry_lower
+                or entry_lower in slug_candidate.lower()
+            ):
+                project_dir = os.path.join(projects_dir, entry)
+                if os.path.isdir(project_dir):
+                    t = find_latest_transcript(project_dir)
+                    if t:
+                        return t
 
-    # Search for matching directory
-    for entry in os.listdir(projects_dir):
-        entry_lower = entry.lower()
-        if slug_candidate.lower() in entry_lower or entry_lower in slug_candidate.lower():
+        # Fallback: most recent transcript in this projects root
+        all_transcripts: list[str] = []
+        for entry in os.listdir(projects_dir):
             project_dir = os.path.join(projects_dir, entry)
             if os.path.isdir(project_dir):
-                return find_latest_transcript(project_dir)
+                t = find_latest_transcript(project_dir)
+                if t:
+                    all_transcripts.append(t)
+        if all_transcripts:
+            return max(all_transcripts, key=os.path.getmtime)
+        return None
 
-    # Fallback: find any project dir with recent transcript
-    all_transcripts = []
-    for entry in os.listdir(projects_dir):
-        project_dir = os.path.join(projects_dir, entry)
-        if os.path.isdir(project_dir):
-            t = find_latest_transcript(project_dir)
-            if t:
-                all_transcripts.append(t)
-    if all_transcripts:
-        return max(all_transcripts, key=os.path.getmtime)
+    home = os.path.expanduser("~")
+    candidates = [
+        os.path.join(home, ".claude", "projects"),
+        os.path.join(home, ".cursor", "projects"),
+    ]
+    for projects_dir in candidates:
+        found = _auto_find_in_projects_root(projects_dir)
+        if found:
+            return found
     return None
 
 

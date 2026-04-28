@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 18
+SCHEMA_VERSION = 19
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -144,6 +144,19 @@ CREATE TABLE IF NOT EXISTS verification_runs (
     ran_at TEXT NOT NULL,
     duration_ms INTEGER
 );
+
+CREATE TABLE IF NOT EXISTS session_usage_metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    tokens_input INTEGER NOT NULL DEFAULT 0,
+    tokens_output INTEGER NOT NULL DEFAULT 0,
+    tokens_total INTEGER NOT NULL DEFAULT 0,
+    cost_usd REAL NOT NULL DEFAULT 0,
+    tool_calls INTEGER NOT NULL DEFAULT 0,
+    model TEXT,
+    recorded_at TEXT NOT NULL,
+    UNIQUE(session_id)
+);
 """
 
 FTS_SQL = """
@@ -264,4 +277,6 @@ CREATE INDEX IF NOT EXISTS idx_edges_relation ON memory_edges(relation);
 CREATE INDEX IF NOT EXISTS idx_edges_valid ON memory_edges(valid_to);
 CREATE INDEX IF NOT EXISTS idx_verify_task ON verification_runs(task_slug, ran_at DESC);
 CREATE INDEX IF NOT EXISTS idx_verify_files_hash ON verification_runs(files_hash);
+CREATE INDEX IF NOT EXISTS idx_session_usage_session_id ON session_usage_metrics(session_id);
+CREATE INDEX IF NOT EXISTS idx_session_usage_recorded_at ON session_usage_metrics(recorded_at);
 """

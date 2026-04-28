@@ -129,12 +129,37 @@ class SessionMixin:
         )
 
     def session_end(self, summary: str | None = None) -> str:
+        import os
+        import subprocess
+        import sys
+
         current = self.be.session_current()
         if not current:
             raise ServiceError(
                 "No active session. Start one: .tausik/tausik session start"
             )
         self.be.session_end(current["id"], summary)
+        if os.environ.get("TAUSIK_DISABLE_SESSION_METRICS") == "1":
+            return f"Session #{current['id']} ended."
+        hooks_script = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "hooks",
+            "session_metrics.py",
+        )
+        if not os.path.isfile(hooks_script):
+            return f"Session #{current['id']} ended."
+        try:
+            # Best-effort: do not fail session end when transcript isn't available.
+            subprocess.run(
+                [sys.executable, hooks_script, "--auto", "--record"],
+                cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+        except Exception:
+            pass
         return f"Session #{current['id']} ended."
 
     def session_current(self) -> dict[str, Any] | None:
@@ -203,6 +228,38 @@ class ProjectService(
 
     def get_metrics(self) -> dict[str, Any]:
         return self.be.get_metrics()
+
+    def metrics_record_session(
+        self,
+        tokens_input: int,
+        tokens_output: int,
+        tokens_total: int,
+        cost_usd: float,
+        tool_calls: int = 0,
+        model: str = "",
+        session_id: int | None = None,
+    ) -> str:
+        sid = session_id
+        if sid is None:
+            current = self.be.session_current()
+            if not current:
+                raise ServiceError(
+                    "No active session. Pass --session-id or start session first."
+                )
+            sid = int(current["id"])
+        self.be.session_usage_record(
+            sid,
+            int(tokens_input),
+            int(tokens_output),
+            int(tokens_total),
+            float(cost_usd),
+            int(tool_calls),
+            model,
+        )
+        return (
+            f"Session usage recorded for session #{sid}: "
+            f"{int(tokens_total):,} tokens, ${float(cost_usd):.4f}."
+        )
 
     def get_roadmap(self, include_done: bool = False) -> list[dict[str, Any]]:
         return self.be.get_roadmap_data(include_done)

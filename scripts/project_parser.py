@@ -322,7 +322,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # --- metrics / hud / suggest-model ---
-    sub.add_parser("metrics", help="Project metrics and velocity")
+    metrics_p = sub.add_parser("metrics", help="Project metrics and velocity")
+    metrics_sub = metrics_p.add_subparsers(dest="metrics_cmd")
+    mr = metrics_sub.add_parser(
+        "record-session",
+        help="Record session token/cost metrics (used by hooks/session_metrics.py)",
+    )
+    mr.add_argument("--session-id", type=int, default=None)
+    mr.add_argument("--tokens-input", type=int, required=True)
+    mr.add_argument("--tokens-output", type=int, required=True)
+    mr.add_argument("--tokens-total", type=int, required=True)
+    mr.add_argument("--cost-usd", type=float, required=True)
+    mr.add_argument("--tool-calls", type=int, default=0)
+    mr.add_argument("--model", default="")
     sub.add_parser("hud", help="Live dashboard")
     sub.add_parser(
         "suggest-model", help="Suggest Claude model for complexity"

@@ -9,6 +9,30 @@
 > начиная с v1.3.2; для более ранних релизов смотри английскую версию.
 > При добавлении новой записи держи оба файла синхронизированными.
 
+## [1.3.5] — 2026-04-28 — метрики token/cost для Cursor (auto + CLI)
+
+### Добавлено
+- CLI-подкоманда `tausik metrics record-session` для записи метрик
+  сессии (токены/cost/tool/model) в БД проекта.
+- Новая таблица `session_usage_metrics` (schema `v19`) с upsert по
+  `session_id` и индексами для выборки.
+- В `tausik metrics` добавлен блок `LLM Usage` (суммарно + последняя
+  записанная сессия).
+
+### Изменено
+- `session end` теперь best-effort вызывает
+  `scripts/hooks/session_metrics.py --auto --record` (не блокирует
+  завершение сессии при ошибке).
+- `scripts/hooks/session_metrics.py --auto` теперь ищет транскрипты и в
+  `~/.claude/projects`, и в `~/.cursor/projects`.
+
+### Тесты
+- Добавлен `tests/test_metrics_session_usage.py`.
+- Добавлен `tests/test_session_end_metrics_hook.py`.
+
+### Версионирование
+- `__version__` повышен `1.3.4` -> `1.3.5`.
+
 ## [1.3.4] — 2026-04-28 — Security & QG hardening + doc-truth
 
 Закрывает HIGH/MED security и QG-байпасы из v1.3.1 blind-review, которые

@@ -11,6 +11,7 @@
 init --name <slug>             # Инициализация проекта (создаёт .tausik/tausik.db)
 status                         # Обзор проекта + предупреждение SENAR (active vs wall)
 metrics                        # Метрики SENAR: Throughput, Lead Time, FPSR, DER, Dead End Rate, Cost per Task
+metrics record-session         # Записать LLM usage (tokens/cost/tool/model) для текущей или явной сессии
 doctor                         # Health check: venv + DB + MCP + skills + drift
 ```
 
@@ -122,6 +123,7 @@ session recompute               # Retro: сравнить wall-clock vs active (
 ```
 
 Лимит сессии — 180 мин **active** time (gap-based, паузится после 10 мин idle), не wall clock. Threshold настраивается в `.tausik/config.json` → `session_idle_threshold_minutes`. См. `session-active-time.md`.
+На `session end` TAUSIK также делает best-effort запись usage через `scripts/hooks/session_metrics.py --auto --record` (поддержаны transcript roots и Claude, и Cursor).
 
 ## Знания
 

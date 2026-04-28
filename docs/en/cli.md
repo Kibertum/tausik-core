@@ -11,6 +11,7 @@ On Windows the wrapper is `.tausik/tausik.cmd`. The same surface is also availab
 init --name <slug>             # Initialize project (creates .tausik/tausik.db)
 status                         # Project overview + SENAR session duration warning (active vs wall)
 metrics                        # SENAR metrics: Throughput, Lead Time, FPSR, DER, Dead End Rate, Cost per Task
+metrics record-session         # Persist LLM usage (tokens/cost/tool/model) for current or explicit session
 doctor                         # Health check: venv + DB + MCP + skills + drift
 ```
 
@@ -121,6 +122,7 @@ session recompute               # Retro: compare wall-clock vs active (gap-based
 ```
 
 Session limit is 180 min **active** time (gap-based, paused after 10 min idle). Threshold is configurable via `.tausik/config.json` → `session_idle_threshold_minutes`. See `session-active-time.md`.
+On `session end`, TAUSIK also performs a best-effort usage capture via `scripts/hooks/session_metrics.py --auto --record` (supports both Claude and Cursor transcript roots).
 
 ## Knowledge
 
