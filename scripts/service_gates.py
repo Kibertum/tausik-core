@@ -96,36 +96,9 @@ SECURITY_AC_KEYWORDS = (
 )
 
 
-def qg0_dimensions_score(task: dict[str, Any]) -> dict[str, bool]:
-    """Score a task against 9 intent dimensions (prompt-master).
-
-    Returns {dimension: bool}. A task filling ≥5 is considered well-contextualized.
-    This is a soft signal — hard gates (goal, AC, negative scenario) are enforced elsewhere.
-    """
-    import re
-
-    def _has(field: str) -> bool:
-        val = task.get(field)
-        return bool(val and str(val).strip())
-
-    ac = (task.get("acceptance_criteria") or "") + " " + (task.get("notes") or "")
-    file_re = re.compile(
-        r"\b[\w/.-]+\.(py|js|ts|tsx|jsx|go|rs|java|kt|php|md|json|yaml|yml|sql|sh)\b"
-    )
-    memory_re = re.compile(r"\bmemory\s*#?\d+\b|\bmem_\d+\b|\b#\d+\s+\[", re.IGNORECASE)
-    evidence_plan = bool(file_re.search(ac) or memory_re.search(ac))
-
-    return {
-        "goal": _has("goal"),
-        "acceptance_criteria": _has("acceptance_criteria"),
-        "scope": _has("scope"),
-        "scope_exclude": _has("scope_exclude"),
-        "role": _has("role"),
-        "stack": _has("stack"),
-        "complexity": _has("complexity"),
-        "story_link": _has("story_slug") or _has("epic_slug"),
-        "evidence_plan": evidence_plan,
-    }
+# qg0_dimensions_score lives in gate_qg0_score.py for filesize-gate compliance;
+# re-export keeps `from service_gates import qg0_dimensions_score` working.
+from gate_qg0_score import qg0_dimensions_score  # noqa: F401, E402
 
 
 class GatesMixin:
@@ -395,6 +368,7 @@ class GatesMixin:
             relevant_files,
             scope=scope,
             append_notes_fn=self.be.task_append_notes,
+            task_created_at=task.get("created_at"),
         )
         if not passed:
             failed = [

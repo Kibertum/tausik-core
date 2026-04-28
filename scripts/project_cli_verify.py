@@ -26,6 +26,7 @@ def cmd_verify(svc: ProjectService, args: Any) -> None:
     from service_verification import (
         compute_files_hash,
         is_cache_allowed,
+        is_declared_consistent_with_git_diff,
         lookup_recent_for_task,
         record_run,
         resolve_gate_signature,
@@ -33,6 +34,7 @@ def cmd_verify(svc: ProjectService, args: Any) -> None:
 
     relevant_files: list[str] = []
     task_slug = getattr(args, "task", None)
+    task_created_at: str | None = None
     if task_slug:
         task = svc.be.task_get(task_slug)
         if task is None:
@@ -43,6 +45,7 @@ def cmd_verify(svc: ProjectService, args: Any) -> None:
             relevant_files = _json.loads(rf_raw) if rf_raw else []
         except (TypeError, ValueError):
             relevant_files = []
+        task_created_at = task.get("created_at")
 
     scope = getattr(args, "scope", "manual")
     files_hash = compute_files_hash(relevant_files)
@@ -51,7 +54,10 @@ def cmd_verify(svc: ProjectService, args: Any) -> None:
         f"trigger=task-done|sig={gate_sig}|files={','.join(sorted(relevant_files))}"
     )
 
-    if task_slug and is_cache_allowed(relevant_files):
+    cache_consistent = not (
+        task_created_at and relevant_files
+    ) or is_declared_consistent_with_git_diff(relevant_files, task_created_at)
+    if task_slug and is_cache_allowed(relevant_files) and cache_consistent:
         hit = lookup_recent_for_task(
             svc.be._conn,
             task_slug,

@@ -646,3 +646,308 @@ class TestRunGatesWithCacheScopePropagation:
             ("auth-task",),
         ).fetchone()
         assert row["scope"] == "critical"
+
+
+# --- v1.3.4: changed_files_since + git-diff cross-check -------------------
+
+
+def _fake_run(
+    stdout_log: str = "", stdout_diff: str = "", rc_log: int = 0, rc_diff: int = 0
+):
+    """Build a runner that returns canned subprocess.CompletedProcess.
+
+    The first call (git log) returns stdout_log/rc_log; the second call
+    (git diff) returns stdout_diff/rc_diff. Order matters and must match
+    the order changed_files_since invokes git.
+    """
+    import subprocess
+
+    calls = {"n": 0}
+
+    def runner(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return subprocess.CompletedProcess(
+                args=args[0] if args else [],
+                returncode=rc_log,
+                stdout=stdout_log,
+                stderr="",
+            )
+        return subprocess.CompletedProcess(
+            args=args[0] if args else [],
+            returncode=rc_diff,
+            stdout=stdout_diff,
+            stderr="",
+        )
+
+    return runner
+
+
+class TestChangedFilesSince:
+    """v1.3.4 helper for verify-cache cross-check vs git diff."""
+
+    def test_combines_committed_and_uncommitted(self, tmp_path, monkeypatch):
+        # Mock os.path.isdir to claim .git exists at tmp_path
+        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        runner = _fake_run(
+            stdout_log="scripts/a.py\nscripts/b.py\n",
+            stdout_diff="scripts/c.py\nscripts/a.py\n",
+        )
+        out = sv.changed_files_since(
+            "2026-04-28T12:00:00Z", root=str(tmp_path), runner=runner
+        )
+        assert out == {"scripts/a.py", "scripts/b.py", "scripts/c.py"}
+
+    def test_returns_none_when_no_git_dir(self, tmp_path):
+        # tmp_path has no .git
+        out = sv.changed_files_since("2026-04-28T12:00:00Z", root=str(tmp_path))
+        assert out is None
+
+    def test_returns_none_when_empty_timestamp(self):
+        assert sv.changed_files_since("") is None
+        assert sv.changed_files_since(None) is None  # type: ignore[arg-type]
+
+    def test_returns_none_when_git_log_fails(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        runner = _fake_run(rc_log=128)
+        out = sv.changed_files_since(
+            "2026-04-28T12:00:00Z", root=str(tmp_path), runner=runner
+        )
+        assert out is None
+
+    def test_returns_none_when_git_diff_fails(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        runner = _fake_run(stdout_log="x\n", rc_diff=128)
+        out = sv.changed_files_since(
+            "2026-04-28T12:00:00Z", root=str(tmp_path), runner=runner
+        )
+        assert out is None
+
+    def test_returns_none_when_subprocess_raises(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("os.path.isdir", lambda p: True)
+
+        def boom(*_a, **_kw):
+            raise OSError("fork failed")
+
+        out = sv.changed_files_since(
+            "2026-04-28T12:00:00Z", root=str(tmp_path), runner=boom
+        )
+        assert out is None
+
+    def test_normalizes_backslashes_and_dot_slash(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        runner = _fake_run(
+            stdout_log="./scripts/a.py\n",
+            stdout_diff="./scripts/b.py\n",  # git emits forward slash; this exercises normalization
+        )
+        out = sv.changed_files_since(
+            "2026-04-28T12:00:00Z", root=str(tmp_path), runner=runner
+        )
+        assert out == {"scripts/a.py", "scripts/b.py"}
+
+
+class TestIsDeclaredConsistentWithGitDiff:
+    """v1.3.4 cache-bypass guard."""
+
+    def test_under_declared_returns_false(self, tmp_path, monkeypatch):
+        """Agent declares docs/x.md but actually changed scripts/auth.py → False."""
+        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        runner = _fake_run(stdout_log="scripts/auth.py\n", stdout_diff="")
+        ok = sv.is_declared_consistent_with_git_diff(
+            ["docs/x.md"],
+            "2026-04-28T12:00:00Z",
+            root=str(tmp_path),
+            runner=runner,
+        )
+        assert ok is False
+
+    def test_exact_match_returns_true(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        runner = _fake_run(stdout_log="scripts/auth.py\n", stdout_diff="")
+        ok = sv.is_declared_consistent_with_git_diff(
+            ["scripts/auth.py"],
+            "2026-04-28T12:00:00Z",
+            root=str(tmp_path),
+            runner=runner,
+        )
+        assert ok is True
+
+    def test_over_declaration_returns_true(self, tmp_path, monkeypatch):
+        """Agent declares MORE files than changed — fine, not a bypass."""
+        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        runner = _fake_run(stdout_log="scripts/auth.py\n", stdout_diff="")
+        ok = sv.is_declared_consistent_with_git_diff(
+            ["scripts/auth.py", "scripts/extra.py", "tests/test_auth.py"],
+            "2026-04-28T12:00:00Z",
+            root=str(tmp_path),
+            runner=runner,
+        )
+        assert ok is True
+
+    def test_no_changes_returns_true(self, tmp_path, monkeypatch):
+        """No git changes at all → no inconsistency possible."""
+        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        runner = _fake_run(stdout_log="", stdout_diff="")
+        ok = sv.is_declared_consistent_with_git_diff(
+            ["scripts/auth.py"],
+            "2026-04-28T12:00:00Z",
+            root=str(tmp_path),
+            runner=runner,
+        )
+        assert ok is True
+
+    def test_not_in_git_returns_true(self, tmp_path):
+        """Defensive fallback per AC #5: non-git users keep working."""
+        ok = sv.is_declared_consistent_with_git_diff(
+            ["docs/x.md"], "2026-04-28T12:00:00Z", root=str(tmp_path)
+        )
+        assert ok is True
+
+    def test_partial_overlap_with_extra_changed_returns_false(
+        self, tmp_path, monkeypatch
+    ):
+        """Declared = {a.py}, changed = {a.py, b.py} → b.py was missed → False."""
+        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        runner = _fake_run(stdout_log="scripts/a.py\nscripts/b.py\n", stdout_diff="")
+        ok = sv.is_declared_consistent_with_git_diff(
+            ["scripts/a.py"],
+            "2026-04-28T12:00:00Z",
+            root=str(tmp_path),
+            runner=runner,
+        )
+        assert ok is False
+
+    def test_backslash_declaration_normalizes_to_match(self, tmp_path, monkeypatch):
+        """Windows-style declared paths still match git's forward-slash output."""
+        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        runner = _fake_run(stdout_log="scripts/auth.py\n", stdout_diff="")
+        ok = sv.is_declared_consistent_with_git_diff(
+            ["scripts\\auth.py"],
+            "2026-04-28T12:00:00Z",
+            root=str(tmp_path),
+            runner=runner,
+        )
+        assert ok is True
+
+
+class TestRunGatesWithCacheGitDiffIntegration:
+    """run_gates_with_cache + task_created_at end-to-end behavior."""
+
+    def test_cache_hit_when_declared_matches_changes(self, conn, monkeypatch, tmp_path):
+        """Pre-warm cache, then re-run with same files + matching git diff →
+        cache should HIT (status='hit')."""
+        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        # First call: pretend gates ran fresh (mock run_gates to PASS)
+        import gate_runner
+
+        monkeypatch.setattr(
+            gate_runner,
+            "run_gates",
+            lambda _trigger, _files: (
+                True,
+                [{"name": "g", "passed": True, "skipped": False, "severity": "block"}],
+            ),
+        )
+        # Match: declared & changed both = ["scripts/foo.py"] — patch the
+        # function in the module that hosts it (verify_git_diff). The
+        # is_declared_consistent_with_git_diff predicate looks it up by
+        # name there, not via service_verification's re-export.
+        import verify_git_diff
+
+        monkeypatch.setattr(
+            verify_git_diff,
+            "changed_files_since",
+            lambda ts, **_kw: {"scripts/foo.py"},
+        )
+        # First call records the run
+        passed, _, status1 = sv.run_gates_with_cache(
+            conn,
+            "task1",
+            ["scripts/foo.py"],
+            task_created_at="2026-04-28T12:00:00Z",
+        )
+        assert passed is True
+        assert status1 == "miss"
+        # Second call: same files, same timestamp → cache hit
+        passed2, _, status2 = sv.run_gates_with_cache(
+            conn,
+            "task1",
+            ["scripts/foo.py"],
+            task_created_at="2026-04-28T12:00:00Z",
+        )
+        assert passed2 is True
+        assert status2 == "hit"
+
+    def test_cache_refused_when_declared_underreports(
+        self, conn, monkeypatch, tmp_path
+    ):
+        """Pre-warm cache for declared=[scripts/foo.py]. Then declare same
+        files BUT git diff shows scripts/auth.py also changed → cache must
+        return status='git-mismatch', not 'hit'."""
+        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        import gate_runner
+
+        monkeypatch.setattr(
+            gate_runner,
+            "run_gates",
+            lambda _trigger, _files: (
+                True,
+                [{"name": "g", "passed": True, "skipped": False, "severity": "block"}],
+            ),
+        )
+        # Pre-warm: git diff matches declared
+        import verify_git_diff
+
+        monkeypatch.setattr(
+            verify_git_diff,
+            "changed_files_since",
+            lambda ts, **_kw: {"scripts/foo.py"},
+        )
+        passed, _, status1 = sv.run_gates_with_cache(
+            conn,
+            "task2",
+            ["scripts/foo.py"],
+            task_created_at="2026-04-28T12:00:00Z",
+        )
+        assert status1 == "miss"
+        # Now flip git diff to include extra file the agent did NOT declare
+        monkeypatch.setattr(
+            verify_git_diff,
+            "changed_files_since",
+            lambda ts, **_kw: {"scripts/foo.py", "scripts/auth.py"},
+        )
+        passed2, _, status2 = sv.run_gates_with_cache(
+            conn,
+            "task2",
+            ["scripts/foo.py"],
+            task_created_at="2026-04-28T12:00:00Z",
+        )
+        assert status2 == "git-mismatch"
+
+    def test_no_task_created_at_falls_back_to_security_only(self, conn, monkeypatch):
+        """Without task_created_at, behavior matches pre-v1.3.4 — no git
+        cross-check, just security-bypass + files_hash."""
+        import gate_runner
+
+        monkeypatch.setattr(
+            gate_runner,
+            "run_gates",
+            lambda _trigger, _files: (
+                True,
+                [{"name": "g", "passed": True, "skipped": False, "severity": "block"}],
+            ),
+        )
+        # Don't even patch changed_files_since — it must not be called
+        sv.run_gates_with_cache(
+            conn,
+            "task3",
+            ["scripts/foo.py"],
+            # task_created_at intentionally omitted
+        )
+        # Re-run: cache should HIT despite us never patching git
+        _, _, status = sv.run_gates_with_cache(
+            conn,
+            "task3",
+            ["scripts/foo.py"],
+        )
+        assert status == "hit"

@@ -19,6 +19,13 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Any, Callable
 
+# v1.3.4 git-diff cross-check lives in its own module for filesize compliance;
+# re-export so existing callers keep working with `service_verification.X`.
+from verify_git_diff import (  # noqa: F401
+    changed_files_since,
+    is_declared_consistent_with_git_diff,
+)
+
 # Default freshness window for cached verify runs.
 # After this many seconds since the recorded run, the cache is treated as stale
 # regardless of files_hash agreement. Aligned with SENAR Rule 9.3 checkpoint
@@ -203,6 +210,12 @@ def is_cache_allowed(file_paths: list[str]) -> bool:
 
     Security-sensitive tasks (hooks, auth, payment) always re-verify so a
     stale green never masks a regression in security-critical code.
+
+    NOTE: This pure check does not detect under-declaration — the bypass
+    where an agent reports `relevant_files=[docs/x.md]` while editing
+    `scripts/auth.py`. For that, callers should also gate on
+    `is_declared_consistent_with_git_diff(...)` — `run_gates_with_cache`
+    does this when `task_created_at` is provided.
     """
     return not is_security_sensitive(file_paths)
 
@@ -240,18 +253,27 @@ def run_gates_with_cache(
     *,
     scope: str = "lightweight",
     append_notes_fn: Callable[[str, str], None] | None = None,
+    task_created_at: str | None = None,
 ) -> tuple[bool, list[dict[str, Any]], str | None]:
     """SENAR Rule 5 cache-aware gate run.
 
     Returns (passed, results, cache_status) where:
       passed: bool — final gate verdict (True if cache hit OR fresh green)
       results: gate_runner result list (empty when cache hit)
-      cache_status: "hit" / "miss" / "bypass" / None (no caching done)
+      cache_status: "hit" / "miss" / "bypass" / "git-mismatch" / None
 
     On a cache miss this records the run on green so future calls can hit.
     Security-sensitive file sets bypass the cache (always re-verify).
     `append_notes_fn(slug, msg)` is called once with a one-line summary so
     the caller does not need to know cache details.
+
+    `task_created_at` (v1.3.4): when provided, the cache lookup is also
+    gated on `is_declared_consistent_with_git_diff` — if the agent declared
+    a strict subset of files actually changed since task start (per
+    `git log --since` + `git diff HEAD`), the cache is refused (status
+    "git-mismatch") to prevent the bypass where a misreported file scope
+    masks a security-sensitive change. None or empty falls back to the
+    pre-v1.3.4 behavior (security-only bypass).
 
     Concurrency note: two simultaneous `task done` calls for the same slug
     both miss cache, both run gates, both `record_run`. SQLite WAL keeps this
@@ -270,7 +292,20 @@ def run_gates_with_cache(
     cache_command = f"trigger=task-done|sig={gate_sig}|files={','.join(sorted(files))}"
     cache_ok = is_cache_allowed(files)
 
-    if cache_ok:
+    git_diff_consistent = True
+    if cache_ok and task_created_at and files:
+        git_diff_consistent = is_declared_consistent_with_git_diff(
+            files, task_created_at
+        )
+        if not git_diff_consistent and append_notes_fn is not None:
+            append_notes_fn(
+                slug,
+                "WARN: declared relevant_files is a strict subset of files "
+                "changed since task start (git diff). Cache refused — "
+                "running fresh verify to prevent stale-green via misreported scope.",
+            )
+
+    if cache_ok and git_diff_consistent:
         try:
             from project_config import load_config
 
@@ -354,5 +389,10 @@ def run_gates_with_cache(
             logging.getLogger("tausik.gates").warning(
                 "Failed to record verification run for %s", slug, exc_info=True
             )
-    cache_status = "miss" if cache_ok else "bypass"
+    if not cache_ok:
+        cache_status = "bypass"
+    elif not git_diff_consistent:
+        cache_status = "git-mismatch"
+    else:
+        cache_status = "miss"
     return passed, results, cache_status
