@@ -96,23 +96,41 @@ In your Notion sidebar, create a new page named "TAUSIK Shared Brain" (or whatev
 2. Name it "TAUSIK Brain".
 3. Type: Internal.
 4. Capabilities: Read content, Update content, Insert content.
-5. Copy the **internal integration token** (starts with `secret_`).
+5. Copy the **internal integration token** (starts with `ntn_` or legacy `secret_`).
 
 ### 3. Share the parent page with the integration
 
 Open your "TAUSIK Shared Brain" page → top-right `...` → "Add connections" → select "TAUSIK Brain". The wizard creates databases under this page, so the integration must have access.
 
-### 4. Export the token
+### 4. Store the token (pick one — v1.3.2+ supports a cascade)
+
+The Notion token is resolved via this priority order:
+
+1. **`os.environ[NOTION_TAUSIK_TOKEN]`** — env var. Highest priority. Best for CI / shared boxes.
+2. **`.tausik/.env`** — project-local `KEY=VALUE` file. **Recommended for individual developers**: gitignored, persists without shell-rc edits, survives reboots.
+3. **`brain.notion_integration_token`** in `.tausik/config.json` — emits a stderr warning ("stored inline; prefer .tausik/.env"). Allowed but not encouraged.
+
+**Recommended path — `.tausik/.env`:**
 
 ```bash
-export NOTION_TAUSIK_TOKEN='secret_xxx'
+echo "NOTION_TAUSIK_TOKEN=ntn_xxx" >> .tausik/.env
 ```
 
-On Windows:
+**If you prefer environment variables:**
+
+```bash
+# Linux / macOS — persisted by adding to ~/.bashrc / ~/.zshrc / ~/.profile
+export NOTION_TAUSIK_TOKEN='ntn_xxx'
+```
 
 ```powershell
-setx NOTION_TAUSIK_TOKEN "secret_xxx"
+# Windows — persisted at User level (survives reboot, IDE restart picks up)
+[System.Environment]::SetEnvironmentVariable('NOTION_TAUSIK_TOKEN', 'ntn_xxx', 'User')
+# Apply to current PowerShell session too:
+$env:NOTION_TAUSIK_TOKEN = 'ntn_xxx'
 ```
+
+After persisting, **restart the IDE** (Claude Code / Cursor / etc.) so the MCP subprocess picks up the new env. With `.tausik/.env`, no IDE restart needed — the token is read at brain-call time.
 
 ### 5. Run the wizard
 
@@ -136,7 +154,7 @@ The parent page ID is the 32-char hex after `notion.so/...-` in the URL (with or
 
 1. Calls `POST /v1/databases` four times to create `decisions`, `web_cache`, `patterns`, `gotchas` with the schemas from [brain-db-schema.md](brain-db-schema.md).
 2. Writes `.tausik/config.json` atomically with `brain.enabled=true`, the 4 `database_ids`, `notion_integration_token_env`, and your project name (for the scrubbing blocklist).
-3. **Never** stores the token itself — only the env var name.
+3. **Never** stores the token itself in `config.json` — only the env var **name**. The token lives in `.tausik/.env` (recommended) or your shell environment.
 
 Re-running on an already-configured project fails loudly unless you pass `--force`.
 

@@ -4,6 +4,59 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.2] — 2026-04-28 — Brain token storage flexibility
+
+Quality-of-life patch: the Notion integration token for Shared Brain can now be
+stored in three places, in priority order:
+
+1. **`os.environ[NOTION_TAUSIK_TOKEN]`** — highest priority. Best for CI/ops.
+2. **`.tausik/.env`** — project-local KEY=VALUE file. Gitignored
+   (`.tausik/` is fully ignored). Recommended for individual developers
+   because it persists without shell-rc setup and survives reboot.
+3. **`brain.notion_integration_token`** in `.tausik/config.json` — emits a
+   stderr warning ("stored inline; prefer .tausik/.env"). Allowed for
+   read-only setups but not encouraged.
+
+### Why
+
+Before 1.3.2 the token could only live in an environment variable. That
+caused friction: users would `$env:NOTION_TAUSIK_TOKEN = "..."` in PowerShell,
+the brain would work for that session, then break after reboot or window close.
+The MCP server (subprocess of the IDE) didn't see env vars set after IDE start.
+Several reports of "brain configured but says token missing".
+
+### How
+
+- New helper `brain_runtime.resolve_brain_token(cfg, project_dir=None)` —
+  the cascade.
+- New parser `brain_runtime._parse_dotenv(path)` — minimal KEY=VALUE reader
+  (ignores blank lines, `#` comments, strips quotes; never raises).
+- `brain_runtime._build_notion_client`, `try_brain_write_decision`, and
+  `try_brain_write_web_cache` now use `resolve_brain_token` instead of
+  reading `os.environ` directly.
+- `brain_config.validate_brain` updated: doctor and `brain init` no longer
+  report "env var not set" when the token is in `.tausik/.env` or
+  config.json.
+- 7 new tests in `tests/test_brain_token_resolve.py` cover env-wins,
+  dotenv fallback, config-inline + warning, all-empty, dotenv parser
+  edge cases (quotes, comments, whitespace), missing-file safety,
+  and default `NOTION_TAUSIK_TOKEN` env-name fallback.
+
+### Compatibility
+
+Fully backward compatible. Projects that already set the env var continue
+to work unchanged — env wins by priority. No config migration needed.
+
+### Notion token UI path (for users)
+
+To get the token: https://www.notion.so/profile/integrations → New
+integration (or click an existing one) → Type: **Internal** → reveal
+**Internal Integration Secret** (starts with `ntn_` or `secret_`). Then
+share the BRAIN page tree with the integration via Notion → page → ⋯ →
+Connections → Connect to.
+
+---
+
 ## [1.3.0] — 2026-04-28 — Big release: MCP expansion + session discipline + plugin stacks
 
 Single consolidated entry covering everything since v1.2.0 (40+ commits + an

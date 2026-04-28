@@ -91,11 +91,17 @@ def test_happy_path_both_set(enabled_cfg):
 
 
 def test_empty_token_env_name_treated_as_missing(tmp_path, monkeypatch):
+    """v1.3.2: With cascade resolution, empty token_env falls back to default
+    NOTION_TAUSIK_TOKEN. To get "no token" we must (a) unset the default env,
+    (b) chdir to a project without .tausik/.env, AND (c) leave inline empty.
+    """
     monkeypatch.setenv("OPEN_DEPS_TOKEN", "anything")
+    monkeypatch.delenv("NOTION_TAUSIK_TOKEN", raising=False)
+    monkeypatch.chdir(tmp_path)  # no .tausik/.env in this dir
     cfg = {
         "enabled": True,
         "local_mirror_path": str(tmp_path / "brain.db"),
-        "notion_integration_token_env": "",  # empty name
+        "notion_integration_token_env": "",  # empty name → default → still empty
         "database_ids": {
             "decisions": "d",
             "web_cache": "w",

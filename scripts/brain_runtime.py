@@ -24,6 +24,69 @@ from typing import Any
 _FAST_FALLBACK_TIMEOUT = 5.0
 
 
+def _parse_dotenv(path: str) -> dict[str, str]:
+    """Minimal KEY=VALUE parser. Ignores blank lines + #-comments. Strips quotes.
+    Never raises — returns {} on any I/O or parse error.
+    """
+    out: dict[str, str] = {}
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for raw in fh:
+                line = raw.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" not in line:
+                    continue
+                k, _, v = line.partition("=")
+                k = k.strip()
+                v = v.strip().strip('"').strip("'")
+                if k:
+                    out[k] = v
+    except OSError:
+        return {}
+    return out
+
+
+def resolve_brain_token(cfg: dict, *, project_dir: str | None = None) -> str:
+    """Return the Notion integration token via cascade:
+
+      1. os.environ[token_env]               — highest priority (CI/ops)
+      2. .tausik/.env  KEY=VALUE             — project-local file
+      3. cfg["notion_integration_token"]     — inline in config.json (warn)
+
+    Returns empty string if none set. The cascade lets users pick the
+    storage that fits their workflow without paying for env-var fragility.
+    """
+    import sys
+
+    token_env = cfg.get("notion_integration_token_env") or "NOTION_TAUSIK_TOKEN"
+
+    # 1. Real env var (CI, shell-rc files, etc.)
+    val = os.environ.get(token_env, "")
+    if val:
+        return val
+
+    # 2. .tausik/.env in project dir
+    base = project_dir or os.getcwd()
+    dotenv = os.path.join(base, ".tausik", ".env")
+    parsed = _parse_dotenv(dotenv)
+    val = parsed.get(token_env, "")
+    if val:
+        return val
+
+    # 3. Inline in config.json — works but emits security warning
+    val = (cfg.get("notion_integration_token") or "").strip()
+    if val:
+        print(
+            f"WARN [brain]: notion_integration_token stored inline in config.json. "
+            f"Prefer .tausik/.env (KEY=VALUE) or env var {token_env!r} for rotation safety.",
+            file=sys.stderr,
+        )
+        return val
+
+    return ""
+
+
 def _format_scrub_detectors(result: dict) -> str:
     """Surface detector names only — never raw `match` (may contain PII / ANSI)."""
     issues = result.get("issues") or []
@@ -39,8 +102,7 @@ def _build_notion_client(cfg: dict) -> Any | None:
     """
     import brain_notion_client
 
-    token_env = cfg.get("notion_integration_token_env") or ""
-    token = os.environ.get(token_env, "") if token_env else ""
+    token = resolve_brain_token(cfg)
     if not token:
         return None
     return brain_notion_client.NotionClient(
@@ -89,10 +151,12 @@ def try_brain_write_decision(
         import brain_sync
         from brain_config import get_brain_mirror_path
 
-        token_env = cfg.get("notion_integration_token_env") or ""
-        token = os.environ.get(token_env, "") if token_env else ""
+        token = resolve_brain_token(cfg)
         if not token:
-            return False, "token env var not set"
+            return (
+                False,
+                "Notion token not set (env / .tausik/.env / config.json all empty)",
+            )
 
         client = brain_notion_client.NotionClient(token, timeout=5.0, max_retries=1)
         # get_brain_mirror_path expects a top-level config (it re-enters
@@ -142,10 +206,12 @@ def try_brain_write_web_cache(
         if not url or not content:
             return False, "url and content are required"
 
-        token_env = cfg.get("notion_integration_token_env") or ""
-        token = os.environ.get(token_env, "") if token_env else ""
+        token = resolve_brain_token(cfg)
         if not token:
-            return False, "token env var not set"
+            return (
+                False,
+                "Notion token not set (env / .tausik/.env / config.json all empty)",
+            )
 
         client = brain_notion_client.NotionClient(token, timeout=5.0, max_retries=1)
         # get_brain_mirror_path expects a top-level config (it re-enters

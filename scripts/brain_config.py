@@ -86,14 +86,20 @@ def validate_brain(cfg: dict | None = None) -> list[str]:
                 f"brain.database_ids.{category} is empty but brain is enabled"
             )
 
-    token_env = brain.get("notion_integration_token_env") or ""
-    if not token_env:
+    # Token resolution: env > .tausik/.env > config.json `notion_integration_token`
+    # See brain_runtime.resolve_brain_token() for full cascade.
+    token_env = brain.get("notion_integration_token_env") or "NOTION_TAUSIK_TOKEN"
+    try:
+        from brain_runtime import resolve_brain_token
+
+        token = resolve_brain_token(brain)
+    except ImportError:
+        token = os.environ.get(token_env, "")
+    if not token:
         errors.append(
-            "brain.notion_integration_token_env is empty but brain is enabled"
-        )
-    elif not os.environ.get(token_env):
-        errors.append(
-            f"brain enabled but env var {token_env!r} is not set — integration token missing"
+            f"brain enabled but Notion token not found — set env var {token_env!r}, "
+            f"add it to .tausik/.env (KEY=VALUE), or set "
+            f"`brain.notion_integration_token` in .tausik/config.json"
         )
 
     ttl_web = brain.get("ttl_web_cache_days")

@@ -96,23 +96,41 @@
 2. Имя: "TAUSIK Brain".
 3. Type: Internal.
 4. Capabilities: Read, Update, Insert content.
-5. Скопируй **internal integration token** (начинается с `secret_`).
+5. Скопируй **internal integration token** (начинается с `ntn_` или legacy `secret_`).
 
 ### 3. Дать integration доступ к parent page
 
 Открой страницу "TAUSIK Shared Brain" → справа вверху `...` → "Add connections" → выбери "TAUSIK Brain". Wizard создаёт базы под этой страницей — integration должен её видеть.
 
-### 4. Экспортировать токен
+### 4. Сохранить токен (выбери одно — v1.3.2+ поддерживает каскад)
+
+Notion-токен резолвится в таком порядке приоритета:
+
+1. **`os.environ[NOTION_TAUSIK_TOKEN]`** — env var. Высший приоритет. Подходит для CI / shared машин.
+2. **`.tausik/.env`** — project-local `KEY=VALUE` файл. **Рекомендуется для индивидуальных разработчиков**: gitignored, не требует правки shell-rc, переживает ребут.
+3. **`brain.notion_integration_token`** в `.tausik/config.json` — выдаёт stderr warning ("stored inline; prefer .tausik/.env"). Разрешено, но не рекомендуется.
+
+**Рекомендуемый путь — `.tausik/.env`:**
 
 ```bash
-export NOTION_TAUSIK_TOKEN='secret_xxx'
+echo "NOTION_TAUSIK_TOKEN=ntn_xxx" >> .tausik/.env
 ```
 
-Windows:
+**Если предпочитаешь env-переменную:**
+
+```bash
+# Linux / macOS — для persistence добавь в ~/.bashrc / ~/.zshrc / ~/.profile
+export NOTION_TAUSIK_TOKEN='ntn_xxx'
+```
 
 ```powershell
-setx NOTION_TAUSIK_TOKEN "secret_xxx"
+# Windows — User-level (переживёт ребут, IDE restart подхватит)
+[System.Environment]::SetEnvironmentVariable('NOTION_TAUSIK_TOKEN', 'ntn_xxx', 'User')
+# Применить к текущей PowerShell-сессии:
+$env:NOTION_TAUSIK_TOKEN = 'ntn_xxx'
 ```
+
+После установки **перезапусти IDE** (Claude Code / Cursor / ...), чтобы MCP-subprocess подхватил новый env. С `.tausik/.env` IDE-restart не нужен — токен читается на каждом brain-вызове.
 
 ### 5. Запустить wizard
 
@@ -136,7 +154,7 @@ Parent page ID — 32-символьный hex после `notion.so/...-` в UR
 
 1. Четыре раза вызывает `POST /v1/databases` для `decisions`, `web_cache`, `patterns`, `gotchas` со схемами из [brain-db-schema.md](brain-db-schema.md).
 2. Атомарно пишет `.tausik/config.json` с `brain.enabled=true`, 4 `database_ids`, `notion_integration_token_env`, именем проекта (для scrubbing blocklist).
-3. **Никогда** не сохраняет сам токен — только имя env-переменной.
+3. **Никогда** не сохраняет сам токен в `config.json` — только **имя** env-переменной. Сам токен живёт в `.tausik/.env` (рекомендуется) или в shell-environment.
 
 Повторный запуск в уже настроенном проекте упадёт с ошибкой; для перезаписи — `--force`.
 

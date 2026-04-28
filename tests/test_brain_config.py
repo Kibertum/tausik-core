@@ -92,6 +92,12 @@ def test_validate_brain_enabled_reports_missing_database_ids():
 
 
 def test_validate_brain_enabled_reports_missing_token_env_name(monkeypatch):
+    """v1.3.2: with empty token_env, validate falls back to default
+    'NOTION_TAUSIK_TOKEN' via resolve_brain_token cascade. If neither env nor
+    .tausik/.env nor inline config provides a token, the error message points
+    at the default name."""
+    monkeypatch.delenv("NOTION_TAUSIK_TOKEN", raising=False)
+    monkeypatch.chdir(monkeypatch.fixture("tmp_path") if False else "/tmp")
     cfg = {
         "brain": {
             "enabled": True,
@@ -105,7 +111,8 @@ def test_validate_brain_enabled_reports_missing_token_env_name(monkeypatch):
         }
     }
     errors = brain_config.validate_brain(cfg)
-    assert any("notion_integration_token_env" in e for e in errors)
+    assert any("Notion token not found" in e for e in errors)
+    assert any("NOTION_TAUSIK_TOKEN" in e for e in errors)
 
 
 def test_validate_brain_enabled_reports_unset_env_var(monkeypatch):
