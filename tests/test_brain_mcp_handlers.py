@@ -247,9 +247,17 @@ def test_brain_search_disabled_no_token_warning(handlers, monkeypatch):
 def test_token_missing_warning_without_env_name_fallback(
     tmp_path, handlers, monkeypatch
 ):
-    """cfg missing notion_integration_token_env → generic warning, no crash."""
+    """cfg missing notion_integration_token_env → generic warning, no crash.
+
+    v1.3.2: cascade resolution falls back to default NOTION_TAUSIK_TOKEN env
+    name when token_env is empty. To get "no token" we must also unset that
+    env var and chdir to a dir without .tausik/.env (so dotenv fallback fails too).
+    """
     import brain_config
     import brain_sync
+
+    monkeypatch.delenv("NOTION_TAUSIK_TOKEN", raising=False)
+    monkeypatch.chdir(tmp_path)  # no .tausik/.env here
 
     db_path = tmp_path / "brain.db"
     brain_sync.open_brain_db(str(db_path)).close()

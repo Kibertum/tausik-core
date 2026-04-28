@@ -17,9 +17,19 @@ from project_service import ProjectService  # noqa: E402
 
 
 @pytest.fixture
-def svc(tmp_path):
+def svc(tmp_path, monkeypatch):
+    """Isolated service fixture. v1.3.2: also stub brain_config.load_brain
+    so decide() doesn't read the real project's enabled brain (which would
+    cause writes to a live Notion). Tests that need brain enabled override.
+    """
     be = SQLiteBackend(str(tmp_path / "test.db"))
     s = ProjectService(be)
+
+    # Force brain disabled by default — individual tests can re-monkeypatch.
+    import brain_config
+
+    monkeypatch.setattr(brain_config, "load_brain", lambda: {"enabled": False})
+
     yield s
     be.close()
 
