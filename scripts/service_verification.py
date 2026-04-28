@@ -60,40 +60,12 @@ def _utcnow_iso() -> str:
     )
 
 
-def compute_files_hash(file_paths: list[str], *, root: str | None = None) -> str:
-    """SHA256 over (canonical_path, mtime_ns, size) tuples.
-
-    Order-independent (sorted before hashing). Missing files contribute their
-    canonical path with mtime/size sentinel `0` so the hash detects "file
-    appeared / disappeared" changes.
-
-    Empty list → stable empty-marker hash (so cache-by-hash still works for
-    full-suite verifies that have no scoped files).
-
-    Caveat — mtime resolution: NTFS gives 100ns precision; ext4 1μs;
-    HFS+ 1s; FAT32/exFAT 2s. Two edits within the FS resolution window with
-    identical byte length can yield the same hash → false cache hit. Acceptable
-    for TAUSIK's NTFS/ext4 dev targets; if you're on FAT/HFS+ and care, prefer
-    explicit `tausik verify` or invalidate via touching size.
-    """
-    base = root or os.getcwd()
-    canon: list[tuple[str, int, int]] = []
-    for raw in file_paths or []:
-        if not raw or not isinstance(raw, str):
-            continue
-        rel = raw.replace("\\", "/")
-        abs_p = rel if os.path.isabs(rel) else os.path.join(base, rel)
-        try:
-            st = os.stat(abs_p)
-            canon.append((rel, st.st_mtime_ns, st.st_size))
-        except OSError:
-            canon.append((rel, 0, 0))
-    canon.sort()
-    h = hashlib.sha256()
-    h.update(b"verification_runs.v1\n")
-    for path, mtime_ns, size in canon:
-        h.update(f"{path}|{mtime_ns}|{size}\n".encode())
-    return h.hexdigest()
+# v1.3.4: compute_files_hash extracted to verify_files_hash.py for filesize
+# compliance. Re-exported so existing callers don't need to change.
+from verify_files_hash import (  # noqa: F401, E402
+    _FILES_HASH_CONTENT_SAMPLE_BYTES,
+    compute_files_hash,
+)
 
 
 def is_security_sensitive(file_paths: list[str]) -> bool:

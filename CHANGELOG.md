@@ -4,6 +4,121 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+> Russian mirror: [`CHANGELOG.ru.md`](CHANGELOG.ru.md). Both files cover
+> the same releases — keep them in sync when adding a new entry.
+
+## [1.3.4] — 2026-04-28 — Security & QG hardening + doc-truth
+
+Closes the v1.3.1 blind-review HIGH/MED security and QG bypasses that
+weren't bundled into the v1.3.0 release. Three commits:
+
+### Doc-truth: test count drift (`fcbefb4`)
+- README.md / README.ru.md badges + Stats tables, AGENTS.md,
+  CONTRIBUTING.md, docs/{en,ru}/architecture.md — `2246` → `2270`
+  (count after v1.3.3 added 24 tests). CHANGELOG entries kept
+  historical.
+
+### Verify cache cross-check vs git diff (`d8838f1`) — closes 1 HIGH (Sec)
+- `scripts/verify_git_diff.py` (new): `changed_files_since(timestamp,
+  root, runner)` shells out to `git log --since=<ts> --name-only` +
+  `git diff --name-only HEAD`, unions, normalizes paths to forward
+  slashes. Returns `None` on any failure (git missing, no `.git`,
+  non-zero exit, OSError) so non-git users keep working.
+- `is_declared_consistent_with_git_diff(declared, ts)` returns False
+  iff declared_set is a strict subset of actually-changed-set
+  (under-declaration). Over-declaration is fine.
+- `service_verification.run_gates_with_cache`: new `task_created_at`
+  param. When provided, gates cache lookup on git-diff consistency in
+  addition to the existing security-bypass + files_hash checks. New
+  status code `git-mismatch` joins `hit`/`miss`/`bypass`.
+- `service_gates._run_quality_gates` and `project_cli_verify.cmd_verify`
+  plumb `task["created_at"]` through.
+- Closes the bypass: agent could declare `relevant_files=[docs/x.md]`
+  while editing `scripts/auth.py` and the cache hashed only the declared
+  files — next `task_done` saw a stale-green and skipped the security
+  check.
+- Refactor for filesize: extracted `qg0_dimensions_score` to
+  `scripts/gate_qg0_score.py` (47 lines) so service_gates dropped from
+  408 to 381.
+- 16 new tests in `tests/test_service_verification.py`.
+
+### Hook hardening batch (`b48d230`) — closes 5 MED (Sec) + 1 audit-clean
+- **#1 bash_firewall regex.** WARN_PATTERNS now use word-boundary regex
+  with the same shape as `git_push_gate.py` (command-start anchor +
+  optional path + optional `git -c` flags). `echo 'git push --force is
+  dangerous'` no longer false-positives. `gitfoo push --force` no longer
+  matches. `/usr/bin/git push --force` still blocks. 11 new tests.
+- **#2 skill_manager pip hardening.** `install_skill_deps` now passes
+  `--no-config` to pip (disables every pip.conf scope) and strips
+  `PIP_INDEX_URL`, `PIP_EXTRA_INDEX_URL`, `PIP_TRUSTED_HOST`,
+  `PIP_FIND_LINKS`, `PIP_INDEX` from subprocess env. Combined with the
+  existing `_SAFE_PKG` regex, closes the supply-chain redirect surface
+  for third-party skills. 3 new tests.
+- **#3 copytree symlinks=False.** 3 call sites — `skill_manager.copy_skill`,
+  `service_skills.skill_install`, `bootstrap_copy.copy_dir` — now pass
+  `symlinks=False` explicitly. New `tests/test_copy_symlinks_disabled.py`
+  with hostile-repo fixture (skips on Windows non-admin where `os.symlink`
+  fails); covers all 3 call sites.
+- **#4 hooks detect TAUSIK by `.tausik/` dir, not `.db` file.** New
+  helper `_common.is_tausik_project(project_dir)`. `task_gate.py` and
+  `memory_pretool_block.py` migrated. Closes the
+  bootstrap-but-not-init window where hooks silently skipped. 3 new tests.
+- **#5 `last_user_prompt_text` bounded tail-read.** New
+  `_read_transcript_tail()` seeks the last 50 KB of the JSONL transcript,
+  drops the partial first line at the seek boundary. Long sessions no
+  longer load the entire file into memory on every PreToolUse. 3 new tests.
+- **#6 brain symlinks — AUDIT CLEAN.** `git grep` for
+  `copytree|os\.symlink|os\.readlink|os\.lstat|shutil\.` across
+  `scripts/brain_*.py` + `agents/claude/mcp/brain/` returned ZERO hits.
+  No fix needed; the scan is the deliverable.
+
+### QG hardening batch (this commit) — closes 5 MED (QG)
+- **#1 Negative-scenario detection: regex with negation filter.** Old
+  code did `kw in ac_text` substring match — "Works without errors"
+  satisfied the gate because "error" substring was present. New
+  `has_negative_scenario(ac_text)` splits AC into per-criterion lines
+  (handles inline `1. ... 2. ...` numbering), redacts negation phrases
+  ("no", "without", "never", "нет", "без", "не должно") plus their
+  ~60-char span, then looks for surviving NEGATIVE_SCENARIO_KEYWORDS
+  matches at word boundaries. 8 new tests.
+- **#2 Checklist tier consults `relevant_files`.** New signature
+  `_determine_checklist_tier(task, relevant_files=None)`: if
+  `is_security_sensitive(relevant_files)` is True, tier promotes to
+  `critical` regardless of title. Closes the case where "fix typo"
+  (title=trivial) on `scripts/auth.py` got `lightweight` (4 items)
+  instead of the critical-tier review. 3 new tests.
+- **#3 `files_hash` includes 4 KiB content head.** New per-file tuple is
+  `(path, mtime_ns, size, sha256(first_4KiB))`. Closes false cache hits
+  on filesystems with coarse mtime resolution (FAT/HFS+/SMB) and on
+  deliberate `touch -d` reverts. Hash format version bumped
+  `verification_runs.v1` → `v2`. 3 new tests.
+- **#4 `task_unblock` checks session_capacity.** Pre-v1.3.4 bypass:
+  agent could `task_block` then `task_unblock` to dodge the 180-min
+  ACTIVE-time check that fires on `task_start`. New `force=True` flag
+  is the audit-logged escape hatch. 4 new tests.
+- **#5 `--no-knowledge` refused for complex/defect.** SENAR Rule 8
+  upgrades from warning to refusal when `complexity=complex` or
+  `defect_of` is set. Complex tasks generate patterns worth recording;
+  defect tasks generate root-cause/gotcha entries for future avoidance.
+  Simple/medium non-defect tasks unaffected. 5 new tests.
+
+### Tests
+- 2332 passing, 1 skipped (vs 2270 in v1.3.3). +62 new across
+  the four batches.
+
+### Compatibility
+- Verify cache: format version bumped (`verification_runs.v1` → `v2`).
+  Old cache rows are silently invalidated by the new files_hash shape —
+  they don't match new hashes. No DB migration needed.
+- `task_unblock(slug)` still works as before for the common path; new
+  `force=True` keyword is opt-in.
+- `task_done(no_knowledge=True)` still works for simple/medium
+  non-defect tasks. Refused for complex/defect — agent must drop the
+  flag and let the warning fire (or capture knowledge first).
+
+### Versioning
+- `__version__` bumped 1.3.3 → 1.3.4.
+
 ## [1.3.3] — 2026-04-27 — Brain init anti-hallucination guards
 
 Hardening release. `tausik brain init` now refuses to silently create a

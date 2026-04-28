@@ -167,7 +167,7 @@ class TaskMixin(GatesMixin, CascadeMixin):
         root_cause_warning = ""
         if task.get("defect_of"):
             notes_lower = (task.get("notes") or "").lower()
-            root_cause_keywords = (
+            _rc_kw = (
                 "root cause",
                 "причина",
                 "cause:",
@@ -176,15 +176,29 @@ class TaskMixin(GatesMixin, CascadeMixin):
                 "потому что",
                 "because",
             )
-            if not any(kw in notes_lower for kw in root_cause_keywords):
+            if not any(kw in notes_lower for kw in _rc_kw):
                 root_cause_warning = (
-                    f"WARNING: Defect task '{slug}' (defect_of={task['defect_of']}) has no root cause "
-                    f'documented. Log it: .tausik/tausik task log {slug} "Root cause: ..."'
+                    f"WARNING: Defect task '{slug}' (defect_of={task['defect_of']}) "
+                    f"has no root cause documented. Log it: .tausik/tausik task log {slug} "
+                    f'"Root cause: ..."'
                 )
 
-        # Knowledge capture warning (SENAR Rule 8)
+        # Knowledge capture warning (SENAR Rule 8).
+        # v1.3.4 (med-batch-2-qg #5): --no-knowledge refused for complex
+        # /defect tasks (SENAR Rule 8 upgrades from warning to refusal —
+        # those are the cases where knowledge capture matters most).
         _kw = ("dead end", "decided", "decision", "memory", "pattern", "gotcha")
         notes = task.get("notes") or ""
+        is_complex = (task.get("complexity") or "").lower() == "complex"
+        is_defect = bool(task.get("defect_of"))
+        if no_knowledge and (is_complex or is_defect):
+            reason = "complex" if is_complex else "defect"
+            raise ServiceError(
+                f"--no-knowledge refused for {reason} task '{slug}'. "
+                f"SENAR Rule 8 requires knowledge capture. Either capture "
+                f"first (memory_add / decide / dead-end) and re-run without "
+                f"the flag, or downgrade complexity if truly trivial."
+            )
         knowledge_warning = ""
         if not any(kw in notes.lower() for kw in _kw) and not no_knowledge:
             if (
@@ -235,12 +249,18 @@ class TaskMixin(GatesMixin, CascadeMixin):
             self.be.task_append_notes(slug, f"BLOCKED: {reason}")
         return f"Task '{slug}' blocked."
 
-    def task_unblock(self, slug: str) -> str:
+    def task_unblock(self, slug: str, *, force: bool = False) -> str:
         task = self._require_task(slug)
         if task["status"] != "blocked":
             raise ServiceError(
                 f"Task '{slug}' is not blocked (status: {task['status']})"
             )
+        # v1.3.4 (med-batch-2-qg #4): unblocking returns the task to active
+        # state — same risk as task_start. Without this check, the agent
+        # could block-then-unblock to bypass session capacity limits and
+        # keep coding past the 180-min ACTIVE-time threshold (SENAR Rule 9.2).
+        if not force:
+            check_session_capacity(self.be, slug, task)
         self.be.task_update(slug, status="active", blocked_at=None)
         return f"Task '{slug}' unblocked."
 
@@ -312,47 +332,9 @@ class TaskMixin(GatesMixin, CascadeMixin):
         done_count = sum(1 for s in steps if s.get("done"))
         return f"Step {step_num} done ({done_count}/{len(steps)})."
 
-    def task_quick(
-        self,
-        title: str,
-        goal: str | None = None,
-        role: str | None = None,
-        stack: str | None = None,
-    ) -> str:
-        """Quick-create a task from minimal input (auto-slug, no story required)."""
-        from tausik_utils import slugify
-
-        slug = slugify(title)
-        if self.be.task_get(slug):
-            suffix = os.urandom(3).hex()
-            slug = f"{slug[:44]}-{suffix}"
-        return self.task_add(None, slug, title, stack=stack, goal=goal, role=role)
-
-    def task_next(self, agent_id: str | None = None) -> dict[str, Any] | None:
-        """Pick next available task; auto-start if agent_id given (QG-0 enforced)."""
-        task = self.be.task_next_candidate()
-        if not task:
-            return None
-        if agent_id:
-            self.task_claim(task["slug"], agent_id)
-            try:
-                self.task_start(task["slug"])
-            except ServiceError:
-                task["_qg0_failed"] = True
-            task = self.be.task_get(task["slug"]) or task
-        return task
-
-    def task_claim(self, slug: str, agent_id: str) -> str:
-        """Claim a task for an agent. Atomic UPDATE prevents race conditions."""
-        self._require_task(slug)
-
-        self.be.task_claim(slug, agent_id, utcnow_iso())
-        return f"Task '{slug}' claimed by '{agent_id}'."
-
-    def task_unclaim(self, slug: str) -> str:
-        self._require_task(slug)
-        self.be.task_update(slug, claimed_by=None)
-        return f"Task '{slug}' unclaimed."
+    # task_quick + task_next + task_claim + task_unclaim live in
+    # service_task_team.TaskTeamMixin for filesize compliance — they're
+    # picked up via the multi-mixin composition in project_service.
 
     def task_log(
         self,

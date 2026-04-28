@@ -107,6 +107,84 @@ class TestQG0NegativeScenario:
         msg = svc.task_start("t1")
         assert "started" in msg
 
+    # v1.3.4 (med-batch-2-qg #1): boundary-aware regex closes the
+    # "without errors" / "no failures" negation bypass.
+
+    def test_start_ac_without_errors_phrase_fails(self, svc):
+        """Bypass case: 'works without errors' substring matches `error` but
+        is a NEGATION of the negative scenario, not an articulation of one."""
+        svc.epic_add("e1", "E1")
+        svc.story_add("e1", "s1", "S1")
+        svc.task_add("s1", "t1", "T1", goal="Add feature")
+        svc.task_update(
+            "t1", acceptance_criteria="1. Works correctly. 2. No errors expected."
+        )
+        with pytest.raises(ServiceError, match="negative scenario"):
+            svc.task_start("t1")
+
+    def test_start_ac_no_failures_fails(self, svc):
+        """'No failures' should NOT count — negation cancels the keyword."""
+        svc.epic_add("e1", "E1")
+        svc.story_add("e1", "s1", "S1")
+        svc.task_add("s1", "t1", "T1", goal="Add feature")
+        svc.task_update(
+            "t1", acceptance_criteria="1. Renders. 2. No failures during render."
+        )
+        with pytest.raises(ServiceError, match="negative scenario"):
+            svc.task_start("t1")
+
+    def test_start_ac_russian_without_errors_fails(self):
+        """Russian negation (без, нет) cancels the keyword too."""
+        from service_gates import has_negative_scenario
+
+        # Direct unit test — easier than going through full svc machinery
+        # for both EN and RU phrasings.
+        assert has_negative_scenario("1. Работает. 2. Без ошибок.") is False
+
+    def test_start_ac_inline_numbered_fails(self, svc):
+        """'AC: 1.Works 2.No errors' — inline numbering, must split correctly."""
+        svc.epic_add("e1", "E1")
+        svc.story_add("e1", "s1", "S1")
+        svc.task_add("s1", "t1", "T1", goal="Add feature")
+        # No newlines, just "1. ... 2. ..." inline
+        svc.task_update("t1", acceptance_criteria="1.Works 2.No errors")
+        with pytest.raises(ServiceError, match="negative scenario"):
+            svc.task_start("t1")
+
+    def test_start_ac_distinct_negative_line_passes(self, svc):
+        """A clear distinct AC line articulating a negative scenario passes."""
+        svc.epic_add("e1", "E1")
+        svc.story_add("e1", "s1", "S1")
+        svc.task_add("s1", "t1", "T1", goal="Login")
+        svc.task_update(
+            "t1",
+            acceptance_criteria=(
+                "1. Returns 200 on valid creds.\n"
+                "2. Logs request.\n"
+                "3. When token is missing, returns 401 with clean error body."
+            ),
+        )
+        msg = svc.task_start("t1")
+        assert "started" in msg
+
+    def test_has_negative_scenario_unit_returns_true_for_real_scenario(self):
+        """Direct unit assertion on the helper itself."""
+        from service_gates import has_negative_scenario
+
+        assert (
+            has_negative_scenario(
+                "AC: 1. Works. 5. When backend returns 500, retry once."
+            )
+            is True
+        )
+
+    def test_has_negative_scenario_unit_returns_false_for_negated(self):
+        from service_gates import has_negative_scenario
+
+        assert has_negative_scenario("Works without any errors") is False
+        assert has_negative_scenario("Works without crashing") is False
+        assert has_negative_scenario("No failures during prod load") is False
+
     def test_force_bypasses_negative_check(self, svc):
         svc.epic_add("e1", "E1")
         svc.story_add("e1", "s1", "S1")
@@ -392,6 +470,66 @@ class TestChecklistTier:
         task = svc.task_show("t1")
         assert svc._determine_checklist_tier(task) == "critical"
 
+    # v1.3.4 (med-batch-2-qg #2): tier promoted by relevant_files security.
+
+    def test_tier_simple_title_security_files_critical(self, svc):
+        """Trivial title ('Fix typo') + scripts/auth.py in relevant_files →
+        tier MUST be 'critical', not 'lightweight'."""
+        svc.epic_add("e1", "E1")
+        svc.story_add("e1", "s1", "S1")
+        svc.task_add(
+            "s1", "t1", "Fix typo", goal="Fix small typo in code", role="developer"
+        )
+        svc.task_update(
+            "t1",
+            acceptance_criteria="1. Typo fixed. 2. No regression in callers.",
+            complexity="simple",
+        )
+        task = svc.task_show("t1")
+        # Without relevant_files (legacy call path): lightweight
+        assert svc._determine_checklist_tier(task) == "lightweight"
+        # With security-sensitive relevant_files: critical
+        assert (
+            svc._determine_checklist_tier(task, relevant_files=["scripts/auth.py"])
+            == "critical"
+        )
+
+    def test_tier_simple_hooks_dir_critical(self, svc):
+        """scripts/hooks/* is also security-sensitive."""
+        svc.epic_add("e1", "E1")
+        svc.story_add("e1", "s1", "S1")
+        svc.task_add("s1", "t1", "Hook tweak", goal="Adjust hook", role="developer")
+        svc.task_update(
+            "t1",
+            acceptance_criteria="1. Hook fires. 2. No regressions in PreToolUse.",
+            complexity="simple",
+        )
+        task = svc.task_show("t1")
+        assert (
+            svc._determine_checklist_tier(
+                task, relevant_files=["scripts/hooks/bash_firewall.py"]
+            )
+            == "critical"
+        )
+
+    def test_tier_benign_files_keeps_complexity_default(self, svc):
+        """Non-security relevant_files: tier picks based on complexity only."""
+        svc.epic_add("e1", "E1")
+        svc.story_add("e1", "s1", "S1")
+        svc.task_add("s1", "t1", "Doc", goal="Update README", role="tech-writer")
+        svc.task_update(
+            "t1",
+            acceptance_criteria="1. README current. 2. No broken links.",
+            complexity="simple",
+        )
+        task = svc.task_show("t1")
+        assert (
+            svc._determine_checklist_tier(
+                task, relevant_files=["README.md", "docs/intro.md"]
+            )
+            == "lightweight"
+        )
+
 
 class TestDefectOf:
     """defect_of field for DER tracking."""
@@ -407,3 +545,63 @@ class TestDefectOf:
         svc.story_add("e1", "s1", "S1")
         with pytest.raises(ServiceError, match="not found"):
             svc.task_add("s1", "d1", "Defect", defect_of="nonexistent")
+
+
+# v1.3.4 (med-batch-2-qg #5): --no-knowledge refused for complex/defect.
+
+
+class TestNoKnowledgeRefusal:
+    """Knowledge capture is required for complex tasks and defect tasks —
+    --no-knowledge is silently allowed for simple/medium tasks but refused
+    for the cases where it actually defeats SENAR Rule 8."""
+
+    def _ready_task(self, svc, slug, complexity="medium", defect_of=None):
+        svc.epic_add("e1", "E1") if not svc.be.epic_get("e1") else None
+        if not svc.be.story_get("s1"):
+            svc.story_add("e1", "s1", "S1")
+        svc.task_add(
+            "s1",
+            slug,
+            slug.upper(),
+            goal="Implement feature",
+            role="developer",
+            complexity=complexity,
+            defect_of=defect_of,
+        )
+        svc.task_update(
+            slug,
+            acceptance_criteria="1. Works. 2. Returns 400 on invalid input.",
+        )
+        svc.task_start(slug, _internal_force=True)
+        svc.task_log(slug, "AC verified: ✓1 ✓2")
+
+    def test_no_knowledge_allowed_for_simple(self, svc):
+        self._ready_task(svc, "t1", complexity="simple")
+        msg = svc.task_done("t1", ac_verified=True, no_knowledge=True)
+        assert "completed" in msg or "done" in msg.lower()
+
+    def test_no_knowledge_allowed_for_medium(self, svc):
+        self._ready_task(svc, "t1", complexity="medium")
+        msg = svc.task_done("t1", ac_verified=True, no_knowledge=True)
+        assert "completed" in msg or "done" in msg.lower()
+
+    def test_no_knowledge_refused_for_complex(self, svc):
+        self._ready_task(svc, "t1", complexity="complex")
+        with pytest.raises(ServiceError, match="--no-knowledge refused"):
+            svc.task_done("t1", ac_verified=True, no_knowledge=True)
+
+    def test_no_knowledge_refused_for_defect(self, svc):
+        # Parent task to attach defect to
+        self._ready_task(svc, "parent")
+        svc.task_done("parent", ac_verified=True, no_knowledge=True)
+        # Defect task
+        self._ready_task(svc, "fix1", complexity="medium", defect_of="parent")
+        with pytest.raises(ServiceError, match="--no-knowledge refused"):
+            svc.task_done("fix1", ac_verified=True, no_knowledge=True)
+
+    def test_complex_without_no_knowledge_passes(self, svc):
+        """Drop the --no-knowledge flag → complex task closes normally."""
+        self._ready_task(svc, "t1", complexity="complex")
+        svc.memory_add("pattern", "Pattern", "Body", task_slug="t1")
+        msg = svc.task_done("t1", ac_verified=True)
+        assert "completed" in msg or "done" in msg.lower()

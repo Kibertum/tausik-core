@@ -92,3 +92,52 @@ class TestEnforcement:
         _ready_task(svc, "zero", budget=0)
         svc.task_start("zero")
         assert svc.be.task_get("zero")["status"] == "active"
+
+
+# v1.3.4 (med-batch-2-qg #4): task_unblock also checks capacity.
+
+
+class TestUnblockEnforcement:
+    """Pre-v1.3.4 bypass: agent could block-then-unblock to dodge the
+    session capacity check that fires on task_start. task_unblock now
+    runs the same check."""
+
+    def test_unblock_blocks_when_overshoot(self, svc):
+        svc.session_start()
+        _ready_task(svc, "big", budget=300)
+        # Burn capacity with a smaller task that's allowed to start
+        _ready_task(svc, "small", budget=150)
+        svc.task_start("small")
+        # Now manually create a blocked state on `big` (skip task_start
+        # capacity check by adding+blocking via direct backend update —
+        # simulates task that was blocked before capacity was burned)
+        svc.be.task_update("big", status="blocked")
+        with pytest.raises(ServiceError, match="capacity"):
+            svc.task_unblock("big")
+
+    def test_unblock_force_bypasses_capacity(self, svc):
+        """force=True is the audit-logged escape hatch."""
+        svc.session_start()
+        _ready_task(svc, "big", budget=300)
+        _ready_task(svc, "small", budget=150)
+        svc.task_start("small")
+        svc.be.task_update("big", status="blocked")
+        msg = svc.task_unblock("big", force=True)
+        assert "unblocked" in msg
+        assert svc.be.task_get("big")["status"] == "active"
+
+    def test_unblock_passes_when_under_capacity(self, svc):
+        """Capacity available → unblock proceeds normally."""
+        svc.session_start()
+        _ready_task(svc, "small", budget=80)
+        svc.be.task_update("small", status="blocked")
+        msg = svc.task_unblock("small")
+        assert "unblocked" in msg
+        assert svc.be.task_get("small")["status"] == "active"
+
+    def test_unblock_without_session_no_block(self, svc):
+        """Capacity check is a no-op without an active session."""
+        _ready_task(svc, "t", budget=300)
+        svc.be.task_update("t", status="blocked")
+        msg = svc.task_unblock("t")
+        assert "unblocked" in msg

@@ -13,6 +13,7 @@ from tausik_utils import ServiceError, validate_length, validate_slug
 from service_knowledge import KnowledgeMixin
 from service_skills import SkillsMixin
 from service_task import TaskMixin
+from service_task_team import TaskTeamMixin
 
 if TYPE_CHECKING:
     from project_backend import SQLiteBackend
@@ -159,7 +160,12 @@ class SessionMixin:
 
 
 class ProjectService(
-    HierarchyMixin, TaskMixin, SessionMixin, KnowledgeMixin, SkillsMixin
+    HierarchyMixin,
+    TaskMixin,
+    TaskTeamMixin,
+    SessionMixin,
+    KnowledgeMixin,
+    SkillsMixin,
 ):
     """TAUSIK project service -- composes all domain mixins."""
 

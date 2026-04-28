@@ -12,44 +12,15 @@ from tausik_utils import ServiceError
 if TYPE_CHECKING:
     from project_backend import SQLiteBackend
 
-# Shared keyword tuples for QG-0 checks
-NEGATIVE_SCENARIO_KEYWORDS = (
-    "error",
-    "fail",
-    "invalid",
-    "reject",
-    "401",
-    "403",
-    "404",
-    "422",
-    "500",
-    "ошибк",
-    "невалидн",
-    "отказ",
-    "некорректн",
-    "пуст",
-    "отсутств",
-    "not found",
-    "denied",
-    "unauthorized",
-    "timeout",
-    "empty",
-    "missing",
-    "negative",
-    "не должн",
-    "не может",
-    "запрещ",
-    "блокир",
-    "exceed",
-    "overflow",
-    "refuse",
-    "forbid",
-    "block",
-    "deny",
-    "break",
-    "crash",
-    "exception",
+# v1.3.4 (med-batch-2-qg #1): negative-scenario detection lives in its own
+# module for filesize compliance. Re-exported so existing imports of
+# `service_gates.has_negative_scenario` and `service_gates.NEGATIVE_SCENARIO_KEYWORDS`
+# keep working.
+from gate_negative_scenario import (  # noqa: F401, E402
+    NEGATIVE_SCENARIO_KEYWORDS,
+    has_negative_scenario,
 )
+
 
 SECURITY_KEYWORDS = (
     "auth",
@@ -140,9 +111,11 @@ class GatesMixin:
                     f"WARNING: Task '{slug}' ({complexity}) has no scope_exclude. "
                     f"SENAR recommends defining what NOT to touch for medium/complex tasks."
                 )
-        # QG-0: negative scenario required in AC (SENAR Core Start Gate #3)
-        ac_text = (task.get("acceptance_criteria") or "").lower()
-        if ac_text and not any(kw in ac_text for kw in NEGATIVE_SCENARIO_KEYWORDS):
+        # QG-0: negative scenario required in AC (SENAR Core Start Gate #3).
+        # v1.3.4 (med-batch-2-qg #1): use boundary-aware detection instead of
+        # substring match. "Works without errors" no longer satisfies the gate.
+        ac_text = task.get("acceptance_criteria") or ""
+        if ac_text and not has_negative_scenario(ac_text):
             raise ServiceError(
                 f"QG-0 Start Gate: '{slug}' AC has no negative scenario. "
                 f"SENAR requires at least one error/boundary case in acceptance criteria. "
@@ -167,10 +140,14 @@ class GatesMixin:
                 warnings.append(f"AUDIT: {audit_warning}")
         except (AttributeError, Exception):
             pass
-        # QG-0: security surface warning (SENAR Core Start Gate #5)
+        # QG-0: security surface warning (SENAR Core Start Gate #5).
+        # ac_text is now case-preserving for has_negative_scenario (which
+        # is itself case-insensitive); lowercase here for the SECURITY_AC
+        # substring check which expects already-lowered keywords.
+        ac_lower = ac_text.lower()
         title_and_goal = f"{task.get('title', '')} {task.get('goal', '')}".lower()
         if any(kw in title_and_goal for kw in SECURITY_KEYWORDS):
-            if not any(kw in ac_text for kw in SECURITY_AC_KEYWORDS):
+            if not any(kw in ac_lower for kw in SECURITY_AC_KEYWORDS):
                 warnings.append(
                     f"WARNING: Task '{slug}' appears security-relevant but AC has no security criteria. "
                     f"SENAR recommends identifying threat surface and adding security AC."
@@ -256,18 +233,35 @@ class GatesMixin:
         except (json.JSONDecodeError, TypeError) as e:
             raise ServiceError(f"Corrupted plan data for task '{slug}': {e}")
 
-    def _determine_checklist_tier(self, task: dict[str, Any]) -> str:
+    def _determine_checklist_tier(
+        self,
+        task: dict[str, Any],
+        relevant_files: list[str] | None = None,
+    ) -> str:
         """Auto-detect verification checklist tier based on task risk.
 
         Tiers: lightweight (4 items), standard (10), high (18), critical (28).
+
+        v1.3.4 (med-batch-2-qg #2): also consult `is_security_sensitive`
+        on `relevant_files` — a "fix typo" task (title=trivial) that touches
+        scripts/auth.py is security-sensitive in practice. Without this
+        check, such a task picked tier='lightweight' (4 items) even though
+        the file change ought to demand critical-tier review.
         """
+        from service_verification import is_security_sensitive
+
         complexity = task.get("complexity") or "medium"
         title_goal = f"{task.get('title', '')} {task.get('goal', '')}".lower()
-        # Security keywords -> auto High tier
-        is_security = any(kw in title_goal for kw in SECURITY_KEYWORDS)
-        if complexity == "simple" and not is_security:
+        # Security keywords in title/goal -> high tier
+        is_security_title = any(kw in title_goal for kw in SECURITY_KEYWORDS)
+        # Security-sensitive files (auth/payment/hooks/...) -> critical tier
+        is_security_files = is_security_sensitive(relevant_files or [])
+
+        if is_security_files:
+            return "critical"
+        if complexity == "simple" and not is_security_title:
             return "lightweight"
-        if is_security:
+        if is_security_title:
             return "high"
         if complexity == "complex":
             return "critical"
@@ -280,7 +274,14 @@ class GatesMixin:
         Tier auto-detected from complexity + security keywords.
         """
         notes_lower = (task.get("notes") or "").lower()
-        tier = self._determine_checklist_tier(task)
+        # v1.3.4 (med-batch-2-qg #2): pass relevant_files so security-sensitive
+        # paths promote tier to 'critical' even when title is benign.
+        try:
+            rf_raw = task.get("relevant_files") or "[]"
+            rf = json.loads(rf_raw) if isinstance(rf_raw, str) else (rf_raw or [])
+        except (TypeError, ValueError, json.JSONDecodeError):
+            rf = []
+        tier = self._determine_checklist_tier(task, relevant_files=rf)
         # Lightweight: items 1, 3, 5, 7
         lightweight_kw = [
             "scope",
@@ -359,7 +360,10 @@ class GatesMixin:
             )
             return
         task = self.be.task_get(slug) or {}
-        scope = self._determine_checklist_tier(task)
+        # v1.3.4 (med-batch-2-qg #2): _determine_checklist_tier now consults
+        # is_security_sensitive on relevant_files itself; the explicit override
+        # below stays as defense-in-depth (idempotent on the security path).
+        scope = self._determine_checklist_tier(task, relevant_files=relevant_files)
         if is_security_sensitive(relevant_files or []):
             scope = "critical"
         passed, results, _status = run_gates_with_cache(
