@@ -7,7 +7,67 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 ## [1.3.0] — 2026-04-28 — Big release: MCP expansion + session discipline + plugin stacks
 
 Single consolidated entry covering everything since v1.2.0 (40+ commits + an
-independent 5-agent blind review hardening pass right before ship).
+independent 5-agent blind review hardening pass right before ship + a 4-agent
+post-ship doc-truth audit that corrected propagated count errors).
+
+### 📐 Post-ship 4-agent doc-truth audit
+
+After v1.3.0 went out, a follow-up audit with 4 parallel agents (link
+integrity / stale facts / README marketing / skills docs vs reality) caught
+documentation that had not been kept in lock-step with the code:
+
+**Count corrections (propagated across 12+ files):**
+
+- **MCP tools: 100 → 96.** The "(90 project + 10 brain)" claim was wrong on
+  the brain side — `agents/claude/mcp/brain/tools.py` ships **6** tools
+  (`brain_search`, `brain_get`, `brain_store_decision`,
+  `brain_store_pattern`, `brain_store_gotcha`, `brain_cache_web`), not 10.
+  Fixed in README, README.ru, AGENTS, CLAUDE, docs/{en,ru}/{mcp,architecture,
+  senar-compliance-matrix}.md.
+- **Quality gates: "16 checks" → "25 checks".** `DEFAULT_GATES` resolves to
+  5 universal + 20 stack-scoped = 25.
+- **Skills marketing copy: "34 skills" → "13 core + 25 vendor (38 total)"**
+  — README.md, README.ru.md, docs/en/adding-new-ide.md.
+- **Dogfooding stats** in README.md / README.ru.md: 291 → 516 tasks, 22 →
+  37 sessions, 918/1095 → 2246 tests, throughput ~13 → ~14 per session.
+- **RU README badge mismatch fixed:** `[![2226 tests]` label vs
+  `tests-2246%20passed` URL aligned.
+
+**Broken internal links (9 of 12 reported, 3 false positives in
+i18n-strategy code examples):**
+
+- `CONTRIBUTING.md:87` →`docs/en/architecture.md` (was
+  `references/architecture.md`)
+- `CHANGELOG.md` three `references/*` links rewritten to
+  `docs/research/anthropic-oss-applicability.md`,
+  `docs/research/markitdown-integration.md`,
+  `docs/en/brain-db-schema.md`.
+- `docs/{en,ru}/shared-brain.md` two refs each → `brain-db-schema.md` as
+  sibling.
+- `docs/en/brain-db-schema.md`: relative-depth bug fixed
+  (`../scripts/...` → `../../scripts/...`).
+- `docs/ru/claude-md-guide.md`: `skill-spec.md` → `../en/skill-spec.md`
+  (no RU translation).
+- `scripts/README.md`: `references/project-cli.md` → `docs/en/cli.md`.
+
+**Skill placement fix:** `docs/{en,ru}/skills.md` had `/docs`, `/excel`,
+`/pdf` listed under "Integrations" — they're documentation/extraction
+tools, not external-service integrations. Moved to a new "Documentation /
+Extraction" subsection. "Integrations" now contains only MCP-backed
+external services (jira, bitrix24, sentry, confluence).
+
+**Bootstrap template:** `bootstrap/bootstrap_templates.py:build_skills_section`
+rewritten for the v1.3 lean-core split. Generated CLAUDE.md / AGENTS.md /
+.cursorrules / QWEN.md now explicitly list the 13 always-deployed core
+skills and explain that 25+ official/vendor skills install on demand via
+`tausik skill install <name>`.
+
+**User-reported "two PDF links in main README":** investigated by the
+link-integrity agent — exhaustive grep across `README.md` and
+`README.ru.md` returned zero PDF references. The user may have been
+looking at a different surface; no PDFs are broken.
+
+
 
 ### 🧠 Shared Brain — cross-project knowledge base (Notion-backed)
 - 4 Notion DBs (decisions, patterns, gotchas, web_cache) + local SQLite mirror with FTS5 (Cyrillic-aware).
