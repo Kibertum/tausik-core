@@ -37,6 +37,11 @@ _FILESIZE_EXEMPT_DIRS = (
     "agents/cursor/mcp/",
     "agents/qwen/mcp/",
     ".claude/mcp/",
+    # LegalOS user override — exempt large source materials (legal extracts,
+    # ADR markdowns, agent YAML configs). Added by 999ae36.
+    "docs/content/",
+    "docs/architecture/",
+    "backend/configs/",
 )
 
 
