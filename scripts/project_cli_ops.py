@@ -266,6 +266,9 @@ def cmd_brain(svc: ProjectService, args: Any) -> None:
             "Usage:\n"
             "  tausik brain init [--parent-page-id X] [--token-env Y] "
             "[--project-name Z] [--yes] [--force] [--non-interactive]\n"
+            "                    [--join-existing [--decisions-id ID "
+            "--web-cache-id ID --patterns-id ID --gotchas-id ID]]\n"
+            "                    [--force-create]\n"
             "  tausik brain status [--json]",
             file=sys.stderr,
         )
@@ -296,6 +299,12 @@ def cmd_brain(svc: ProjectService, args: Any) -> None:
         "yes": getattr(args, "yes", False),
         "force": getattr(args, "force", False),
         "interactive": interactive,
+        "join_existing": getattr(args, "join_existing", False),
+        "force_create": getattr(args, "force_create", False),
+        "decisions_id": getattr(args, "decisions_id", None),
+        "web_cache_id": getattr(args, "web_cache_id", None),
+        "patterns_id": getattr(args, "patterns_id", None),
+        "gotchas_id": getattr(args, "gotchas_id", None),
     }
 
     try:
@@ -306,8 +315,12 @@ def cmd_brain(svc: ProjectService, args: Any) -> None:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    print("\nBrain initialized.")
-    print(f"  parent_page_id: {result['parent_page_id']}")
+    mode = result.get("mode", "create")
+    if mode == "join":
+        print("\nBrain joined existing workspace databases.")
+    else:
+        print("\nBrain initialized.")
+        print(f"  parent_page_id: {result['parent_page_id']}")
     print(f"  token_env:      {result['token_env']}")
     print(f"  project_name:   {result['project_name']}")
     for cat, db_id in result["database_ids"].items():

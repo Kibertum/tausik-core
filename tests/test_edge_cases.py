@@ -13,7 +13,12 @@ from project_service import ProjectService
 
 
 @pytest.fixture
-def svc(tmp_path):
+def svc(tmp_path, monkeypatch):
+    """Force brain disabled so decide() doesn't hit the real project's enabled
+    brain config (which would route writes to Notion instead of local)."""
+    import brain_config
+
+    monkeypatch.setattr(brain_config, "load_brain", lambda: {"enabled": False})
     db_path = os.path.join(str(tmp_path), "tausik.db")
     be = SQLiteBackend(db_path)
     s = ProjectService(be)

@@ -53,13 +53,59 @@ def add_brain(sub: argparse._SubParsersAction) -> None:
     bi.add_argument("--project-name", default=None, dest="project_name")
     bi.add_argument("--yes", action="store_true", help="Skip confirmation prompt")
     bi.add_argument(
-        "--force", action="store_true", help="Overwrite existing brain config"
+        "--force",
+        action="store_true",
+        help="Overwrite existing local brain config in .tausik/config.json",
     )
     bi.add_argument(
         "--non-interactive",
         action="store_true",
         dest="non_interactive",
         help="Fail instead of prompting for missing args",
+    )
+    bi.add_argument(
+        "--join-existing",
+        action="store_true",
+        dest="join_existing",
+        help=(
+            "Skip database creation; reuse the workspace's existing 4 BRAIN "
+            "databases. Auto-discovers via Notion search; pass --decisions-id "
+            "etc. to override."
+        ),
+    )
+    bi.add_argument(
+        "--force-create",
+        action="store_true",
+        dest="force_create",
+        help=(
+            "Create a fresh set of 4 BRAIN databases even if existing "
+            "canonical-titled ones are detected. Rare — usually only for "
+            "a brand-new Notion workspace/integration."
+        ),
+    )
+    bi.add_argument(
+        "--decisions-id",
+        default=None,
+        dest="decisions_id",
+        help="Existing decisions DB id (use with --join-existing).",
+    )
+    bi.add_argument(
+        "--web-cache-id",
+        default=None,
+        dest="web_cache_id",
+        help="Existing web_cache DB id (use with --join-existing).",
+    )
+    bi.add_argument(
+        "--patterns-id",
+        default=None,
+        dest="patterns_id",
+        help="Existing patterns DB id (use with --join-existing).",
+    )
+    bi.add_argument(
+        "--gotchas-id",
+        default=None,
+        dest="gotchas_id",
+        help="Existing gotchas DB id (use with --join-existing).",
     )
     bs = brain_sub.add_parser(
         "status",

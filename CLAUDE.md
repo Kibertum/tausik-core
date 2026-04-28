@@ -136,7 +136,7 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 .tausik/tausik session recompute             # retro wall vs active minutes
 .tausik/tausik role list                     # список ролей (CRUD: list/show/create/update/delete/seed)
 .tausik/tausik stack scaffold <name>         # skeleton .tausik/stacks/<name>/
-pytest tests/ -v                         # 2246 тестов
+pytest tests/ -v                         # 2270 тестов
 ```
 
 **Полные команды:** `epic | story | task | session | gates | skill | brain | stack | role | memory | doctor | hud | metrics | roadmap | events | search | decide | dead-end | explore | audit | run | doc | verify | suggest-model | team | update-claudemd | fts | init`. Подробности — `docs/ru/cli.md`.
@@ -165,7 +165,7 @@ pytest tests/ -v                         # 2246 тестов
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: none | Branch: main | Version: 1.3.0
+Session: none | Branch: main | Version: 1.3.3
 Tasks: 0/1 done, 0 active, 0 blocked
 <!-- DYNAMIC:END -->
 

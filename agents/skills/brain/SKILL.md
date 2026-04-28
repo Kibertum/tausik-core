@@ -9,6 +9,14 @@ context: inline
 
 Conversational front-end for the TAUSIK Shared Brain — a cross-project knowledge store (Notion-backed) that sits alongside the per-project `.tausik/tausik.db`. Read-path and write-path both exist as MCP tools; this skill wraps them with a UX that doesn't require remembering tool names or flag sets.
 
+> **ARCHITECTURE — read this before running `brain init`:**
+>
+> The Shared Brain is **ONE set of 4 Notion databases per workspace, shared by ALL projects**. Categories: `decisions`, `patterns`, `gotchas`, `web_cache`. Per-project privacy is enforced via the `Source Project Hash` column on every row, **NOT** by giving each project its own copies of the four databases.
+>
+> If a project's `.tausik/config.json` does not yet have brain configured but the user already has BRAIN databases in their Notion workspace from another project, **DO NOT run plain `brain init` — that creates a SECOND independent set, splitting the knowledge store in two**. Use `tausik brain init --join-existing` instead. The wizard auto-discovers canonical-titled BRAIN databases via Notion search; pass explicit `--decisions-id / --web-cache-id / --patterns-id / --gotchas-id` only if auto-discovery fails (e.g. the integration was not invited to the existing parent page).
+>
+> `--force-create` exists as an escape hatch for the rare case of an intentional brand-new workspace (different Notion account/integration). Default refuses to create duplicates.
+
 **When to use:** user asks you to search or save knowledge that applies across projects (generalizable decisions, reusable patterns, cross-cutting gotchas, cached web fetches).
 
 **When NOT to use:** project-specific memory — use `tausik memory add` instead. The Memory Policy rule is strict: project traces stay local, only generalizable knowledge goes to the brain.
@@ -93,26 +101,17 @@ Markers are anchored — they must sit on a line of their own, outside fenced co
 
 ## Brain disabled?
 
-If `brain.enabled=false` in the project config, every subcommand short-circuits with a "not configured" message. To enable:
+If `brain.enabled=false` in the project config, every subcommand short-circuits with a "not configured" message.
 
-1. Create 4 Notion databases (see [references/brain-db-schema.md](../../../references/brain-db-schema.md) for the schema).
-2. Get a Notion integration token; set an env var for it.
-3. Edit `.tausik/config.json`:
-   ```json
-   {
-     "brain": {
-       "enabled": true,
-       "notion_integration_token_env": "NOTION_TAUSIK_TOKEN",
-       "database_ids": {
-         "decisions": "...", "web_cache": "...",
-         "patterns":  "...", "gotchas":   "..."
-       }
-     }
-   }
-   ```
-4. Run `.tausik/tausik` any command — validation will surface any misconfig in `brain.*`.
+**First, ASK the user before running any command.** Two paths:
 
-Setup docs: [docs/en/shared-brain.md](../../../docs/en/shared-brain.md) (EN), [docs/ru/shared-brain.md](../../../docs/ru/shared-brain.md) (RU).
+1. **User already has BRAIN databases in another project's Notion workspace** — wire this project to them with `tausik brain init --join-existing`. The wizard auto-discovers the canonical 4 databases via Notion search. If auto-discovery fails (integration not shared on the parent page), pass explicit IDs: `--decisions-id ... --web-cache-id ... --patterns-id ... --gotchas-id ...`. **This is the common case** when adding TAUSIK to a second/third project.
+
+2. **User has no BRAIN at all yet** — `tausik brain init --parent-page-id <id>` creates the 4 databases under the supplied parent page. The Notion integration token must be set per `docs/{en,ru}/shared-brain.md` (env var, `.tausik/.env`, or inline in config.json — cascade resolution).
+
+**NEVER guess.** If you don't know whether the user already has BRAIN somewhere, ask. Creating duplicate sets of 4 databases in the same workspace silently splits the knowledge store; the wizard's pre-flight workspace search will refuse this by default but only `--force-create` overrides — agents must not invent that flag without explicit user instruction.
+
+Setup docs: [docs/en/shared-brain.md](../../../docs/en/shared-brain.md) (EN), [docs/ru/shared-brain.md](../../../docs/ru/shared-brain.md) (RU). Schema reference: [references/brain-db-schema.md](../../../references/brain-db-schema.md).
 
 ## Subcommand status
 

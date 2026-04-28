@@ -385,12 +385,12 @@ class TestValidStacks:
             assert stack in VALID_STACKS, f"Missing major stack: {stack}"
 
     def test_all_stack_guides_have_valid_stack(self):
+        """v1.3 stack layout: stacks/<name>/guide.md + stacks/<name>/stack.json."""
         from project_types import VALID_STACKS
 
-        stacks_dir = os.path.join(AGENTS_DIR, "stacks")
-        for fname in os.listdir(stacks_dir):
-            if fname.endswith(".md"):
-                stack_name = fname.replace(".md", "")
-                assert stack_name in VALID_STACKS, (
-                    f"Stack guide '{fname}' not in VALID_STACKS"
-                )
+        stacks_dir = os.path.join(os.path.dirname(__file__), "..", "stacks")
+        for entry in os.listdir(stacks_dir):
+            full = os.path.join(stacks_dir, entry)
+            if not os.path.isdir(full):
+                continue
+            assert entry in VALID_STACKS, f"Stack dir '{entry}' not in VALID_STACKS"

@@ -81,9 +81,28 @@ def test_db_schema_returns_fresh_dict_each_call():
 
 
 class _FakeClient:
-    def __init__(self, fail_category: str | None = None):
+    """Fake Notion client.
+
+    `existing_dbs` — dict {category: db_id} of canonical-titled BRAIN
+    databases that should be returned by search() (simulates a workspace
+    that already has BRAIN configured). Default empty (clean workspace).
+
+    `query_404` — set of db_ids that databases_query should raise
+    NotionNotFoundError for (simulates verify failure).
+    """
+
+    def __init__(
+        self,
+        fail_category: str | None = None,
+        existing_dbs: dict[str, str] | None = None,
+        query_404: set[str] | None = None,
+    ):
         self.calls: list[dict] = []
+        self.search_calls: list[dict] = []
+        self.query_calls: list[dict] = []
         self.fail_category = fail_category
+        self.existing_dbs = existing_dbs or {}
+        self.query_404 = query_404 or set()
 
     def databases_create(self, *, parent_page_id, title, properties):
         self.calls.append(
@@ -95,6 +114,31 @@ class _FakeClient:
         if self.fail_category and category == self.fail_category:
             raise NotionError("boom", status=500, body={})
         return {"id": f"db_{category}_id", "title": title}
+
+    def search(self, *, query=None, filter=None, start_cursor=None, page_size=None):
+        self.search_calls.append({"query": query, "filter": filter})
+        results = []
+        for category, db_id in self.existing_dbs.items():
+            title = brain_init.DB_TITLES[category]
+            results.append(
+                {
+                    "object": "database",
+                    "id": db_id,
+                    "title": [{"type": "text", "plain_text": title}],
+                    "archived": False,
+                }
+            )
+        return {"results": results, "has_more": False, "next_cursor": None}
+
+    def databases_query(
+        self, db_id, *, filter=None, sorts=None, start_cursor=None, page_size=None
+    ):
+        self.query_calls.append({"db_id": db_id, "page_size": page_size})
+        if db_id in self.query_404:
+            from brain_notion_client import NotionNotFoundError
+
+            raise NotionNotFoundError(f"db not found: {db_id}", status=404)
+        return {"results": [], "has_more": False}
 
 
 def test_create_brain_databases_creates_all_four():
@@ -303,7 +347,11 @@ def test_run_wizard_non_interactive_success(monkeypatch):
     assert "test-proj" in saved["brain"]["project_names"]
 
 
-def test_run_wizard_non_interactive_missing_parent_raises():
+def test_run_wizard_non_interactive_missing_parent_raises(monkeypatch):
+    """v1.3.3: token must be set so the workspace pre-flight can run; parent
+    is only required once we reach the create branch (clean workspace, no
+    --join-existing, no --force-create)."""
+    monkeypatch.setenv("X", "tok")
     io = _FakeIO(is_tty=False)
     cfg_ops = _FakeConfigOps()
     with pytest.raises(brain_init.WizardError, match="parent-page-id"):
@@ -374,11 +422,14 @@ def test_run_wizard_force_overwrites_existing(monkeypatch):
 
 
 def test_run_wizard_interactive_prompts_for_missing_fields(monkeypatch):
+    """v1.3.3 prompt order: token_env first (needed for workspace search),
+    then parent_page_id (only if create branch reached), then project_name,
+    then confirm."""
     monkeypatch.setenv("NOTION_TAUSIK_TOKEN", "tok")
     io = _FakeIO(
         answers=[
-            "page-xyz",  # parent_page_id
             "",  # token_env (accept default)
+            "page-xyz",  # parent_page_id
             "",  # project_name (accept default)
             "y",  # confirm
         ],
@@ -399,7 +450,7 @@ def test_run_wizard_interactive_prompts_for_missing_fields(monkeypatch):
 def test_run_wizard_interactive_abort(monkeypatch):
     monkeypatch.setenv("NOTION_TAUSIK_TOKEN", "tok")
     io = _FakeIO(
-        answers=["page-xyz", "", "", "n"],  # final "n" aborts
+        answers=["", "page-xyz", "", "n"],  # token, parent, project, abort
         is_tty=True,
     )
     cfg_ops = _FakeConfigOps()
@@ -629,3 +680,431 @@ def test_run_wizard_happy_path_prints_no_orphan_guidance(monkeypatch):
     combined = "\n".join(io.prints).lower()
     assert "orphan" not in combined
     assert "archive" not in combined
+
+
+# --- v1.3.3 anti-hallucination guards ------------------------------------
+
+
+def test_find_workspace_brain_databases_empty_workspace():
+    """Clean workspace → search returns no canonical BRAIN databases."""
+    client = _FakeClient()
+    found = brain_init.find_workspace_brain_databases(client)
+    assert found == {}
+
+
+def test_find_workspace_brain_databases_full_match():
+    """All 4 canonical-titled BRAIN databases present → all 4 categories returned."""
+    client = _FakeClient(
+        existing_dbs={
+            "decisions": "ws-dec",
+            "web_cache": "ws-wc",
+            "patterns": "ws-pat",
+            "gotchas": "ws-got",
+        }
+    )
+    found = brain_init.find_workspace_brain_databases(client)
+    assert found == {
+        "decisions": "ws-dec",
+        "web_cache": "ws-wc",
+        "patterns": "ws-pat",
+        "gotchas": "ws-got",
+    }
+
+
+def test_find_workspace_brain_databases_partial_match():
+    """Only some canonical-titled databases exist → return just those."""
+    client = _FakeClient(existing_dbs={"decisions": "ws-dec", "patterns": "ws-pat"})
+    found = brain_init.find_workspace_brain_databases(client)
+    assert found == {"decisions": "ws-dec", "patterns": "ws-pat"}
+
+
+def test_find_workspace_brain_databases_skips_archived():
+    """Archived databases must NOT count as existing."""
+
+    class _ArchivedClient(_FakeClient):
+        def search(self, **_kw):
+            return {
+                "results": [
+                    {
+                        "object": "database",
+                        "id": "ws-dec",
+                        "title": [
+                            {
+                                "type": "text",
+                                "plain_text": brain_init.DB_TITLES["decisions"],
+                            }
+                        ],
+                        "archived": True,
+                    }
+                ],
+                "has_more": False,
+                "next_cursor": None,
+            }
+
+    found = brain_init.find_workspace_brain_databases(_ArchivedClient())
+    assert found == {}
+
+
+def test_find_workspace_brain_databases_ignores_non_canonical_titles():
+    """Databases titled e.g. 'My Brain' or 'Brain Notes' must NOT match."""
+
+    class _NonCanonicalClient(_FakeClient):
+        def search(self, **_kw):
+            return {
+                "results": [
+                    {
+                        "object": "database",
+                        "id": "x1",
+                        "title": [{"type": "text", "plain_text": "My Brain"}],
+                        "archived": False,
+                    },
+                    {
+                        "object": "database",
+                        "id": "x2",
+                        "title": [{"type": "text", "plain_text": "Brain Notes"}],
+                        "archived": False,
+                    },
+                ],
+                "has_more": False,
+                "next_cursor": None,
+            }
+
+    found = brain_init.find_workspace_brain_databases(_NonCanonicalClient())
+    assert found == {}
+
+
+def test_verify_brain_databases_all_ok():
+    client = _FakeClient()
+    errors = brain_init.verify_brain_databases(
+        client,
+        {"decisions": "d", "web_cache": "w", "patterns": "p", "gotchas": "g"},
+    )
+    assert errors == {}
+
+
+def test_verify_brain_databases_missing_id():
+    client = _FakeClient()
+    errors = brain_init.verify_brain_databases(
+        client,
+        {"decisions": "d", "web_cache": "", "patterns": "p", "gotchas": "g"},
+    )
+    assert "web_cache" in errors
+
+
+def test_verify_brain_databases_404_id():
+    client = _FakeClient(query_404={"bad-id"})
+    errors = brain_init.verify_brain_databases(
+        client,
+        {"decisions": "d", "web_cache": "bad-id", "patterns": "p", "gotchas": "g"},
+    )
+    assert "web_cache" in errors
+    assert "not found" in errors["web_cache"]
+
+
+def test_run_wizard_refuses_when_full_workspace_match_no_force_create(monkeypatch):
+    """Pre-flight guard: full canonical match in workspace → refuse + suggest --join-existing."""
+    monkeypatch.setenv("T", "tok")
+    io = _FakeIO(is_tty=False)
+    cfg_ops = _FakeConfigOps()
+
+    def factory(_token):
+        return _FakeClient(
+            existing_dbs={
+                "decisions": "ws-dec",
+                "web_cache": "ws-wc",
+                "patterns": "ws-pat",
+                "gotchas": "ws-got",
+            }
+        )
+
+    with pytest.raises(brain_init.WizardError, match="--join-existing"):
+        brain_init.run_wizard(
+            {
+                "parent_page_id": "p1",
+                "token_env": "T",
+                "project_name": "x",
+                "yes": True,
+            },
+            io,
+            factory,
+            cfg_ops,
+        )
+    assert cfg_ops.saved == []
+
+
+def test_run_wizard_refuses_partial_match_workspace(monkeypatch):
+    """Partial canonical match (1-3 of 4) → refuse, ambiguous state."""
+    monkeypatch.setenv("T", "tok")
+    io = _FakeIO(is_tty=False)
+    cfg_ops = _FakeConfigOps()
+
+    def factory(_token):
+        return _FakeClient(existing_dbs={"decisions": "d", "patterns": "p"})
+
+    with pytest.raises(brain_init.WizardError, match="partial set"):
+        brain_init.run_wizard(
+            {
+                "parent_page_id": "p1",
+                "token_env": "T",
+                "project_name": "x",
+                "yes": True,
+            },
+            io,
+            factory,
+            cfg_ops,
+        )
+    assert cfg_ops.saved == []
+
+
+def test_run_wizard_force_create_overrides_full_match(monkeypatch):
+    """--force-create bypasses the pre-flight guard, creates new DBs."""
+    monkeypatch.setenv("T", "tok")
+    io = _FakeIO(is_tty=False)
+    cfg_ops = _FakeConfigOps()
+    fake = _FakeClient(
+        existing_dbs={
+            "decisions": "ws-dec",
+            "web_cache": "ws-wc",
+            "patterns": "ws-pat",
+            "gotchas": "ws-got",
+        }
+    )
+
+    def factory(_token):
+        return fake
+
+    result = brain_init.run_wizard(
+        {
+            "parent_page_id": "p1",
+            "token_env": "T",
+            "project_name": "x",
+            "yes": True,
+            "force_create": True,
+        },
+        io,
+        factory,
+        cfg_ops,
+    )
+    assert result["mode"] == "create"
+    # databases_create was called 4 times (NOT skipped)
+    assert len(fake.calls) == 4
+    # New ids were saved (not the existing workspace ids)
+    saved = cfg_ops.saved[-1]
+    assert saved["brain"]["database_ids"]["decisions"] == "db_decisions_id"
+
+
+def test_run_wizard_join_existing_auto_discovers_workspace(monkeypatch):
+    """--join-existing with no explicit ids → wizard finds them via search."""
+    monkeypatch.setenv("T", "tok")
+    io = _FakeIO(is_tty=False)
+    cfg_ops = _FakeConfigOps()
+    fake = _FakeClient(
+        existing_dbs={
+            "decisions": "ws-dec",
+            "web_cache": "ws-wc",
+            "patterns": "ws-pat",
+            "gotchas": "ws-got",
+        }
+    )
+
+    def factory(_token):
+        return fake
+
+    result = brain_init.run_wizard(
+        {
+            "token_env": "T",
+            "project_name": "second-proj",
+            "yes": True,
+            "join_existing": True,
+        },
+        io,
+        factory,
+        cfg_ops,
+    )
+    assert result["mode"] == "join"
+    # No databases_create calls — we joined, not created
+    assert fake.calls == []
+    saved = cfg_ops.saved[-1]
+    assert saved["brain"]["database_ids"] == {
+        "decisions": "ws-dec",
+        "web_cache": "ws-wc",
+        "patterns": "ws-pat",
+        "gotchas": "ws-got",
+    }
+    assert "second-proj" in saved["brain"]["project_names"]
+
+
+def test_run_wizard_join_existing_with_explicit_ids(monkeypatch):
+    """--join-existing with all 4 explicit ids skips search; uses provided ids verbatim."""
+    monkeypatch.setenv("T", "tok")
+    io = _FakeIO(is_tty=False)
+    cfg_ops = _FakeConfigOps()
+    fake = _FakeClient()  # empty workspace, but explicit ids should override
+
+    def factory(_token):
+        return fake
+
+    result = brain_init.run_wizard(
+        {
+            "token_env": "T",
+            "project_name": "p",
+            "yes": True,
+            "join_existing": True,
+            "decisions_id": "ex-dec",
+            "web_cache_id": "ex-wc",
+            "patterns_id": "ex-pat",
+            "gotchas_id": "ex-got",
+        },
+        io,
+        factory,
+        cfg_ops,
+    )
+    assert result["mode"] == "join"
+    # Pre-flight skipped because all 4 explicit ids supplied
+    assert fake.search_calls == []
+    # Verify was called for each id
+    queried = {c["db_id"] for c in fake.query_calls}
+    assert queried == {"ex-dec", "ex-wc", "ex-pat", "ex-got"}
+    saved = cfg_ops.saved[-1]
+    assert saved["brain"]["database_ids"]["decisions"] == "ex-dec"
+
+
+def test_run_wizard_join_existing_explicit_overrides_discovered(monkeypatch):
+    """When both explicit and discovered ids exist, explicit wins."""
+    monkeypatch.setenv("T", "tok")
+    io = _FakeIO(is_tty=False)
+    cfg_ops = _FakeConfigOps()
+    fake = _FakeClient(
+        existing_dbs={
+            "decisions": "ws-dec",
+            "web_cache": "ws-wc",
+            "patterns": "ws-pat",
+            "gotchas": "ws-got",
+        }
+    )
+
+    def factory(_token):
+        return fake
+
+    brain_init.run_wizard(
+        {
+            "token_env": "T",
+            "project_name": "p",
+            "yes": True,
+            "join_existing": True,
+            "decisions_id": "explicit-dec",  # only override decisions
+        },
+        io,
+        factory,
+        cfg_ops,
+    )
+    saved = cfg_ops.saved[-1]
+    assert saved["brain"]["database_ids"]["decisions"] == "explicit-dec"
+    # Other 3 came from auto-discovery
+    assert saved["brain"]["database_ids"]["web_cache"] == "ws-wc"
+
+
+def test_run_wizard_join_existing_fails_when_no_ids_resolvable(monkeypatch):
+    """--join-existing on empty workspace + no explicit ids → clear error."""
+    monkeypatch.setenv("T", "tok")
+    io = _FakeIO(is_tty=False)
+    cfg_ops = _FakeConfigOps()
+
+    def factory(_token):
+        return _FakeClient()  # empty
+
+    with pytest.raises(brain_init.WizardError, match="could not resolve"):
+        brain_init.run_wizard(
+            {
+                "token_env": "T",
+                "yes": True,
+                "join_existing": True,
+            },
+            io,
+            factory,
+            cfg_ops,
+        )
+    assert cfg_ops.saved == []
+
+
+def test_run_wizard_join_existing_fails_when_id_404(monkeypatch):
+    """--join-existing with bad id → verify catches it before save."""
+    monkeypatch.setenv("T", "tok")
+    io = _FakeIO(is_tty=False)
+    cfg_ops = _FakeConfigOps()
+
+    def factory(_token):
+        return _FakeClient(query_404={"ex-pat"})
+
+    with pytest.raises(brain_init.WizardError, match="verification failed"):
+        brain_init.run_wizard(
+            {
+                "token_env": "T",
+                "yes": True,
+                "join_existing": True,
+                "decisions_id": "ex-dec",
+                "web_cache_id": "ex-wc",
+                "patterns_id": "ex-pat",
+                "gotchas_id": "ex-got",
+            },
+            io,
+            factory,
+            cfg_ops,
+        )
+    assert cfg_ops.saved == []
+
+
+def test_run_wizard_clean_workspace_creates_normally(monkeypatch):
+    """Empty workspace → pre-flight finds nothing → create proceeds (no regression)."""
+    monkeypatch.setenv("T", "tok")
+    io = _FakeIO(is_tty=False)
+    cfg_ops = _FakeConfigOps()
+    fake = _FakeClient()  # empty
+
+    def factory(_token):
+        return fake
+
+    result = brain_init.run_wizard(
+        {
+            "parent_page_id": "p1",
+            "token_env": "T",
+            "project_name": "x",
+            "yes": True,
+        },
+        io,
+        factory,
+        cfg_ops,
+    )
+    assert result["mode"] == "create"
+    assert len(fake.calls) == 4
+    # Pre-flight search was performed (proves the guard ran but found nothing)
+    assert fake.search_calls != []
+
+
+def test_run_wizard_search_failure_logged_then_proceeds(monkeypatch):
+    """If workspace search fails, wizard prints warning and proceeds (defensive)."""
+    monkeypatch.setenv("T", "tok")
+    io = _FakeIO(is_tty=False)
+    cfg_ops = _FakeConfigOps()
+
+    class _SearchFailClient(_FakeClient):
+        def search(self, **_kw):
+            raise NotionError("network down", status=None)
+
+    def factory(_token):
+        return _SearchFailClient()
+
+    result = brain_init.run_wizard(
+        {
+            "parent_page_id": "p1",
+            "token_env": "T",
+            "project_name": "x",
+            "yes": True,
+        },
+        io,
+        factory,
+        cfg_ops,
+    )
+    assert result["mode"] == "create"
+    combined = "\n".join(io.prints).lower()
+    assert "search failed" in combined or "skipping" in combined

@@ -4,6 +4,90 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.3] — 2026-04-27 — Brain init anti-hallucination guards
+
+Hardening release. `tausik brain init` now refuses to silently create a
+duplicate set of 4 BRAIN databases when canonical-titled ones already exist
+in the same Notion workspace. Triggered by a real incident where an agent
+in a second project ran `brain init`, created a parallel set, and then
+rationalized the duplicates as "per-project databases for privacy" — which
+is the exact opposite of how Shared Brain is designed.
+
+### Architectural rule (now enforced in code, docs, and the brain skill)
+
+The Shared Brain has **ONE set of 4 Notion databases per workspace, shared
+by ALL projects**. Per-project privacy is enforced via the
+`Source Project Hash` column on every row, NOT by giving each project its
+own copies of the four databases.
+
+### Wizard changes
+
+- **Pre-flight workspace search.** Before creating, the wizard calls
+  `POST /v1/search` for canonical-titled BRAIN databases (`Brain · Decisions
+  / Patterns / Gotchas / Web Cache`).
+- **Refuses on full match.** All 4 found → wizard refuses with a clear
+  error pointing at `--join-existing`.
+- **Refuses on partial match.** 1-3 of 4 found → also refuses (ambiguous
+  state); user must either restore the missing DBs or pass all 4 ids
+  explicitly with `--decisions-id / --web-cache-id / --patterns-id /
+  --gotchas-id`.
+- **`--join-existing`** — new flag. Skips create entirely and writes
+  `.tausik/config.json` to point at the existing 4 databases. Auto-discovers
+  via search; explicit IDs override discovery and are also verified via
+  `databases_query(page_size=1)` before save.
+- **`--force-create`** — new escape hatch. Bypasses the duplicate guard for
+  the rare case of an intentional brand-new workspace (different Notion
+  account/integration). Logs an extra confirmation prompt.
+- **Search failure tolerance.** If the workspace search itself fails
+  (network, auth), the wizard logs a warning and proceeds with create
+  rather than blocking — defensive default.
+
+### Brain skill (`agents/skills/brain/SKILL.md`)
+
+Added a top-of-file ARCHITECTURE block. Rewrote the "Brain disabled?"
+section: agents must ASK the user before running any setup command, and
+must use `--join-existing` when a workspace BRAIN already exists. Explicit
+"NEVER guess" + "do not invent --force-create".
+
+### Docs
+
+`docs/en/shared-brain.md` and `docs/ru/shared-brain.md` — Setup section
+restructured into "First project — create" / "Second / third project —
+join existing" subsections, plus a new **Common mistakes** block listing
+the duplicate-DB pitfall and the per-project-copies "privacy" anti-pattern.
+
+### Tests
+
+- `tests/test_brain_init.py` — 16 new tests covering
+  `find_workspace_brain_databases`, `verify_brain_databases`, all four
+  wizard branches (refuse-full-match, refuse-partial, force-create, join,
+  join-with-explicit-ids, verify-failure), search-failure tolerance, and
+  no-regression on the clean-workspace path.
+- Existing interactive-wizard tests updated to match new prompt order
+  (token first, parent-page-id second).
+
+### Test isolation drive-bys
+
+Two more svc fixtures (`tests/test_edge_cases.py`,
+`tests/test_e2e_workflow.py`) needed the v1.3.2 `brain_config.load_brain`
+stub — the same isolation gap fixed for `test_service_knowledge_decide.py`
+in v1.3.2 was hiding in two more files. Tests passed locally only because
+the live brain happened to write to Notion silently. Now stubbed.
+
+`tests/test_skills_maturity.py::test_all_stack_guides_have_valid_stack`
+fixed for the v1.3 stacks layout (`stacks/<name>/guide.md`, not
+`agents/stacks/<name>.md`).
+
+### Compatibility
+
+Fully backward-compatible. Projects that already have brain configured are
+unaffected — the guard only fires on `brain init` itself. Tokens, mirror
+paths, database IDs, and existing data are untouched.
+
+### Versioning
+
+`__version__` bumped 1.3.2 → 1.3.3.
+
 ## [1.3.2] — 2026-04-28 — Brain token storage flexibility
 
 Quality-of-life patch: the Notion integration token for Shared Brain can now be

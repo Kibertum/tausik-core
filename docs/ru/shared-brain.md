@@ -134,7 +134,9 @@ $env:NOTION_TAUSIK_TOKEN = 'ntn_xxx'
 
 ### 5. Запустить wizard
 
-Интерактивно (спросит parent page ID и подтверждение):
+> **Один комплект из 4 баз на workspace, общий для всех проектов.** Приватность по проектам обеспечивает колонка `Source Project Hash` в каждой строке, а НЕ создание отдельных копий 4 баз для каждого проекта. Wizard это требование защищает (см. "Частые ошибки" ниже).
+
+**Первый проект — создаём 4 базы:**
 
 ```bash
 .tausik/tausik brain init
@@ -152,11 +154,40 @@ Non-interactive (для CI / скриптов):
 
 Parent page ID — 32-символьный hex после `notion.so/...-` в URL (с дефисами или без). Wizard:
 
-1. Четыре раза вызывает `POST /v1/databases` для `decisions`, `web_cache`, `patterns`, `gotchas` со схемами из [brain-db-schema.md](brain-db-schema.md).
-2. Атомарно пишет `.tausik/config.json` с `brain.enabled=true`, 4 `database_ids`, `notion_integration_token_env`, именем проекта (для scrubbing blocklist).
-3. **Никогда** не сохраняет сам токен в `config.json` — только **имя** env-переменной. Сам токен живёт в `.tausik/.env` (рекомендуется) или в shell-environment.
+1. **Pre-flight workspace search** (v1.3.3+): ищет канонически-озаглавленные BRAIN-базы (`Brain · Decisions / Patterns / Gotchas / Web Cache`), уже расшаренные с интеграцией. Если все 4 найдены — отказывается создавать дубли и направляет к `--join-existing`.
+2. Четыре раза вызывает `POST /v1/databases` для `decisions`, `web_cache`, `patterns`, `gotchas` со схемами из [brain-db-schema.md](brain-db-schema.md).
+3. Атомарно пишет `.tausik/config.json` с `brain.enabled=true`, 4 `database_ids`, `notion_integration_token_env`, именем проекта (для scrubbing blocklist).
+4. **Никогда** не сохраняет сам токен в `config.json` — только **имя** env-переменной. Сам токен живёт в `.tausik/.env` (рекомендуется) или в shell-environment.
 
 Повторный запуск в уже настроенном проекте упадёт с ошибкой; для перезаписи — `--force`.
+
+**Второй / третий / N-ный проект — присоединяемся к существующим базам:**
+
+```bash
+.tausik/tausik brain init --join-existing
+```
+
+Wizard ищет в Notion-workspace канонические 4 BRAIN-базы (auto-discovery через `POST /v1/search`) и пишет их ID в `.tausik/config.json` этого проекта. **Новые базы не создаются.** Все проекты, указывающие на одни и те же 4 ID, делят один knowledge store; колонка `Source Project Hash` сохраняет различимость по проектам.
+
+Если auto-discovery не находит базы (например, интеграция не приглашена на parent page), передай ID явно:
+
+```bash
+.tausik/tausik brain init --join-existing \
+  --decisions-id  '...' \
+  --web-cache-id  '...' \
+  --patterns-id   '...' \
+  --gotchas-id    '...' \
+  --token-env NOTION_TAUSIK_TOKEN \
+  --non-interactive --yes
+```
+
+**Аварийный выход — `--force-create`.** Если действительно нужен новый отдельный комплект из 4 баз (другой Notion-account, осознанно изолированное знание), передай `--force-create`. Wizard пропустит pre-flight проверку и создаст новые. **Используй с осторожностью** — проекты, указывающие на старый комплект, не будут видеть записи нового, и наоборот.
+
+### Частые ошибки
+
+- ❌ **Запустить обычный `brain init` во втором проекте, использующем тот же workspace** → создаст параллельный набор из 4 BRAIN-баз. Знание тихо разделится надвое; одни проекты увидят одну половину, другие — другую. v1.3.3 pre-flight check отказывается это делать по умолчанию — **не обходи через `--force-create`, если только не нужны действительно два независимых "мозга"**.
+- ❌ **"Отдельные копии для приватности"** → не нужно. Используй колонку `Source Project Hash` (она уже есть на каждой строке) для фильтрации по проектам; 4 базы делятся между проектами.
+- ❌ **Ручная правка `database_ids` в `config.json`** → используй `--join-existing --decisions-id ...`, чтобы wizard верифицировал каждый ID через Notion перед сохранением.
 
 ### 6. Smoke-тест
 

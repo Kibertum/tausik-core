@@ -134,7 +134,9 @@ After persisting, **restart the IDE** (Claude Code / Cursor / etc.) so the MCP s
 
 ### 5. Run the wizard
 
-Interactive (prompts for parent page ID and confirms):
+> **One set of databases per workspace, shared by all projects.** Per-project privacy comes from the `Source Project Hash` column on each row, not from giving each project its own copies of the four databases. The wizard enforces this — see "Common mistakes" below.
+
+**First project — create the 4 databases:**
 
 ```bash
 .tausik/tausik brain init
@@ -152,11 +154,40 @@ Non-interactive (for CI / scripted setup):
 
 The parent page ID is the 32-char hex after `notion.so/...-` in the URL (with or without hyphens). The wizard:
 
-1. Calls `POST /v1/databases` four times to create `decisions`, `web_cache`, `patterns`, `gotchas` with the schemas from [brain-db-schema.md](brain-db-schema.md).
-2. Writes `.tausik/config.json` atomically with `brain.enabled=true`, the 4 `database_ids`, `notion_integration_token_env`, and your project name (for the scrubbing blocklist).
-3. **Never** stores the token itself in `config.json` — only the env var **name**. The token lives in `.tausik/.env` (recommended) or your shell environment.
+1. **Pre-flight workspace search** (v1.3.3+): looks for canonical-titled BRAIN databases (`Brain · Decisions / Patterns / Gotchas / Web Cache`) already shared with the integration. If a full set is found, refuses to create duplicates and points at `--join-existing`.
+2. Calls `POST /v1/databases` four times to create `decisions`, `web_cache`, `patterns`, `gotchas` with the schemas from [brain-db-schema.md](brain-db-schema.md).
+3. Writes `.tausik/config.json` atomically with `brain.enabled=true`, the 4 `database_ids`, `notion_integration_token_env`, and your project name (for the scrubbing blocklist).
+4. **Never** stores the token itself in `config.json` — only the env var **name**. The token lives in `.tausik/.env` (recommended) or your shell environment.
 
 Re-running on an already-configured project fails loudly unless you pass `--force`.
+
+**Second / third / Nth project — join the existing databases:**
+
+```bash
+.tausik/tausik brain init --join-existing
+```
+
+The wizard searches your Notion workspace for the canonical 4 BRAIN databases (auto-discovers via `POST /v1/search`) and writes their IDs into this project's `.tausik/config.json`. **No new databases are created.** All projects pointed at the same 4 IDs share one knowledge store; the `Source Project Hash` column keeps per-project rows distinguishable.
+
+If auto-discovery cannot find the databases (e.g. the integration was not invited to the parent page), pass IDs explicitly:
+
+```bash
+.tausik/tausik brain init --join-existing \
+  --decisions-id  '...' \
+  --web-cache-id  '...' \
+  --patterns-id   '...' \
+  --gotchas-id    '...' \
+  --token-env NOTION_TAUSIK_TOKEN \
+  --non-interactive --yes
+```
+
+**Escape hatch — `--force-create`.** If you genuinely need a separate, brand-new set of 4 databases (different Notion account, intentionally siloed knowledge), pass `--force-create`. The wizard will skip the duplicate-DB pre-flight and create new ones. **Use sparingly** — projects pointed at the original set will not see records from the new one and vice versa.
+
+### Common mistakes
+
+- ❌ **Running plain `brain init` in a second project that shares the workspace** → creates a parallel set of 4 BRAIN databases. Knowledge silently splits in two; some projects see one half, some see the other. The v1.3.3 pre-flight check refuses this by default — **do not bypass with `--force-create` unless you genuinely want two independent brains**.
+- ❌ **Per-project copies "for privacy"** → unnecessary. Use the `Source Project Hash` column (already on every row) to filter by project; share the four databases.
+- ❌ **Editing `database_ids` in `config.json` by hand without verifying** → use `--join-existing --decisions-id ...` so the wizard verifies each ID against Notion before saving.
 
 ### 6. Smoke-test
 
