@@ -33,16 +33,66 @@ def _run_tausik(cmd: str, args: list[str], project_dir: str, timeout: int = 4) -
         return ""
 
 
-def _rag_summary(project_dir: str) -> str:
-    """Best-effort summary of RAG index health for the agent to see at start.
+def _rag_server_path(project_dir: str) -> str | None:
+    """Path to the codebase-rag MCP server.py if installed, else None."""
+    for ide in ("claude", "cursor"):
+        p = os.path.join(project_dir, ".claude", "mcp", "codebase-rag", "server.py")
+        if os.path.exists(p):
+            return p
+        p2 = os.path.join(
+            project_dir, "agents", ide, "mcp", "codebase-rag", "server.py"
+        )
+        if os.path.exists(p2):
+            return p2
+    return None
 
-    v1.3.1 closed the "agent uses Grep instead of search_code because RAG
-    invisibility" finding. Empty/stale index is now surfaced explicitly so
-    the agent knows whether to run `reindex` or trust `search_code`.
+
+def _spawn_background_reindex(project_dir: str, mode: str = "incremental") -> None:
+    """Spawn rag indexer in background; return immediately.
+
+    On first run (`full`) we still spawn detached so SessionStart never blocks.
+    A small Python wrapper is enough — rag_indexer's `index_incremental` /
+    `index_full` are called via the same server.py runtime.
     """
+    server = _rag_server_path(project_dir)
+    if not server:
+        return
+    venv_py = os.path.join(project_dir, ".tausik", "venv", "Scripts", "python.exe")
+    if not os.path.exists(venv_py):
+        venv_py = os.path.join(project_dir, ".tausik", "venv", "bin", "python")
+    if not os.path.exists(venv_py):
+        venv_py = sys.executable
+    code = (
+        f"import sys; sys.path.insert(0, {os.path.dirname(server)!r}); "
+        "from rag_store import RAGStore; "
+        "from rag_indexer import index_incremental, index_full; "
+        f"store = RAGStore({os.path.join(project_dir, '.tausik', 'rag', 'rag.db')!r}); "
+        f"({'index_full' if mode == 'full' else 'index_incremental'})({project_dir!r}, store)"
+    )
+    try:
+        kwargs: dict = {
+            "stdin": subprocess.DEVNULL,
+            "stdout": subprocess.DEVNULL,
+            "stderr": subprocess.DEVNULL,
+            "cwd": project_dir,
+        }
+        if sys.platform == "win32":
+            DETACHED_PROCESS = 0x00000008
+            kwargs["creationflags"] = DETACHED_PROCESS  # type: ignore[assignment]
+        else:
+            kwargs["start_new_session"] = True  # type: ignore[assignment]
+        subprocess.Popen([venv_py, "-c", code], **kwargs)
+    except (OSError, ValueError):
+        pass  # never break the session start
+
+
+def _rag_summary(project_dir: str) -> str:
+    """Best-effort summary of RAG index health + auto-spawn incremental reindex."""
     rag_db = os.path.join(project_dir, ".tausik", "rag", "rag.db")
     if not os.path.exists(rag_db):
-        return "RAG: not initialised — run `mcp__codebase-rag__reindex` before `search_code`."
+        # First run for this project — spawn FULL reindex in background.
+        _spawn_background_reindex(project_dir, mode="full")
+        return "RAG: not initialised — full reindex spawned in background. Try `search_code` after a minute."
     try:
         import sqlite3
 
@@ -51,9 +101,13 @@ def _rag_summary(project_dir: str) -> str:
             chunks = int(row[0]) if row else 0
     except Exception:
         return "RAG: status unknown (db unreadable)."
+    # Always kick off an incremental reindex in the background so the index
+    # picks up any commits made between sessions. Cheap when nothing changed
+    # (early-return inside index_incremental on same `last_commit`).
+    _spawn_background_reindex(project_dir, mode="incremental")
     if chunks == 0:
-        return "RAG: empty — run `mcp__codebase-rag__reindex` before `search_code`."
-    return f"RAG: {chunks} chunks indexed — prefer `search_code` over `Grep` for code discovery."
+        return "RAG: empty — full reindex spawned in background."
+    return f"RAG: {chunks} chunks indexed — incremental reindex running in background. Prefer `search_code` over `Grep`."
 
 
 def build_context(project_dir: str) -> str:
