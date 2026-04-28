@@ -126,10 +126,13 @@ class SkillsMixin:
                 f"Skill '{name}' not found. Check skills repo or run bootstrap --update-deps."
             )
 
-        # Replace stub (or create new) with full skill
+        # Replace stub (or create new) with full skill.
+        # v1.3.4 (med-batch-1-hooks #3): symlinks=False to prevent vendor-repo
+        # symlink-smuggling of absolute paths (~/.aws/credentials etc.) into
+        # the activated skills tree.
         if os.path.exists(dst):
             shutil.rmtree(dst)
-        shutil.copytree(source, dst)
+        shutil.copytree(source, dst, symlinks=False)
 
         if config_path:
             cfg = SkillsMixin._load_tausik_config(config_path)

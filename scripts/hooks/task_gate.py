@@ -10,16 +10,19 @@ import os
 import subprocess
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _common import is_tausik_project  # noqa: E402
+
 
 def main() -> int:
     if os.environ.get("TAUSIK_SKIP_HOOKS"):
         return 0
 
     project_dir = os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd())
-    tausik_db = os.path.join(project_dir, ".tausik", "tausik.db")
 
-    # No TAUSIK DB = not a TAUSIK project, allow
-    if not os.path.exists(tausik_db):
+    # v1.3.4 (med-batch-1-hooks #4): detect TAUSIK by .tausik/ dir, not
+    # tausik.db file — closes the bootstrap-but-not-init bypass window.
+    if not is_tausik_project(project_dir):
         return 0
 
     # Check for active task via CLI

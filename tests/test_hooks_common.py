@@ -189,6 +189,61 @@ class TestLastUserPromptText:
         p.write_text("")
         assert last_user_prompt_text(str(p)) == ""
 
+    def test_huge_transcript_uses_tail_read(self, tmp_path):
+        """v1.3.4 (med-batch-1-hooks #5): 1MB transcript still works without
+        loading the whole file. The function should pick up the LAST user
+        record even when it sits past 50KB of leading garbage events."""
+        p = tmp_path / "huge.jsonl"
+        # Padding: ~1MB of assistant/system events that should NOT match
+        padding_event = json.dumps(
+            {"type": "assistant", "message": {"content": "x" * 200}}
+        )
+        # ~1MB padding: each line ~250 bytes; 4000 lines = 1MB
+        with open(p, "w", encoding="utf-8") as f:
+            for _ in range(4000):
+                f.write(padding_event + "\n")
+            # Real user event at the very end (within the last 50KB)
+            f.write(
+                json.dumps({"type": "user", "message": {"content": "TARGET"}}) + "\n"
+            )
+        assert last_user_prompt_text(str(p)) == "TARGET"
+
+    def test_user_event_outside_tail_window_not_found(self, tmp_path):
+        """Documents the bound: if the most recent user event is >50KB from
+        end, it's correctly not returned (only assistant/system in the
+        tail). Acceptable cost for the memory bound."""
+        p = tmp_path / "huge.jsonl"
+        # Old user event
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(json.dumps({"type": "user", "message": {"content": "OLD"}}) + "\n")
+            # Now write >50KB of assistant padding so the user event ends up
+            # before the seek window
+            padding = json.dumps(
+                {"type": "assistant", "message": {"content": "x" * 500}}
+            )
+            for _ in range(200):  # ~110KB of padding
+                f.write(padding + "\n")
+        out = last_user_prompt_text(str(p))
+        # The OLD user event is past the tail window; no user in the tail.
+        # The function returns "" (no user found in scanned tail).
+        assert out == ""
+
+    def test_partial_first_line_after_seek_dropped(self, tmp_path):
+        """Tail-read drops the first (potentially partial) line so
+        json.loads doesn't choke on a half-record at the seek boundary."""
+        p = tmp_path / "transcript.jsonl"
+        # Put a complete user event near the start, then enough padding
+        # so the seek lands mid-record. The mid-record line should be
+        # dropped and the LATER user event picked up.
+        padding = json.dumps({"type": "assistant", "message": {"content": "y" * 500}})
+        with open(p, "w", encoding="utf-8") as f:
+            for _ in range(150):
+                f.write(padding + "\n")
+            f.write(
+                json.dumps({"type": "user", "message": {"content": "LATEST"}}) + "\n"
+            )
+        assert last_user_prompt_text(str(p)) == "LATEST"
+
 
 class TestIntegration:
     """Regression: the concrete user scenario that motivated this fix."""

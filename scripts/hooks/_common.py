@@ -33,6 +33,20 @@ def tausik_path(project_dir: str) -> str | None:
     return None
 
 
+def is_tausik_project(project_dir: str) -> bool:
+    """True iff project_dir looks like a TAUSIK-managed project.
+
+    v1.3.4 (med-batch-1-hooks #4): hooks previously gated on
+    `.tausik/tausik.db` existence. That misses the window between
+    bootstrap (which creates `.tausik/`) and `tausik init` (which creates
+    the DB) — in that window QG hooks silently skipped, allowing the
+    agent to bypass them by simply not running `init`. The new check
+    looks at the directory, which exists for the entire lifetime of a
+    TAUSIK-managed project.
+    """
+    return os.path.isdir(os.path.join(project_dir, ".tausik"))
+
+
 def has_active_task(project_dir: str, timeout: int = 4) -> bool:
     """Check whether TAUSIK has an active task; graceful-True on CLI failure."""
     tausik_cmd = tausik_path(project_dir)
@@ -106,6 +120,41 @@ _UNICODE_LINE_SEPS_RE = re.compile(r"[  ]")
 _INDENTED_RE = re.compile(r"^(?: {4,}|	)")
 
 
+_TRANSCRIPT_TAIL_BYTES = 50 * 1024  # v1.3.4 (med-batch-1-hooks #5)
+
+
+def _read_transcript_tail(path: str, *, max_bytes: int = _TRANSCRIPT_TAIL_BYTES) -> str:
+    """Read the last `max_bytes` of a JSONL transcript, aligned to a newline.
+
+    Long sessions can grow the transcript to many MB; on every PreToolUse
+    we'd otherwise readlines() the whole file just to look at the most
+    recent user turn. Tail-read is bounded; we only need the last record.
+
+    The first line is dropped if it's a partial record at the seek
+    boundary so json.loads doesn't choke on it.
+    """
+    try:
+        size = os.path.getsize(path)
+    except OSError:
+        return ""
+    seek_to = max(0, size - max_bytes)
+    try:
+        with open(path, "rb") as f:
+            f.seek(seek_to)
+            blob = f.read()
+    except OSError:
+        return ""
+    if not blob:
+        return ""
+    text = blob.decode("utf-8", errors="replace")
+    if seek_to > 0:
+        # Drop the (likely partial) first line so json.loads doesn't fail.
+        nl = text.find("\n")
+        if nl >= 0:
+            text = text[nl + 1 :]
+    return text
+
+
 def last_user_prompt_text(transcript_path: str) -> str:
     """Return the text of the most recent user message in the JSONL transcript.
 
@@ -113,14 +162,17 @@ def last_user_prompt_text(transcript_path: str) -> str:
     Preserves the shape assumed by existing hooks: list-of-parts is joined
     with newlines so anchored marker detection sees the original line
     structure.
+
+    v1.3.4 (med-batch-1-hooks #5): bounded tail-read of the last 50 KB,
+    aligned to a newline boundary, instead of readlines() over the whole
+    file. Long sessions don't blow up memory on every PreToolUse hook.
     """
     if not transcript_path or not os.path.isfile(transcript_path):
         return ""
-    try:
-        with open(transcript_path, "r", encoding="utf-8", errors="replace") as f:
-            lines = f.readlines()
-    except OSError:
+    text = _read_transcript_tail(transcript_path)
+    if not text:
         return ""
+    lines = text.splitlines()
     for line in reversed(lines):
         line = line.strip()
         if not line:

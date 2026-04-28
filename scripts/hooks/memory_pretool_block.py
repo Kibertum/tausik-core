@@ -23,7 +23,11 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from _common import last_user_prompt_text, marker_present_anchored  # noqa: E402
+from _common import (  # noqa: E402
+    is_tausik_project,
+    last_user_prompt_text,
+    marker_present_anchored,
+)
 
 
 _BYPASS_MARKER = "confirm: cross-project"
@@ -83,7 +87,9 @@ def main() -> int:
         return 0
 
     project_dir = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
-    if not os.path.exists(os.path.join(project_dir, ".tausik", "tausik.db")):
+    # v1.3.4 (med-batch-1-hooks #4): detect TAUSIK by .tausik/ dir, not
+    # tausik.db file — covers the bootstrap-but-not-init window.
+    if not is_tausik_project(project_dir):
         return 0
 
     event = _read_stdin_json()

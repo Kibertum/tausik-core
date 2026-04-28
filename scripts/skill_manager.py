@@ -249,7 +249,10 @@ def copy_skill(
                 ignored.append(item)
         return ignored
 
-    shutil.copytree(source, dst, ignore=_ignore)
+    # v1.3.4 (med-batch-1-hooks #3): symlinks=False — never preserve symlinks,
+    # so a hostile vendor repo cannot smuggle absolute paths (e.g.
+    # ~/.aws/credentials, /etc/shadow) into the activated skills tree.
+    shutil.copytree(source, dst, ignore=_ignore, symlinks=False)
     return dst
 
 
@@ -295,14 +298,33 @@ def install_skill_deps(
         print(f"  Warning: venv not found, cannot install deps: {requires}")
         return False
 
+    # v1.3.4 (med-batch-1-hooks #2): harden subprocess env so pip cannot be
+    # redirected to a hostile index via PIP_INDEX_URL / PIP_EXTRA_INDEX_URL /
+    # PIP_TRUSTED_HOST in the parent environment, and so pip.conf files in
+    # ~ / /etc / venv override scope cannot inject the same indirection.
+    # --no-config disables every pip.conf lookup; explicit env strip handles
+    # the env-var pathway. Combined with the existing _SAFE_PKG regex on
+    # `requires`, this closes the supply-chain redirect surface for
+    # third-party skills declaring a `requires` array.
+    safe_env = os.environ.copy()
+    for var in (
+        "PIP_INDEX_URL",
+        "PIP_EXTRA_INDEX_URL",
+        "PIP_TRUSTED_HOST",
+        "PIP_INDEX",
+        "PIP_FIND_LINKS",
+    ):
+        safe_env.pop(var, None)
     try:
         result = subprocess.run(
-            [venv_python, "-m", "pip", "install", "--quiet", "--"] + requires,
+            [venv_python, "-m", "pip", "install", "--no-config", "--quiet", "--"]
+            + requires,
             capture_output=True,
             text=True,
             encoding="utf-8",
             errors="replace",
             timeout=120,
+            env=safe_env,
         )
         if result.returncode != 0:
             print(f"  pip install failed: {result.stderr}")

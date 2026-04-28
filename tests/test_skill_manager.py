@@ -622,6 +622,101 @@ class TestInstallWithDeps:
         assert "failed" in result
 
 
+class TestInstallDepsEnvHardening:
+    """v1.3.4 (med-batch-1-hooks #2): pip subprocess must run with --no-config
+    AND with PIP_INDEX_URL/PIP_EXTRA_INDEX_URL/PIP_TRUSTED_HOST stripped from
+    its env, so a hostile parent env or pip.conf cannot redirect installs."""
+
+    def _setup_install_skill_deps(self, tmp_path, monkeypatch):
+        """Build the minimum to reach install_skill_deps' subprocess.run."""
+        from skill_manager import install_skill_deps
+
+        # Provide a fake venv python so install_skill_deps doesn't bail early
+        fake_venv_py = str(tmp_path / "venv-py")
+        with open(fake_venv_py, "w") as f:
+            f.write("")  # contents irrelevant; we mock subprocess
+
+        # Patch get_venv_python via the bootstrap_venv import path
+        import sys
+
+        bootstrap_dir = os.path.join(os.path.dirname(__file__), "..", "bootstrap")
+        if bootstrap_dir not in sys.path:
+            sys.path.insert(0, bootstrap_dir)
+        import bootstrap_venv
+
+        monkeypatch.setattr(bootstrap_venv, "get_venv_python", lambda _td: fake_venv_py)
+        return install_skill_deps
+
+    def test_pip_install_runs_with_no_config_flag(self, tmp_path, monkeypatch):
+        install_skill_deps = self._setup_install_skill_deps(tmp_path, monkeypatch)
+        captured = {}
+
+        def fake_run(cmd, **kwargs):
+            captured["cmd"] = cmd
+            captured["env"] = kwargs.get("env") or {}
+            return subprocess.CompletedProcess(cmd, 0)
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        ok = install_skill_deps(
+            repo_dir=str(tmp_path / "repo"),
+            skill_info={"requires": ["requests"]},
+            tausik_dir=str(tmp_path / ".tausik"),
+        )
+        assert ok is True
+        assert "--no-config" in captured["cmd"]
+
+    def test_pip_install_strips_pip_index_url_from_env(self, tmp_path, monkeypatch):
+        install_skill_deps = self._setup_install_skill_deps(tmp_path, monkeypatch)
+        # Set hostile vars in PARENT env
+        monkeypatch.setenv("PIP_INDEX_URL", "https://evil.example.com/simple")
+        monkeypatch.setenv("PIP_EXTRA_INDEX_URL", "https://evil2.example.com/")
+        monkeypatch.setenv("PIP_TRUSTED_HOST", "evil.example.com")
+        monkeypatch.setenv("PIP_FIND_LINKS", "https://evil.example.com/")
+        monkeypatch.setenv("PIP_INDEX", "https://evil.example.com/")
+
+        captured = {}
+
+        def fake_run(cmd, **kwargs):
+            captured["env"] = dict(kwargs.get("env") or {})
+            return subprocess.CompletedProcess(cmd, 0)
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        install_skill_deps(
+            repo_dir=str(tmp_path / "repo"),
+            skill_info={"requires": ["requests"]},
+            tausik_dir=str(tmp_path / ".tausik"),
+        )
+        env = captured["env"]
+        assert "PIP_INDEX_URL" not in env, (
+            "PIP_INDEX_URL must be stripped — found: " + repr(env.get("PIP_INDEX_URL"))
+        )
+        assert "PIP_EXTRA_INDEX_URL" not in env
+        assert "PIP_TRUSTED_HOST" not in env
+        assert "PIP_FIND_LINKS" not in env
+        assert "PIP_INDEX" not in env
+
+    def test_pip_install_preserves_other_env(self, tmp_path, monkeypatch):
+        """Stripping is targeted — unrelated env vars (PATH, HOME) must survive."""
+        install_skill_deps = self._setup_install_skill_deps(tmp_path, monkeypatch)
+        monkeypatch.setenv("MY_UNRELATED_VAR", "preserved")
+
+        captured = {}
+
+        def fake_run(cmd, **kwargs):
+            captured["env"] = dict(kwargs.get("env") or {})
+            return subprocess.CompletedProcess(cmd, 0)
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        install_skill_deps(
+            repo_dir=str(tmp_path / "repo"),
+            skill_info={"requires": ["requests"]},
+            tausik_dir=str(tmp_path / ".tausik"),
+        )
+        assert captured["env"].get("MY_UNRELATED_VAR") == "preserved"
+        # PATH must survive too — pip needs it to find dependencies
+        assert "PATH" in captured["env"] or "Path" in captured["env"]
+
+
 class TestUninstallEdgeCases:
     def test_uninstall_nonexistent_skill(self, tmp_path):
         skills_dst = str(tmp_path / "skills")

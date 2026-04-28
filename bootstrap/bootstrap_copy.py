@@ -97,13 +97,20 @@ def _conditional_copy(src: str, dst: str) -> None:
 
 
 def copy_dir(src: str, dst: str) -> None:
-    """Copy src→dst, skipping byte-identical files. Removes orphans."""
+    """Copy src→dst, skipping byte-identical files. Removes orphans.
+
+    v1.3.4 (med-batch-1-hooks #3): symlinks=False — never preserve symlinks,
+    always materialize the target file content. Skill or stack repos shipping
+    a symlink that resolves to /etc/passwd or ~/.aws/credentials would
+    otherwise leak the target into .claude/ on bootstrap.
+    """
     _IGNORED = ("__pycache__", ".git")
     if not os.path.exists(dst):
         shutil.copytree(
             src,
             dst,
             ignore=shutil.ignore_patterns("__pycache__", ".git", "*.pyc"),
+            symlinks=False,
         )
         return
     expected: set[str] = set()
