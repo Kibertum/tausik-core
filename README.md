@@ -81,7 +81,7 @@ Bootstrap auto-detects your tech stack and enables matching quality gates. Proje
 
 ## Anti-Drift (v1.3)
 
-Agents in long sessions "drift" — ignore the framework, skip task creation, forget conventions. TAUSIK 1.2 adds real-time drift guards:
+Agents in long sessions "drift" — ignore the framework, skip task creation, forget conventions. TAUSIK 1.3 adds real-time drift guards:
 
 - **SessionStart hook** auto-injects state (active tasks, Memory Block, conventions) into every new session — no manual `/start`.
 - **UserPromptSubmit hook** detects coding-intent phrases (EN+RU) and nudges the agent if no task is active.
