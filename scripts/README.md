@@ -52,4 +52,4 @@ Located in `agents/{ide}/mcp/`:
 .tausik/tausik search "auth"
 ```
 
-Full CLI reference: `references/project-cli.md`
+Full CLI reference: `docs/en/cli.md` (or `docs/ru/cli.md`)

@@ -99,7 +99,7 @@ the Backend handles only CRUD and SQL. CLI and MCP are two equal entry points.
 | `agents/claude/mcp/project/handlers.py` | Dispatch: tool name -> service method |
 | `agents/claude/mcp/project/handlers_skill.py` | Skill + maintenance handlers (split) |
 
-Total MCP surface: **90 project tools + 10 brain tools = 100**.
+Total MCP surface: **90 project tools + 6 brain tools = 96**.
 
 ### Cross-IDE Support
 

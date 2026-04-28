@@ -14,7 +14,7 @@ TAUSIK is an engineering governance framework for AI coding agents. It forces pl
 | 4 | **[Skills](en/skills.md)** | What the agent can do |
 | 5 | **[Hooks](en/hooks.md)** | Automatic control: blockers, firewall |
 | 6 | **[CLI Commands](en/cli.md)** | Full terminal command reference |
-| 7 | **[MCP Tools](en/mcp.md)** | 100 tools for the AI agent |
+| 7 | **[MCP Tools](en/mcp.md)** | 96 tools for the AI agent |
 | 8 | **[Architecture](en/architecture.md)** | How the framework works inside |
 | 9 | **[Adding New IDE](en/adding-new-ide.md)** | How to add IDE support |
 | 10 | **[Vendor Skills](en/vendor-skills.md)** | External skill packages |

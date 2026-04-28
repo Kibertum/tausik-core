@@ -80,7 +80,7 @@
 | [scripts/brain_notion_client.py](../../scripts/brain_notion_client.py) | Stdlib Notion REST клиент (throttle + retry + pagination iterator) |
 | [scripts/brain_sync.py](../../scripts/brain_sync.py) | Delta-pull Notion → local; маппинг Notion page JSON → SQLite rows |
 | [scripts/brain_search.py](../../scripts/brain_search.py) | Локальный FTS5 поиск с bm25 и SQL `snippet()` |
-| [references/brain-db-schema.md](../../references/brain-db-schema.md) | Design-doc — properties, JSON payload примеры, trade-offs |
+| [brain-db-schema.md](brain-db-schema.md) | Design-doc — properties, JSON payload примеры, trade-offs |
 
 ## Настройка
 
@@ -134,7 +134,7 @@ Non-interactive (для CI / скриптов):
 
 Parent page ID — 32-символьный hex после `notion.so/...-` в URL (с дефисами или без). Wizard:
 
-1. Четыре раза вызывает `POST /v1/databases` для `decisions`, `web_cache`, `patterns`, `gotchas` со схемами из [references/brain-db-schema.md](../../references/brain-db-schema.md).
+1. Четыре раза вызывает `POST /v1/databases` для `decisions`, `web_cache`, `patterns`, `gotchas` со схемами из [brain-db-schema.md](brain-db-schema.md).
 2. Атомарно пишет `.tausik/config.json` с `brain.enabled=true`, 4 `database_ids`, `notion_integration_token_env`, именем проекта (для scrubbing blocklist).
 3. **Никогда** не сохраняет сам токен — только имя env-переменной.
 

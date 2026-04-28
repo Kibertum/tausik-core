@@ -18,7 +18,7 @@ TAUSIK implements [SENAR v1.3 Core](https://senar.tech) ([GitHub](https://github
 
 After bootstrap, you have these tools available:
 
-**MCP tools** (preferred — 100 tools via `tausik-project` + `tausik-brain` servers):
+**MCP tools** (preferred — 96 tools via `tausik-project` + `tausik-brain` servers):
 ```
 tausik_status              — see project state
 tausik_task_quick          — create a task
@@ -74,7 +74,7 @@ End session      →  /end (handoff saved for next session)
 | **Quick start for agents** | [docs/en/quickstart.md](docs/en/quickstart.md) (EN) / [docs/ru/quickstart.md](docs/ru/quickstart.md) (RU) |
 | **CLI command reference** | [docs/en/cli.md](docs/en/cli.md) (EN) / [docs/ru/cli.md](docs/ru/cli.md) (RU) |
 | **Architecture & internals** | [docs/en/architecture.md](docs/en/architecture.md) (EN) / [docs/ru/architecture.md](docs/ru/architecture.md) (RU) |
-| **MCP tools (100 tools)** | [docs/en/mcp.md](docs/en/mcp.md) |
+| **MCP tools (96 tools)** | [docs/en/mcp.md](docs/en/mcp.md) |
 | **Skills reference (13 core + 25+ vendor)** | [docs/en/skills.md](docs/en/skills.md) |
 | **Quality gates** | [docs/en/hooks.md](docs/en/hooks.md) |
 | **User-facing docs index** | [docs/README.md](docs/README.md) |
@@ -90,9 +90,9 @@ agents/            Shared resources for all IDEs
   roles/           5 role profiles (developer, architect, qa, tech-writer, ui-ux)
   stacks/          25 stack guides (python, react, go, rust, ansible, terraform, ...)
   overrides/       IDE-specific overrides (claude/, cursor/, qwen/)
-  claude/mcp/      MCP servers (project: 96 tools, brain: 10 tools)
+  claude/mcp/      MCP servers (project: 90 tools, brain: 6 tools)
 bootstrap/         One-command project setup
-tests/             pytest suite (2226 tests)
+tests/             pytest suite (2246 tests)
 .tausik/           Runtime data (DB, config) — gitignored
 ```
 

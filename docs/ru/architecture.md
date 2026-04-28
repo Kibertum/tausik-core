@@ -97,7 +97,7 @@
 | `agents/claude/mcp/project/handlers.py` | Диспетчеризация: имя инструмента → метод сервиса |
 | `agents/claude/mcp/project/handlers_skill.py` | Обработчики навыков + обслуживания (split) |
 
-Полный MCP-surface: **90 project + 10 brain = 100 инструментов**.
+Полный MCP-surface: **90 project + 6 brain = 96 инструментов**.
 
 ### Поддержка разных сред разработки
 

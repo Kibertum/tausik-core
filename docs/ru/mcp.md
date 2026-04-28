@@ -2,12 +2,12 @@
 
 # TAUSIK MCP — Справочник инструментов (v1.3)
 
-**100 инструментов** для ИИ-агентов (90 project + 10 brain). MCP-surface зеркалит CLI 1:1 без CLI-only пробелов. Предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
+**96 инструментов** для ИИ-агентов (90 project + 6 brain). MCP-surface зеркалит CLI 1:1 без CLI-only пробелов. Предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
 
 В проекте живут два MCP-сервера:
 
 - `tausik-project` — project-scoped инструменты (90): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify.
-- `tausik-brain` — cross-project Shared Brain инструменты (10).
+- `tausik-brain` — cross-project Shared Brain инструменты (6).
 
 Опционально доступен `codebase-rag` сервер (документирован в конце).
 
@@ -194,7 +194,7 @@ DEFAULT_STACKS: 25 записей (python, fastapi, django, flask, react, next, 
 | `tausik_update_claudemd` | Обновить динамическую секцию в CLAUDE.md | — |
 | `tausik_fts_optimize` | Оптимизировать FTS5 индексы | — |
 
-## Shared Brain (`tausik-brain`, 10 инструментов)
+## Shared Brain (`tausik-brain`, 6 инструментов)
 
 | Инструмент | Описание | Обязательные параметры |
 |---|---|---|
@@ -205,7 +205,7 @@ DEFAULT_STACKS: 25 записей (python, fastapi, django, flask, react, next, 
 | `brain_store_gotcha` | Сохранить cross-project gotcha | `title`, `body` |
 | `brain_cache_web` | Кешировать web-результат для token reuse | `query`, `content` |
 
-`tausik-brain` MCP-сервер запускается config-agnostic и читает реестр из `.tausik-brain/` конфигурации. Экспонирует дополнительные внутренние инструменты (registry, mirror sync), доводя счётчик brain до 10.
+`tausik-brain` MCP-сервер запускается config-agnostic и читает реестр из `.tausik-brain/` конфигурации. Экспонирует дополнительные внутренние инструменты (registry, mirror sync), доводя счётчик brain до 6.
 
 ## Codebase RAG (отдельный опциональный MCP-сервер)
 

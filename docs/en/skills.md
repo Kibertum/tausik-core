@@ -82,7 +82,7 @@ Installed from the `tausik-skills` repo. Use `tausik skill install <name>` to ad
 | `/presale` | Presale estimation — capacity planning + proposal |
 | `/init` | Initialize a new CLAUDE.md from a fresh codebase |
 
-### Integrations
+### Integrations (external services via MCP)
 
 | Skill | When |
 |-------|------|
@@ -90,6 +90,12 @@ Installed from the `tausik-skills` repo. Use `tausik skill install <name>` to ad
 | `/bitrix24` | Bitrix24 CRM — tasks, deals, contacts via webhook API |
 | `/confluence` | Confluence publishing — create/update pages |
 | `/sentry` | Sentry error monitoring via MCP |
+
+### Documentation / Extraction
+
+| Skill | When |
+|-------|------|
+| `/markitdown` | Convert DOCX/PPTX/XLSX/HTML/EPUB/PDF to markdown via the markitdown CLI (requires `pip install markitdown`) |
 | `/excel` | Read/analyze/generate Excel/CSV |
 | `/pdf` | Read/extract/analyze PDF documents |
 | `/docs` | Generate or update documentation (jsdoc/docstrings) |

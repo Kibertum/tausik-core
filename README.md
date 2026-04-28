@@ -48,7 +48,7 @@ That's it. The agent opens a session, creates a task with acceptance criteria, w
 | Claims "done" without proof | Completion blocked until every criterion has evidence |
 | Context lost between sessions | Decisions, patterns, and dead ends persist across sessions |
 | Same mistake repeated 3 times | Failed approaches recorded — agent sees what didn't work |
-| No tests, no linting | 16 checks auto-run for your stack (pytest, ruff, tsc, eslint, cargo, go vet...) |
+| No tests, no linting | 25 checks auto-run for your stack (pytest, ruff, tsc, eslint, cargo, go vet...) |
 | No visibility into process | 6 metrics tracked automatically — throughput, defect rate, lead time |
 
 **The key difference:** TAUSIK quality gates are _enforcement_. The agent physically cannot skip steps — no prompts, no hoping, no "please remember to run tests."
@@ -109,8 +109,8 @@ Still pending: MCP tools, init wizard, scrubbing linter, classifier. See **[Shar
 ## What's Inside
 
 - **13 core skills** (always deployed) — `/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, `/review`, `/test`, `/debug`, `/explore`, `/interview`, `/brain`. Plus **25+ official/vendor skills** (`/audit`, `/zero-defect`, `/markitdown`, `/docs`, `/security`, `/onboard`, …) installed on demand via `tausik skill install`.
-- **100 MCP tools** (90 project + 10 brain) — full programmatic access to the project database
-- **16 quality checks** — pytest, ruff, tsc, eslint, cargo check, go vet, and more for your stack
+- **96 MCP tools** (90 project + 6 brain) — full programmatic access to the project database
+- **25 quality checks** — pytest, ruff, tsc, eslint, cargo check, go vet, and more for your stack
 - **6 automatic metrics** — throughput, first-pass success rate, defect rate, lead time
 - **Project memory** — SQLite + FTS5, graph relations, dead-end tracking, Memory Block re-injection
 - **19 Claude Code hooks** — task gate, bash firewall, push gate, auto-format, activity event, SessionStart, UserPromptSubmit, Stop × 2, PostToolUse verify, memory pre-write block, memory post-write audit, brain post-WebFetch cache, brain pre-search proactive, notify-on-done, session-metrics, session-cleanup-check, task-call-counter
@@ -121,10 +121,10 @@ Still pending: MCP tools, init wizard, scrubbing linter, classifier. See **[Shar
 
 | IDE | MCP Tools | Skills | Hooks | Rules |
 |-----|-----------|--------|-------|-------|
-| Claude Code | 100 tools | 13 core + 25+ on demand | 19 hooks (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md |
-| Qwen Code | 100 tools | 13 core + 25+ on demand | 19 hooks (same as Claude) | QWEN.md |
-| Cursor | 100 tools | 13 core + 25+ on demand | — | .cursorrules |
-| Windsurf | 100 tools | 13 core + 25+ on demand | — | .windsurfrules |
+| Claude Code | 96 tools | 13 core + 25+ on demand | 19 hooks (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md |
+| Qwen Code | 96 tools | 13 core + 25+ on demand | 19 hooks (same as Claude) | QWEN.md |
+| Cursor | 96 tools | 13 core + 25+ on demand | — | .cursorrules |
+| Windsurf | 96 tools | 13 core + 25+ on demand | — | .windsurfrules |
 | Codex | — | — | — | AGENTS.md only |
 
 **Hooks** block code edits without a task, dangerous shell commands, and direct push to main — in real time. Available in Claude Code and Qwen Code. Cursor and Windsurf get the same MCP tools and skills, with quality gates at `task start` and `task done`.
@@ -135,10 +135,10 @@ TAUSIK was developed using itself. Real numbers:
 
 | Metric | Value |
 |---|---|
-| Tasks completed | 291 |
-| Sessions | 22 |
-| Throughput | ~13 tasks/session |
-| Test count | 918 |
+| Tasks completed | 516 |
+| Sessions | 37 |
+| Throughput | ~14 tasks/session |
+| Test count | 2246 |
 | Dependencies | 0 core |
 
 Every feature, every refactor, every bug fix went through the same quality gates that ship with the framework.
@@ -156,10 +156,10 @@ TAUSIK implements [SENAR](https://senar.tech) ([GitHub](https://github.com/Kiber
 | **[Quick Start](docs/en/quickstart.md)** | First setup — 10-15 minutes |
 | **[What is SENAR?](docs/en/senar.md)** | The methodology behind TAUSIK |
 | **[Workflow](docs/en/workflow.md)** | A typical day with TAUSIK |
-| **[Skills](docs/en/skills.md)** | 34 structured agent workflows |
+| **[Skills](docs/en/skills.md)** | 13 core + 25 vendor (38 total) skills |
 | **[Hooks](docs/en/hooks.md)** | Real-time enforcement |
 | **[CLI Commands](docs/en/cli.md)** | Terminal command reference |
-| **[MCP Tools](docs/en/mcp.md)** | 100 tools for the AI agent |
+| **[MCP Tools](docs/en/mcp.md)** | 96 tools for the AI agent |
 | **[Architecture](docs/en/architecture.md)** | How the framework works inside |
 
 **[Full documentation ->](docs/README.md)**

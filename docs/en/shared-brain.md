@@ -80,7 +80,7 @@ Nothing that identifies the project should ever reach the brain. Enforcement:
 | [scripts/brain_notion_client.py](../../scripts/brain_notion_client.py) | Stdlib Notion REST client (throttle + retry + pagination iterator) |
 | [scripts/brain_sync.py](../../scripts/brain_sync.py) | Delta-pull Notion → local; maps Notion page JSON → SQLite rows |
 | [scripts/brain_search.py](../../scripts/brain_search.py) | Local FTS5 search with bm25 ranking and SQL `snippet()` |
-| [references/brain-db-schema.md](../../references/brain-db-schema.md) | Design doc — database properties, JSON payload examples, trade-offs |
+| [brain-db-schema.md](brain-db-schema.md) | Design doc — database properties, JSON payload examples, trade-offs |
 
 ## Setup
 
@@ -134,7 +134,7 @@ Non-interactive (for CI / scripted setup):
 
 The parent page ID is the 32-char hex after `notion.so/...-` in the URL (with or without hyphens). The wizard:
 
-1. Calls `POST /v1/databases` four times to create `decisions`, `web_cache`, `patterns`, `gotchas` with the schemas from [references/brain-db-schema.md](../../references/brain-db-schema.md).
+1. Calls `POST /v1/databases` four times to create `decisions`, `web_cache`, `patterns`, `gotchas` with the schemas from [brain-db-schema.md](brain-db-schema.md).
 2. Writes `.tausik/config.json` atomically with `brain.enabled=true`, the 4 `database_ids`, `notion_integration_token_env`, and your project name (for the scrubbing blocklist).
 3. **Never** stores the token itself — only the env var name.
 

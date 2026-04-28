@@ -110,7 +110,7 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 | Метрика: Cost per Task | avg hours by complexity | Hard (auto) |
 | Section 5.1 Explorations | `tausik_explore_*` MCP + CLI | Hard |
 | Multi-lang Gates | Auto-enable по стеку (TS, Go, Rust, PHP, Java) | Hard (auto) |
-| MCP Coverage | 100 инструментов (90 project + 10 brain), 0 CLI-only gaps | Hard |
+| MCP Coverage | 96 инструментов (90 project + 6 brain), 0 CLI-only gaps | Hard |
 | Batch Execution | `/run plan.md` — автономное выполнение планов | Instruction |
 | Structured Logs | `task_logs` таблица с phase + FTS5 | Hard (auto) |
 | Fake Test Detection | 10 паттернов в testing review agent | Warning |

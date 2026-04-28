@@ -134,10 +134,16 @@ def build_header(project_name: str, stacks: list[str], agent_name: str) -> str:
 
 def build_skills_section(ide_subdir: str) -> str:
     return (
-        f"## External Skills\n\n"
-        f"Skills managed via `skills.json`, auto-synced during bootstrap.\n"
-        f"See `{ide_subdir}/references/skill-catalog.md` for the catalog with trigger keywords.\n"
-        f"**When a user request matches a trigger keyword for a not-installed skill, proactively suggest installing it.**\n"
+        f"## Skills\n\n"
+        f"After bootstrap, **13 core skills** ship from `agents/skills/` and are always available: "
+        f"`/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, "
+        f"`/review`, `/test`, `/debug`, `/explore`, `/interview`, `/brain`.\n\n"
+        f"**25+ official/vendor skills** install on demand via "
+        f"`tausik skill install <name>` from the `tausik-skills` repo or "
+        f"`skills-official/`: `/audit`, `/zero-defect`, `/markitdown`, `/excel`, "
+        f"`/pdf`, `/docs`, `/security`, `/onboard`, `/retro`, `/ultra`, `/jira`, "
+        f"`/bitrix24`, `/sentry`, ... See `{ide_subdir}/references/skill-catalog.md`.\n\n"
+        f"When a user request matches a trigger keyword for a not-installed skill, proactively suggest installing it.\n"
     )
 
 

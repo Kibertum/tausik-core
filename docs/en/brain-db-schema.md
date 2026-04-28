@@ -86,7 +86,7 @@ Stores generalizable decisions: "we picked urllib over requests — here is the 
 
 ### 4.2 `web_cache` — HTTP response cache (WebFetch)
 
-When the agent runs `WebFetch`, the PostToolUse hook [`scripts/hooks/brain_post_webfetch.py`](../scripts/hooks/brain_post_webfetch.py) writes a record (url + content + prompt as query). Before the next `WebFetch`/`WebSearch` the PreToolUse hook [`scripts/hooks/brain_search_proactive.py`](../scripts/hooks/brain_search_proactive.py) checks `brain_web_cache`: exact-URL hit for `WebFetch`, FTS5 by query for `WebSearch` — if there is a fresh record (within `ttl_web_cache_days`), the network call is blocked.
+When the agent runs `WebFetch`, the PostToolUse hook [`scripts/hooks/brain_post_webfetch.py`](../../scripts/hooks/brain_post_webfetch.py) writes a record (url + content + prompt as query). Before the next `WebFetch`/`WebSearch` the PreToolUse hook [`scripts/hooks/brain_search_proactive.py`](../../scripts/hooks/brain_search_proactive.py) checks `brain_web_cache`: exact-URL hit for `WebFetch`, FTS5 by query for `WebSearch` — if there is a fresh record (within `ttl_web_cache_days`), the network call is blocked.
 
 **What is skipped:** private URLs (`brain.private_url_patterns`), HTTP errors (code ≥ 400), empty responses, URLs already mirrored within TTL, responses > 200 KB (trim to 200 KB). `WebSearch` responses are not cached directly (multiple URLs in a single blob → no canonical URL); `WebSearch` queries are served via FTS5 over existing `WebFetch` content.
 

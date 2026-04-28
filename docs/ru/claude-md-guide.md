@@ -30,4 +30,4 @@
 ## Current State (DYNAMIC block, авто-обновляется)
 ```
 
-См. также: [skills.md](skills.md), [skill-spec.md](skill-spec.md).
+См. также: [skills.md](skills.md), [skill-spec.md](../en/skill-spec.md).

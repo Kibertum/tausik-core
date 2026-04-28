@@ -2,12 +2,12 @@
 
 # TAUSIK MCP — Tool Reference (v1.3)
 
-**100 tools** for AI agents (90 project + 10 brain). The MCP surface mirrors the CLI 1:1 with zero CLI-only gaps. Prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
+**96 tools** for AI agents (90 project + 6 brain). The MCP surface mirrors the CLI 1:1 with zero CLI-only gaps. Prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
 
 Two MCP servers live in this project:
 
 - `tausik-project` — project-scoped tools (90): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify.
-- `tausik-brain` — cross-project Shared Brain tools (10).
+- `tausik-brain` — cross-project Shared Brain tools (6).
 
 There is also an optional `codebase-rag` server documented at the bottom.
 
@@ -194,7 +194,7 @@ Role storage is hybrid: SQLite metadata + `agents/roles/{role}.md` profile markd
 | `tausik_update_claudemd` | Update dynamic section in CLAUDE.md | — |
 | `tausik_fts_optimize` | Optimize FTS5 indexes | — |
 
-## Shared Brain (`tausik-brain`, 10 tools)
+## Shared Brain (`tausik-brain`, 6 tools)
 
 | Tool | Description | Required Parameters |
 |---|---|---|
@@ -205,7 +205,7 @@ Role storage is hybrid: SQLite metadata + `agents/roles/{role}.md` profile markd
 | `brain_store_gotcha` | Store a cross-project gotcha | `title`, `body` |
 | `brain_cache_web` | Cache a web result for token reuse | `query`, `content` |
 
-The `tausik-brain` MCP server runs config-agnostic at startup and pulls registry from `.tausik-brain/` configuration. It exposes additional internal tools (registry, mirror sync) bringing the brain count to 10.
+The `tausik-brain` MCP server runs config-agnostic at startup and pulls registry from `.tausik-brain/` configuration. It exposes additional internal tools (registry, mirror sync) bringing the brain count to 6.
 
 ## Codebase RAG (separate optional MCP server)
 
