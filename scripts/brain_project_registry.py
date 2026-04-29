@@ -2,8 +2,8 @@
 
 Two concerns, one file:
   1. Assign a unique canonical name for each project on the machine. If two
-     projects resolve to the same canonical name ("princess" vs. another
-     "princess"), auto-increment: "princess", "princess-2", ...
+     projects resolve to the same canonical name ("my-app" vs. another
+     "my-app"), auto-increment: "my-app", "my-app-2", ...
   2. Expose all registered project names so the scrubbing linter can build
      a union-blocklist across projects (so project A does not accidentally
      leak project B's name into brain).
@@ -62,12 +62,7 @@ def _normalize_path(path: str) -> str:
 
 
 def _now_iso() -> str:
-    return (
-        datetime.now(timezone.utc)
-        .replace(microsecond=0)
-        .isoformat()
-        .replace("+00:00", "Z")
-    )
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def load_registry(path: str | None = None) -> list[dict]:
@@ -230,9 +225,7 @@ def _find_by_path(entries: list[dict], norm_path: str) -> dict | None:
 
 def _pick_unique_canonical(entries: list[dict], base_canonical: str) -> str:
     taken = {
-        e.get("canonical") or canonical_name(e.get("name", ""))
-        for e in entries
-        if e.get("name")
+        e.get("canonical") or canonical_name(e.get("name", "")) for e in entries if e.get("name")
     }
     if base_canonical not in taken:
         return base_canonical

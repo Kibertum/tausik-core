@@ -28,7 +28,6 @@ TAUSIK использует хуки Claude Code для автоматическ
 | `memory_posttool_audit.py` | После Write в auto-memory | Аудитит cross-project leakage и предупреждает |
 | `brain_post_webfetch.py` | После WebFetch | Авто-кешит результат в shared brain `web_cache` для token reuse |
 | `task_done_verify.py` | После `task_done` | Аудитит AC evidence через 5 правило-base проверок (Ralph-mode-lite) |
-| `notify_on_done.py` | После `task_done` (опционально) | Шлёт webhook в Slack/Discord/Telegram, если настроен |
 
 ## SessionStart / SessionEnd
 
@@ -70,7 +69,6 @@ TAUSIK использует хуки Claude Code для автоматическ
 
 Агент: tausik task done my-button --ac-verified
   → task_done_verify.py: 5-проверочный AC-аудит
-  → notify_on_done.py: опциональный webhook
 ```
 
 ## Коды возврата

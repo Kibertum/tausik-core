@@ -124,7 +124,7 @@ class TestRecomputeAllSessions:
 
     def test_afk_pct_computed_when_wall_positive(self, be):
         # Session 60 min wall, but events span 10 min active
-        sid = _add_session(be, "2026-04-25T10:00:00Z", "2026-04-25T11:00:00Z")
+        _add_session(be, "2026-04-25T10:00:00Z", "2026-04-25T11:00:00Z")
         _add_event(be, "2026-04-25T10:00:00Z")
         _add_event(be, "2026-04-25T10:05:00Z")
         _add_event(be, "2026-04-25T10:10:00Z")
@@ -137,7 +137,7 @@ class TestRecomputeAllSessions:
 
     def test_afk_pct_none_when_wall_zero(self, be):
         # started_at == ended_at → wall=0, afk_pct undefined
-        sid = _add_session(be, "2026-04-25T10:00:00Z", "2026-04-25T10:00:00Z")
+        _add_session(be, "2026-04-25T10:00:00Z", "2026-04-25T10:00:00Z")
         out = recompute_all_sessions(be._q, be._q1)
         assert out[0]["afk_pct"] is None
 

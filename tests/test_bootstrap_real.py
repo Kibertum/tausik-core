@@ -10,7 +10,6 @@ import os
 import subprocess
 import sys
 
-import pytest
 
 _bootstrap_dir = os.path.join(os.path.dirname(__file__), "..", "bootstrap")
 

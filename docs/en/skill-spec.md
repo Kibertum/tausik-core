@@ -57,9 +57,9 @@ Include trigger phrases: "Use when user says 'X', 'Y', 'Z'."
 
 ## Conventions
 
-1. **References over inline**: Large tables and protocols → extract to `references/meta/` and link
+1. **References over inline**: Large tables and protocols → extract to a sibling reference file inside the skill dir and link
 2. **Shared patterns**: Use `skill-patterns.md` for cross-skill patterns (handoff, CLAUDE.md update, etc.)
-3. **CLI reference**: Always link to `project-cli.md`, never duplicate CLI syntax
+3. **CLI reference**: Always link to `docs/en/cli.md` (or `docs/ru/cli.md`), never duplicate CLI syntax
 4. **Parallel batching**: Explicitly mark independent tool calls for parallel execution
 5. **Token budget**: Keep SKILL.md under 300 lines; extract reference data to separate files
 6. **Language**: Skills respond in the user's language (detect from conversation)
@@ -85,7 +85,7 @@ description: "Brief purpose. Use when user says 'trigger1', 'trigger2'."
 
 One-line description. Always respond in the user's language.
 
-**CLI Reference:** `.claude/references/project-cli.md`
+**CLI Reference:** [`docs/en/cli.md`](cli.md)
 
 ## Algorithm
 

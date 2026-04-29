@@ -37,11 +37,18 @@ _FILESIZE_EXEMPT_DIRS = (
     "agents/cursor/mcp/",
     "agents/qwen/mcp/",
     ".claude/mcp/",
-    # LegalOS user override — exempt large source materials (legal extracts,
-    # ADR markdowns, agent YAML configs). Added by 999ae36.
+    # Common exempt dirs for source materials, ADR markdowns, agent configs.
     "docs/content/",
     "docs/architecture/",
     "backend/configs/",
+)
+
+# Append-only files that grow unboundedly by design — exempt from line cap.
+_FILESIZE_EXEMPT_BASENAMES = frozenset(
+    {
+        "CHANGELOG.md",
+        "CHANGELOG.ru.md",
+    }
 )
 
 
@@ -85,7 +92,10 @@ def run_filesize_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
         if any(d in normalized for d in _FILESIZE_EXEMPT_DIRS):
             continue
         canon = _normalize_path(f)
-        if canon in exempt_paths or os.path.basename(canon) in exempt_basenames:
+        basename = os.path.basename(canon)
+        if canon in exempt_paths or basename in exempt_basenames:
+            continue
+        if basename in _FILESIZE_EXEMPT_BASENAMES:
             continue
         lines = count_lines(f)
         if lines > max_lines:
@@ -177,9 +187,7 @@ def run_command_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
         allowed = {(e if e.startswith(".") else "." + e).lower() for e in file_exts_raw}
         files = [f for f in files if os.path.splitext(f)[1].lower() in allowed]
         if not files:
-            return True, (
-                "No files matching " + ", ".join(sorted(allowed)) + " — gate skipped."
-            )
+            return True, ("No files matching " + ", ".join(sorted(allowed)) + " — gate skipped.")
 
     if "{test_files_for_files}" in cmd:
         test_files = resolve_test_files_for_relevant(files)
@@ -342,16 +350,14 @@ def check_file_conflicts(tasks: list[dict]) -> list[tuple[str, str, list[str]]]:
 
     conflicts = []
     seen = set()
-    for f, slugs in file_map.items():
+    for _f, slugs in file_map.items():
         if len(slugs) > 1:
             for i, s1 in enumerate(slugs):
                 for s2 in slugs[i + 1 :]:
                     pair = (min(s1, s2), max(s1, s2))
                     if pair not in seen:
                         seen.add(pair)
-                        shared = [
-                            ff for ff, ss in file_map.items() if s1 in ss and s2 in ss
-                        ]
+                        shared = [ff for ff, ss in file_map.items() if s1 in ss and s2 in ss]
                         conflicts.append((pair[0], pair[1], shared))
     return conflicts
 

@@ -74,7 +74,7 @@ the Backend handles only CRUD and SQL. CLI and MCP are two equal entry points.
 | `doc_extract.py` | markitdown integration |
 | `docs_lint.py` | Warning-only stale-version linter |
 | `plan_parser.py` | Markdown plan parser for `/run` |
-| `model_routing.py` + `notifier.py` | Model selection + webhooks |
+| `model_routing.py` | Model selection helper |
 | `ide_utils.py` | IDE detection, paths, registry |
 | `tausik_utils.py` + `tausik_version.py` + `project_types.py` | Helpers, version, types |
 
@@ -84,7 +84,7 @@ the Backend handles only CRUD and SQL. CLI and MCP are two equal entry points.
 |------|-------|---------|
 | `bootstrap.py` | ~320 | Orchestration: vendor sync, copy, generate |
 | `bootstrap_vendor.py` | ~280 | Download vendor skills from GitHub (tarball) |
-| `bootstrap_copy.py` | ~180 | Copy skills, scripts, MCP, references |
+| `bootstrap_copy.py` | ~180 | Copy skills, scripts, MCP into `.claude/` |
 | `bootstrap_config.py` | ~70 | Configuration, stack detection |
 | `bootstrap_generate.py` | ~300 | Generate settings.json, CLAUDE.md, skill catalog |
 | `analyzer.py` | ~330 | Extended stack detection, codebase analysis |
@@ -155,7 +155,7 @@ Gates: `pytest`, `ruff`, `mypy`, `bandit`, `filesize`, `tdd_order`, `tsc`, `esli
 ## Testing
 
 ```bash
-pytest tests/ -v                    # all tests (2270)
+pytest tests/ -v                    # all tests (2318)
 pytest tests/test_tausik_backend.py   # backend CRUD
 pytest tests/test_tausik_service.py   # service logic
 pytest tests/test_tausik_cli.py       # CLI smoke

@@ -33,7 +33,7 @@ def generate_skill_catalog(
         "when user request doesn't match installed skills.",
         "",
         "## Activation",
-        f"To activate a VENDORED skill: copy from `.tausik/vendor/{{name}}/{{skill}}/`",
+        "To activate a VENDORED skill: copy from `.tausik/vendor/{name}/{skill}/`",
         f"to `{ide_dir}/skills/{{skill}}/` — it becomes available immediately.",
         f"To deactivate: delete from `{ide_dir}/skills/{{skill}}/`.",
         "",
@@ -68,7 +68,7 @@ def generate_skill_catalog(
                 f"Activate: `cp -r .tausik/vendor/{name}/{{skill}}/ {ide_dir}/skills/{{skill}}/`"
             )
         elif status == "AVAILABLE":
-            lines.append(f"Install: run `python bootstrap/bootstrap.py --update-deps`")
+            lines.append("Install: run `python bootstrap/bootstrap.py --update-deps`")
         lines.append("")
 
     lines.extend(

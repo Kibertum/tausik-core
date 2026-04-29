@@ -3,7 +3,6 @@
 import json
 import os
 import sys
-import tempfile
 
 import pytest
 
@@ -406,7 +405,7 @@ class TestTaskLogs:
         db.task_log_add(slug, "Step 3")
         logs = db.task_log_list(slug)
         assert len(logs) == 3
-        assert [l["message"] for l in logs] == ["Step 1", "Step 2", "Step 3"]
+        assert [row["message"] for row in logs] == ["Step 1", "Step 2", "Step 3"]
 
     def test_with_diff_stats(self, db):
         slug = self._create_task(db)

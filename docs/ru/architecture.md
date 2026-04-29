@@ -72,7 +72,7 @@
 | `doc_extract.py` | markitdown интеграция |
 | `docs_lint.py` | Warning-only stale-version линтер |
 | `plan_parser.py` | Парсер markdown-планов для `/run` |
-| `model_routing.py` + `notifier.py` | Выбор модели + webhooks |
+| `model_routing.py` | Helper выбора модели |
 | `ide_utils.py` | Определение IDE, пути, реестр |
 | `tausik_utils.py` + `tausik_version.py` + `project_types.py` | Хелперы, версия, типы |
 
@@ -82,7 +82,7 @@
 |------|-------|------------|
 | `bootstrap.py` | ~320 | Оркестрация: vendor sync, copy, generate |
 | `bootstrap_vendor.py` | ~280 | Скачивание внешних навыков из GitHub (tarball) |
-| `bootstrap_copy.py` | ~180 | Копирование навыков, скриптов, MCP, справочников |
+| `bootstrap_copy.py` | ~180 | Копирование навыков, скриптов, MCP в `.claude/` |
 | `bootstrap_config.py` | ~70 | Конфигурация, стек-детекция |
 | `bootstrap_generate.py` | ~300 | Генерация settings.json, CLAUDE.md, каталога навыков |
 | `analyzer.py` | ~330 | Расширенная стек-детекция, анализ кодовой базы |
@@ -163,12 +163,12 @@ Brain-хуки делят helpers в `scripts/brain_hook_utils.py` — одна 
 - `build_memory_block(be, ...)` — компактный markdown (decisions + conventions + dead ends) ≤50 строк, вызывается из `/start`, `/checkpoint`, SessionStart hook
 - `build_memory_compact(be, last_n)` — агрегация `task_logs`: фазы + топ-слова + топ-файлы
 
-Аналогично `scripts/model_routing.py` + `notifier.py` + `plugin_data.py` — чистые модули, импортируемые из CLI/MCP handlers.
+Аналогично `scripts/model_routing.py` + `plugin_data.py` — чистые модули, импортируемые из CLI/MCP handlers.
 
 ## Тестирование
 
 ```bash
-pytest tests/ -v                    # все тесты (2270)
+pytest tests/ -v                    # все тесты (2318)
 pytest tests/test_tausik_backend.py   # backend CRUD
 pytest tests/test_tausik_service.py   # service logic
 pytest tests/test_tausik_cli.py       # CLI smoke

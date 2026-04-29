@@ -261,7 +261,7 @@ node_modules/
 ```bash
 .tausik/tausik <command>
 ```
-Full reference: `.claude/references/project-cli.md`
+Full reference: [`docs/en/cli.md`](cli.md)
 
 ---
 

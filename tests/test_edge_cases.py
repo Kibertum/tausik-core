@@ -188,7 +188,7 @@ class TestBoundaryOperations:
         assert tasks == []
 
     def test_session_double_start(self, svc):
-        result1 = svc.session_start()
+        svc.session_start()
         result2 = svc.session_start()
         assert "already active" in result2
 

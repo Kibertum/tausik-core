@@ -36,7 +36,7 @@ def test_get_registry_path_default(monkeypatch, tmp_path):
 
 def test_canonical_name_normalization():
     assert bpr.canonical_name("Hello World") == "hello-world"
-    assert bpr.canonical_name("  kareta  ") == "kareta"
+    assert bpr.canonical_name("  myapp  ") == "myapp"
     assert bpr.canonical_name("MixedCase") == "mixedcase"
     assert bpr.canonical_name("multi  space  name") == "multi-space-name"
 
@@ -91,20 +91,20 @@ def test_save_is_atomic_creates_parent_dirs(tmp_path, monkeypatch):
 
 
 def test_register_project_new_entry(reg_path):
-    entry = bpr.register_project("Princess", "/projects/princess")
-    assert entry["name"] == "princess"
-    assert entry["canonical"] == "princess"
+    entry = bpr.register_project("FooBar", "/projects/foobar")
+    assert entry["name"] == "foobar"
+    assert entry["canonical"] == "foobar"
     assert len(entry["hash"]) == 16
     assert entry["registered_at"].endswith("Z")
     # Persisted.
     loaded = bpr.load_registry()
     assert len(loaded) == 1
-    assert loaded[0]["canonical"] == "princess"
+    assert loaded[0]["canonical"] == "foobar"
 
 
 def test_register_project_idempotent_same_path(reg_path):
-    bpr.register_project("Princess", "/projects/princess", now="2026-01-01T00:00:00Z")
-    second = bpr.register_project("Princess", "/projects/princess")
+    bpr.register_project("FooBar", "/projects/foobar", now="2026-01-01T00:00:00Z")
+    second = bpr.register_project("FooBar", "/projects/foobar")
     # second call returns the first entry unchanged, does NOT create a new row
     assert second["registered_at"] == "2026-01-01T00:00:00Z"
     assert len(bpr.load_registry()) == 1
@@ -112,20 +112,20 @@ def test_register_project_idempotent_same_path(reg_path):
 
 def test_register_project_collision_auto_increments(reg_path):
     """Two different paths, same canonical name → name, name-2, name-3."""
-    a = bpr.register_project("princess", "/projects/a")
-    b = bpr.register_project("princess", "/projects/b")
-    c = bpr.register_project("princess", "/projects/c")
-    assert a["name"] == "princess"
-    assert b["name"] == "princess-2"
-    assert c["name"] == "princess-3"
+    a = bpr.register_project("foobar", "/projects/a")
+    b = bpr.register_project("foobar", "/projects/b")
+    c = bpr.register_project("foobar", "/projects/c")
+    assert a["name"] == "foobar"
+    assert b["name"] == "foobar-2"
+    assert c["name"] == "foobar-3"
     assert len(bpr.load_registry()) == 3
 
 
 def test_register_project_collision_with_canonical_input(reg_path):
-    """Input variants ('Princess' vs 'princess') collide on canonical form."""
-    bpr.register_project("princess", "/a")
-    b = bpr.register_project("Princess", "/b")
-    assert b["canonical"] == "princess-2"
+    """Input variants ('FooBar' vs 'foobar') collide on canonical form."""
+    bpr.register_project("foobar", "/a")
+    b = bpr.register_project("FooBar", "/b")
+    assert b["canonical"] == "foobar-2"
 
 
 def test_register_project_normalizes_paths(reg_path):
@@ -266,12 +266,12 @@ def test_pid_alive_rejects_nonpositive():
 
 
 def test_explicit_canonical_collides_with_auto_suffix(reg_path):
-    """Pin current behavior: explicit `princess-2` input after the auto suffix exists.
+    """Pin current behavior: explicit `foobar-2` input after the auto suffix exists.
 
-    Currently yields `princess-2-2`. Intentional — any variant shape is
+    Currently yields `foobar-2-2`. Intentional — any variant shape is
     still in the union-blocklist, so scrubbing safety is unaffected.
     """
-    bpr.register_project("princess", "/a")
-    bpr.register_project("princess", "/b")  # → princess-2
-    entry = bpr.register_project("princess-2", "/c")  # collides with auto suffix
-    assert entry["name"] == "princess-2-2"
+    bpr.register_project("foobar", "/a")
+    bpr.register_project("foobar", "/b")  # → foobar-2
+    entry = bpr.register_project("foobar-2", "/c")  # collides with auto suffix
+    assert entry["name"] == "foobar-2-2"

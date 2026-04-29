@@ -26,7 +26,7 @@ jobs:
         run: pip install pytest ruff mypy bandit
 
       - name: Lint (ruff)
-        run: ruff check scripts/
+        run: ruff check scripts/ tests/ bootstrap/
 
       - name: Type check (mypy)
         run: mypy scripts/ --ignore-missing-imports --no-error-summary || true

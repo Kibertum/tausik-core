@@ -30,9 +30,7 @@ from urllib.parse import unquote
 
 # POSIX absolute paths: /home/{user}/..., /Users/{user}/..., /root/...,
 # /var/..., /opt/... (common user locations that leak project layout).
-_POSIX_PATH = re.compile(
-    r"(?:(?<![\w.-]))(?:/(?:home|Users|root|var|opt|srv|mnt)/[\w.\-/]{2,})"
-)
+_POSIX_PATH = re.compile(r"(?:(?<![\w.-]))(?:/(?:home|Users|root|var|opt|srv|mnt)/[\w.\-/]{2,})")
 
 # Windows drive-letter paths: C:\Users\..., D:\Work\... (both slashes).
 _WINDOWS_PATH = re.compile(r"(?:(?<![\w.-]))[A-Za-z]:[\\/](?:[\w .\-]+[\\/])+[\w .\-]+")
@@ -121,8 +119,7 @@ def _detect_private_urls(content: str, patterns: list[re.Pattern]) -> list[dict]
                         "private_urls",
                         "block",
                         url,
-                        f"Remove internal URL '{url}'; matches configured"
-                        f" private pattern.",
+                        f"Remove internal URL '{url}'; matches configured private pattern.",
                     )
                 )
                 break
@@ -136,8 +133,8 @@ def _detect_private_urls(content: str, patterns: list[re.Pattern]) -> list[dict]
 #   (a) Cyrillic/Greek homoglyphs (e.g. Cyrillic `а` U+0430 looks like
 #       Latin `a` U+0061 but has different bytes);
 #   (b) zero-width joiners/spaces/formatting chars inserted between letters
-#       (e.g. `pri​ncess` with U+200B between `pri` and `ncess`);
-#   (c) URL-encoded characters (`%70rincess` → `princess` only after decode).
+#       (e.g. `sec​ret` with U+200B between `sec` and `ret`);
+#   (c) URL-encoded characters (`%73ecret` → `secret` only after decode).
 # The normalization below canonicalizes input so each of those bypasses is
 # collapsed to its plain form before substring matching.
 
@@ -258,7 +255,7 @@ def _normalize_for_match(s: str) -> str:
 def _fully_decode(content: str) -> str:
     """Iterate unquote + html.unescape until the string stops changing or
     we've hit a small bound. Defeats multi-layer encoding bypasses like
-    `%2570rincess` → `%70rincess` → `princess` and `&#112;rincess`.
+    `%2573ecret` → `%73ecret` → `secret` and `&#115;ecret`.
 
     The loop bound is intentionally tiny (3) — legitimate content should
     not need more than one round-trip; more iterations just waste cycles
@@ -281,9 +278,9 @@ def _detect_blocklist(content: str, project_names: Iterable[str]) -> list[dict]:
     if not project_names:
         return issues
     haystack_normal = _normalize_for_match(content)
-    # Also scan the fully-decoded form — `%70rincess` → `princess` only after
-    # percent-decoding; `&#112;rincess` only after HTML-entity unescape; and
-    # `%2570rincess` needs two unquote rounds. See _fully_decode.
+    # Also scan the fully-decoded form — `%73ecret` → `secret` only after
+    # percent-decoding; `&#115;ecret` only after HTML-entity unescape; and
+    # `%2573ecret` needs two unquote rounds. See _fully_decode.
     haystack_decoded = _normalize_for_match(_fully_decode(content))
     seen: set[str] = set()
     for name in project_names:
@@ -298,8 +295,7 @@ def _detect_blocklist(content: str, project_names: Iterable[str]) -> list[dict]:
                     "project_names_blocklist",
                     "block",
                     name,
-                    f"Remove project reference '{name}'; this name is in"
-                    f" the brain blocklist.",
+                    f"Remove project reference '{name}'; this name is in the brain blocklist.",
                 )
             )
             seen.add(needle)
@@ -318,9 +314,7 @@ def scrub(
     issues: list[dict] = []
     issues.extend(_detect_paths(content))
     issues.extend(_detect_emails(content))
-    issues.extend(
-        _detect_private_urls(content, _compile_patterns(private_url_patterns or []))
-    )
+    issues.extend(_detect_private_urls(content, _compile_patterns(private_url_patterns or [])))
     issues.extend(_detect_blocklist(content, project_names or []))
     return {"ok": not any(i["severity"] == "block" for i in issues), "issues": issues}
 
@@ -358,8 +352,6 @@ def format_issues(issues: list[dict]) -> str:
         return "_No scrubbing issues._"
     lines = ["**Scrubbing blocked the write.** Fix the following and retry:", ""]
     for i, issue in enumerate(issues, 1):
-        lines.append(
-            f"{i}. [{issue['severity']}] {issue['detector']}: `{issue['match']}`"
-        )
+        lines.append(f"{i}. [{issue['severity']}] {issue['detector']}: `{issue['match']}`")
         lines.append(f"   - {issue['hint']}")
     return "\n".join(lines)

@@ -9,18 +9,22 @@ import sys
 
 import pytest
 
-_mcp_dir = os.path.join(os.path.dirname(__file__), "..", "agents", "claude", "mcp", "codebase-rag")
+_mcp_dir = os.path.join(
+    os.path.dirname(__file__), "..", "agents", "claude", "mcp", "codebase-rag"
+)
 sys.path.insert(0, os.path.abspath(_mcp_dir))
 
 from rag_detect import detect_language, get_file_list, _matches_ignore
 from rag_indexer import (
-    _safe_path, chunk_file, _chunk_by_lines, _normalize_chunks,
-    MAX_CHUNK_CHARS, MIN_CHUNK_CHARS,
+    _safe_path,
+    chunk_file,
+    _normalize_chunks,
 )
 from rag_store import RAGStore
 
 
 # === Path traversal protection ===
+
 
 class TestSafePath:
     def test_normal_path(self, tmp_path):
@@ -51,6 +55,7 @@ class TestSafePath:
 
 # === Binary and encoding edge cases ===
 
+
 class TestFileEdgeCases:
     def test_binary_file_not_indexed(self, tmp_path):
         (tmp_path / "image.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
@@ -60,13 +65,15 @@ class TestFileEdgeCases:
 
     def test_utf8_with_bom(self, tmp_path):
         bom = b"\xef\xbb\xbf"
-        (tmp_path / "bom.py").write_bytes(bom + b"# -*- coding: utf-8 -*-\nprint('hello')\n")
+        (tmp_path / "bom.py").write_bytes(
+            bom + b"# -*- coding: utf-8 -*-\nprint('hello')\n"
+        )
         files = get_file_list(str(tmp_path))
         assert any(f["rel_path"] == "bom.py" for f in files)
 
     def test_empty_file(self, tmp_path):
         (tmp_path / "empty.py").write_text("")
-        files = get_file_list(str(tmp_path))
+        get_file_list(str(tmp_path))
         # Empty file should be in file list but produce no chunks
         chunks = chunk_file("", "python")
         assert chunks == []
@@ -100,6 +107,7 @@ class TestFileEdgeCases:
 
 # === Chunking edge cases ===
 
+
 class TestChunkEdgeCases:
     def test_single_function_file(self):
         code = "def only_function():\n    return 42\n"
@@ -107,13 +115,15 @@ class TestChunkEdgeCases:
         assert len(chunks) >= 1
 
     def test_deeply_nested_classes(self):
-        code = "\n".join([
-            "class Outer:",
-            "    class Middle:",
-            "        class Inner:",
-            "            def method(self):",
-            "                pass",
-        ])
+        code = "\n".join(
+            [
+                "class Outer:",
+                "    class Middle:",
+                "        class Inner:",
+                "            def method(self):",
+                "                pass",
+            ]
+        )
         chunks = chunk_file(code, "python")
         assert len(chunks) >= 1
 
@@ -148,9 +158,27 @@ class TestChunkEdgeCases:
 
     def test_normalize_merges_consecutive_tiny(self):
         chunks = [
-            {"content": "x", "start_line": 1, "end_line": 1, "chunk_index": 0, "chunk_type": "code"},
-            {"content": "y", "start_line": 2, "end_line": 2, "chunk_index": 1, "chunk_type": "code"},
-            {"content": "z", "start_line": 3, "end_line": 3, "chunk_index": 2, "chunk_type": "code"},
+            {
+                "content": "x",
+                "start_line": 1,
+                "end_line": 1,
+                "chunk_index": 0,
+                "chunk_type": "code",
+            },
+            {
+                "content": "y",
+                "start_line": 2,
+                "end_line": 2,
+                "chunk_index": 1,
+                "chunk_type": "code",
+            },
+            {
+                "content": "z",
+                "start_line": 3,
+                "end_line": 3,
+                "chunk_index": 2,
+                "chunk_type": "code",
+            },
         ]
         result = _normalize_chunks(chunks)
         # All tiny chunks should be merged into one
@@ -163,8 +191,8 @@ class TestChunkEdgeCases:
         samples = {
             "python": "def foo():\n    pass\n\ndef bar():\n    pass\n",
             "javascript": "function foo() { return 1; }\n\nfunction bar() { return 2; }\n",
-            "go": "func main() {\n    fmt.Println(\"hello\")\n}\n",
-            "rust": "fn main() {\n    println!(\"hello\");\n}\n",
+            "go": 'func main() {\n    fmt.Println("hello")\n}\n',
+            "rust": 'fn main() {\n    println!("hello");\n}\n',
             "java": "public class Main {\n    public static void main(String[] args) {}\n}\n",
             "markdown": "# Title\n\nContent here.\n\n## Section\n\nMore content.\n",
         }
@@ -175,6 +203,7 @@ class TestChunkEdgeCases:
 
 # === RAG Store edge cases ===
 
+
 class TestStoreEdgeCases:
     @pytest.fixture
     def store(self, tmp_path):
@@ -184,10 +213,18 @@ class TestStoreEdgeCases:
 
     def test_upsert_empty_chunks(self, store):
         """Upserting empty chunk list should just delete old data."""
-        store.upsert_file("a.py", [
-            {"chunk_index": 0, "content": "old content", "language": "python",
-             "start_line": 1, "end_line": 1},
-        ])
+        store.upsert_file(
+            "a.py",
+            [
+                {
+                    "chunk_index": 0,
+                    "content": "old content",
+                    "language": "python",
+                    "start_line": 1,
+                    "end_line": 1,
+                },
+            ],
+        )
         store.upsert_file("a.py", [])
         status = store.status()
         assert status["total_chunks"] == 0
@@ -198,45 +235,78 @@ class TestStoreEdgeCases:
 
     def test_search_special_fts_chars(self, store):
         """FTS5 operators should not crash."""
-        store.upsert_file("a.py", [
-            {"chunk_index": 0, "content": "normal code here", "language": "python",
-             "start_line": 1, "end_line": 1},
-        ])
+        store.upsert_file(
+            "a.py",
+            [
+                {
+                    "chunk_index": 0,
+                    "content": "normal code here",
+                    "language": "python",
+                    "start_line": 1,
+                    "end_line": 1,
+                },
+            ],
+        )
         # None of these should raise
-        for query in ["AND", "OR NOT", "()", "**", "\"unclosed", "col:val", ""]:
+        for query in ["AND", "OR NOT", "()", "**", '"unclosed', "col:val", ""]:
             results = store.search(query)
             assert isinstance(results, list)
 
     def test_unicode_content(self, store):
-        store.upsert_file("i18n.py", [
-            {"chunk_index": 0, "content": "# Привет мир 你好世界 🌍",
-             "language": "python", "start_line": 1, "end_line": 1},
-        ])
+        store.upsert_file(
+            "i18n.py",
+            [
+                {
+                    "chunk_index": 0,
+                    "content": "# Привет мир 你好世界 🌍",
+                    "language": "python",
+                    "start_line": 1,
+                    "end_line": 1,
+                },
+            ],
+        )
         status = store.status()
         assert status["total_chunks"] == 1
 
     def test_very_long_file_path(self, store):
         path = "a/" * 100 + "deep.py"
-        store.upsert_file(path, [
-            {"chunk_index": 0, "content": "deep content", "language": "python",
-             "start_line": 1, "end_line": 1},
-        ])
+        store.upsert_file(
+            path,
+            [
+                {
+                    "chunk_index": 0,
+                    "content": "deep content",
+                    "language": "python",
+                    "start_line": 1,
+                    "end_line": 1,
+                },
+            ],
+        )
         status = store.status()
         assert status["total_files"] == 1
 
     def test_concurrent_upsert_same_file(self, store):
         """Multiple rapid upserts to same file should end with last version."""
         for i in range(10):
-            store.upsert_file("race.py", [
-                {"chunk_index": 0, "content": f"version {i}", "language": "python",
-                 "start_line": 1, "end_line": 1},
-            ])
+            store.upsert_file(
+                "race.py",
+                [
+                    {
+                        "chunk_index": 0,
+                        "content": f"version {i}",
+                        "language": "python",
+                        "start_line": 1,
+                        "end_line": 1,
+                    },
+                ],
+            )
         results = store.search("version")
         assert len(results) == 1
         assert "version 9" in results[0]["content"]
 
 
 # === Gitignore edge cases ===
+
 
 class TestGitignoreEdge:
     def test_negation_pattern(self):
@@ -252,8 +322,8 @@ class TestGitignoreEdge:
     def test_dotfile_not_ignored_by_default(self, tmp_path):
         (tmp_path / ".env.example").write_text("EXAMPLE=true")
         files = get_file_list(str(tmp_path))
-        # .env.example has no known extension, should not be listed
-        # This tests that dotfiles without recognized extensions are excluded
+        # .env.example has no known extension → must not be listed
+        assert all(".env.example" not in f["rel_path"] for f in files)
 
     def test_nested_gitignore_not_supported(self, tmp_path):
         """Only root .gitignore is parsed."""
@@ -269,11 +339,12 @@ class TestGitignoreEdge:
 
 # === Language detection edge cases ===
 
+
 class TestDetectEdge:
     def test_case_insensitive_ext(self):
-        # Our detect_language may or may not handle uppercase
+        # Our detect_language may or may not handle uppercase — both are fine
         result = detect_language("Main.PY")
-        # Either None or "python" is acceptable
+        assert result in (None, "python")
 
     def test_no_extension(self):
         assert detect_language("Makefile") == "make"

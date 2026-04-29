@@ -29,7 +29,7 @@ Machine-readable guide: error → diagnosis → fix.
 | `Task 'X' blocked by unfinished dependencies` | Task has unresolved deps | `.tausik/tausik dep list X` → complete deps first |
 | `No active session` | Session not started | `.tausik/tausik session start` |
 | `Task 'X' already claimed by agent Y` | Multi-agent conflict | `.tausik/tausik team status` → wait or override |
-| `unrecognized arguments` | CLI syntax error | Read `.claude/references/project-cli.md` for correct syntax |
+| `unrecognized arguments` | CLI syntax error | Read [`docs/en/cli.md`](cli.md) for correct syntax |
 | `ModuleNotFoundError` in project.py | Wrong Python or missing sys.path | Run with system Python, not venv: `.tausik/tausik` |
 
 ## Bootstrap

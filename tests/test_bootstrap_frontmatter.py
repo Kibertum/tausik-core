@@ -8,7 +8,6 @@ from __future__ import annotations
 import os
 import sys
 
-import pytest
 
 # Add bootstrap dir to path
 _bootstrap_dir = os.path.join(os.path.dirname(__file__), "..", "bootstrap")

@@ -7,7 +7,6 @@ No external dependencies — Python 3.11+ stdlib only.
 """
 
 import os
-import re
 
 
 # ---------------------------------------------------------------------------

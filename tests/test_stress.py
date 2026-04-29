@@ -4,7 +4,6 @@ Verifies SQLite backend handles large volumes without errors
 or performance degradation.
 """
 
-import json
 import os
 import sys
 import time

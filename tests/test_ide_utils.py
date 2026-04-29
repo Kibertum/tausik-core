@@ -1,6 +1,5 @@
 """Tests for IDE abstraction layer (ide_utils.py)."""
 
-import os
 import pytest
 from ide_utils import (
     DEFAULT_IDE,

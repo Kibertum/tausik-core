@@ -7,9 +7,7 @@ Exit code 0 on all-clean, 1 on any FAIL (so CI can gate on it).
 
 from __future__ import annotations
 
-import json
 import os
-import subprocess
 import sys
 from typing import Any
 

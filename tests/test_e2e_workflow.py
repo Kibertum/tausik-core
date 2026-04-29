@@ -4,7 +4,6 @@ Simulates a real development session: init → epic → story → tasks →
 session → work → handoff → decisions → completion → cascade close.
 """
 
-import json
 import os
 import sys
 

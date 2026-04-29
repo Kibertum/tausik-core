@@ -28,7 +28,6 @@ Hooks are scripts that run automatically with every agent action. They decide wh
 | `memory_posttool_audit.py` | After Write to auto-memory | Audits cross-project leakage and warns |
 | `brain_post_webfetch.py` | After WebFetch | Auto-caches result in shared brain `web_cache` for token reuse |
 | `task_done_verify.py` | After `task_done` | Audits AC evidence via 5 rule-based checks (Ralph-mode-lite) |
-| `notify_on_done.py` | After `task_done` (optional) | Sends webhook to Slack/Discord/Telegram if configured |
 
 ## SessionStart / SessionEnd
 
@@ -70,7 +69,6 @@ Agent edits index.html
 
 Agent: tausik task done my-button --ac-verified
   → task_done_verify.py: 5-check AC audit
-  → notify_on_done.py: optional webhook
 ```
 
 ## Exit Codes

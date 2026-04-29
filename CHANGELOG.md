@@ -7,6 +7,58 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 > Russian mirror: [`CHANGELOG.ru.md`](CHANGELOG.ru.md). Both files cover
 > the same releases — keep them in sync when adding a new entry.
 
+## [1.3.6] — 2026-04-29 — Dead code cleanup + framework integrity
+
+Targets two CI workflow failures and a wider integrity audit. No behaviour
+changes for end users; the framework surface is the same, just tidier.
+
+### Removed
+- `scripts/generate_cli_ref.py` — orphan (the CLI reference moved to
+  `docs/{en,ru}/cli.md` in v1.3.0; the generator was never re-wired).
+- `.github/workflows/docs-update.yml` — wrote to the deleted `references/`
+  directory and was the source of the second CI red.
+- `scripts/hooks/notify_on_done.py` + `scripts/notifier.py` +
+  `tests/test_notifier.py` — the notification feature was implemented but
+  never registered in any IDE settings template, so it was dead code.
+  Parking-lot entry added to `TODO.md` if the feature needs to come back.
+
+### Fixed
+- **CI red — `ruff check scripts/` failure.** Removed 6 unused imports
+  in `scripts/project_cli_doctor.py`, `scripts/service_task.py`, and
+  `bootstrap/analyzer.py`.
+- **Bootstrap drift.** `scripts/project_service.py` and
+  `scripts/service_task_team.py` had been edited at the source without
+  re-bootstrapping `.claude/`; `tausik doctor` now reports zero warnings.
+- **Stale doc paths.** Six documents (`docs/{en,ru}/i18n-strategy.md`,
+  `docs/en/environment.md`, `docs/en/troubleshooting.md`,
+  `docs/en/skill-spec.md`, `docs/{en,ru}/architecture.md`) referenced the
+  deleted root `references/` directory; updated to point at `docs/{en,ru}/cli.md`.
+- **Hooks doc.** `docs/{en,ru}/hooks.md` no longer documents the deleted
+  `notify_on_done.py` row in the PostToolUse table or the pipeline diagram.
+- **Test counts.** Bumped 2270 → 2318 across `CLAUDE.md`, `README.md`,
+  and `docs/{en,ru}/architecture.md` after the test_notifier removal.
+
+### Changed
+- **Ruff scope expanded in CI.** `ruff check` now runs on
+  `scripts/ tests/ bootstrap/` (was `scripts/` only) so future drift in
+  tests or bootstrap is caught at PR time.
+- **`pyproject.toml`.** Added `[tool.ruff]` config with per-file `E402`
+  ignores for the seven test/bootstrap modules that intentionally insert
+  into `sys.path` before importing project modules. Project version field
+  bumped from the stale `1.0.0` baseline to `1.3.6`.
+- **Lint hygiene.** Cleaned 4× F541 (useless `f""` prefixes), 2× B007
+  (unused loop control variables `dirpath`, `f`), 1× E741 (ambiguous
+  `l` → `row`), 1× E401 (combined imports), and 7× F841 (unused locals
+  in tests — including two test bugs where the assertion was missing
+  entirely: `test_dotfile_not_ignored_by_default` and
+  `test_case_insensitive_ext` in `tests/test_rag_edge.py`).
+- **Mypy override.** Removed obsolete `module = "generate_cli_ref"`
+  override pointing at the deleted file.
+
+### Versioning
+- `__version__` bumped `1.3.5` → `1.3.6`.
+- `pyproject.toml` `version` synced from `1.0.0` (stale) to `1.3.6`.
+
 ## [1.3.5] — 2026-04-28 — Cursor session cost metrics (auto + CLI)
 
 ### Added
@@ -533,7 +585,7 @@ v1.3.x patch releases.
 
 - **Brain plaintext leak via `tags`/`stack`/`domain`/`severity`** — only
   named text fields (name/context/decision/rationale) were scrubbed; tags
-  arrays passed through verbatim, so `tags=["princess", "kibertum.ru"]`
+  arrays passed through verbatim, so `tags=["my-app", "example.com"]`
   would leak the project name into Notion despite the SHA256-hash privacy
   claim. Now ALL string-valued props per category join the scrub haystack.
 - **`memory_pretool_block` Linux/macOS bypass via case** — the
@@ -796,7 +848,7 @@ Cross-project knowledge layer backed by Notion, complementing the per-project `.
 ### Changed — Hooks widening batch
 
 - **Memory-block guard расширен на .claude/\*\*/memory/** ([scripts/hooks/memory_pretool_block.py](scripts/hooks/memory_pretool_block.py)) — `_is_in_claude_memory` теперь матчит любой `memory` сегмент под `~/.claude/`, а не только `projects/<slug>/memory/`. Silently-unguarded paths (`~/.claude/memory/`, `~/.claude/agents/<name>/memory/`, `~/.claude/plugins/.../memory/`) теперь блокируются. `memory_posttool_audit` расширяется автоматически (импортирует `is_in_claude_memory`). BLOCKED stderr обновлён. Файл с именем `memory.md` (не под директорией `memory/`) не блокируется. Substring `somememory/` / `memoryold/` тоже не ложноблокируются (`hooks-pretool-block-path-patterns`) — Гвард памяти теперь ловит все поддиректории memory под .claude/
-- **Slug regex расширен с {2,} до {1,}** ([scripts/hooks/memory_markers.py](scripts/hooks/memory_markers.py)) — `_SLUG_RE` ловит 2-сегментные slug'и (`my-app`, `brain-init`, `hystolab-ru`), но `detect_markers` применяет precision guard: 2-seg slug попадает в результат только при корреляции с higher-precision детектором (`abs_path` / `src_file` / `tausik_cmd`) или 3+ seg slug'ом в том же тексте. Standalone 2-seg slug → empty (консервативно, английские kebab-compounds типа `kebab-case` / `ts-node` / `switch-case` / `double-quoted` / `single-quoted` не флагуются) (`hooks-markers-slug-regex-widen`) — Ловим короткие project slug'и при корреляции, не шумим на English kebab
+- **Slug regex расширен с {2,} до {1,}** ([scripts/hooks/memory_markers.py](scripts/hooks/memory_markers.py)) — `_SLUG_RE` ловит 2-сегментные slug'и (`my-app`, `brain-init`, `acme-portal`), но `detect_markers` применяет precision guard: 2-seg slug попадает в результат только при корреляции с higher-precision детектором (`abs_path` / `src_file` / `tausik_cmd`) или 3+ seg slug'ом в том же тексте. Standalone 2-seg slug → empty (консервативно, английские kebab-compounds типа `kebab-case` / `ts-node` / `switch-case` / `double-quoted` / `single-quoted` не флагуются) (`hooks-markers-slug-regex-widen`) — Ловим короткие project slug'и при корреляции, не шумим на English kebab
 
 ### Added — Misc hardening batch (Batch 4)
 

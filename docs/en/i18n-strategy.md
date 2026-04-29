@@ -21,14 +21,10 @@ docs/
 │   ├── quickstart.md, workflow.md, skills.md, hooks.md
 │   ├── cli.md, mcp.md, architecture.md, adding-new-ide.md
 │   ├── vendor-skills.md, senar-compliance-matrix.md, i18n-strategy.md
-├── ru/            ← Russian docs (13 files, mirrors en/)
+├── ru/            ← Russian docs (mirrors en/)
 │   └── ...
+├── research/      ← Technical notes (not localized)
 └── README.md      ← Navigation hub (bilingual)
-
-references/        ← Agent context (compact, loaded into AI context)
-├── QUICKSTART.md / .en.md
-├── architecture.md / .en.md
-└── project-cli.md
 ```
 
 ## What's localized
@@ -36,9 +32,7 @@ references/        ← Agent context (compact, loaded into AI context)
 | Location | RU | EN | Notes |
 |----------|----|----|-------|
 | `README.md` / `README.ru.md` | ✓ | ✓ (main) | Entry point for GitHub |
-| `docs/en/` + `docs/ru/` (13 files each) | ✓ | ✓ | All docs fully localized |
-| `references/QUICKSTART.md` / `.en.md` | ✓ | ✓ | Agent onboarding |
-| `references/architecture.md` / `.en.md` | ✓ | ✓ | System design |
+| `docs/en/` + `docs/ru/` | ✓ | ✓ | All user docs fully localized |
 
 ## What's NOT localized
 
@@ -47,7 +41,7 @@ references/        ← Agent context (compact, loaded into AI context)
 - **Skills (SKILL.md)** — agent instructions, English frontmatter + Russian content
 - **CLI help text** — stays in Russian (follows user locale)
 - **Code comments** — English
-- **references/project-cli.md** — technical reference, Russian primary
+- **`docs/research/`** — technical notes/research, original language
 
 ## How to add a new language
 

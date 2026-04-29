@@ -76,9 +76,11 @@ CREATE TABLE IF NOT EXISTS context (
 );
 """
 
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
-from backend_migrations import MIGRATIONS, run_migrations
+from backend_migrations import run_migrations
 from backend_schema import SCHEMA_VERSION
 
 
@@ -215,7 +217,15 @@ class TestFullMigrationPath:
         conn.execute(
             "INSERT INTO tasks(story_id,slug,title,status,claimed_by,created_at,updated_at) "
             "VALUES(?,?,?,?,?,?,?)",
-            (2, "t3", "T3", "active", "agent-1", "2025-01-01T00:00:00Z", "2025-01-01T00:00:00Z"),
+            (
+                2,
+                "t3",
+                "T3",
+                "active",
+                "agent-1",
+                "2025-01-01T00:00:00Z",
+                "2025-01-01T00:00:00Z",
+            ),
         )
         conn.commit()
         row = conn.execute("SELECT claimed_by FROM tasks WHERE slug='t3'").fetchone()
@@ -270,9 +280,12 @@ class TestFullMigrationPath:
         run_migrations(conn, 1)
 
         # Verify task_logs table exists
-        tables = [r[0] for r in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()]
+        tables = [
+            r[0]
+            for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        ]
         assert "task_logs" in tables
 
         # Verify columns

@@ -21,14 +21,10 @@ docs/
 │   ├── quickstart.md, workflow.md, skills.md, hooks.md
 │   ├── cli.md, mcp.md, architecture.md, adding-new-ide.md
 │   ├── vendor-skills.md, senar-compliance-matrix.md, i18n-strategy.md
-├── ru/            ← Russian документация (13 файлов, зеркало en/)
+├── ru/            ← Russian документация (зеркало en/)
 │   └── ...
+├── research/      ← Технические заметки (не локализуются)
 └── README.md      ← Навигационный хаб (билингвальный)
-
-references/        ← Агентский контекст (компактные версии для AI)
-├── QUICKSTART.md / .en.md
-├── architecture.md / .en.md
-└── project-cli.md
 ```
 
 ## Что локализуется
@@ -36,9 +32,7 @@ references/        ← Агентский контекст (компактные
 | Расположение | RU | EN | Примечание |
 |-------------|----|----|------------|
 | `README.md` / `README.ru.md` | ✓ | ✓ (основной) | Точка входа для GitHub |
-| `docs/en/` + `docs/ru/` (13 файлов) | ✓ | ✓ | Пользовательская документация |
-| `references/QUICKSTART.md` / `.en.md` | ✓ | ✓ | Онбординг агента |
-| `references/architecture.md` / `.en.md` | ✓ | ✓ | Дизайн системы |
+| `docs/en/` + `docs/ru/` | ✓ | ✓ | Пользовательская документация (полное зеркало) |
 
 ## Что НЕ локализуется
 
@@ -47,7 +41,7 @@ references/        ← Агентский контекст (компактные
 - **Skills (SKILL.md)** — инструкции агента, EN frontmatter + RU контент
 - **CLI help text** — на русском (следует локали пользователя)
 - **Комментарии в коде** — на английском
-- **references/project-cli.md** — технический справочник, русский
+- **`docs/research/`** — технические заметки/исследования, оригинальный язык
 
 ## Как добавить новый язык
 

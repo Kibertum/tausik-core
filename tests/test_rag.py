@@ -17,7 +17,6 @@ from rag_detect import (
     get_file_list,
     parse_gitignore,
     _matches_ignore,
-    detect_project_languages,
 )
 from rag_indexer import chunk_file, _chunk_by_lines, _normalize_chunks
 from rag_store import RAGStore

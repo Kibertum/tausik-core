@@ -7,7 +7,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from plan_parser import Plan, PlanTask, parse_plan
+from plan_parser import parse_plan
 
 
 VALID_PLAN = """\

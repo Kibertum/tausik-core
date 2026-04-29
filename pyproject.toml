@@ -1,6 +1,6 @@
 [project]
 name = "tausik"
-version = "1.0.0"
+version = "1.3.6"
 description = "Cross-IDE AI agent framework with task lifecycle, quality gates, and project memory"
 readme = "README.md"
 license = "Apache-2.0"
@@ -80,14 +80,26 @@ module = "backend_migrations"
 disable_error_code = "name-defined"
 
 [[tool.mypy.overrides]]
-module = "generate_cli_ref"
-# argparse internal API + sys.stdout reconfigure
-disable_error_code = "union-attr"
-
-[[tool.mypy.overrides]]
 module = "project_config"
 warn_return_any = false
 
 [[tool.mypy.overrides]]
 module = "project_cli_extra"
 warn_return_any = false
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+# Default rules: E (pycodestyle), F (Pyflakes). Project enforces these in CI.
+
+[tool.ruff.lint.per-file-ignores]
+# Files that need sys.path manipulation before importing project modules.
+"bootstrap/bootstrap.py" = ["E402"]
+"tests/test_bootstrap_frontmatter.py" = ["E402"]
+"tests/test_mcp_windows.py" = ["E402"]
+"tests/test_migrations.py" = ["E402"]
+"tests/test_rag.py" = ["E402"]
+"tests/test_rag_benchmark.py" = ["E402"]
+"tests/test_rag_edge.py" = ["E402"]

@@ -7,7 +7,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)](https://python.org)
 [![Tests](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml/badge.svg)](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml)
-[![2270 tests](https://img.shields.io/badge/tests-2270%20passed-brightgreen.svg)](#dogfooding-tausik-built-tausik)
+[![2318 tests](https://img.shields.io/badge/tests-2318%20passed-brightgreen.svg)](#dogfooding-tausik-built-tausik)
 [![Zero deps](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#what-you-get)
 
 Three messages. Full engineering cycle. Quality gates that the agent can't skip.
@@ -135,10 +135,10 @@ TAUSIK was developed using itself. Real numbers:
 
 | Metric | Value |
 |---|---|
-| Tasks completed | 516 |
-| Sessions | 37 |
-| Throughput | ~14 tasks/session |
-| Test count | 2270 |
+| Tasks completed | 524 |
+| Sessions | 39 |
+| Throughput | ~13 tasks/session |
+| Test count | 2318 |
 | Dependencies | 0 core |
 
 Every feature, every refactor, every bug fix went through the same quality gates that ship with the framework.

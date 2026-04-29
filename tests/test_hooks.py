@@ -6,7 +6,6 @@ import json
 import os
 import subprocess
 import sys
-import pytest
 
 HOOKS_DIR = os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks")
 

@@ -33,8 +33,8 @@ import sys
 from typing import Iterable, Literal, NamedTuple
 
 # memory_markers lives in scripts/hooks/; scripts/ is already on sys.path
-# via pyproject.toml (pythonpath=scripts). Mirror the notify_on_done.py
-# idiom: make the hooks dir importable without turning it into a package.
+# via pyproject.toml (pythonpath=scripts). Add the hooks dir so the module
+# is importable without turning the dir into a package.
 _HOOKS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hooks")
 if _HOOKS_DIR not in sys.path:
     sys.path.insert(0, _HOOKS_DIR)

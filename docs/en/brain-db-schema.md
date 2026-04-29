@@ -21,7 +21,7 @@ Goal: from the contents of the brain it must be impossible to determine **which 
 - A project **never** writes its own name into the brain, nor file paths, private module names, internal URLs, or any values that may end up in `.tausik/` as `scope` or `notes`. Filtering is the responsibility of `brain-scrubbing` (a pre-write linter).
 - The hash is **not reversible** without a dictionary of all canonical names. The hash cannot be used to attribute a decision to a specific project "from the outside" — only inside the user's own environment, where the registry exists.
 
-Why a hash and not plaintext: if the user later opens the integration up to a team, the hash will not reveal that, say, project `kareta-jira-workspace` exists at all.
+Why a hash and not plaintext: if the user later opens the integration up to a team, the hash will not reveal that, say, project `acme-portal` exists at all.
 
 ## 3. Notion API constraints (v2022-06-28)
 

@@ -1,4 +1,4 @@
-"""TAUSIK bootstrap file copy — skills, scripts, references with IDE awareness."""
+"""TAUSIK bootstrap file copy — skills, scripts, MCP servers with IDE awareness."""
 
 from __future__ import annotations
 
@@ -266,9 +266,7 @@ def copy_skills(
     builtin_names: list[str] = []
     if os.path.isdir(builtin_dir):
         for name in sorted(os.listdir(builtin_dir)):
-            if os.path.isdir(os.path.join(builtin_dir, name)) and not name.startswith(
-                "."
-            ):
+            if os.path.isdir(os.path.join(builtin_dir, name)) and not name.startswith("."):
                 builtin_names.append(name)
     if not builtin_names:
         print(
@@ -277,9 +275,7 @@ def copy_skills(
             file=sys.stderr,
         )
     config_skills = config.get("core_skills", []) + config.get("extension_skills", [])
-    all_skills_with_vendor = list(
-        dict.fromkeys(builtin_names + config_skills + vendor_activated)
-    )
+    all_skills_with_vendor = list(dict.fromkeys(builtin_names + config_skills + vendor_activated))
     # Also add official skills from registry (as stubs)
     if registry:
         for name in registry:
@@ -287,9 +283,7 @@ def copy_skills(
                 all_skills_with_vendor.append(name)
 
     for skill in all_skills_with_vendor:
-        src, source_type = _resolve_skill(
-            skill, builtin_dir, adjacent_dir, vendor_skills
-        )
+        src, source_type = _resolve_skill(skill, builtin_dir, adjacent_dir, vendor_skills)
         dst = os.path.join(skills_dst, skill)
 
         if source_type == "builtin":

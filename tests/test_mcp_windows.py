@@ -13,9 +13,7 @@ from __future__ import annotations
 
 import os
 import sys
-import tempfile
 
-import pytest
 
 # Add RAG module to path
 _rag_dir = os.path.join(os.path.dirname(__file__), "..", "agents", "claude", "mcp", "codebase-rag")

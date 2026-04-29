@@ -197,7 +197,7 @@ def install_requirements(tausik_dir: str, lib_dir: str) -> bool:
         print("  No requirements.txt found, skipping dependency install.")
         return True
 
-    print(f"  Installing dependencies from requirements.txt...")
+    print("  Installing dependencies from requirements.txt...")
     try:
         result = subprocess.run(
             [venv_python, "-m", "pip", "install", "-r", req_file, "--quiet"],
@@ -208,7 +208,7 @@ def install_requirements(tausik_dir: str, lib_dir: str) -> bool:
         if result.returncode != 0:
             print(f"  pip install failed:\n{result.stderr}")
             return False
-        print(f"  Dependencies installed successfully.")
+        print("  Dependencies installed successfully.")
         return True
     except subprocess.TimeoutExpired:
         print("  pip install timed out (120s). Check your network connection.")

@@ -9,6 +9,61 @@
 > начиная с v1.3.2; для более ранних релизов смотри английскую версию.
 > При добавлении новой записи держи оба файла синхронизированными.
 
+## [1.3.6] — 2026-04-29 — Чистка мёртвого кода + целостность фреймворка
+
+Закрывает два упавших CI-workflow и более широкий аудит целостности.
+Поведенческих изменений для пользователей нет — surface фреймворка тот же,
+просто чище.
+
+### Удалено
+- `scripts/generate_cli_ref.py` — orphan (CLI-справочник переехал в
+  `docs/{en,ru}/cli.md` ещё в v1.3.0; генератор так и не перевели на
+  новый путь).
+- `.github/workflows/docs-update.yml` — писал в удалённую директорию
+  `references/`, был источником второго красного CI.
+- `scripts/hooks/notify_on_done.py` + `scripts/notifier.py` +
+  `tests/test_notifier.py` — фича уведомлений была реализована, но нигде
+  не регистрировалась в bootstrap-template'ах, по факту мёртвый код.
+  Parking-lot запись добавлена в `TODO.md` на случай возврата фичи.
+
+### Исправлено
+- **CI red — `ruff check scripts/`.** Удалены 6 неиспользуемых импортов
+  в `scripts/project_cli_doctor.py`, `scripts/service_task.py`,
+  `bootstrap/analyzer.py`.
+- **Bootstrap drift.** `scripts/project_service.py` и
+  `scripts/service_task_team.py` редактировались в source без
+  re-bootstrap'а `.claude/`; `tausik doctor` теперь отдаёт ноль
+  предупреждений.
+- **Устаревшие doc-пути.** Шесть документов (`docs/{en,ru}/i18n-strategy.md`,
+  `docs/en/environment.md`, `docs/en/troubleshooting.md`,
+  `docs/en/skill-spec.md`, `docs/{en,ru}/architecture.md`) ссылались на
+  удалённый корневой `references/`; обновлены на `docs/{en,ru}/cli.md`.
+- **Hooks-документация.** `docs/{en,ru}/hooks.md` больше не упоминает
+  удалённый `notify_on_done.py` ни в таблице PostToolUse, ни в pipeline-схеме.
+- **Test count.** Обновлено 2270 → 2318 в `CLAUDE.md`, `README.md` и
+  `docs/{en,ru}/architecture.md` после удаления `test_notifier.py`.
+
+### Изменено
+- **CI: ruff расширен.** Теперь запускается на `scripts/ tests/ bootstrap/`
+  (раньше только `scripts/`) — чтобы будущий drift в tests/bootstrap
+  ловился на PR.
+- **`pyproject.toml`.** Добавлен `[tool.ruff]` блок с per-file `E402`
+  ignore для семи test/bootstrap-модулей, которые намеренно делают
+  `sys.path.insert` перед импортом project-модулей. Поле version
+  поднято со старой заглушки `1.0.0` до `1.3.6`.
+- **Lint hygiene.** Почищены 4× F541 (бесполезные `f""` префиксы),
+  2× B007 (unused loop var `dirpath`, `f`), 1× E741 (`l` → `row`),
+  1× E401 (combined imports), 7× F841 (unused locals в тестах — включая
+  два тест-бага, где assert полностью отсутствовал:
+  `test_dotfile_not_ignored_by_default` и `test_case_insensitive_ext`
+  в `tests/test_rag_edge.py`).
+- **Mypy override.** Удалён obsolete `module = "generate_cli_ref"` —
+  файл больше не существует.
+
+### Версионирование
+- `__version__` повышен `1.3.5` → `1.3.6`.
+- `pyproject.toml` `version` синхронизирован со stale `1.0.0` на `1.3.6`.
+
 ## [1.3.5] — 2026-04-28 — метрики token/cost для Cursor (auto + CLI)
 
 ### Добавлено

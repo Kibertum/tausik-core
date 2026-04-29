@@ -18,7 +18,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 from gate_runner import (
     gate_applies_to,
     infer_stacks_from_files,
-    run_gates,
 )
 
 

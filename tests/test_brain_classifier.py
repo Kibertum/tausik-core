@@ -99,9 +99,7 @@ def test_marker_reason_includes_exact_match():
 
 def test_web_cache_suppresses_slug_markers():
     """AC5: slug-like forms in URL query strings should not fight web_cache."""
-    d = bc.classify(
-        "Fetched https://api.stripe.com/v1/payment-intents-list", "web_cache"
-    )
+    d = bc.classify("Fetched https://api.stripe.com/v1/payment-intents-list", "web_cache")
     assert d.target == "brain"
     assert d.reason == "no project-specific markers detected"
 
@@ -140,30 +138,30 @@ def test_decision_category_keeps_slug_signal():
 
 def test_blocklist_from_cfg_routes_local():
     d = bc.classify(
-        "Pattern: always mock the Kareta API in tests",
+        "Pattern: always mock the AcmeCorp API in tests",
         "pattern",
-        cfg={"project_names": ["Kareta"]},
+        cfg={"project_names": ["AcmeCorp"]},
     )
     assert d.target == "local"
-    assert d.blocklist_hit == "Kareta"
+    assert d.blocklist_hit == "AcmeCorp"
     assert "blocklist" in d.reason
 
 
 def test_blocklist_is_case_insensitive():
     d = bc.classify(
-        "pattern mentioning kareta in lowercase",
+        "pattern mentioning acmecorp in lowercase",
         "pattern",
-        cfg={"project_names": ["Kareta"]},
+        cfg={"project_names": ["AcmeCorp"]},
     )
     assert d.target == "local"
-    assert d.blocklist_hit == "Kareta"
+    assert d.blocklist_hit == "AcmeCorp"
 
 
 def test_blocklist_no_hit_routes_brain():
     d = bc.classify(
         "A pure generic tip about retry logic in HTTP clients",
         "pattern",
-        cfg={"project_names": ["Princess", "Kareta"]},
+        cfg={"project_names": ["FooBar", "AcmeCorp"]},
     )
     assert d.target == "brain"
     assert d.reason == "no project-specific markers detected"
@@ -173,23 +171,23 @@ def test_blocklist_union_with_registry(tmp_path, monkeypatch):
     """AC3: registry names must be merged with cfg['project_names']."""
     reg = tmp_path / "projects.json"
     monkeypatch.setenv("TAUSIK_BRAIN_REGISTRY", str(reg))
-    bpr.register_project("princess", "/projects/princess")
+    bpr.register_project("myproject", "/projects/myproject")
     d = bc.classify(
-        "Yet another thought about princess deployments",
+        "Yet another thought about myproject deployments",
         "pattern",
         cfg=None,
     )
     assert d.target == "local"
-    assert d.blocklist_hit == "princess"
+    assert d.blocklist_hit == "myproject"
 
 
 def test_blocklist_ignores_non_string_names():
     d = bc.classify(
         "pattern about retries",
         "pattern",
-        cfg={"project_names": [None, 42, "", "   ", "kareta"]},
+        cfg={"project_names": [None, 42, "", "   ", "acmecorp"]},
     )
-    # kareta not in content → brain. No crash on bad inputs.
+    # acmecorp not in content → brain. No crash on bad inputs.
     assert d.target == "brain"
 
 
@@ -220,9 +218,9 @@ def test_clean_content_all_categories_route_brain():
 def test_markers_beat_blocklist_in_reason_order():
     """When both markers and blocklist would match, markers come first."""
     d = bc.classify(
-        "scripts/foo.py references kareta",
+        "scripts/foo.py references acmecorp",
         "pattern",
-        cfg={"project_names": ["Kareta"]},
+        cfg={"project_names": ["AcmeCorp"]},
     )
     assert d.target == "local"
     # Marker path wins: reason mentions src_file, blocklist_hit is None.

@@ -213,7 +213,7 @@ class TestExtractSkillDirs:
             },
         )
         vendor_dir = os.path.join(tmp_dir, "myskill")
-        counts = _extract_skill_dirs(tarball, vendor_dir, [".claude/skills/myskill"])
+        _extract_skill_dirs(tarball, vendor_dir, [".claude/skills/myskill"])
         # SKILL.md should be extracted, but evil symlink should be rejected
         assert os.path.exists(os.path.join(vendor_dir, "myskill", "SKILL.md"))
         assert not os.path.exists(os.path.join(vendor_dir, "myskill", "evil"))

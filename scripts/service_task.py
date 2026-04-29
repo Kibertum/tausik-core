@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from typing import TYPE_CHECKING, Any
 
 from tausik_utils import (
@@ -15,10 +14,7 @@ from tausik_utils import (
 )
 from project_types import (
     COMPLEXITY_SP,
-    VALID_COMPLEXITIES,
     VALID_TASK_STATUSES,
-    VALID_TIERS,
-    get_valid_stacks,
 )
 from service_cascade import CascadeMixin
 from service_gates import GatesMixin

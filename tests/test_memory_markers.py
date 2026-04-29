@@ -47,10 +47,7 @@ class TestPositive:
         assert m.span[0] >= 0 and m.span[1] > m.span[0]
 
     def test_matches_sorted_by_position(self):
-        text = (
-            "first edit scripts/a.py then slug mem-foo-bar-baz then path "
-            "D:/Work/Personal/x/b.py"
-        )
+        text = "first edit scripts/a.py then slug mem-foo-bar-baz then path D:/Work/Personal/x/b.py"
         matches = detect_markers(text)
         positions = [m.span[0] for m in matches]
         assert positions == sorted(positions)
@@ -144,9 +141,9 @@ class TestTwoSegmentSlugs:
 
     def test_two_seg_slug_with_tausik_cmd_kept(self):
         """tausik_cmd fires → 2-seg slug corroborated."""
-        text = "hystolab-ru: run .tausik/tausik status"
+        text = "my-app: run .tausik/tausik status"
         matches = detect_markers(text)
-        assert any(m.kind == "slug" and m.match == "hystolab-ru" for m in matches)
+        assert any(m.kind == "slug" and m.match == "my-app" for m in matches)
         assert any(m.kind == "tausik_cmd" for m in matches)
 
     def test_three_seg_slug_corroborates_two_seg_slug(self):
@@ -159,9 +156,7 @@ class TestTwoSegmentSlugs:
     def test_three_seg_slug_alone_still_fires(self):
         """Regression: standalone 3+ seg slug was already strong — unchanged."""
         matches = [
-            m.match
-            for m in detect_markers("task mem-pretool-hook done")
-            if m.kind == "slug"
+            m.match for m in detect_markers("task mem-pretool-hook done") if m.kind == "slug"
         ]
         assert matches == ["mem-pretool-hook"]
 

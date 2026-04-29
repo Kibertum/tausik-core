@@ -1,6 +1,5 @@
 """Tests for project MCP server — _handle_tool dispatch."""
 
-import json
 import os
 import sys
 

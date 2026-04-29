@@ -22,9 +22,7 @@ def test_clean_content_passes():
 
 
 def test_clean_content_with_empty_config():
-    r = brain_scrubbing.scrub_with_config(
-        "Bm25 ranks FTS5 results by relevance.", cfg={}
-    )
+    r = brain_scrubbing.scrub_with_config("Bm25 ranks FTS5 results by relevance.", cfg={})
     assert r["ok"] is True
     assert r["issues"] == []
 
@@ -153,9 +151,7 @@ def test_project_name_multiple_matches_dedup():
         "Laplandka did it. Laplandka again. LAPLANDKA once more.",
         project_names=["laplandka"],
     )
-    block_issues = [
-        i for i in r["issues"] if i["detector"] == "project_names_blocklist"
-    ]
+    block_issues = [i for i in r["issues"] if i["detector"] == "project_names_blocklist"]
     assert len(block_issues) == 1  # dedup by needle
 
 
@@ -176,9 +172,7 @@ def test_scrub_with_config_reads_fields():
         "project_names": ["hypelink"],
         "private_url_patterns": [r"\.internal\."],
     }
-    r = brain_scrubbing.scrub_with_config(
-        "We fixed hypelink and https://x.internal.co/", cfg=cfg
-    )
+    r = brain_scrubbing.scrub_with_config("We fixed hypelink and https://x.internal.co/", cfg=cfg)
     assert r["ok"] is False
     detectors = {i["detector"] for i in r["issues"]}
     assert "project_names_blocklist" in detectors
@@ -235,10 +229,10 @@ def test_unicode_content_with_russian_project_name_blocked():
 
 
 def test_blocklist_cyrillic_homoglyph_bypass_blocked():
-    """Cyrillic 'р' (U+0440) looks like Latin 'p' but has different bytes."""
+    """Cyrillic 'м' (U+043C) looks like Latin 'm' but has different bytes."""
     r = brain_scrubbing.scrub(
-        "We deployed рrincess to staging",  # 'рrincess' — first char is Cyrillic
-        project_names=["princess"],
+        "We deployed мegacorp to staging",  # 'мegacorp' — first char is Cyrillic
+        project_names=["megacorp"],
     )
     assert r["ok"] is False
     detectors = [i["detector"] for i in r["issues"]]
@@ -246,10 +240,10 @@ def test_blocklist_cyrillic_homoglyph_bypass_blocked():
 
 
 def test_blocklist_all_cyrillic_homoglyphs_blocked():
-    """Full Cyrillic spelling: р(0440) с(0441) — lookalikes for p, c."""
+    """Full Cyrillic spelling: а(0430) с(0441) м(043C) е(0435) — all lookalikes."""
     r = brain_scrubbing.scrub(
-        "The ррincess project is confidential",  # 'ррincess'
-        project_names=["ppincess"],
+        "The асме project is confidential",  # 'асме' (all Cyrillic)
+        project_names=["acme"],
     )
     assert r["ok"] is False
 
@@ -257,59 +251,59 @@ def test_blocklist_all_cyrillic_homoglyphs_blocked():
 def test_blocklist_zero_width_bypass_blocked():
     """ZWSP inserted between letters splits a naive substring match."""
     r = brain_scrubbing.scrub(
-        "Contact the pri​ncess team by Friday",
-        project_names=["princess"],
+        "Contact the meg​acorp team by Friday",
+        project_names=["megacorp"],
     )
     assert r["ok"] is False
 
 
 def test_blocklist_zero_width_joiner_bypass_blocked():
     r = brain_scrubbing.scrub(
-        "the pri‍ncess deployment failed",
-        project_names=["princess"],
+        "the meg‍acorp deployment failed",
+        project_names=["megacorp"],
     )
     assert r["ok"] is False
 
 
 def test_blocklist_url_encoded_bypass_blocked():
     r = brain_scrubbing.scrub(
-        "See https://example.com/path?q=%70rincess%20docs",
-        project_names=["princess"],
+        "See https://example.com/path?q=%6Degacorp%20docs",
+        project_names=["megacorp"],
     )
     assert r["ok"] is False
 
 
 def test_blocklist_double_url_encoded_bypass_blocked():
-    """%2570 decodes to %70 on first round, then to 'p' on second round."""
+    """%256D decodes to %6D on first round, then to 'm' on second round."""
     r = brain_scrubbing.scrub(
-        "See https://example.com/?q=%2570rincess%20docs",
-        project_names=["princess"],
+        "See https://example.com/?q=%256Degacorp%20docs",
+        project_names=["megacorp"],
     )
     assert r["ok"] is False
 
 
 def test_blocklist_html_numeric_entity_bypass_blocked():
-    """&#112; is HTML decimal entity for 'p'."""
+    """&#109; is HTML decimal entity for 'm'."""
     r = brain_scrubbing.scrub(
-        "Old docs said &#112;rincess is the next sprint target",
-        project_names=["princess"],
+        "Old docs said &#109;egacorp is the next sprint target",
+        project_names=["megacorp"],
     )
     assert r["ok"] is False
 
 
 def test_blocklist_html_named_entity_bypass_blocked():
     r = brain_scrubbing.scrub(
-        "Jump to &#x70;rincess channel",  # &#x70; = 'p'
-        project_names=["princess"],
+        "Jump to &#x6D;egacorp channel",  # &#x6D; = 'm'
+        project_names=["megacorp"],
     )
     assert r["ok"] is False
 
 
 def test_blocklist_mixed_homoglyph_and_zero_width_blocked():
-    """Cyrillic Р + zero-width + Latin rincess."""
+    """Cyrillic М + zero-width + Latin egacorp."""
     r = brain_scrubbing.scrub(
-        "Talk to Р​rincess tomorrow",
-        project_names=["princess"],
+        "Talk to М​egacorp tomorrow",
+        project_names=["megacorp"],
     )
     assert r["ok"] is False
 
@@ -335,7 +329,7 @@ def test_blocklist_cyrillic_lowercase_v_blocked():
 
 
 def test_blocklist_cyrillic_lowercase_m_blocked():
-    r = brain_scrubbing.scrub("мanager of princess", project_names=["manager"])
+    r = brain_scrubbing.scrub("мanager of megacorp", project_names=["manager"])
     assert r["ok"] is False
 
 
@@ -396,8 +390,8 @@ def test_blocklist_no_false_positive_on_unrelated_substring():
 def test_blocklist_case_insensitive_regression():
     """Existing behavior preserved: lowercase blocklist matches upper content."""
     r = brain_scrubbing.scrub(
-        "PRINCESS ran out of budget",
-        project_names=["princess"],
+        "MEGACORP ran out of budget",
+        project_names=["megacorp"],
     )
     assert r["ok"] is False
 
