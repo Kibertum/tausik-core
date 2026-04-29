@@ -170,6 +170,30 @@ TOOLS = [
         },
     },
     {
+        "name": "tausik_task_done_v2",
+        "description": "Complete task with structured JSON result: stage status, gate results, and blocking_failures for agent remediation",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string"},
+                "ac_verified": {
+                    "type": "boolean",
+                    "description": "Confirm AC verification evidence was logged (REQUIRED for QG-2)",
+                },
+                "no_knowledge": {
+                    "type": "boolean",
+                    "description": "Confirm no knowledge to capture (suppresses warning)",
+                },
+                "relevant_files": {"type": "array", "items": {"type": "string"}},
+                "evidence": {
+                    "type": "string",
+                    "description": 'Inline AC verification log (e.g. "AC verified: 1. ✓ 2. ✓ ..."). Replaces a separate task_log call.',
+                },
+            },
+            "required": ["slug"],
+        },
+    },
+    {
         "name": "tausik_task_block",
         "description": "Block a task with optional reason. Sets status to 'blocked'. Reason is logged to task notes",
         "inputSchema": {

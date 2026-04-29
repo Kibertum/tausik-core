@@ -33,6 +33,13 @@ def _load_config(project_dir: str) -> dict:
         return json.load(f)
 
 
+def _load_cursor_config(project_dir: str) -> dict:
+    with open(
+        os.path.join(project_dir, ".cursor", "mcp.json"), encoding="utf-8"
+    ) as f:
+        return json.load(f)
+
+
 def test_registers_brain_when_server_present(ide_layout):
     bootstrap_generate.generate_mcp_json(
         ide_layout["project_dir"],
@@ -110,3 +117,38 @@ def test_uses_forward_slashes_in_paths(tmp_path):
     assert "\\" not in entry["command"]
     assert "\\" not in entry["args"][0]
     assert "\\" not in entry["args"][2]
+
+
+def test_generates_cursor_project_mcp_json(ide_layout):
+    cursor_ide = os.path.join(ide_layout["project_dir"], ".cursor")
+    os.makedirs(cursor_ide, exist_ok=True)
+    for name in ("codebase-rag", "project", "brain"):
+        _touch(os.path.join(cursor_ide, "mcp", name, "server.py"))
+
+    bootstrap_generate.generate_cursor_mcp_json(
+        ide_layout["project_dir"], cursor_ide, venv_python="C:/py/python.exe"
+    )
+    cfg = _load_cursor_config(ide_layout["project_dir"])
+    assert "tausik-project" in cfg["mcpServers"]
+    assert "tausik-brain" in cfg["mcpServers"]
+    assert cfg["mcpServers"]["tausik-project"]["command"] == "C:/py/python.exe"
+
+
+def test_cursor_mcp_json_preserves_user_servers(ide_layout):
+    cursor_dir = os.path.join(ide_layout["project_dir"], ".cursor")
+    os.makedirs(cursor_dir, exist_ok=True)
+    _touch(os.path.join(cursor_dir, "mcp", "project", "server.py"))
+    existing = {
+        "mcpServers": {
+            "custom": {"command": "node", "args": ["custom.js"]},
+        }
+    }
+    with open(os.path.join(cursor_dir, "mcp.json"), "w", encoding="utf-8") as f:
+        json.dump(existing, f)
+
+    bootstrap_generate.generate_cursor_mcp_json(
+        ide_layout["project_dir"], cursor_dir, venv_python="python"
+    )
+    cfg = _load_cursor_config(ide_layout["project_dir"])
+    assert "custom" in cfg["mcpServers"]
+    assert "tausik-project" in cfg["mcpServers"]

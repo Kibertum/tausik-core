@@ -148,16 +148,108 @@ class TaskMixin(GatesMixin, CascadeMixin):
         ac_verified: bool = False,
         no_knowledge: bool = False,
         evidence: str | None = None,
+        progress_fn: Any | None = None,
     ) -> str:
+        report = self._task_done_report(
+            slug,
+            relevant_files=relevant_files,
+            ac_verified=ac_verified,
+            no_knowledge=no_knowledge,
+            evidence=evidence,
+            progress_fn=progress_fn,
+        )
+        if not report.get("ok"):
+            failures = report.get("blocking_failures") or []
+            first = failures[0] if failures else {}
+            msg = first.get("message") or "task_done failed"
+            raise ServiceError(msg)
+        message = report.get("message")
+        if isinstance(message, str) and message.strip():
+            return message
+        return f"Task '{slug}' completed."
+
+    def task_done_v2(
+        self,
+        slug: str,
+        relevant_files: list[str] | None = None,
+        ac_verified: bool = False,
+        no_knowledge: bool = False,
+        evidence: str | None = None,
+        progress_fn: Any | None = None,
+    ) -> dict[str, Any]:
+        return self._task_done_report(
+            slug,
+            relevant_files=relevant_files,
+            ac_verified=ac_verified,
+            no_knowledge=no_knowledge,
+            evidence=evidence,
+            progress_fn=progress_fn,
+        )
+
+    def _task_done_report(
+        self,
+        slug: str,
+        *,
+        relevant_files: list[str] | None,
+        ac_verified: bool,
+        no_knowledge: bool,
+        evidence: str | None,
+        progress_fn: Any | None = None,
+    ) -> dict[str, Any]:
+        report: dict[str, Any] = {
+            "ok": False,
+            "slug": slug,
+            "plan_complete": False,
+            "ac_verified": False,
+            "gates_passed": False,
+            "gates": [],
+            "blocking_failures": [],
+            "warnings": [],
+            "cache_status": None,
+            "message": "",
+        }
         task = self._require_task(slug)
         if task["status"] == "done":
             raise ServiceError(f"Task '{slug}' is already done")
         if evidence:
             self.task_log(slug, evidence)  # one call instead of log+done (v1.3 DX)
             task = self._require_task(slug)
-        ac_warnings = self._verify_ac(slug, task, ac_verified)
-        self._verify_plan_complete(slug, task)
-        self._run_quality_gates(slug, relevant_files)
+        try:
+            ac_warnings = self._verify_ac(slug, task, ac_verified)
+            report["ac_verified"] = True
+        except ServiceError as e:
+            report["blocking_failures"].append({"stage": "ac", "message": str(e)})
+            return report
+        try:
+            self._verify_plan_complete(slug, task)
+            report["plan_complete"] = True
+        except ServiceError as e:
+            report["blocking_failures"].append({"stage": "plan", "message": str(e)})
+            return report
+        gate_report = self._run_quality_gates_report(
+            slug, relevant_files, progress_fn=progress_fn
+        )
+        report["gates"] = gate_report.get("results", [])
+        report["cache_status"] = gate_report.get("cache_status")
+        report["gates_passed"] = bool(gate_report.get("passed"))
+        if not gate_report.get("passed"):
+            failures = gate_report.get("blocking_failures", [])
+            report["blocking_failures"] = [
+                {
+                    "stage": "gates",
+                    "gate": f.get("gate"),
+                    "files": f.get("files") or [],
+                    "output": f.get("output"),
+                    "remediation": f.get("remediation"),
+                    "message": (
+                        f"QG-2 Implementation Gate failed: {f.get('gate')} — "
+                        f"{(f.get('output') or '')[:180]}"
+                    ),
+                }
+                for f in failures
+            ]
+            return report
+
         checklist_warning = self._check_verification_checklist(slug, task)
         # SENAR Core Rule 7: defect tasks must document root cause
         root_cause_warning = ""
@@ -189,12 +281,18 @@ class TaskMixin(GatesMixin, CascadeMixin):
         is_defect = bool(task.get("defect_of"))
         if no_knowledge and (is_complex or is_defect):
             reason = "complex" if is_complex else "defect"
-            raise ServiceError(
-                f"--no-knowledge refused for {reason} task '{slug}'. "
-                f"SENAR Rule 8 requires knowledge capture. Either capture "
-                f"first (memory_add / decide / dead-end) and re-run without "
-                f"the flag, or downgrade complexity if truly trivial."
+            report["blocking_failures"].append(
+                {
+                    "stage": "knowledge",
+                    "message": (
+                        f"--no-knowledge refused for {reason} task '{slug}'. "
+                        f"SENAR Rule 8 requires knowledge capture. Either capture "
+                        f"first (memory_add / decide / dead-end) and re-run without "
+                        f"the flag, or downgrade complexity if truly trivial."
+                    ),
+                }
             )
+            return report
         knowledge_warning = ""
         if not any(kw in notes.lower() for kw in _kw) and not no_knowledge:
             if (
@@ -220,19 +318,25 @@ class TaskMixin(GatesMixin, CascadeMixin):
             msgs.extend(ac_warnings)
             if knowledge_warning:
                 msgs.append(knowledge_warning)
+                report["warnings"].append(knowledge_warning)
             if checklist_warning:
                 msgs.append(checklist_warning)
+                report["warnings"].append(checklist_warning)
             if root_cause_warning:
                 msgs.append(root_cause_warning)
+                report["warnings"].append(root_cause_warning)
             budget_warning = record_call_actual(self.be, slug, task)
             if budget_warning:
                 msgs.append(budget_warning)
+                report["warnings"].append(budget_warning)
             msgs.extend(self._cascade_done(slug))
             self.be.commit_tx()
         except Exception:
             self.be.rollback_tx()
             raise
-        return " ".join(msgs)
+        report["ok"] = True
+        report["message"] = " ".join(msgs)
+        return report
 
     def task_block(self, slug: str, reason: str | None = None) -> str:
         task = self._require_task(slug)

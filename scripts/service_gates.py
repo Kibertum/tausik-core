@@ -339,7 +339,76 @@ class GatesMixin:
             )
         return ""
 
-    def _run_quality_gates(self, slug: str, relevant_files: list[str] | None) -> None:
+    @staticmethod
+    def _extract_files_from_gate_output(output: str) -> list[str]:
+        files = re.findall(r"^\s+([^\s:]+):\s+\d+\s+lines", output or "", re.MULTILINE)
+        return files
+
+    def _run_quality_gates_report(
+        self,
+        slug: str,
+        relevant_files: list[str] | None,
+        progress_fn: Any | None = None,
+    ) -> dict[str, Any]:
+        """Return detailed gate report for MCP/agent-friendly handling."""
+        report: dict[str, Any] = {
+            "passed": True,
+            "results": [],
+            "cache_status": None,
+            "blocking_failures": [],
+            "scope": None,
+        }
+        try:
+            from service_verification import is_security_sensitive, run_gates_with_cache
+        except ImportError:
+            import logging
+
+            logging.getLogger("tausik.gates").warning(
+                "service_verification not available"
+            )
+            return report
+
+        task = self.be.task_get(slug) or {}
+        scope = self._determine_checklist_tier(task, relevant_files=relevant_files)
+        if is_security_sensitive(relevant_files or []):
+            scope = "critical"
+        report["scope"] = scope
+
+        passed, results, status = run_gates_with_cache(
+            self.be._conn,
+            slug,
+            relevant_files,
+            scope=scope,
+            append_notes_fn=self.be.task_append_notes,
+            task_created_at=task.get("created_at"),
+            progress_fn=progress_fn,
+        )
+        report["passed"] = passed
+        report["results"] = results
+        report["cache_status"] = status
+
+        if not passed:
+            failed = [
+                r for r in results if not r.get("passed") and r.get("severity") == "block"
+            ]
+            report["blocking_failures"] = [
+                {
+                    "gate": r.get("name"),
+                    "files": self._extract_files_from_gate_output(r.get("output", "")),
+                    "output": r.get("output", ""),
+                    "remediation": (
+                        "Fix gate issues and rerun task_done. For filesize: "
+                        "split oversized modules or configure "
+                        "gates.filesize.exempt_files in .tausik/config.json."
+                    ),
+                }
+                for r in failed
+            ]
+        return report
+
+    def _run_quality_gates(
+        self, slug: str, relevant_files: list[str] | None, progress_fn: Any | None = None
+    ) -> None:
         """QG-2 Implementation Gate: scoped gates with verify cache.
 
         Delegates to `service_verification.run_gates_with_cache` — see that
@@ -350,35 +419,14 @@ class GatesMixin:
         Security-sensitive `relevant_files` (per `is_security_sensitive`)
         promote to `critical`.
         """
-        try:
-            from service_verification import is_security_sensitive, run_gates_with_cache
-        except ImportError:
-            import logging
-
-            logging.getLogger("tausik.gates").warning(
-                "service_verification not available"
-            )
-            return
-        task = self.be.task_get(slug) or {}
-        # v1.3.4 (med-batch-2-qg #2): _determine_checklist_tier now consults
-        # is_security_sensitive on relevant_files itself; the explicit override
-        # below stays as defense-in-depth (idempotent on the security path).
-        scope = self._determine_checklist_tier(task, relevant_files=relevant_files)
-        if is_security_sensitive(relevant_files or []):
-            scope = "critical"
-        passed, results, _status = run_gates_with_cache(
-            self.be._conn,
-            slug,
-            relevant_files,
-            scope=scope,
-            append_notes_fn=self.be.task_append_notes,
-            task_created_at=task.get("created_at"),
+        gate_report = self._run_quality_gates_report(
+            slug, relevant_files, progress_fn=progress_fn
         )
-        if not passed:
-            failed = [
-                r for r in results if not r["passed"] and r["severity"] == "block"
-            ]
-            details = "; ".join(f"{r['name']}: {r['output'][:100]}" for r in failed)
+        if not gate_report["passed"]:
+            failures = gate_report.get("blocking_failures", [])
+            details = "; ".join(
+                f"{f.get('gate')}: {(f.get('output') or '')[:140]}" for f in failures
+            )
             raise ServiceError(
                 f"QG-2 Implementation Gate: blocking gates failed for '{slug}'. "
                 f"Fix issues first: {details}"

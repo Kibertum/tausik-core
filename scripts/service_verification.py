@@ -226,6 +226,7 @@ def run_gates_with_cache(
     scope: str = "lightweight",
     append_notes_fn: Callable[[str, str], None] | None = None,
     task_created_at: str | None = None,
+    progress_fn: Callable[[dict[str, Any]], None] | None = None,
 ) -> tuple[bool, list[dict[str, Any]], str | None]:
     """SENAR Rule 5 cache-aware gate run.
 
@@ -297,7 +298,9 @@ def run_gates_with_cache(
             return True, [], "hit"
 
     t0 = _time.monotonic()
-    passed, results = run_gates("task-done", relevant_files)
+    passed, results = run_gates(
+        "task-done", relevant_files, progress_callback=progress_fn
+    )
     duration_ms = int((_time.monotonic() - t0) * 1000)
     if results and append_notes_fn is not None:
         summary = ", ".join(

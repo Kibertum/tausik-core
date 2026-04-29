@@ -220,6 +220,7 @@ class TestMCPHandlerDispatch:
             "tausik_task_add",
             "tausik_task_start",
             "tausik_task_done",
+            "tausik_task_done_v2",
             "tausik_task_block",
             "tausik_task_unblock",
             "tausik_task_update",

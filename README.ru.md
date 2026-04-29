@@ -12,7 +12,7 @@
 
 Три сообщения. Полный инженерный цикл. Quality gates, которые агент не может обойти.
 
-> Работает с Claude Code, Cursor, Qwen Code (GigaCode), Windsurf.
+> Работает в Claude Code, VSCode Claude Extension, Cursor, Qwen Code (GigaCode), Windsurf.
 
 ## Попробуйте прямо сейчас
 
@@ -120,13 +120,18 @@ Claude auto-memory (`~/.claude/projects/*/memory/`) — это кросс-про
 
 ## Поддерживаемые среды разработки
 
-| Среда | Инструменты | Навыки | Хуки | Правила |
-|-------|-------------|--------|------|---------|
-| Claude Code | 96 инстр. | 13 core + 25 vendor | контроль задач, фильтр команд, контроль push, автоформат | CLAUDE.md |
-| Qwen Code | 96 инстр. | 13 core + 25 vendor | контроль задач, фильтр команд, контроль push, автоформат | QWEN.md |
-| Cursor | 96 инстр. | 13 core + 25 vendor | — | .cursorrules |
-| Windsurf | 96 инстр. | 13 core + 25 vendor | — | .windsurfrules |
-| Codex | — | — | — | только AGENTS.md |
+**Политика валидации:** TAUSIK проектируется как мульти-IDE фреймворк, но статус тестирования указываем явно.
+Официально прогнано end-to-end сейчас: **VSCode + Claude Extension** и **Cursor**.
+Остальные среды поддерживаются архитектурно, но помечаются как expected/partial до расширения матрицы автотестов.
+
+| Среда | Инструменты | Навыки | Хуки | Правила | Статус валидации |
+|-------|-------------|--------|------|---------|------------------|
+| VSCode + Claude Extension | 96 инстр. | 13 core + 25+ on demand | 19 хуков (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md + .mcp.json | **Официально протестировано** |
+| Cursor | 96 инстр. | 13 core + 25+ on demand | — | .cursorrules + .cursor/mcp.json | **Официально протестировано** |
+| Claude Code (CLI) | 96 инстр. | 13 core + 25+ on demand | 19 хуков | CLAUDE.md + .mcp.json | Ожидается (частичная матрица) |
+| Qwen Code | 96 инстр. | 13 core + 25+ on demand | 19 хуков (как у Claude) | QWEN.md + .mcp.json | Ожидается (частичная матрица) |
+| Windsurf | 96 инстр. | 13 core + 25+ on demand | — | .windsurfrules + .mcp.json | Ожидается (частичная матрица) |
+| Codex / OpenCode-подобные агенты | MCP + rules-driven при поддержке хоста | Зависит от хоста | Специфично для хоста | AGENTS.md | Ожидается (ручная валидация) |
 
 **Хуки** блокируют редактирование кода без задачи, опасные shell-команды и прямой push в main — в реальном времени. Доступны в Claude Code и Qwen Code. Cursor и Windsurf получают те же MCP-инструменты и навыки, с quality gates на `task start` и `task done`.
 

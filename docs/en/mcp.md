@@ -29,6 +29,7 @@ There is also an optional `codebase-rag` server documented at the bottom.
 | `tausik_task_quick` | Quick creation with auto-slug | `title` |
 | `tausik_task_start` | Start work (QG-0: requires goal + AC + negative scenario) | `slug` |
 | `tausik_task_done` | Complete (QG-2: `ac_verified=true`, scoped pytest, verify cache) | `slug` |
+| `tausik_task_done_v2` | Complete with structured JSON response (`blocking_failures`, per-gate results, cache status) | `slug` |
 | `tausik_task_show` | Full task information | `slug` |
 | `tausik_task_list` | List tasks with filters (status enum: `planning,active,blocked,review,done`) | — |
 | `tausik_task_update` | Update fields (title/goal/AC/scope/notes/stack/complexity/role/tier/call_budget) | `slug` |
@@ -53,6 +54,14 @@ There is also an optional `codebase-rag` server documented at the bottom.
 - `relevant_files[]` — files modified; drives **scoped** pytest gate (basename match → `tests/test_<file>.py`). Empty list with non-empty original → gate skipped (no false-positive on full suite). Verify cache (10 min TTL) skips re-runs with same `files_hash`.
 
 There is **no `--force`** on `task_done` — QG-2 cannot be bypassed. `task_start` does have `--force` to bypass session capacity, with audit trail.
+
+### `tausik_task_done_v2`
+
+Uses the same input fields as `tausik_task_done`, but returns structured JSON for agent workflows:
+- stage flags (`plan_complete`, `ac_verified`, `gates_passed`)
+- per-gate results (`gates[]`)
+- `blocking_failures[]` with gate, files, output, and remediation hints
+- `warnings[]`, `cache_status`, and final `ok`
 
 ## Sessions
 

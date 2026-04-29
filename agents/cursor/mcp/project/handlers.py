@@ -90,13 +90,62 @@ def _do_task_next(svc: Any, args: dict) -> str:
 
 
 def _do_task_done(svc: Any, args: dict) -> str:
+    def _progress(ev: dict) -> None:
+        event = ev.get("event")
+        idx = ev.get("index", "?")
+        total = ev.get("total", "?")
+        name = ev.get("name", "?")
+        if event == "gate_start":
+            print(f"[gate {idx}/{total}] running {name}...", file=sys.stderr, flush=True)
+            return
+        status = "PASS" if ev.get("passed") else "FAIL"
+        if ev.get("skipped"):
+            status = "SKIP"
+        dur = ev.get("duration_ms", 0)
+        print(
+            f"[gate {idx}/{total}] {status} {name} ({dur} ms)",
+            file=sys.stderr,
+            flush=True,
+        )
+
     return svc.task_done(
         args["slug"],
         args.get("relevant_files"),
         ac_verified=args.get("ac_verified", False),
         no_knowledge=args.get("no_knowledge", False),
         evidence=args.get("evidence"),
+        progress_fn=_progress,
     )
+
+
+def _do_task_done_v2(svc: Any, args: dict) -> str:
+    def _progress(ev: dict) -> None:
+        event = ev.get("event")
+        idx = ev.get("index", "?")
+        total = ev.get("total", "?")
+        name = ev.get("name", "?")
+        if event == "gate_start":
+            print(f"[gate {idx}/{total}] running {name}...", file=sys.stderr, flush=True)
+            return
+        status = "PASS" if ev.get("passed") else "FAIL"
+        if ev.get("skipped"):
+            status = "SKIP"
+        dur = ev.get("duration_ms", 0)
+        print(
+            f"[gate {idx}/{total}] {status} {name} ({dur} ms)",
+            file=sys.stderr,
+            flush=True,
+        )
+
+    result = svc.task_done_v2(
+        args["slug"],
+        args.get("relevant_files"),
+        ac_verified=args.get("ac_verified", False),
+        no_knowledge=args.get("no_knowledge", False),
+        evidence=args.get("evidence"),
+        progress_fn=_progress,
+    )
+    return json.dumps(result, ensure_ascii=False)
 
 
 def _do_task_update(svc: Any, args: dict) -> str:
@@ -369,6 +418,7 @@ _DISPATCH: dict[str, _Handler] = {
     "tausik_task_next": _do_task_next,
     "tausik_task_start": lambda svc, args: svc.task_start(args["slug"]),
     "tausik_task_done": _do_task_done,
+    "tausik_task_done_v2": _do_task_done_v2,
     "tausik_task_block": lambda svc, args: svc.task_block(
         args["slug"], args.get("reason")
     ),

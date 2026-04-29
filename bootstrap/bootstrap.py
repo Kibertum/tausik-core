@@ -45,6 +45,7 @@ from bootstrap_catalog import generate_skill_catalog
 from bootstrap_generate import (
     generate_agents_md,
     generate_claude_md,
+    generate_cursor_mcp_json,
     generate_cursorrules,
     generate_mcp_json,
     generate_settings_claude,
@@ -98,7 +99,6 @@ def bootstrap_ide(
     os.makedirs(target_dir, exist_ok=True)
     print(f"\n=== Bootstrapping for {ide} -> {target_dir} ===")
 
-    # Copy files (with vendor fallback)
     n_skills = copy_skills(lib_dir, target_dir, config, ide, vendor_skills)
     print(f"  Skills: {n_skills} copied")
 
@@ -117,9 +117,6 @@ def bootstrap_ide(
     n_stacks = copy_stacks(lib_dir, target_dir, ide, stacks)
     print(f"  Stacks: {n_stacks} copied")
 
-    # Stack customization hint — surfaced once on each bootstrap so users
-    # know the safe path to override stack behaviour without losing it on
-    # the next upgrade. Bootstrap NEVER touches .tausik/stacks/.
     user_stacks_dir = os.path.join(project_dir, ".tausik", "stacks")
     if os.path.isdir(user_stacks_dir):
         existing = [
@@ -138,15 +135,12 @@ def bootstrap_ide(
             "(do NOT edit stacks/<name>/ directly — bootstrap overwrites them)"
         )
 
-    # Regenerate MCP tools.py _STACKS_ENUM block from registry. Done in lib_dir
-    # (source of truth), so the next copy_mcp picks up the fresh list.
     from bootstrap_stacks import regenerate_mcp_stack_enums
 
     n_mcp_enums = regenerate_mcp_stack_enums(lib_dir)
     if n_mcp_enums:
         print(f"  MCP stack enums regenerated: {n_mcp_enums} file(s)")
 
-    # Generate IDE-specific files
     if ide == "claude":
         generate_settings_claude(target_dir, project_dir, lib_dir)
         generate_claude_md(project_dir, config.get("project", "my-project"), stacks)
@@ -156,17 +150,16 @@ def bootstrap_ide(
         generate_settings_qwen(target_dir, project_dir, venv_python, lib_dir)
         generate_qwen_md(project_dir, config.get("project", "my-project"), stacks)
 
-    # Generate AGENTS.md for OpenCode/Codex (always, regardless of IDE)
     generate_agents_md(project_dir, config.get("project", "my-project"), stacks)
 
-    # Generate shared files
     generate_mcp_json(project_dir, target_dir, venv_python)
+    if ide == "cursor":
+        generate_cursor_mcp_json(project_dir, target_dir, venv_python)
 
     print("  Done!")
 
 
 def main() -> None:
-    # Windows console encoding fix (cp1251/cp1252 can't encode Unicode symbols)
     if sys.platform == "win32":
         for stream in (sys.stdout, sys.stderr):
             if hasattr(stream, "reconfigure"):
@@ -226,9 +219,7 @@ def main() -> None:
     print(f"  Library: {lib_dir}")
     print(f"  Project: {project_dir}")
 
-    # Load or create config — unified in .tausik/config.json under "bootstrap" key
     tausik_config_path = os.path.join(project_dir, ".tausik", "config.json")
-    # Migrate: load from old location if it exists
     old_config_path = os.path.join(
         get_ide_target(project_dir, "claude"), ".tausik-bootstrap.json"
     )
@@ -255,13 +246,11 @@ def main() -> None:
     else:
         config = dict(DEFAULT_CONFIG)
 
-    # Stack detection
     stacks = detect_stacks(project_dir)
     if stacks:
         print(f"  Stacks detected: {', '.join(stacks)}")
         config["stacks"] = stacks
 
-    # Auto-detect extension skills (default on, --no-detect to skip)
     if args.smart and not args.no_detect:
         ext = detect_extension_skills(project_dir, config.get("core_skills", []))
         if ext:
@@ -284,10 +273,8 @@ def main() -> None:
                 if 0 <= i < len(ALL_EXTENSION_SKILLS)
             ]
 
-    # IDE selection
     config["ide"] = args.ide
 
-    # Bootstrap
     ides = ["claude", "cursor", "qwen"] if args.ide == "all" else [args.ide]
 
     if args.dry_run:
@@ -315,7 +302,6 @@ def main() -> None:
         print("\nNo changes made.")
         return
 
-    # Copy skills.example.json → skills.json if not exists (onboarding)
     skills_json = os.path.join(lib_dir, "skills.json")
     skills_example = os.path.join(lib_dir, "skills.example.json")
     if not os.path.exists(skills_json) and os.path.exists(skills_example):
@@ -326,7 +312,6 @@ def main() -> None:
             "  Copied skills.example.json → skills.json (edit to customize vendor skills)"
         )
 
-    # Vendor dependencies — auto-sync if skills.json exists
     vendor_dir = os.path.join(project_dir, ".tausik", "vendor")
     vendor_skills: dict[str, str] = {}
     manifest = load_skills_json(lib_dir)
@@ -339,7 +324,6 @@ def main() -> None:
     if vendor_skills:
         print(f"  Vendor skills available: {', '.join(vendor_skills.keys())}")
 
-    # Create venv and install dependencies
     tausik_dir = os.path.join(project_dir, ".tausik")
     os.makedirs(tausik_dir, exist_ok=True)
     print("\n=== Setting up Python venv ===")
@@ -353,26 +337,21 @@ def main() -> None:
             lib_dir, project_dir, ide, config, stacks, vendor_skills, venv_python
         )
 
-    # Copy vendor scripts and agents to namespaced subdirs (prevent core overwrites)
     for ide in ides:
         target_dir = get_ide_target(project_dir, ide)
         copy_vendor_assets(vendor_dir, target_dir)
 
-    # Generate skill catalog for agent context
     if manifest.get("external_skills"):
-        # Only skills actually copied to .claude/skills/ are ACTIVE
         installed = config.get("core_skills", []) + config.get("extension_skills", [])
         for ide in ides:
             target_dir = get_ide_target(project_dir, ide)
             generate_skill_catalog(target_dir, manifest, installed, vendor_dir)
         print("  Skill catalog generated")
 
-    # RAG setup: create data dir
     rag_dir = os.path.join(project_dir, ".tausik", "rag")
     os.makedirs(rag_dir, exist_ok=True)
     print("\n  RAG: FTS5 mode (keyword search)")
 
-    # Save config, auto-enable gates, clean up old files
     save_tausik_config(
         tausik_config_path,
         config,
@@ -384,14 +363,11 @@ def main() -> None:
         lib_dir=lib_dir,
     )
 
-    # AGENTS.md is generated by generate_agents_md() per-IDE; lib/AGENTS.md is dogfooding-only.
-
     from bootstrap_venv import install_cli_wrapper
 
     install_cli_wrapper(_bootstrap_dir, tausik_dir)
     print("  CLI wrapper: .tausik/tausik (or .tausik/tausik.cmd on Windows)")
 
-    # One-line setup: auto-init if --init provided
     if args.init is not None:
         import re
 

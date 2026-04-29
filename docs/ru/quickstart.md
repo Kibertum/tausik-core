@@ -92,7 +92,7 @@ echo ".tausik/" >> .gitignore
 
 ### Перезапустите IDE
 
-**После bootstrap перезапустите окно IDE** (Claude Code, Cursor, Qwen Code, Windsurf). Bootstrap генерирует `.mcp.json` с конфигурацией MCP-сервера, но IDE считывает его только при запуске. Без перезапуска агент будет работать через CLI вместо MCP-инструментов.
+**После bootstrap перезапустите окно IDE** (Claude Code, Cursor, Qwen Code, Windsurf). Bootstrap генерирует project MCP-конфиги (`.mcp.json` для Claude-экосистемы и `.cursor/mcp.json` для Cursor), а IDE считывают их только при запуске. Без перезапуска агент может уйти в CLI-режим вместо MCP-инструментов.
 
 > **Пользователям Qwen Code:** Bootstrap также создаёт `.qwen/settings.json` с MCP-конфигом и `QWEN.md` с инструкциями проекта. Используйте `--ide qwen` если работаете только в Qwen Code, или `--ide all` для мультисредового сетапа.
 
@@ -257,7 +257,7 @@ Claude Code — чат с ИИ-агентом.
 2. **Bootstrap автоматически определяет окружение:**
    - Распознаёт стек (Python, React, Go и т.д.) и включает соответствующие quality gates
    - Находит существующие конфиги (`.eslintrc`, `pyproject.toml` и т.д.)
-   - Сохраняет ваши `.gitignore`, `CLAUDE.md` и `.mcp.json` — объединяет, а не перезаписывает
+   - Сохраняет ваши `.gitignore`, `CLAUDE.md`, `.mcp.json` и `.cursor/mcp.json` — объединяет, а не перезаписывает
 
 3. **Что попадает в git:**
    - `.tausik-lib/` — сам фреймворк (git submodule, отслеживается)

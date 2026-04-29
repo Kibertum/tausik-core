@@ -1,5 +1,6 @@
 """Tests for project MCP server — _handle_tool dispatch."""
 
+import json
 import os
 import sys
 
@@ -86,6 +87,14 @@ class TestTaskCRUD:
         seeded.task_start("t1", _internal_force=True)
         result = _handle_tool(seeded, "tausik_task_done", {"slug": "t1"})
         assert "completed" in result
+
+    def test_task_done_v2_returns_structured_json(self, seeded):
+        seeded.task_start("t1", _internal_force=True)
+        result = _handle_tool(seeded, "tausik_task_done_v2", {"slug": "t1"})
+        payload = json.loads(result)
+        assert payload["slug"] == "t1"
+        assert payload["ok"] is True
+        assert payload["gates_passed"] is True
 
     def test_task_block_unblock(self, seeded):
         seeded.task_start("t1", _internal_force=True)

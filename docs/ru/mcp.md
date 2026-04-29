@@ -29,6 +29,7 @@
 | `tausik_task_quick` | Быстрое создание с auto-slug | `title` |
 | `tausik_task_start` | Начать работу (QG-0: требует goal + AC + negative scenario) | `slug` |
 | `tausik_task_done` | Завершить (QG-2: `ac_verified=true`, scoped pytest, verify cache) | `slug` |
+| `tausik_task_done_v2` | Завершить с structured JSON-ответом (`blocking_failures`, per-gate results, cache status) | `slug` |
 | `tausik_task_show` | Полная информация | `slug` |
 | `tausik_task_list` | Список с фильтрами (status enum: `planning,active,blocked,review,done`) | — |
 | `tausik_task_update` | Обновить поля (title/goal/AC/scope/notes/stack/complexity/role/tier/call_budget) | `slug` |
@@ -53,6 +54,14 @@
 - `relevant_files[]` — изменённые файлы; драйвят **scoped** pytest gate (basename match → `tests/test_<file>.py`). Empty list при non-empty original → gate skipped (нет ложных срабатываний на full suite). Verify cache (10 min TTL) пропускает re-run при том же `files_hash`.
 
 `task_done` **не имеет `--force`** — QG-2 нельзя байпаснуть. У `task_start` `--force` есть для байпаса session capacity, с audit trail.
+
+### `tausik_task_done_v2`
+
+Использует те же входные параметры, что и `tausik_task_done`, но возвращает structured JSON для агентных сценариев:
+- stage-флаги (`plan_complete`, `ac_verified`, `gates_passed`)
+- результаты по каждому gate (`gates[]`)
+- `blocking_failures[]` с `gate`, `files`, `output`, `remediation`
+- `warnings[]`, `cache_status` и итоговый `ok`
 
 ## Сессии
 

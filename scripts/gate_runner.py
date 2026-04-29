@@ -14,6 +14,8 @@ import argparse
 import os
 import subprocess
 import sys
+import time
+from typing import Any, Callable
 
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 if _script_dir not in sys.path:
@@ -241,7 +243,11 @@ def run_command_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
         return False, f"Gate error: {e}"
 
 
-def run_gates(trigger: str, files: list[str] | None = None) -> tuple[bool, list[dict]]:
+def run_gates(
+    trigger: str,
+    files: list[str] | None = None,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
+) -> tuple[bool, list[dict]]:
     """Run all enabled gates for a trigger.
 
     Returns (all_passed, results) where all_passed means no blocking gate failed.
@@ -255,12 +261,39 @@ def run_gates(trigger: str, files: list[str] | None = None) -> tuple[bool, list[
     results = []
     has_block_failure = False
 
-    for gate in gates:
+    total = len(gates)
+    for idx, gate in enumerate(gates, start=1):
         name = gate["name"]
         severity = gate.get("severity", "warn")
+        start_ms = time.monotonic()
+        if progress_callback:
+            progress_callback(
+                {
+                    "event": "gate_start",
+                    "index": idx,
+                    "total": total,
+                    "name": name,
+                    "severity": severity,
+                }
+            )
 
         if not gate_applies_to(gate, files or []):
-            results.append(skipped_result(gate, files or []))
+            skipped = skipped_result(gate, files or [])
+            results.append(skipped)
+            if progress_callback:
+                progress_callback(
+                    {
+                        "event": "gate_done",
+                        "index": idx,
+                        "total": total,
+                        "name": name,
+                        "severity": severity,
+                        "passed": True,
+                        "skipped": True,
+                        "duration_ms": int((time.monotonic() - start_ms) * 1000),
+                        "output": skipped.get("output", ""),
+                    }
+                )
             continue
 
         if name == "filesize":
@@ -292,16 +325,43 @@ def run_gates(trigger: str, files: list[str] | None = None) -> tuple[bool, list[
                     "output": skip_reason,
                 }
             )
+            if progress_callback:
+                progress_callback(
+                    {
+                        "event": "gate_done",
+                        "index": idx,
+                        "total": total,
+                        "name": name,
+                        "severity": severity,
+                        "passed": True,
+                        "skipped": True,
+                        "duration_ms": int((time.monotonic() - start_ms) * 1000),
+                        "output": skip_reason,
+                    }
+                )
             continue
 
-        results.append(
-            {
-                "name": name,
-                "severity": severity,
-                "passed": passed,
-                "output": output,
-            }
-        )
+        result = {
+            "name": name,
+            "severity": severity,
+            "passed": passed,
+            "output": output,
+        }
+        results.append(result)
+        if progress_callback:
+            progress_callback(
+                {
+                    "event": "gate_done",
+                    "index": idx,
+                    "total": total,
+                    "name": name,
+                    "severity": severity,
+                    "passed": passed,
+                    "skipped": False,
+                    "duration_ms": int((time.monotonic() - start_ms) * 1000),
+                    "output": output,
+                }
+            )
 
         if not passed and severity == "block":
             has_block_failure = True

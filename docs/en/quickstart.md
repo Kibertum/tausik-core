@@ -92,7 +92,7 @@ echo ".tausik/" >> .gitignore
 
 ### Restart Your IDE
 
-**After bootstrap, restart your IDE window** (Claude Code, Cursor, Qwen Code, Windsurf). Bootstrap generates `.mcp.json` with MCP server configuration, but the IDE only reads it on startup. Without a restart, the agent will fall back to CLI mode instead of using MCP tools.
+**After bootstrap, restart your IDE window** (Claude Code, Cursor, Qwen Code, Windsurf). Bootstrap generates project MCP configs (`.mcp.json` for Claude ecosystem and `.cursor/mcp.json` for Cursor), but IDEs load them only on startup. Without restart, the agent may fall back to CLI mode instead of using MCP tools.
 
 > **Qwen Code users:** Bootstrap also creates `.qwen/settings.json` with MCP config and `QWEN.md` with project instructions. Use `--ide qwen` if you only use Qwen Code, or `--ide all` for multi-IDE setups.
 
@@ -257,7 +257,7 @@ If you already have a project with code and want to add TAUSIK:
 2. **Bootstrap auto-detects your environment:**
    - Recognizes your stack (Python, React, Go, etc.) and enables matching quality gates
    - Detects existing config files (`.eslintrc`, `pyproject.toml`, etc.)
-   - Preserves your existing `.gitignore`, `CLAUDE.md`, and `.mcp.json` — merges instead of overwriting
+   - Preserves your existing `.gitignore`, `CLAUDE.md`, `.mcp.json`, and `.cursor/mcp.json` — merges instead of overwriting
 
 3. **What gets tracked in git:**
    - `.tausik-lib/` — the framework itself (git submodule, tracked)

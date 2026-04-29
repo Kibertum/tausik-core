@@ -278,6 +278,55 @@ def generate_mcp_json(
         json.dump(mcp_config, f, indent=2)
 
 
+def generate_cursor_mcp_json(
+    project_dir: str, ide_dir: str, venv_python: str | None = None
+) -> None:
+    """Generate project-level Cursor MCP config at .cursor/mcp.json.
+
+    Keeps user-added servers and refreshes TAUSIK-managed servers.
+    """
+    python_exe = venv_python or sys.executable
+    cursor_dir = os.path.join(project_dir, ".cursor")
+    os.makedirs(cursor_dir, exist_ok=True)
+    path = os.path.join(cursor_dir, "mcp.json")
+
+    existing: dict[str, Any] = {}
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                existing = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    servers = existing.get("mcpServers", {})
+
+    def _p(p: str) -> str:
+        return p.replace("\\", "/")
+
+    rag_server = os.path.join(ide_dir, "mcp", "codebase-rag", "server.py")
+    if os.path.exists(rag_server):
+        servers["codebase-rag"] = {
+            "command": _p(python_exe),
+            "args": [_p(rag_server), "--project", _p(project_dir)],
+        }
+    project_server = os.path.join(ide_dir, "mcp", "project", "server.py")
+    if os.path.exists(project_server):
+        servers["tausik-project"] = {
+            "command": _p(python_exe),
+            "args": [_p(project_server), "--project", _p(project_dir)],
+        }
+    brain_server = os.path.join(ide_dir, "mcp", "brain", "server.py")
+    if os.path.exists(brain_server):
+        servers["tausik-brain"] = {
+            "command": _p(python_exe),
+            "args": [_p(brain_server), "--project", _p(project_dir)],
+        }
+
+    mcp_config = {**existing, "mcpServers": servers}
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(mcp_config, f, indent=2)
+
+
 def generate_claude_md(project_dir: str, project_name: str, stacks: list[str]) -> None:
     """Generate CLAUDE.md — load-bearing instructions for Claude Code.
 

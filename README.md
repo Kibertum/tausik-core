@@ -12,7 +12,7 @@
 
 Three messages. Full engineering cycle. Quality gates that the agent can't skip.
 
-> Works with Claude Code, Cursor, Qwen Code (GigaCode), Windsurf.
+> Works across Claude Code, VSCode Claude Extension, Cursor, Qwen Code (GigaCode), Windsurf.
 
 ## Try It Now
 
@@ -119,13 +119,18 @@ Still pending: MCP tools, init wizard, scrubbing linter, classifier. See **[Shar
 
 ## Supported IDEs
 
-| IDE | MCP Tools | Skills | Hooks | Rules |
-|-----|-----------|--------|-------|-------|
-| Claude Code | 96 tools | 13 core + 25+ on demand | 19 hooks (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md |
-| Qwen Code | 96 tools | 13 core + 25+ on demand | 19 hooks (same as Claude) | QWEN.md |
-| Cursor | 96 tools | 13 core + 25+ on demand | — | .cursorrules |
-| Windsurf | 96 tools | 13 core + 25+ on demand | — | .windsurfrules |
-| Codex | — | — | — | AGENTS.md only |
+**Validation policy:** TAUSIK is designed to be multi-IDE, but release validation is explicit.
+Officially tested E2E right now: **VSCode + Claude Extension** and **Cursor**.
+Other integrations are supported by design, but are marked as expected/partial until full test matrix coverage is added.
+
+| IDE | MCP Tools | Skills | Hooks | Rules | Validation status |
+|-----|-----------|--------|-------|-------|-------------------|
+| VSCode + Claude Extension | 96 tools | 13 core + 25+ on demand | 19 hooks (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md + .mcp.json | **Officially tested** |
+| Cursor | 96 tools | 13 core + 25+ on demand | — | .cursorrules + .cursor/mcp.json | **Officially tested** |
+| Claude Code (CLI) | 96 tools | 13 core + 25+ on demand | 19 hooks | CLAUDE.md + .mcp.json | Expected (partial matrix) |
+| Qwen Code | 96 tools | 13 core + 25+ on demand | 19 hooks (same as Claude) | QWEN.md + .mcp.json | Expected (partial matrix) |
+| Windsurf | 96 tools | 13 core + 25+ on demand | — | .windsurfrules + .mcp.json | Expected (partial matrix) |
+| Codex / OpenCode-style agents | MCP + rules-driven where supported | Depends on host | Host-specific | AGENTS.md | Expected (manual validation) |
 
 **Hooks** block code edits without a task, dangerous shell commands, and direct push to main — in real time. Available in Claude Code and Qwen Code. Cursor and Windsurf get the same MCP tools and skills, with quality gates at `task start` and `task done`.
 
