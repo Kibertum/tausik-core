@@ -185,19 +185,16 @@ def test_register_lock_prevents_concurrent_write(reg_path):
 
 
 def _unused_pid() -> int:
-    """Pick a PID guaranteed not to be in use.
+    """Return a PID `_pid_alive` reports as dead — PID 0 hits the early
+    `pid <= 0` return without an OS-level kill call.
 
-    Walking the PID space top-down via `os.kill(pid, 0)` is unreliable on
-    Windows GitHub runners — many system PIDs raise PermissionError (treated
-    as alive) and the loop never terminates. Instead spawn a tiny subprocess
-    and reap it; its PID is freshly dead the moment Popen.wait() returns.
+    Walking the PID space via `os.kill(pid, 0)` was unreliable on Windows
+    GitHub runners (many system PIDs raise PermissionError, treated as
+    alive). Spawning a subprocess and reaping it also hung on Windows CI.
+    PID 0 exercises the same lock-reclamation pipeline (stored PID treated
+    as dead → lock reclaimed) without depending on OS PID semantics.
     """
-    import subprocess
-    import sys
-
-    p = subprocess.Popen([sys.executable, "-c", "pass"])
-    p.wait()
-    return p.pid
+    return 0
 
 
 def test_dead_pid_lock_is_reclaimed(reg_path):
