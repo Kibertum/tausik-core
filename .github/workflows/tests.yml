@@ -34,5 +34,8 @@ jobs:
       - name: Security scan (bandit)
         run: bandit -r scripts/ -ll -q || true
 
+      - name: Bootstrap .claude/ (required by mirror-sync tests)
+        run: python bootstrap/bootstrap.py --no-detect --ide claude
+
       - name: Run tests
         run: pytest tests/ -v --tb=short --ignore=tests/test_bootstrap_skills_coverage.py --ignore=tests/test_bootstrap_real.py

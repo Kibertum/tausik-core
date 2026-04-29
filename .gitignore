@@ -39,9 +39,6 @@ skills.json
 # Official skills — separate repo (github.com/Kibertum/tausik-skills)
 skills-official/
 
-# Local dev artifacts
-TODO.md
-
 # Databases (other)
 *.sqlite
 

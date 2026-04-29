@@ -84,20 +84,18 @@ def test_validate_brain_enabled_reports_missing_database_ids():
     }
     errors = brain_config.validate_brain(cfg)
     categories_in_errors = [
-        c
-        for c in ("decisions", "web_cache", "patterns", "gotchas")
-        if any(c in e for e in errors)
+        c for c in ("decisions", "web_cache", "patterns", "gotchas") if any(c in e for e in errors)
     ]
     assert len(categories_in_errors) == 4
 
 
-def test_validate_brain_enabled_reports_missing_token_env_name(monkeypatch):
+def test_validate_brain_enabled_reports_missing_token_env_name(monkeypatch, tmp_path):
     """v1.3.2: with empty token_env, validate falls back to default
     'NOTION_TAUSIK_TOKEN' via resolve_brain_token cascade. If neither env nor
     .tausik/.env nor inline config provides a token, the error message points
     at the default name."""
     monkeypatch.delenv("NOTION_TAUSIK_TOKEN", raising=False)
-    monkeypatch.chdir(monkeypatch.fixture("tmp_path") if False else "/tmp")
+    monkeypatch.chdir(tmp_path)
     cfg = {
         "brain": {
             "enabled": True,
