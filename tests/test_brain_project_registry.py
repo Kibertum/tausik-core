@@ -185,13 +185,19 @@ def test_register_lock_prevents_concurrent_write(reg_path):
 
 
 def _unused_pid() -> int:
-    """Pick a PID guaranteed not to be in use (very high, not in /proc scope)."""
-    candidate = 999_999
-    while candidate > 0:
-        if not bpr._pid_alive(candidate):
-            return candidate
-        candidate -= 1
-    raise RuntimeError("couldn't find an unused pid")
+    """Pick a PID guaranteed not to be in use.
+
+    Walking the PID space top-down via `os.kill(pid, 0)` is unreliable on
+    Windows GitHub runners — many system PIDs raise PermissionError (treated
+    as alive) and the loop never terminates. Instead spawn a tiny subprocess
+    and reap it; its PID is freshly dead the moment Popen.wait() returns.
+    """
+    import subprocess
+    import sys
+
+    p = subprocess.Popen([sys.executable, "-c", "pass"])
+    p.wait()
+    return p.pid
 
 
 def test_dead_pid_lock_is_reclaimed(reg_path):
