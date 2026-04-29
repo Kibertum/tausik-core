@@ -9,6 +9,51 @@
 > начиная с v1.3.2; для более ранних релизов смотри английскую версию.
 > При добавлении новой записи держи оба файла синхронизированными.
 
+## [1.3.7] — 2026-04-29 — MCP-прозрачность для Cursor/VSCode + docs consistency sweep
+
+Патч усиливает агентный UX MCP и синхронизирует документацию с фактическим
+статусом multi-IDE валидации.
+
+### Добавлено
+- **MCP-инструмент `tausik_task_done_v2`** (в поверхностях Claude и Cursor)
+  со structured JSON-ответом: stage-флаги, per-gate results, blocking failures,
+  remediation hints, warnings и cache status.
+- **Progress events по quality gates** в `gate_runner` и вывод прогресса в
+  MCP stderr: `[gate X/N] running ...`, `PASS/FAIL/SKIP`, duration.
+- **Генерация Cursor project MCP-конфига** в bootstrap:
+  `.cursor/mcp.json` теперь генерируется/мерджится вместе с корневым `.mcp.json`.
+
+### Изменено
+- Внутренности `task_done` переведены на общий structured report pipeline при
+  сохранении backward-compatible plain-text поведения для legacy-вызовов.
+- README EN/RU теперь явно маркирует **официально протестированные** IDE-связки:
+  `VSCode + Claude Extension` и `Cursor`; остальные хосты отмечены как
+  expected/partial.
+- Quickstart EN/RU теперь фиксирует dual MCP config locations:
+  `.mcp.json` (экосистема Claude) и `.cursor/mcp.json` (Cursor project).
+- MCP docs EN/RU дополнены описанием `tausik_task_done_v2` и structured-ответа.
+
+### Исправлено
+- Устранён docs drift в RU-индексе и hooks-доках:
+  - в русскоязычном docs index счётчик MCP выровнен до 96;
+  - описание триггера `brain_search_proactive.py` синхронизировано с
+    фактической генерацией hook wiring (`WebSearch|WebFetch`, а не общий prompt).
+- Синхронизированы устаревшие значения dogfooding/test-count в RU/agent docs.
+
+### Тесты
+- Добавлены/обновлены тесты для:
+  - MCP-диспетчеризации/формата `task_done_v2`;
+  - генерации Cursor MCP config и сохранения пользовательских server entries;
+  - списка MCP-инструментов в integration с новым v2 endpoint.
+- Целевой набор зелёный локально:
+  `tests/test_project_mcp.py`,
+  `tests/test_mcp_integration.py`,
+  `tests/test_bootstrap_generate_mcp.py`.
+
+### Версионирование
+- `__version__` повышен `1.3.6` → `1.3.7`.
+- Версия в `pyproject.toml` повышена `1.3.6` → `1.3.7`.
+
 ## [1.3.6] — 2026-04-29 — Чистка мёртвого кода + целостность фреймворка
 
 Закрывает два упавших CI-workflow и более широкий аудит целостности.

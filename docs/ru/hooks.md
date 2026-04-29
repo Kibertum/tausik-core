@@ -43,7 +43,7 @@ TAUSIK использует хуки Claude Code для автоматическ
 |------|-------|-----------|
 | `user_prompt_submit.py` | На пользовательском промпте | Распознаёт coding-intent (EN+RU) → подталкивает, если нет активной задачи |
 | `keyword_detector.py` | На остановке агента | Ловит "I'll implement"/"сейчас напишу" drift-фразы → блокирует stop |
-| `brain_search_proactive.py` | На пользовательском промпте | Проактивно query'ит shared brain на релевантные decisions/patterns |
+| `brain_search_proactive.py` | Перед WebSearch/WebFetch | Проактивно query'ит shared brain на релевантные decisions/patterns перед web-вызовами |
 
 ## Git pre-commit
 

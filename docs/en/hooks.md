@@ -43,7 +43,7 @@ Hooks are scripts that run automatically with every agent action. They decide wh
 |------|------|-------------|
 | `user_prompt_submit.py` | On user prompt | Detects coding-intent (EN+RU) → nudges if no active task |
 | `keyword_detector.py` | On agent stop | Catches "I'll implement"/"сейчас напишу" drift phrases → blocks stop |
-| `brain_search_proactive.py` | On user prompt | Proactively queries shared brain for relevant decisions/patterns |
+| `brain_search_proactive.py` | Before WebSearch/WebFetch | Proactively queries shared brain for relevant decisions/patterns before web calls |
 
 ## Git pre-commit
 

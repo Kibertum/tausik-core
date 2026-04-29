@@ -140,7 +140,7 @@ TAUSIK was developed using itself. Real numbers:
 
 | Metric | Value |
 |---|---|
-| Tasks completed | 524 |
+| Tasks completed | 526 |
 | Sessions | 39 |
 | Throughput | ~13 tasks/session |
 | Test count | 2318 |

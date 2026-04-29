@@ -7,6 +7,51 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 > Russian mirror: [`CHANGELOG.ru.md`](CHANGELOG.ru.md). Both files cover
 > the same releases — keep them in sync when adding a new entry.
 
+## [1.3.7] — 2026-04-29 — MCP clarity for Cursor/VSCode + docs consistency sweep
+
+This patch hardens agent-facing MCP UX and aligns documentation with actual
+multi-IDE validation status.
+
+### Added
+- **`tausik_task_done_v2` MCP tool** (Claude + Cursor server surfaces) with
+  structured JSON output: stage flags, per-gate results, blocking failures,
+  remediation hints, warnings, and cache status.
+- **Gate progress events** in `gate_runner` and MCP stderr feedback:
+  `[gate X/N] running ...`, `PASS/FAIL/SKIP`, duration per gate.
+- **Cursor project MCP generation** in bootstrap:
+  `.cursor/mcp.json` is now generated/merged alongside root `.mcp.json`.
+
+### Changed
+- `task_done` internals now reuse a shared structured report pipeline, while
+  preserving backward-compatible plain-text behavior for legacy callers.
+- README EN/RU now explicitly marks **officially tested** IDE combos:
+  `VSCode + Claude Extension` and `Cursor`; other hosts are tagged as
+  expected/partial.
+- Quickstart EN/RU now documents dual MCP config locations:
+  `.mcp.json` (Claude ecosystem) and `.cursor/mcp.json` (Cursor project).
+- MCP docs EN/RU include `tausik_task_done_v2` and structured-response usage.
+
+### Fixed
+- Resolved docs drift in RU index and hooks docs:
+  - RU docs index MCP count aligned to 96.
+  - `brain_search_proactive.py` trigger description aligned with generated hook
+    wiring (`WebSearch|WebFetch`, not generic user-prompt trigger).
+- Synced stale dogfooding/test-count values in RU/agent onboarding docs.
+
+### Tests
+- Added/updated tests for:
+  - `task_done_v2` MCP dispatch/shape.
+  - Cursor MCP config generation and user-entry preservation.
+  - MCP integration tool list including the new v2 endpoint.
+- Target suite passed locally:
+  `tests/test_project_mcp.py`,
+  `tests/test_mcp_integration.py`,
+  `tests/test_bootstrap_generate_mcp.py`.
+
+### Versioning
+- `__version__` bumped `1.3.6` → `1.3.7`.
+- `pyproject.toml` version bumped `1.3.6` → `1.3.7`.
+
 ## [1.3.6] — 2026-04-29 — Dead code cleanup + framework integrity
 
 Targets two CI workflow failures and a wider integrity audit. No behaviour
