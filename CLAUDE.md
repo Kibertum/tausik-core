@@ -94,7 +94,7 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 | Rule 1 Задача перед кодом | CLAUDE.md + skills + `/plan` для старта | Instruction |
 | Rule 2 Scope Boundaries | Поля `scope` + `scope_exclude` в задачах, QG-0 предупреждает | Warning |
 | Rule 3 Verify Against Criteria | Per-criterion AC evidence парсинг | Hard + Warning |
-| Rule 5 Verification Checklist | 28-item checklist, 4 тира; **pytest gate scoped по relevant_files**, verify cache reuse в окне 10 мин | Warning + Hard scope |
+| Rule 5 Verification Checklist | 28-item checklist, 4 тира; **pytest gate scoped по relevant_files**, verify cache reuse в окне 10 мин; v1.4 — структурированный AC-evidence parser (`service_ac_evidence`) сообщает про gaps и отсутствующие test-refs/негативные сценарии | Warning + Hard scope |
 | Rule 7 Root Cause | Defect-задачи предупреждают если нет root cause | Warning |
 | Rule 8 Knowledge Capture | Warning при task_done + `--no-knowledge` для confirm-none | Warning |
 | Rule 9.2 Лимит сессии | `task start` блокируется при >180 мин **active time** (gap-based, threshold 10 мин). `session extend` продлевает; `session recompute` retro. | Hard (CLI + MCP блокирует) |
@@ -165,8 +165,8 @@ pytest tests/ -v                         # 2318 тестов
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: none | Branch: main | Version: 1.3.7
-Tasks: 0/1 done, 0 active, 0 blocked
+Session: #40 (active) | Branch: main | Version: 1.3.7
+Tasks: 556/557 done, 0 active, 0 blocked
 <!-- DYNAMIC:END -->
 
 Полная история изменений: `CHANGELOG.md`

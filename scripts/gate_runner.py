@@ -262,6 +262,29 @@ def run_gates(
     has_block_failure = False
 
     total = len(gates)
+    # v1.4 r14-mcp-streaming-progress: emit a "run_start" event with the
+    # max budget sum so MCP hosts (VS Code Claude Extension etc.) can show
+    # an ETA before pytest blocks the channel for tens of seconds.
+    if progress_callback:
+        try:
+            timeout_sum = 0
+            for g in gates:
+                t = g.get("timeout_seconds") or g.get("timeout") or 0
+                try:
+                    timeout_sum += int(t)
+                except (TypeError, ValueError):
+                    continue
+            progress_callback(
+                {
+                    "event": "run_start",
+                    "trigger": trigger,
+                    "total": total,
+                    "max_seconds": timeout_sum,
+                    "gates": [g.get("name") for g in gates],
+                }
+            )
+        except Exception:
+            pass
     for idx, gate in enumerate(gates, start=1):
         name = gate["name"]
         severity = gate.get("severity", "warn")

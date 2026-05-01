@@ -200,7 +200,20 @@ def search_with_fallback(
             merged.append(r)
             seen.add(pid)
 
-    return {"results": merged[:limit], "warnings": warnings}
+    final = merged[:limit]
+    # v1.4 r14-brain-metrics: log search + hit counts so `tausik metrics`
+    # can answer "is the brain actually helping this session?" Failures here
+    # never surface — they would block legitimate searches if the project DB
+    # is on a slow disk, missing, or write-protected.
+    try:
+        from brain_metrics_log import log_brain_event
+
+        log_brain_event("search", query=query, result_count=len(final))
+        if final:
+            log_brain_event("hit", query=query, result_count=len(final))
+    except Exception:
+        pass
+    return {"results": final, "warnings": warnings}
 
 
 def get_with_fallback(

@@ -392,6 +392,37 @@ def main() -> None:
     else:
         print("\nBootstrap complete! Run:\n  .tausik/tausik init")
 
+    # Optional: invite the user to the Shared Brain wizard. Only in
+    # interactive mode (so CI / non-TTY runs are not blocked) and only when
+    # tausik is already initialised — brain init writes into the project DB.
+    if args.interactive and args.init is not None:
+        try:
+            answer = (
+                input("\nSetup Shared Brain (cross-project knowledge in Notion)? [y/N] ")
+                .strip()
+                .lower()
+            )
+        except EOFError:
+            answer = ""
+        if answer in ("y", "yes"):
+            wrapper_name = "tausik.cmd" if sys.platform == "win32" else "tausik"
+            tausik_wrapper = os.path.join(project_dir, ".tausik", wrapper_name)
+            try:
+                subprocess.run(
+                    [tausik_wrapper, "brain", "init"],
+                    cwd=project_dir,
+                    check=False,
+                )
+            except FileNotFoundError as e:
+                print(
+                    f"  Could not launch brain init wizard: {e}\n"
+                    "  Run manually later: .tausik/tausik brain init"
+                )
+        else:
+            print(
+                "  Skipping Shared Brain setup. Run later with `.tausik/tausik brain init`."
+            )
+
 
 if __name__ == "__main__":
     main()

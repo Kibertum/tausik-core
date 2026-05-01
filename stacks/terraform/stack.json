@@ -10,7 +10,7 @@
     "terraform-validate": {
       "enabled": false,
       "severity": "block",
-      "trigger": ["task-done", "commit"],
+      "trigger": ["verify", "commit"],
       "command": "terraform fmt -check && terraform validate 2>&1 | head -30",
       "description": "Terraform fmt+validate — syntax only, NOT policy-as-code (Checkov/tfsec/Sentinel NOT included).",
       "stacks": ["terraform"],

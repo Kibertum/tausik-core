@@ -30,7 +30,8 @@ class TestGateRegistration:
         assert "go-test" in DEFAULT_GATES
         gate = DEFAULT_GATES["go-test"]
         assert gate["stacks"] == ["go"]
-        assert "task-done" in gate["trigger"]
+        # v1.4 Verify-First Contract: heavy gates moved from task-done to verify
+        assert "verify" in gate["trigger"]
         assert gate["severity"] == "block"
         assert "go test" in gate["command"]
 
@@ -40,7 +41,7 @@ class TestGateRegistration:
         assert "cargo-test" in DEFAULT_GATES
         gate = DEFAULT_GATES["cargo-test"]
         assert gate["stacks"] == ["rust"]
-        assert "task-done" in gate["trigger"]
+        assert "verify" in gate["trigger"]  # v1.4 Verify-First
         assert "cargo test" in gate["command"]
 
     def test_in_stack_gate_map(self):

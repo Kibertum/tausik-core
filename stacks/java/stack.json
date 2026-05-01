@@ -10,7 +10,7 @@
     "javac": {
       "enabled": false,
       "severity": "block",
-      "trigger": ["task-done"],
+      "trigger": ["verify"],
       "command": "mvn compile -q 2>&1 | head -20",
       "description": "Java compilation check",
       "stacks": ["java"]

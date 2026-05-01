@@ -20,7 +20,13 @@ CONFIG_NAME = "config.json"
 # --- Gate defaults ---
 
 VALID_GATE_SEVERITIES = frozenset({"warn", "block"})
-VALID_GATE_TRIGGERS = frozenset({"task-done", "commit", "review"})
+# v1.4: "verify" is the Verify-First Contract trigger — slow subprocess gates
+# (pytest, tsc, cargo, phpstan, etc.) live here, not on "task-done". The CLI
+# `tausik verify --task <slug>` runs them and records a green into
+# verification_runs; subsequent `task done` checks for a fresh cache hit and
+# closes in milliseconds. This decouples task closure from heavy verification
+# — fixes "task_done hangs in VS Code Claude Extension" UX.
+VALID_GATE_TRIGGERS = frozenset({"task-done", "verify", "commit", "review"})
 
 # --- Security: allowed executables for custom gates ---
 ALLOWED_GATE_EXECUTABLES = frozenset(

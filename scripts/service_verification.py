@@ -218,6 +218,48 @@ def resolve_gate_signature(trigger: str = "task-done") -> str:
     return h.hexdigest()[:16]
 
 
+def _build_cache_command(trigger: str, files: list[str]) -> str:
+    """Cache key includes trigger so verify-run cache and task-done-run cache
+    are stored in distinct buckets — prevents the legacy task-done bucket
+    from satisfying a Verify-First lookup, and vice versa.
+    """
+    sig = resolve_gate_signature(trigger)
+    return f"trigger={trigger}|sig={sig}|files={','.join(sorted(files))}"
+
+
+def has_fresh_verify_run(
+    conn: sqlite3.Connection,
+    slug: str,
+    relevant_files: list[str] | None,
+    *,
+    max_age_s: int = DEFAULT_CACHE_TTL_S,
+) -> tuple[bool, dict[str, Any] | None]:
+    """Verify-First Contract: True iff a green `tausik verify` run exists for
+    this task with matching files_hash and current verify gate signature,
+    no older than `max_age_s` seconds.
+
+    Used by `task_done` to enforce that heavy gates already passed without
+    actually running them again. The returned dict (when present) is the
+    `verification_runs` row so the caller can surface its age in messages.
+
+    Security-sensitive file sets always return False — never trust a cached
+    green for auth/payment paths even if it would otherwise match.
+    """
+    files = relevant_files or []
+    if not is_cache_allowed(files):
+        return False, None
+    files_hash = compute_files_hash(files)
+    cache_command = _build_cache_command("verify", files)
+    hit = lookup_recent_for_task(
+        conn,
+        slug,
+        files_hash=files_hash,
+        command=cache_command,
+        max_age_s=max_age_s,
+    )
+    return (hit is not None), hit
+
+
 def run_gates_with_cache(
     conn: sqlite3.Connection,
     slug: str,
@@ -227,6 +269,7 @@ def run_gates_with_cache(
     append_notes_fn: Callable[[str, str], None] | None = None,
     task_created_at: str | None = None,
     progress_fn: Callable[[dict[str, Any]], None] | None = None,
+    trigger: str = "task-done",
 ) -> tuple[bool, list[dict[str, Any]], str | None]:
     """SENAR Rule 5 cache-aware gate run.
 
@@ -261,8 +304,7 @@ def run_gates_with_cache(
 
     files = relevant_files or []
     files_hash = compute_files_hash(files)
-    gate_sig = resolve_gate_signature("task-done")
-    cache_command = f"trigger=task-done|sig={gate_sig}|files={','.join(sorted(files))}"
+    cache_command = _build_cache_command(trigger, files)
     cache_ok = is_cache_allowed(files)
 
     git_diff_consistent = True
@@ -299,7 +341,7 @@ def run_gates_with_cache(
 
     t0 = _time.monotonic()
     passed, results = run_gates(
-        "task-done", relevant_files, progress_callback=progress_fn
+        trigger, relevant_files, progress_callback=progress_fn
     )
     duration_ms = int((_time.monotonic() - t0) * 1000)
     if results and append_notes_fn is not None:

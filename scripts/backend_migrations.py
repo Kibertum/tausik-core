@@ -176,6 +176,42 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
         "CREATE INDEX IF NOT EXISTS idx_session_usage_session_id ON session_usage_metrics(session_id)",
         "CREATE INDEX IF NOT EXISTS idx_session_usage_recorded_at ON session_usage_metrics(recorded_at)",
     ],
+    # --- v20: SENAR Rule 10.13 — record agent model id+version per session ---
+    20: [
+        "ALTER TABLE sessions ADD COLUMN model_id TEXT",
+        "ALTER TABLE sessions ADD COLUMN model_version TEXT",
+        "CREATE INDEX IF NOT EXISTS idx_sessions_model ON sessions(model_id)",
+    ],
+    # --- v21: SENAR Rule 10.15 — track L1/L2/L3 reviews + critical findings ---
+    21: [
+        """CREATE TABLE IF NOT EXISTS reviews (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_slug TEXT NOT NULL REFERENCES tasks(slug) ON DELETE CASCADE,
+            run_type TEXT NOT NULL CHECK(run_type IN ('L1','L2','L3')),
+            critical_findings INTEGER NOT NULL DEFAULT 0,
+            warnings INTEGER NOT NULL DEFAULT 0,
+            run_at TEXT NOT NULL,
+            notes TEXT
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_reviews_task ON reviews(task_slug)",
+        "CREATE INDEX IF NOT EXISTS idx_reviews_type ON reviews(run_type)",
+    ],
+    # --- v22: brain usage tracking — searches/hits/writes per session ---
+    22: [
+        """CREATE TABLE IF NOT EXISTS brain_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER REFERENCES sessions(id) ON DELETE SET NULL,
+            event_type TEXT NOT NULL
+                CHECK(event_type IN ('search','hit','write','ignored')),
+            query TEXT,
+            result_count INTEGER NOT NULL DEFAULT 0,
+            ts TEXT NOT NULL
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_brain_events_session "
+        "ON brain_events(session_id)",
+        "CREATE INDEX IF NOT EXISTS idx_brain_events_type ON brain_events(event_type)",
+        "CREATE INDEX IF NOT EXISTS idx_brain_events_ts ON brain_events(ts)",
+    ],
 }
 
 

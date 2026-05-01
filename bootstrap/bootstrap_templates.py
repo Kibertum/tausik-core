@@ -7,6 +7,8 @@ drift between IDEs and makes edits single-source.
 
 from __future__ import annotations
 
+import os
+
 
 HARD_CONSTRAINTS = """## Hard Constraints (non-negotiable)
 
@@ -14,7 +16,7 @@ Quality gates (`.tausik/tausik gates status`) enforce these automatically.
 
 - **No code without a task.** Run `task start <slug>` before any Write/Edit. No exceptions. (SENAR Rule 9.1)
 - **QG-0 Context Gate.** `task start` requires goal + acceptance_criteria with at least one negative scenario. Set both before starting.
-- **QG-2 Implementation Gate.** `task done --ac-verified` requires evidence in task logs and passing quality gates (pytest, ruff/lint). Log AC verification via `task log` before closing.
+- **QG-2 Implementation Gate (Verify-First v1.4).** Heavy gates (pytest, tsc, cargo, phpstan, …) live on a separate `verify` step. Sequence: run `tausik verify --task <slug>` once everything is in place — it caches a green; then `task done --ac-verified` looks the cache up and closes the task in milliseconds. If the cache is missing or stale → `task done` blocks with the explicit remediation command. Opt-out for CI: `.tausik/config.json` → `{ "task_done": { "auto_verify": true } }` (legacy inline behavior).
 - **No commit without gates.** Gates run automatically — fix blocking failures before committing.
 - **No direct DB access.** Use MCP tools or CLI. Never raw SQLite.
 - **Don't guess CLI arguments.** Run `.tausik/tausik <cmd> --help` or read the CLI reference.
@@ -62,15 +64,17 @@ TAUSIK enforces these rules. Violating them triggers warnings or hard blocks.
 
 | Rule | Purpose | Enforcement |
 |---|---|---|
-| QG-0 Context Gate | Goal + AC + negative scenario before starting | Hard (blocks task_start) |
-| QG-2 Implementation Gate | Evidence + AC verified + gates pass before done | Hard (blocks task_done) |
-| Rule 1 Task before code | No Write/Edit without active task | Hard (PreToolUse hook) |
+| QG-0 Context Gate | Goal + AC + negative scenario before starting | Hard (CLI/MCP — blocks `task_start`) |
+| QG-2 Implementation Gate | Evidence + AC verified + fresh `tausik verify` green before done (Verify-First v1.4) | Hard (CLI/MCP — blocks `task_done`) |
+| Rule 1 Task before code | No Write/Edit without active task | Hard (PreToolUse hook) in Claude Code, VS Code Claude Extension, Qwen Code; **Instruction-only in Cursor** (no hooks API) |
 | Rule 2 Scope Boundaries | Declare scope + scope_exclude per task | Warning |
 | Rule 3 Verify Against Criteria | Per-criterion evidence | Warning |
 | Rule 7 Root Cause | Defect tasks require root cause | Warning |
-| Rule 9.2 Session limit | 180 min per session | Hard (blocks task_start) |
+| Rule 9.2 Session limit | 180 min per session | Hard (blocks `task_start`) |
 | Rule 9.3 Checkpoint | Every 30-50 tool calls | Instruction |
 | Rule 9.4 Dead Ends + Logging | Document failed approaches, log progress | Instruction |
+
+> **Cursor caveat.** Cursor does not yet expose a PreToolUse hooks API equivalent to Claude Code's `.claude/settings.json`. TAUSIK's Cursor bootstrap therefore ships only `.cursorrules` + MCP servers — Rule 1 is enforced by the agent reading the rules, not by a process gate. Other quality gates (QG-0, QG-2, session limit) still run inside the `tausik-project` MCP server and remain Hard. If your team needs a process-level Rule 1 in Cursor, route writes through the `tausik_task_start` / `tausik_task_done_v2` MCP tools and treat raw file edits as non-conformant in code review.
 
 Full rule set: [SENAR v1.3](https://senar.tech).
 """
@@ -81,7 +85,8 @@ COMMANDS = """## Commands Quick Reference
 .tausik/tausik status                          # project overview + warnings
 .tausik/tausik task list                       # list tasks
 .tausik/tausik task start <slug>               # activate (QG-0 enforced)
-.tausik/tausik task done <slug> --ac-verified  # complete (QG-2 enforced)
+.tausik/tausik verify --task <slug>            # heavy gates (pytest etc.) → cached green
+.tausik/tausik task done <slug> --ac-verified  # complete (QG-2 enforced via verify cache)
 .tausik/tausik task log <slug> "message"       # log progress
 .tausik/tausik dead-end "approach" "reason"    # document failure
 .tausik/tausik metrics                         # SENAR metrics
@@ -91,9 +96,15 @@ COMMANDS = """## Commands Quick Reference
 
 QUALITY_GATES = """## Quality Gates
 
-Gates auto-run on commits, task done, and explicit checks. Stack-specific lint/test gates auto-enable by detected stack. Filesize gate warns on files >400 lines.
+Gates run on three triggers:
 
-Check status: `.tausik/tausik gates status`. Fix blocking failures before committing.
+- **`task-done`** — cheap-only (filesize, tdd_order). Closes a task in milliseconds.
+- **`verify`** — heavy (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeval, hadolint, ansible-lint). Run via `.tausik/tausik verify --task <slug>`. Result cached for 10 min; `task done` reads the cache.
+- **`commit`** — local lint (ruff, eslint, phpcs, golangci-lint).
+
+Stack-specific gates auto-enable by detected stack. Filesize gate warns on files >400 lines.
+
+Check status: `.tausik/tausik gates status`. Fix blocking failures before committing. Verify-First Contract opt-out: `.tausik/config.json` → `{ "task_done": { "auto_verify": true } }` runs the heavy gates inside `task done` instead of as a separate step.
 """
 
 TOOL_ROUTING = """## Tool Routing — when to use which
@@ -109,6 +120,18 @@ Don't reach for `Grep`/`Glob` first. TAUSIK ships dedicated retrieval MCP server
 | Understand the project structure | `tausik_status` + `tausik_roadmap` | `Glob` for raw file listing |
 
 Run `mcp__codebase-rag__rag_status` once per session to confirm the index is fresh. If `chunks=0`, run `mcp__codebase-rag__reindex` before any `search_code` call.
+"""
+
+MULTIMODEL_NOTE = """## Are you a non-Claude agent? (GPT-5.5, Composer, Codex, OpenCode, Gemini …)
+
+TAUSIK is model-agnostic, but the surface you actually use differs from Claude Code:
+
+- **MCP tools first.** Every quality gate (QG-0, QG-2, session limit, dead-end tracking) is enforced inside the `tausik-project` MCP server. Calling MCP tools gives you the same hard guarantees Claude Code gets. Bash CLI is a fallback only when MCP is unreachable.
+- **Slash commands may not exist.** If your host doesn't expand `/start`, `/plan`, `/ship`, `/end`, open the matching `agents/skills/<name>/SKILL.md` and execute its numbered steps. Skills are written as procedures, not host-specific magic.
+- **PreToolUse hooks may not exist.** Cursor and a number of GPT-style agents have no hooks API: `task_gate.py` will not protect Rule 1 ("no code without a task"). Self-enforce — always call `tausik_task_start` (or `tausik_task_quick`) before any Edit/Write.
+- **Don't write to `~/.claude/`.** It is a Claude-specific profile. Use the project DB (`.tausik/tausik.db`) via `tausik_memory_*` MCP tools, or the path under `CLAUDE_PLUGIN_DATA` if your host sets it.
+- **Verify-First Contract is universal.** Run `tausik_verify` before `tausik_task_done_v2`, regardless of model. The 60s per-MCP-tool timeout that VS Code Claude Extension applies is the strictest case; if you keep heavy work inside `verify`, every other host stays in budget too.
+- **`task_done_v2` over `task_done`.** When the MCP server publishes both, prefer `tausik_task_done_v2` — its structured JSON response (`stage`, `gate_results`, `blocking_failures`) is much friendlier to non-Claude tool-use loops that expect typed payloads.
 """
 
 RESPONSE_LANGUAGE = """## Response Language
@@ -155,15 +178,45 @@ def build_roles_section(ide_subdir: str) -> str:
     )
 
 
+def _load_ide_override(ide: str | None) -> str:
+    """Load IDE-specific override block from agents/overrides/{ide}/rules.md.
+
+    Returns "" if `ide` is None/unknown or the override file is missing.
+    Wrapped so a missing file never breaks bootstrap.
+    """
+    if not ide:
+        return ""
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidate = os.path.normpath(
+        os.path.join(here, "..", "agents", "overrides", ide, "rules.md")
+    )
+    if not os.path.isfile(candidate):
+        return ""
+    try:
+        with open(candidate, encoding="utf-8") as f:
+            body = f.read().strip()
+        if not body:
+            return ""
+        return f"\n## IDE-specific overrides ({ide})\n\n{body}\n"
+    except OSError:
+        return ""
+
+
 def build_full_body(
     project_name: str,
     stacks: list[str],
     agent_name: str,
     ide_subdir: str,
+    ide: str | None = None,
 ) -> str:
     """Compose the full shared body used by all IDE-specific generators.
 
-    Caller prepends its own file-level header (e.g. '# CLAUDE.md').
+    Caller prepends its own file-level header (e.g. '# CLAUDE.md'). When
+    `ide` is supplied, the matching `agents/overrides/<ide>/rules.md`
+    block (if present) is appended right before the dynamic state block —
+    closing the audit gap r14-overrides-integration where these files
+    existed but were never wired into the generated CLAUDE.md/.cursorrules
+    /QWEN.md.
     """
     parts = [
         build_header(project_name, stacks, agent_name),
@@ -176,7 +229,9 @@ def build_full_body(
         QUALITY_GATES,
         build_skills_section(ide_subdir),
         build_roles_section(ide_subdir),
+        MULTIMODEL_NOTE,
         RESPONSE_LANGUAGE,
+        _load_ide_override(ide),
         DYNAMIC_BLOCK,
     ]
-    return "\n".join(parts)
+    return "\n".join(p for p in parts if p)

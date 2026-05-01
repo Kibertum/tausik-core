@@ -37,6 +37,23 @@ Work on tasks from project DB.
    - **Check dead ends** — don't repeat failed approaches:
      - `tausik_memory_list` with `type=dead_end`
 
+3.5. **Brain primer (cross-project, 1.4+).** If `tausik-brain` MCP is configured, run one `brain_search` for patterns and one for gotchas, scoped to the task's topic + stack. Skip silently if brain is disabled.
+
+   ```
+   brain_search(
+     query="<task title keywords> <stack tag>",
+     category="patterns",
+     limit=3
+   )
+   brain_search(
+     query="<task title keywords> <stack tag>",
+     category="gotchas",
+     limit=3
+   )
+   ```
+
+   Surface up to 3 patterns + 3 gotchas inline before announcing the task. Filter out any page id that appears in `tausik_memory_list type=convention` with title `brain.ignored:<id>` — the user already dismissed it. If a result misleads, mark it ignored via `tausik_memory_quick(type="convention", title="brain.ignored:<page_id>", content="…")` so it does not return next session.
+
 4. **Adopt role** from task — follow the role profile's skill modifiers for /task.
 
 5. **Announce:** Display to user:
@@ -76,7 +93,9 @@ Work on tasks from project DB.
    - If no changes (everything already committed) → run a lightweight close:
      - Verify plan completion via `tausik_task_show` with `slug={slug}`
      - Walk each AC, log evidence: `tausik_task_log` with `slug={slug}`, `message="AC verified: 1. [criterion] ✓ [evidence] 2. ..."`
-     - Close: `tausik_task_done` with `slug={slug}`, `ac_verified=true`, `relevant_files=[...]`
+     - **Run verify (Verify-First Contract, v1.4):** `tausik_verify` with `task_slug={slug}` to seed the cache. If verify fails, fix and retry — do NOT proceed to close.
+     - Close (preferred, v1.4+): `tausik_task_done_v2` with `slug={slug}`, `ac_verified=true`, `relevant_files=[...]` — instant cache lookup, returns structured `stage` + `blocking_failures` JSON for clean error handling.
+     - Close (fallback, legacy MCP servers without v2): `tausik_task_done` with the same arguments — v1 raises a single aggregated error string (1.4 behaviour); iterate fixes, do not silently re-call.
      - Announce completion
 
 **Why redirect?** `/ship` runs full `/review` + `/test` + gates + commit. Closing without review violates SENAR Rule 9.15 (AI Output QA).
@@ -121,7 +140,8 @@ Prefer MCP tools over CLI bash calls. Exact parameter names:
 | MCP Tool | Required Params | Optional Params |
 |----------|----------------|-----------------|
 | `tausik_task_start` | `slug` | — |
-| `tausik_task_done` | `slug` | `ac_verified=true`, `relevant_files=["f1.py"]`, `no_knowledge=true` |
+| `tausik_task_done_v2` (preferred, v1.4+) | `slug` | `ac_verified=true`, `relevant_files=["f1.py"]`, `evidence`, `no_knowledge=true` — returns structured JSON |
+| `tausik_task_done` (legacy fallback) | `slug` | same args; raises aggregated error string on failure |
 | `tausik_task_log` | `slug`, `message` | — |
 | `tausik_task_step` | `slug`, `step_num` (1-based int) | — |
 | `tausik_task_show` | `slug` | — |

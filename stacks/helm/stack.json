@@ -11,7 +11,7 @@
     "helm-lint": {
       "enabled": false,
       "severity": "warn",
-      "trigger": ["task-done", "commit"],
+      "trigger": ["verify", "commit"],
       "command": "helm lint . 2>&1 | head -30",
       "description": "Helm chart linter — lint/syntax only, NOT policy-as-code.",
       "stacks": ["helm"],

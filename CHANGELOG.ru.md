@@ -9,6 +9,76 @@
 > начиная с v1.3.2; для более ранних релизов смотри английскую версию.
 > При добавлении новой записи держи оба файла синхронизированными.
 
+## [Unreleased] — 1.4 — Verify-First Contract + усиление по аудиту
+
+> Релиз готовности к публике, основанный на аудите 1.4
+> (`docs/ru/research/tausik-1.4-readiness-audit-v2-2026-05-01.md`).
+> Главное изменение: тяжёлая верификация (pytest, tsc, cargo, phpstan, …)
+> отделена от `task done`. Закрытие задачи теперь миллисекундная операция,
+> а верификация — отдельный явный кешируемый шаг.
+
+### BREAKING (с opt-out)
+
+- **Verify-First Contract.** Тяжёлые quality gates переехали с триггера
+  `task-done` на новый триггер `verify`. `task done` теперь отказывается
+  закрывать задачу, пока в `verification_runs` нет свежего green-запуска
+  `tausik verify` для этой задачи (TTL 10 мин, настраивается через
+  `verify_cache_ttl_seconds`). Затронутые гейты: `pytest`, `tsc`,
+  `cargo-check`, `cargo-test`, `go-vet`, `go-test`, `phpstan`, `phpunit`,
+  `javac`, `js-test`, `terraform-validate`, `helm-lint`, `kubeval`,
+  `hadolint`, `ansible-lint`.
+  - **Зачем:** в VS Code Claude Extension и подобных хостах
+    многоминутные синхронные pytest-прогоны внутри `task_done` выглядели
+    как зависание агента. Новый контракт делает верификацию видимой и
+    прерываемой.
+  - **Opt-out:** добавьте `{ "task_done": { "auto_verify": true } }` в
+    `.tausik/config.json` — вернётся inline-поведение v1.3 (heavy гейты
+    запускаются внутри `task_done`). Полезно для CI.
+  - **Миграция:** достаточно вставить `tausik verify --task <slug>` перед
+    `task done`. Скилл `/ship` и CLI-доки уже обновлены.
+
+### Добавлено
+
+- `VALID_GATE_TRIGGERS` расширен на `"verify"` (project_config + stack_schema).
+- `service_verification.has_fresh_verify_run()` и
+  `service_verification._build_cache_command(trigger, files)` — ключ кеша
+  включает триггер, чтобы verify- и task-done-кеши не пересекались.
+- `service_gates._enforce_verify_first()` синтезирует blocking_failure
+  с явной remediation, если свежего verify-запуска нет.
+- `tests/test_verify_first_contract.py` — 14 тестов end-to-end (блок,
+  разблокировка через cache hit, auto_verify opt-out, разделение
+  buckets кеша, проекты-исключения, миграция стек-гейтов).
+- Маркер pytest `verify_first` и autouse opt-out фикстура в `conftest.py`,
+  чтобы legacy-тесты не падали на новом контракте.
+
+### Изменено
+
+- `agents/{claude,cursor}/mcp/project/server.py`:
+  - `chdir(args.project)` при старте с явной проверкой directory
+    (exit 2, stderr-сообщение). Паритет с `tausik-brain`.
+  - Исключения tool теперь печатают полный `traceback.format_exc()` в
+    stderr, а агент видит минимальное `Error: …` — стек-фреймы не
+    утекают в model context.
+- `service_verification.run_gates_with_cache(..., trigger="task-done")`
+  параметризован; CLI `verify` и MCP `_handle_verify` зовут с
+  `trigger="verify"`.
+- Стек-конфиги `python`, `typescript`, `rust`, `go`, `php`, `javascript`,
+  `java`, `terraform`, `helm`, `kubernetes`, `docker`, `ansible` обновлены:
+  тяжёлые гейты с `task-done` переведены на `verify`.
+- `bootstrap_templates.py` HARD_CONSTRAINTS, SENAR_RULES, COMMANDS и
+  QUALITY_GATES секции описывают Verify-First workflow — новые проекты
+  через bootstrap получают правильные CLAUDE.md / AGENTS.md / .cursorrules.
+- `docs/{en,ru}/cli.md` и `docs/{en,ru}/quickstart.md` обновлены.
+- Скиллы `/ship` и `/task done` явно вызывают `tausik_verify` перед
+  закрытием задачи.
+
+### Исправлено
+
+- Pre-existing баг тестов: `tests/test_service_verification.py` lambdas,
+  мокающие `gate_runner.run_gates`, не принимали kwargs и тихо падали
+  на реальном `progress_callback=`. Lambdas получили `**_kw`. (4 теста
+  разблокированы.)
+
 ## [1.3.7] — 2026-04-29 — MCP-прозрачность для Cursor/VSCode + docs consistency sweep
 
 Патч усиливает агентный UX MCP и синхронизирует документацию с фактическим

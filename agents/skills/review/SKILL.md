@@ -94,6 +94,24 @@ python scripts/gate_runner.py review --files {files_in_scope}
 
 Merge all confirmed findings into the standard Output Format (see below).
 
+### 7. Record Review Run (SENAR Rule 10.15)
+
+The `/review` skill runs **6 adversarial agents** — this is an **L3 review** (external/adversarial reviewer, separate context from the implementer). Record it so ADR (Adversarial Defect Rate) can be tracked across the project.
+
+```bash
+.tausik/tausik review record \
+  --task {slug} \
+  --type L3 \
+  --critical {N_critical} \
+  --warnings {N_high_plus_medium} \
+  --notes "{1-line summary or commit/PR url}"
+```
+
+Notes:
+- `--type L1` = author self-review, `L2` = peer (same context), `L3` = adversarial/external (this skill).
+- ADR is shown in `tausik metrics` once any L3 reviews exist.
+- Skip if no active task — store as `--task <related-slug>` if reviewing arbitrary code (still surfaces in `tausik review list`).
+
 ### Fallback: Single-Pass Review
 
 If the Agent tool is unavailable or agents fail, fall back to a **single-pass review** covering all 5 domains yourself. Use the severity categories:

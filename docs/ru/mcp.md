@@ -1,15 +1,30 @@
 [English](../en/mcp.md) | **Русский**
 
-# TAUSIK MCP — Справочник инструментов (v1.3)
+# TAUSIK MCP — Справочник инструментов (v1.4)
 
-**96 инструментов** для ИИ-агентов (90 project + 6 brain). MCP-surface зеркалит CLI 1:1 без CLI-only пробелов. Предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
+**97 инструментов** для ИИ-агентов (91 project + 6 brain; v1.4 актуальный счёт, проверено `len(TOOLS)` обоих серверов). MCP-surface зеркалит CLI 1:1 без CLI-only пробелов. Предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
+
+> **Опциональный сервер `codebase-rag`** добавляет 7 инструментов (search_code, find_symbol, etc.). Он включается отдельно через bootstrap и НЕ входит в основной счёт 97 — итого с ним 104 инструмента.
 
 В проекте живут два MCP-сервера:
 
-- `tausik-project` — project-scoped инструменты (90): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify.
+- `tausik-project` — project-scoped инструменты (91): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify.
 - `tausik-brain` — cross-project Shared Brain инструменты (6).
 
 Опционально доступен `codebase-rag` сервер (документирован в конце).
+
+## Verify-First Contract (v1.4)
+
+Тяжёлые quality gates (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeval, hadolint, ansible-lint) живут на отдельном триггере `verify`. MCP workflow:
+
+```
+tausik_task_start(slug=…)                    # QG-0
+… работа над кодом …
+tausik_verify(task_slug=…)                   # тяжёлое: subprocess-гейты → кеш green
+tausik_task_done(slug=…, ac_verified=True)   # лёгкое: lookup в кеше
+```
+
+`tausik_task_done` откажется закрывать задачу, если verify-кеш отсутствует или устарел — возвращает структурированный failure с явной remediation. Opt-out для CI: установите `{"task_done": {"auto_verify": true}}` в `.tausik/config.json` — тогда heavy гейты выполнятся внутри `task_done` как в v1.3.
 
 ## Status, Health, Metrics
 
@@ -57,11 +72,13 @@
 
 ### `tausik_task_done_v2`
 
-Использует те же входные параметры, что и `tausik_task_done`, но возвращает structured JSON для агентных сценариев:
+**Предпочитаемый для QG-2 с 1.3.7.** Использует те же входные параметры, что и `tausik_task_done`, но возвращает structured JSON для агентных сценариев:
 - stage-флаги (`plan_complete`, `ac_verified`, `gates_passed`)
 - результаты по каждому gate (`gates[]`)
 - `blocking_failures[]` с `gate`, `files`, `output`, `remediation`
 - `warnings[]`, `cache_status` и итоговый `ok`
+
+Скиллы (`/ship`, `/task`) вызывают v2 если MCP-сервер его публикует, и откатываются на v1 (одна агрегированная строка ошибки, поведение 1.4) — иначе. Оба пути соблюдают Verify-First Contract.
 
 ## Сессии
 
@@ -134,7 +151,7 @@
 | `tausik_gates_status` | Статус всех gates (по стеку) | — |
 | `tausik_gates_enable` | Включить gate | `name` |
 | `tausik_gates_disable` | Выключить gate | `name` |
-| `tausik_verify` | Запустить scoped quality gates ad-hoc; пишет в verify cache | — (`task` + `scope` опционально) |
+| `tausik_verify` | v1.4 Verify-First: запустить heavy gates (pytest, tsc, …) и закешировать green в `verification_runs`. После этого `tausik_task_done` использует кеш и закрывается мгновенно. | `task_slug` |
 
 Доступные gates: `pytest`, `ruff`, `mypy`, `bandit`, `tsc`, `eslint`, `go-vet`, `golangci-lint`, `cargo-check`, `clippy`, `phpstan`, `phpcs`, `javac`, `ktlint`, `filesize`, `tdd_order`. Stack-scoped gates авто-включаются по обнаруженному стеку; universal gates (`filesize`, `tdd_order`) применяются ко всем стекам.
 
@@ -208,13 +225,13 @@ DEFAULT_STACKS: 25 записей (python, fastapi, django, flask, react, next, 
 | Инструмент | Описание | Обязательные параметры |
 |---|---|---|
 | `brain_search` | Поиск в Notion-backed brain (FTS по local mirror) | `query` |
-| `brain_get` | Получить brain-запись по id | `id` |
-| `brain_store_decision` | Сохранить cross-project решение | `title`, `body` |
-| `brain_store_pattern` | Сохранить cross-project паттерн | `title`, `body` |
-| `brain_store_gotcha` | Сохранить cross-project gotcha | `title`, `body` |
-| `brain_cache_web` | Кешировать web-результат для token reuse | `query`, `content` |
+| `brain_get` | Получить brain-запись по id | `id`, `category` |
+| `brain_store_decision` | Сохранить cross-project решение | `name`, `decision` |
+| `brain_store_pattern` | Сохранить cross-project паттерн | `name`, `description` |
+| `brain_store_gotcha` | Сохранить cross-project gotcha | `name`, `description` |
+| `brain_cache_web` | Кешировать web-результат для token reuse | `name`, `url`, `content` |
 
-`tausik-brain` MCP-сервер запускается config-agnostic и читает реестр из `.tausik-brain/` конфигурации. Экспонирует дополнительные внутренние инструменты (registry, mirror sync), доводя счётчик brain до 6.
+`tausik-brain` MCP-сервер запускается config-agnostic и читает реестр из `.tausik-brain/` конфигурации. Полный счётчик brain-инструментов = 6 (проверено через `len(TOOLS)` в `agents/claude/mcp/brain/tools.py`).
 
 ## Codebase RAG (отдельный опциональный MCP-сервер)
 
@@ -222,13 +239,13 @@ DEFAULT_STACKS: 25 записей (python, fastapi, django, flask, react, next, 
 |---|---|---|
 | `search_code` | Поиск кода через RAG-индекс | `query` |
 | `search_knowledge` | Поиск в knowledge base | `query` |
-| `reindex` | Реиндексация кодбазы | — |
+| `reindex` | Реиндексация кодбазы | `mode` (incremental/full), `max_seconds` (soft limit, только для full). v1.4: stderr-прогресс каждые 100 файлов; truncated=true при таймауте. |
 | `rag_status` | Статус RAG-индекса | — |
 | `archive_done` | Архивировать выполненные задачи | — |
 | `cache_web_result` | Кешировать web-результат | `query`, `content` |
 | `search_web_cache` | Поиск кешированных web-результатов | `query` |
 
-Эти не входят в счёт 96+10 — принадлежат опциональному `codebase-rag` серверу.
+Эти не входят в основной счёт 97 — принадлежат опциональному `codebase-rag` серверу.
 
 ## Запуск Tausik MCP-сервера
 

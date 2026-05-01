@@ -21,7 +21,10 @@ def generate_settings_qwen(
     """Generate .qwen/settings.json with MCP servers and hooks for Qwen Code.
 
     Qwen Code uses the same hook format as Claude Code (PreToolUse, PostToolUse,
-    SessionEnd) — so we generate identical SENAR enforcement hooks.
+    SessionEnd) — so we generate the **same** SENAR enforcement hooks. v1.4
+    closed the four-hook gap audited as r14-qwen-parity-or-honesty
+    (brain_search_proactive, brain_post_webfetch, task_call_counter,
+    activity_event). Parity is now pinned by tests/test_bootstrap_hooks_parity.py.
     MCP config goes into mcpServers key in the same file.
     """
     python_exe = venv_python or sys.executable
@@ -93,6 +96,16 @@ def generate_settings_qwen(
                 ],
             },
             {
+                "matcher": "Write|Edit|MultiEdit",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("secret_scan.py"),
+                        "timeout": 5,
+                    }
+                ],
+            },
+            {
                 "matcher": "Bash",
                 "hooks": [
                     {
@@ -109,6 +122,16 @@ def generate_settings_qwen(
                     {
                         "type": "command",
                         "command": _hook_cmd("git_push_gate.py"),
+                        "timeout": 5,
+                    }
+                ],
+            },
+            {
+                "matcher": "WebSearch|WebFetch",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("brain_search_proactive.py"),
                         "timeout": 5,
                     }
                 ],
@@ -136,13 +159,42 @@ def generate_settings_qwen(
                 ],
             },
             {
-                "matcher": "mcp__tausik-project__tausik_task_done|Bash",
+                "matcher": (
+                    "mcp__tausik-project__tausik_task_done"
+                    "|mcp__tausik-project__tausik_task_done_v2"
+                    "|Bash"
+                ),
                 "hooks": [
                     {
                         "type": "command",
                         "command": _hook_cmd("task_done_verify.py"),
                         "timeout": 6,
                     }
+                ],
+            },
+            {
+                "matcher": "WebFetch",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("brain_post_webfetch.py"),
+                        "timeout": 5,
+                    }
+                ],
+            },
+            {
+                "matcher": "*",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("task_call_counter.py"),
+                        "timeout": 5,
+                    },
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("activity_event.py"),
+                        "timeout": 5,
+                    },
                 ],
             },
         ],
@@ -215,7 +267,7 @@ def generate_qwen_md(project_dir: str, project_name: str, stacks: list[str]) -> 
     from bootstrap_templates import build_full_body
 
     body = build_full_body(
-        project_name, stacks, "Qwen Code (an AI coding agent)", ".qwen"
+        project_name, stacks, "Qwen Code (an AI coding agent)", ".qwen", ide="qwen"
     )
     content = f"# QWEN.md\n\n{body}"
     path = os.path.join(project_dir, "QWEN.md")

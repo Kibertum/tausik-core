@@ -34,6 +34,36 @@ from service_validation import update_enums as _update_enums  # noqa: E402,F401
 from service_recording import apply_force_capacity_audit as _apply_force_audit  # noqa: E402,F401
 
 
+def _format_task_done_failures(report: dict[str, Any]) -> str:
+    """v1.4: aggregate ALL blocking failures into the v1 ServiceError message.
+
+    Pre-1.4 behavior surfaced only ``failures[0]["message"]`` which silently
+    hid AC-stage and gate-stage failures when both happened (e.g. AC missing
+    AND filesize gate failing — only AC was reported, then closing the AC
+    issue would surface the gate failure on the next attempt). After 1.4 the
+    agent sees every blocking issue at once.
+
+    Falls back to the legacy 'task_done failed' string when blocking_failures
+    is empty (defensive — should not happen in practice). Per-failure message
+    cap at 180 chars matches existing _task_done_report formatting.
+    """
+    failures = report.get("blocking_failures") or []
+    if not failures:
+        return "task_done failed"
+    if len(failures) == 1:
+        return failures[0].get("message") or "task_done failed"
+    parts = ["task_done blocked by multiple failures:"]
+    for i, f in enumerate(failures, start=1):
+        msg = (f.get("message") or "")[:180]
+        stage = f.get("stage") or "?"
+        gate = f.get("gate")
+        prefix = f"  [{i}] stage={stage}"
+        if gate:
+            prefix += f" gate={gate}"
+        parts.append(f"{prefix}: {msg}")
+    return "\n".join(parts)
+
+
 class TaskMixin(GatesMixin, CascadeMixin):
     """Task lifecycle with strict workflow enforcement."""
 
@@ -159,10 +189,7 @@ class TaskMixin(GatesMixin, CascadeMixin):
             progress_fn=progress_fn,
         )
         if not report.get("ok"):
-            failures = report.get("blocking_failures") or []
-            first = failures[0] if failures else {}
-            msg = first.get("message") or "task_done failed"
-            raise ServiceError(msg)
+            raise ServiceError(_format_task_done_failures(report))
         message = report.get("message")
         if isinstance(message, str) and message.strip():
             return message

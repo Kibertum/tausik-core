@@ -40,10 +40,89 @@ def active_task(svc):
     return svc
 
 
+@pytest.mark.verify_first
 class TestRunQualityGates:
-    """Test _run_quality_gates: gate_runner integration."""
+    """Test _run_quality_gates: gate_runner integration.
 
-    def test_gates_pass_allows_task_done(self, active_task, monkeypatch):
+    v1.4 Verify-First Contract: heavy gates (pytest, tsc, ...) moved from
+    `task-done` to `verify` trigger. `task_done` now refuses to close unless
+    a fresh `tausik verify` run exists in `verification_runs` for the task.
+    Opt-out: config.task_done.auto_verify = true (legacy CI inline path).
+
+    These tests cover three flows:
+      1. task_done WITHOUT a verify run → blocks with verify-first message.
+      2. task_done WITH a fresh green verify run → closes (cache hit).
+      3. task_done with auto_verify=True (legacy) → runs verify gates inline,
+         pass → closes; fail → blocks.
+    """
+
+    def _stub_verify_gate(self, monkeypatch, *, auto_verify: bool = False):
+        """Pretend the project has at least one verify-trigger gate.
+
+        Uses monkeypatch on project_config.load_config + .get_gates_for_trigger
+        so we never write to the real .tausik/config.json (which would leak
+        between tests and into the developer's working tree).
+        """
+        from project_config import get_gates_for_trigger as real_for_trigger
+
+        def fake_get_for_trigger(trigger, cfg=None):
+            if trigger == "verify":
+                return [
+                    {
+                        "name": "pytest",
+                        "enabled": True,
+                        "trigger": ["verify"],
+                        "command": "pytest",
+                        "severity": "block",
+                    }
+                ]
+            return real_for_trigger(trigger, cfg)
+
+        fake_cfg = {"task_done": {"auto_verify": auto_verify}}
+        monkeypatch.setattr("project_config.load_config", lambda: fake_cfg)
+        monkeypatch.setattr(
+            "project_config.get_gates_for_trigger", fake_get_for_trigger
+        )
+        import service_verification
+
+        return service_verification
+
+    def test_task_done_without_verify_blocks(self, active_task, monkeypatch):
+        """v1.4 default: no fresh verify run → task_done refuses to close."""
+        # Cheap gates (filesize) all green — that path must not be the issue.
+        mock_run = MagicMock(return_value=(True, []))
+        self._stub_verify_gate(monkeypatch)
+        with patch.dict("sys.modules", {"gate_runner": MagicMock(run_gates=mock_run)}):
+            with pytest.raises(ServiceError, match="no fresh `tausik verify`"):
+                active_task.task_done("t1", ac_verified=True)
+
+    def test_task_done_with_fresh_verify_run_closes(self, active_task, monkeypatch):
+        """v1.4: a green `tausik verify` cache row satisfies task_done QG-2."""
+        sv = self._stub_verify_gate(monkeypatch)
+        # Pre-record a fresh green verify run for this task with files=[]
+        # (active_task fixture has no relevant_files; files_hash matches empty list).
+        cache_command = sv._build_cache_command("verify", [])
+        files_hash = sv.compute_files_hash([])
+        sv.record_run(
+            active_task.be._conn,
+            task_slug="t1",
+            scope="standard",
+            command=cache_command,
+            exit_code=0,
+            summary="pytest=PASS",
+            files_hash=files_hash,
+            duration_ms=42,
+        )
+        mock_run = MagicMock(return_value=(True, []))
+        with patch.dict("sys.modules", {"gate_runner": MagicMock(run_gates=mock_run)}):
+            msg = active_task.task_done("t1", ac_verified=True)
+        assert "completed" in msg
+
+    def test_task_done_auto_verify_legacy_inline_pass(self, active_task, monkeypatch):
+        """v1.4 opt-out: auto_verify=true runs verify gates inline. Pass → close."""
+        self._stub_verify_gate(monkeypatch, auto_verify=True)
+        # When _enforce_verify_first runs the verify gates inline it goes
+        # through run_gates_with_cache → run_gates. Mock to PASS.
         mock_run = MagicMock(
             return_value=(
                 True,
@@ -51,6 +130,7 @@ class TestRunQualityGates:
                     {
                         "name": "pytest",
                         "passed": True,
+                        "skipped": False,
                         "severity": "block",
                         "output": "ok",
                     }
@@ -61,7 +141,9 @@ class TestRunQualityGates:
             msg = active_task.task_done("t1", ac_verified=True)
         assert "completed" in msg
 
-    def test_gates_fail_blocks_task_done(self, active_task, monkeypatch):
+    def test_task_done_auto_verify_legacy_inline_fail(self, active_task, monkeypatch):
+        """v1.4 opt-out: auto_verify=true + failing verify gate → blocks."""
+        self._stub_verify_gate(monkeypatch, auto_verify=True)
         mock_run = MagicMock(
             return_value=(
                 False,
@@ -69,6 +151,7 @@ class TestRunQualityGates:
                     {
                         "name": "pytest",
                         "passed": False,
+                        "skipped": False,
                         "severity": "block",
                         "output": "1 failed",
                     }
@@ -76,29 +159,21 @@ class TestRunQualityGates:
             )
         )
         with patch.dict("sys.modules", {"gate_runner": MagicMock(run_gates=mock_run)}):
-            with pytest.raises(ServiceError, match="blocking gates failed"):
+            with pytest.raises(ServiceError):
                 active_task.task_done("t1", ac_verified=True)
 
     def test_gates_not_bypassable_via_env(self, active_task, monkeypatch):
-        """TAUSIK_SKIP_GATES env var no longer bypasses gates."""
+        """TAUSIK_SKIP_GATES env var has never bypassed QG-2 — still doesn't.
+
+        Verify-First flavor of the regression check: with the var set and
+        no verify run, task_done still blocks (no env-based escape hatch).
+        """
         monkeypatch.setenv("TAUSIK_SKIP_GATES", "1")
-        mock_run = MagicMock(
-            return_value=(
-                False,
-                [
-                    {
-                        "name": "pytest",
-                        "passed": False,
-                        "severity": "block",
-                        "output": "1 failed",
-                    }
-                ],
-            )
-        )
+        self._stub_verify_gate(monkeypatch)
+        mock_run = MagicMock(return_value=(True, []))
         with patch.dict("sys.modules", {"gate_runner": MagicMock(run_gates=mock_run)}):
-            with pytest.raises(ServiceError, match="blocking gates failed"):
+            with pytest.raises(ServiceError, match="QG-2"):
                 active_task.task_done("t1", ac_verified=True)
-        mock_run.assert_called_once()
 
 
 class TestCheckVerificationChecklist:
@@ -129,7 +204,16 @@ class TestCheckVerificationChecklist:
             complexity="simple",
         )
         svc.task_start("t1", _internal_force=True)
-        svc.task_log("t1", "Checked scope — only README changed")
+        # v1.4: AC evidence parser also requires per-AC evidence lines; the
+        # legacy "scope" keyword alone passes the lightweight checklist but
+        # leaves AC coverage at 0/2 — which is now a NOTE warning. To keep
+        # this test focused on the legacy keyword path, also add explicit
+        # AC evidence so the new parser doesn't fire.
+        svc.task_log(
+            "t1",
+            "Checked scope — only README changed. "
+            "AC-1: ✓ verified manually. AC-2: ✓ verified manually.",
+        )
         task = svc.task_show("t1")
         result = svc._check_verification_checklist("t1", task)
         assert result == ""

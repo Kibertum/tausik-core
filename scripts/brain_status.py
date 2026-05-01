@@ -174,13 +174,29 @@ def format_status(snapshot: dict[str, Any]) -> str:
     cats = snapshot.get("categories") or {}
     if cats:
         lines.append("\n## Categories")
+        from datetime import datetime, timezone
+
+        now_utc = datetime.now(timezone.utc)
         for cat in CATEGORIES:
             info = cats.get(cat) or {}
             rc = info.get("row_count")
             rc_str = str(rc) if rc is not None else "n/a"
             line = f"- **{cat}**: {rc_str} rows"
-            if info.get("last_pull_at"):
-                line += f" · last_pull_at={info['last_pull_at']}"
+            last_pull = info.get("last_pull_at")
+            if last_pull:
+                line += f" · last_pull_at={last_pull}"
+                # Best-effort staleness in minutes; ignore parse errors so
+                # malformed timestamps don't break the human-readable view.
+                try:
+                    iso = last_pull.replace("Z", "+00:00")
+                    pulled_at = datetime.fromisoformat(iso)
+                    if pulled_at.tzinfo is None:
+                        pulled_at = pulled_at.replace(tzinfo=timezone.utc)
+                    stale_min = int((now_utc - pulled_at).total_seconds() // 60)
+                    if stale_min >= 0:
+                        line += f" · stale: {stale_min} min"
+                except (ValueError, AttributeError):
+                    pass
             if info.get("last_error"):
                 line += f" · ⚠ last_error={info['last_error'][:60]}"
             lines.append(line)

@@ -77,10 +77,95 @@ class BackendCrudMixin:
         )
         return row["cnt"] if row else 0
 
+    # --- Reviews (SENAR Rule 10.15: track L1/L2/L3 runs) ---
+
+    def review_record(
+        self,
+        task_slug: str,
+        run_type: str,
+        critical_findings: int = 0,
+        warnings: int = 0,
+        notes: str | None = None,
+    ) -> int:
+        return self._ins(
+            "INSERT INTO reviews(task_slug, run_type, critical_findings, "
+            "warnings, run_at, notes) VALUES(?,?,?,?,?,?)",
+            (task_slug, run_type, int(critical_findings), int(warnings), utcnow_iso(), notes),
+        )
+
+    def review_list(
+        self, task_slug: str | None = None, run_type: str | None = None, limit: int = 50
+    ) -> list[dict[str, Any]]:
+        sql = "SELECT * FROM reviews WHERE 1=1"
+        params: list[Any] = []
+        if task_slug:
+            sql += " AND task_slug=?"
+            params.append(task_slug)
+        if run_type:
+            sql += " AND run_type=?"
+            params.append(run_type)
+        sql += " ORDER BY id DESC LIMIT ?"
+        params.append(limit)
+        return self._q(sql, tuple(params))
+
+    def review_metrics(self) -> dict[str, Any]:
+        """ADR (Adversarial Defect Rate) = critical_findings / L3_reviewed_tasks * 100."""
+        row = self._q1(
+            "SELECT COUNT(DISTINCT task_slug) AS l3_tasks, "
+            "COALESCE(SUM(critical_findings),0) AS l3_critical "
+            "FROM reviews WHERE run_type='L3'"
+        )
+        l3_tasks = (row or {}).get("l3_tasks") or 0
+        l3_critical = (row or {}).get("l3_critical") or 0
+        adr = (l3_critical / l3_tasks * 100.0) if l3_tasks else 0.0
+        return {
+            "l3_reviewed_tasks": int(l3_tasks),
+            "l3_critical_findings": int(l3_critical),
+            "adr_pct": round(adr, 2),
+        }
+
+    # --- Brain usage events (v22, r14-brain-metrics) — see backend_crud_brain ---
+
+    def brain_event_record(
+        self,
+        event_type: str,
+        query: str | None = None,
+        result_count: int = 0,
+        session_id: int | None = None,
+    ) -> int:
+        from backend_crud_brain import brain_event_record as _impl
+
+        return _impl(self, event_type, query, result_count, session_id)
+
+    def brain_event_metrics(self, session_id: int | None = None) -> dict[str, Any]:
+        from backend_crud_brain import brain_event_metrics as _impl
+
+        return _impl(self, session_id)
+
     # --- Sessions ---
 
     def session_start(self) -> int:
-        return self._ins("INSERT INTO sessions(started_at) VALUES(?)", (utcnow_iso(),))
+        # SENAR Rule 10.13: capture the agent model on session creation so
+        # FPSR / cost / throughput can be re-calibrated when the user
+        # switches between Sonnet / Opus / GPT / Composer mid-project.
+        # Source priority: explicit env vars > generic agent env > unset.
+        # `TAUSIK_AGENT_MODEL` covers the typical "I want to override"
+        # case; the others are read-only signals from popular hosts.
+        import os as _os
+
+        model_id = (
+            _os.environ.get("TAUSIK_AGENT_MODEL")
+            or _os.environ.get("CLAUDE_MODEL")
+            or _os.environ.get("ANTHROPIC_MODEL")
+            or _os.environ.get("OPENAI_MODEL")
+            or _os.environ.get("CURSOR_MODEL")
+            or None
+        )
+        model_version = _os.environ.get("TAUSIK_AGENT_MODEL_VERSION") or None
+        return self._ins(
+            "INSERT INTO sessions(started_at, model_id, model_version) VALUES(?, ?, ?)",
+            (utcnow_iso(), model_id, model_version),
+        )
 
     def session_end(self, sid: int, summary: str | None = None) -> None:
         self._ex(

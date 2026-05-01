@@ -11,7 +11,7 @@
     "kubeval": {
       "enabled": false,
       "severity": "warn",
-      "trigger": ["task-done", "commit"],
+      "trigger": ["verify", "commit"],
       "command": "kubeval {files} 2>&1 | head -30",
       "description": "K8s manifest schema validation — schema only, NOT policy-as-code (kube-score/OPA Gatekeeper NOT included).",
       "stacks": ["kubernetes"],

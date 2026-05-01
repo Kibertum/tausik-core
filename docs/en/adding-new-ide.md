@@ -37,6 +37,15 @@ If the IDE requires specific rules, create:
 agents/overrides/myide/rules.md
 ```
 
+This file is **automatically appended** to the generated `CLAUDE.md` /
+`.cursorrules` / `QWEN.md` (whichever matches the `ide=` argument passed
+to `bootstrap_templates.build_full_body`). The block lands right before
+the `<!-- DYNAMIC:START -->` marker, so the doctor's drift checker still
+ignores user-side state but treats the override as canonical body. Pass
+`ide="myide"` from your `generate_myiderules()` call so the override is
+picked up — passing `ide=None` (used by `AGENTS.md` on purpose, since it
+is host-agnostic) drops the block entirely.
+
 ### 4. Add Auto-Detection
 
 In `detect_ide()` in `ide_utils.py` add an env var or directory check:

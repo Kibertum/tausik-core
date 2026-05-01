@@ -115,6 +115,8 @@ Team members who clone the repo just need to run `git submodule update --init` t
 `.claude/` and `CLAUDE.md` — keep these under version control. These are instructions
 for the agent, they should be in the repository.
 
+> **v1.4 — Shared Brain prompt.** When you run `bootstrap.py` with `--interactive --init`, the bootstrap will offer to launch the Shared Brain wizard at the very end (`Setup Shared Brain (cross-project knowledge in Notion)? [y/N]`). Saying `y` runs `.tausik/tausik brain init` immediately so cross-project decisions, patterns and gotchas become available without an extra step. Saying `N` (default) skips it; you can run `.tausik/tausik brain init` later. CI and non-TTY runs never see the prompt.
+
 ## Step 3. Verify Installation
 
 ```bash
@@ -180,12 +182,18 @@ done, ship it
 ```
 
 The agent will:
-1. Check the code — run tests, linters, quality gates
+1. Run **`tausik verify`** — heavy verification step (pytest, tsc, cargo, phpstan, etc.). May take minutes on large projects. The result is **cached**.
 2. Verify that the acceptance criteria are met
-3. Close the task
+3. Close the task via **`task done`** — lightweight step (milliseconds), looks up the fresh verify cache.
 4. Offer to commit the changes
 
 Answer "yes" to the commit offer — and your first task is complete.
+
+> **v1.4 Verify-First Contract.** Heavy gates (pytest, tsc, cargo, etc.) no longer fire automatically on `task done`. Instead, the agent explicitly calls `tausik verify` — giving you a transparent split between "task closed" (fast) and "everything verified" (slow, but cached). To restore the legacy single-step behavior, add `{ "task_done": { "auto_verify": true } }` to `.tausik/config.json`.
+
+> **VS Code Claude Extension users.** The extension applies a default per-MCP-tool timeout (~60s in current builds). If you skip the explicit `tausik verify` step, the extension may kill `task_done` mid-run on large projects and the agent will see a generic timeout instead of a useful error. **Always run `tausik verify` first**; `task_done` then completes in milliseconds via the cache. The same applies to JetBrains and Cursor — keep the heavy step inside `verify`, where it can stream progress and you can interrupt cleanly.
+
+> **`task_done_v2` (preferred since 1.3.7).** When the agent's MCP server lists `tausik_task_done_v2`, it returns a structured JSON report (`stage`, `gate_results`, `blocking_failures`) the agent uses to fix issues without re-parsing prose. Older bundled servers fall back to the legacy `tausik_task_done` (single aggregated error string). Both honour the Verify-First Contract and read the same cache.
 
 ## Step 8. Wrap Up
 

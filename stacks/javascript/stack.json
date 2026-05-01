@@ -15,7 +15,7 @@
     "js-test": {
       "enabled": false,
       "severity": "block",
-      "trigger": ["task-done"],
+      "trigger": ["verify"],
       "command": "npm test --silent 2>&1 | tail -30",
       "description": "JS/TS tests (jest/vitest). Override gates.js-test.command for yarn/bun/pnpm.",
       "stacks": ["javascript", "typescript", "react", "next", "vue", "nuxt", "svelte"],

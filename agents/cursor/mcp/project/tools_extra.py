@@ -224,11 +224,41 @@ TOOLS_EXTRA = [
     },
     {
         "name": "tausik_verify",
-        "description": "Ad-hoc scoped verify for a task; records to verify cache",
+        "description": (
+            "v1.4 Verify-First Contract: run heavy gates (pytest, tsc, cargo, "
+            "phpstan, …) ad-hoc and record a green into the verify cache so "
+            "`tausik_task_done` can close in milliseconds. With task_slug: "
+            "scoped to the task's relevant_files. Without: full-suite, "
+            "no DB row. Returns passed/status/scope/results."
+        ),
         "inputSchema": {
             "type": "object",
-            "properties": {"task_slug": {"type": "string"}},
-            "required": ["task_slug"],
+            "properties": {
+                "task_slug": {
+                    "type": "string",
+                    "description": (
+                        "Task slug to verify against. Optional: when omitted "
+                        "the run is full-suite and is NOT cached (matches "
+                        "CLI `tausik verify` without --task)."
+                    ),
+                },
+                "scope": {
+                    "type": "string",
+                    "enum": ["lightweight", "standard", "high", "critical", "manual"],
+                    "description": (
+                        "SENAR Rule 5 verification tier. Defaults to "
+                        "`standard`. Used as the recorded scope label."
+                    ),
+                },
+                "trigger": {
+                    "type": "string",
+                    "enum": ["verify", "task-done"],
+                    "description": (
+                        "Gate trigger to run. Defaults to `verify` (heavy "
+                        "gates). `task-done` exists for parity / dry-run."
+                    ),
+                },
+            },
         },
     },
     {

@@ -44,9 +44,13 @@ task start <slug> [--force]     # planning -> active (QG-0: requires goal + AC +
                                 # --force bypasses session capacity gate (audit event + note)
 task done <slug> --ac-verified [--no-knowledge] [--relevant-files FILE1 FILE2 ...] [--evidence "..."]
                                 # QG-2: --ac-verified confirms AC verification (requires evidence in notes
-                                #       OR --evidence inline). Runs scoped pytest gate (basename match
-                                #       on tests/test_<file>.py for each relevant file). Verify cache
-                                #       (10 min TTL) skips re-runs with same files_hash. There is NO --force.
+                                #       OR --evidence inline). v1.4 Verify-First Contract: heavy gates
+                                #       (pytest, tsc, cargo, ...) NO LONGER fire here — they live on the
+                                #       separate `verify` command. task done checks the verify cache for
+                                #       a fresh green (10 min TTL, same files_hash) and closes in
+                                #       milliseconds. If no verify run exists → blocks with remediation.
+                                #       Opt-out: .tausik/config.json → {"task_done":{"auto_verify":true}}
+                                #       restores the legacy "heavy gates inline" behavior. NO --force.
 task block <slug> [--reason TEXT]
 task unblock <slug>             # blocked -> active
 task review <slug>              # active -> review
@@ -69,10 +73,33 @@ task unclaim <slug>             # Release a task
 
 ## Verification
 
+**v1.4 Verify-First Contract.** Heavy gates (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeval, hadolint, ansible-lint) live on the `verify` trigger, not `task-done`. This decouples "task closure" (milliseconds) from "full verification" (potentially minutes on large projects). The `verify` result is cached in the `verification_runs` table for 10 minutes (TTL is configurable via `verify_cache_ttl_seconds` in config.json), and `task done` uses the cache for instant closure.
+
 ```bash
 verify [--task SLUG] [--scope {lightweight,standard,high,critical,manual}]
-                                # Run scoped quality gates ad-hoc; records hit in verify cache
+                                # Run scoped verify-trigger gates ad-hoc; records into verify cache.
+                                # With --task: gates scoped to the task's relevant_files.
+                                # Without --task: gates with empty file scope (full suite for pytest).
+                                # Cache hit (same files_hash, < 10 min) skips the run.
+                                # Security-sensitive files (auth/payment/hooks) bypass the cache.
 ```
+
+**Verify-first workflow:**
+
+```bash
+.tausik/tausik task start my-task                    # QG-0
+# … work on code …
+.tausik/tausik verify --task my-task                 # heavy: pytest etc.
+.tausik/tausik task done my-task --ac-verified       # lightweight: cache lookup
+```
+
+**Legacy opt-out (CI/inline behavior):** add to `.tausik/config.json`:
+
+```json
+{ "task_done": { "auto_verify": true } }
+```
+
+Now `task done` runs the verify gates inline within its transaction — the v1.3 behavior. Useful for CI where a single long step is preferable to two.
 
 ## Quality Gates
 
@@ -176,6 +203,19 @@ audit check                     # Show whether periodic audit is overdue
 audit mark                      # Mark audit as completed
 ```
 
+## Reviews (SENAR Rule 10.15) — v1.4
+
+Track L1/L2/L3 review runs and surface the **ADR** (Adversarial Defect Rate) metric.
+
+```bash
+review record --task <slug> --type {L1|L2|L3} \
+              [--critical N] [--warnings N] [--notes "..."]
+review list   [--task <slug>] [--type {L1|L2|L3}] [--limit N] [--json]
+review metrics                  # ADR = critical_findings / L3_reviewed_tasks * 100
+```
+
+The `/review` skill calls `review record --type L3` automatically (it spawns 6 adversarial reviewer subagents in a separate context). `tausik metrics` includes an `Adversarial Review` block once any L3 reviews exist.
+
 ## Multi-agent
 
 ```bash
@@ -199,7 +239,8 @@ skill repo list                 # List configured repos and their skills
 
 ```bash
 brain init                      # Initialize brain: 4 Notion DBs + config
-brain status                    # Mirror freshness, sync state, registered projects
+brain status                    # Mirror freshness, sync state, registered projects (v1.4: also `stale: N min`)
+brain sync [--category C] [--json]  # Pull updates from Notion into the local mirror (v1.4)
 brain move <source_id> --to-brain --kind {decision,pattern,gotcha} [--keep-source]
 brain move <notion_page_id> --to-local --category {decisions,patterns,gotchas,web_cache} [--force]
 ```
@@ -236,7 +277,7 @@ events [--entity {task,epic,story}] [--id SLUG] [--limit N]
 ## Maintenance
 
 ```bash
-update-claudemd [--claudemd PATH]     # Update <!-- DYNAMIC --> section in CLAUDE.md
+update-claudemd [--claudemd PATH] [--dry-run]  # Update <!-- DYNAMIC --> section in CLAUDE.md (v1.4: --dry-run prints diff and exits 1 if drift)
 fts optimize                          # Optimize FTS5 indexes
 hud                                   # Live one-screen dashboard: task + session + gates + logs
 suggest-model [complexity]            # Recommend Claude model: simple→Haiku, medium→Sonnet, complex→Opus

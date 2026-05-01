@@ -12,6 +12,11 @@ import sys
 _TASK_DONE_TOOL_NAMES = (
     "mcp__tausik-project__tausik_task_done",
     "tausik_task_done",
+    # v1.4: also cover the v2 structured-response variant (added in 1.3.7
+    # MCP servers as `tausik_task_done_v2`). When v2 is promoted to the
+    # default skill path the original matcher would silently fall off.
+    "mcp__tausik-project__tausik_task_done_v2",
+    "tausik_task_done_v2",
 )
 
 # Match actual CLI shape: `.tausik/tausik task done <slug>` or `tausik task done <slug>`

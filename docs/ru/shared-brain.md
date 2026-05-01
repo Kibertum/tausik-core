@@ -1,6 +1,6 @@
 # Shared Brain — кросс-проектные знания в Notion
 
-**Статус:** opt-in, pipeline готов, мастер настройки в работе.
+**Статус:** opt-in, pipeline готов. v1.4 поставляется с интерактивным мастером настройки: чеклист требований сразу при запуске, дружелюбные сообщения при отсутствующем токене, конкретные подсказки про URL и page ID. Запуск bootstrap с `--interactive --init` сам предложит мастер; иначе — `.tausik/tausik brain init`.
 
 Локальная проектная память TAUSIK (`.tausik/tausik.db`) — основной store для всего, что относится к *этому* репозиторию. **Shared Brain** — опциональный второй слой: база знаний в Notion, куда пишутся только **обобщаемые между проектами** знания — дорого добытые архитектурные инсайты, жёсткие подводные камни, стабильные паттерны, и HTTP-кэш, который полезен всем репозиториям.
 
@@ -214,6 +214,26 @@ merged brain dict `{"enabled": ..., "local_mirror_path": ...}`
 абсолютный путь.
 
 Ожидание: 4 ключа (decisions/web_cache/patterns/gotchas), каждый — `{fetched: N, upserted: N, last_edited_time: ...}` или `{error: ...}`. На свежем пустом setup все четыре — `{fetched: 0, upserted: 0, last_edited_time: null}`.
+
+## Метрики (v1.4)
+
+Чтобы ответить на главный вопрос «реально ли brain помогает?», v1.4 пишет каждую brain-операцию в проектную таблицу `brain_events` (живёт в `.tausik/tausik.db`, **не** в зеркале Notion — это сохраняет dispersion firewall между проектами). `tausik metrics` показывает блок `Shared Brain`, как только в таблице появляются события:
+
+```
+--- Shared Brain (v1.4) ---
+Session: 6 searches, 4 hits, 2 writes, 0 ignored (hit rate: 66.7%)
+All-time: 142 searches, 87 hits, 18 writes (hit rate: 61.3%)
+```
+
+Счётчики:
+- `searches` — каждый вызов `brain_search` / `search_with_fallback`.
+- `hits` — запросы, вернувшие ≥1 результат (прокси для «brain ответил на вопрос?»).
+- `writes` — успешные `try_brain_write_decision` / `try_brain_write_web_cache` (Notion подтвердил). Падения не считаются.
+- `ignored` — записи `tausik_memory_quick brain.ignored:<id>`, когда агент пометил подсказку как нерелевантную (в следующей сессии её не покажут снова).
+
+`hit_rate_pct` = `hits / searches * 100`. Если в сессии стабильно <20% — значит либо (а) brain пустой/устаревший и нужен `tausik brain sync` + новые записи, либо (б) запросы слишком project-specific (classifier должен отправлять их в локальную память, не в brain). По метрикам эти две ситуации не различить — читайте последние строки `brain_events` напрямую.
+
+Телеметрия никогда не блокирует операцию: если `INSERT` в `brain_events` упал (заблокированная БД, права), search/write всё равно проходит, а строка просто теряется.
 
 ## Приватность
 

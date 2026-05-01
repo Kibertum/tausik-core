@@ -27,7 +27,8 @@ class TestRegistration:
         gate = DEFAULT_GATES["phpunit"]
         assert "php" in gate["stacks"]
         assert "laravel" in gate["stacks"]
-        assert "task-done" in gate["trigger"]
+        # v1.4 Verify-First Contract: heavy gates moved to verify trigger
+        assert "verify" in gate["trigger"]
         assert gate["severity"] == "block"
 
     def test_js_test_registered(self):

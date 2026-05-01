@@ -20,6 +20,7 @@ Machine-readable guide: error → diagnosis → fix.
 |---|---|---|
 | `search_code` returns empty | RAG index empty or stale | Reindex via MCP `reindex` tool or restart RAG server |
 | RAG DB missing | Never indexed | Run bootstrap: `python bootstrap/bootstrap.py` |
+| `reindex` hangs / times out on large monorepo | `mode=full` walks every tracked file; on 50k+ files this can exceed MCP per-tool timeout | Pass `max_seconds=N` (soft limit — partial result with `truncated=true` is returned) or use `mode=incremental` (default; only re-indexes files changed since `last_commit`). v1.4 also writes `[rag] indexed X/Y files, N chunks, ZZs elapsed` to stderr every 100 files so the host renders progress instead of "frozen". |
 
 ## CLI & Project
 
@@ -47,3 +48,79 @@ Machine-readable guide: error → diagnosis → fix.
 | MCP tool not found / unavailable | `.mcp.json` missing or wrong paths | Re-run `python bootstrap/bootstrap.py` to regenerate `.mcp.json` |
 | `raven_briefing` returns error | Raven not running or wrong project | Check `.tausik/tausik brain health` |
 | MCP server crashes on start | Wrong Python path in `.mcp.json` | Re-run `python bootstrap/bootstrap.py` to regenerate `.mcp.json` with correct paths |
+| `task_done` hangs / times out in VS Code Claude Extension | Heavy gates (pytest, tsc) ran inline, host killed call at the per-tool timeout | v1.4 Verify-First Contract: call `tausik_verify` first (streams progress, host can interrupt), then `tausik_task_done_v2` reads cache and closes in milliseconds. See [Host limits](#host-limits-task_done-ux). |
+| `task_done` returns generic timeout error, no traceback | Old MCP server (pre 1.4) swallowed exceptions to single-line text | Update MCP server: `python bootstrap/bootstrap.py` (1.4 prints traceback to stderr). |
+| Agent ignores `tausik_task_done_v2`, calls v1 every time | MCP server bundled in project predates 1.3.7 | Update bootstrap; v2 is published next to v1 since 1.3.7 and is the preferred QG-2 entrypoint. |
+
+## Host limits & `task_done` UX
+
+The TAUSIK MCP servers run inside an IDE host (VS Code Claude Extension, JetBrains, Cursor, Claude Code, etc.). Every host applies a per-tool timeout (~60s in current builds). If `task_done` triggered the heavy verification stack inline, large monorepos would push past the timeout, the host would kill the call, and the agent would see a generic transport error — not a usable failure report.
+
+**Workflow (preferred):**
+1. `tausik_verify(task_slug=…)` — runs heavy gates (pytest, tsc, cargo, phpstan, …), streams progress, the user can interrupt cleanly. Result is cached for 10 minutes.
+2. `tausik_task_done_v2(slug=…, ac_verified=True, relevant_files=[…])` — reads the cache, closes the task in milliseconds. Returns structured JSON (`stage`, `gate_results`, `blocking_failures`).
+
+**Opt-out (CI / batch runs):** add `{ "task_done": { "auto_verify": true } }` to `.tausik/config.json`. `task_done` will run the heavy gates inline like in 1.3 — fine outside an interactive host where there is no per-tool timeout.
+
+**`task_done_v2` vs `task_done`:** when the bundled MCP server publishes both, skills (`/ship`, `/task`) call `tausik_task_done_v2` for the structured response. Older bundles fall back to legacy `tausik_task_done` (single aggregated error string in 1.4). Both honour the Verify-First Contract and read the same cache.
+
+**Streaming progress (v1.4):** when `task done` runs gates inline (`auto_verify=true` or interactive `tausik task done`), `gate_runner` emits a `run_start` progress event up-front with `total` (gate count) and `max_seconds` (sum of per-gate timeouts) so MCP hosts can render an ETA before pytest blocks the channel. The CLI handler maps this to one stderr line per event:
+
+```
+[gates] Running 2 gate(s) (trigger=task-done, max ~125s).
+[gates] 1/2 filesize ...
+[gates] 1/2 filesize PASS (8 ms)
+[gates] 2/2 pytest ...
+[gates] 2/2 pytest PASS (1062 ms)
+```
+
+Set `TAUSIK_QUIET=1` to suppress these lines (CI / scripted runs). MCP servers receive the same event payload and can surface it as a structured progress message.
+
+## VS Code Claude Extension — full reference (v1.4)
+
+The VS Code Claude Extension is the strictest MCP host for TAUSIK because it (1) imposes a hard per-tool timeout that cannot be configured from inside the tool, (2) does not expose a hooks API, and (3) renders MCP tool results as a single line. v1.4 ships behavior tuned for this host explicitly. This section consolidates the full picture so you don't have to chase it across `host-limits`, `Host limits`, and the streaming-progress note.
+
+### Hooks status
+
+| Hook category | Claude Code (CLI) | Cursor | VS Code Claude Ext. | Qwen Code |
+|---|---|---|---|---|
+| PreToolUse / PostToolUse / SessionStart / SessionEnd | ✅ Real, enforced | ❌ No hooks API | ❌ No hooks API | ✅ Real, enforced (full parity since v1.4) |
+| `task_gate.py` (Rule 9.1) | Hard block | Instruction-only | Instruction-only | Hard block |
+| `secret_scan.py` (Rule 10.12) | Warn / strict-block | Instruction-only | Instruction-only | Warn / strict-block |
+| `git_push_gate.py` | Hard block | Instruction-only | Instruction-only | Hard block |
+
+Practical implication: the VS Code extension cannot block file writes when there is no active TAUSIK task. The agent *should* honour the rule (it's spelled out in `CLAUDE.md` and the multi-model onboarding block of `AGENTS.md`), but you don't get the safety net. Treat the rules as conventions, not gates, in this host.
+
+### MCP per-tool timeout
+
+The current extension build kills any single MCP tool call that runs longer than ~60 seconds. There is no client-side knob to bump it. Affected tools and the v1.4 mitigation:
+
+| Tool | Pre-1.4 behavior | v1.4 mitigation |
+|---|---|---|
+| `tausik_task_done` | Ran pytest/tsc/cargo inline → 60s+ on big repos → killed → generic timeout error | **Verify-First Contract**: refuses to close until `tausik_verify` ran. Verify streams stderr progress, the user can stop it, and its result is cached for 10 min. Then `task done` reads cache and finishes in <100ms. |
+| `tausik_task_done_v2` | (didn't exist) | Same Verify-First Contract, returns structured JSON instead of single error string. Skills (`/ship`, `/task`) prefer it. |
+| `codebase-rag.reindex` (full) | Walked every file silently → host killed at 60s | Accepts `max_seconds` soft limit; emits `[rag] indexed X/Y files...` to stderr every 100 files. Default mode is `incremental` — only files changed since `last_commit`. |
+| `tausik_verify` | (introduced 1.4) | The intended foreground heavy-work entrypoint. Streams progress; the user sees what's happening; the host doesn't time out as long as we keep emitting bytes within its idle threshold. |
+
+### Recommended workflow
+
+For routine task closure in VS Code Claude Extension:
+
+1. Skill or agent calls `tausik_verify(task_slug=...)` **first**. This is the only place pytest/tsc/etc. are allowed to run inline.
+2. The user sees streaming progress and can intervene (Ctrl-C is delivered to the MCP process).
+3. On green, `tausik_verify` writes a `verification_runs` row.
+4. Skill calls `tausik_task_done_v2(task_slug=..., relevant_files=[...], ac_verified=true)`.
+5. `task_done` checks the cache (≤10 min old, same `files_hash`, same gate signature), confirms green, and closes within ~100ms.
+6. If the cache lookup fails, `task_done` returns a structured error explaining exactly which gate is missing — *not* a transport timeout.
+
+For CI / batch / non-interactive runs (where there is no per-tool timeout), set `{ "task_done": { "auto_verify": true } }` in `.tausik/config.json` to restore the legacy 1.3 behaviour where `task_done` runs gates inline.
+
+### Diagnostics
+
+Use these to confirm the extension is configured correctly:
+
+| Symptom | Check |
+|---|---|
+| Skill calls `tausik_task_done` instead of v2 | `tausik_health_check` lists both — if only v1, re-bootstrap so the project picks up the 1.3.7+ MCP server. |
+| Verify never returns | Run the same verify command from a regular terminal (`.tausik/tausik verify --task <slug>`) — if it works there but hangs through the extension, the issue is host-side, not TAUSIK. |
+| Hooks not firing on `Write` | Expected — VS Code extension has no hooks API. The agent must obey rules without enforcement; consider running task-critical work through Claude Code CLI or Qwen Code if hard blocks matter. |

@@ -1,6 +1,6 @@
 # Shared Brain — cross-project knowledge on Notion
 
-**Status:** opt-in, pipeline complete, setup wizard pending.
+**Status:** opt-in, pipeline complete. v1.4 ships an interactive setup wizard with an upfront prerequisites checklist, friendlier token-missing errors, and concrete URL/page-ID guidance. Bootstrap with `--interactive --init` offers to launch the wizard automatically; otherwise run `.tausik/tausik brain init`.
 
 TAUSIK's per-project memory (`.tausik/tausik.db`) is the primary store for everything specific to *this* repository. The **Shared Brain** is the optional second layer: a Notion-backed knowledge base that only stores knowledge **generalizable across projects** — paid-for architectural insights, hard-won gotchas, stable patterns, and HTTP cache that benefits all your repos.
 
@@ -214,6 +214,26 @@ print(result)
 returns). All three resolve the same absolute path.
 
 Expected: 4 keys (decisions/web_cache/patterns/gotchas), each with `{fetched: N, upserted: N, last_edited_time: ...}` or `{error: ...}`. On a fresh empty setup, all four are `{fetched: 0, upserted: 0, last_edited_time: null}`.
+
+## Metrics (v1.4)
+
+To answer the recurring question "is the brain actually helping me?" v1.4 records every brain operation into a per-project `brain_events` table (in `.tausik/tausik.db`, NOT in the Notion mirror — keeping the dispersion firewall intact). `tausik metrics` surfaces a `Shared Brain` block once any events exist:
+
+```
+--- Shared Brain (v1.4) ---
+Session: 6 searches, 4 hits, 2 writes, 0 ignored (hit rate: 66.7%)
+All-time: 142 searches, 87 hits, 18 writes (hit rate: 61.3%)
+```
+
+Counters:
+- `searches` — every call to `brain_search` / `search_with_fallback`.
+- `hits` — searches that returned ≥1 result (proxy for "did the brain answer the question?").
+- `writes` — successful `try_brain_write_decision` / `try_brain_write_web_cache` operations (Notion ack received). Failed writes are NOT counted.
+- `ignored` — `tausik_memory_quick brain.ignored:<id>` entries written when an agent flags a brain suggestion as irrelevant (next session won't re-surface it).
+
+The `hit_rate_pct` is `hits / searches * 100`. A consistently low session hit-rate (<20%) suggests either (a) the brain is empty/stale and needs `tausik brain sync` + new writes, or (b) queries are too project-specific (the classifier should send those to local memory, not brain). The two failure modes look the same in metrics, so investigate by reading recent `brain_events` rows.
+
+Telemetry never blocks the actual operation: if `brain_events.INSERT` fails (locked DB, permissions), the search/write proceeds and the row is silently dropped.
 
 ## Privacy
 

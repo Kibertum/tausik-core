@@ -7,6 +7,75 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 > Russian mirror: [`CHANGELOG.ru.md`](CHANGELOG.ru.md). Both files cover
 > the same releases — keep them in sync when adding a new entry.
 
+## [Unreleased] — 1.4 — Verify-First Contract + audit-driven hardening
+
+> Public-readiness release driven by the 1.4 audit
+> (`docs/ru/research/tausik-1.4-readiness-audit-v2-2026-05-01.md`).
+> Headline change: heavy verification (pytest, tsc, cargo, phpstan, …)
+> is decoupled from `task done`. Closing a task is now a millisecond
+> operation; verification is its own explicit, cached step.
+
+### BREAKING (with opt-out)
+
+- **Verify-First Contract.** Heavy quality gates moved from the `task-done`
+  trigger to a new `verify` trigger. `task done` now refuses to close a
+  task unless a fresh `tausik verify` green exists in `verification_runs`
+  for that task (10 min TTL, configurable via `verify_cache_ttl_seconds`).
+  Affected gates: `pytest`, `tsc`, `cargo-check`, `cargo-test`, `go-vet`,
+  `go-test`, `phpstan`, `phpunit`, `javac`, `js-test`, `terraform-validate`,
+  `helm-lint`, `kubeval`, `hadolint`, `ansible-lint`.
+  - **Why:** in VS Code Claude Extension and similar hosts, synchronous
+    multi-minute pytest runs inside `task_done` looked like the agent had
+    hung. The new contract makes verification visible and interruptible.
+  - **Opt-out:** add `{ "task_done": { "auto_verify": true } }` to
+    `.tausik/config.json` to restore the v1.3 inline behavior (heavy gates
+    fire inside `task_done`). Useful in CI where one long step is fine.
+  - **Migration:** users only need to insert `tausik verify --task <slug>`
+    before `task done`. Skill `/ship` and CLI docs updated.
+
+### Added
+
+- `VALID_GATE_TRIGGERS` extended with `"verify"` (project_config + stack_schema).
+- `service_verification.has_fresh_verify_run()` and
+  `service_verification._build_cache_command(trigger, files)` — the cache
+  bucket is now keyed by trigger so verify and task-done buckets never
+  cross-satisfy.
+- `service_gates._enforce_verify_first()` — synthesizes a blocking failure
+  with explicit remediation when no fresh verify run is found.
+- `tests/test_verify_first_contract.py` — 14 tests covering the contract
+  end-to-end (block, unblock via cache, auto_verify opt-out, cache bucket
+  separation, exempt projects, stack-gate migration sanity).
+- Pytest marker `verify_first` and an autouse opt-out fixture in
+  `tests/conftest.py` so legacy tests aren't blocked on the new contract.
+
+### Changed
+
+- `agents/{claude,cursor}/mcp/project/server.py`:
+  - `chdir(args.project)` on launch with explicit non-directory check
+    (exit 2, stderr message). Parity with `tausik-brain` server.
+  - Tool exceptions now print full `traceback.format_exc()` to stderr while
+    the agent-facing reply stays minimal (`Error: …`) — no stack-frame
+    leakage into model context.
+- `service_verification.run_gates_with_cache(..., trigger="task-done")` is
+  now parameterizable; CLI `verify` and MCP `_handle_verify` pass
+  `trigger="verify"`.
+- Stacks `python`, `typescript`, `rust`, `go`, `php`, `javascript`, `java`,
+  `terraform`, `helm`, `kubernetes`, `docker`, `ansible` updated:
+  heavy `task-done` gates are now on `verify`.
+- `bootstrap_templates.py` HARD_CONSTRAINTS, SENAR_RULES, COMMANDS, and
+  QUALITY_GATES sections describe the Verify-First workflow so newly
+  bootstrapped projects get the right CLAUDE.md / AGENTS.md / .cursorrules.
+- `docs/{en,ru}/cli.md` and `docs/{en,ru}/quickstart.md` updated.
+- Skills `/ship` and `/task done` insert an explicit `tausik_verify` step
+  before closing a task.
+
+### Fixed
+
+- Pre-existing test bug: `tests/test_service_verification.py` lambdas
+  mocking `gate_runner.run_gates` did not accept kwargs and silently
+  failed against the real `progress_callback=` argument. Lambdas now
+  carry `**_kw`. (4 tests unblocked.)
+
 ## [1.3.7] — 2026-04-29 — MCP clarity for Cursor/VSCode + docs consistency sweep
 
 This patch hardens agent-facing MCP UX and aligns documentation with actual

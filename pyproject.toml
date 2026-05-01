@@ -30,6 +30,9 @@ Changelog = "https://github.com/Kibertum/tausik-core/blob/main/CHANGELOG.md"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["scripts"]
+markers = [
+    "verify_first: opt the test in to v1.4 Verify-First Contract enforcement (default conftest fixture sets auto_verify=True for backward compat)",
+]
 
 [tool.coverage.run]
 source = ["scripts"]

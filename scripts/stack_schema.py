@@ -17,7 +17,7 @@ from typing import Any
 
 VALID_DETECT_TYPES = frozenset({"exact", "glob", "dir-marker"})
 VALID_GATE_SEVERITIES = frozenset({"warn", "block"})
-VALID_GATE_TRIGGERS = frozenset({"task-done", "commit", "review"})
+VALID_GATE_TRIGGERS = frozenset({"task-done", "verify", "commit", "review"})
 
 _NAME_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
 _EXT_RE = re.compile(r"^\.[a-z0-9.]+$")

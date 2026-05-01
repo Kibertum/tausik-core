@@ -44,6 +44,7 @@ Save the user specification via `tausik_task_log` after task creation.
 Use MCP tools:
 - `tausik_memory_search` — search for relevant patterns and conventions
 - `tausik_memory_list` with `type=dead_end` — don't repeat failed approaches
+- **`brain_search` (cross-project, 1.4+)** — `category="patterns"` and `category="gotchas"`, `limit=3` each, query = task topic keywords + stack tag. Skip silently if `tausik-brain` MCP is unavailable. Filter out any page id that already appears in `memory_list type=convention` with title prefix `brain.ignored:` (user previously marked it unhelpful).
 
 ### 3. Detect stack and load defaults
 

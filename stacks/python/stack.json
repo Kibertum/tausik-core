@@ -11,7 +11,7 @@
     "pytest": {
       "enabled": true,
       "severity": "block",
-      "trigger": ["task-done", "review"],
+      "trigger": ["verify", "review"],
       "command": "pytest -x -q {test_files_for_files}",
       "description": "Run pytest scoped to task's relevant_files",
       "timeout": 180,

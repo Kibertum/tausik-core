@@ -235,7 +235,11 @@ def main():
             ),
             Tool(
                 name="reindex",
-                description="Reindex project source code. Run after significant code changes.",
+                description=(
+                    "Reindex project source code. Run after significant code "
+                    "changes. v1.4: emits stderr progress every 100 files; "
+                    "set max_seconds for a soft time limit on large monorepos."
+                ),
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -244,6 +248,15 @@ def main():
                             "enum": ["incremental", "full"],
                             "description": "incremental (git-changed only) or full (all files)",
                             "default": "incremental",
+                        },
+                        "max_seconds": {
+                            "type": "integer",
+                            "description": (
+                                "Soft time limit (full mode only). Indexing "
+                                "stops cleanly when exceeded; result includes "
+                                "truncated=true."
+                            ),
+                            "minimum": 1,
                         },
                     },
                 },
@@ -359,8 +372,11 @@ def main():
                 from rag_indexer import index_full, index_incremental
 
                 mode = arguments.get("mode", "incremental")
+                max_seconds = arguments.get("max_seconds")
                 if mode == "full":
-                    stats = index_full(project_dir, store)
+                    stats = index_full(
+                        project_dir, store, max_seconds=max_seconds
+                    )
                 else:
                     stats = index_incremental(project_dir, store)
                 return json.dumps(stats, indent=2)

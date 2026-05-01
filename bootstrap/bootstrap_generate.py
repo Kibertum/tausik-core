@@ -65,6 +65,19 @@ def generate_settings_claude(
                     ],
                 },
                 {
+                    # SENAR Rule 10.12 (r14-senar-context-hygiene):
+                    # Warn (or block under TAUSIK_SECRET_SCAN_STRICT=1) when
+                    # the agent is about to write a likely secret to disk.
+                    "matcher": "Write|Edit|MultiEdit",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": _hook_cmd("secret_scan.py"),
+                            "timeout": 5,
+                        }
+                    ],
+                },
+                {
                     "matcher": "Bash",
                     "hooks": [
                         {
@@ -118,7 +131,14 @@ def generate_settings_claude(
                     ],
                 },
                 {
-                    "matcher": "mcp__tausik-project__tausik_task_done|Bash",
+                    # v1.4 (r14-task-done-verify-v2): cover both v1 and the
+                    # structured-response v2 MCP tool. Falling off v2 would
+                    # silently disable the verify-fix-loop hook.
+                    "matcher": (
+                        "mcp__tausik-project__tausik_task_done"
+                        "|mcp__tausik-project__tausik_task_done_v2"
+                        "|Bash"
+                    ),
                     "hooks": [
                         {
                             "type": "command",
@@ -336,7 +356,9 @@ def generate_claude_md(project_dir: str, project_name: str, stacks: list[str]) -
     """
     from bootstrap_templates import build_full_body
 
-    body = build_full_body(project_name, stacks, "an AI agent (Claude Code)", ".claude")
+    body = build_full_body(
+        project_name, stacks, "an AI agent (Claude Code)", ".claude", ide="claude"
+    )
     content = f"# CLAUDE.md\n\n{body}"
     path = os.path.join(project_dir, "CLAUDE.md")
     if not os.path.exists(path):
@@ -352,7 +374,7 @@ def generate_agents_md(project_dir: str, project_name: str, stacks: list[str]) -
     """
     from bootstrap_templates import build_full_body
 
-    body = build_full_body(project_name, stacks, "an AI agent", ".claude")
+    body = build_full_body(project_name, stacks, "an AI agent", ".claude", ide=None)
     content = f"# AGENTS.md — AI Agent Onboarding\n\n{body}"
     path = os.path.join(project_dir, "AGENTS.md")
     if not os.path.exists(path):
@@ -373,7 +395,7 @@ def generate_cursorrules(
     from bootstrap_templates import build_full_body
 
     body = build_full_body(
-        project_name, stacks, "Cursor (an AI coding agent)", ".cursor"
+        project_name, stacks, "Cursor (an AI coding agent)", ".cursor", ide="cursor"
     )
     content = f"# Cursor Rules\n\n{body}"
     path = os.path.join(project_dir, ".cursorrules")

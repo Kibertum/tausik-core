@@ -529,7 +529,12 @@ _DISPATCH: dict[str, _Handler] = {
     "tausik_stack_scaffold": lambda svc, args: _handle_stack_scaffold(args),
     # --- Doctor / verify / stack reset+export ---
     "tausik_doctor": lambda svc, args: _handle_doctor(svc),
-    "tausik_verify": lambda svc, args: _handle_verify(svc, args["task_slug"]),
+    "tausik_verify": lambda svc, args: _handle_verify(
+        svc,
+        args.get("task_slug"),
+        scope=args.get("scope", "standard"),
+        trigger=args.get("trigger", "verify"),
+    ),
     "tausik_stack_reset": lambda svc, args: _handle_stack_reset(args["name"]),
     "tausik_stack_export": lambda svc, args: _handle_stack_export(args["name"]),
     # --- Roles (CRUD) ---
@@ -633,30 +638,38 @@ def _handle_doctor(svc: Any) -> str:
     return buf.getvalue()
 
 
-def _handle_verify(svc: Any, task_slug: str) -> str:
-    import sqlite3 as _s
+def _handle_verify(
+    svc: Any,
+    task_slug: str | None,
+    *,
+    scope: str = "standard",
+    trigger: str = "verify",
+) -> str:
+    """v1.4 Verify-First Contract — delegate to public service method.
 
-    from service_verification import run_gates_with_cache
+    Layering rule: handlers call the service; the service owns the SQLite
+    connection. Behavior parity with the CLI:
+      - task_slug optional (full-suite when omitted)
+      - scope/trigger optional with sensible defaults
+    """
+    from tausik_utils import ServiceError
 
-    task = svc.be.task_get(task_slug)
-    if not task:
-        return f"Error: task '{task_slug}' not found"
-    relevant = []
-    raw = task.get("relevant_files")
-    if raw:
-        try:
-            import json as _json
-
-            relevant = _json.loads(raw)
-        except Exception:
-            relevant = []
     try:
-        passed, results, status = run_gates_with_cache(
-            svc.be._conn, task_slug, relevant or None, scope="standard"
+        result = svc.run_verify_for_task(
+            task_slug=task_slug, scope=scope, trigger=trigger
         )
-    except _s.Error as e:
+    except ServiceError as e:
         return f"Error: {e}"
-    return f"verify task='{task_slug}' passed={passed} status={status} gates={[r['name'] for r in results]}"
+    except Exception as e:
+        return f"Error: {e}"
+    gates = [r.get("name", "?") for r in result.get("results", [])]
+    return (
+        f"verify task='{task_slug or '-'}' "
+        f"passed={result['passed']} "
+        f"status={result['status']} "
+        f"trigger={result['trigger']} "
+        f"gates={gates}"
+    )
 
 
 def _handle_stack_reset(name: str) -> str:

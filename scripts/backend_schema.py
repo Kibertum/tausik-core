@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 19
+SCHEMA_VERSION = 22
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -59,7 +59,9 @@ CREATE TABLE IF NOT EXISTS sessions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     started_at TEXT NOT NULL, ended_at TEXT,
     summary TEXT, tasks_done TEXT DEFAULT '[]',
-    handoff TEXT
+    handoff TEXT,
+    model_id TEXT,
+    model_version TEXT
 );
 
 CREATE TABLE IF NOT EXISTS decisions (
@@ -87,6 +89,25 @@ CREATE TABLE IF NOT EXISTS explorations (
     started_at TEXT NOT NULL,
     ended_at TEXT,
     created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_slug TEXT NOT NULL REFERENCES tasks(slug) ON DELETE CASCADE,
+    run_type TEXT NOT NULL CHECK(run_type IN ('L1','L2','L3')),
+    critical_findings INTEGER NOT NULL DEFAULT 0,
+    warnings INTEGER NOT NULL DEFAULT 0,
+    run_at TEXT NOT NULL,
+    notes TEXT
+);
+
+CREATE TABLE IF NOT EXISTS brain_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER REFERENCES sessions(id) ON DELETE SET NULL,
+    event_type TEXT NOT NULL CHECK(event_type IN ('search','hit','write','ignored')),
+    query TEXT,
+    result_count INTEGER NOT NULL DEFAULT 0,
+    ts TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS memory_edges (

@@ -18,7 +18,7 @@
 | QG-2 | Scoped pytest gate | ✅ Реализовано | Hard block | `service_verification.py` — basename match `tests/test_<file>.py` per `relevant_files` (нет fallback на full suite, когда files supplied) |
 | QG-2 | Verify cache (10 min TTL) | ✅ Реализовано | Skip-on-hit | таблица `verification_runs` — same `files_hash` + green = skip; security paths байпасят cache |
 | QG-2 | Quality gates (pytest/ruff) | ✅ Реализовано | Hard block | `gate_runner.py` + `service_gates.py` `_run_quality_gates()` |
-| QG-2 | Checklist верификации (4 тира) | ✅ Реализовано | Warning | `service_gates.py` `_check_verification_checklist()` авто-тир |
+| QG-2 | Checklist верификации (4 тира) | ✅ Реализовано | Warning | `service_gates.py` `_check_verification_checklist()` авто-тир — v1.4 дополнительно прогоняет `service_ac_evidence.build_report()` и сообщает о per-AC покрытии, отсутствующих test-ref и негативных сценариях |
 | QG-2 | Root cause для дефектов | ✅ Реализовано | Warning | `service_task.py` `task_done()` — проверка ключевых слов |
 | QG-2 | Захват знаний | ✅ Реализовано | Warning | `service_task.py` `task_done()` — подсчёт memory/decision |
 

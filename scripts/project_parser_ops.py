@@ -42,6 +42,37 @@ def add_audit(sub: argparse._SubParsersAction) -> None:
     audit_sub.add_parser("mark", help="Mark audit as completed")
 
 
+def add_review(sub: argparse._SubParsersAction) -> None:
+    """SENAR Rule 10.15: track L1/L2/L3 review runs + ADR metric."""
+    rev_p = sub.add_parser("review", help="Track L1/L2/L3 review runs (SENAR Rule 10.15)")
+    rev_sub = rev_p.add_subparsers(dest="review_cmd")
+
+    rec = rev_sub.add_parser("record", help="Record a review run")
+    rec.add_argument("--task", required=True, help="Task slug being reviewed")
+    rec.add_argument(
+        "--type",
+        dest="run_type",
+        required=True,
+        choices=["L1", "L2", "L3"],
+        help="L1=author, L2=peer, L3=adversarial/external",
+    )
+    rec.add_argument(
+        "--critical", type=int, default=0, help="Number of critical findings"
+    )
+    rec.add_argument("--warnings", type=int, default=0, help="Number of warnings")
+    rec.add_argument("--notes", default=None, help="Free-form notes (links, summary)")
+
+    ls = rev_sub.add_parser("list", help="List recent reviews")
+    ls.add_argument("--task", default=None, help="Filter by task slug")
+    ls.add_argument(
+        "--type", dest="run_type", default=None, choices=["L1", "L2", "L3"]
+    )
+    ls.add_argument("--limit", type=int, default=20)
+    ls.add_argument("--json", action="store_true", help="Output as JSON")
+
+    rev_sub.add_parser("metrics", help="Show ADR metric")
+
+
 def add_brain(sub: argparse._SubParsersAction) -> None:
     brain_p = sub.add_parser("brain", help="Shared brain (cross-project knowledge)")
     brain_sub = brain_p.add_subparsers(dest="brain_cmd")
@@ -116,6 +147,22 @@ def add_brain(sub: argparse._SubParsersAction) -> None:
         action="store_true",
         dest="as_json",
         help="Emit raw JSON instead of human-readable markdown",
+    )
+    bsync = brain_sub.add_parser(
+        "sync",
+        help="Pull updates from Notion into the local mirror (.tausik-brain/brain.db)",
+    )
+    bsync.add_argument(
+        "--category",
+        choices=["decisions", "patterns", "gotchas", "web_cache"],
+        default=None,
+        help="Sync only one category (default: all 4)",
+    )
+    bsync.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Emit raw JSON instead of human-readable summary",
     )
     bm = brain_sub.add_parser(
         "move",

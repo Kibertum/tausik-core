@@ -37,6 +37,15 @@ def generate_myiderules(project_dir, project_name, stacks):
 agents/overrides/myide/rules.md
 ```
 
+Этот файл **автоматически дописывается** в сгенерированный `CLAUDE.md` /
+`.cursorrules` / `QWEN.md` (в зависимости от `ide=`, переданного в
+`bootstrap_templates.build_full_body`). Блок встаёт перед маркером
+`<!-- DYNAMIC:START -->`, поэтому doctor-drift игнорирует пользовательское
+state, но трактует override как часть канонического тела. В вашем
+`generate_myiderules()` передавайте `ide="myide"` — это включит
+override. `ide=None` (используется намеренно для `AGENTS.md`, который
+хост-агностичен) полностью отбрасывает блок.
+
 ### 4. Добавить автодетекцию
 
 В `detect_ide()` в `ide_utils.py` добавить проверку env vars или директорий:

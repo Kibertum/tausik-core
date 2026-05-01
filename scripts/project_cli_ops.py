@@ -66,6 +66,34 @@ def cmd_metrics(svc: ProjectService, args: Any) -> None:
             f"\nCalibration drift: {drift['label']} "
             f"(avg actual/budget = {drift['avg_ratio']}, n={drift['samples']})"
         )
+    try:
+        rm = svc.be.review_metrics()  # type: ignore[attr-defined]
+    except Exception:
+        rm = None
+    if rm and rm.get("l3_reviewed_tasks"):
+        print("\n--- Adversarial Review (SENAR Rule 10.15) ---")
+        print(
+            f"L3 reviewed tasks: {rm['l3_reviewed_tasks']}, "
+            f"critical findings: {rm['l3_critical_findings']}, "
+            f"ADR: {rm['adr_pct']}% (critical/L3-task)"
+        )
+    try:
+        bm = svc.be.brain_event_metrics()  # type: ignore[attr-defined]
+    except Exception:
+        bm = None
+    if bm and (bm["session"]["searches"] or bm["all_time"]["searches"]):
+        print("\n--- Shared Brain (v1.4) ---")
+        s = bm["session"]
+        a = bm["all_time"]
+        print(
+            f"Session: {s['searches']} searches, {s['hits']} hits, "
+            f"{s['writes']} writes, {s['ignored']} ignored "
+            f"(hit rate: {s['hit_rate_pct']}%)"
+        )
+        print(
+            f"All-time: {a['searches']} searches, {a['hits']} hits, "
+            f"{a['writes']} writes (hit rate: {a['hit_rate_pct']}%)"
+        )
     print(f"\nSessions: {m['sessions_total']} ({m['session_hours']}h total)")
     if m["stories"]:
         total_s = sum(m["stories"].values())
@@ -253,6 +281,69 @@ def cmd_brain(svc: ProjectService, args: Any) -> None:
         else:
             print(brain_status.format_status(snapshot))
         return
+    if sub == "sync":
+        import json as _json
+        import os as _os
+
+        import brain_config
+        import brain_sync
+        from brain_notion_client import NotionClient
+        from project_config import load_config
+
+        cfg = load_config() or {}
+        brain = cfg.get("brain") or {}
+        if not brain.get("enabled"):
+            print(
+                "Error: brain is not configured in this project. "
+                "Run `.tausik/tausik brain init` first.",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        token_env = brain.get("notion_integration_token_env") or str(
+            brain_config.DEFAULT_BRAIN["notion_integration_token_env"]
+        )
+        token = _os.environ.get(token_env, "")
+        if not token:
+            print(
+                f"Error: env var {token_env!r} is not set.\n"
+                "  Export your Notion integration token and re-run "
+                "`.tausik/tausik brain sync`.",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        db_ids = brain.get("database_ids") or {}
+        category_filter = getattr(args, "category", None)
+        if category_filter:
+            db_ids = {category_filter: db_ids.get(category_filter)}
+            if not db_ids[category_filter]:
+                print(
+                    f"Error: no database_id for category {category_filter!r} in config.",
+                    file=sys.stderr,
+                )
+                sys.exit(2)
+        client = NotionClient(token)
+        from brain_config import get_brain_mirror_path
+
+        conn = brain_sync.open_brain_db(get_brain_mirror_path())
+        try:
+            results = brain_sync.sync_all(client, conn, db_ids)
+        finally:
+            conn.close()
+        if getattr(args, "as_json", False):
+            print(_json.dumps(results, indent=2, ensure_ascii=False))
+        else:
+            print("Brain sync results:")
+            had_error = False
+            for cat, payload in results.items():
+                if "error" in payload:
+                    had_error = True
+                    print(f"  {cat:>10}: ERROR — {payload['error']}")
+                else:
+                    pulled = payload.get("upserts") or payload.get("pulled") or 0
+                    print(f"  {cat:>10}: pulled {pulled}")
+            if had_error:
+                sys.exit(1)
+        return
     if sub == "move":
         import json as _json
 
@@ -298,7 +389,9 @@ def cmd_brain(svc: ProjectService, args: Any) -> None:
             "                    [--join-existing [--decisions-id ID "
             "--web-cache-id ID --patterns-id ID --gotchas-id ID]]\n"
             "                    [--force-create]\n"
-            "  tausik brain status [--json]",
+            "  tausik brain status [--json]\n"
+            "  tausik brain sync   [--category decisions|patterns|gotchas|web_cache] [--json]\n"
+            "  tausik brain move   <source_id> --to-brain --kind ... | --to-local --category ...",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -438,3 +531,5 @@ def cmd_session_recompute(svc: ProjectService, args: Any) -> None:
         f"{round((1 - total_active / total_wall) * 100)}%" if total_wall > 0 else "  -"
     )
     print(f"{'TOTAL':>4} {total_wall:>6} {total_active:>7} {total_idle:>6}")
+
+

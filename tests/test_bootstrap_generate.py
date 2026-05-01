@@ -68,10 +68,16 @@ class TestGenerateClaudeMd:
         assert "<!-- DYNAMIC:END -->" in text
 
     def test_line_count_in_range(self, tmp_path):
-        """Should be 80-150 lines — dense enough to be load-bearing, short enough to read."""
+        """Should be 80-180 lines — dense enough to be load-bearing, short enough to read.
+
+        Upper bound was 150 before r14-overrides-integration; v1.4 appends the
+        `agents/overrides/claude/rules.md` block (~15 lines) right before the
+        DYNAMIC marker, so the budget needed to grow to absorb it without
+        forcing every IDE-specific rule into the shared body.
+        """
         text = self._generate_and_read(tmp_path, "proj", ["python"])
         lines = text.splitlines()
-        assert 80 <= len(lines) <= 150, f"Line count {len(lines)} outside 80-150 range"
+        assert 80 <= len(lines) <= 180, f"Line count {len(lines)} outside 80-180 range"
 
     def test_no_dogfooding_leakage(self, tmp_path):
         """Template must NOT reference TAUSIK-development internals."""

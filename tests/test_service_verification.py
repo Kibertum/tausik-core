@@ -677,7 +677,7 @@ class TestRunGatesWithCacheScopePropagation:
     def test_scope_recorded_as_passed(self, conn, monkeypatch):
         import gate_runner
 
-        def fake_run_gates(_trigger, _files):
+        def fake_run_gates(_trigger, _files, **_kw):
             return True, [
                 {"name": "stub", "passed": True, "severity": "block", "output": "ok"}
             ]
@@ -910,7 +910,7 @@ class TestRunGatesWithCacheGitDiffIntegration:
         monkeypatch.setattr(
             gate_runner,
             "run_gates",
-            lambda _trigger, _files: (
+            lambda _trigger, _files, **_kw: (
                 True,
                 [{"name": "g", "passed": True, "skipped": False, "severity": "block"}],
             ),
@@ -957,7 +957,7 @@ class TestRunGatesWithCacheGitDiffIntegration:
         monkeypatch.setattr(
             gate_runner,
             "run_gates",
-            lambda _trigger, _files: (
+            lambda _trigger, _files, **_kw: (
                 True,
                 [{"name": "g", "passed": True, "skipped": False, "severity": "block"}],
             ),
@@ -999,7 +999,7 @@ class TestRunGatesWithCacheGitDiffIntegration:
         monkeypatch.setattr(
             gate_runner,
             "run_gates",
-            lambda _trigger, _files: (
+            lambda _trigger, _files, **_kw: (
                 True,
                 [{"name": "g", "passed": True, "skipped": False, "severity": "block"}],
             ),

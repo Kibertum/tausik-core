@@ -87,7 +87,7 @@
                 "severity": { "type": "string", "enum": ["warn", "block"] },
                 "trigger": {
                   "type": "array",
-                  "items": { "type": "string", "enum": ["task-done", "commit", "review"] }
+                  "items": { "type": "string", "enum": ["task-done", "verify", "commit", "review"] }
                 },
                 "command": { "type": ["string", "null"] },
                 "description": { "type": "string" },

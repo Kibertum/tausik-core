@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import traceback
 
 
 def _get_service(project_dir: str):
@@ -29,6 +30,18 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--project", required=True, help="Project root directory")
     args = parser.parse_args()
+
+    # Pin cwd to --project so handlers that resolve paths relative to cwd
+    # (e.g. _project_dir() in handlers.py, cq_client config lookup) read the
+    # right project regardless of the host's launch directory. Mirrors
+    # tausik-brain server.py behavior — keeps the two MCP servers symmetric.
+    if not os.path.isdir(args.project):
+        print(
+            f"Error: --project {args.project!r} is not a directory.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    os.chdir(args.project)
 
     try:
         from mcp.server import Server
@@ -63,6 +76,14 @@ def main():
             result = await asyncio.to_thread(handle_tool, svc, name, arguments)
             return [TextContent(type="text", text=result)]
         except Exception as e:
+            # Full traceback to host stderr for diagnostics, mirroring
+            # tausik-brain server. The text reply to the agent stays minimal
+            # so frame-locals (potentially containing secrets/paths) do not
+            # leak into model context.
+            print(
+                f"[tausik-project] tool {name!r} failed:\n{traceback.format_exc()}",
+                file=sys.stderr,
+            )
             return [TextContent(type="text", text=f"Error: {e}")]
 
     async def _run():

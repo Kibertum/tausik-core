@@ -164,6 +164,40 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
             svc.task_start(args.slug, force=getattr(args, "force", False))
         )
     elif c == "done":
+        # v1.4 r14-mcp-streaming-progress: emit a one-line "Running N gates,
+        # max ~Σ seconds" hint to stderr at the start of the gate run, then a
+        # short status per gate. MCP hosts (VS Code Claude Extension) render
+        # this as the live "doing-stuff" indicator so the user knows whether
+        # to wait. Quiet by default (TAUSIK_QUIET=1).
+        import os as _os
+        import sys as _sys
+
+        def _stderr_progress(ev: dict[str, Any]) -> None:
+            if _os.environ.get("TAUSIK_QUIET"):
+                return
+            kind = ev.get("event")
+            if kind == "run_start":
+                _sys.stderr.write(
+                    f"[gates] Running {ev.get('total', '?')} gate(s) "
+                    f"(trigger={ev.get('trigger', '?')}, max ~"
+                    f"{ev.get('max_seconds', '?')}s).\n"
+                )
+            elif kind == "gate_start":
+                _sys.stderr.write(
+                    f"[gates] {ev.get('index')}/{ev.get('total')} "
+                    f"{ev.get('name')} ...\n"
+                )
+            elif kind == "gate_done":
+                status = "SKIP" if ev.get("skipped") else (
+                    "PASS" if ev.get("passed") else "FAIL"
+                )
+                _sys.stderr.write(
+                    f"[gates] {ev.get('index')}/{ev.get('total')} "
+                    f"{ev.get('name')} {status} "
+                    f"({ev.get('duration_ms', 0)} ms)\n"
+                )
+            _sys.stderr.flush()
+
         _print_with_warnings(
             svc.task_done(
                 args.slug,
@@ -171,6 +205,7 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                 args.ac_verified,
                 getattr(args, "no_knowledge", False),
                 evidence=getattr(args, "evidence", None),
+                progress_fn=_stderr_progress,
             )
         )
     elif c == "block":

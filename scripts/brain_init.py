@@ -415,6 +415,25 @@ def run_wizard(
             "Re-run with --force to overwrite."
         )
 
+    if interactive:
+        io.print(
+            "\n=== TAUSIK Shared Brain — onboarding wizard ===\n"
+            "Cross-project knowledge in Notion (decisions, patterns, gotchas, web cache).\n"
+            "\n"
+            "Before continuing, make sure you have:\n"
+            "  [1] A Notion workspace where you can create pages.\n"
+            "  [2] An internal Notion integration with 'Insert content' + 'Read content'\n"
+            "      capabilities. Create at https://www.notion.so/my-integrations\n"
+            "  [3] The integration's secret token exported as an env var\n"
+            "      (default name: NOTION_TOKEN; you can choose another).\n"
+            "  [4] A parent page in Notion that you have shared with the integration\n"
+            "      (open the page, '...' → 'Connections' → add your integration).\n"
+            "      Copy its 32-character page ID from the URL.\n"
+            "\n"
+            "If something is missing, abort with Ctrl+C and re-run\n"
+            "`.tausik/tausik brain init` once you're ready.\n"
+        )
+
     token_env = (args.get("token_env") or "").strip() or str(
         brain_config.DEFAULT_BRAIN["notion_integration_token_env"]
     )
@@ -429,8 +448,13 @@ def run_wizard(
     token = os.environ.get(token_env, "")
     if not token:
         raise WizardError(
-            f"Environment variable {token_env!r} is not set. "
-            "Export your Notion integration token and re-run."
+            f"Environment variable {token_env!r} is not set.\n"
+            "  How to fix:\n"
+            "    1. Create an integration: https://www.notion.so/my-integrations\n"
+            "    2. Copy the 'Internal Integration Token' (starts with `secret_` or `ntn_`).\n"
+            f"    3. Export it: setx {token_env} <token>  (Windows / new terminal)\n"
+            f"                  export {token_env}=<token>  (macOS/Linux)\n"
+            "    4. Re-run `.tausik/tausik brain init` in a fresh shell that sees the var."
         )
 
     client = client_factory(token)
@@ -522,6 +546,13 @@ def run_wizard(
     if not parent_page_id:
         if not interactive:
             raise WizardError("--parent-page-id is required in non-interactive mode")
+        io.print(
+            "\nParent page: open the Notion page where the 4 BRAIN databases will be\n"
+            "created, then copy the 32-char page ID from the URL.\n"
+            "  Example URL:  https://www.notion.so/your-workspace/Brain-1234abcd5678ef901234abcd5678ef90\n"
+            "  Page ID:      1234abcd5678ef901234abcd5678ef90\n"
+            "Make sure you've shared this page with the integration ('...' → 'Connections')."
+        )
         parent_page_id = io.prompt("Notion parent page ID: ").strip()
         if not parent_page_id:
             raise WizardError("parent_page_id cannot be empty")

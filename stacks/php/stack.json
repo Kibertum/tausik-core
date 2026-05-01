@@ -7,7 +7,7 @@
     "phpstan": {
       "enabled": false,
       "severity": "block",
-      "trigger": ["task-done", "commit"],
+      "trigger": ["verify", "commit"],
       "command": "vendor/bin/phpstan analyse {files} --no-progress 2>&1 | head -20",
       "description": "PHP static analysis",
       "stacks": ["php", "laravel"]
@@ -23,7 +23,7 @@
     "phpunit": {
       "enabled": false,
       "severity": "block",
-      "trigger": ["task-done"],
+      "trigger": ["verify"],
       "command": "vendor/bin/phpunit 2>&1 | tail -30",
       "description": "PHPUnit/Pest. Override via gates.phpunit.command for composer/pest.",
       "stacks": ["php", "laravel"],

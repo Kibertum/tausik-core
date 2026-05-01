@@ -26,6 +26,35 @@ Run in parallel (prefer MCP tools, CLI as fallback):
 - `tausik_audit_check` MCP tool
 - `tausik_memory_block` MCP tool — decisions + conventions + recent dead ends (re-inject project memory to prevent drift between sessions)
 
+### Phase 1.5 — Brain primer (cross-project knowledge)
+
+After Phase 1 finishes, run **one** broad `brain_search` call to surface up to 3 cross-project patterns and 3 gotchas relevant to this project's stack. Skip silently if `tausik-brain` MCP is not configured.
+
+```
+brain_search(
+  query="<comma-separated stack tags from tausik_status, e.g. 'python,fastapi,sqlite'>",
+  category="patterns",
+  limit=3
+)
+brain_search(
+  query="<same stack tags>",
+  category="gotchas",
+  limit=3
+)
+```
+
+When results come back, render them under a `Brain primer` heading in Phase 3 (top-3 patterns + top-3 gotchas, each with one-line description and Notion URL). If the user marks any item as not useful for this project, store the page id locally:
+
+```
+tausik_memory_quick(
+  type="convention",
+  title="brain.ignored:<notion_page_id>",
+  content="hidden in /start primer"
+)
+```
+
+Future `/start` runs filter the primer against `memory_list type=convention title startswith brain.ignored:` so unhelpful tips stop reappearing.
+
 ### Phase 2 — Update CLAUDE.md
 
 Use `tausik_update_claudemd` MCP tool to refresh the dynamic section.

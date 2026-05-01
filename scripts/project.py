@@ -54,6 +54,7 @@ def main() -> None:
         cmd_search,
         cmd_suggest_model,
     )
+    from project_cli_review import cmd_review
     from project_config import get_service
     from project_parser import build_parser
     from tausik_utils import ServiceError
@@ -96,6 +97,7 @@ def main() -> None:
         "brain": cmd_brain,
         "doc": cmd_doc,
         "run": cmd_run,
+        "review": cmd_review,
     }
 
     if args.command == "doctor":

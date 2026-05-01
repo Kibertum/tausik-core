@@ -59,10 +59,27 @@ Run tests for the current project. Stack: {stack}.",
 subagent_type: "general-purpose")
 ```
 
-Quality gates run automatically on `tausik_task_done` in step 7.
-
 **If tests fail:** Stop. Show failures. Do NOT proceed. User must fix first.
 **If tests pass:** Continue.
+
+### 5b. Run `tausik verify` (Verify-First Contract, v1.4)
+
+Heavy gates (pytest, tsc, cargo, phpstan, etc.) no longer fire automatically inside `task_done`. Trigger them explicitly via `tausik_verify` MCP tool (or `.tausik/tausik verify --task {slug}` as fallback). The result is cached for 10 minutes — `task_done` will look it up and close instantly.
+
+**How to invoke:**
+
+```
+tausik_verify(task_slug={slug})
+```
+
+**Possible outcomes:**
+
+- `passed=True, status="hit"` — cached green, no work re-done. Continue to step 6.
+- `passed=True, status="miss"` — fresh run completed and cached. Continue to step 6.
+- `passed=True, status="bypass"` — security-sensitive files; cache is intentionally refused, fresh run done. Continue to step 6.
+- `passed=False` — at least one verify gate failed. Stop. Show output, fix, retry.
+
+**Opt-out (CI/inline):** if the project sets `{"task_done": {"auto_verify": true}}` in `.tausik/config.json`, you can skip step 5b — `task_done` will run the verify gates inline. This is rare; prefer the explicit verify call so the user sees timings and can interrupt.
 
 ### 6. Verify Acceptance Criteria
 
@@ -83,7 +100,21 @@ Reference task slug in the commit message body.
 
 ### 8. Close Task
 
-**Only after successful commit.** Use `tausik_task_done` with `slug={slug}`, `ac_verified=true`, `relevant_files=[...]` (files from the commit).
+**Only after successful commit AND step 5b verify green.**
+
+**Preferred (v1.4+):** `tausik_task_done_v2` — returns a structured JSON report with `stage` ("closed" | "blocked"), per-gate results, and a `blocking_failures` array the agent can iterate to fix issues without re-parsing prose. Use this whenever the project's MCP server exposes it.
+
+```
+tausik_task_done_v2(
+  slug={slug},
+  ac_verified=True,
+  relevant_files=[...]
+)
+```
+
+**Fallback (legacy v1):** if the MCP server bundled with the project predates 1.3.7 and `tausik_task_done_v2` is not in the tool list, fall back to `tausik_task_done` with the same arguments. v1 raises a single aggregated error string (1.4 fix, see CHANGELOG) — read it, fix, retry. Do **not** loop on failures silently.
+
+Verify-First Contract: both v1 and v2 look up the cached green from step 5b. If you skipped step 5b on a project with verify-trigger gates, `task_done` will refuse to close — go back, run `tausik_verify`, then retry.
 
 ### 9. Update Documentation (auto)
 

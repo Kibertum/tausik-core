@@ -93,19 +93,21 @@ class TestDispatchFiltering:
     """
 
     def test_pytest_skipped_for_go_only_files(self):
+        # v1.4 Verify-First Contract: pytest moved from task-done to verify trigger.
         from project_config import get_gates_for_trigger
         from gate_runner import gate_applies_to
 
-        gates = get_gates_for_trigger("task-done", {"gates": {}})
+        gates = get_gates_for_trigger("verify", {"gates": {}})
         pytest_gate = next((g for g in gates if g["name"] == "pytest"), None)
         assert pytest_gate is not None, "pytest gate must be in default config"
         assert gate_applies_to(pytest_gate, ["main.go"]) is False
 
     def test_pytest_runs_for_python_files(self):
+        # v1.4 Verify-First Contract: pytest now under "verify" trigger.
         from project_config import get_gates_for_trigger
         from gate_runner import gate_applies_to
 
-        gates = get_gates_for_trigger("task-done", {"gates": {}})
+        gates = get_gates_for_trigger("verify", {"gates": {}})
         pytest_gate = next((g for g in gates if g["name"] == "pytest"), None)
         assert gate_applies_to(pytest_gate, ["scripts/main.py"]) is True
 

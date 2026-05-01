@@ -47,11 +47,16 @@ def cmd_verify(svc: ProjectService, args: Any) -> None:
             relevant_files = []
         task_created_at = task.get("created_at")
 
+    # v1.4 Verify-First Contract: this CLI now runs the "verify" trigger
+    # gates (pytest, tsc, cargo, phpstan, ...) and records the result in the
+    # cache bucket keyed by trigger="verify". `task done` then satisfies its
+    # QG-2 requirement via cache lookup instead of re-running heavy gates
+    # synchronously — fixes "task_done hangs in VS Code Claude Extension".
     scope = getattr(args, "scope", "manual")
     files_hash = compute_files_hash(relevant_files)
-    gate_sig = resolve_gate_signature("task-done")
+    gate_sig = resolve_gate_signature("verify")
     cache_command = (
-        f"trigger=task-done|sig={gate_sig}|files={','.join(sorted(relevant_files))}"
+        f"trigger=verify|sig={gate_sig}|files={','.join(sorted(relevant_files))}"
     )
 
     cache_consistent = not (
@@ -88,7 +93,7 @@ def cmd_verify(svc: ProjectService, args: Any) -> None:
             return
 
     t0 = _time.monotonic()
-    passed, results = run_gates("task-done", relevant_files)
+    passed, results = run_gates("verify", relevant_files)
     duration_ms = int((_time.monotonic() - t0) * 1000)
 
     print(f"Verify (scope={scope}, task={task_slug or '-'}):")

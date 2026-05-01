@@ -50,7 +50,8 @@ class TestLoadGates:
         assert gates["pytest"]["command"] == "pytest -v"
         # Other defaults preserved
         assert gates["pytest"]["enabled"] is True
-        assert "task-done" in gates["pytest"]["trigger"]
+        # v1.4 Verify-First: pytest moved from task-done to verify trigger
+        assert "verify" in gates["pytest"]["trigger"]
 
     def test_user_can_add_custom_gate(self):
         cfg = {
@@ -90,11 +91,20 @@ class TestGetGatesForTrigger:
         assert "pytest" not in names
 
     def test_task_done_gates(self):
+        # v1.4 Verify-First Contract: task-done now contains only cheap gates
+        # (filesize, tdd_order). Heavy gates (pytest, tsc, cargo, ...) moved
+        # to the new "verify" trigger so MCP hosts don't hang.
         gates = get_gates_for_trigger("task-done", {})
         names = {g["name"] for g in gates}
-        assert "pytest" in names
         assert "filesize" in names
-        assert "ruff" not in names
+        assert "pytest" not in names  # was here before v1.4
+        assert "ruff" not in names  # commit-only
+
+    def test_verify_gates(self):
+        """v1.4: heavy subprocess gates fire on `tausik verify`, not task_done."""
+        gates = get_gates_for_trigger("verify", {})
+        names = {g["name"] for g in gates}
+        assert "pytest" in names
 
     def test_review_gates(self):
         gates = get_gates_for_trigger("review", {})

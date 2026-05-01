@@ -170,6 +170,16 @@ def try_brain_write_decision(
         result = brain_mcp_write.store_record(client, conn, "decisions", fields, cfg)
         status = result.get("status", "")
         if status in ("ok", "ok_not_mirrored"):
+            try:
+                from brain_metrics_log import log_brain_event
+
+                log_brain_event(
+                    "write",
+                    query=text[:120],
+                    result_count=1,
+                )
+            except Exception:
+                pass
             return True, result.get("notion_page_id", "")
         if status == "scrub_blocked":
             return False, f"scrub_blocked: {_format_scrub_detectors(result)}"
@@ -235,6 +245,12 @@ def try_brain_write_web_cache(
         result = brain_mcp_write.store_record(client, conn, "web_cache", fields, cfg)
         status = result.get("status", "")
         if status in ("ok", "ok_not_mirrored"):
+            try:
+                from brain_metrics_log import log_brain_event
+
+                log_brain_event("write", query=query or url, result_count=1)
+            except Exception:
+                pass
             return True, result.get("notion_page_id", "")
         if status == "scrub_blocked":
             return False, f"scrub_blocked: {_format_scrub_detectors(result)}"

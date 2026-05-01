@@ -7,7 +7,7 @@
     "go-vet": {
       "enabled": false,
       "severity": "block",
-      "trigger": ["task-done", "commit"],
+      "trigger": ["verify", "commit"],
       "command": "go vet ./... 2>&1 | head -20",
       "description": "Go vet static analysis",
       "stacks": ["go"]
@@ -23,7 +23,7 @@
     "go-test": {
       "enabled": false,
       "severity": "block",
-      "trigger": ["task-done"],
+      "trigger": ["verify"],
       "command": "go test ./... 2>&1 | tail -30",
       "description": "Run Go tests for the module",
       "stacks": ["go"],

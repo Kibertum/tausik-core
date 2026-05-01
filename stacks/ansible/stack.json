@@ -12,7 +12,7 @@
     "ansible-lint": {
       "enabled": false,
       "severity": "warn",
-      "trigger": ["task-done", "commit"],
+      "trigger": ["verify", "commit"],
       "command": "ansible-lint {files} 2>&1 | head -30",
       "description": "Ansible playbook linter — lint/syntax only, NOT policy-as-code (OPA/Sentinel/Checkov NOT included).",
       "stacks": ["ansible"],

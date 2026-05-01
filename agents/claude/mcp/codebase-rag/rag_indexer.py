@@ -243,16 +243,39 @@ def _get_changed_files(
     return modified, deleted
 
 
-def index_full(project_dir: str, store: Any) -> dict[str, Any]:
-    """Full reindex: discover all files, chunk, store."""
+def index_full(
+    project_dir: str,
+    store: Any,
+    *,
+    max_seconds: int | None = None,
+    progress_every: int = 100,
+) -> dict[str, Any]:
+    """Full reindex: discover all files, chunk, store.
+
+    v1.4 r14-rag-reindex-timeout: emits a periodic stderr progress line
+    (`indexed X/Y files, N chunks, ZZs elapsed`) every `progress_every`
+    files so MCP hosts (VS Code Claude Extension, Cursor, …) don't see
+    the call as silently hung. Also accepts an optional `max_seconds`
+    soft limit — when exceeded, indexing stops cleanly and the partial
+    result is returned with `truncated=True`. Caller decides whether to
+    treat that as a failure or as "good enough for now".
+    """
+    import sys as _sys
+
     t0 = time.time()
     store.clear()
 
     files = get_file_list(project_dir)
     total_chunks = 0
     errors = 0
+    truncated = False
+    indexed_count = 0
+    total_files = len(files)
 
-    for f in files:
+    for i, f in enumerate(files, start=1):
+        if max_seconds is not None and (time.time() - t0) > max_seconds:
+            truncated = True
+            break
         try:
             with open(f["path"], encoding="utf-8", errors="replace") as fh:
                 content = fh.read()
@@ -261,8 +284,19 @@ def index_full(project_dir: str, store: Any) -> dict[str, Any]:
                 c["language"] = f["language"]
             store.upsert_file(f["rel_path"], chunks)
             total_chunks += len(chunks)
+            indexed_count += 1
         except OSError:
             errors += 1
+
+        if progress_every and i % progress_every == 0:
+            try:
+                _sys.stderr.write(
+                    f"[rag] indexed {i}/{total_files} files, "
+                    f"{total_chunks} chunks, {round(time.time() - t0)}s elapsed\n"
+                )
+                _sys.stderr.flush()
+            except Exception:
+                pass
 
     commit = _get_current_commit(project_dir)
     if commit:
@@ -270,11 +304,13 @@ def index_full(project_dir: str, store: Any) -> dict[str, Any]:
     store.set_meta("last_indexed", time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
 
     return {
-        "files_indexed": len(files),
+        "files_indexed": indexed_count,
+        "files_total": total_files,
         "total_chunks": total_chunks,
         "errors": errors,
         "duration_sec": round(time.time() - t0, 2),
         "commit": commit,
+        "truncated": truncated,
     }
 
 

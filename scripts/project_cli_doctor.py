@@ -132,6 +132,24 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
     else:
         _print_ok("Bootstrap drift", "none — deployed scripts match source")
 
+    md_drift = _check_claudemd_drift(project_dir)
+    if md_drift is None:
+        _print_warn(
+            "CLAUDE.md drift",
+            "could not compare CLAUDE.md vs bootstrap_templates output",
+        )
+        warnings += 1
+    elif md_drift:
+        _print_warn(
+            "CLAUDE.md drift",
+            f"{md_drift} static section(s) differ — run: tausik update-claudemd --dry-run",
+        )
+        warnings += 1
+    else:
+        _print_ok(
+            "CLAUDE.md drift", "none — static sections match bootstrap_templates"
+        )
+
     try:
         from project_config import (
             DEFAULT_SESSION_CAPACITY_CALLS,
@@ -195,6 +213,82 @@ def _print_warn(label: str, detail: str) -> None:
 
 def _print_fail(label: str, detail: str) -> None:
     print(f"  {RED}  {label:<25} {detail}")
+
+
+def _check_claudemd_drift(project_dir: str) -> int | None:
+    """Compare static (non-DYNAMIC) sections of CLAUDE.md against the live
+    bootstrap_templates.build_full_body output.
+
+    Returns the number of sections that differ, or None when comparison is
+    not possible (file missing, project name unknown, template import failed).
+    The CLAUDE.md head + DYNAMIC block + user-customised tail are ignored —
+    we hash the static body sections individually so cosmetic edits
+    (e.g. an extra newline at the end of file) don't trigger a false drift.
+    """
+    md_path = os.path.join(project_dir, "CLAUDE.md")
+    if not os.path.isfile(md_path):
+        return None
+    try:
+        sys.path.insert(0, os.path.join(project_dir, ".tausik-lib", "bootstrap"))
+        sys.path.insert(0, os.path.join(project_dir, "bootstrap"))
+        import importlib  # noqa: PLC0415
+
+        try:
+            bt = importlib.import_module("bootstrap_templates")
+            build_full_body = bt.build_full_body
+        except Exception:
+            return None
+    except Exception:
+        return None
+    try:
+        from project_config import load_config  # noqa: PLC0415
+
+        cfg = load_config() or {}
+        project_name = cfg.get("project_name") or os.path.basename(project_dir)
+        stacks = cfg.get("stacks") or []
+        expected = build_full_body(
+            project_name,
+            stacks,
+            "an AI agent (Claude Code)",
+            ".claude",
+            ide="claude",
+        )
+    except Exception:
+        return None
+    try:
+        with open(md_path, encoding="utf-8") as f:
+            current = f.read()
+    except OSError:
+        return None
+    # Compare per H2 block (## …). Sections present in expected but altered
+    # or missing in current count as drift. New sections in current that
+    # don't exist in expected are not flagged — those are user customisations.
+    import re as _re
+
+    def _split(text: str) -> dict[str, str]:
+        sections: dict[str, str] = {}
+        # Skip everything before the first H2 (header / project metadata
+        # which is rendered uniquely per file).
+        parts = _re.split(r"^(## [^\n]+)$", text, flags=_re.MULTILINE)
+        for i in range(1, len(parts), 2):
+            heading = parts[i].strip()
+            body = parts[i + 1] if i + 1 < len(parts) else ""
+            lower_h = heading.lower()
+            # Drop sections whose heading is itself dynamic per project.
+            if lower_h.startswith("## project:"):
+                continue
+            if "DYNAMIC:START" in body or lower_h.startswith("## current state"):
+                continue
+            sections[heading] = body.strip()
+        return sections
+
+    expected_sections = _split(expected)
+    current_sections = _split(current)
+    differ = 0
+    for heading, body in expected_sections.items():
+        if current_sections.get(heading, "").strip() != body.strip():
+            differ += 1
+    return differ
 
 
 def _check_scripts_drift(project_dir: str) -> int | None:

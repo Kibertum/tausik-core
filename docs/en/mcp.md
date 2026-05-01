@@ -1,15 +1,30 @@
 **English** | [Русский](../ru/mcp.md)
 
-# TAUSIK MCP — Tool Reference (v1.3)
+# TAUSIK MCP — Tool Reference (v1.4)
 
-**96 tools** for AI agents (90 project + 6 brain). The MCP surface mirrors the CLI 1:1 with zero CLI-only gaps. Prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
+**97 tools** for AI agents (91 project + 6 brain; v1.4 actual count, asserted via `len(TOOLS)` on both servers). The MCP surface mirrors the CLI 1:1 with zero CLI-only gaps. Prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
+
+> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 97 count — total with it is 104 tools.
 
 Two MCP servers live in this project:
 
-- `tausik-project` — project-scoped tools (90): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify.
+- `tausik-project` — project-scoped tools (91): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify.
 - `tausik-brain` — cross-project Shared Brain tools (6).
 
 There is also an optional `codebase-rag` server documented at the bottom.
+
+## Verify-First Contract (v1.4)
+
+Heavy quality gates (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeval, hadolint, ansible-lint) live on a dedicated `verify` trigger. The MCP workflow:
+
+```
+tausik_task_start(slug=…)        # QG-0
+… work on code …
+tausik_verify(task_slug=…)        # heavy: subprocess gates → caches green
+tausik_task_done(slug=…, ac_verified=True)   # lightweight: cache lookup
+```
+
+`tausik_task_done` will refuse to close the task if the verify cache is missing or stale — it returns a structured failure with explicit remediation. Opt-out for CI: set `{"task_done": {"auto_verify": true}}` in `.tausik/config.json` so the heavy gates fire inside `task_done` like in v1.3.
 
 ## Status, Health, Metrics
 
@@ -57,11 +72,13 @@ There is **no `--force`** on `task_done` — QG-2 cannot be bypassed. `task_star
 
 ### `tausik_task_done_v2`
 
-Uses the same input fields as `tausik_task_done`, but returns structured JSON for agent workflows:
+**Preferred for QG-2 since 1.3.7.** Uses the same input fields as `tausik_task_done`, but returns structured JSON for agent workflows:
 - stage flags (`plan_complete`, `ac_verified`, `gates_passed`)
 - per-gate results (`gates[]`)
 - `blocking_failures[]` with gate, files, output, and remediation hints
 - `warnings[]`, `cache_status`, and final `ok`
+
+Skills (`/ship`, `/task`) call v2 when it's exposed by the MCP server and fall back to v1 (single aggregated error string, 1.4 behaviour) otherwise. Both paths honour the Verify-First Contract.
 
 ## Sessions
 
@@ -134,7 +151,7 @@ Relation types: `supersedes`, `caused_by`, `relates_to`, `contradicts`.
 | `tausik_gates_status` | Status of all gates (by stack) | — |
 | `tausik_gates_enable` | Enable gate | `name` |
 | `tausik_gates_disable` | Disable gate | `name` |
-| `tausik_verify` | Run scoped quality gates ad-hoc; records verify cache | — (`task` + `scope` optional) |
+| `tausik_verify` | v1.4 Verify-First: run heavy gates (pytest, tsc, …) and cache green in `verification_runs`. After that `tausik_task_done` reads the cache and closes instantly. | `task_slug` |
 
 Available gates: `pytest`, `ruff`, `mypy`, `bandit`, `tsc`, `eslint`, `go-vet`, `golangci-lint`, `cargo-check`, `clippy`, `phpstan`, `phpcs`, `javac`, `ktlint`, `filesize`, `tdd_order`. Stack-scoped gates auto-enable based on detected stack; universal gates (`filesize`, `tdd_order`) apply to all stacks.
 
@@ -208,13 +225,13 @@ Role storage is hybrid: SQLite metadata + `agents/roles/{role}.md` profile markd
 | Tool | Description | Required Parameters |
 |---|---|---|
 | `brain_search` | Search the Notion-backed brain (FTS over local mirror) | `query` |
-| `brain_get` | Get a brain record by id | `id` |
-| `brain_store_decision` | Store a cross-project decision | `title`, `body` |
-| `brain_store_pattern` | Store a cross-project pattern | `title`, `body` |
-| `brain_store_gotcha` | Store a cross-project gotcha | `title`, `body` |
-| `brain_cache_web` | Cache a web result for token reuse | `query`, `content` |
+| `brain_get` | Get a brain record by id | `id`, `category` |
+| `brain_store_decision` | Store a cross-project decision | `name`, `decision` |
+| `brain_store_pattern` | Store a cross-project pattern | `name`, `description` |
+| `brain_store_gotcha` | Store a cross-project gotcha | `name`, `description` |
+| `brain_cache_web` | Cache a web result for token reuse | `name`, `url`, `content` |
 
-The `tausik-brain` MCP server runs config-agnostic at startup and pulls registry from `.tausik-brain/` configuration. It exposes additional internal tools (registry, mirror sync) bringing the brain count to 6.
+The `tausik-brain` MCP server runs config-agnostic at startup and reads registry from `.tausik-brain/` configuration. The total tool count for this server is 6 (verified via `len(TOOLS)` in `agents/claude/mcp/brain/tools.py`).
 
 ## Codebase RAG (separate optional MCP server)
 
@@ -222,13 +239,13 @@ The `tausik-brain` MCP server runs config-agnostic at startup and pulls registry
 |---|---|---|
 | `search_code` | Search project code via RAG index | `query` |
 | `search_knowledge` | Search project knowledge base | `query` |
-| `reindex` | Reindex the codebase | — |
+| `reindex` | Reindex the codebase | `mode` (incremental/full), `max_seconds` (soft limit, full only). v1.4: stderr progress every 100 files; truncated=true on timeout. |
 | `rag_status` | RAG index status | — |
 | `archive_done` | Archive completed tasks | — |
 | `cache_web_result` | Cache web search result for reuse | `query`, `content` |
 | `search_web_cache` | Search cached web results | `query` |
 
-These are not part of the 96+10 count — they belong to the optional `codebase-rag` server.
+These are not part of the main 97 count — they belong to the optional `codebase-rag` server.
 
 ## Launching the Tausik MCP Server
 

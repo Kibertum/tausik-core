@@ -320,6 +320,12 @@ def build_parser() -> argparse.ArgumentParser:
     uc_p.add_argument(
         "--claudemd", default=None, help="Path to CLAUDE.md (auto-detected if omitted)"
     )
+    uc_p.add_argument(
+        "--dry-run",
+        action="store_true",
+        dest="dry_run",
+        help="Show diff between current CLAUDE.md and what `update-claudemd` would write; do not modify the file. Exit code 0 if identical, 1 if drift detected.",
+    )
 
     # --- metrics / hud / suggest-model ---
     metrics_p = sub.add_parser("metrics", help="Project metrics and velocity")
@@ -396,6 +402,7 @@ def build_parser() -> argparse.ArgumentParser:
         add_dead_end,
         add_doc,
         add_explore,
+        add_review,
         add_run,
     )
 
@@ -405,5 +412,6 @@ def build_parser() -> argparse.ArgumentParser:
     add_brain(sub)
     add_run(sub)
     add_doc(sub)
+    add_review(sub)
 
     return p

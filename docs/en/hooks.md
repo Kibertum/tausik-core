@@ -1,12 +1,12 @@
 **English** | [Русский](../ru/hooks.md)
 
-# Hooks (v1.3)
+# Hooks (v1.4)
 
-TAUSIK uses Claude Code hooks for automatic quality control. Hooks intercept agent actions **before** and **after** execution — they are gates, not instructions. **19 hooks** ship with v1.3.
+TAUSIK uses Claude Code hooks for automatic quality control. Hooks intercept agent actions **before** and **after** execution — they are gates, not instructions. **17 Python hooks + 1 shell `pre-commit` = 18 active hooks** ship with v1.4 (1.3.7 had 16 + 1 = 17; v1.4 adds `secret_scan.py`).
 
 ## What Are Hooks
 
-Hooks are scripts that run automatically with every agent action. They decide whether an action can be performed (PreToolUse), what to do afterward (PostToolUse), or what to record on session/agent boundaries (SessionStart, Stop, UserPromptSubmit). Shared helpers live in `scripts/hooks/_common.py`.
+Hooks are scripts that run automatically with every agent action. They decide whether an action can be performed (PreToolUse), what to do afterward (PostToolUse), or what to record on session/agent boundaries (SessionStart, Stop, UserPromptSubmit). Shared helpers live in `scripts/hooks/_common.py` (not a hook itself); the regex set in `scripts/hooks/memory_markers.py` is a library imported by `memory_posttool_audit.py` and the brain-scrubbing pipeline.
 
 ## PreToolUse — Gates That Run Before an Action
 
@@ -16,6 +16,7 @@ Hooks are scripts that run automatically with every agent action. They decide wh
 | `bash_firewall.py` | Before Bash | Blocks dangerous commands (rm -rf, DROP TABLE, force push, etc.) |
 | `git_push_gate.py` | Before git push | Blocks direct push — use `/ship` or `/commit` |
 | `memory_pretool_block.py` | Before Write to auto-memory | Blocks cross-project writes unless prompt contains `confirm: cross-project` |
+| `secret_scan.py` (v1.4) | Before Write/Edit/MultiEdit | Scans `tool_input` for likely secrets (AWS/GitHub/Slack/Stripe/OpenAI/Anthropic tokens, JWT, private-key blocks, generic `password`/`api_key` literals). Warns by default; set `TAUSIK_SECRET_SCAN_STRICT=1` to block. (SENAR Rule 10.12) |
 
 ## PostToolUse — Reactions After an Action
 
@@ -24,10 +25,9 @@ Hooks are scripts that run automatically with every agent action. They decide wh
 | `auto_format.py` | After Write/Edit | Auto-formats with ruff/prettier/gofmt + logs "Modified: X" to task |
 | `task_call_counter.py` | After any tool call | Increments per-task `call_actual` counter; warns at 1.5×budget |
 | `activity_event.py` | After any tool call | Records activity timestamps for **gap-based active-time** session metric (SENAR Rule 9.2) |
-| `memory_markers.py` | After Write/Edit | Detects memory marker patterns and routes to TAUSIK memory store |
-| `memory_posttool_audit.py` | After Write to auto-memory | Audits cross-project leakage and warns |
+| `memory_posttool_audit.py` | After Write to auto-memory | Audits cross-project leakage (uses `memory_markers.py` regex library) and warns |
 | `brain_post_webfetch.py` | After WebFetch | Auto-caches result in shared brain `web_cache` for token reuse |
-| `task_done_verify.py` | After `task_done` | Audits AC evidence via 5 rule-based checks (Ralph-mode-lite) |
+| `task_done_verify.py` | After `task_done` / `task_done_v2` | Audits AC evidence via 5 rule-based checks (Ralph-mode-lite). Matcher v1.4: `tausik_task_done\|tausik_task_done_v2\|Bash` |
 
 ## SessionStart / SessionEnd
 
@@ -49,7 +49,28 @@ Hooks are scripts that run automatically with every agent action. They decide wh
 
 | Hook | When | What It Does |
 |------|------|-------------|
-| `pre-commit` (shell) | Before `git commit` | Runs scoped quality gates; blocks commit on failure |
+| `pre-commit` (shell) | Before `git commit` | Runs `python -m mypy` against `scripts/` (uses `pyproject.toml` config). On exit ≠ 0 — **blocks the commit**. Optionally runs an incremental `codebase-rag` reindex (warn-only, capped at 5s); never blocks the commit because of RAG. |
+
+This is **not** "scoped quality gates" — those run via `tausik verify` (heavy stack: pytest/tsc/cargo/phpstan/…) and are decoupled from `git commit` since the v1.4 Verify-First Contract.
+
+### Install (one-time)
+
+```bash
+# Option A: copy the file
+cp scripts/hooks/pre-commit .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+
+# Option B (recommended): point git at the in-repo hooks dir so updates are picked up automatically
+git config core.hooksPath scripts/hooks
+```
+
+> **Windows caveat.** `pre-commit` is a Bash script with `timeout(1)` and POSIX `[ -f … ]`. Plain `cmd.exe` will fail to execute it. Use Git Bash, WSL, or a terminal that ships Bash + `timeout` on `PATH`. If your team runs Windows-only, replace the script with a `pre-commit.cmd` wrapper that calls `python -m mypy` directly and accepts the same exit contract.
+
+### Disable / bypass
+
+- One-off: `git commit --no-verify` (skips `core.hooksPath` entirely).
+- Temporarily: `git config --unset core.hooksPath`.
+- For CI without mypy: keep `core.hooksPath` unset on CI runners; the heavy verification runs via `tausik verify` regardless.
 
 ## How It Works
 
