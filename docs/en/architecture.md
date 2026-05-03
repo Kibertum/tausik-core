@@ -77,6 +77,10 @@ the Backend handles only CRUD and SQL. CLI and MCP are two equal entry points.
 | `model_routing.py` | Model selection helper |
 | `ide_utils.py` | IDE detection, paths, registry |
 | `tausik_utils.py` + `tausik_version.py` + `project_types.py` | Helpers, version, types |
+| `gen_doc_constants.py` + `mcp_tool_counts.py` | Generate `docs/_generated/constants.json` (v1.4) |
+| `audit_orphan_files.py` / `audit_stale_docs.py` / `audit_unused_python.py` / `audit_pytest_dedupe.py` | Static audit reports (review-only, v1.4) |
+| `project_cli_hygiene.py` | `tausik hygiene archive` (read-only project hygiene, v1.4) |
+| `hooks/check_docs.py` | Pre-commit / CI wrapper for doc-constants drift (v1.4) |
 
 ### Bootstrap (Generation)
 
@@ -99,7 +103,7 @@ the Backend handles only CRUD and SQL. CLI and MCP are two equal entry points.
 | `agents/claude/mcp/project/handlers.py` | Dispatch: tool name -> service method |
 | `agents/claude/mcp/project/handlers_skill.py` | Skill + maintenance handlers (split) |
 
-Total MCP surface: **90 project tools + 6 brain tools = 96**.
+Total MCP surface: **92 project tools + 7 brain tools = 99** (optional `codebase-rag` adds 7 more; not part of the main count).
 
 ### Cross-IDE Support
 
@@ -155,7 +159,7 @@ Gates: `pytest`, `ruff`, `mypy`, `bandit`, `filesize`, `tdd_order`, `tsc`, `esli
 ## Testing
 
 ```bash
-pytest tests/ -v                    # all tests (2318)
+pytest tests/ -v                    # all tests (2590)
 pytest tests/test_tausik_backend.py   # backend CRUD
 pytest tests/test_tausik_service.py   # service logic
 pytest tests/test_tausik_cli.py       # CLI smoke
@@ -166,3 +170,5 @@ pytest tests/test_mcp_integration.py # MCP handlers
 pytest tests/test_senar.py          # SENAR compliance
 pytest tests/test_e2e_workflow.py   # E2E workflow
 ```
+
+When adding or restructuring tests (new module vs extending an existing file, scoped pytest mapping), follow **[Testing principles](testing-principles.md)**.

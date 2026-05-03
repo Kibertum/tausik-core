@@ -9,13 +9,20 @@
 > начиная с v1.3.2; для более ранних релизов смотри английскую версию.
 > При добавлении новой записи держи оба файла синхронизированными.
 
-## [Unreleased] — 1.4 — Verify-First Contract + усиление по аудиту
+## [1.4.0] — 2026-05-02 — Verify-First Contract + 1.4 epic batch
 
-> Релиз готовности к публике, основанный на аудите 1.4
-> (`docs/ru/research/tausik-1.4-readiness-audit-v2-2026-05-01.md`).
+> Релиз готовности к публике, основанный на аудите 1.4 и мастер-плане
+> 10 эпиков (research-артефакты удалены перед релизом, см. историю коммитов).
 > Главное изменение: тяжёлая верификация (pytest, tsc, cargo, phpstan, …)
 > отделена от `task done`. Закрытие задачи теперь миллисекундная операция,
 > а верификация — отдельный явный кешируемый шаг.
+> Все 10 v14-* эпиков закрыты; бэклог приземлён полностью —
+> `v14-brain-snippets`, `v14-model-prompts`, `v14-verify-integrity`,
+> `v14-cost-telemetry`, `v14-framework-lean` приехали в Composer-батче
+> (сессия #42); оставшиеся `v14-project-hygiene`, `v14-test-philosophy`,
+> `v14-doc-automation`, `v14-dead-code-audit`, `v14-skill-store`
+> закрылись в Phase B follow-up перед релиз-коммитом. Ретро сессии #42 —
+> `docs/ru/research/tausik-1.4-composer-retro-2026-05-02.md`.
 
 ### BREAKING (с opt-out)
 
@@ -37,7 +44,7 @@
   - **Миграция:** достаточно вставить `tausik verify --task <slug>` перед
     `task done`. Скилл `/ship` и CLI-доки уже обновлены.
 
-### Добавлено
+### Добавлено — Verify-First инфраструктура
 
 - `VALID_GATE_TRIGGERS` расширен на `"verify"` (project_config + stack_schema).
 - `service_verification.has_fresh_verify_run()` и
@@ -50,6 +57,124 @@
   buckets кеша, проекты-исключения, миграция стек-гейтов).
 - Маркер pytest `verify_first` и autouse opt-out фикстура в `conftest.py`,
   чтобы legacy-тесты не падали на новом контракте.
+- **Envelope-таймаут на verify pipeline** (`verify_pipeline_timeout_seconds`,
+  по умолчанию 60с) — общий wall-time лимит на весь цикл `run_gates`,
+  чтобы зависший gate не делал `task done` похожим на завис. `0`
+  отключает (CI). При превышении: `GateEnvelopeTimeoutError` с явным
+  remediation (поднять лимит, включить `auto_verify=true`, сузить
+  `relevant_files`).
+- **Восстановление relevant_files из последнего verify-row.** Когда
+  `task done` вызван без CLI/MCP `relevant_files` И в `task.relevant_files`
+  тоже пусто, `service_task` теперь читает список из последнего fresh
+  verify-row (≤ TTL, exit 0) — `tausik verify --task X` + `tausik task
+  done X` (без аргументов) попадает в cache. Security-sensitive paths
+  (auth/payment/…) bypass fallback — там всегда требуется явный список.
+- **Relaxed cache hit при mismatch файлов.** Строгий cache lookup ключует
+  по `(slug, files_hash, command)` — mtime / gate-signature drift
+  корректно инвалидирует. Единственный sharp edge, который он создавал
+  — `verify --task X` с manual scope (`files=[]`), затем `task done X
+  relevant_files=[…]` миссился и запускал `run_gates` повторно — закрыт:
+  если strict miss имеет fresh exit-zero row с пустым files set, он
+  принимается как "manual scope подтвердил slug". Mismatch когда
+  записанный run назвал конкретные файлы — по-прежнему miss
+  (mtime/signature invalidation сохранён). Security-sensitive
+  `relevant_files` обходят relaxed тоже.
+
+### Добавлено — Эпик v14-brain-snippets (Shared Brain artifact pipeline)
+
+- Логическая схема `agents/schemas/brain-artifact-card.schema.json` —
+  валидируемая нагрузка для patterns / gotchas перед записью в Notion.
+- `scripts/brain_artifact_taxonomy.py`, `scripts/brain_artifact_card.py`,
+  `scripts/brain_store_format.py` — таксономия (artifact / pattern / snippet),
+  валидатор карточки, нормализатор store-format на стороне сервера.
+- `scripts/brain_publish_flow.py` + `scripts/brain_publish_cli.py` +
+  `scripts/brain_cli_ops.py` — поток propose → audit → publish со
+  scrub-перед-risk и явным гейтом `confirm_high_risk`.
+- MCP `brain_draft_artifact` (Claude + Cursor) для предложения артефактов
+  до публикации.
+- Опциональное поле `external_repo_url` в карточке артефакта (валидируется,
+  не пишется в Notion props в v1).
+- Stack-aware ранжирование артефактов в `brain_search`.
+- EN/RU документы: `brain-artifact-taxonomy.md`, `brain-search-ranking.md`.
+
+### Добавлено — Эпик v14-model-prompts (мульти-модельные skill profiles)
+
+- `scripts/skill_profile.py` — резолвер frontmatter + `variants/<model>.md`
+  с безопасным fallback на неизвестный профиль.
+- `agents/skills/_profile-demo/` — демо-skill (`SKILL.md` + `variants/`),
+  показывающий формат. Префикс `_` заставляет bootstrap пропускать демо
+  при реальной генерации.
+- `bootstrap_copy.py` — profile-aware копирование skill (выбор тела варианта).
+- `bootstrap_qwen.py` + `.qwen/` + шаблон `QWEN.md` — Qwen Code agent
+  как ещё одна целевая IDE рядом с Claude / Cursor.
+- `TAUSIK_MODEL_PROFILE` env → ключ `model_profile` в `.tausik/config.json`
+  (валидация на bootstrap; невалидное значение → exit non-zero).
+- Опциональный ключ `task_next.model_hint` (off по умолчанию) — добавляет
+  non-blocking рекомендацию модели (Haiku / Sonnet / Opus) в `task next`
+  и `hud` на основе complexity.
+- Таблица AGENTS.md «модель → tool surface».
+- EN/RU документы: `skill-profiles.md` плюс обновления `skills.md`.
+
+### Добавлено — Эпик v14-verify-integrity (anti-gaming QG-2)
+
+- Подкоманда `doctor` показывает non-blocking предупреждение, когда
+  `auto_verify=true` сочетается с интерактивным профилем (люди обычно
+  не хотят полный pytest внутри `task_done`). Тестировано в
+  `tests/test_doctor_auto_verify_hint.py`.
+- `tests/conftest.py` `_verify_first_autouse_compat_shim` задокументирован:
+  helper-предикат `tests/verify_first_compat_predicate.py` объявляет,
+  какие тестовые пути обходят `_enforce_verify_first` и почему.
+- `scripts/verify_recent_lookup.py` — небольшой compat-shim для lookup
+  verify-кеша вне `service_verification`.
+- EN/RU документы: `verify-glossary.md` (opt-out vs bypass vs test shim —
+  единый источник правды).
+
+### Добавлено — Эпик v14-cost-telemetry (учёт токенов и долларов)
+
+- Таблица `usage_events` (миграция в `backend_schema.py`) — пишет
+  model_id, input/output токены, опциональный cost, task_slug,
+  session, created_at. Отрицательные токены / неизвестная модель
+  отвергаются.
+- Ключ `llm_pricing_usd_per_million` в config (валидируется
+  `normalize_llm_pricing_config`) — цена за 1M токенов по модели;
+  отсутствующая модель → `UNKNOWN`.
+- `usage_events_cost_rollup_by_task` + `usage_cost_rollup_by_task` —
+  агрегаты per-task / per-period. Пустые окна возвращают `[]`,
+  не исключения.
+- `tausik metrics --cost` (CLI + MCP `tausik_metrics`) — табличный
+  rollup с дружелюбным сообщением для пустого состояния.
+
+### Добавлено — Эпик v14-framework-lean (снижение токен-стоимости)
+
+- Ключ конфига `context_tier` (`minimal` / `standard` / `full`) +
+  `resolve_context_tier()` со строгой валидацией. Bootstrap рендерит
+  короткие / средние / полные правила соответственно. Тестировано в
+  `tests/test_context_tier.py`.
+- `tausik status --compact` (CLI флаг) и MCP `tausik_status({compact:
+  true})` — однострочный JSON-ответ для агентов, которым не нужен
+  человекочитаемый блок. Дефолтный человеческий вывод не изменён.
+- Trim-проход AGENTS.md: убраны дубликаты со skills без потери
+  жёстких правил.
+
+### Добавлено — Doc-автоматизация (эпик v14-doc-automation, частично)
+
+- `docs/_generated/constants.json` — единый источник правды для
+  `tausik_version` и MCP tool counts (project / brain / RAG / total).
+- `scripts/gen_doc_constants.py` — генератор с режимом `--check`
+  (exit 1 на drift). Доступен как `tausik doc constants [--check]`.
+- `scripts/mcp_tool_counts.py` — выводит числа `mcp_*_tools` из
+  живых `agents/{claude,cursor}/mcp/*/tools.py`. Тестировано в
+  `tests/test_gen_doc_constants.py`, `tests/test_mcp_doc_tool_counts.py`.
+
+### Добавлено — Hygiene и test-philosophy документация (частично)
+
+- EN/RU документы: `task-archive-spec.md` (политика read-only архива
+  done-задач старше N дней), `memory-merge-guidelines.md` (когда
+  объединять memory vs. заводить новую запись), `testing-principles.md`
+  (критерии нового теста; антипаттерн: копипаста без нового поведения),
+  `skill-ecosystem.md` (one-pager для потока repo → install → activate).
+- `agents/skills/_profile-demo/` показан в `skills.md` — когда
+  использовать мульти-модельные варианты.
 
 ### Изменено
 
@@ -78,6 +203,86 @@
   мокающие `gate_runner.run_gates`, не принимали kwargs и тихо падали
   на реальном `progress_callback=`. Lambdas получили `**_kw`. (4 теста
   разблокированы.)
+- Test pollution между `test_hud_cli.py`, `test_memory_block.py`,
+  `test_memory_compact.py`, `test_qg0_dimensions.py` и любым тестом,
+  читающим `.tausik/config.json` через `find_tausik_dir()`. Эти четыре
+  файла ставили `os.environ["TAUSIK_DIR"]` напрямую без cleanup, и env
+  утекала в последующие тесты, указывая на удалённый tmp_path. Заменено
+  на `monkeypatch.setenv` — cleanup автоматический. Поверхность всплыла
+  через новый `tests/test_task_next_model_hint.py::test_hint_via_config_file`
+  — единственный тест, который реально проходит `load_config()` с диска.
+
+### Тесты
+
+- Suite расширен **2318 → 2513** (`tests/`); полный прогон зелёный
+  (`2506 passed, 7 skipped`).
+- Новые test-файлы: `test_bootstrap_model_profile`,
+  `test_brain_artifact_external_repo`, `test_context_tier`,
+  `test_doctor_auto_verify_hint`, `test_gen_doc_constants`,
+  `test_llm_pricing_config`, `test_mcp_doc_tool_counts`,
+  `test_skill_profile`, `test_task_next_model_hint`,
+  `test_metrics_session_usage`.
+
+### Версионирование
+
+- `__version__` поднят `1.3.7` → `1.4.0`.
+- `pyproject.toml` `version` поднят `1.3.7` → `1.4.0`.
+- `docs/_generated/constants.json` перегенерирован.
+
+> Все 10 v14-* эпиков закрыты в этом релизе. Оставшиеся 5 эпиков из
+> мастер-плана приземлены сразу после Composer-batch и разнесены ниже на
+> отдельные секции для согласованности с первыми пятью.
+
+### Добавлено — Эпик v14-project-hygiene (гигиена долгоживущего проекта)
+
+- **`tausik hygiene archive`** (CLI, в v1 только dry-run) — список `done`
+  задач старше `task_archive.done_age_days`. Активные / blocked /
+  planning / review задачи не включаются; `--confirm` зарезервирован
+  под будущие деструктивные операции и сейчас отвергается с понятным
+  сообщением. Источники: `scripts/project_cli_hygiene.py`,
+  parser dispatch в `scripts/project_parser_ops.py::add_hygiene`.
+
+### Добавлено — Эпик v14-test-philosophy (дисциплина тестов)
+
+- **`scripts/audit_pytest_dedupe.py`** — AST-нормализация и группировка
+  тест-функций со структурно идентичным телом (детектор копипасты).
+  Артефакт: `docs/ru/research/tausik-1.4-pytest-dedupe-2026-05-02.md`.
+
+### Добавлено — Эпик v14-dead-code-audit (инвентаризация мёртвого кода и мусора)
+
+- **`scripts/audit_orphan_files.py`** — Python-файлы в `scripts/`,
+  на которые никто не ссылается. Зеркала EN/RU и soft doc-ссылки
+  учтены — standalone CLI скрипты не false-positive.
+- **`scripts/audit_stale_docs.py`** — markdown в `docs/` без входящих
+  ссылок. EN/RU mirror партнёры держатся парой; research и
+  release-notes архивы исключены glob'ами.
+- **`scripts/audit_unused_python.py`** — top-level `def` / `class`
+  без ссылок в репо. EXEMPT_MODULES + приватные хелперы исключены;
+  политика false-positive задокументирована в render_markdown.
+
+### Добавлено — Эпик v14-doc-automation (генерация и drift-проверки docs)
+
+- **`scripts/hooks/check_docs.py`** — pre-commit / CI обёртка над
+  `gen_doc_constants.py --check`; корректно skip'ает когда нет
+  `pyproject.toml` выше cwd.
+- **Шаг `Doc-constants drift check` в `.github/workflows/tests.yml`** —
+  матрица падает при drift `docs/_generated/constants.json`.
+- **EN/RU dev-документы:** `dev-doc-checks.md` — как запускать всё это
+  локально; описывает negative-поведение.
+
+### Добавлено — Эпик v14-skill-store (UX и доверие skill CLI)
+
+- **Skill CLI consistency** (`tausik skill ...`) — каждый subcommand
+  имеет noun-phrase help и hint "see: tausik skill list" на `name`
+  args. Negative сценарии теперь дают friendly `Error: ...` + exit 1
+  вместо Python traceback; `SkillManagerError` ловится наравне
+  с `ServiceError` в `main()`.
+
+### Рефакторинг
+
+- `scripts/project_parser.py` 465 → 372 строки: `add_skill` и
+  `add_metrics` вынесены в `scripts/project_parser_ops.py`, чтобы
+  пройти 400-строчный filesize gate.
 
 ## [1.3.7] — 2026-04-29 — MCP-прозрачность для Cursor/VSCode + docs consistency sweep
 

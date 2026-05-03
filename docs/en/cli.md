@@ -9,9 +9,14 @@ On Windows the wrapper is `.tausik/tausik.cmd`. The same surface is also availab
 
 ```bash
 init --name <slug>             # Initialize project (creates .tausik/tausik.db)
-status                         # Project overview + SENAR session duration warning (active vs wall)
+status [--compact]             # Project overview + SENAR session duration warning (active vs wall); --compact → one-line JSON
 metrics                        # SENAR metrics: Throughput, Lead Time, FPSR, DER, Dead End Rate, Cost per Task
+metrics [--cost]               # With --cost: rollup usage_events by task_slug (same as `metrics cost`)
 metrics record-session         # Persist LLM usage (tokens/cost/tool/model) for current or explicit session
+metrics log-usage              # Append one manual usage_events row (--task-slug optional; no session_usage_metrics overwrite)
+metrics cost [--since ISO] [--until ISO]   # SUM tokens/cost + COUNT rows grouped by task (NULL slug excluded)
+                                # Optional tariff table: .tausik/config.json → "llm_pricing_usd_per_million": { "<model_id>": <USD_per_1M_tokens>, … }
+                                # Only non-negative numbers are kept; unknown model_id → no tariff (null for later cost rollups).
 doctor                         # Health check: venv + DB + MCP + skills + drift
 ```
 
@@ -67,6 +72,8 @@ task claim <slug> <agent_id>    # Multi-agent: claim a task
 task unclaim <slug>             # Release a task
 ```
 
+**Optional Claude model hints:** When `.tausik/config.json` contains `{"task_next":{"model_hint":true}}`, `task next` and `hud` print an extra non-blocking line recommending a Claude model from task complexity (same mapping as `suggest-model`). Opt-in only; missing key or `false` preserves previous behavior.
+
 **Allowed stacks (DEFAULT_STACKS, 25):** python, fastapi, django, flask, react, next, vue, nuxt, svelte, typescript, javascript, go, rust, java, kotlin, swift, flutter, laravel, php, blade, ansible, terraform, helm, kubernetes, docker. Custom stacks are added via `.tausik/config.json` → `custom_stacks`.
 
 **Tier ↔ call_budget map:** trivial ≤10, light ≤25, moderate ≤60, substantial ≤150, deep ≤400. Budgets >400 are accepted; tier label caps at `deep`.
@@ -100,6 +107,8 @@ verify [--task SLUG] [--scope {lightweight,standard,high,critical,manual}]
 ```
 
 Now `task done` runs the verify gates inline within its transaction — the v1.3 behavior. Useful for CI where a single long step is preferable to two.
+
+**Terminology:** [Verify / QG glossary](verify-glossary.md) — opt-out vs bypass vs test shim.
 
 ## Quality Gates
 
@@ -225,15 +234,20 @@ team                            # Tasks grouped by agents (claimed_by)
 ## Skills
 
 ```bash
-skill list                      # List skills: active, vendored, available
-skill install <name>            # Install from repo (clone + copy + deps)
-skill uninstall <name>          # Remove skill completely
-skill activate <name>           # Activate installed skill
-skill deactivate <name>         # Deactivate skill (keep files)
-skill repo add <url>            # Add TAUSIK-compatible skill repo
-skill repo remove <name>        # Remove skill repo
+skill list                      # List skills: active, vendored, available from configured repos
+skill install <name>            # Install a skill from a configured repo (clone + copy + activate)
+skill uninstall <name>          # Uninstall a skill (deactivate + drop from config)
+skill activate <name>           # Activate a vendored skill (copy from vendor/ to .claude/skills/)
+skill deactivate <name>         # Deactivate an active skill (remove from .claude/skills/)
+skill repo add <url> [--force]  # Add TAUSIK skill repo; --force required for URLs other than github.com/Kibertum/tausik-skills
+skill repo remove <name>        # Remove a configured skill repo
 skill repo list                 # List configured repos and their skills
 ```
+
+Negative scenarios (unknown skill, untrusted repo URL, missing skill) print
+a friendly `Error: ...` line on stderr and exit `1`. They never produce
+a Python traceback (v1.4: `SkillManagerError` is caught alongside
+`ServiceError` in `main()`).
 
 ## Shared Brain (cross-project)
 
@@ -251,6 +265,23 @@ brain move <notion_page_id> --to-local --category {decisions,patterns,gotchas,we
 roadmap [--include-done]        # Full tree epic -> story -> task
 search <query> [--scope {all,tasks,memory,decisions}]
 ```
+
+## Hygiene (v1.4)
+
+Read-only project-hygiene helpers. Always dry-run; `--confirm` is reserved
+for future destructive operations and is rejected today.
+
+```bash
+hygiene archive                 # List done tasks older than task_archive.done_age_days
+                                # (no-op when task_archive.enabled is false / missing).
+                                # Active / blocked / planning / review tasks are
+                                # NEVER included regardless of config.
+hygiene archive --confirm       # Currently rejected: v1 has no destructive op.
+```
+
+Spec: `docs/en/task-archive-spec.md`. Exclusion rules and developer-side
+audit scripts (orphan files, stale docs, unused Python, pytest dedupe)
+are documented in `docs/en/dev-doc-checks.md`.
 
 ## Batch Execution
 

@@ -75,6 +75,10 @@
 | `model_routing.py` | Helper выбора модели |
 | `ide_utils.py` | Определение IDE, пути, реестр |
 | `tausik_utils.py` + `tausik_version.py` + `project_types.py` | Хелперы, версия, типы |
+| `gen_doc_constants.py` + `mcp_tool_counts.py` | Генерация `docs/_generated/constants.json` (v1.4) |
+| `audit_orphan_files.py` / `audit_stale_docs.py` / `audit_unused_python.py` / `audit_pytest_dedupe.py` | Static audit reports (review-only, v1.4) |
+| `project_cli_hygiene.py` | `tausik hygiene archive` (read-only гигиена проекта, v1.4) |
+| `hooks/check_docs.py` | Pre-commit / CI wrapper для drift-проверки doc-constants (v1.4) |
 
 ### Начальная настройка (генерация)
 
@@ -97,7 +101,7 @@
 | `agents/claude/mcp/project/handlers.py` | Диспетчеризация: имя инструмента → метод сервиса |
 | `agents/claude/mcp/project/handlers_skill.py` | Обработчики навыков + обслуживания (split) |
 
-Полный MCP-surface: **90 project + 6 brain = 96 инструментов**.
+Полный MCP-surface: **92 project + 7 brain = 99 инструментов** (опциональный `codebase-rag` добавляет ещё 7; не в основном счёте).
 
 ### Поддержка разных сред разработки
 
@@ -168,7 +172,7 @@ Brain-хуки делят helpers в `scripts/brain_hook_utils.py` — одна 
 ## Тестирование
 
 ```bash
-pytest tests/ -v                    # все тесты (2318)
+pytest tests/ -v                    # все тесты (2590)
 pytest tests/test_tausik_backend.py   # backend CRUD
 pytest tests/test_tausik_service.py   # service logic
 pytest tests/test_tausik_cli.py       # CLI smoke
@@ -179,3 +183,5 @@ pytest tests/test_mcp_integration.py # MCP handlers
 pytest tests/test_senar.py          # SENAR compliance
 pytest tests/test_e2e_workflow.py   # E2E workflow
 ```
+
+См. **[Принципы тестирования](testing-principles.md)** — когда добавлять тесты, маппинг scoped pytest, анти-паттерны (в т.ч. копипаста без нового поведения).

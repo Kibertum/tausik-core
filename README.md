@@ -7,8 +7,19 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)](https://python.org)
 [![Tests](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml/badge.svg)](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml)
-[![2318 tests](https://img.shields.io/badge/tests-2318%20passed-brightgreen.svg)](#dogfooding-tausik-built-tausik)
+[![2590 tests](https://img.shields.io/badge/tests-2590%20passed-brightgreen.svg)](#dogfooding-tausik-built-tausik)
 [![Zero deps](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#what-you-get)
+
+**TAUSIK is a quality control framework for AI coding agents** — Claude Code,
+Cursor, VSCode Claude Extension, Qwen Code, Windsurf. It enforces the
+discipline of a senior engineer: plan before coding, verify before claiming
+done, remember decisions across sessions, and never silently skip the
+test/lint pipeline.
+
+**Think of it as Git for AI workflow.** Sessions, tasks, decisions and
+dead-ends are tracked in a local SQLite database. Quality gates physically
+block the agent at two checkpoints — start (no goal? blocked) and done
+(no evidence? blocked) — so "I'll remember to test next time" stops being a thing.
 
 Three messages. Full engineering cycle. Quality gates that the agent can't skip.
 
@@ -39,6 +50,25 @@ ship it
 ```
 
 That's it. The agent opens a session, creates a task with acceptance criteria, writes the code, runs tests and code review, verifies each criterion with evidence, commits, and offers to push. Full engineering cycle — you just describe what you want.
+
+## Functionality
+
+| Category | What it does | How you use it |
+|---|---|---|
+| **Lifecycle** | Epic → Story → Task hierarchy with state machine (planning → active → review → done) | `/plan`, `/task`, `/start`, `/end` |
+| **Quality Gates** | QG-0 blocks `task start` without goal+AC. QG-2 blocks `task done` without verify-cache hit. Scoped per task — only relevant tests run | Auto on `task start` / `task done` |
+| **Verify-First Contract** *(v1.4)* | Heavy gates (pytest, tsc, cargo, phpstan…) on a `verify` trigger separate from `task done`. Closing a task is millisecond. Pipeline envelope timeout 60s — no silent hangs | `tausik verify --task X` then `task done X` |
+| **Project Memory** | Patterns, gotchas, conventions, dead-ends, decisions stored in SQLite+FTS5. Re-injected at session start | `/brain`, `tausik memory add`, auto on `/start` |
+| **Verification Engine** | 25 stack-aware checks (pytest, ruff, mypy, tsc, eslint, cargo, go-vet, phpstan, helm-lint, hadolint…). Scoped to relevant_files. Cached for 10 min | Stack auto-detected by bootstrap |
+| **Real-time Hooks** | 19 hooks: task gate (no code without task), bash firewall, push gate, auto-format, drift detection (SessionStart/UserPromptSubmit/Stop), memory pre/post audit | Auto in Claude Code & Qwen Code |
+| **Metrics** | Throughput, First-Pass Success Rate, Defect Escape Rate, Lead Time, Dead End Rate, Cost-per-task | `tausik metrics`, `tausik metrics --cost` |
+| **Multi-IDE** | Same MCP tools (99) + skills across hosts | VSCode/Claude, Cursor, Qwen Code, Windsurf, Codex, CLI |
+| **Skill Ecosystem** | 13 core skills always deployed + 25+ vendor skills installable from external repos. Multi-model profiles via `variants/<model>.md` — different prompts for Haiku/Sonnet/Opus *(v1.4)* | `tausik skill install <name>` |
+| **Cross-project Brain** *(optional)* | Notion-mirrored decisions / patterns / gotchas / web-cache shared across projects. v1.4 adds an artifact pipeline: propose → audit (scrubbing for secrets) → publish, with stack-aware bm25 ranking. Privacy via SHA256 project hashes | `/brain` query, `tausik brain init`, `tausik brain propose-artifact`, `tausik brain publish` |
+| **Hygiene & Audit** *(v1.4)* | `tausik hygiene archive` lists old done tasks (dry-run). Audit scripts: `audit_orphan_files`, `audit_stale_docs`, `audit_unused_python`, `audit_pytest_dedupe` — inventory dead code, dangling docs, copy-pasted tests | `tausik hygiene archive`, `python scripts/audit_*.py` |
+| **Task Archive** *(v1.4)* | Read-only spec for archiving done tasks > N days. Active / blocked / planning never archived; `--confirm` reserved for future destructive ops | `tausik hygiene archive` |
+| **Batch Execution** | Run multi-task markdown plans autonomously | `/run plan.md` |
+| **Sessions** | Active-time tracking (gap-based, 10-min idle threshold), 180-min limit, capacity gate (200 tool calls), handoff persistence | Auto on `/start`, `/end`, `/checkpoint` |
 
 ## What You Get
 
@@ -79,37 +109,20 @@ Bootstrap auto-detects your tech stack and enables matching quality gates. Proje
 
 **Enforce, not suggest.** Quality gates block the agent at two checkpoints: QG-0 (can't start without goal + criteria) and QG-2 (can't close without evidence + passing tests). Hooks block code edits without a task and dangerous shell commands in real time.
 
-## Anti-Drift (v1.3)
+## Advanced Features
 
-Agents in long sessions "drift" — ignore the framework, skip task creation, forget conventions. TAUSIK 1.3 adds real-time drift guards:
-
-- **SessionStart hook** auto-injects state (active tasks, Memory Block, conventions) into every new session — no manual `/start`.
-- **UserPromptSubmit hook** detects coding-intent phrases (EN+RU) and nudges the agent if no task is active.
-- **Stop hook keyword detector** catches "I'll implement" / "сейчас напишу" announcements and blocks the stop if no task exists.
-- **PostToolUse verify-fix-loop** audits every `task_done` against 5 rule-based checks (file paths, ✓ markers, test counts, file refs, lint status).
-- **Memory Block re-injection** — recent decisions + conventions + dead ends pushed back into context on `/start` and `/checkpoint`.
-- **Adversarial critic** — 6th parallel `/review` agent finds 3 weaknesses the others miss.
-
-Plus: `/interview` (Socratic Q&A before complex tasks), `tausik hud` (one-screen live dashboard), `tausik suggest-model` (Haiku/Sonnet/Opus routing), webhook notifications (Slack/Discord/Telegram).
-
-## Memory Discipline (v1.3.0)
-
-Claude's auto-memory (`~/.claude/projects/*/memory/`) is cross-project — anything project-specific written there leaks context between unrelated repos. TAUSIK 1.3 keeps the two stores separate:
-
-- **PreToolUse block** — any Write/Edit/MultiEdit under `~/.claude/projects/*/memory/` from a TAUSIK project is blocked with a guidance message; genuine cross-project preferences bypass via the `confirm: cross-project` marker in the user's latest prompt.
-- **PostToolUse audit** — after every auto-memory write the file is scanned for project markers (absolute paths, kebab slugs, `.tausik/tausik` commands, source-file refs); matches produce a stderr warning so bypasses that still carry project traces don't slip through.
-- **Policy rule in Memory Block** — every session-start injection begins with an explicit rule on where project knowledge belongs.
-
-## Shared Brain (optional, in progress)
-
-A second, **cross-project** knowledge layer backed by Notion. Local `.tausik/tausik.db` keeps project-specific traces; the shared brain keeps only knowledge that's generalizable (architectural decisions, patterns, gotchas, web cache). Modules shipped: stdlib-only Notion REST client (throttle + retry + pagination), local SQLite FTS5 mirror with `unicode61` tokenizer, delta pull-sync, bm25-ranked search. 102/102 new tests passing, zero external deps. Privacy preserved via `SHA256(project_name)[:16]` hashes — no plaintext project names leave the machine.
-
-Still pending: MCP tools, init wizard, scrubbing linter, classifier. See **[Shared Brain docs ->](docs/en/shared-brain.md)** for setup and architecture.
+- **Anti-drift guards** — SessionStart / UserPromptSubmit / Stop hooks detect coding intent without an active task, re-inject Memory Block on `/start`, audit `task_done` evidence (file paths, ✓ markers, test counts, lint status). Adversarial critic — 6th parallel `/review` agent finds weaknesses the others miss. [Details →](docs/en/hooks.md)
+- **Memory discipline** — TAUSIK memory (`.tausik/tausik.db`, project-scoped) and Claude auto-memory (`~/.claude/`, cross-project) are separated by a PreToolUse block + PostToolUse audit. Project leaks into cross-project memory are blocked at the source. [Details →](docs/en/memory-merge-guidelines.md)
+- **Shared Brain** *(optional)* — second knowledge layer on Notion for cross-project patterns + gotchas. Local SQLite FTS5 mirror, bm25-ranked search, SHA256-hashed project names. Stdlib-only Notion client. [Details →](docs/en/shared-brain.md)
+- **Brain artifact pipeline** *(v1.4)* — formal taxonomy (artifact / pattern / snippet) + JSON Schema validator + propose→audit→publish flow with scrubbing for secrets and explicit `confirm_high_risk` gate. Stack-aware ranking in `brain_search`. [Taxonomy →](docs/en/brain-artifact-taxonomy.md) · [Search ranking →](docs/en/brain-search-ranking.md)
+- **Pipeline reliability** *(v1.4)* — Verify-First contract decouples heavy gates from `task done`. Envelope timeout (60s default), relaxed cache for manual-scope verify, relevant_files fallback from verify-row. No silent hangs. [Details →](docs/en/verify-glossary.md)
+- **Audit suite** *(v1.4)* — orphan-file / stale-doc / unused-python / pytest-dedupe scripts surface dead code and copy-paste in long-running projects. `tausik hygiene archive` + read-only task archive spec. CI doc-constants drift check. [Details →](docs/en/dev-doc-checks.md)
+- **Interview & live dashboard** — `/interview` runs Socratic Q&A before complex tasks. `tausik hud` shows one-screen live dashboard. `tausik suggest-model` routes Haiku/Sonnet/Opus by task complexity. Webhook notifications to Slack/Discord/Telegram.
 
 ## What's Inside
 
 - **13 core skills** (always deployed) — `/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, `/review`, `/test`, `/debug`, `/explore`, `/interview`, `/brain`. Plus **25+ official/vendor skills** (`/audit`, `/zero-defect`, `/markitdown`, `/docs`, `/security`, `/onboard`, …) installed on demand via `tausik skill install`.
-- **96 MCP tools** (90 project + 6 brain) — full programmatic access to the project database
+- **99 MCP tools** (92 project + 7 brain) — full programmatic access to the project database
 - **25 quality checks** — pytest, ruff, tsc, eslint, cargo check, go vet, and more for your stack
 - **6 automatic metrics** — throughput, first-pass success rate, defect rate, lead time
 - **Project memory** — SQLite + FTS5, graph relations, dead-end tracking, Memory Block re-injection
@@ -125,11 +138,11 @@ Other integrations are supported by design, but are marked as expected/partial u
 
 | IDE | MCP Tools | Skills | Hooks | Rules | Validation status |
 |-----|-----------|--------|-------|-------|-------------------|
-| VSCode + Claude Extension | 96 tools | 13 core + 25+ on demand | 19 hooks (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md + .mcp.json | **Officially tested** |
-| Cursor | 96 tools | 13 core + 25+ on demand | — | .cursorrules + .cursor/mcp.json | **Officially tested** |
-| Claude Code (CLI) | 96 tools | 13 core + 25+ on demand | 19 hooks | CLAUDE.md + .mcp.json | Expected (partial matrix) |
-| Qwen Code | 96 tools | 13 core + 25+ on demand | 19 hooks (same as Claude) | QWEN.md + .mcp.json | Expected (partial matrix) |
-| Windsurf | 96 tools | 13 core + 25+ on demand | — | .windsurfrules + .mcp.json | Expected (partial matrix) |
+| VSCode + Claude Extension | 99 tools | 13 core + 25+ on demand | 19 hooks (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md + .mcp.json | **Officially tested** |
+| Cursor | 99 tools | 13 core + 25+ on demand | — | .cursorrules + .cursor/mcp.json | **Officially tested** |
+| Claude Code (CLI) | 99 tools | 13 core + 25+ on demand | 19 hooks | CLAUDE.md + .mcp.json | Expected (partial matrix) |
+| Qwen Code | 99 tools | 13 core + 25+ on demand | 19 hooks (same as Claude) | QWEN.md + .mcp.json | Expected (partial matrix) |
+| Windsurf | 99 tools | 13 core + 25+ on demand | — | .windsurfrules + .mcp.json | Expected (partial matrix) |
 | Codex / OpenCode-style agents | MCP + rules-driven where supported | Depends on host | Host-specific | AGENTS.md | Expected (manual validation) |
 
 **Hooks** block code edits without a task, dangerous shell commands, and direct push to main — in real time. Available in Claude Code and Qwen Code. Cursor and Windsurf get the same MCP tools and skills, with quality gates at `task start` and `task done`.
@@ -143,7 +156,7 @@ TAUSIK was developed using itself. Real numbers:
 | Tasks completed | 526 |
 | Sessions | 39 |
 | Throughput | ~13 tasks/session |
-| Test count | 2318 |
+| Test count | 2590 |
 | Dependencies | 0 core |
 
 Every feature, every refactor, every bug fix went through the same quality gates that ship with the framework.
@@ -164,7 +177,7 @@ TAUSIK implements [SENAR](https://senar.tech) ([GitHub](https://github.com/Kiber
 | **[Skills](docs/en/skills.md)** | 13 core + 25 vendor (38 total) skills |
 | **[Hooks](docs/en/hooks.md)** | Real-time enforcement |
 | **[CLI Commands](docs/en/cli.md)** | Terminal command reference |
-| **[MCP Tools](docs/en/mcp.md)** | 96 tools for the AI agent |
+| **[MCP Tools](docs/en/mcp.md)** | 99 tools for the AI agent |
 | **[Architecture](docs/en/architecture.md)** | How the framework works inside |
 
 **[Full documentation ->](docs/README.md)**

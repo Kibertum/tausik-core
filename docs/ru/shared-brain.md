@@ -13,6 +13,10 @@
 | Local | `.tausik/tausik.db` | Только этот проект | "auth-middleware.py строка 42 логирует PII — фикс в MR-1234" |
 | Brain | Notion databases | Кросс-проектное | "SHA256-хэш проекта избегает утечки имён и уникален для N<1000" |
 
+**Таксономия артефактов (v1.4):** общий словарь **artifact / pattern / snippet** для MCP `brain_store_*` и будущих snippet-карт — см. **[brain-artifact-taxonomy.md](brain-artifact-taxonomy.md)** (опциональное поле и строгий режим в `.tausik/config.json`).
+
+**Редакция памяти:** когда **объединять** локальные строки памяти, а когда заводить новую запись (ортогонально scrubbing) — **[Память: merge vs новая запись](memory-merge-guidelines.md)**.
+
 Ничто идентифицирующее проект не должно попасть в brain. Защита:
 1. **Scrubbing linter** отклоняет записи с абсолютными путями, kebab-слагами ≥3 частей, командами `.tausik/tausik`, internal URLs.
 2. **Classifier** решает, `local` или `brain` у записи; только `brain`-класс попадает в Notion.

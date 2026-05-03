@@ -7,13 +7,21 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 > Russian mirror: [`CHANGELOG.ru.md`](CHANGELOG.ru.md). Both files cover
 > the same releases — keep them in sync when adding a new entry.
 
-## [Unreleased] — 1.4 — Verify-First Contract + audit-driven hardening
+## [1.4.0] — 2026-05-02 — Verify-First Contract + 1.4 epic batch
 
-> Public-readiness release driven by the 1.4 audit
-> (`docs/ru/research/tausik-1.4-readiness-audit-v2-2026-05-01.md`).
+> Public-readiness release driven by a 1.4 audit and a 10-epic master
+> plan (research artifacts removed pre-release; see commit history).
 > Headline change: heavy verification (pytest, tsc, cargo, phpstan, …)
 > is decoupled from `task done`. Closing a task is now a millisecond
 > operation; verification is its own explicit, cached step.
+> All 10 v14-* epics closed; the full backlog landed —
+> `v14-brain-snippets`, `v14-model-prompts`, `v14-verify-integrity`,
+> `v14-cost-telemetry`, `v14-framework-lean` shipped in the Composer
+> batch (session #42); the remaining `v14-project-hygiene`,
+> `v14-test-philosophy`, `v14-doc-automation`, `v14-dead-code-audit`,
+> `v14-skill-store` followed in the Phase B follow-up before the
+> release commit. See the session-#42 retro
+> (`docs/ru/research/tausik-1.4-composer-retro-2026-05-02.md`).
 
 ### BREAKING (with opt-out)
 
@@ -33,7 +41,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   - **Migration:** users only need to insert `tausik verify --task <slug>`
     before `task done`. Skill `/ship` and CLI docs updated.
 
-### Added
+### Added — Verify-First infrastructure
 
 - `VALID_GATE_TRIGGERS` extended with `"verify"` (project_config + stack_schema).
 - `service_verification.has_fresh_verify_run()` and
@@ -47,6 +55,122 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   separation, exempt projects, stack-gate migration sanity).
 - Pytest marker `verify_first` and an autouse opt-out fixture in
   `tests/conftest.py` so legacy tests aren't blocked on the new contract.
+- **Pipeline envelope timeout** (`verify_pipeline_timeout_seconds`,
+  default 60s) — wall-time bound around the whole `run_gates` cycle so a
+  hung gate cannot make `task done` look frozen. Set to `0` to disable
+  (CI). On exceed: `GateEnvelopeTimeoutError` with explicit remediation
+  (raise the limit, set `auto_verify=true`, or narrow `relevant_files`).
+- **Recover relevant_files from recent verify-row.** When `task done` runs
+  without a CLI/MCP `relevant_files` AND the task row has none, `service_task`
+  now reads them from the most recent fresh verify-row (≤ TTL, exit 0) so
+  `tausik verify --task X` followed by `tausik task done X` (no args) hits
+  the cache. Security-sensitive paths (auth/payment/etc.) bypass the
+  fallback — they always require an explicit list.
+- **Relaxed cache hit on file-set mismatch.** Strict cache lookup keys on
+  `(slug, files_hash, command)` so mtime / gate-signature drift correctly
+  invalidates. The single Sharp edge it created — `verify --task X` with
+  manual scope (`files=[]`) followed by `task done X relevant_files=[…]`
+  used to miss and re-run `run_gates` — is closed: when the strict miss
+  has a fresh exit-zero row that named NO files, accept it as "manual
+  scope vouched for this slug". Mismatch where the recorded run named
+  specific files still misses (mtime/signature invalidation preserved).
+  Security-sensitive `relevant_files` bypass relaxed too.
+
+### Added — Epic v14-brain-snippets (Shared Brain artifact pipeline)
+
+- Logical schema `agents/schemas/brain-artifact-card.schema.json` —
+  validated payload for patterns / gotchas before Notion write.
+- `scripts/brain_artifact_taxonomy.py`, `scripts/brain_artifact_card.py`,
+  `scripts/brain_store_format.py` — taxonomy (artifact / pattern / snippet),
+  card validator, server-side store-format normalizer.
+- `scripts/brain_publish_flow.py` + `scripts/brain_publish_cli.py` +
+  `scripts/brain_cli_ops.py` — propose → audit → publish workflow with
+  scrub-before-risk and explicit `confirm_high_risk` gate.
+- MCP `brain_draft_artifact` (Claude + Cursor servers) for proposing
+  artifacts before publish.
+- Optional `external_repo_url` field on artifact cards (validated;
+  not persisted to Notion props in v1).
+- Stack-aware artifact ranking inside `brain_search`.
+- EN/RU docs: `brain-artifact-taxonomy.md`, `brain-search-ranking.md`.
+
+### Added — Epic v14-model-prompts (multi-model skill profiles)
+
+- `scripts/skill_profile.py` — frontmatter + `variants/<model>.md`
+  resolver with safe fallback on unknown profile.
+- `agents/skills/_profile-demo/` — demo skill (`SKILL.md` + `variants/`)
+  showing the format. The leading `_` makes bootstrap skip the demo
+  in real generation.
+- `bootstrap_copy.py` profile-aware skill copy (selects variant body).
+- `bootstrap_qwen.py` + `.qwen/` + `QWEN.md` template — Qwen Code agent
+  added as a target IDE alongside Claude / Cursor.
+- `TAUSIK_MODEL_PROFILE` env → `model_profile` key in `.tausik/config.json`
+  (validated on bootstrap; invalid values exit non-zero).
+- Optional `task_next.model_hint` config key (off by default) — appends
+  a non-blocking model recommendation (Haiku / Sonnet / Opus) on
+  `task next` and `hud` based on complexity.
+- AGENTS.md table mapping model → tool surface.
+- EN/RU docs: `skill-profiles.md` plus updates to `skills.md`.
+
+### Added — Epic v14-verify-integrity (anti-gaming QG-2)
+
+- `doctor` subcommand surfaces a non-blocking warning when
+  `auto_verify=true` is paired with an interactive profile (humans
+  rarely want full pytest inside `task_done`). Tested in
+  `tests/test_doctor_auto_verify_hint.py`.
+- `tests/conftest.py` `_verify_first_autouse_compat_shim` documented:
+  predicate helper `tests/verify_first_compat_predicate.py`
+  declares which test paths bypass `_enforce_verify_first` and why.
+- `scripts/verify_recent_lookup.py` — small compat shim for verify cache
+  lookups outside `service_verification`.
+- EN/RU docs: `verify-glossary.md` (opt-out vs bypass vs test shim —
+  single source of truth).
+
+### Added — Epic v14-cost-telemetry (token + dollar accounting)
+
+- `usage_events` table (migration in `backend_schema.py`) — records
+  model_id, input/output tokens, optional cost, task_slug, session,
+  created_at. Negative tokens / unknown model rejected.
+- `llm_pricing_usd_per_million` config key (validated by
+  `normalize_llm_pricing_config`) — per-model USD price; missing model
+  yields `UNKNOWN`.
+- `usage_events_cost_rollup_by_task` + `usage_cost_rollup_by_task` —
+  per-task / per-period cost aggregation. Empty windows return `[]`,
+  not exceptions.
+- `tausik metrics --cost` (CLI + MCP `tausik_metrics`) — tabular
+  rollup with friendly empty-state message.
+
+### Added — Epic v14-framework-lean (token-cost reduction)
+
+- `context_tier` config key (`minimal` / `standard` / `full`) +
+  `resolve_context_tier()` with strict validation. Bootstrap renders
+  short / medium / full rules accordingly. Tested in
+  `tests/test_context_tier.py`.
+- `tausik status --compact` (CLI flag) and MCP `tausik_status({compact:
+  true})` — single-line JSON reply for agents that don't need the
+  human-formatted block. Default human output unchanged.
+- AGENTS.md trim pass: removed duplication with skills without dropping
+  any hard rule.
+
+### Added — Doc automation (epic v14-doc-automation, partial)
+
+- `docs/_generated/constants.json` — single source of truth for
+  `tausik_version`, MCP tool counts (project / brain / RAG / total).
+- `scripts/gen_doc_constants.py` — generator with `--check` mode
+  (exit 1 on drift). Available as `tausik doc constants [--check]`.
+- `scripts/mcp_tool_counts.py` — derives `mcp_*_tools` numbers from
+  live `agents/{claude,cursor}/mcp/*/tools.py`. Tested in
+  `tests/test_gen_doc_constants.py`, `tests/test_mcp_doc_tool_counts.py`.
+
+### Added — Project hygiene & test-philosophy docs (partial)
+
+- EN/RU docs: `task-archive-spec.md` (read-only archive policy for
+  done tasks > N days), `memory-merge-guidelines.md` (when to merge
+  memory entries vs. add a new one), `testing-principles.md`
+  (criteria for adding a test; anti-pattern: copy-paste without new
+  behavior), `skill-ecosystem.md` (one-pager for repo → install →
+  activate flow).
+- `agents/skills/_profile-demo/` showcased in `skills.md` — when to
+  use multi-model variants.
 
 ### Changed
 
@@ -75,6 +199,87 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   mocking `gate_runner.run_gates` did not accept kwargs and silently
   failed against the real `progress_callback=` argument. Lambdas now
   carry `**_kw`. (4 tests unblocked.)
+- Test pollution between `test_hud_cli.py`, `test_memory_block.py`,
+  `test_memory_compact.py`, `test_qg0_dimensions.py` and any test that
+  reads `.tausik/config.json` via `find_tausik_dir()`. The four files
+  set `os.environ["TAUSIK_DIR"]` directly without cleanup, so the env
+  var leaked into later tests pointing at a deleted tmp_path. Replaced
+  with `monkeypatch.setenv` so cleanup is automatic. Surfaced by the
+  new `tests/test_task_next_model_hint.py::test_hint_via_config_file`,
+  which is the only test that exercises a real `load_config()` path.
+
+### Tests
+
+- Suite expanded **2318 → 2513** (`tests/`); full run green
+  (`2506 passed, 7 skipped`).
+- New test files: `test_bootstrap_model_profile`,
+  `test_brain_artifact_external_repo`, `test_context_tier`,
+  `test_doctor_auto_verify_hint`, `test_gen_doc_constants`,
+  `test_llm_pricing_config`, `test_mcp_doc_tool_counts`,
+  `test_skill_profile`, `test_task_next_model_hint`,
+  `test_metrics_session_usage`.
+
+### Versioning
+
+- `__version__` bumped `1.3.7` → `1.4.0`.
+- `pyproject.toml` `version` bumped `1.3.7` → `1.4.0`.
+- `docs/_generated/constants.json` regenerated.
+
+> All 10 v14-* epics closed in this release. The remaining 5 epics from the
+> master plan landed alongside the Composer batch as their own scripts and
+> tests, split below for parallel structure with the first five.
+
+### Added — Epic v14-project-hygiene (long-running project hygiene)
+
+- **`tausik hygiene archive`** (CLI, dry-run only in v1) — lists `done`
+  tasks older than `task_archive.done_age_days`. Active / blocked /
+  planning / review tasks are never included; `--confirm` is reserved
+  for future destructive ops and rejected today. Sources:
+  `scripts/project_cli_hygiene.py`, parser dispatch in
+  `scripts/project_parser_ops.py::add_hygiene`.
+
+### Added — Epic v14-test-philosophy (test discipline)
+
+- **`scripts/audit_pytest_dedupe.py`** — AST-normalized signature
+  grouping for test functions that share structure (copy-paste
+  detector). Report artifact:
+  `docs/ru/research/tausik-1.4-pytest-dedupe-2026-05-02.md`.
+
+### Added — Epic v14-dead-code-audit (dead code & junk inventory)
+
+- **`scripts/audit_orphan_files.py`** — Python files in `scripts/` that
+  no other file imports and no doc references. Mirror partner / soft
+  doc references included so standalone CLIs aren't false-positive.
+- **`scripts/audit_stale_docs.py`** — markdown files under `docs/` with
+  no inbound link. EN/RU mirror partners stay paired; research and
+  release-notes archives excluded by glob.
+- **`scripts/audit_unused_python.py`** — top-level `def` / `class`
+  symbols never referenced in the repo. Exempt modules + private
+  helpers excluded; documented false-positive policy.
+
+### Added — Epic v14-doc-automation (doc generation & drift checks)
+
+- **`scripts/hooks/check_docs.py`** — pre-commit / CI hook wrapper
+  around `gen_doc_constants.py --check`; gracefully skips when no
+  `pyproject.toml` is found above cwd.
+- **`.github/workflows/tests.yml` step `Doc-constants drift check`** —
+  fails the matrix on `docs/_generated/constants.json` drift.
+- **EN/RU developer docs:** `dev-doc-checks.md` — how to run all of
+  the above locally; documents negative behaviour.
+
+### Added — Epic v14-skill-store (skill CLI UX & trust)
+
+- **Skill CLI consistency** (`tausik skill ...`) — every subcommand has
+  a noun-phrase help string and a "see: tausik skill list" hint on
+  `name` args. Negative scenarios now surface a friendly
+  `Error: ...` + exit 1 instead of a Python traceback;
+  `SkillManagerError` is caught alongside `ServiceError` in `main()`.
+
+### Refactored
+
+- `scripts/project_parser.py` 465 → 372 lines: `add_skill` and
+  `add_metrics` extracted into `scripts/project_parser_ops.py` to
+  satisfy the 400-line filesize gate.
 
 ## [1.3.7] — 2026-04-29 — MCP clarity for Cursor/VSCode + docs consistency sweep
 

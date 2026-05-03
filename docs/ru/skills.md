@@ -4,7 +4,9 @@
 
 Skill'ы — intent-based инструкции, определяющие поведение агента. Не нужно запоминать имена или синтаксис — пишете, что хотите, и агент подбирает подходящий skill. Slash-префикс (`/plan`, `/ship`) явно вызывает один.
 
-После bootstrap идут **13 core skills** из `agents/skills/`. Дополнительные **vendor / official skills** (25+) ставятся по запросу через `tausik skill install <name>` из репо `tausik-skills` (или из встроенной директории `skills-official/`).
+После bootstrap идут **13 core skills** из `agents/skills/`. Дополнительные **vendor / official skills** (25+) ставятся по запросу через `tausik skill install <name>` из репо `tausik-skills` (или из встроенной директории `skills-official/`). **Карта репо-скиллов:** [Экосистема скиллов (one-pager)](skill-ecosystem.md).
+
+**Варианты под разные хосты:** у skill может быть каталог **`variants/<profile>.md`** — см. [Профили skills и variants](skill-profiles.md).
 
 ## Core skill'ы (13)
 

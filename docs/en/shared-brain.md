@@ -13,6 +13,10 @@ The split is deliberate. The local DB keeps project-specific traces (file paths,
 | Local | `.tausik/tausik.db` | This project only | "auth-middleware.py line 42 logs PII — fix in MR-1234" |
 | Brain | Notion databases | Cross-project | "SHA256-based project hashes avoid leaking names while staying unique for N<1000" |
 
+**Artifact taxonomy (v1.4):** shared vocabulary **artifact / pattern / snippet** for MCP `brain_store_*` and future snippet cards — see **[brain-artifact-taxonomy.md](brain-artifact-taxonomy.md)** (optional field + strict mode in `.tausik/config.json`).
+
+**Editorial hygiene:** when to **merge** local memory rows vs add a new entry (orthogonal to scrubbing) — **[Memory merge guidelines](memory-merge-guidelines.md)**.
+
 Nothing that identifies the project should ever reach the brain. Enforcement:
 1. **Scrubbing linter** rejects writes with absolute paths, kebab-slugs ≥3 parts, `.tausik/tausik` commands, internal URLs.
 2. **Classifier** decides whether a record is `local` or `brain`; only `brain`-classified records are pushed.

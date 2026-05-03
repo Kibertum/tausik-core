@@ -2,6 +2,8 @@
 
 # Custom Skills
 
+**Start here for the full install map (diagram + CLI list):** [Skill ecosystem (one page)](skill-ecosystem.md).
+
 TAUSIK supports external skill packages from GitHub repos. Skills are cloned once, cached in `.tausik/vendor/`, and installed on demand with automatic dependency management.
 
 ## Quick Start
@@ -78,10 +80,14 @@ Skills live at three levels — from "ready to use" to "not yet cloned":
 
 **Why three tiers?** Active skills consume agent context. If you activate 50 skills, the agent has less room for your code. Keep only daily-use skills active; installed skills are one command away.
 
+## Repo trust (`--force`)
+
+URLs **other than** the official `https://github.com/Kibertum/tausik-skills` require **`skill repo add <url> --force`** (CLI) or **`force: true`** on MCP `tausik_skill_repo_add`. Without it, TAUSIK refuses to clone — adding a repo executes `git clone` on potentially untrusted content; `skill install` may run pip/scripts declared by the skill.
+
 ## How It Works
 
 ```
-skill repo add <url>
+skill repo add <url>   # use --force if not Kibertum/tausik-skills
       ↓
 git clone --depth 1 → .tausik/vendor/{repo}/
       ↓

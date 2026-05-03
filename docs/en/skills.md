@@ -4,7 +4,9 @@
 
 Skills are intent-based instructions that define agent behaviour. You don't memorize names or syntax — you write what you want, and the agent picks the right skill. Slash-prefix (`/plan`, `/ship`) explicitly invokes one.
 
-After bootstrap, **13 core skills** ship with TAUSIK from `agents/skills/`. Additional **vendor / official skills** (25+) are available via `tausik skill install <name>` from the `tausik-skills` repo (or the bundled `skills-official/` directory).
+After bootstrap, **13 core skills** ship with TAUSIK from `agents/skills/`. Additional **vendor / official skills** (25+) are available via `tausik skill install <name>` from the `tausik-skills` repo (or the bundled `skills-official/` directory). **Map of repo skills:** [Skill ecosystem (one page)](skill-ecosystem.md).
+
+**Multi-host variants:** skills can ship optional **`variants/<profile>.md`** overlays — see [Skill profiles & variants](skill-profiles.md).
 
 ## Core Skills (13)
 

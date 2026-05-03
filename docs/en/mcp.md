@@ -2,14 +2,14 @@
 
 # TAUSIK MCP — Tool Reference (v1.4)
 
-**97 tools** for AI agents (91 project + 6 brain; v1.4 actual count, asserted via `len(TOOLS)` on both servers). The MCP surface mirrors the CLI 1:1 with zero CLI-only gaps. Prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
+**99 tools** for AI agents (92 project + 7 brain; v1.4 actual count, asserted via `len(TOOLS)` on both servers). The MCP surface mirrors the CLI 1:1 with zero CLI-only gaps. Prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
 
-> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 97 count — total with it is 104 tools.
+> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 99 count — total with it is 106 tools.
 
 Two MCP servers live in this project:
 
-- `tausik-project` — project-scoped tools (91): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify.
-- `tausik-brain` — cross-project Shared Brain tools (6).
+- `tausik-project` — project-scoped tools (92): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging.
+- `tausik-brain` — cross-project Shared Brain tools (7).
 
 There is also an optional `codebase-rag` server documented at the bottom.
 
@@ -26,14 +26,17 @@ tausik_task_done(slug=…, ac_verified=True)   # lightweight: cache lookup
 
 `tausik_task_done` will refuse to close the task if the verify cache is missing or stale — it returns a structured failure with explicit remediation. Opt-out for CI: set `{"task_done": {"auto_verify": true}}` in `.tausik/config.json` so the heavy gates fire inside `task_done` like in v1.3.
 
+**Terminology:** [Verify / QG glossary](verify-glossary.md) distinguishes *supported opt-out*, *QG bypass* (not available for `task_done`), *verify-cache bypass*, and the pytest **test shim**.
+
 ## Status, Health, Metrics
 
 | Tool | Description | Required Parameters |
 |---|---|---|
 | `tausik_health` | Health check: version, DB, tables | — |
-| `tausik_status` | Project overview: tasks, session, epics | — |
+| `tausik_status` | Project overview: tasks, session, epics. Optional `compact: true` → one-line JSON (default text unchanged). | `compact` (optional) |
 | `tausik_doctor` | 4-group health (venv + DB + MCP + skills + drift) | — |
 | `tausik_metrics` | SENAR metrics: Throughput, FPSR, DER, Dead End Rate, Cost/Task | — |
+| `tausik_usage_event_log` | Append manual row to `usage_events` (does not update session aggregates) | `tokens_input`, `tokens_output`, `tokens_total`, `cost_usd` |
 | `tausik_search` | Full-text search across tasks, memory, decisions | `query` |
 
 ## Tasks
@@ -200,7 +203,7 @@ Role storage is hybrid: SQLite metadata + `agents/roles/{role}.md` profile markd
 | `tausik_skill_uninstall` | Uninstall skill completely | `name` |
 | `tausik_skill_activate` | Activate installed skill | `name` |
 | `tausik_skill_deactivate` | Deactivate skill (keep files) | `name` |
-| `tausik_skill_repo_add` | Add TAUSIK-compatible skill repo | `url` |
+| `tausik_skill_repo_add` | Add TAUSIK-compatible skill repo (third-party URLs need `force`) | `url`, optional `force` |
 | `tausik_skill_repo_remove` | Remove skill repo | `name` |
 | `tausik_skill_repo_list` | List repos and available skills | — |
 
@@ -245,8 +248,8 @@ The `tausik-brain` MCP server runs config-agnostic at startup and reads registry
 | `cache_web_result` | Cache web search result for reuse | `query`, `content` |
 | `search_web_cache` | Search cached web results | `query` |
 
-These are not part of the main 97 count — they belong to the optional `codebase-rag` server.
+These are not part of the main 98 count — they belong to the optional `codebase-rag` server.
 
 ## Launching the Tausik MCP Server
 
-The bootstrap step generates IDE-specific MCP launchers under `agents/<ide>/mcp/`. Claude Code reads `.claude/settings.json` (auto-generated). To re-generate, run `python .tausik-lib/bootstrap/bootstrap.py --refresh`.
+The bootstrap step generates IDE-specific MCP launchers under `agents/<ide>/mcp/`. Claude Code reads `.claude/settings.json` (auto-generated). To regenerate IDE assets and MCP wiring, run `python bootstrap/bootstrap.py` from your TAUSIK checkout (or `python .tausik-lib/bootstrap/bootstrap.py` when using the submodule layout). Use **`python bootstrap/bootstrap.py --refresh`** only to rewrite `.tausik/config.json` (e.g. after setting **`TAUSIK_MODEL_PROFILE`**) without copying skills/scripts — it does **not** regenerate `.mcp.json` files.
