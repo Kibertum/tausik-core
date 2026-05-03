@@ -68,15 +68,19 @@ Same governance everywhere; only the **wrapper** (hooks vs self-serve) changes. 
 7. **Ask before committing.** Never `git commit` or `git push` without user confirmation.
 8. **MCP-first.** Prefer MCP tools over CLI bash commands.
 
-## Testing discipline (agents)
+## Testing discipline (agents) — HARD RULES
 
-When you touch TAUSIK core (`scripts/`, `scripts/hooks/`, MCP handlers, gates):
+When you touch TAUSIK core (`scripts/`, `scripts/hooks/`, MCP handlers, gates), or write tests in any project that uses TAUSIK:
 
-1. Add or extend tests that align with **files you changed** so scoped `pytest` on `task done` / `verify --task` stays meaningful.
-2. Call **`tausik_verify`** before closure; do not pad the suite with copy-pasted cases that assert the same behaviour under a new name.
-3. **Security-sensitive paths** (hooks, auth, billing, payment-related code) are **not** exempt from tests — gates and verify-cache rules treat them **stricter**, not looser.
+1. **Add or extend tests that align with files you changed** so scoped `pytest` on `task done` / `verify --task` stays meaningful.
+2. Call **`tausik_verify`** before closure.
+3. **Do not duplicate tests.** If a new test has the same structure as an existing one and only differs in inputs — **use `@pytest.mark.parametrize`**. Never add 5 tests where one parametrized test covers the same matrix. Run `python scripts/audit_pytest_dedupe.py` to check.
+4. **Do not write tests on trivial getters / `assert callable(f)` / `hasattr(obj, 'attr')` / `assert x is not None` without behavior check** — these tests catch zero bugs and inflate suite time. If the only signal is "the import works", remove the test.
+5. **Do not write mock-only tests** where 100% of meaningful calls are mocks and no real code path runs. The test must exercise the SUT.
+6. **Do not write tests on implementation detail** (exact log strings, private method names, exact SQL syntax). Test behavior, not implementation.
+7. **Security-sensitive paths** (hooks, auth, billing, payment) are **not** exempt — gates and verify-cache rules treat them **stricter**, not looser.
 
-Details and anti-patterns: **[docs/en/testing-principles.md](docs/en/testing-principles.md)** · [RU](docs/ru/testing-principles.md).
+Details, anti-patterns, fake-test detector list: **[docs/en/testing-principles.md](docs/en/testing-principles.md)** · [RU](docs/ru/testing-principles.md).
 
 ## Work Cycle
 
