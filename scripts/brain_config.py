@@ -32,6 +32,10 @@ DEFAULT_BRAIN: dict = {
     "ttl_web_cache_days": 30,
     "ttl_decisions_days": None,
     "private_url_patterns": [],
+    "require_artifact_taxonomy_kind": False,
+    "require_artifact_scope": False,
+    # When true: only syntax-check external_repo_url (no outbound HTTP). For offline CI.
+    "skip_external_repo_url_reachability_check": False,
 }
 
 _BRAIN_CATEGORIES = ("decisions", "web_cache", "patterns", "gotchas")

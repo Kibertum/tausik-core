@@ -5,6 +5,11 @@ by brain_schema.apply_schema. Notion network I/O is NOT required.
 
 Search ranks results with bm25 (lower = more relevant) across all
 enabled categories, returning a normalized dict per hit.
+
+Optional ``prefer_stack`` (used by MCP ``brain_search``) widens the local
+candidate pool and lets callers apply ``apply_prefer_stack_ranking`` after
+merging with Notion hits — entries whose ``stack`` overlaps preferred labels
+get a score bonus (lower effective rank).
 """
 
 from __future__ import annotations
@@ -12,6 +17,10 @@ from __future__ import annotations
 import json
 import sqlite3
 from typing import Any
+
+# bm25 is lower = better; subtract boost so preferred-stack rows rank higher.
+_STACK_MATCH_BONUS = 3.0
+_MAX_STACK_BONUS = 15.0
 
 CATEGORIES = ("decisions", "web_cache", "patterns", "gotchas")
 
@@ -47,6 +56,60 @@ SNIPPET_MARK_OPEN = "["
 SNIPPET_MARK_CLOSE = "]"
 SNIPPET_ELLIPSIS = "..."
 SNIPPET_TOKENS = 32
+
+
+def prefer_stack_nonempty(prefer_stack: list[str] | None) -> bool:
+    """True if any non-whitespace preferred stack hint is present."""
+    if not prefer_stack:
+        return False
+    return any(str(p).strip() for p in prefer_stack)
+
+
+def _prefer_stack_normalized(prefer_stack: list[str] | None) -> list[str]:
+    if not prefer_stack:
+        return []
+    return [str(p).strip().lower() for p in prefer_stack if str(p).strip()]
+
+
+def stack_boost_for_row(rec: dict, prefer_norm: list[str]) -> float:
+    """Positive boost subtracted from bm25 ``score`` for ranking (larger = better position)."""
+    if not prefer_norm:
+        return 0.0
+    stacks: list[str] = []
+    for s in rec.get("stack") or []:
+        if isinstance(s, str) and s.strip():
+            stacks.append(s.strip().lower())
+    if not stacks:
+        return 0.0
+    bonus = 0.0
+    matched_prefs: set[str] = set()
+    for pref in prefer_norm:
+        if pref in matched_prefs:
+            continue
+        for st in stacks:
+            if pref == st or pref in st or st in pref:
+                bonus += _STACK_MATCH_BONUS
+                matched_prefs.add(pref)
+                break
+    return min(bonus, _MAX_STACK_BONUS)
+
+
+def apply_prefer_stack_ranking(
+    rows: list[dict], prefer_stack: list[str] | None
+) -> list[dict]:
+    """Sort by bm25 score with stack overlap bonus; stable tie-break on page id."""
+    if not rows:
+        return rows
+    pn = _prefer_stack_normalized(prefer_stack)
+    if not pn:
+        return rows
+
+    def sort_key(r: dict) -> tuple[float, str]:
+        raw = float(r.get("score") or 0)
+        eff = raw - stack_boost_for_row(r, pn)
+        return (eff, str(r.get("notion_page_id") or ""))
+
+    return sorted(rows, key=sort_key)
 
 
 def sanitize_fts_query(query: str) -> str:
@@ -151,8 +214,14 @@ def search_local(
     categories: list[str] | tuple[str, ...] | None = None,
     limit: int = 20,
     offset: int = 0,
+    prefer_stack: list[str] | None = None,
 ) -> list[dict]:
-    """Search the local brain mirror. Returns normalized dicts sorted by relevance."""
+    """Search the local brain mirror. Returns normalized dicts sorted by bm25 only.
+
+    When ``prefer_stack`` is set, returns up to ``min(limit * 5, 100)`` rows so a
+    caller can rerank with :func:`apply_prefer_stack_ranking` without dropping
+    better stack matches that bm25 ranked lower.
+    """
     safe = sanitize_fts_query(query)
     if not safe:
         return []
@@ -166,6 +235,10 @@ def search_local(
     if limit < 0 or offset < 0:
         raise ValueError("limit and offset must be non-negative")
 
+    out_cap = limit
+    if prefer_stack_nonempty(prefer_stack):
+        out_cap = min(max(limit * 5, limit), 100)
+
     merged: list[dict] = []
     for category in cats:
         merged.extend(_search_category(conn, category, safe))
@@ -173,7 +246,7 @@ def search_local(
     merged.sort(key=lambda r: r["score"])
     if offset:
         merged = merged[offset:]
-    return merged[:limit]
+    return merged[:out_cap]
 
 
 def get_by_id(

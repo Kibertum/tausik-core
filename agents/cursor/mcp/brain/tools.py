@@ -34,6 +34,14 @@ TOOLS = [
                     "type": "boolean",
                     "description": "Hit Notion when local < limit hits (default true).",
                 },
+                "prefer_stack": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Optional stack hints (e.g. python, react). Matching rows get a "
+                        "relevance boost after bm25 merge."
+                    ),
+                },
             },
             "required": ["query"],
         },
@@ -105,7 +113,9 @@ TOOLS = [
         "name": "brain_store_pattern",
         "description": (
             "Record a reusable pattern (architecture/design/idiom) into the "
-            "shared brain. Scrubbed before write; mirrored locally on success."
+            "shared brain. Scrubbed before write; mirrored locally on success. "
+            "Optional artifact_taxonomy_kind (artifact|pattern|snippet); see "
+            "docs/en/brain-artifact-taxonomy.md. Not persisted to Notion props in v1."
         ),
         "inputSchema": {
             "type": "object",
@@ -121,6 +131,27 @@ TOOLS = [
                     "type": "string",
                     "enum": ["experimental", "tested", "proven"],
                 },
+                "artifact_taxonomy_kind": {
+                    "type": "string",
+                    "enum": ["artifact", "pattern", "snippet"],
+                    "description": "Logical card kind (validated; stripped before Notion write in v1).",
+                },
+                "scope": {
+                    "type": "string",
+                    "description": "Logical scope for the card (validated; not persisted to Notion v1); empty string rejected; required if brain.require_artifact_scope=true.",
+                },
+                "external_repo_url": {
+                    "type": "string",
+                    "description": (
+                        "Optional https URL (canonical repo/submodule). Validated; "
+                        "default reachability check; set brain.skip_external_repo_url_reachability_check to skip network; "
+                        "not written to Notion props in v1."
+                    ),
+                },
+                "confirm_high_risk": {
+                    "type": "boolean",
+                    "description": "Set true when draft shows risk_level high (human gate).",
+                },
                 "project_name": {"type": "string"},
             },
             "required": ["name", "description"],
@@ -130,7 +161,9 @@ TOOLS = [
         "name": "brain_store_gotcha",
         "description": (
             "Record a gotcha / non-obvious trap into the shared brain. "
-            "Scrubbed before write; mirrored locally on success."
+            "Scrubbed before write; mirrored locally on success. "
+            "Optional artifact_taxonomy_kind — same contract as patterns; "
+            "see docs/en/brain-artifact-taxonomy.md."
         ),
         "inputSchema": {
             "type": "object",
@@ -147,9 +180,75 @@ TOOLS = [
                     "enum": ["low", "medium", "high"],
                 },
                 "evidence_url": {"type": "string"},
+                "artifact_taxonomy_kind": {
+                    "type": "string",
+                    "enum": ["artifact", "pattern", "snippet"],
+                    "description": "Logical card shape (validated; stripped before Notion write in v1).",
+                },
+                "scope": {
+                    "type": "string",
+                    "description": "Logical scope for the card (validated; not persisted to Notion v1); empty string rejected; required if brain.require_artifact_scope=true.",
+                },
+                "external_repo_url": {
+                    "type": "string",
+                    "description": (
+                        "Optional https URL (canonical repo/submodule). Validated; "
+                        "default reachability check; set brain.skip_external_repo_url_reachability_check to skip network; "
+                        "not written to Notion props in v1."
+                    ),
+                },
+                "confirm_high_risk": {
+                    "type": "boolean",
+                    "description": "Set true when draft shows risk_level high (human gate).",
+                },
                 "project_name": {"type": "string"},
             },
             "required": ["name", "description"],
+        },
+    },
+    {
+        "name": "brain_draft_artifact",
+        "description": (
+            "Dry-run artifact publish for pattern or gotcha: taxonomy, card, scrub, "
+            "and classifier risk. No Notion write. Use before brain_store_pattern/gotcha "
+            "when content may be project-specific."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "kind": {
+                    "type": "string",
+                    "enum": ["pattern", "gotcha"],
+                    "description": "Artifact shape matching Notion category.",
+                },
+                "name": {"type": "string"},
+                "description": {"type": "string"},
+                "when_to_use": {"type": "string"},
+                "example": {"type": "string"},
+                "wrong_way": {"type": "string"},
+                "right_way": {"type": "string"},
+                "tags": {"type": "array", "items": {"type": "string"}},
+                "stack": {"type": "array", "items": {"type": "string"}},
+                "date": {"type": "string"},
+                "confidence": {
+                    "type": "string",
+                    "enum": ["experimental", "tested", "proven"],
+                },
+                "severity": {"type": "string", "enum": ["low", "medium", "high"]},
+                "evidence_url": {"type": "string"},
+                "artifact_taxonomy_kind": {
+                    "type": "string",
+                    "enum": ["artifact", "pattern", "snippet"],
+                },
+                "scope": {"type": "string"},
+                "external_repo_url": {
+                    "type": "string",
+                    "description": (
+                        "Optional https URL — same validation as brain_store_pattern/gotcha."
+                    ),
+                },
+            },
+            "required": ["kind"],
         },
     },
     {

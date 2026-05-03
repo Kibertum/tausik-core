@@ -313,6 +313,48 @@ def test_search_empty_query_returns_empty(conn):
     _insert_decision(conn, pid="id1", name="A", context="b")
     out = brain_mcp_read.search_with_fallback(conn, client=None, query="   ", limit=10)
     assert out["results"] == []
+    assert any("empty" in w.lower() for w in out["warnings"])
+
+
+def _insert_pattern(conn, *, pid, name, description, stack=()):
+    conn.execute(
+        """INSERT INTO brain_patterns(
+            notion_page_id, name, description, when_to_use, example,
+            tags, stack, source_project_hash, date_value, confidence,
+            last_edited_time, created_time)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (
+            pid,
+            name,
+            description,
+            "",
+            "",
+            "[]",
+            json.dumps(list(stack)),
+            "a" * 16,
+            "2026-04-23",
+            "tested",
+            "2026-04-23T10:00:00Z",
+            "2026-04-23T10:00:00Z",
+        ),
+    )
+    conn.commit()
+
+
+def test_prefer_stack_promotes_matching_pattern(conn):
+    token = "stack_rank_unique_token_xyz"
+    _insert_pattern(conn, pid="p-go", name="Go pat", description=token, stack=("go",))
+    _insert_pattern(conn, pid="p-py", name="Py pat", description=token, stack=("python",))
+    out = brain_mcp_read.search_with_fallback(
+        conn,
+        client=None,
+        query=token,
+        limit=2,
+        prefer_stack=["python"],
+    )
+    assert len(out["results"]) == 2
+    assert out["results"][0]["notion_page_id"] == "p-py"
+    assert out["results"][1]["notion_page_id"] == "p-go"
 
 
 def test_search_dash_normalization_in_db_ids(conn):

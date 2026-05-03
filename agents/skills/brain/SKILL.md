@@ -111,7 +111,7 @@ If `brain.enabled=false` in the project config, every subcommand short-circuits 
 
 **NEVER guess.** If you don't know whether the user already has BRAIN somewhere, ask. Creating duplicate sets of 4 databases in the same workspace silently splits the knowledge store; the wizard's pre-flight workspace search will refuse this by default but only `--force-create` overrides — agents must not invent that flag without explicit user instruction.
 
-Setup docs: [docs/en/shared-brain.md](../../../docs/en/shared-brain.md) (EN), [docs/ru/shared-brain.md](../../../docs/ru/shared-brain.md) (RU). Schema reference: [references/brain-db-schema.md](../../../references/brain-db-schema.md).
+Setup docs: [docs/en/shared-brain.md](../../../docs/en/shared-brain.md) (EN), [docs/ru/shared-brain.md](../../../docs/ru/shared-brain.md) (RU). Schema reference: [docs/en/brain-db-schema.md](../../../docs/en/brain-db-schema.md).
 
 ## Subcommand status
 

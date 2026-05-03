@@ -690,3 +690,164 @@ def test_handler_brain_store_missing_required_field(handlers_env):
     h = handlers_env["handlers"]
     out = h.handle_tool("brain_store_decision", {"decision": "x"})  # no name
     assert "required" in out or "Invalid" in out or "empty" in out
+
+
+def test_store_pattern_taxonomy_strict_requires_kind(conn, cfg):
+    c = {**cfg, "require_artifact_taxonomy_kind": True}
+    fake = FakeClient()
+    r = brain_mcp_write.store_record(
+        fake, conn, "patterns", {"name": "n", "description": "body"}, c
+    )
+    assert r["status"] == "taxonomy_blocked"
+    assert fake.create_calls == []
+
+
+def test_store_pattern_taxonomy_strict_happy(conn, cfg):
+    c = {**cfg, "require_artifact_taxonomy_kind": True}
+    fake = FakeClient()
+    r = brain_mcp_write.store_record(
+        fake,
+        conn,
+        "patterns",
+        {"name": "n", "description": "body", "artifact_taxonomy_kind": "snippet"},
+        c,
+    )
+    assert r["status"] == "ok"
+    assert fake.create_calls
+
+
+def test_store_pattern_invalid_taxonomy_even_when_loose(conn, cfg):
+    assert not cfg.get("require_artifact_taxonomy_kind")
+    fake = FakeClient()
+    r = brain_mcp_write.store_record(
+        fake,
+        conn,
+        "patterns",
+        {"name": "n", "description": "body", "artifact_taxonomy_kind": "blob"},
+        cfg,
+    )
+    assert r["status"] == "taxonomy_blocked"
+    assert fake.create_calls == []
+
+
+def test_store_taxonomy_kind_stripped_from_notion_props(conn, cfg):
+    fake = FakeClient()
+    r = brain_mcp_write.store_record(
+        fake,
+        conn,
+        "patterns",
+        {"name": "n", "description": "d", "artifact_taxonomy_kind": "pattern"},
+        cfg,
+    )
+    assert r["status"] == "ok"
+    props = fake.create_calls[0]["properties"]
+    assert all("taxonomy" not in k.lower() for k in props)
+
+
+def test_format_store_result_taxonomy_blocked():
+    txt = brain_mcp_write.format_store_result(
+        {"status": "taxonomy_blocked", "error": "invalid kind"}, "patterns"
+    )
+    assert "**Taxonomy.**" in txt
+    assert "invalid kind" in txt
+
+
+def test_store_pattern_scope_empty_string_blocks(conn, cfg):
+    assert not cfg.get("require_artifact_scope")
+    fake = FakeClient()
+    r = brain_mcp_write.store_record(
+        fake,
+        conn,
+        "patterns",
+        {"name": "n", "description": "d", "scope": ""},
+        cfg,
+    )
+    assert r["status"] == "card_schema_blocked"
+    assert fake.create_calls == []
+
+
+def test_store_pattern_scope_strict_requires_key(conn, cfg):
+    c = {**cfg, "require_artifact_scope": True}
+    fake = FakeClient()
+    r = brain_mcp_write.store_record(fake, conn, "patterns", {"name": "n", "description": "d"}, c)
+    assert r["status"] == "card_schema_blocked"
+    assert fake.create_calls == []
+
+
+def test_store_pattern_scope_happy_stripped_from_notion(conn, cfg):
+    fake = FakeClient()
+    r = brain_mcp_write.store_record(
+        fake,
+        conn,
+        "patterns",
+        {"name": "n", "description": "body", "scope": "pytest"},
+        cfg,
+    )
+    assert r["status"] == "ok"
+    props = fake.create_calls[0]["properties"]
+    assert not any("scope" in k.lower() for k in props)
+
+
+def test_format_store_result_card_schema_blocked():
+    txt = brain_mcp_write.format_store_result(
+        {"status": "card_schema_blocked", "error": "scope is required"}, "patterns"
+    )
+    assert "**Artifact card.**" in txt
+    assert "scope" in txt
+
+
+_RISK_MARKER_DESCRIPTION = "Uses scripts/example_brain.py as reference."
+
+
+def test_store_pattern_risk_blocked_without_confirm(conn, cfg):
+    fake = FakeClient()
+    r = brain_mcp_write.store_record(
+        fake,
+        conn,
+        "patterns",
+        {
+            "name": "n",
+            "description": _RISK_MARKER_DESCRIPTION,
+            "scope": "py",
+        },
+        cfg,
+    )
+    assert r["status"] == "risk_blocked"
+    assert fake.create_calls == []
+
+
+def test_store_pattern_high_risk_confirm_ok(conn, cfg):
+    fake = FakeClient()
+    r = brain_mcp_write.store_record(
+        fake,
+        conn,
+        "patterns",
+        {
+            "name": "n",
+            "description": _RISK_MARKER_DESCRIPTION,
+            "scope": "py",
+        },
+        cfg,
+        confirm_high_risk=True,
+    )
+    assert r["status"] == "ok"
+    assert fake.create_calls
+
+
+def test_format_store_result_risk_blocked():
+    txt = brain_mcp_write.format_store_result(
+        {"status": "risk_blocked", "error": "high-risk"}, "patterns"
+    )
+    assert "**Publish blocked (risk).**" in txt
+
+
+def test_draft_shows_high_risk(conn, cfg):
+    import brain_publish_flow
+
+    out = brain_publish_flow.draft_artifact_publish(
+        "patterns",
+        {"name": "n", "description": _RISK_MARKER_DESCRIPTION, "scope": "s"},
+        cfg,
+    )
+    assert out["risk_level"] == "high"
+    assert out["would_need_confirm"]

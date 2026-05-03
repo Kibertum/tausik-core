@@ -51,10 +51,25 @@ def _token_missing_warning(cfg: dict) -> str:
     )
 
 
+def _parse_prefer_stack(raw: object) -> list[str] | None:
+    """Normalize MCP ``prefer_stack``: string or list of strings."""
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        s = raw.strip()
+        return [s] if s else None
+    if isinstance(raw, list):
+        out = [str(x).strip() for x in raw if str(x).strip()]
+        return out if out else None
+    return None
+
+
 def handle_brain_search(args: dict) -> str:
     query = (args.get("query") or "").strip()
     if not query:
-        return "_brain_search: query is empty._"
+        return (
+            "_brain_search: query is empty — provide a non-whitespace search string._"
+        )
     conn, client, cfg = _open_deps()
     if not cfg.get("enabled") or conn is None:
         return _not_configured_msg()
@@ -65,6 +80,7 @@ def handle_brain_search(args: dict) -> str:
     except (TypeError, ValueError):
         limit = 10
     enable_fallback = bool(args.get("use_notion_fallback", True))
+    prefer_stack = _parse_prefer_stack(args.get("prefer_stack"))
 
     result = brain_mcp_read.search_with_fallback(
         conn,
@@ -74,6 +90,7 @@ def handle_brain_search(args: dict) -> str:
         limit=limit,
         database_ids=cfg.get("database_ids"),
         enable_fallback=enable_fallback,
+        prefer_stack=prefer_stack,
     )
     warnings = list(result["warnings"])
     if client is None:
@@ -139,8 +156,15 @@ def _handle_store(tool_name: str, args: dict) -> str:
         )
     fields = _extract_fields(tool_name, args)
     project_name = args.get("project_name")
+    confirm_hr = bool(args.get("confirm_high_risk"))
     result = brain_mcp_write.store_record(
-        client, conn, category, fields, cfg, project_name=project_name
+        client,
+        conn,
+        category,
+        fields,
+        cfg,
+        project_name=project_name,
+        confirm_high_risk=confirm_hr,
     )
     return brain_mcp_write.format_store_result(result, category)
 
@@ -161,11 +185,28 @@ def handle_brain_cache_web(args: dict) -> str:
     return _handle_store("brain_cache_web", args)
 
 
+def handle_brain_draft_artifact(args: dict) -> str:
+    import brain_config
+    import brain_publish_flow
+
+    cfg = brain_config.load_brain()
+    kind = (args.get("kind") or "").strip()
+    try:
+        cat = brain_publish_flow.category_from_kind(kind)
+    except ValueError as e:
+        return f"_brain_draft_artifact: {e}_"
+    fields = {k: v for k, v in args.items() if k != "kind" and v is not None}
+    payload = brain_publish_flow.draft_artifact_publish(cat, fields, cfg)
+    return brain_publish_flow.format_draft_report(payload)
+
+
 def handle_tool(name: str, args: dict) -> str:
     if name == "brain_search":
         return handle_brain_search(args)
     if name == "brain_get":
         return handle_brain_get(args)
+    if name == "brain_draft_artifact":
+        return handle_brain_draft_artifact(args)
     if name in _STORE_CATEGORY_BY_TOOL:
         return _handle_store(name, args)
     return f"Unknown tool: {name}"

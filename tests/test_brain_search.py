@@ -423,3 +423,39 @@ def test_get_by_id_miss(conn):
 def test_get_by_id_unknown_category_raises(conn):
     with pytest.raises(ValueError):
         brain_search.get_by_id(conn, "bogus", "x")
+
+
+# --- prefer_stack ranking -------------------------------------------
+
+
+def test_apply_prefer_stack_ranking_boosts_matching_stack():
+    rows = [
+        {"score": 1.0, "stack": ["go"], "notion_page_id": "a"},
+        {"score": 1.0, "stack": ["python"], "notion_page_id": "b"},
+    ]
+    out = brain_search.apply_prefer_stack_ranking(rows, ["python"])
+    assert out[0]["notion_page_id"] == "b"
+
+
+def test_apply_prefer_stack_ranking_respects_stronger_bm25():
+    rows = [
+        {"score": 0.1, "stack": ["go"], "notion_page_id": "go-win"},
+        {"score": 50.0, "stack": ["python"], "notion_page_id": "py-weak"},
+    ]
+    out = brain_search.apply_prefer_stack_ranking(rows, ["python"])
+    assert out[0]["notion_page_id"] == "go-win"
+
+
+def test_search_local_accepts_prefer_stack_widening(conn):
+    _insert_pattern(
+        conn,
+        pid="p1",
+        name="n",
+        description="unique_stack_widen_token",
+        stack=("python",),
+    )
+    r = brain_search.search_local(
+        conn, "unique_stack_widen_token", limit=1, prefer_stack=["python"]
+    )
+    assert len(r) == 1
+    assert r[0]["notion_page_id"] == "p1"

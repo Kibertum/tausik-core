@@ -14,10 +14,14 @@ import sqlite3
 from datetime import date as _date
 from typing import Any, Callable
 
+import brain_artifact_card
+import brain_artifact_taxonomy
+import brain_publish_flow
 import brain_config
 import brain_fallback
 import brain_scrubbing
 import brain_sync
+from brain_store_format import format_store_result  # noqa: F401  re-exported for brain_publish_cli.py
 
 CATEGORIES = ("decisions", "web_cache", "patterns", "gotchas")
 
@@ -78,9 +82,7 @@ def _multi_select_prop(names: list[str] | tuple[str, ...] | None) -> dict:
 
 
 def _select_prop(name: str | None) -> dict | None:
-    return (
-        {"select": {"name": str(name).strip()}} if name and str(name).strip() else None
-    )
+    return {"select": {"name": str(name).strip()}} if name and str(name).strip() else None
 
 
 def _date_prop(iso: str | None) -> dict | None:
@@ -243,8 +245,13 @@ _BUILDERS: dict[str, Callable[..., dict]] = {
 _TEXT_FIELDS_BY_CATEGORY = {
     "decisions": "name context decision rationale tags stack superseded_by".split(),
     "web_cache": "name content query url tags domain".split(),
-    "patterns": "name description when_to_use example tags stack confidence".split(),
-    "gotchas": "name description wrong_way right_way tags stack severity evidence_url".split(),
+    "patterns": (
+        "name description when_to_use example tags stack confidence scope external_repo_url"
+    ).split(),
+    "gotchas": (
+        "name description wrong_way right_way tags stack severity evidence_url scope "
+        "external_repo_url"
+    ).split(),
 }
 
 
@@ -272,30 +279,66 @@ def store_record(
     cfg: dict,
     *,
     project_name: str | None = None,
+    confirm_high_risk: bool = False,
 ) -> dict:
     """End-to-end write: scrub → Notion create → local mirror upsert.
 
     Returns one of:
       {"status": "scrub_blocked", "issues": [...]}
+      {"status": "risk_blocked", "error": str}
       {"status": "notion_error", "error": str}
       {"status": "ok", "notion_page_id": str, "source_project_hash": str}
     """
     if category not in _BUILDERS:
         return {"status": "bad_category", "error": f"Unknown category: {category!r}"}
 
-    scrub = scrub_inputs(category, fields, cfg)
+    work = dict(fields)
+    confirm_hr = bool(confirm_high_risk)
+    if not confirm_hr:
+        confirm_hr = bool(work.pop("confirm_high_risk", False))
+    else:
+        work.pop("confirm_high_risk", None)
+
+    ok_tax, tax_err = brain_artifact_taxonomy.validate_artifact_taxonomy_for_store(
+        category, work, cfg
+    )
+    if not ok_tax:
+        return {"status": "taxonomy_blocked", "error": tax_err or "taxonomy_blocked"}
+
+    ok_card, card_err = brain_artifact_card.validate_artifact_card_for_store(category, work, cfg)
+    if not ok_card:
+        return {
+            "status": "card_schema_blocked",
+            "error": card_err or "card_schema_blocked",
+        }
+
+    ok_ext, ext_err = brain_artifact_card.validate_external_repo_url_for_store(category, work, cfg)
+    if not ok_ext:
+        return {
+            "status": "card_schema_blocked",
+            "error": ext_err or "external_repo_url_invalid",
+        }
+
+    scrub = scrub_inputs(category, work, cfg)
     if not scrub["ok"]:
         return {"status": "scrub_blocked", "issues": scrub["issues"]}
 
+    blocked, br_msg = brain_publish_flow.maybe_block_high_risk_publish(
+        category, work, cfg, confirm_high_risk=confirm_hr
+    )
+    if blocked:
+        return {"status": "risk_blocked", "error": br_msg or "risk_blocked"}
+
     project_name_resolved = _resolve_project_name(project_name)
     project_hash = brain_config.compute_project_hash(project_name_resolved)
-    effective = dict(fields)
+    effective = dict(work)
+    effective.pop("artifact_taxonomy_kind", None)
+    effective.pop("scope", None)
+    effective.pop("external_repo_url", None)
     effective["project_hash"] = project_hash
 
     if category == "web_cache":
-        effective.setdefault(
-            "content_hash", compute_content_hash(effective.get("content") or "")
-        )
+        effective.setdefault("content_hash", compute_content_hash(effective.get("content") or ""))
 
     db_ids = cfg.get("database_ids") or {}
     db_id = db_ids.get(category)
@@ -325,6 +368,7 @@ def store_record(
         brain_sync.upsert_page(conn, category, row)
         conn.commit()
     except Exception as e:  # noqa: BLE001
+        brain_publish_flow.log_artifact_publish_audit(category, effective)
         return {
             "status": "ok_not_mirrored",
             "notion_page_id": page.get("id", ""),
@@ -332,44 +376,10 @@ def store_record(
             "warning": f"Notion write succeeded but local mirror failed: {e}",
         }
 
+    brain_publish_flow.log_artifact_publish_audit(category, effective)
+
     return {
         "status": "ok",
         "notion_page_id": page.get("id", ""),
         "source_project_hash": project_hash,
     }
-
-
-# ---- Markdown renderer --------------------------------------------------
-
-
-def format_store_result(result: dict, category: str) -> str:
-    status = result.get("status")
-    if status == "ok":
-        return (
-            f"**Stored** in `{category}`.\n\n"
-            f"- id: `{result.get('notion_page_id')}`\n"
-            f"- project: `{result.get('source_project_hash')}`"
-        )
-    if status == "ok_not_mirrored":
-        return (
-            f"**Stored** in Notion but local mirror lagged.\n\n"
-            f"- id: `{result.get('notion_page_id')}`\n"
-            f"- warning: {result.get('warning')}"
-        )
-    if status == "scrub_blocked":
-        return brain_scrubbing.format_issues(result.get("issues") or [])
-    if status == "notion_error":
-        cat = result.get("error_category") or "unknown"
-        return brain_fallback.user_message(
-            cat,
-            op="store",
-            detail=result.get("error") or "",
-            retry_after=result.get("retry_after"),
-        )
-    if status == "config_error":
-        return f"**Config error.** {result.get('error')}"
-    if status == "bad_fields":
-        return f"**Invalid fields.** {result.get('error')}"
-    if status == "bad_category":
-        return f"**Unknown category.** {result.get('error')}"
-    return f"Unexpected result: {result!r}"

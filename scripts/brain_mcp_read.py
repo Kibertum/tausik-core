@@ -152,14 +152,28 @@ def search_with_fallback(
     limit: int = 10,
     database_ids: dict | None = None,
     enable_fallback: bool = True,
+    prefer_stack: list[str] | None = None,
 ) -> dict:
     """Local search, merged with Notion fallback on shortfall. Never raises."""
     if limit < 1:
         return {"results": [], "warnings": ["limit must be >= 1"]}
 
+    q = (query or "").strip()
+    if not q:
+        return {
+            "results": [],
+            "warnings": [
+                "Query is empty. Provide a non-whitespace search string."
+            ],
+        }
+
     try:
         local = brain_search.search_local(
-            conn, query, categories=categories, limit=limit
+            conn,
+            query,
+            categories=categories,
+            limit=limit,
+            prefer_stack=prefer_stack,
         )
     except Exception as e:  # noqa: BLE001
         return {"results": [], "warnings": [f"local search failed: {e}"]}
@@ -200,6 +214,7 @@ def search_with_fallback(
             merged.append(r)
             seen.add(pid)
 
+    merged = brain_search.apply_prefer_stack_ranking(merged, prefer_stack)
     final = merged[:limit]
     # v1.4 r14-brain-metrics: log search + hit counts so `tausik metrics`
     # can answer "is the brain actually helping this session?" Failures here
