@@ -25,12 +25,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     # --- init ---
     init_p = sub.add_parser("init", help="Initialize project")
-    init_p.add_argument(
-        "--name", default=None, help="Project slug (default: directory name)"
-    )
+    init_p.add_argument("--name", default=None, help="Project slug (default: directory name)")
 
     # --- status ---
-    sub.add_parser("status", help="Project overview")
+    st_p = sub.add_parser("status", help="Project overview")
+    st_p.add_argument(
+        "--compact",
+        action="store_true",
+        help="Single-line JSON (tasks + session id + optional session_warning)",
+    )
 
     # --- epic ---
     epic_p = sub.add_parser("epic", help="Epic management")
@@ -82,9 +85,7 @@ def build_parser() -> argparse.ArgumentParser:
         dest="story_slug",
         help="Parent story slug (optional). --group is deprecated alias.",
     )
-    ta.add_argument(
-        "--slug", default=None, help="Task slug (auto-generated from title if omitted)"
-    )
+    ta.add_argument("--slug", default=None, help="Task slug (auto-generated from title if omitted)")
     ta.add_argument("--stack", default=None)
     ta.add_argument("--complexity", default=None, choices=sorted(VALID_COMPLEXITIES))
     ta.add_argument("--goal", default=None)
@@ -151,12 +152,17 @@ def build_parser() -> argparse.ArgumentParser:
     # --stack is validated in the service layer so config-defined custom
     # stacks (cfg.custom_stacks) work alongside the built-in DEFAULT_STACKS.
     tupdate.add_argument("--stack", default=None)
-    tupdate.add_argument(
-        "--complexity", default=None, choices=sorted(VALID_COMPLEXITIES)
-    )
+    tupdate.add_argument("--complexity", default=None, choices=sorted(VALID_COMPLEXITIES))
     tupdate.add_argument("--role", default=None)
     tupdate.add_argument("--scope", default=None)
     tupdate.add_argument("--scope-exclude", default=None, dest="scope_exclude")
+    tupdate.add_argument(
+        "--relevant-files",
+        nargs="*",
+        default=None,
+        dest="update_relevant_files",
+        help="JSON-list scope for scoped verify / pytest gate (overwrites prior)",
+    )
     _add_unit_flags(tupdate)
 
     tdel = task_sub.add_parser("delete")
@@ -259,22 +265,16 @@ def build_parser() -> argparse.ArgumentParser:
     mlink.add_argument("relation", choices=sorted(VALID_EDGE_RELATIONS))
     mlink.add_argument("--confidence", type=float, default=1.0)
     mlink.add_argument("--created-by", default=None)
-    munlink = mem_sub.add_parser(
-        "unlink", help="Soft-invalidate an edge (never deletes)"
-    )
+    munlink = mem_sub.add_parser("unlink", help="Soft-invalidate an edge (never deletes)")
     munlink.add_argument("edge_id", type=int)
-    munlink.add_argument(
-        "--replacement", type=int, default=None, help="Replacement edge ID"
-    )
+    munlink.add_argument("--replacement", type=int, default=None, help="Replacement edge ID")
     mrelated = mem_sub.add_parser("related", help="Find related nodes via graph")
     mrelated.add_argument("node_type", choices=sorted(VALID_NODE_TYPES))
     mrelated.add_argument("node_id", type=int)
     mrelated.add_argument("--hops", type=int, default=2)
     mrelated.add_argument("--include-invalid", action="store_true")
     mgraph = mem_sub.add_parser("graph", help="List graph edges")
-    mgraph.add_argument(
-        "--type", default=None, dest="node_type", choices=sorted(VALID_NODE_TYPES)
-    )
+    mgraph.add_argument("--type", default=None, dest="node_type", choices=sorted(VALID_NODE_TYPES))
     mgraph.add_argument("--id", type=int, default=None, dest="node_id")
     mgraph.add_argument(
         "--relation",
@@ -327,31 +327,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Show diff between current CLAUDE.md and what `update-claudemd` would write; do not modify the file. Exit code 0 if identical, 1 if drift detected.",
     )
 
-    # --- metrics / hud / suggest-model ---
-    metrics_p = sub.add_parser("metrics", help="Project metrics and velocity")
-    metrics_sub = metrics_p.add_subparsers(dest="metrics_cmd")
-    mr = metrics_sub.add_parser(
-        "record-session",
-        help="Record session token/cost metrics (used by hooks/session_metrics.py)",
-    )
-    mr.add_argument("--session-id", type=int, default=None)
-    mr.add_argument("--tokens-input", type=int, required=True)
-    mr.add_argument("--tokens-output", type=int, required=True)
-    mr.add_argument("--tokens-total", type=int, required=True)
-    mr.add_argument("--cost-usd", type=float, required=True)
-    mr.add_argument("--tool-calls", type=int, default=0)
-    mr.add_argument("--model", default="")
-    sub.add_parser("hud", help="Live dashboard")
-    sub.add_parser(
-        "suggest-model", help="Suggest Claude model for complexity"
-    ).add_argument("complexity", nargs="?", default=None)
+    # --- metrics / hud / suggest-model (delegated below) ---
 
     # --- search ---
     sr_p = sub.add_parser("search", help="Full-text search")
     sr_p.add_argument("query")
-    sr_p.add_argument(
-        "--scope", default="all", choices=["all", "tasks", "memory", "decisions"]
-    )
+    sr_p.add_argument("--scope", default="all", choices=["all", "tasks", "memory", "decisions"])
     sr_p.add_argument("--limit", type=int, default=20, help="Max results per scope")
 
     # --- fts ---
@@ -359,56 +340,32 @@ def build_parser() -> argparse.ArgumentParser:
     fts_sub = fts_p.add_subparsers(dest="fts_cmd")
     fts_sub.add_parser("optimize", help="Optimize all FTS5 indexes")
 
-    # --- skill ---
-    sk_p = sub.add_parser("skill", help="External skill lifecycle management")
-    sk_sub = sk_p.add_subparsers(dest="skill_cmd")
-    sk_act = sk_sub.add_parser("activate", help="Copy vendor skill to .claude/skills/")
-    sk_act.add_argument("name", help="Skill name from vendor catalog")
-    sk_deact = sk_sub.add_parser("deactivate", help="Remove skill from .claude/skills/")
-    sk_deact.add_argument("name", help="Skill name to deactivate")
-    sk_sub.add_parser("list", help="List skills: active, vendored, available")
-    sk_inst = sk_sub.add_parser(
-        "install", help="Install skill from repo (clone + copy + deps)"
-    )
-    sk_inst.add_argument("name", help="Skill name to install")
-    sk_uninst = sk_sub.add_parser("uninstall", help="Remove skill completely")
-    sk_uninst.add_argument("name", help="Skill name to uninstall")
-
-    # skill repo subcommands
-    sk_repo = sk_sub.add_parser("repo", help="Manage skill repositories")
-    sk_repo_sub = sk_repo.add_subparsers(dest="repo_cmd")
-    sk_repo_add = sk_repo_sub.add_parser(
-        "add", help="Add a TAUSIK-compatible skill repo"
-    )
-    sk_repo_add.add_argument("url", help="Git URL of skill repo")
-    sk_repo_rm = sk_repo_sub.add_parser("remove", help="Remove a skill repo")
-    sk_repo_rm.add_argument("name", help="Repo name to remove")
-    sk_repo_sub.add_parser("list", help="List configured skill repos")
-
     # --- events ---
     ev_p = sub.add_parser("events", help="Audit event log")
-    ev_p.add_argument(
-        "--entity", default=None, help="Filter by entity type (task, epic, story)"
-    )
-    ev_p.add_argument(
-        "--id", default=None, dest="entity_id", help="Filter by entity ID/slug"
-    )
+    ev_p.add_argument("--entity", default=None, help="Filter by entity type (task, epic, story)")
+    ev_p.add_argument("--id", default=None, dest="entity_id", help="Filter by entity ID/slug")
     ev_p.add_argument("--limit", type=int, default=50)
 
-    # --- SENAR ops subparsers (dead-end, explore, audit, brain, run) ---
+    # --- SENAR ops subparsers (delegated) ---
     from project_parser_ops import (
         add_audit,
         add_brain,
         add_dead_end,
         add_doc,
         add_explore,
+        add_hygiene,
+        add_metrics,
         add_review,
         add_run,
+        add_skill,
     )
 
     add_dead_end(sub)
     add_explore(sub)
     add_audit(sub)
+    add_skill(sub)
+    add_metrics(sub)
+    add_hygiene(sub)
     add_brain(sub)
     add_run(sub)
     add_doc(sub)

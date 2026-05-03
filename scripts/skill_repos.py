@@ -24,6 +24,17 @@ DEFAULT_REPOS: dict[str, str] = {
 }
 
 
+def is_builtin_skill_repo_url(url: str) -> bool:
+    """True if *url* targets the official Kibertum/tausik-skills repo (trusted default).
+
+    Matches https and common ``git@github.com:.../tausik-skills(.git)`` forms.
+    """
+    if not url or not isinstance(url, str):
+        return False
+    u = url.strip().lower()
+    return "kibertum/tausik-skills" in u
+
+
 # ---------------------------------------------------------------------------
 # Config helpers
 # ---------------------------------------------------------------------------
@@ -90,8 +101,24 @@ def update_config_uninstall(config_path: str, skill_name: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def repo_add(url: str, vendor_dir: str, config_path: str) -> str:
-    """Add a skill repo: clone + detect format + save to config."""
+def repo_add(
+    url: str,
+    vendor_dir: str,
+    config_path: str,
+    *,
+    force: bool = False,
+) -> str:
+    """Add a skill repo: clone + detect format + save to config.
+
+    Third-party URLs require ``force=True`` (CLI: ``--force``) so clone/install
+    cannot run from an unrecognized repo without an explicit opt-in.
+    """
+    if not is_builtin_skill_repo_url(url) and not force:
+        raise SkillManagerError(
+            "Untrusted skill repository URL. Adding a repo clones remote content; "
+            "skills may run shell/pip during install.\n"
+            "Review the repository, then retry with --force (CLI) or force=true (MCP)."
+        )
     repo_dir, repo_name = clone_repo(url, vendor_dir)
     info = detect_repo_format(repo_dir)
 
