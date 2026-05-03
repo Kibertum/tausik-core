@@ -372,6 +372,100 @@ class TestRelevantFilesFallback:
         db.commit()
         assert lookup_relevant_files_from_recent_verify(db, "t") is None
 
+    def test_recovery_ignores_task_done_filesize_rows(self, tmp_path):
+        """v14b-defect-recover-files-from-task-done-row: recovery must filter
+        to trigger=verify rows. A task-done filesize PASS row also has
+        exit_code=0 and a `files=...` payload from --relevant-files; if it
+        shadowed the verify row, files_hash would mismatch and the next
+        `task done` would falsely fail with "no fresh verify run".
+        """
+        import sqlite3
+        from datetime import datetime, timezone
+
+        from verify_recent_lookup import lookup_relevant_files_from_recent_verify
+
+        db = sqlite3.connect(":memory:")
+        db.row_factory = sqlite3.Row
+        db.execute(
+            """CREATE TABLE verification_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_slug TEXT, scope TEXT, command TEXT,
+                exit_code INTEGER, summary TEXT, files_hash TEXT,
+                ran_at TEXT, duration_ms INTEGER
+            )"""
+        )
+        now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+        # First insert: verify row with empty files (manual scope).
+        db.execute(
+            "INSERT INTO verification_runs (task_slug, scope, command, exit_code, "
+            "summary, files_hash, ran_at) VALUES (?,?,?,?,?,?,?)",
+            ("t", "manual", "trigger=verify|sig=x|files=", 0, "pytest=PASS", "h1", now),
+        )
+        # Then a NEWER task-done row with files in command (filesize PASS).
+        db.execute(
+            "INSERT INTO verification_runs (task_slug, scope, command, exit_code, "
+            "summary, files_hash, ran_at) VALUES (?,?,?,?,?,?,?)",
+            (
+                "t",
+                "standard",
+                "trigger=task-done|sig=y|files=tests/test_a.py,tests/test_b.py",
+                0,
+                "filesize=PASS",
+                "h2",
+                now,
+            ),
+        )
+        db.commit()
+
+        # Pre-fix bug: would return ['tests/test_a.py', 'tests/test_b.py']
+        # from the newer task-done row. Post-fix: ignores task-done, picks
+        # the verify row whose files= is empty → returns None.
+        assert lookup_relevant_files_from_recent_verify(db, "t") is None
+
+    def test_recovery_picks_older_verify_over_newer_task_done(self, tmp_path):
+        """When both fresh rows exist, the verify row wins regardless of id.
+
+        Variant of the above with non-empty verify files — confirms recovery
+        returns the verify row's files, not the task-done row's.
+        """
+        import sqlite3
+        from datetime import datetime, timezone
+
+        from verify_recent_lookup import lookup_relevant_files_from_recent_verify
+
+        db = sqlite3.connect(":memory:")
+        db.row_factory = sqlite3.Row
+        db.execute(
+            """CREATE TABLE verification_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_slug TEXT, scope TEXT, command TEXT,
+                exit_code INTEGER, summary TEXT, files_hash TEXT,
+                ran_at TEXT, duration_ms INTEGER
+            )"""
+        )
+        now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        db.execute(
+            "INSERT INTO verification_runs (task_slug, scope, command, exit_code, "
+            "summary, files_hash, ran_at) VALUES (?,?,?,?,?,?,?)",
+            ("t", "manual", "trigger=verify|sig=x|files=src/foo.py", 0, "pytest=PASS", "h1", now),
+        )
+        db.execute(
+            "INSERT INTO verification_runs (task_slug, scope, command, exit_code, "
+            "summary, files_hash, ran_at) VALUES (?,?,?,?,?,?,?)",
+            (
+                "t",
+                "standard",
+                "trigger=task-done|sig=y|files=src/bar.py,src/baz.py",
+                0,
+                "filesize=PASS",
+                "h2",
+                now,
+            ),
+        )
+        db.commit()
+        assert lookup_relevant_files_from_recent_verify(db, "t") == ["src/foo.py"]
+
 
 @pytest.mark.verify_first
 class TestPipelineEnvelopeRegression:

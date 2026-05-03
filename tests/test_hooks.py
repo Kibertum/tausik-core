@@ -7,6 +7,8 @@ import os
 import subprocess
 import sys
 
+import pytest
+
 HOOKS_DIR = os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks")
 
 
@@ -32,42 +34,67 @@ def run_hook(
 
 
 class TestBashFirewall:
-    """bash_firewall.py blocks dangerous commands."""
+    """bash_firewall.py blocks dangerous commands.
 
-    def test_normal_command_allowed(self):
-        r = run_hook("bash_firewall.py", {"tool_input": {"command": "ls -la"}})
-        assert r.returncode == 0
+    v1.4 (v14b-parametrize-top4): bulk (command, expected_rc) cases collapsed
+    into one parametrized method. Specials with stderr/env/no-stdin checks
+    remain separate.
 
-    def test_rm_rf_root_blocked(self):
+    v1.3.4 (med-batch-1-hooks #1): regex with word boundaries instead of
+    substring match. Quoted strings inside echo etc. should NOT trip the
+    warn patterns; a literal git invocation with the dangerous flag should.
+    """
+
+    @pytest.mark.parametrize(
+        "command,expected_rc",
+        [
+            pytest.param("ls -la", 0, id="normal_command_allowed"),
+            pytest.param("rm -rf .", 2, id="rm_rf_dot_blocked"),
+            pytest.param("sqlite3 db.db 'DROP TABLE users'", 2, id="drop_table_blocked"),
+            pytest.param("git reset --hard HEAD~5", 2, id="git_reset_hard_blocked"),
+            pytest.param("git push --force origin main", 2, id="git_push_force_blocked"),
+            pytest.param("", 0, id="empty_command_allowed"),
+            pytest.param(
+                "git push --force-with-lease origin main",
+                2,
+                id="git_push_force_with_lease_blocked",
+            ),
+            pytest.param("git push -f origin feature", 2, id="git_push_short_f_blocked"),
+            pytest.param("git push origin main --force", 2, id="git_push_force_after_args_blocked"),
+            pytest.param(
+                "echo 'git push --force is dangerous'",
+                0,
+                id="echo_quoted_git_push_force_allowed",
+            ),
+            pytest.param("gitfoo push --force", 0, id="word_with_git_prefix_allowed"),
+            pytest.param(
+                "/usr/bin/git push --force origin main",
+                2,
+                id="full_path_git_push_force_blocked",
+            ),
+            pytest.param("git clean -fd", 2, id="git_clean_fd_blocked"),
+            pytest.param("git checkout -- .", 2, id="git_checkout_dot_blocked"),
+            pytest.param("git checkout main", 0, id="git_checkout_branch_allowed"),
+            pytest.param(
+                "git -c core.editor=vim push --force origin main",
+                2,
+                id="git_with_c_flag_then_push_force_blocked",
+            ),
+            pytest.param("git push --force", 2, id="git_push_at_line_start_blocked"),
+        ],
+    )
+    def test_command(self, command, expected_rc):
+        r = run_hook("bash_firewall.py", {"tool_input": {"command": command}})
+        assert r.returncode == expected_rc
+
+    def test_rm_rf_root_blocked_emits_marker(self):
+        """`rm -rf /` blocked AND emits BLOCKED marker on stderr."""
         r = run_hook("bash_firewall.py", {"tool_input": {"command": "rm -rf /"}})
         assert r.returncode == 2
         assert "BLOCKED" in r.stderr
 
-    def test_rm_rf_dot_blocked(self):
-        r = run_hook("bash_firewall.py", {"tool_input": {"command": "rm -rf ."}})
-        assert r.returncode == 2
-
-    def test_drop_table_blocked(self):
-        r = run_hook(
-            "bash_firewall.py",
-            {"tool_input": {"command": "sqlite3 db.db 'DROP TABLE users'"}},
-        )
-        assert r.returncode == 2
-
-    def test_git_reset_hard_blocked(self):
-        r = run_hook(
-            "bash_firewall.py", {"tool_input": {"command": "git reset --hard HEAD~5"}}
-        )
-        assert r.returncode == 2
-
-    def test_git_push_force_blocked(self):
-        r = run_hook(
-            "bash_firewall.py",
-            {"tool_input": {"command": "git push --force origin main"}},
-        )
-        assert r.returncode == 2
-
     def test_skip_hooks_env(self):
+        """TAUSIK_SKIP_HOOKS=1 bypasses the firewall (escape hatch)."""
         r = run_hook(
             "bash_firewall.py",
             {"tool_input": {"command": "rm -rf /"}},
@@ -75,115 +102,17 @@ class TestBashFirewall:
         )
         assert r.returncode == 0
 
-    def test_empty_command_allowed(self):
-        r = run_hook("bash_firewall.py", {"tool_input": {"command": ""}})
-        assert r.returncode == 0
-
     def test_no_stdin_allowed(self):
+        """No stdin → hook should not crash, returns 0."""
         r = run_hook("bash_firewall.py")
         assert r.returncode == 0
-
-    # v1.3.4 (med-batch-1-hooks #1): regex with word boundaries instead of
-    # substring match. Quoted strings inside echo etc. should NOT trip the
-    # warn patterns; a literal git invocation with the dangerous flag should.
-
-    def test_git_push_force_with_lease_blocked(self):
-        """--force-with-lease still blocked (preserves pre-v1.3.4 behavior)."""
-        r = run_hook(
-            "bash_firewall.py",
-            {"tool_input": {"command": "git push --force-with-lease origin main"}},
-        )
-        assert r.returncode == 2
-
-    def test_git_push_short_f_blocked(self):
-        r = run_hook(
-            "bash_firewall.py",
-            {"tool_input": {"command": "git push -f origin feature"}},
-        )
-        assert r.returncode == 2
-
-    def test_git_push_force_after_args_blocked(self):
-        """`git push origin main --force` (flag after positional args) caught."""
-        r = run_hook(
-            "bash_firewall.py",
-            {"tool_input": {"command": "git push origin main --force"}},
-        )
-        assert r.returncode == 2
-
-    def test_echo_quoted_git_push_force_allowed(self):
-        """`echo 'git push --force'` is documentation, not an invocation."""
-        r = run_hook(
-            "bash_firewall.py",
-            {"tool_input": {"command": "echo 'git push --force is dangerous'"}},
-        )
-        assert r.returncode == 0
-
-    def test_word_with_git_prefix_allowed(self):
-        """`gitfoo push --force` should NOT match — `gitfoo` is not git."""
-        r = run_hook(
-            "bash_firewall.py",
-            {"tool_input": {"command": "gitfoo push --force"}},
-        )
-        assert r.returncode == 0
-
-    def test_full_path_git_push_force_blocked(self):
-        """`/usr/bin/git push --force` is still git push."""
-        r = run_hook(
-            "bash_firewall.py",
-            {"tool_input": {"command": "/usr/bin/git push --force origin main"}},
-        )
-        assert r.returncode == 2
-
-    def test_git_clean_fd_blocked(self):
-        r = run_hook(
-            "bash_firewall.py",
-            {"tool_input": {"command": "git clean -fd"}},
-        )
-        assert r.returncode == 2
-
-    def test_git_checkout_dot_blocked(self):
-        r = run_hook(
-            "bash_firewall.py",
-            {"tool_input": {"command": "git checkout -- ."}},
-        )
-        assert r.returncode == 2
-
-    def test_git_checkout_branch_allowed(self):
-        """`git checkout main` is fine — only `git checkout -- .` is blocked."""
-        r = run_hook(
-            "bash_firewall.py",
-            {"tool_input": {"command": "git checkout main"}},
-        )
-        assert r.returncode == 0
-
-    def test_git_with_c_flag_then_push_force_blocked(self):
-        """git_push_gate-style -c flag handling carries over."""
-        r = run_hook(
-            "bash_firewall.py",
-            {
-                "tool_input": {
-                    "command": "git -c core.editor=vim push --force origin main"
-                }
-            },
-        )
-        assert r.returncode == 2
-
-    def test_git_push_at_line_start_blocked(self):
-        """Line-start anchor: a literal `git push --force` IS at command start."""
-        r = run_hook(
-            "bash_firewall.py",
-            {"tool_input": {"command": "git push --force"}},
-        )
-        assert r.returncode == 2
 
 
 class TestGitPushGate:
     """git_push_gate.py blocks direct git push."""
 
     def test_git_push_blocked(self):
-        r = run_hook(
-            "git_push_gate.py", {"tool_input": {"command": "git push origin main"}}
-        )
+        r = run_hook("git_push_gate.py", {"tool_input": {"command": "git push origin main"}})
         assert r.returncode == 2
         assert "BLOCKED" in r.stderr
 
@@ -192,9 +121,7 @@ class TestGitPushGate:
         assert r.returncode == 0
 
     def test_git_commit_allowed(self):
-        r = run_hook(
-            "git_push_gate.py", {"tool_input": {"command": "git commit -m 'test'"}}
-        )
+        r = run_hook("git_push_gate.py", {"tool_input": {"command": "git commit -m 'test'"}})
         assert r.returncode == 0
 
     def test_skip_push_hook_env(self):
@@ -283,9 +210,7 @@ class TestAutoFormat:
     """auto_format.py runs formatter and logs to task."""
 
     def test_nonexistent_file_allowed(self):
-        r = run_hook(
-            "auto_format.py", {"tool_input": {"file_path": "/nonexistent/file.py"}}
-        )
+        r = run_hook("auto_format.py", {"tool_input": {"file_path": "/nonexistent/file.py"}})
         assert r.returncode == 0
 
     def test_no_stdin_allowed(self):

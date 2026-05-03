@@ -128,6 +128,13 @@ def lookup_relevant_files_from_recent_verify(
     Returns the parsed file list (possibly empty) when a fresh exit-zero row
     exists for `task_slug`; `None` when no row, the row is stale, or the row
     has no `|files=` payload (manual scope etc.).
+
+    v14b-defect-recover-files-from-task-done-row: filter to trigger=verify
+    rows only. A fresh task-done filesize PASS row also has exit_code=0 and
+    contains a `files=...` payload from the caller's --relevant-files; if
+    we recovered from it, the resulting files_hash would NOT match what
+    `tausik verify` recorded with empty files (manual scope), and the next
+    `task done` would miss the cache and fail with "no fresh verify run".
     """
     if not task_slug:
         return None
@@ -137,6 +144,7 @@ def lookup_relevant_files_from_recent_verify(
         FROM verification_runs
         WHERE task_slug = ?
           AND exit_code = 0
+          AND command LIKE 'trigger=verify|%'
         ORDER BY id DESC
         LIMIT 1
         """,

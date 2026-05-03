@@ -28,41 +28,45 @@ def test_clean_content_with_empty_config():
 
 
 # ---- Filesystem paths ------------------------------------------------
+# v1.4 (v14b-parametrize-top4): cluster collapsed. Path-blocked + path-pass
+# cases share `scrub(text) → ok=<bool>` shape. The detailed first case
+# (POSIX /home, with match-substring assertion) stays explicit because it
+# verifies the issue.match field, not just the boolean.
 
 
-def test_posix_home_path_blocked():
+def test_posix_home_path_blocked_with_match_substring():
     r = brain_scrubbing.scrub("See /home/alice/work/secret for details.")
     assert r["ok"] is False
     assert any(i["detector"] == "filesystem_paths" for i in r["issues"])
     assert "/home/alice/work/secret" in r["issues"][0]["match"]
 
 
-def test_posix_users_path_blocked():
-    r = brain_scrubbing.scrub("Config at /Users/bob/projects/top-secret")
-    assert r["ok"] is False
-    assert r["issues"][0]["detector"] == "filesystem_paths"
-
-
-def test_windows_drive_path_blocked():
-    r = brain_scrubbing.scrub("Open D:\\Work\\Kibertum\\laplandka\\foo.py")
-    assert r["ok"] is False
-    assert r["issues"][0]["detector"] == "filesystem_paths"
-
-
-def test_windows_forward_slash_path_blocked():
-    r = brain_scrubbing.scrub("See C:/Users/carol/code/bank/api.py")
-    assert r["ok"] is False
-    assert any(i["detector"] == "filesystem_paths" for i in r["issues"])
-
-
-def test_relative_paths_pass():
-    r = brain_scrubbing.scrub("See src/api/models.py and ./helpers.ts")
-    assert r["ok"] is True
-
-
-def test_url_path_not_flagged_as_filesystem():
-    r = brain_scrubbing.scrub("Docs at https://example.com/users/alice")
-    assert r["ok"] is True
+@pytest.mark.parametrize(
+    "content,expected_ok",
+    [
+        pytest.param(
+            "Config at /Users/bob/projects/top-secret", False, id="posix_users_path_blocked"
+        ),
+        pytest.param(
+            "Open D:\\Work\\Kibertum\\laplandka\\foo.py", False, id="windows_drive_path_blocked"
+        ),
+        pytest.param(
+            "See C:/Users/carol/code/bank/api.py",
+            False,
+            id="windows_forward_slash_path_blocked",
+        ),
+        pytest.param("See src/api/models.py and ./helpers.ts", True, id="relative_paths_pass"),
+        pytest.param(
+            "Docs at https://example.com/users/alice", True, id="url_path_not_flagged_as_filesystem"
+        ),
+    ],
+)
+def test_filesystem_path_detection(content, expected_ok):
+    r = brain_scrubbing.scrub(content)
+    assert r["ok"] is expected_ok
+    if not expected_ok:
+        # Sanity: failure must be attributed to filesystem_paths detector.
+        assert any(i["detector"] == "filesystem_paths" for i in r["issues"])
 
 
 # ---- Emails ----------------------------------------------------------
@@ -99,14 +103,6 @@ def test_private_url_matches_configured_pattern():
     assert r["issues"][0]["detector"] == "private_urls"
 
 
-def test_public_url_with_private_pattern_passes():
-    r = brain_scrubbing.scrub(
-        "Docs at https://python.org/3.12",
-        private_url_patterns=[r"\.internal\."],
-    )
-    assert r["ok"] is True
-
-
 def test_private_url_without_patterns_passes():
     r = brain_scrubbing.scrub("Internal: https://grafana.internal/board")
     assert r["ok"] is True  # no patterns configured
@@ -131,14 +127,6 @@ def test_project_name_exact_substring_blocked():
     )
     assert r["ok"] is False
     assert r["issues"][0]["detector"] == "project_names_blocklist"
-
-
-def test_project_name_case_insensitive():
-    r = brain_scrubbing.scrub(
-        "SECRET-PROJECT delivered on time.",
-        project_names=["secret-project"],
-    )
-    assert r["ok"] is False
 
 
 def test_project_name_empty_blocklist_passes():
@@ -217,21 +205,21 @@ def test_unicode_content_cyrillic_clean():
     assert r["ok"] is True
 
 
-def test_unicode_content_with_russian_project_name_blocked():
+# ---- Blocklist + bypass defenses (homoglyphs, zero-width, URL-encoding) -----
+# v1.4 (v14b-parametrize-top4): clusters ce0bd5c98f81d28e + 56ef61843572624f
+# collapsed. All cases share the (text, kwargs) -> ok=<bool> shape. Tests with
+# unique extra assertions (cyrillic_homoglyph_bypass detector check) stay in
+# dedicated functions to preserve their explicit AC.
+
+
+def test_blocklist_cyrillic_homoglyph_bypass_blocked_named_detector():
+    """Cyrillic 'm' (U+043C) looks like Latin 'm' but has different bytes.
+
+    Verifies the issue is attributed to project_names_blocklist (not to a
+    wrong detector) - extra assertion that wouldn't survive parametrize.
+    """
     r = brain_scrubbing.scrub(
-        "Ленинка сегодня упала.",
-        project_names=["ленинка"],
-    )
-    assert r["ok"] is False
-
-
-# ---- Homoglyph / zero-width / URL-encode bypass defenses --------------
-
-
-def test_blocklist_cyrillic_homoglyph_bypass_blocked():
-    """Cyrillic 'м' (U+043C) looks like Latin 'm' but has different bytes."""
-    r = brain_scrubbing.scrub(
-        "We deployed мegacorp to staging",  # 'мegacorp' — first char is Cyrillic
+        "We deployed мegacorp to staging",  # first char is Cyrillic
         project_names=["megacorp"],
     )
     assert r["ok"] is False
@@ -239,133 +227,142 @@ def test_blocklist_cyrillic_homoglyph_bypass_blocked():
     assert "project_names_blocklist" in detectors
 
 
-def test_blocklist_all_cyrillic_homoglyphs_blocked():
-    """Full Cyrillic spelling: а(0430) с(0441) м(043C) е(0435) — all lookalikes."""
-    r = brain_scrubbing.scrub(
-        "The асме project is confidential",  # 'асме' (all Cyrillic)
-        project_names=["acme"],
-    )
-    assert r["ok"] is False
-
-
-def test_blocklist_zero_width_bypass_blocked():
-    """ZWSP inserted between letters splits a naive substring match."""
-    r = brain_scrubbing.scrub(
-        "Contact the meg​acorp team by Friday",
-        project_names=["megacorp"],
-    )
-    assert r["ok"] is False
-
-
-def test_blocklist_zero_width_joiner_bypass_blocked():
-    r = brain_scrubbing.scrub(
-        "the meg‍acorp deployment failed",
-        project_names=["megacorp"],
-    )
-    assert r["ok"] is False
-
-
-def test_blocklist_url_encoded_bypass_blocked():
-    r = brain_scrubbing.scrub(
-        "See https://example.com/path?q=%6Degacorp%20docs",
-        project_names=["megacorp"],
-    )
-    assert r["ok"] is False
-
-
-def test_blocklist_double_url_encoded_bypass_blocked():
-    """%256D decodes to %6D on first round, then to 'm' on second round."""
-    r = brain_scrubbing.scrub(
-        "See https://example.com/?q=%256Degacorp%20docs",
-        project_names=["megacorp"],
-    )
-    assert r["ok"] is False
-
-
-def test_blocklist_html_numeric_entity_bypass_blocked():
-    """&#109; is HTML decimal entity for 'm'."""
-    r = brain_scrubbing.scrub(
-        "Old docs said &#109;egacorp is the next sprint target",
-        project_names=["megacorp"],
-    )
-    assert r["ok"] is False
-
-
-def test_blocklist_html_named_entity_bypass_blocked():
-    r = brain_scrubbing.scrub(
-        "Jump to &#x6D;egacorp channel",  # &#x6D; = 'm'
-        project_names=["megacorp"],
-    )
-    assert r["ok"] is False
-
-
-def test_blocklist_mixed_homoglyph_and_zero_width_blocked():
-    """Cyrillic М + zero-width + Latin egacorp."""
-    r = brain_scrubbing.scrub(
-        "Talk to М​egacorp tomorrow",
-        project_names=["megacorp"],
-    )
-    assert r["ok"] is False
-
-
-def test_blocklist_greek_homoglyph_blocked():
-    r = brain_scrubbing.scrub(
-        "Check Αpex dashboard",  # Greek Alpha (Α) + pex
-        project_names=["apex"],
-    )
-    assert r["ok"] is False
-
-
-def test_blocklist_greek_lowercase_alpha_blocked():
-    """Greek lowercase α (U+03B1) must map to Latin 'a'."""
-    r = brain_scrubbing.scrub("the αpex dashboard", project_names=["apex"])
-    assert r["ok"] is False
-
-
-def test_blocklist_cyrillic_lowercase_v_blocked():
-    """Cyrillic lowercase в (U+0432) must map to Latin 'b'."""
-    r = brain_scrubbing.scrub("Вrincess project", project_names=["brincess"])
-    assert r["ok"] is False
-
-
-def test_blocklist_cyrillic_lowercase_m_blocked():
-    r = brain_scrubbing.scrub("мanager of megacorp", project_names=["manager"])
-    assert r["ok"] is False
-
-
-def test_blocklist_cyrillic_lowercase_t_blocked():
-    r = brain_scrubbing.scrub("тrinket", project_names=["trinket"])
-    assert r["ok"] is False
-
-
-def test_blocklist_cyrillic_lowercase_k_blocked():
-    """Mixed-script attack: Cyrillic к (U+043A) + Latin ernel = 'kernel' after
-    normalization. Used in practice more than all-Cyrillic substitutions,
-    which would need every letter to have a confusable (not all do, e.g.
-    Cyrillic л has no plain Latin lookalike)."""
-    r = brain_scrubbing.scrub("кernel module", project_names=["kernel"])
-    assert r["ok"] is False
-
-
-def test_blocklist_greek_lowercase_nu_blocked():
-    """Greek ν (U+03BD) lookalike for 'v'."""
-    r = brain_scrubbing.scrub("νanguard tracker", project_names=["vanguard"])
-    assert r["ok"] is False
-
-
-def test_blocklist_greek_lowercase_rho_blocked():
-    """Greek ρ (U+03C1) lookalike for 'p'."""
-    r = brain_scrubbing.scrub("ρroject name here", project_names=["project"])
-    assert r["ok"] is False
-
-
-def test_blocklist_combining_marks_stripped():
-    """Café (NFD: Cafe + U+0301) must match blocklist entry 'cafe'."""
-    r = brain_scrubbing.scrub(
-        "Deploying Café to prod",  # Cafe + combining acute
-        project_names=["cafe"],
-    )
-    assert r["ok"] is False
+@pytest.mark.parametrize(
+    "content,kwargs,expected_ok",
+    [
+        # --- cluster 56ef6184 (mixed blocklist + URL passes) -----------------
+        pytest.param(
+            "Docs at https://python.org/3.12",
+            {"private_url_patterns": [r"\.internal\."]},
+            True,
+            id="public_url_with_private_pattern_passes",
+        ),
+        pytest.param(
+            "SECRET-PROJECT delivered on time.",
+            {"project_names": ["secret-project"]},
+            False,
+            id="project_name_case_insensitive",
+        ),
+        pytest.param(
+            "Ленинка сегодня упала.",
+            {"project_names": ["ленинка"]},
+            False,
+            id="unicode_content_with_russian_project_name_blocked",
+        ),
+        pytest.param(
+            "the meg‍acorp deployment failed",  # ZWJ
+            {"project_names": ["megacorp"]},
+            False,
+            id="blocklist_zero_width_joiner_bypass_blocked",
+        ),
+        pytest.param(
+            "See https://example.com/path?q=%6Degacorp%20docs",
+            {"project_names": ["megacorp"]},
+            False,
+            id="blocklist_url_encoded_bypass_blocked",
+        ),
+        pytest.param(
+            "Jump to &#x6D;egacorp channel",  # &#x6D; = 'm'
+            {"project_names": ["megacorp"]},
+            False,
+            id="blocklist_html_named_entity_bypass_blocked",
+        ),
+        pytest.param(
+            "Check Αpex dashboard",  # Greek Alpha (U+0391)
+            {"project_names": ["apex"]},
+            False,
+            id="blocklist_greek_homoglyph_blocked",
+        ),
+        pytest.param(
+            "мanager of megacorp",  # Cyrillic m
+            {"project_names": ["manager"]},
+            False,
+            id="blocklist_cyrillic_lowercase_m_blocked",
+        ),
+        pytest.param(
+            "тrinket",  # Cyrillic t
+            {"project_names": ["trinket"]},
+            False,
+            id="blocklist_cyrillic_lowercase_t_blocked",
+        ),
+        # --- cluster ce0bd5c9 (homoglyph / bypass blocked) -------------------
+        pytest.param(
+            "The асме project is confidential",  # all Cyrillic
+            {"project_names": ["acme"]},
+            False,
+            id="blocklist_all_cyrillic_homoglyphs_blocked",
+        ),
+        pytest.param(
+            "Contact the meg​acorp team by Friday",  # ZWSP
+            {"project_names": ["megacorp"]},
+            False,
+            id="blocklist_zero_width_bypass_blocked",
+        ),
+        pytest.param(
+            "See https://example.com/?q=%256Degacorp%20docs",  # %256D -> %6D -> 'm'
+            {"project_names": ["megacorp"]},
+            False,
+            id="blocklist_double_url_encoded_bypass_blocked",
+        ),
+        pytest.param(
+            "Old docs said &#109;egacorp is the next sprint target",  # &#109;='m'
+            {"project_names": ["megacorp"]},
+            False,
+            id="blocklist_html_numeric_entity_bypass_blocked",
+        ),
+        pytest.param(
+            "Talk to М​egacorp tomorrow",  # Cyrillic M + ZWSP
+            {"project_names": ["megacorp"]},
+            False,
+            id="blocklist_mixed_homoglyph_and_zero_width_blocked",
+        ),
+        pytest.param(
+            "the αpex dashboard",  # Greek alpha
+            {"project_names": ["apex"]},
+            False,
+            id="blocklist_greek_lowercase_alpha_blocked",
+        ),
+        pytest.param(
+            "Вrincess project",  # Cyrillic V (U+0412) -> 'b'
+            {"project_names": ["brincess"]},
+            False,
+            id="blocklist_cyrillic_lowercase_v_blocked",
+        ),
+        pytest.param(
+            "кernel module",  # Cyrillic k
+            {"project_names": ["kernel"]},
+            False,
+            id="blocklist_cyrillic_lowercase_k_blocked",
+        ),
+        pytest.param(
+            "νanguard tracker",  # Greek nu
+            {"project_names": ["vanguard"]},
+            False,
+            id="blocklist_greek_lowercase_nu_blocked",
+        ),
+        pytest.param(
+            "ρroject name here",  # Greek rho
+            {"project_names": ["project"]},
+            False,
+            id="blocklist_greek_lowercase_rho_blocked",
+        ),
+        pytest.param(
+            "Deploying Café to prod",  # NFD: Cafe + combining acute
+            {"project_names": ["cafe"]},
+            False,
+            id="blocklist_combining_marks_stripped",
+        ),
+        pytest.param(
+            "MEGACORP ran out of budget",
+            {"project_names": ["megacorp"]},
+            False,
+            id="blocklist_case_insensitive_regression",
+        ),
+    ],
+)
+def test_blocklist_and_bypass_detection(content, kwargs, expected_ok):
+    r = brain_scrubbing.scrub(content, **kwargs)
+    assert r["ok"] is expected_ok
 
 
 def test_blocklist_no_false_positive_on_unrelated_substring():

@@ -70,9 +70,7 @@ class TestRoleProfiles:
         with open(path, encoding="utf-8") as f:
             content = f.read()
         for skill in self.REQUIRED_SKILL_SECTIONS:
-            assert skill in content, (
-                f"Role '{role}' missing modifier for skill: {skill}"
-            )
+            assert skill in content, f"Role '{role}' missing modifier for skill: {skill}"
 
 
 # === Stack Guides ===
@@ -118,9 +116,7 @@ class TestBuiltinSkills:
         path = os.path.join(AGENTS_DIR, "skills", skill, "SKILL.md")
         with open(path, encoding="utf-8") as f:
             content = f.read()
-        assert content.startswith("---"), (
-            f"Built-in skill '{skill}' missing frontmatter"
-        )
+        assert content.startswith("---"), f"Built-in skill '{skill}' missing frontmatter"
         assert "context:" in content, f"Built-in skill '{skill}' missing context field"
         assert "effort:" in content, f"Built-in skill '{skill}' missing effort field"
 
@@ -174,9 +170,7 @@ class TestOfficialSkills:
         path = os.path.join(SKILLS_OFFICIAL_DIR, skill, "SKILL.md")
         with open(path, encoding="utf-8") as f:
             content = f.read()
-        assert content.startswith("---"), (
-            f"Official skill '{skill}' missing frontmatter"
-        )
+        assert content.startswith("---"), f"Official skill '{skill}' missing frontmatter"
         assert "context:" in content, f"Official skill '{skill}' missing context field"
         assert "effort:" in content, f"Official skill '{skill}' missing effort field"
 
@@ -314,17 +308,10 @@ class TestStackValidation:
 
 
 class TestBootstrapRolesStacks:
-    def test_copy_roles_function_exists(self):
-        sys.path.insert(0, BOOTSTRAP_DIR)
-        from bootstrap_copy import copy_roles
-
-        assert callable(copy_roles)
-
-    def test_copy_stacks_function_exists(self):
-        sys.path.insert(0, BOOTSTRAP_DIR)
-        from bootstrap_copy import copy_stacks
-
-        assert callable(copy_stacks)
+    # v1.4 (v14b-delete-smoke-tests): removed test_copy_roles_function_exists
+    # and test_copy_stacks_function_exists — they only `assert callable(X)`
+    # after a successful import. The behaviour tests below already exercise
+    # the functions, so the smoke methods added zero coverage.
 
     def test_copy_stacks_filters_by_detected(self, tmp_path):
         sys.path.insert(0, BOOTSTRAP_DIR)
