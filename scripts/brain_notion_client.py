@@ -104,6 +104,21 @@ class NotionClient:
 
     # --- Pages ---
 
+    # --- Users ---
+
+    def users_me(self) -> dict:
+        """Return the bot user attached to this integration token.
+
+        Lightweight probe used by `brain init` pre-flight: a 200 OK confirms
+        the token is valid and the integration is reachable. A 401 raises
+        NotionAuthError with the integration-config guidance, distinct from
+        "search returns 0 results" (which means the integration just hasn't
+        been shared with the BRAIN page).
+        """
+        return self._request("GET", "/users/me")
+
+    # --- Pages ---
+
     def pages_create(
         self,
         *,
@@ -236,9 +251,7 @@ class NotionClient:
             self._sleep(self._throttle - delta)
         self._last_write_at = self._clock()
 
-    def _build_request(
-        self, method: str, path: str, body: dict | None
-    ) -> urllib.request.Request:
+    def _build_request(self, method: str, path: str, body: dict | None) -> urllib.request.Request:
         url = f"{self._base}{path}"
         data = None
         if body is not None and method != "GET":
@@ -286,9 +299,7 @@ class NotionClient:
                     ) from e
                 if status == 429 or status >= 500:
                     if attempt >= self._max_retries:
-                        err_cls = (
-                            NotionRateLimitError if status == 429 else NotionServerError
-                        )
+                        err_cls = NotionRateLimitError if status == 429 else NotionServerError
                         err = err_cls(
                             f"Notion retries exhausted ({status})",
                             status=status,

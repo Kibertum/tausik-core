@@ -13,6 +13,9 @@ import sys
 
 import pytest
 
+# v14b-pytest-fast-lane: spawns the tausik-project MCP server.
+pytestmark = pytest.mark.slow
+
 SERVER = os.path.normpath(
     os.path.join(
         os.path.dirname(__file__),
@@ -61,9 +64,7 @@ def test_project_server_rejects_missing_dir(tmp_path):
     ), f"expected explicit stderr message, got: {res.stderr!r}"
 
 
-@pytest.mark.skipif(
-    not os.path.exists(CURSOR_SERVER), reason="cursor server.py not present"
-)
+@pytest.mark.skipif(not os.path.exists(CURSOR_SERVER), reason="cursor server.py not present")
 def test_cursor_project_server_rejects_missing_dir(tmp_path):
     """Same negative scenario for the cursor MCP server (parity)."""
     bogus = str(tmp_path / "does-not-exist-2")
@@ -103,7 +104,7 @@ def test_project_server_logs_traceback_on_exception():
     assert "traceback.format_exc()" in src, (
         "Project MCP server must print traceback on call_tool exceptions"
     )
-    assert 'print(' in src and 'file=sys.stderr' in src
+    assert "print(" in src and "file=sys.stderr" in src
 
 
 def test_cursor_project_server_logs_traceback_on_exception():
@@ -111,7 +112,7 @@ def test_cursor_project_server_logs_traceback_on_exception():
     src = open(CURSOR_SERVER, encoding="utf-8").read()
     assert "import traceback" in src
     assert "traceback.format_exc()" in src
-    assert 'file=sys.stderr' in src
+    assert "file=sys.stderr" in src
 
 
 def test_project_server_minimal_text_reply_on_exception():

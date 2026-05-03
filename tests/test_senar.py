@@ -69,9 +69,7 @@ class TestQG0NegativeScenario:
         svc.epic_add("e1", "E1")
         svc.story_add("e1", "s1", "S1")
         svc.task_add("s1", "t1", "T1", goal="Add button")
-        svc.task_update(
-            "t1", acceptance_criteria="1. Button is displayed. 2. Button is clickable."
-        )
+        svc.task_update("t1", acceptance_criteria="1. Button is displayed. 2. Button is clickable.")
         with pytest.raises(ServiceError, match="negative scenario"):
             svc.task_start("t1")
 
@@ -101,9 +99,7 @@ class TestQG0NegativeScenario:
         svc.epic_add("e1", "E1")
         svc.story_add("e1", "s1", "S1")
         svc.task_add("s1", "t1", "T1", goal="Форма")
-        svc.task_update(
-            "t1", acceptance_criteria="1. Форма работает. 2. Ошибка при пустом поле."
-        )
+        svc.task_update("t1", acceptance_criteria="1. Форма работает. 2. Ошибка при пустом поле.")
         msg = svc.task_start("t1")
         assert "started" in msg
 
@@ -116,9 +112,7 @@ class TestQG0NegativeScenario:
         svc.epic_add("e1", "E1")
         svc.story_add("e1", "s1", "S1")
         svc.task_add("s1", "t1", "T1", goal="Add feature")
-        svc.task_update(
-            "t1", acceptance_criteria="1. Works correctly. 2. No errors expected."
-        )
+        svc.task_update("t1", acceptance_criteria="1. Works correctly. 2. No errors expected.")
         with pytest.raises(ServiceError, match="negative scenario"):
             svc.task_start("t1")
 
@@ -127,9 +121,7 @@ class TestQG0NegativeScenario:
         svc.epic_add("e1", "E1")
         svc.story_add("e1", "s1", "S1")
         svc.task_add("s1", "t1", "T1", goal="Add feature")
-        svc.task_update(
-            "t1", acceptance_criteria="1. Renders. 2. No failures during render."
-        )
+        svc.task_update("t1", acceptance_criteria="1. Renders. 2. No failures during render.")
         with pytest.raises(ServiceError, match="negative scenario"):
             svc.task_start("t1")
 
@@ -172,10 +164,7 @@ class TestQG0NegativeScenario:
         from service_gates import has_negative_scenario
 
         assert (
-            has_negative_scenario(
-                "AC: 1. Works. 5. When backend returns 500, retry once."
-            )
-            is True
+            has_negative_scenario("AC: 1. Works. 5. When backend returns 500, retry once.") is True
         )
 
     def test_has_negative_scenario_unit_returns_false_for_negated(self):
@@ -210,9 +199,7 @@ class TestQG2ACVerification:
 
     def test_done_with_evidence_and_ac_verified_passes(self, seeded):
         seeded.task_start("t1")
-        seeded.task_log(
-            "t1", "AC verified: 1. POST /login returns 200 ✓ 2. Invalid return 401 ✓"
-        )
+        seeded.task_log("t1", "AC verified: 1. POST /login returns 200 ✓ 2. Invalid return 401 ✓")
         msg = seeded.task_done("t1", ac_verified=True)
         assert "completed" in msg
 
@@ -265,9 +252,7 @@ class TestSENARMetrics:
         )
         seeded.task_done("t1", ac_verified=True)
         # Create a defect task linked to t1
-        seeded.task_add(
-            "s1", "defect-1", "Defect of T1", defect_of="t1", goal="Fix bug"
-        )
+        seeded.task_add("s1", "defect-1", "Defect of T1", defect_of="t1", goal="Fix bug")
         seeded.task_update(
             "defect-1",
             acceptance_criteria="1. Bug is fixed. 2. Returns error on invalid input.",
@@ -400,9 +385,7 @@ class TestSessionDuration:
         # v1.3: warning is gated on ACTIVE minutes (gap-based from events table).
         # Backdate started_at AND seed events with sub-threshold gaps so the
         # active-minute sum exceeds the limit.
-        svc.be._ex(
-            "UPDATE sessions SET started_at='2020-01-01T00:00:00Z' WHERE ended_at IS NULL"
-        )
+        svc.be._ex("UPDATE sessions SET started_at='2020-01-01T00:00:00Z' WHERE ended_at IS NULL")
         # Seed 13 events at 5-min intervals → 12 gaps × 5 min = 60 min active
         # which exceeds max_minutes=30 below.
         for n in range(13):
@@ -447,9 +430,7 @@ class TestChecklistTier:
     def test_tier_auth_auto_high(self, svc):
         svc.epic_add("e1", "E1")
         svc.story_add("e1", "s1", "S1")
-        svc.task_add(
-            "s1", "t1", "Auth", goal="Add JWT authentication", role="developer"
-        )
+        svc.task_add("s1", "t1", "Auth", goal="Add JWT authentication", role="developer")
         svc.task_update(
             "t1",
             acceptance_criteria="1. JWT works. 2. Returns 401 on invalid.",
@@ -477,9 +458,7 @@ class TestChecklistTier:
         tier MUST be 'critical', not 'lightweight'."""
         svc.epic_add("e1", "E1")
         svc.story_add("e1", "s1", "S1")
-        svc.task_add(
-            "s1", "t1", "Fix typo", goal="Fix small typo in code", role="developer"
-        )
+        svc.task_add("s1", "t1", "Fix typo", goal="Fix small typo in code", role="developer")
         svc.task_update(
             "t1",
             acceptance_criteria="1. Typo fixed. 2. No regression in callers.",
@@ -489,26 +468,27 @@ class TestChecklistTier:
         # Without relevant_files (legacy call path): lightweight
         assert svc._determine_checklist_tier(task) == "lightweight"
         # With security-sensitive relevant_files: critical
-        assert (
-            svc._determine_checklist_tier(task, relevant_files=["scripts/auth.py"])
-            == "critical"
-        )
+        assert svc._determine_checklist_tier(task, relevant_files=["scripts/auth.py"]) == "critical"
 
-    def test_tier_simple_hooks_dir_critical(self, svc):
-        """scripts/hooks/* is also security-sensitive."""
+    def test_tier_simple_auth_path_critical(self, svc):
+        """Auth-surface files (e.g. /auth/, /oauth/) escalate to critical tier.
+
+        Pre-v14b-defect-qg2-security-substring-too-broad this test used
+        scripts/hooks/* — but the bare 'scripts/hooks/' substring was dropped
+        from _SECURITY_PATH_TOKENS because it false-positive on every TAUSIK
+        infra hook. The escalation contract still holds for genuine auth paths.
+        """
         svc.epic_add("e1", "E1")
         svc.story_add("e1", "s1", "S1")
-        svc.task_add("s1", "t1", "Hook tweak", goal="Adjust hook", role="developer")
+        svc.task_add("s1", "t1", "Auth tweak", goal="Adjust login flow", role="developer")
         svc.task_update(
             "t1",
-            acceptance_criteria="1. Hook fires. 2. No regressions in PreToolUse.",
+            acceptance_criteria="1. Login succeeds. 2. Session token rotates. 3. Failure on bad creds.",
             complexity="simple",
         )
         task = svc.task_show("t1")
         assert (
-            svc._determine_checklist_tier(
-                task, relevant_files=["scripts/hooks/bash_firewall.py"]
-            )
+            svc._determine_checklist_tier(task, relevant_files=["scripts/auth/login.py"])
             == "critical"
         )
 
@@ -524,9 +504,7 @@ class TestChecklistTier:
         )
         task = svc.task_show("t1")
         assert (
-            svc._determine_checklist_tier(
-                task, relevant_files=["README.md", "docs/intro.md"]
-            )
+            svc._determine_checklist_tier(task, relevant_files=["README.md", "docs/intro.md"])
             == "lightweight"
         )
 

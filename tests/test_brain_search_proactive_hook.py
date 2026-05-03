@@ -80,9 +80,7 @@ def _insert_web_cache(
     fetched_at: str | None = None,
 ) -> None:
     if fetched_at is None:
-        fetched_at = (
-            _dt.datetime.now(tz=_dt.timezone.utc).isoformat().replace("+00:00", "Z")
-        )
+        fetched_at = _dt.datetime.now(tz=_dt.timezone.utc).isoformat().replace("+00:00", "Z")
     conn = sqlite3.connect(str(path))
     try:
         conn.execute(
@@ -495,15 +493,19 @@ def test_empty_query_exits_zero(tmp_path):
 def test_bootstrap_generate_registers_brain_search_proactive():
     """AC9: hook must be wired into Claude's PreToolUse handlers. Cursor has
     no hook runtime — it uses .cursorrules text — so it's intentionally scoped
-    out."""
+    out.
+
+    The hooks dict was relocated to ``bootstrap_hooks.build_hooks_dict`` in
+    v14b-filesize-debt-paydown — same contract, different module.
+    """
     import inspect
 
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bootstrap"))
-    import bootstrap_generate  # noqa: E402
+    import bootstrap_hooks  # noqa: E402
 
-    claude_src = inspect.getsource(bootstrap_generate.generate_settings_claude)
-    assert "brain_search_proactive.py" in claude_src
-    assert "WebSearch" in claude_src and "WebFetch" in claude_src
+    hooks_src = inspect.getsource(bootstrap_hooks.build_hooks_dict)
+    assert "brain_search_proactive.py" in hooks_src
+    assert "WebSearch" in hooks_src and "WebFetch" in hooks_src
 
 
 # --- Fresh ISO variants parse correctly -----------------------------------

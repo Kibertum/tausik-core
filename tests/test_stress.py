@@ -10,10 +10,13 @@ import time
 
 import pytest
 
+# v14b-pytest-fast-lane: 1000 tasks / 100 sessions / bulk ops — by design heavy.
+pytestmark = pytest.mark.slow
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from project_backend import SQLiteBackend
-from project_service import ProjectService
+from project_backend import SQLiteBackend  # noqa: E402
+from project_service import ProjectService  # noqa: E402
 
 
 @pytest.fixture
@@ -32,8 +35,10 @@ class TestStressTasks:
             svc.story_add("stress-epic", f"story-{si:02d}", f"Story {si}")
             for ti in range(100):
                 svc.task_add(
-                    f"story-{si:02d}", f"task-{si:02d}-{ti:03d}",
-                    f"Task {si}.{ti}", goal=f"Goal for task {si}.{ti}",
+                    f"story-{si:02d}",
+                    f"task-{si:02d}-{ti:03d}",
+                    f"Task {si}.{ti}",
+                    goal=f"Goal for task {si}.{ti}",
                 )
         tasks = svc.task_list()
         assert len(tasks) == 1000
@@ -61,7 +66,9 @@ class TestStressTasks:
         for i in range(500):
             kw = keywords[i % len(keywords)]
             svc.task_add(
-                "search-story", f"s-{i:03d}", f"Task about {kw} #{i}",
+                "search-story",
+                f"s-{i:03d}",
+                f"Task about {kw} #{i}",
                 goal=f"Implement {kw} feature",
             )
         for kw in keywords:
@@ -79,9 +86,7 @@ class TestStressTasks:
                     svc.task_add(slug, f"rt-{ei}-{si}-{ti}", f"Road Task {ei}.{si}.{ti}")
         roadmap = svc.get_roadmap()
         assert len(roadmap) == 5
-        total_tasks = sum(
-            len(s["tasks"]) for e in roadmap for s in e["stories"]
-        )
+        total_tasks = sum(len(s["tasks"]) for e in roadmap for s in e["stories"])
         assert total_tasks == 200
 
 
@@ -98,11 +103,13 @@ class TestStressSessions:
         """Chain of 50 sessions with handoffs."""
         for i in range(50):
             svc.session_start()
-            svc.session_handoff({
-                "completed": [f"task-{i}"],
-                "next_steps": [f"task-{i+1}"],
-                "session": i,
-            })
+            svc.session_handoff(
+                {
+                    "completed": [f"task-{i}"],
+                    "next_steps": [f"task-{i + 1}"],
+                    "session": i,
+                }
+            )
             svc.session_end(f"Done session {i}")
         last = svc.session_last_handoff()
         assert last["session"] == 49

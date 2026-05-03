@@ -282,9 +282,7 @@ class TestFullMigrationPath:
         # Verify task_logs table exists
         tables = [
             r[0]
-            for r in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            ).fetchall()
+            for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         ]
         assert "task_logs" in tables
 
@@ -307,3 +305,51 @@ class TestFullMigrationPath:
         conn.commit()
         rows = conn.execute("SELECT * FROM task_logs WHERE task_slug='t1'").fetchall()
         assert len(rows) == 1
+
+    def test_migration_v24_adds_tool_name_and_posttool_source(self):
+        """Migration v24 extends usage_events with tool_name + posttool source value."""
+        conn = _create_v1_db()
+        run_migrations(conn, 1)
+
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(usage_events)").fetchall()]
+        assert "tool_name" in cols, "v24 must add tool_name column"
+
+        # source CHECK now allows 'posttool'
+        conn.execute("INSERT INTO sessions(started_at) VALUES('2026-05-03T10:00:00Z')")
+        sid = conn.execute("SELECT id FROM sessions ORDER BY id DESC LIMIT 1").fetchone()[0]
+        conn.execute(
+            "INSERT INTO usage_events("
+            "session_id, task_slug, model_id, tokens_input, tokens_output, "
+            "tokens_total, cost_usd, tool_calls, source, recorded_at, tool_name) "
+            "VALUES(?, NULL, 'claude-opus-4-7', 100, 50, 150, 0.0, 1, 'posttool', "
+            "'2026-05-03T10:30:00Z', 'Read')",
+            (sid,),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT source, tool_name FROM usage_events WHERE source='posttool'"
+        ).fetchone()
+        assert row == ("posttool", "Read")
+
+    def test_migration_v24_preserves_existing_usage_events(self):
+        """v24 rebuilds usage_events; existing rows must survive."""
+        conn = _create_v1_db()
+        # Run up to v23 first
+        run_migrations(conn, 1)
+        # Sanity: we now have v24 schema. Insert via legacy column shape (no
+        # tool_name) should still succeed because tool_name is nullable.
+        conn.execute("INSERT INTO sessions(started_at) VALUES('2026-05-03T10:00:00Z')")
+        sid = conn.execute("SELECT id FROM sessions ORDER BY id DESC LIMIT 1").fetchone()[0]
+        conn.execute(
+            "INSERT INTO usage_events("
+            "session_id, task_slug, model_id, tokens_input, tokens_output, "
+            "tokens_total, cost_usd, tool_calls, source, recorded_at) "
+            "VALUES(?, NULL, 'opus', 1, 1, 2, 0.0, 0, 'session_record', "
+            "'2026-05-03T10:30:00Z')",
+            (sid,),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT tool_name, source FROM usage_events WHERE source='session_record'"
+        ).fetchone()
+        assert row == (None, "session_record")

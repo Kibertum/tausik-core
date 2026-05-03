@@ -4,6 +4,19 @@
 
 > Машино-читаемый гайд: ошибка → диагноз → фикс.
 
+## Stale MCP-модули (тихие зависания)
+
+Симптом: `tausik_verify` или `tausik_task_done_v2` не возвращаются. CLI той же операции работает мгновенно. MCP-сервер исполняет stale Python-модули — обычно потому, что код service-слоя редактировался ПОСЛЕ старта IDE, а MCP-дочерний процесс не перезапустился. Несколько MCP project-серверов для одного проекта — тоже жёсткий признак (каждое прошлое IDE-окно оставляет один процесс).
+
+| Симптом | Диагноз | Фикс |
+|---|---|---|
+| MCP-инструмент висит > 60 с, тот же flow через CLI отрабатывает мгновенно | `tausik_self_check` скорее всего показывает `drift_detected=true` или `sibling_mcp_count > 0` — старые модули в памяти | Перезапусти IDE, чтобы MCP project-сервер пересоздался. Пока что — `.tausik/tausik` CLI. |
+| `/start` предупреждает `⚠ MCP Health` со списком stale-модулей | mtime watched-модуля стал больше времени старта MCP | Перезапусти IDE; повтори `/start`. |
+| `sibling_mcp_count > 0` | Несколько MCP project-серверов на одном проекте (window leak) | Закрой stale IDE-окна, затем `Get-Process python` (Windows) / `pgrep -f mcp/project/server.py` (POSIX), убей старые PID'ы. |
+| `tausik_self_check` возвращает `error: self_check unavailable` | Запущенный MCP-сервер старше этой диагностики (предшествует v1.4 polish) | Перезапусти IDE — на новом старте инструмент уже зарегистрируется. |
+
+Сопутствующие gotchas в `.tausik/tausik.db`: #77 (verify висит после правки `service_verification.py`/`gate_runner.py`), #79 (`task_done_v2` виснет на большом evidence), #80 (root cause = stale-модули + параллельные MCP-серверы). Envelope timeout (60 с, `verify_pipeline_timeout_seconds`) Verify-First Contract'а ловит новые серверы; старые загрузили свой код ДО появления envelope и игнорируют его.
+
 ## Bootstrap
 
 | Симптом | Диагноз | Фикс |

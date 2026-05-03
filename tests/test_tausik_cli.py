@@ -6,6 +6,9 @@ import sys
 
 import pytest
 
+# v14b-pytest-fast-lane: smoke tests spawn the project CLI per assertion.
+pytestmark = pytest.mark.slow
+
 SCRIPTS_DIR = os.path.join(os.path.dirname(__file__), "..", "scripts")
 PROJECT_PY = os.path.join(SCRIPTS_DIR, "project.py")
 
@@ -34,9 +37,7 @@ def tausik_env(tmp_path):
     return tmp_path, env
 
 
-def run_cli(
-    args: list[str], env: dict, cwd: str | None = None
-) -> subprocess.CompletedProcess:
+def run_cli(args: list[str], env: dict, cwd: str | None = None) -> subprocess.CompletedProcess:
     """Run project.py with args, return completed process."""
     cmd = [sys.executable, PROJECT_PY] + args
     return subprocess.run(
@@ -195,9 +196,7 @@ class TestTaskCLI:
             env,
             str(cwd),
         )
-        run_cli(
-            ["task", "update", "t1", "--acceptance-criteria", "1. Works"], env, str(cwd)
-        )
+        run_cli(["task", "update", "t1", "--acceptance-criteria", "1. Works"], env, str(cwd))
         run_cli(["task", "start", "t1"], env, str(cwd))
 
         r = run_cli(["task", "block", "t1", "--reason", "Waiting"], env, str(cwd))
@@ -331,12 +330,7 @@ class TestTeam:
         r = run_cli(["team"], env, str(cwd))
         assert r.returncode == 0
         out = r.stdout.lower()
-        assert (
-            "active" in out
-            or "no active" in out
-            or "no claimed" in out
-            or "tasks" in out
-        )
+        assert "active" in out or "no active" in out or "no claimed" in out or "tasks" in out
 
 
 class TestRoadmap:
@@ -345,9 +339,7 @@ class TestRoadmap:
         r = run_cli(["roadmap"], env, str(cwd))
         assert r.returncode == 0
         assert (
-            "e1" in r.stdout.lower()
-            or "epic" in r.stdout.lower()
-            or "no epic" in r.stdout.lower()
+            "e1" in r.stdout.lower() or "epic" in r.stdout.lower() or "no epic" in r.stdout.lower()
         )
 
     def test_roadmap_include_done(self, project_env):
@@ -362,12 +354,7 @@ class TestMetrics:
         r = run_cli(["metrics"], env, str(cwd))
         assert r.returncode == 0
         out = r.stdout
-        assert (
-            "Tasks:" in out
-            or "tasks:" in out.lower()
-            or "Throughput" in out
-            or "FPSR" in out
-        )
+        assert "Tasks:" in out or "tasks:" in out.lower() or "Throughput" in out or "FPSR" in out
 
 
 class TestDeadEnd:

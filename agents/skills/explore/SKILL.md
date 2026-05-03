@@ -1,6 +1,6 @@
 ---
 name: explore
-description: "SENAR exploration — time-bounded investigation before committing to a task. Use when user says 'explore', 'investigate', 'research', 'spike', or when facing an unfamiliar domain."
+description: "Time-boxed SENAR investigation before a task."
 context: fork
 effort: medium
 ---
@@ -24,9 +24,10 @@ Investigation without full task formality.
    - What we hope to learn
 
 3. **Investigate:**
-   - Read code, documentation, external resources
-   - Try small experiments (do NOT write production code)
-   - Document findings as you go in conversation
+   - **Locate code via `mcp__codebase-rag__search_code` first** — it returns ranked chunks, not full files, and is the cheapest way to find symbols/patterns. Use `Grep` only for known file paths or when RAG is empty/stale; use `Read` only when you already have an exact path.
+   - Skim the chunks RAG returns, then `Read` the specific files that look relevant.
+   - Try small experiments (do NOT write production code).
+   - Document findings as you go in conversation.
 
 4. **Check time periodically** via `tausik_explore_current` MCP tool. If over time limit — wrap up immediately.
 

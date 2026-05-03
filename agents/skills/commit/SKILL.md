@@ -1,6 +1,6 @@
 ---
 name: commit
-description: "Create a standardized git commit. Use when user says 'commit', 'save changes', 'git commit'."
+description: "Create a standardized git commit."
 effort: fast
 context: inline
 ---

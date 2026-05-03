@@ -1,6 +1,6 @@
 ---
 name: checkpoint
-description: "Save context snapshot without ending session. Updates CLAUDE.md and records handoff. Use when user says 'checkpoint', 'save progress', 'save context', or proactively after significant work."
+description: "Save session snapshot — handoff + CLAUDE.md update."
 effort: fast
 context: inline
 ---
@@ -20,8 +20,13 @@ Run in parallel (prefer MCP tools, CLI as fallback):
 - `tausik_session_current` MCP tool
 - `tausik_task_list` MCP tool with status=active
 - `tausik_status` MCP tool
-- `tausik_memory_block` MCP tool — re-inject decisions/conventions/dead ends to refresh context before continuing
 - `git branch --show-current`
+
+> **T1.6 (token-tier1):** memory_block is intentionally NOT re-injected on
+> `/checkpoint`. The block was already loaded on `/start` and lives in the
+> conversation context. Repeating it on every checkpoint burns ~600 tokens
+> per call without adding new information. Use `tausik_memory_search` if you
+> need a targeted lookup mid-session.
 
 **SENAR Rule 9.2:** If `status` shows a session duration warning — tell the user prominently:
 > "Session has been running for X min (limit: Y min). Consider wrapping up with /end."

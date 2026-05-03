@@ -103,14 +103,14 @@ the Backend handles only CRUD and SQL. CLI and MCP are two equal entry points.
 | `agents/claude/mcp/project/handlers.py` | Dispatch: tool name -> service method |
 | `agents/claude/mcp/project/handlers_skill.py` | Skill + maintenance handlers (split) |
 
-Total MCP surface: **92 project tools + 7 brain tools = 99** (optional `codebase-rag` adds 7 more; not part of the main count).
+Total MCP surface: **93 project tools + 7 brain tools = 100** (optional `codebase-rag` adds 7 more; not part of the main count).
 
 ### Cross-IDE Support
 
 Skills, roles, stacks -- shared across IDEs. MCP servers are IDE-specific:
 ```
 agents/
-+-- skills/           # 13 core (auto-deployed) + 25+ in skills-official/ (on demand)
++-- skills/           # 12 core auto-deployed + brain conditional + 25+ in skills-official/ (opt-in via --include-official)
 +-- roles/            # 5 roles (developer, architect, qa, tech-writer, ui-ux)
 +-- stacks/           # Stack guides
 +-- overrides/        # IDE-specific overrides (claude/, cursor/, qwen/)

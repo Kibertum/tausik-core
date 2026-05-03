@@ -165,6 +165,17 @@ class TaskMixin(GatesMixin, CascadeMixin):
         msgs.extend(qg0_warnings)
         if capacity_audit:
             msgs.append(f"⚠ {capacity_audit}")
+        try:
+            from project_config import is_task_start_model_banner_enabled
+
+            if is_task_start_model_banner_enabled():
+                from model_routing import format_task_start_banner
+
+                msgs.append(format_task_start_banner(task.get("complexity")))
+        except Exception:
+            # Banner is informational; never block task_start on transcript IO,
+            # config parse, or import errors.
+            pass
         return "\n".join(msgs) if len(msgs) > 1 else msgs[0]
 
     def task_done(

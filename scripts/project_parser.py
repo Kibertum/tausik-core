@@ -346,6 +346,20 @@ def build_parser() -> argparse.ArgumentParser:
     ev_p.add_argument("--id", default=None, dest="entity_id", help="Filter by entity ID/slug")
     ev_p.add_argument("--limit", type=int, default=50)
 
+    # --- db (v14b-junk-audit-pass: backup hygiene) ---
+    db_p = sub.add_parser("db", help="Database hygiene helpers")
+    db_sub = db_p.add_subparsers(dest="db_cmd")
+    db_prune = db_sub.add_parser(
+        "prune",
+        help="Delete oldest .tausik/tausik.db.bak.* files keeping the most recent N",
+    )
+    db_prune.add_argument(
+        "--keep",
+        type=int,
+        default=3,
+        help="Number of most-recent backups to keep (default: 3, 0 = delete all)",
+    )
+
     # --- SENAR ops subparsers (delegated) ---
     from project_parser_ops import (
         add_audit,

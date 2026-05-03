@@ -1,6 +1,6 @@
 ---
 name: debug
-description: "Debug and fix issues — reproduce, isolate root cause, fix. Use when user says 'debug', 'fix bug', 'investigate error', 'why is this broken', 'not working'."
+description: "Debug a bug — reproduce, isolate root cause, fix."
 context: fork
 effort: medium
 ---
@@ -100,6 +100,14 @@ After: {fixed code}
 - Minimal fixes only — don't refactor while debugging
 - Save gotchas: `.tausik/tausik memory add gotcha "{title}" "{description}"` for non-obvious bugs
 - Log if task active: `.tausik/tausik task log {slug} "Debug: root cause — {description}, fix applied"`
+
+## Code search hierarchy
+
+When tracking the bug across files, prefer the cheapest tool that fits:
+
+1. **`mcp__codebase-rag__search_code`** — first choice for symbols, error messages, patterns, "where is X used". Returns ranked chunks, not full files. Cheapest token-wise.
+2. **`Grep`** — only when you already know which file(s) to search in, or when RAG is empty/stale.
+3. **`Read`** — only when you have an exact path. Don't `Read` unfamiliar code — use `search_code` first to locate the relevant chunks.
 
 ## Gotchas
 

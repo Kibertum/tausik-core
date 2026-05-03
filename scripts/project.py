@@ -55,6 +55,7 @@ def main() -> None:
         cmd_search,
         cmd_suggest_model,
     )
+    from cmd_db import cmd_db
     from project_cli_review import cmd_review
     from project_config import get_service
     from project_parser import build_parser
@@ -100,6 +101,7 @@ def main() -> None:
         "run": cmd_run,
         "review": cmd_review,
         "hygiene": cmd_hygiene,
+        "db": cmd_db,
     }
 
     if args.command == "doctor":

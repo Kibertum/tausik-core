@@ -2,9 +2,9 @@
 
 # TAUSIK MCP — Tool Reference (v1.4)
 
-**99 tools** for AI agents (92 project + 7 brain; v1.4 actual count, asserted via `len(TOOLS)` on both servers). The MCP surface mirrors the CLI 1:1 with zero CLI-only gaps. Prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
+**100 tools** for AI agents (93 project + 7 brain; v1.4 actual count, asserted via `len(TOOLS)` on both servers). The MCP surface mirrors the CLI 1:1 with zero CLI-only gaps. Prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
 
-> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 99 count — total with it is 106 tools.
+> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 100 count — total with it is 107 tools.
 
 Two MCP servers live in this project:
 
@@ -33,6 +33,7 @@ tausik_task_done(slug=…, ac_verified=True)   # lightweight: cache lookup
 | Tool | Description | Required Parameters |
 |---|---|---|
 | `tausik_health` | Health check: version, DB, tables | — |
+| `tausik_self_check` | MCP-server freshness: startup time, watched-module mtime snapshot vs current on-disk mtimes, `drift_detected` flag, stale modules with `delta_seconds`, sibling MCP project server count. Call from `/start` to catch silent-hang precursors (gotchas #77/#79/#80). | — |
 | `tausik_status` | Project overview: tasks, session, epics. Optional `compact: true` → one-line JSON (default text unchanged). | `compact` (optional) |
 | `tausik_doctor` | 4-group health (venv + DB + MCP + skills + drift) | — |
 | `tausik_metrics` | SENAR metrics: Throughput, FPSR, DER, Dead End Rate, Cost/Task | — |

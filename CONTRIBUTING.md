@@ -59,7 +59,7 @@ ruff format scripts/
 ```
 scripts/          # Core framework (CLI → Service → Backend)
 bootstrap/        # Installation and IDE setup
-agents/skills/    # 13 core skills (always deployed) + 25+ official/vendor available via tausik skill install
+agents/skills/    # 12 core auto-deployed (+ /brain conditional on Notion config) + 25+ official/vendor opt-in (--include-official or tausik skill install)
 agents/overrides/ # IDE-specific overrides
 tests/            # pytest test suite (2590 tests)
 docs/             # User-facing + technical documentation (was references/)

@@ -1,6 +1,6 @@
 ---
 name: test
-description: "Run or write tests. Use when user says 'run tests', 'write tests', 'test coverage', 'add tests', 'test this'. Args: [file|directory|function]"
+description: "Run or write tests for a file/dir/function."
 effort: medium
 context: inline
 ---

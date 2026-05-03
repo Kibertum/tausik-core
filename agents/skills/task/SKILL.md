@@ -1,6 +1,6 @@
 ---
 name: task
-description: "Work on task from project DB. Tracks progress via plan steps. Args: [task-slug|done|list|step N]. Use when user says 'task', 'work on', 'take task', 'task done'."
+description: "Work on a task from project DB; track plan steps."
 effort: fast
 context: inline
 ---
@@ -155,6 +155,14 @@ Prefer MCP tools over CLI bash calls. Exact parameter names:
 
 After approximately 45 tool calls during a task, remind the user:
 "Consider `/checkpoint` to save context — SENAR recommends checkpoints every 30-50 tool calls."
+
+## Code search hierarchy
+
+When investigating code for a task, prefer the cheapest tool that fits:
+
+1. **`mcp__codebase-rag__search_code`** — first choice for symbols, patterns, "where is X used", "how does Y work". Returns ranked chunks, not full files. Cheapest token-wise.
+2. **`Grep`** — only when you already know which file(s) to search in, or when RAG is empty/stale.
+3. **`Read`** — only when you have an exact path. Don't `Read` unfamiliar code — use `search_code` first to locate the relevant chunks.
 
 ## Gotchas
 

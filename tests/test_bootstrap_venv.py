@@ -5,9 +5,14 @@ from __future__ import annotations
 import os
 import sys
 
+import pytest
+
+# v14b-pytest-fast-lane: real venv creation + pip install — ~9s per test.
+pytestmark = pytest.mark.slow
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bootstrap"))
 
-from bootstrap_venv import (
+from bootstrap_venv import (  # noqa: E402
     MIN_PYTHON,
     _check_version,
     find_python,

@@ -54,6 +54,13 @@ def main():
     from handlers import handle_tool
     from tools import TOOLS
 
+    # v14b-mcp-stale-module-detector: eager-import the self-check module so
+    # its startup snapshot of watched-module mtimes runs BEFORE the JSON-RPC
+    # loop accepts tool calls. `tausik_self_check` later compares this
+    # baseline against current on-disk mtimes to detect stale-module hangs
+    # (gotchas #77 / #79 / #80).
+    import self_check  # noqa: F401
+
     server = Server("tausik-project")
     svc = _get_service(args.project)
 
@@ -88,9 +95,7 @@ def main():
 
     async def _run():
         async with stdio_server() as (read_stream, write_stream):
-            await server.run(
-                read_stream, write_stream, server.create_initialization_options()
-            )
+            await server.run(read_stream, write_stream, server.create_initialization_options())
 
     asyncio.run(_run())
 

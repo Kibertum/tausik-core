@@ -16,6 +16,9 @@ import sys
 
 import pytest
 
+# v14b-pytest-fast-lane: every test here spawns the bootstrap process — ~36-86s each.
+pytestmark = pytest.mark.slow
+
 _repo_root = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
 _bootstrap = os.path.join(_repo_root, "bootstrap", "bootstrap.py")
 _builtin_skills_dir = os.path.join(_repo_root, "agents", "skills")

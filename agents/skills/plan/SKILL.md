@@ -1,6 +1,6 @@
 ---
 name: plan
-description: "Plan a new task with complexity scoring and stack detection. Args: [task-description]. Use when user says 'plan', 'create task', 'break down', 'estimate'."
+description: "Plan a task — complexity + stack detection."
 effort: medium
 context: inline
 ---

@@ -1,6 +1,6 @@
 ---
 name: brain
-description: "Query, store, or inspect cross-project knowledge in the Shared Brain (Notion + local SQLite mirror). Use when user says '/brain', 'brain query', 'brain store', 'brain show', 'check the brain', or wants to search/save knowledge across projects."
+description: "Query/store cross-project knowledge in Shared Brain."
 effort: fast
 context: inline
 ---

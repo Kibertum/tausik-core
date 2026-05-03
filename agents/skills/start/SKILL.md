@@ -1,6 +1,6 @@
 ---
 name: start
-description: "Start development session. Loads project status, checks DB, updates CLAUDE.md. Use when user says 'start', 'begin session', 'start work'."
+description: "Start session — load status, DB, CLAUDE.md."
 effort: fast
 context: inline
 ---
@@ -25,6 +25,7 @@ Run in parallel (prefer MCP tools, CLI as fallback):
 - `tausik_explore_current` MCP tool
 - `tausik_audit_check` MCP tool
 - `tausik_memory_block` MCP tool — decisions + conventions + recent dead ends (re-inject project memory to prevent drift between sessions)
+- `tausik_self_check` MCP tool — verify the running MCP project server is fresh (no stale modules) before any heavy tool call. **If `drift_detected=true` OR `sibling_mcp_count > 0`** stop the parallel batch from being trusted further: warn the user prominently and recommend an IDE restart. See gotchas #77/#79/#80 for the silent-hang failure mode this guards against.
 
 ### Phase 1.5 — Brain primer (cross-project knowledge)
 
@@ -63,22 +64,31 @@ Use `tausik_update_claudemd` MCP tool to refresh the dynamic section.
 
 Show the user a summary:
 1. Session number and status
-2. **SENAR metrics** from previous work: Throughput, FPSR, DER (if data exists)
-3. **Session duration warning** — if `status` shows a warning, highlight it prominently
-4. Handoff highlights (if last-handoff has data): what was done, what's blocked, next steps
-5. **Dead ends from handoff** — so we don't repeat failed approaches
-6. Active tasks (with slugs and titles)
-7. Blocked tasks (with blockers)
-8. Planning tasks available to pick up
-9. **Open exploration** (if any) — warn that it should be ended or continued
-10. **Audit status** — if audit is overdue, suggest running `/review` as quality sweep
-11. **Memory block** — mention that decisions/conventions/dead ends are loaded; keep them in mind for this session
-12. Suggested next action
+2. **MCP Health** — if `tausik_self_check` returned `drift_detected=true` or `sibling_mcp_count > 0`, render a top-of-dashboard `⚠ MCP Health` block: list stale modules with their `delta_seconds`, list sibling PIDs, and recommend `Restart your IDE before continuing` + `Use .tausik/tausik CLI for verify/task done until then`. If clean, render a single OK line or omit the section.
+3. **SENAR metrics** from previous work: Throughput, FPSR, DER (if data exists)
+4. **Session duration warning** — if `status` shows a warning, highlight it prominently
+5. Handoff highlights (if last-handoff has data): what was done, what's blocked, next steps
+6. **Dead ends from handoff** — so we don't repeat failed approaches
+7. Active tasks (with slugs and titles)
+8. Blocked tasks (with blockers)
+9. Planning tasks available to pick up
+10. **Open exploration** (if any) — warn that it should be ended or continued
+11. **Audit status** — if audit is overdue, suggest running `/review` as quality sweep
+12. **Memory block** — mention that decisions/conventions/dead ends are loaded; keep them in mind for this session
+13. Suggested next action
 
 **If open exploration exists:** Suggest ending it with `/explore end` or continuing it.
 **If no tasks exist:** Suggest using `/plan` to create the first task.
 **If active tasks exist:** Suggest `/task <slug>` to resume.
 **If blocked tasks exist:** Suggest investigating blockers first.
+
+## Code search hierarchy
+
+When you need to locate code during this session, prefer the cheapest tool that fits:
+
+1. **`mcp__codebase-rag__search_code`** — first choice for symbols, patterns, "where is X used", "how does Y work". Returns ranked chunks, not full files. Cheapest token-wise.
+2. **`Grep`** — only when you already know which file(s) to search in, or when RAG is empty/stale.
+3. **`Read`** — only when you have an exact path. Don't `Read` unfamiliar code — use `search_code` first to locate the relevant chunks.
 
 ## Gotchas
 

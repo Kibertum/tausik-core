@@ -48,7 +48,11 @@ class TestGoSkill:
 class TestClaudeMd:
     def test_has_agent_native_estimation_section(self):
         text = _read("CLAUDE.md")
-        assert "Agent-native estimation" in text
+        # The 4096B static cap trim moved the full estimation contract to
+        # docs/ru/agent-contract.md. CLAUDE.md must still expose the keyword
+        # plus the pointer so the agent can reach the contract.
+        assert "estimation" in text.lower()
+        assert "agent-contract" in text.lower()
 
     def test_section_mentions_tool_calls(self):
         text = _read("CLAUDE.md").lower()

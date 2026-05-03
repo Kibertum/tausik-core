@@ -11,6 +11,11 @@ import os
 import subprocess
 from pathlib import Path
 
+import pytest
+
+# v14b-pytest-fast-lane: every assertion spawns the tausik CLI subprocess.
+pytestmark = pytest.mark.slow
+
 REPO = Path(__file__).resolve().parents[1]
 PYTHON = REPO / ".tausik" / "venv" / "Scripts" / "python.exe"
 if not PYTHON.is_file():

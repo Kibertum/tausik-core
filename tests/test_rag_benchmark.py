@@ -1,6 +1,8 @@
 """Benchmark: FTS5 RAG store under load.
 
 Run: pytest tests/test_rag_benchmark.py -v -s
+
+v14b-pytest-fast-lane: by definition a benchmark — slow lane.
 """
 
 from __future__ import annotations
@@ -8,6 +10,10 @@ from __future__ import annotations
 import os
 import sys
 import time
+
+import pytest
+
+pytestmark = pytest.mark.slow
 
 
 # Add RAG module to path
@@ -21,8 +27,9 @@ def _make_chunks(file_idx: int, chunks_per_file: int = 5) -> list[dict]:
     """Generate realistic code chunks."""
     chunks = []
     for i in range(chunks_per_file):
-        chunks.append({
-            "content": f"""def function_{file_idx}_{i}(arg1, arg2):
+        chunks.append(
+            {
+                "content": f"""def function_{file_idx}_{i}(arg1, arg2):
     \"\"\"Process data for module {file_idx}.\"\"\"
     result = arg1 + arg2
     if result > 100:
@@ -35,12 +42,13 @@ class Handler_{file_idx}_{i}:
     def process(self, data):
         return self.state.get(data, None)
 """,
-            "chunk_index": i,
-            "language": "python",
-            "start_line": i * 15 + 1,
-            "end_line": (i + 1) * 15,
-            "chunk_type": "code",
-        })
+                "chunk_index": i,
+                "language": "python",
+                "start_line": i * 15 + 1,
+                "end_line": (i + 1) * 15,
+                "chunk_type": "code",
+            }
+        )
     return chunks
 
 
@@ -63,11 +71,19 @@ class TestFTS5Benchmark:
         assert status["total_chunks"] == num_files * chunks_per_file
         assert status["total_files"] == num_files
 
-        print(f"\n  FTS5 index: {num_files} files, {num_files * chunks_per_file} chunks in {index_time:.2f}s")
+        print(
+            f"\n  FTS5 index: {num_files} files, {num_files * chunks_per_file} chunks in {index_time:.2f}s"
+        )
         print(f"  Rate: {num_files / index_time:.0f} files/sec")
 
         # Search benchmark
-        queries = ["function process", "Handler state", "ValueError Overflow", "result module", "arg1 arg2"]
+        queries = [
+            "function process",
+            "Handler state",
+            "ValueError Overflow",
+            "result module",
+            "arg1 arg2",
+        ]
         t0 = time.time()
         total_results = 0
         iterations = 100
@@ -116,5 +132,3 @@ class TestFTS5Benchmark:
         print(f"\n  FTS5 concurrent upsert+search: 100 upserts + 200 searches in {elapsed:.2f}s")
         assert elapsed < 15, f"Too slow: {elapsed:.1f}s > 15s"
         store.close()
-
-

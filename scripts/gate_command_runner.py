@@ -1,0 +1,102 @@
+"""Command-gate executor — substitutes placeholders + runs subprocess.
+
+Extracted from gate_runner.py for filesize compliance
+(v14b-filesize-debt-paydown). Public surface:
+
+    _SCOPED_SKIP_SENTINEL — return marker for skipped scoped runs
+    run_command_gate(gate, files) -> (passed, output)
+
+Behaviour is identical to the previous in-place implementation; gate_runner
+re-exports both names for backwards compatibility with existing callers
+(no import changes required elsewhere).
+"""
+
+from __future__ import annotations
+
+import os
+import shlex
+import subprocess
+
+from gate_test_resolver import resolve_test_files_for_relevant
+
+
+_SCOPED_SKIP_SENTINEL = "__TAUSIK_SCOPED_SKIP__"
+
+
+def run_command_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
+    """Run a command-based gate. Substitutes {files} / {test_files_for_files}.
+
+    Special return: (True, _SCOPED_SKIP_SENTINEL) when {test_files_for_files}
+    is in cmd and no test files map from a non-empty relevant_files. The
+    caller (run_gates) translates this into a skipped_result entry so the
+    UI shows SKIP, not PASS, and we don't run an irrelevant full suite.
+    """
+    cmd = gate.get("command", "")
+    if not cmd:
+        return True, "No command configured."
+
+    file_exts_raw = gate.get("file_extensions") or []
+    if file_exts_raw and "{files}" in cmd:
+        allowed = {(e if e.startswith(".") else "." + e).lower() for e in file_exts_raw}
+        files = [f for f in files if os.path.splitext(f)[1].lower() in allowed]
+        if not files:
+            return True, ("No files matching " + ", ".join(sorted(allowed)) + " — gate skipped.")
+
+    if "{test_files_for_files}" in cmd:
+        test_files = resolve_test_files_for_relevant(files)
+        # Scoped-only semantics:
+        #   - relevant_files non-empty + no test mapping → SKIP (scoped run for
+        #     a module without test_<basename>.py — running the full suite for
+        #     an unrelated module defeats the scoping promise).
+        #   - relevant_files empty → SKIP (was: fall back to full suite).
+        #     MCP task_done has a 10s budget; the suite always exceeds it and
+        #     burns budget for zero verification value. Forces callers to pass
+        #     relevant_files to opt in to actual verification.
+        if not test_files:
+            return True, _SCOPED_SKIP_SENTINEL
+        test_files_str = " ".join(shlex.quote(t) for t in test_files)
+        cmd = cmd.replace("{test_files_for_files}", test_files_str)
+
+    files_str = " ".join(shlex.quote(f) for f in files) if files else "."
+    cmd = cmd.replace("{files}", files_str)
+    # v14b-pytest-fast-lane: TAUSIK_VERIFY_FULL=1 reverts the default fast lane
+    # (pyproject.toml addopts="-m 'not slow'") and runs the full battery —
+    # subprocess/integration/e2e/stress tests included. Only applies to pytest.
+    if os.environ.get("TAUSIK_VERIFY_FULL") and cmd.lstrip().startswith("pytest"):
+        head, _, tail = cmd.partition(" ")
+        cmd = (
+            f"{head} --override-ini=addopts= {tail}" if tail else f"{head} --override-ini=addopts="
+        )
+    # Detect shell operators -- need shell=True for pipes and redirects
+    needs_shell = any(op in cmd for op in ("|", "&&", ">>", "2>&1"))
+    timeout = gate.get("timeout", 120)
+    try:
+        if needs_shell:
+            result = subprocess.run(
+                cmd,
+                shell=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout,
+                stdin=subprocess.DEVNULL,
+            )
+        else:
+            result = subprocess.run(
+                shlex.split(cmd),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout,
+                stdin=subprocess.DEVNULL,
+            )
+        output = (result.stdout + result.stderr).strip()
+        if result.returncode == 0:
+            return True, output or "Passed."
+        return False, output or f"Failed with exit code {result.returncode}."
+    except subprocess.TimeoutExpired:
+        return False, f"Gate timed out ({timeout}s)."
+    except Exception as e:
+        return False, f"Gate error: {e}"

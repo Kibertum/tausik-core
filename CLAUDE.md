@@ -61,12 +61,11 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 
 ## Reference
 
-Расширенный контракт (estimation, SENAR matrix, roles, custom stacks, QG-2 mechanics): `docs/ru/agent-contract.md`. CLI: `docs/ru/cli.md`. Архитектура: `docs/ru/architecture.md`. Quickstart: `docs/ru/quickstart.md`. Changelog: `CHANGELOG.md`.
+Полный контракт (estimation, SENAR matrix, roles, custom_stacks, QG-2): `docs/ru/agent-contract.md`. CLI: `docs/ru/cli.md`. Архитектура: `docs/ru/architecture.md`. Quickstart: `docs/ru/quickstart.md`. Changelog: `CHANGELOG.md`.
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: none | Branch: main | Version: 1.4.0
-Tasks: 625/646 done, 1 active, 1 blocked
-Active: v14b-claudemd-trim
-Blocked: v14b-skill-core-cleanup
+Session: #50 (active) | Branch: main | Version: 1.4.0
+Tasks: 644/667 done, 0 active, 1 blocked
+Blocked: v14b-skill-bundles-marketplace
 <!-- DYNAMIC:END -->

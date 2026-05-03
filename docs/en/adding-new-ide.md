@@ -73,7 +73,7 @@ In `tests/test_ide_utils.py` add tests for the new IDE.
 
 ```
 agents/
-├── skills/          # 13 core skills (auto-deployed) + 25 vendor (on demand)
+├── skills/          # 12 core auto-deployed (+ /brain conditional) + 25 vendor opt-in (--include-official)
 ├── roles/           # roles (all IDEs)
 ├── stacks/          # stacks (all IDEs)
 ├── overrides/       # IDE-specific override files

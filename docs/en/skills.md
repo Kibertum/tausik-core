@@ -4,13 +4,15 @@
 
 Skills are intent-based instructions that define agent behaviour. You don't memorize names or syntax — you write what you want, and the agent picks the right skill. Slash-prefix (`/plan`, `/ship`) explicitly invokes one.
 
-After bootstrap, **13 core skills** ship with TAUSIK from `agents/skills/`. Additional **vendor / official skills** (25+) are available via `tausik skill install <name>` from the `tausik-skills` repo (or the bundled `skills-official/` directory). **Map of repo skills:** [Skill ecosystem (one page)](skill-ecosystem.md).
+After bootstrap, **12 core skills** ship with TAUSIK from `agents/skills/` (plus `/brain` *conditionally* when the project has Notion configured — see [Shared Brain](shared-brain.md)). Additional **official / vendor skills** (25+) are available on demand: install per-skill via `tausik skill install <name>`, or expand the whole bundle via `python .tausik-lib/bootstrap/bootstrap.py --include-official` (alias: `--include-vendor`). **Map of repo skills:** [Skill ecosystem (one page)](skill-ecosystem.md).
+
+> **v1.4.x default change.** Before v1.4.x bootstrap auto-deployed all 38 source + registry skills (~1,520 tok in the system-reminder list). v1.4.x ships 12 + brain conditional (~480 tok) by default — saving ~1,040 tokens per turn. Re-run bootstrap with `--include-official` if you want the full set surfaced to the agent.
 
 **Multi-host variants:** skills can ship optional **`variants/<profile>.md`** overlays — see [Skill profiles & variants](skill-profiles.md).
 
-## Core Skills (13)
+## Core Skills (12 + brain conditional)
 
-These are always available after bootstrap — the workflow primitives every TAUSIK project needs.
+These are always available after bootstrap — the workflow primitives every TAUSIK project needs. `/brain` is the 13th core skill but only deployed when `tausik brain init` has set up Notion config (so projects that never use the shared brain don't pay its token cost).
 
 ### Workflow
 
@@ -28,7 +30,7 @@ These are always available after bootstrap — the workflow primitives every TAU
 
 | Skill | When |
 |-------|------|
-| `/brain` | Query/store cross-project knowledge in the Shared Brain (Notion + local mirror) — v1.3 headline feature |
+| `/brain` *(conditional)* | Query/store cross-project knowledge in the Shared Brain (Notion + local mirror). Deployed only when `tausik brain init` has populated `brain.notion_db_ids` in `.tausik/config.json`. |
 | `/explore` | Time-boxed investigation (default 30 min) before committing to an approach |
 | `/interview` | Socratic Q&A — at most 3 questions to pin down requirements |
 
@@ -40,9 +42,12 @@ These are always available after bootstrap — the workflow primitives every TAU
 | `/test` | Run or write tests, track coverage |
 | `/debug` | Reproduce → isolate root cause → fix |
 
-## Vendor / Official Skills (25+)
+## Official / Vendor Skills (25+)
 
-Not auto-deployed — install on demand. Lives in `skills-official/` (bundled) and the `tausik-skills` repo (external). Use `tausik skill install <name>` to add, `tausik skill activate <name>` to enable.
+Not auto-deployed by default. Two ways to surface them:
+
+- **Per-skill (recommended).** `tausik skill install <name>` from `skills-official/` or the `tausik-skills` repo, then `tausik skill activate <name>`. Adds only what you ask for to the system-reminder list.
+- **Whole bundle.** Re-run `python .tausik-lib/bootstrap/bootstrap.py --include-official` (alias: `--include-vendor`). Generates lightweight stubs for every entry in `skills-official/registry.json`. Use when you want the v1.3.x behaviour (~38 skills always visible).
 
 ### Quality / Discipline (opt-in)
 

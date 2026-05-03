@@ -9,6 +9,11 @@ import os
 import subprocess
 import sys
 
+import pytest
+
+# v14b-pytest-fast-lane: full bootstrap subprocess (dry-run still spawns process).
+pytestmark = pytest.mark.slow
+
 
 _bootstrap_dir = os.path.join(os.path.dirname(__file__), "..", "bootstrap")
 

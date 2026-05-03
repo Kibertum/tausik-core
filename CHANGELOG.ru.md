@@ -9,6 +9,231 @@
 > начиная с v1.3.2; для более ранних релизов смотри английскую версию.
 > При добавлении новой записи держи оба файла синхронизированными.
 
+## [Unreleased] — v1.4.0 polish (Phase B)
+
+### Исправлено
+
+- **Self-check sibling enumeration на Windows 11 24H2+ + ложное
+  срабатывание remediation при `count=-1`
+  (`v14b-defect-mcp-self-check-windows-fallback`,
+  defect_of=`v14b-mcp-stale-module-detector`).** Первый живой прогон
+  `tausik_self_check` на Win 11 build 26200 вернул
+  `sibling_mcp_count=-1` и `wmic introspection failed: WinError 2` —
+  Microsoft удалил `wmic.exe` из современного Windows. Логика
+  `collect()` к тому же путала `count=-1` (диагностика недоступна) и
+  `count>0` (реальная утечка sibling-серверов), поэтому здоровый
+  сервер на современном Windows ложно кричал бы "Restart your IDE".
+  Два фикса: (1) Windows-ветка `_enumerate_sibling_mcps` сначала
+  пробует `wmic` (legacy compat), на `FileNotFoundError` падает к
+  PowerShell `Get-CimInstance Win32_Process` через
+  `subprocess.run(['powershell', '-NoProfile', '-NonInteractive',
+  '-Command', '<query>'])` с парсингом строк `pid|cmdline`; если
+  PowerShell тоже отсутствует, ошибка фиксирует именно этот факт.
+  (2) Remediation теперь различает три состояния: drift OR `count>0`
+  → "Restart IDE"; `count=-1` → "MCP modules in sync (drift check
+  passed). Sibling-MCP check unavailable on this host"; чисто → "no
+  action needed". Тесты: `tests/test_mcp_self_check.py` +2 кейса
+  (`test_remediation_silent_when_count_unknown`,
+  `test_remediation_fires_on_real_drift`); существующие 6 кейсов
+  не меняются. Зеркалится в
+  `agents/cursor/mcp/project/self_check.py`.
+
+### Добавлено
+
+- **Детектор stale MCP-модулей — корневой фикс тихих зависаний
+  task_done_v2 / verify (`v14b-mcp-stale-module-detector`).** Новый MCP
+  инструмент `tausik_self_check` возвращает время старта MCP project
+  сервера, snapshot mtime watched-модулей при загрузке vs текущие
+  mtime на диске, флаг `drift_detected`, список stale-модулей
+  (с `delta_seconds`) и `sibling_mcp_count` — число других MCP
+  project-серверов на этом проекте (сигнал window-leak'а). Watch-list
+  покрывает сервис-модули, чьи stale-копии исторически вызывали
+  hang'и: `service_verification`, `verify_cache`, `security_pattern`,
+  `gate_runner`, `gate_command_runner`, `service_gates`, `service_task`,
+  `project_service`, `project_backend`, `handlers`, `handlers_skill`.
+  Сама диагностика — в новом
+  `agents/claude/mcp/project/self_check.py`; на старте MCP она
+  eager-импортирует watch-list, чтобы snapshot отражал именно те
+  модули, которые сервер будет звать позже (lazy-импортируемые модули
+  иначе совпадали бы с текущим mtime по определению и маскировали
+  бы drift). Skill `/start` Phase 1 теперь добавляет
+  `tausik_self_check` в параллельный batch; Phase 3 рендерит
+  заметный блок `⚠ MCP Health`, когда есть drift или sibling-серверы,
+  с remediation `Restart your IDE`. Companion gotchas: #77
+  (`tausik_verify` виснет после правки
+  `service_verification.py`/`gate_runner.py`), #79 (`task_done_v2`
+  виснет на большом evidence), #80 (root cause). Тесты:
+  `tests/test_mcp_self_check.py` (NEW, 6 кейсов — snapshot
+  заполнен; нет drift'а на нетронутом дереве; drift всплывает при
+  advance mtime ≥30 с; пропавшие файлы не валят сборщик;
+  sibling-инвентаризация возвращает int (≥-1) без exception; handler
+  отдаёт валидный JSON envelope). Документация:
+  `docs/{en,ru}/mcp.md` регистрирует инструмент;
+  `docs/{en,ru}/troubleshooting.md` получает секцию `Stale MCP
+  modules (silent hangs)` с описанием remediation-потока.
+
+- **Skill core cleanup — bootstrap default = 12 + brain conditional
+  (`v14b-skill-core-cleanup`).** Раньше bootstrap автоматически
+  разворачивал все 13 source-скиллов плюс каждый entry из
+  `skills-official/registry.json` (~38 скиллов → ~1,520 токенов в
+  system-reminder каждый ход). С v1.4.x default — **12 core
+  скиллов** (`/start`, `/end`, `/checkpoint`, `/plan`, `/task`,
+  `/ship`, `/commit`, `/review`, `/test`, `/debug`, `/explore`,
+  `/interview`) плюс `/brain` *условно* — только когда
+  `bootstrap_config.is_brain_enabled(cfg)` возвращает true (т.е. у
+  проекта заполнен `brain.notion_db_ids` после `tausik brain init`).
+  Эмпирический эффект: **−1,040 токенов/ход (−68%)** на skill-листе
+  system-reminder. Два новых bootstrap-флага возвращают v1.3.x
+  поведение, когда нужно: `--include-official` (полные registry
+  stubs) и `--include-vendor` (alias ради симметрии с vendor-skill
+  терминологией). `_profile-demo` остаётся в `agents/skills/` как
+  underscore-prefixed reference fixture (уже фильтруется bootstrap).
+  `tausik status` теперь печатает однострочное предупреждение, если
+  развёрнутый skill-set расходится с флагом (например, 38 развёрнуто
+  без `--include-official`) — чтобы случайный bloat не остался
+  незамеченным. Negative-тесты фиксируют edge-cases: отсутствующий
+  или повреждённый `.tausik/config.json` → brain пропускается без
+  crash; entries в `installed_skills` разворачиваются независимо от
+  default; underscore-префиксы в `installed_skills` фильтруются.
+  Файлы: `bootstrap.py`, `bootstrap_config.is_brain_enabled`,
+  `bootstrap_copy.copy_skills` (gated `builtin_names` loop + opt-in
+  registry stubs), `project_cli._maybe_print_skill_set_warning`.
+  Тесты: `tests/test_bootstrap_skills_coverage.py` (8 кейсов, в т.ч.
+  4 negative). Документация: `docs/{en,ru}/skills.md`,
+  `docs/{en,ru}/architecture.md`, `README.md` + `README.ru.md`
+  (новая секция `## Token Efficiency` перед `## Functionality`).
+
+### Добавлено
+
+- **Закрытие filesize-долга (`v14b-filesize-debt-paydown`).** Четыре
+  модуля сверх 400-line cap разделены на фокусные подмодули;
+  `gates.filesize.exempt_files` в `.tausik/config.json` теперь пуст.
+  Конкретно:
+  - `scripts/backend_queries.py` 536→397: методы
+    usage_events / session_usage_metrics (`usage_event_append`,
+    `session_usage_record`, `usage_events_cost_rollup_by_task`,
+    `session_usage_summary`) вынесены в новый
+    `scripts/backend_queries_usage.BackendQueriesUsageMixin`;
+    `BackendQueriesMixin` наследует от него — публичный surface на
+    `SQLiteBackend` не изменился.
+  - `scripts/service_verification.py` 464→345: классификатор
+    security-паттернов (`is_security_sensitive` +
+    `_SECURITY_PATH_TOKENS` / `_SEC_BASE` / `_SECURITY_BASENAMES` /
+    `_SECURITY_EXTENSIONS`) вынесен в `scripts/security_pattern.py`;
+    cache-хелперы (`is_cache_allowed`, `resolve_gate_signature`,
+    `_build_cache_command`, `has_fresh_verify_run`) — в
+    `scripts/verify_cache.py`. Оба набора re-export'ятся из
+    `service_verification`, существующие импорты не сломаны.
+  - `scripts/gate_runner.py` 476→394: `run_command_gate` +
+    `_SCOPED_SKIP_SENTINEL` (включая TAUSIK_VERIFY_FULL inject из
+    v14b-pytest-fast-lane) вынесены в
+    `scripts/gate_command_runner.py`; re-export из `gate_runner` —
+    `tests/test_gates.py` и другие callers работают без изменений.
+  - `bootstrap/bootstrap_generate.py` 433→223: огромный settings
+    hooks-блок вынесен в `bootstrap/bootstrap_hooks.build_hooks_dict(_hook_cmd)`.
+    `generate_settings_claude` теперь читается как тот lean config builder,
+    которым и должен был быть.
+  Smoke-тест фиксирует обратную совместимость:
+  `tests/test_filesize_split_smoke.py` импортирует каждый перенесённый
+  символ из ОРИГИНАЛЬНОГО модуля и проверяет identity с новым местом
+  плюс контракт hooks-shape для settings.json (зеркало существующих
+  per-hook coverage assertions).
+
+### Добавлено
+
+- **Pytest fast lane (`v14b-pytest-fast-lane`).** Дефолтная
+  конфигурация pytest в `pyproject.toml` теперь пропускает тесты,
+  помеченные `@pytest.mark.slow` (`addopts = "-m 'not slow'"`).
+  Тяжёлые тесты — bootstrap real/dryrun + skills coverage, MCP
+  integration & project server, brain MCP handlers +
+  installed-layout, stress (1000 tasks / 100 sessions), bootstrap
+  venv, RAG FTS5 benchmarks, Tausik CLI smoke, skill CLI help,
+  bootstrap-варианты model-profile, плюс один 7-секундный кейс
+  блокировки БД в `posttool_usage_hook` — все получили маркер.
+  Эмпирический эффект на репе TAUSIK: полный сьют **с 731 с (12:11)
+  до 99 с (1:39)** — **ускорение в 7.4 раза**, 118 тестов deselected
+  из fast lane. Три escape-hatch'а для полной батареи:
+  `pytest --override-ini='addopts='`, `pytest -m ''` (или `-m 'slow'`
+  для CI nightly) и новый env-var `TAUSIK_VERIFY_FULL=1`, который
+  `gate_runner.run_command_gate` подхватывает и инжектит
+  `--override-ini=addopts=` в команду pytest-гейта. Затрагивает
+  только pytest-гейт — ruff, mypy, filesize не задеты. Тесты
+  покрывают путь env-var-инъекции, no-op для не-pytest гейтов и
+  дефолтный неизменённый cmd (`tests/test_gates.py:TestRunCommandGate`).
+  Документация обновлена в `docs/{en,ru}/cli.md`.
+
+### Исправлено
+
+- **Регрессия size-cap CLAUDE.md
+  (`claude-md-trim-reference-line-fix-test-claude-md-s`).** Reference-строка
+  была расширена в handoff #45 ради трёх drift-тестов T2.2; правка вытолкнула
+  статическую часть на 4113 B при cap 4096 B (тест
+  `tests/test_claude_md_size.py::test_claude_md_static_under_size_cap`).
+  Сократил формулировку, сохранив ссылку на `agent-contract.md` и якоря
+  (`estimation`, `SENAR matrix`, `roles`, `custom_stacks`, `QG-2`). Все
+  4 теста CLAUDE.md теперь PASS.
+
+- **QG-2 verify-first ложное срабатывание на hook/session-файлах
+  (`v14b-defect-qg2-security-substring-too-broad`).**
+  `is_security_sensitive` в `scripts/service_verification.py` раньше
+  матчил голые подстроки ("session", "login", "signup",
+  "scripts/hooks/", …), из-за чего любой hook-файл TAUSIK
+  (`scripts/hooks/session_start.py`, `posttool_usage.py`,
+  `keyword_detector.py`, ...) и любой hook-тест
+  (`tests/test_session_start_hook.py`, `tests/test_session_metrics.py`)
+  помечался как security-sensitive. Это давало `is_cache_allowed=False`,
+  `has_fresh_verify_run` возвращал `(False, None)`, и
+  `_enforce_verify_first` блокировал `task_done` с "no fresh verify run"
+  даже сразу после успешного `tausik verify`. Хуки — это инфраструктура,
+  а не auth surface. Фикс сужает `_SECURITY_PATH_TOKENS` до строго
+  каталогами-окруженных токенов (`/auth/`, `/oauth/`, `/payment/`,
+  `/webhook/`, …), убирает голые подстроки, заменяет нечёткие basename'ы
+  "session"/"login" на явные (`session_token.py`, `login_handler.py` и
+  т.д.). `_SECURITY_BASENAMES` теперь также покрывает `secrets.json`,
+  `credentials.json`, `.npmrc`, `id_rsa`, `id_ed25519`. Полный контракт
+  задокументирован в docstring `is_security_sensitive`. Новый файл
+  `tests/test_security_sensitive.py` (70 кейсов) фиксирует оба набора —
+  истинно-положительный и ложно-положительный, плюс регресс-кейс,
+  который записывает зелёный verify-прогон на hook-файле и проверяет,
+  что `has_fresh_verify_run` возвращает `(True, row)` — именно тот failure
+  mode, который заблокировал закрытие `v14b-rag-first-nudges`. Аудит
+  `verification_runs` показал, что исторически пострадала только одна
+  задача (родительская, на которой баг и всплыл) — повторная верификация
+  не требуется.
+
+### Добавлено
+
+- **RAG-first подсказки (`v14b-rag-first-nudges`).** В скиллах `start`,
+  `task`, `debug` появился раздел "Code search hierarchy", направляющий
+  агента сначала к `mcp__codebase-rag__search_code` для поиска
+  символов/паттернов, а `Grep`/`Read` оставляющий только для известных
+  путей. Скилл `explore` переписан — шаг 3 теперь начинается с
+  `search_code` по ранжированным чанкам, прежде чем читать целые файлы.
+  Хук SessionStart (`scripts/hooks/session_start.py`) усиливает
+  авто-инжект: RAG summary указывает MCP-инструмент явно
+  (`mcp__codebase-rag__search_code`), а блок Reminders получает буллет
+  про экономию токенов через `search_code` вместо `Grep/Read`. Stop-хук
+  (`scripts/hooks/keyword_detector.py`) расширен вторым детектором: если
+  последний user-промпт содержит интент поиска кода ("where is X" / "find
+  Y" / "how does Z work" / "где определ…"), а в ответе агента нет
+  упоминания `search_code` — хук блокирует stop с рекомендацией перейти
+  на RAG. Drift guard сохраняет приоритет; loop-safe сокращение через
+  `stop_hook_active` действует на оба детектора. Тесты:
+  `tests/test_keyword_detector_hook.py` (+8 кейсов для нового детектора,
+  включая приоритет и подавление при уже использованном search_code),
+  `tests/test_session_start_hook.py` (+1 кейс на rag-first reminder).
+- **Атрибуция токенов по задачам (`v14b-usage-events-auto-write`).**
+  Новый PostToolUse-хук `scripts/hooks/posttool_usage.py` пишет одну
+  строку `usage_events` за каждый tool call с привязкой к активной
+  задаче. Миграция схемы v24 добавляет `usage_events.tool_name` и
+  расширяет CHECK по `source` значением `posttool`. Прайсинг моделей
+  вынесен в общий модуль `scripts/cost_pricing.py` — единый источник
+  правды для нового хука и существующего SessionEnd writer'а
+  (`session_metrics.py`). Пять путей graceful-degradation покрыты
+  тестами (битый stdin, нет активной задачи, неизвестная модель,
+  заблокированная БД, отсутствие `.tausik/tausik.db`). Документация:
+  `docs/{en,ru}/cost-telemetry.md`.
+
 ## [1.4.0] — 2026-05-02 — Verify-First Contract + 1.4 epic batch
 
 > Релиз готовности к публике, основанный на аудите 1.4 и мастер-плане

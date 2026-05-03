@@ -10,6 +10,9 @@ from pathlib import Path
 
 import pytest
 
+# v14b-pytest-fast-lane: spawns bootstrap subprocess to validate env-driven config.
+pytestmark = pytest.mark.slow
+
 _REPO = Path(__file__).resolve().parents[1]
 _BOOTSTRAP = _REPO / "bootstrap" / "bootstrap.py"
 

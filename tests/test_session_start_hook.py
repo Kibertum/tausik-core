@@ -12,14 +12,10 @@ import os
 import subprocess
 import sys
 
-_HOOK_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "scripts", "hooks", "session_start.py"
-)
+_HOOK_PATH = os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks", "session_start.py")
 
 
-def _run_hook(
-    project_dir: str, extra_env: dict | None = None
-) -> subprocess.CompletedProcess:
+def _run_hook(project_dir: str, extra_env: dict | None = None) -> subprocess.CompletedProcess:
     env = {**os.environ, "CLAUDE_PROJECT_DIR": str(project_dir), "PYTHONUTF8": "1"}
     if extra_env:
         env.update(extra_env)
@@ -78,13 +74,9 @@ class TestSessionStartHook:
         wrapper = "tausik.cmd" if sys.platform == "win32" else "tausik"
         wrapper_path = tausik_dir / wrapper
         if sys.platform == "win32":
-            wrapper_path.write_text(
-                "@echo off\r\necho Mock status: Tasks 1/1, Session #99\r\n"
-            )
+            wrapper_path.write_text("@echo off\r\necho Mock status: Tasks 1/1, Session #99\r\n")
         else:
-            wrapper_path.write_text(
-                "#!/bin/sh\necho 'Mock status: Tasks 1/1, Session #99'\n"
-            )
+            wrapper_path.write_text("#!/bin/sh\necho 'Mock status: Tasks 1/1, Session #99'\n")
             os.chmod(wrapper_path, 0o755)
 
         result = _run_hook(tmp_path)
@@ -151,6 +143,35 @@ class TestMemoryPolicyReminder:
         assert reminders_idx != -1
         assert policy_idx != -1
         assert reminders_idx < policy_idx
+
+
+class TestRagFirstReminder:
+    """v1.4 RAG-first nudges — Reminders block must direct the agent at search_code."""
+
+    def _setup_mock_tausik(self, tmp_path):
+        tausik_dir = tmp_path / ".tausik"
+        tausik_dir.mkdir()
+        (tausik_dir / "tausik.db").write_text("")
+        wrapper = "tausik.cmd" if sys.platform == "win32" else "tausik"
+        wrapper_path = tausik_dir / wrapper
+        if sys.platform == "win32":
+            wrapper_path.write_text("@echo off\r\necho Mock status line\r\n")
+        else:
+            wrapper_path.write_text("#!/bin/sh\necho 'Mock status line'\n")
+            os.chmod(wrapper_path, 0o755)
+
+    def test_reminders_block_mentions_search_code_and_rag(self, tmp_path):
+        self._setup_mock_tausik(tmp_path)
+        result = _run_hook(tmp_path)
+        assert result.returncode == 0, result.stderr
+        parsed = json.loads(result.stdout)
+        ctx = parsed["hookSpecificOutput"]["additionalContext"]
+        reminders_idx = ctx.find("**Reminders:**")
+        assert reminders_idx != -1
+        reminders_section = ctx[reminders_idx:]
+        assert "search_code" in reminders_section
+        assert "RAG" in reminders_section
+        assert "Grep" in reminders_section
 
 
 class TestSettingsGeneration:

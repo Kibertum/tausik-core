@@ -51,6 +51,21 @@ ship it
 
 That's it. The agent opens a session, creates a task with acceptance criteria, writes the code, runs tests and code review, verifies each criterion with evidence, commits, and offers to push. Full engineering cycle — you just describe what you want.
 
+## Token Efficiency
+
+v1.4.x ships fewer skills by default — only the ones every TAUSIK project actually uses. Smaller system-reminder list = lower per-turn token cost without losing functionality.
+
+| Component | Before v1.4.x | After v1.4.x | Saving |
+|---|---|---|---|
+| `system-reminder` skill list | 38 skills (~1,520 tok/turn) | 12 + 1 conditional (~480 tok/turn) | **−1,040 tok/turn (−68%)** |
+
+How it works:
+
+- **12 core skills** auto-deployed: `/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, `/review`, `/test`, `/debug`, `/explore`, `/interview`.
+- **`/brain` conditional** — surfaces only when `tausik brain init` has populated `brain.notion_db_ids`. Projects that never use the shared brain don't pay its ~600 tok/turn.
+- **Extras opt-in** — re-run `python .tausik-lib/bootstrap/bootstrap.py --include-official` (alias `--include-vendor`) for the full 38-skill set, or `tausik skill install <name>` for one at a time. Bundle CLI (`tausik skill bundle install`) lands in a follow-up release.
+- **`tausik status` warns** if the deployed skill set drifts from the active flag (e.g. 38 deployed without `--include-official`) so you notice unintended bloat.
+
 ## Functionality
 
 | Category | What it does | How you use it |
@@ -62,8 +77,8 @@ That's it. The agent opens a session, creates a task with acceptance criteria, w
 | **Verification Engine** | 25 stack-aware checks (pytest, ruff, mypy, tsc, eslint, cargo, go-vet, phpstan, helm-lint, hadolint…). Scoped to relevant_files. Cached for 10 min | Stack auto-detected by bootstrap |
 | **Real-time Hooks** | 19 hooks: task gate (no code without task), bash firewall, push gate, auto-format, drift detection (SessionStart/UserPromptSubmit/Stop), memory pre/post audit | Auto in Claude Code & Qwen Code |
 | **Metrics** | Throughput, First-Pass Success Rate, Defect Escape Rate, Lead Time, Dead End Rate, Cost-per-task | `tausik metrics`, `tausik metrics --cost` |
-| **Multi-IDE** | Same MCP tools (99) + skills across hosts | VSCode/Claude, Cursor, Qwen Code, Windsurf, Codex, CLI |
-| **Skill Ecosystem** | 13 core skills always deployed + 25+ vendor skills installable from external repos. Multi-model profiles via `variants/<model>.md` — different prompts for Haiku/Sonnet/Opus *(v1.4)* | `tausik skill install <name>` |
+| **Multi-IDE** | Same MCP tools (100) + skills across hosts | VSCode/Claude, Cursor, Qwen Code, Windsurf, Codex, CLI |
+| **Skill Ecosystem** | 12 core skills auto-deployed (+ `/brain` when configured) — see [Token Efficiency](#token-efficiency). 25+ official/vendor skills opt-in via `--include-official` flag or `tausik skill install`. Multi-model profiles via `variants/<model>.md` *(v1.4)* | `tausik skill install <name>` |
 | **Cross-project Brain** *(optional)* | Notion-mirrored decisions / patterns / gotchas / web-cache shared across projects. v1.4 adds an artifact pipeline: propose → audit (scrubbing for secrets) → publish, with stack-aware bm25 ranking. Privacy via SHA256 project hashes | `/brain` query, `tausik brain init`, `tausik brain propose-artifact`, `tausik brain publish` |
 | **Hygiene & Audit** *(v1.4)* | `tausik hygiene archive` lists old done tasks (dry-run). Audit scripts: `audit_orphan_files`, `audit_stale_docs`, `audit_unused_python`, `audit_pytest_dedupe` — inventory dead code, dangling docs, copy-pasted tests | `tausik hygiene archive`, `python scripts/audit_*.py` |
 | **Task Archive** *(v1.4)* | Read-only spec for archiving done tasks > N days. Active / blocked / planning never archived; `--confirm` reserved for future destructive ops | `tausik hygiene archive` |
@@ -121,8 +136,8 @@ Bootstrap auto-detects your tech stack and enables matching quality gates. Proje
 
 ## What's Inside
 
-- **13 core skills** (always deployed) — `/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, `/review`, `/test`, `/debug`, `/explore`, `/interview`, `/brain`. Plus **25+ official/vendor skills** (`/audit`, `/zero-defect`, `/markitdown`, `/docs`, `/security`, `/onboard`, …) installed on demand via `tausik skill install`.
-- **99 MCP tools** (92 project + 7 brain) — full programmatic access to the project database
+- **12 core skills + `/brain` conditional** (auto-deployed) — `/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, `/review`, `/test`, `/debug`, `/explore`, `/interview` always; `/brain` only after `tausik brain init`. Plus **25+ official/vendor skills** (`/audit`, `/zero-defect`, `/markitdown`, `/docs`, `/security`, `/onboard`, …) opt-in via `bootstrap --include-official` or `tausik skill install <name>`.
+- **100 MCP tools** (93 project + 7 brain) — full programmatic access to the project database
 - **25 quality checks** — pytest, ruff, tsc, eslint, cargo check, go vet, and more for your stack
 - **6 automatic metrics** — throughput, first-pass success rate, defect rate, lead time
 - **Project memory** — SQLite + FTS5, graph relations, dead-end tracking, Memory Block re-injection
@@ -138,11 +153,11 @@ Other integrations are supported by design, but are marked as expected/partial u
 
 | IDE | MCP Tools | Skills | Hooks | Rules | Validation status |
 |-----|-----------|--------|-------|-------|-------------------|
-| VSCode + Claude Extension | 99 tools | 13 core + 25+ on demand | 19 hooks (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md + .mcp.json | **Officially tested** |
-| Cursor | 99 tools | 13 core + 25+ on demand | — | .cursorrules + .cursor/mcp.json | **Officially tested** |
-| Claude Code (CLI) | 99 tools | 13 core + 25+ on demand | 19 hooks | CLAUDE.md + .mcp.json | Expected (partial matrix) |
-| Qwen Code | 99 tools | 13 core + 25+ on demand | 19 hooks (same as Claude) | QWEN.md + .mcp.json | Expected (partial matrix) |
-| Windsurf | 99 tools | 13 core + 25+ on demand | — | .windsurfrules + .mcp.json | Expected (partial matrix) |
+| VSCode + Claude Extension | 100 tools | 12 core + brain conditional, 25+ on demand | 19 hooks (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md + .mcp.json | **Officially tested** |
+| Cursor | 100 tools | 12 core + brain conditional, 25+ on demand | — | .cursorrules + .cursor/mcp.json | **Officially tested** |
+| Claude Code (CLI) | 100 tools | 12 core + brain conditional, 25+ on demand | 19 hooks | CLAUDE.md + .mcp.json | Expected (partial matrix) |
+| Qwen Code | 100 tools | 12 core + brain conditional, 25+ on demand | 19 hooks (same as Claude) | QWEN.md + .mcp.json | Expected (partial matrix) |
+| Windsurf | 100 tools | 12 core + brain conditional, 25+ on demand | — | .windsurfrules + .mcp.json | Expected (partial matrix) |
 | Codex / OpenCode-style agents | MCP + rules-driven where supported | Depends on host | Host-specific | AGENTS.md | Expected (manual validation) |
 
 **Hooks** block code edits without a task, dangerous shell commands, and direct push to main — in real time. Available in Claude Code and Qwen Code. Cursor and Windsurf get the same MCP tools and skills, with quality gates at `task start` and `task done`.
@@ -174,10 +189,10 @@ TAUSIK implements [SENAR](https://senar.tech) ([GitHub](https://github.com/Kiber
 | **[Quick Start](docs/en/quickstart.md)** | First setup — 10-15 minutes |
 | **[What is SENAR?](docs/en/senar.md)** | The methodology behind TAUSIK |
 | **[Workflow](docs/en/workflow.md)** | A typical day with TAUSIK |
-| **[Skills](docs/en/skills.md)** | 13 core + 25 vendor (38 total) skills |
+| **[Skills](docs/en/skills.md)** | 12 core + brain conditional, 25+ official skills opt-in (38 total) |
 | **[Hooks](docs/en/hooks.md)** | Real-time enforcement |
 | **[CLI Commands](docs/en/cli.md)** | Terminal command reference |
-| **[MCP Tools](docs/en/mcp.md)** | 99 tools for the AI agent |
+| **[MCP Tools](docs/en/mcp.md)** | 100 tools for the AI agent |
 | **[Architecture](docs/en/architecture.md)** | How the framework works inside |
 
 **[Full documentation ->](docs/README.md)**

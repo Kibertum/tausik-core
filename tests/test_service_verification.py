@@ -170,12 +170,12 @@ class TestIsSecuritySensitive:
     @pytest.mark.parametrize(
         "path",
         [
-            "scripts/hooks/memory_pretool_block.py",
+            # Directory-anchored auth surface (post v14b-defect-qg2 fix —
+            # bare substring matches dropped, all entries below are path-anchored).
             "src/auth/login.ts",
             "app/payment/handlers.py",
             "lib/payments/refund.go",
             "billing/invoice.rs",
-            # Newly added path-tokens (review-fix-a4)
             "src/oauth/callback.py",
             "lib/sso/provider.go",
             "app/saml/init.py",
@@ -191,11 +191,32 @@ class TestIsSecuritySensitive:
             "lib/mfa/totp.py",
             "app/signup/route.ts",
             "src/login/handler.go",
-            "src/widget/password_reset.py",  # bare 'password' token
+            "src/password/reset.py",  # path-anchored after fix
         ],
     )
     def test_security_paths_detected(self, path):
         assert sv.is_security_sensitive([path]) is True
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            # Regression set — these MUST stop matching after v14b-defect-qg2:
+            # before the fix the bare substring "scripts/hooks/" / "session" /
+            # "login" / "password" matched anywhere, including TAUSIK harness
+            # hooks, hook tests, and unrelated widget code. Each false-positive
+            # blocked task_done verify-first cache for any task touching them.
+            "scripts/hooks/memory_pretool_block.py",  # hook = infra, not auth
+            "scripts/hooks/session_start.py",
+            "scripts/hooks/posttool_usage.py",
+            "tests/test_session_start_hook.py",  # test of an infra hook
+            "src/widget/password_reset.py",  # widget dir is not auth surface
+            "agents/skills/start/SKILL.md",  # docs
+            "README.md",
+        ],
+    )
+    def test_security_false_positives_eliminated(self, path):
+        """v14b-defect-qg2-security-substring-too-broad: anchored matching only."""
+        assert sv.is_security_sensitive([path]) is False
 
     @pytest.mark.parametrize(
         "basename",
@@ -253,7 +274,7 @@ class TestIsSecuritySensitive:
         assert sv.is_security_sensitive(None) is False  # type: ignore[arg-type]
 
     def test_any_match_triggers(self):
-        files = ["scripts/brain_init.py", "scripts/hooks/foo.py"]
+        files = ["scripts/brain_init.py", "src/auth/login.ts"]
         assert sv.is_security_sensitive(files) is True
 
     def test_any_basename_match_triggers(self):
@@ -424,7 +445,7 @@ class TestIsCacheAllowed:
         assert sv.is_cache_allowed(["scripts/brain_init.py"]) is True
 
     def test_security_files_disallow_cache(self):
-        assert sv.is_cache_allowed(["scripts/hooks/anything.py"]) is False
+        assert sv.is_cache_allowed(["src/auth/login.ts"]) is False
 
     def test_empty_files_allow(self):
         assert sv.is_cache_allowed([]) is True
@@ -566,7 +587,7 @@ class TestRunGatesWithCacheIntegration:
         passed, _, st = sv.run_gates_with_cache(
             conn,
             "auth-task",
-            ["scripts/hooks/foo.py"],  # security-sensitive
+            ["src/auth/login.ts"],  # security-sensitive after v14b-defect-qg2
             scope="critical",
         )
         assert passed

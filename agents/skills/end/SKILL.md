@@ -1,6 +1,6 @@
 ---
 name: end
-description: "End development session. Records summary, decisions, and handoff to DB. Updates CLAUDE.md. Use when user says 'end session', 'finish', 'wrap up', 'done for today'."
+description: "End session — handoff + decisions + CLAUDE.md."
 effort: fast
 context: inline
 ---

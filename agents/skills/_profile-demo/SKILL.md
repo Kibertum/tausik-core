@@ -1,6 +1,6 @@
 ---
 name: profile-demo
-description: "Reference skill for variants/ (underscore prefix — not deployed by bootstrap)."
+description: "Reference skill for variants/ (not deployed)."
 profile_fallback: claude
 ---
 

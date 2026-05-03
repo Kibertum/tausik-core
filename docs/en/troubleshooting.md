@@ -2,6 +2,28 @@
 
 Machine-readable guide: error → diagnosis → fix.
 
+## Stale MCP modules (silent hangs)
+
+Symptom: `tausik_verify` or `tausik_task_done_v2` never returns. CLI works
+fine. The MCP server is running stale Python modules — usually because the
+user (or bootstrap) edited service code AFTER the IDE opened, and the IDE
+never respawned the MCP child. Multiple MCP project servers for the same
+project are also a strong signal (each prior IDE window leaks one).
+
+| Symptom | Diagnosis | Fix |
+|---|---|---|
+| MCP tool hangs > 60 s but CLI of the same op completes instantly | `tausik_self_check` likely shows `drift_detected=true` or `sibling_mcp_count > 0` — stale modules in memory | Restart the IDE so the MCP project server respawns. Until then use `.tausik/tausik` CLI. |
+| `/start` warns `⚠ MCP Health` with stale module list | Watched module mtime advanced after MCP startup | Restart IDE; re-run `/start`. |
+| `sibling_mcp_count > 0` reported | Multiple MCP project servers on the same project (window leak) | Close stale IDE windows, then `Get-Process python` (Windows) / `pgrep -f mcp/project/server.py` (POSIX) and kill the older PIDs. |
+| `tausik_self_check` returns `error: self_check unavailable` | The running MCP server predates this diagnostic (older than v1.4 polish) | Restart IDE so the new server boots; the diagnostic is registered on fresh startups only. |
+
+Companion gotchas in `.tausik/tausik.db`: #77 (verify hang after editing
+`service_verification.py`/`gate_runner.py`), #79 (`task_done_v2` hang on
+large evidence), #80 (root cause = stale modules + sibling MCP servers).
+The Verify-First Contract's 60 s envelope timeout
+(`verify_pipeline_timeout_seconds`) catches new servers; stale ones loaded
+their code BEFORE that timer was added and ignore it.
+
 ## Docker & Brain
 
 | Error Pattern | Diagnosis | Fix Command |

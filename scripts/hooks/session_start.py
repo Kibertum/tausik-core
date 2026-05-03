@@ -39,9 +39,7 @@ def _rag_server_path(project_dir: str) -> str | None:
         p = os.path.join(project_dir, ".claude", "mcp", "codebase-rag", "server.py")
         if os.path.exists(p):
             return p
-        p2 = os.path.join(
-            project_dir, "agents", ide, "mcp", "codebase-rag", "server.py"
-        )
+        p2 = os.path.join(project_dir, "agents", ide, "mcp", "codebase-rag", "server.py")
         if os.path.exists(p2):
             return p2
     return None
@@ -107,7 +105,11 @@ def _rag_summary(project_dir: str) -> str:
     _spawn_background_reindex(project_dir, mode="incremental")
     if chunks == 0:
         return "RAG: empty — full reindex spawned in background."
-    return f"RAG: {chunks} chunks indexed — incremental reindex running in background. Prefer `search_code` over `Grep`."
+    return (
+        f"RAG: {chunks} chunks indexed (incremental reindex running in background). "
+        "Prefer `mcp__codebase-rag__search_code` for symbol/pattern lookup. "
+        "Use Grep/Read only for known file paths."
+    )
 
 
 def build_context(project_dir: str) -> str:
@@ -117,12 +119,8 @@ def build_context(project_dir: str) -> str:
         return ""
 
     status = _run_tausik(tausik_cmd, ["status"], project_dir)
-    active = _run_tausik(
-        tausik_cmd, ["task", "list", "--status", "active"], project_dir
-    )
-    blocked = _run_tausik(
-        tausik_cmd, ["task", "list", "--status", "blocked"], project_dir
-    )
+    active = _run_tausik(tausik_cmd, ["task", "list", "--status", "active"], project_dir)
+    blocked = _run_tausik(tausik_cmd, ["task", "list", "--status", "blocked"], project_dir)
     memory_block = _run_tausik(tausik_cmd, ["memory", "block"], project_dir)
     rag = _rag_summary(project_dir)
 
@@ -146,6 +144,7 @@ def build_context(project_dir: str) -> str:
         "- `task start <slug>` is required before any Write/Edit (SENAR Rule 9.1).\n"
         "- Run `/start` for the full dashboard (handoff, metrics, explorations, audit).\n"
         "- Log progress with `task log`; document dead ends with `dead-end`.\n"
+        "- Use `search_code` (RAG) before Grep/Read for unfamiliar code — saves tokens, returns chunks not full files.\n"
         "- Project knowledge → `tausik memory add`, NOT `~/.claude/*/memory/` "
         "(blocked by PreToolUse hook; bypass only with `confirm: cross-project`).\n"
     )

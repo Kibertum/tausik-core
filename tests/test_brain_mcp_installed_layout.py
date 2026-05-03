@@ -1,5 +1,8 @@
 """Regression tests for tausik-brain MCP path resolution in installed layout.
 
+v14b-pytest-fast-lane: marked slow because each test exercises the MCP brain
+server in an installed `.claude/mcp/brain/` layout (subprocess + filesystem).
+
 Background
 ----------
 Commit b5f6281 shipped agents/{claude,cursor}/mcp/brain/server.py and
@@ -65,19 +68,13 @@ _STUBS: dict[str, str] = {
         "class NotionClient:\n    def __init__(self, *a, **k):\n        pass\n"
     ),
     "brain_sync.py": (
-        "import sqlite3\n"
-        "def open_brain_db(*a, **k):\n"
-        "    return sqlite3.connect(':memory:')\n"
+        "import sqlite3\ndef open_brain_db(*a, **k):\n    return sqlite3.connect(':memory:')\n"
     ),
-    "brain_runtime.py": (
-        "def open_brain_deps():\n    return None, None, {'enabled': False}\n"
-    ),
+    "brain_runtime.py": ("def open_brain_deps():\n    return None, None, {'enabled': False}\n"),
 }
 
 
-def _make_installed_layout(
-    root: Path, brain_src: Path, with_scripts: bool = True
-) -> Path:
+def _make_installed_layout(root: Path, brain_src: Path, with_scripts: bool = True) -> Path:
     """Build root/.claude/mcp/brain/ (+ optional root/.claude/scripts/). Return handlers.py path."""
     mcp_brain = root / ".claude" / "mcp" / "brain"
     mcp_brain.mkdir(parents=True)
@@ -145,15 +142,12 @@ def test_handlers_emits_stderr_diag_when_scripts_missing(tmp_path, variant):
     """When .claude/scripts/ does not exist, handlers.py must emit a stderr
     diagnostic ('[tausik-brain] scripts dir missing: ...') instead of silently
     inserting a bad path into sys.path."""
-    handlers_path = _make_installed_layout(
-        tmp_path, BRAIN_SRCS[variant], with_scripts=False
-    )
+    handlers_path = _make_installed_layout(tmp_path, BRAIN_SRCS[variant], with_scripts=False)
     r = _run_import(handlers_path)
     # Import will fail (no stubs, brain_config missing), but BEFORE the import
     # attempt, handlers.py must print a diagnostic.
     assert "tausik-brain" in r.stderr and "scripts dir missing" in r.stderr, (
-        f"Expected '[tausik-brain] scripts dir missing' diagnostic in stderr.\n"
-        f"STDERR: {r.stderr}"
+        f"Expected '[tausik-brain] scripts dir missing' diagnostic in stderr.\nSTDERR: {r.stderr}"
     )
 
 

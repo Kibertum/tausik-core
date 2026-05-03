@@ -1,6 +1,6 @@
 ---
 name: interview
-description: "Socratic Q&A before a complex task — max 3 clarifying questions to pin down requirements. Use when user says 'interview me', 'ask questions', 'уточни', 'задай вопросы', or before any complex/critical task where the ask is vague."
+description: "Socratic Q&A — ≤3 questions before a complex task."
 effort: fast
 context: inline
 ---

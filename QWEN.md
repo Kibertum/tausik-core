@@ -114,9 +114,9 @@ Check status: `.tausik/tausik gates status`. Fix blocking failures before commit
 
 ## Skills
 
-After bootstrap, **13 core skills** ship from `agents/skills/` and are always available: `/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, `/review`, `/test`, `/debug`, `/explore`, `/interview`, `/brain`.
+After bootstrap, **12 core skills** ship from `agents/skills/` and are always available: `/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, `/review`, `/test`, `/debug`, `/explore`, `/interview`. `/brain` is the 13th core skill but only deploys when the project has Notion configured (`tausik brain init`).
 
-**25+ official/vendor skills** install on demand via `tausik skill install <name>` from the `tausik-skills` repo or `skills-official/`: `/audit`, `/zero-defect`, `/markitdown`, `/excel`, `/pdf`, `/docs`, `/security`, `/onboard`, `/retro`, `/ultra`, `/jira`, `/bitrix24`, `/sentry`, ... See `.qwen/references/skill-catalog.md`.
+**25+ official/vendor skills** are opt-in via `python .tausik-lib/bootstrap/bootstrap.py --include-official` (full bundle) or `tausik skill install <name>` (per skill) from the `tausik-skills` repo or `skills-official/`: `/audit`, `/zero-defect`, `/markitdown`, `/excel`, `/pdf`, `/docs`, `/security`, `/onboard`, `/retro`, `/ultra`, `/jira`, `/bitrix24`, `/sentry`, ... See `.qwen/references/skill-catalog.md`.
 
 When a user request matches a trigger keyword for a not-installed skill, proactively suggest installing it.
 

@@ -17,7 +17,7 @@ from typing import Any, Callable, Protocol
 
 import brain_config
 import brain_project_registry
-from brain_notion_client import NotionError, NotionNotFoundError
+from brain_notion_client import NotionAuthError, NotionError, NotionNotFoundError
 
 
 class WizardIO(Protocol):
@@ -320,9 +320,7 @@ class CliIO:
         except KeyboardInterrupt as e:
             raise WizardError("Aborted by user (Ctrl+C).") from e
         except EOFError as e:
-            raise WizardError(
-                "Aborted: no input available (stdin closed/piped)."
-            ) from e
+            raise WizardError("Aborted: no input available (stdin closed/piped).") from e
 
     def print(self, msg: str) -> None:
         print(msg)
@@ -411,8 +409,7 @@ def run_wizard(
 
     if _has_existing_brain(existing) and not force:
         raise WizardError(
-            "Brain is already configured in .tausik/config.json. "
-            "Re-run with --force to overwrite."
+            "Brain is already configured in .tausik/config.json. Re-run with --force to overwrite."
         )
 
     if interactive:
@@ -459,10 +456,41 @@ def run_wizard(
 
     client = client_factory(token)
 
-    # v1.3.3: pre-flight workspace search (skip for explicit --join-existing
-    # with all 4 ids supplied, and for --force-create explicit override).
+    # v1.4 pre-flight: probe users.me() to distinguish "token invalid" from
+    # "integration not shared with BRAIN page" (dead-end #72). On 401 the
+    # users.me() call raises NotionAuthError before any opaque search()
+    # failure further down. Other transport/Notion errors surface as-is.
     explicit_join_ids = _collect_explicit_join_ids(args)
     have_all_explicit = all(c in explicit_join_ids for c in CATEGORIES)
+    try:
+        client.users_me()
+    except NotionAuthError as e:
+        raise WizardError(
+            f"Notion token is invalid (401). Env var {token_env!r} is set but "
+            f"the API rejected it. Probable causes:\n"
+            "  - Token is expired or was revoked.\n"
+            "  - Token is from a different workspace.\n"
+            "  - Token was copied with leading/trailing whitespace.\n"
+            "Fix:\n"
+            "  1. Open https://www.notion.so/my-integrations and locate "
+            "the integration.\n"
+            "  2. Copy the 'Internal Integration Token' fresh (starts with "
+            "`secret_` or `ntn_`).\n"
+            f"  3. setx {token_env} <token>  (Windows / new terminal)\n"
+            f"     export {token_env}=<token>  (macOS/Linux)\n"
+            "  4. Re-run `.tausik/tausik brain init` in a fresh shell.\n"
+            f"Underlying error: {e}"
+        ) from e
+    except NotionError as e:
+        # Network / 5xx — keep going, the search() call below will produce
+        # a more contextual error if it persists.
+        io.print(
+            f"⚠ Pre-flight users.me() failed ({type(e).__name__}: {e}); "
+            "continuing — token may be valid but transport flaky."
+        )
+
+    # v1.3.3: pre-flight workspace search (skip for explicit --join-existing
+    # with all 4 ids supplied, and for --force-create explicit override).
     pre_flight_skipped = (join_existing and have_all_explicit) or force_create
 
     discovered: dict[str, str] = {}
@@ -480,6 +508,30 @@ def run_wizard(
 
     # Branch A: --join-existing requested → resolve IDs (explicit > discovered).
     if join_existing:
+        # v1.4 dead-end #72 fix: when discovery is empty AND no explicit IDs
+        # were passed, the user's integration is almost certainly not shared
+        # with the BRAIN page. Surface that explicitly instead of the
+        # generic "could not resolve" message that masks the root cause.
+        if not discovered and not explicit_join_ids and not pre_flight_skipped:
+            raise WizardError(
+                "--join-existing: search() returned 0 BRAIN databases in "
+                "this workspace, and no explicit IDs were passed.\n"
+                "\n"
+                "Most likely cause: your Notion integration has not been "
+                "shared with the BRAIN page yet, so search() cannot see "
+                "the existing databases.\n"
+                "\n"
+                "Fix:\n"
+                "  1. Open the BRAIN page in Notion (the parent that holds "
+                "the 4 'Brain · …' databases).\n"
+                "  2. Click `…` (top-right) → `Connections` → add your "
+                "integration to the connection list.\n"
+                "  3. Re-run `.tausik/tausik brain init --join-existing`.\n"
+                "\n"
+                "If you'd rather wire IDs by hand, pass them explicitly:\n"
+                "  --decisions-id ... --web-cache-id ... "
+                "--patterns-id ... --gotchas-id ..."
+            )
         merged_ids: dict[str, str] = {}
         for c in CATEGORIES:
             if c in explicit_join_ids:
@@ -510,9 +562,7 @@ def run_wizard(
 
     # Branch B: full match discovered + no --force-create → refuse.
     if full_match and not force_create:
-        ids_listing = "\n".join(
-            f"  - {c}: {discovered[c]} ({DB_TITLES[c]})" for c in CATEGORIES
-        )
+        ids_listing = "\n".join(f"  - {c}: {discovered[c]} ({DB_TITLES[c]})" for c in CATEGORIES)
         raise WizardError(
             "Found existing BRAIN databases in this Notion workspace.\n"
             f"{ids_listing}\n\n"
@@ -528,9 +578,7 @@ def run_wizard(
 
     # Branch C: partial match (1-3 of 4 found) → refuse, ambiguous state.
     if discovered and not full_match:
-        ids_listing = "\n".join(
-            f"  - {c}: {discovered.get(c, '<missing>')}" for c in CATEGORIES
-        )
+        ids_listing = "\n".join(f"  - {c}: {discovered.get(c, '<missing>')}" for c in CATEGORIES)
         raise WizardError(
             "Found a partial set of canonical-titled BRAIN databases in "
             "this workspace (some categories present, some missing):\n"
@@ -590,16 +638,13 @@ def run_wizard(
         # Surface real created_ids so user can archive partial orphans
         _print_orphan_cleanup_guidance(io, e.created_ids, e)
         raise WizardError(
-            f"Notion databases_create partially failed: {e}. "
-            "See orphan cleanup guidance above."
+            f"Notion databases_create partially failed: {e}. See orphan cleanup guidance above."
         ) from e
     except NotionError as e:
         raise WizardError(f"Notion databases_create failed: {e}") from e
 
     try:
-        registry_entry = brain_project_registry.register_project(
-            project_name, os.getcwd()
-        )
+        registry_entry = brain_project_registry.register_project(project_name, os.getcwd())
         resolved_name = registry_entry["name"]
         if resolved_name != project_name:
             io.print(
@@ -629,9 +674,7 @@ def run_wizard(
             f"see the cleanup guidance above to archive them manually."
         ) from e
 
-    io.print(
-        "Brain configured. Next: run `.tausik/tausik brain sync` to pull existing data."
-    )
+    io.print("Brain configured. Next: run `.tausik/tausik brain sync` to pull existing data.")
     return {
         "parent_page_id": parent_page_id,
         "token_env": token_env,

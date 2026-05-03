@@ -52,6 +52,21 @@ Claude Code, Cursor, VSCode Claude Extension, Qwen Code, Windsurf.
 
 Всё. Агент откроет сессию, создаст задачу с критериями приёмки, напишет код, запустит тесты и код-ревью, проверит каждый критерий с доказательствами, закоммитит и предложит запушить. Полный инженерный цикл — вы просто описываете, что хотите.
 
+## Token Efficiency
+
+В v1.4.x по default разворачивается меньше скиллов — только те, что реально нужны каждому проекту TAUSIK. Меньше system-reminder список = ниже стоимость каждого хода без потери функциональности.
+
+| Компонент | До v1.4.x | После v1.4.x | Экономия |
+|---|---|---|---|
+| Список skills в `system-reminder` | 38 skills (~1,520 ток/ход) | 12 + 1 conditional (~480 ток/ход) | **−1,040 ток/ход (−68%)** |
+
+Как это устроено:
+
+- **12 core-скиллов** разворачиваются автоматически: `/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, `/review`, `/test`, `/debug`, `/explore`, `/interview`.
+- **`/brain` условно** — появляется только после `tausik brain init` (когда заполнен `brain.notion_db_ids`). Проекты, не использующие shared brain, не платят его ~600 ток/ход.
+- **Extras по запросу** — перезапусти `python .tausik-lib/bootstrap/bootstrap.py --include-official` (alias `--include-vendor`) для полного набора 38 skills, либо `tausik skill install <name>` для одного. Bundle CLI (`tausik skill bundle install`) появится в следующем релизе.
+- **`tausik status` предупреждает**, если развёрнутый skill-set расходится с активным флагом (например, 38 развёрнуто без `--include-official`) — чтобы ты заметил случайный bloat.
+
 ## Функционал
 
 | Категория | Что делает | Как использовать |
@@ -63,8 +78,8 @@ Claude Code, Cursor, VSCode Claude Extension, Qwen Code, Windsurf.
 | **Verification Engine** | 25 stack-aware проверок (pytest, ruff, mypy, tsc, eslint, cargo, go-vet, phpstan, helm-lint, hadolint…). Scoped по relevant_files. Cache на 10 мин | Стек авто-определяется bootstrap |
 | **Real-time хуки** | 19 хуков: task gate (нет кода без задачи), bash firewall, push gate, auto-format, drift detection (SessionStart/UserPromptSubmit/Stop), memory pre/post audit | Авто в Claude Code и Qwen Code |
 | **Метрики** | Throughput, First-Pass Success Rate, Defect Escape Rate, Lead Time, Dead End Rate, Cost-per-task | `tausik metrics`, `tausik metrics --cost` |
-| **Multi-IDE** | Те же MCP-инструменты (99) + skills во всех хостах | VSCode/Claude, Cursor, Qwen Code, Windsurf, Codex, CLI |
-| **Skill Ecosystem** | 13 core skills всегда развёрнуты + 25+ vendor skills устанавливаются по запросу из внешних репо. Multi-model профили через `variants/<model>.md` — разные промпты для Haiku/Sonnet/Opus *(v1.4)* | `tausik skill install <name>` |
+| **Multi-IDE** | Те же MCP-инструменты (100) + skills во всех хостах | VSCode/Claude, Cursor, Qwen Code, Windsurf, Codex, CLI |
+| **Skill Ecosystem** | 12 core skills auto-deployed (+ `/brain` если настроен Notion) — см. [Token Efficiency](#token-efficiency). 25+ official/vendor skills opt-in через `--include-official` или `tausik skill install`. Multi-model профили через `variants/<model>.md` *(v1.4)* | `tausik skill install <name>` |
 | **Cross-project Brain** *(опционально)* | Notion-mirror решений / паттернов / gotchas / web-кэша между проектами. v1.4 добавляет artifact pipeline: propose → audit (scrubbing секретов) → publish, со stack-aware bm25 ранжированием. Приватность через SHA256-хеши имён | `/brain` query, `tausik brain init`, `tausik brain propose-artifact`, `tausik brain publish` |
 | **Гигиена & Audit** *(v1.4)* | `tausik hygiene archive` списком показывает старые done-задачи (dry-run). Audit-скрипты: `audit_orphan_files`, `audit_stale_docs`, `audit_unused_python`, `audit_pytest_dedupe` — инвентаризация мёртвого кода, висячих доков, скопированных тестов | `tausik hygiene archive`, `python scripts/audit_*.py` |
 | **Task Archive** *(v1.4)* | Read-only спека архивирования done-задач старше N дней. Active / blocked / planning никогда не архивируются; `--confirm` зарезервирован под будущие деструктивные операции | `tausik hygiene archive` |
@@ -122,8 +137,8 @@ Bootstrap автоматически определяет стек и включ
 
 ## Что внутри
 
-- **13 core навыков** (всегда развёрнуты) — `/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, `/review`, `/test`, `/debug`, `/explore`, `/interview`, `/brain`. Плюс **25+ official/vendor навыков** (`/audit`, `/zero-defect`, `/markitdown`, `/docs`, `/security`, `/onboard`, …) ставятся по запросу через `tausik skill install`.
-- **99 MCP-инструментов** (92 project + 7 brain) — полный программный доступ к базе проекта
+- **12 core навыков + `/brain` conditional** (auto-deployed) — `/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, `/review`, `/test`, `/debug`, `/explore`, `/interview` всегда; `/brain` только после `tausik brain init`. Плюс **25+ official/vendor навыков** (`/audit`, `/zero-defect`, `/markitdown`, `/docs`, `/security`, `/onboard`, …) opt-in через `bootstrap --include-official` или `tausik skill install <name>`.
+- **100 MCP-инструментов** (93 project + 7 brain) — полный программный доступ к базе проекта
 - **25 проверок качества** — pytest, ruff, tsc, eslint, cargo check, go vet и другие для вашего стека
 - **6 автоматических метрик** — производительность, FPSR, уровень дефектов, активное время сессий
 - **Проектная память** — SQLite + FTS5, граф связей, трекинг тупиков, Memory Block re-injection
@@ -140,11 +155,11 @@ Bootstrap автоматически определяет стек и включ
 
 | Среда | Инструменты | Навыки | Хуки | Правила | Статус валидации |
 |-------|-------------|--------|------|---------|------------------|
-| VSCode + Claude Extension | 99 инстр. | 13 core + 25+ on demand | 19 хуков (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md + .mcp.json | **Официально протестировано** |
-| Cursor | 99 инстр. | 13 core + 25+ on demand | — | .cursorrules + .cursor/mcp.json | **Официально протестировано** |
-| Claude Code (CLI) | 99 инстр. | 13 core + 25+ on demand | 19 хуков | CLAUDE.md + .mcp.json | Ожидается (частичная матрица) |
-| Qwen Code | 99 инстр. | 13 core + 25+ on demand | 19 хуков (как у Claude) | QWEN.md + .mcp.json | Ожидается (частичная матрица) |
-| Windsurf | 99 инстр. | 13 core + 25+ on demand | — | .windsurfrules + .mcp.json | Ожидается (частичная матрица) |
+| VSCode + Claude Extension | 100 инстр. | 12 core + brain conditional, 25+ on demand | 19 хуков (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md + .mcp.json | **Официально протестировано** |
+| Cursor | 100 инстр. | 12 core + brain conditional, 25+ on demand | — | .cursorrules + .cursor/mcp.json | **Официально протестировано** |
+| Claude Code (CLI) | 100 инстр. | 12 core + brain conditional, 25+ on demand | 19 хуков | CLAUDE.md + .mcp.json | Ожидается (частичная матрица) |
+| Qwen Code | 100 инстр. | 12 core + brain conditional, 25+ on demand | 19 хуков (как у Claude) | QWEN.md + .mcp.json | Ожидается (частичная матрица) |
+| Windsurf | 100 инстр. | 12 core + brain conditional, 25+ on demand | — | .windsurfrules + .mcp.json | Ожидается (частичная матрица) |
 | Codex / OpenCode-подобные агенты | MCP + rules-driven при поддержке хоста | Зависит от хоста | Специфично для хоста | AGENTS.md | Ожидается (ручная валидация) |
 
 **Хуки** блокируют редактирование кода без задачи, опасные shell-команды и прямой push в main — в реальном времени. Доступны в Claude Code и Qwen Code. Cursor и Windsurf получают те же MCP-инструменты и навыки, с quality gates на `task start` и `task done`.
@@ -176,10 +191,10 @@ TAUSIK реализует [SENAR](https://senar.tech) ([GitHub](https://github.c
 | **[Быстрый старт](docs/ru/quickstart.md)** | Первое знакомство — 10-15 минут |
 | **[Что такое SENAR?](docs/ru/senar.md)** | Методология за TAUSIK |
 | **[Рабочий процесс](docs/ru/workflow.md)** | Типичный день с TAUSIK |
-| **[Навыки](docs/ru/skills.md)** | 13 core + 25 vendor (38 total) сценариев для агента |
+| **[Навыки](docs/ru/skills.md)** | 12 core + brain conditional, 25+ official skills opt-in (38 total) |
 | **[Хуки](docs/ru/hooks.md)** | Контроль в реальном времени |
 | **[CLI-команды](docs/ru/cli.md)** | Справочник команд терминала |
-| **[MCP-инструменты](docs/ru/mcp.md)** | 99 инструментов для ИИ-агента |
+| **[MCP-инструменты](docs/ru/mcp.md)** | 100 инструментов для ИИ-агента |
 | **[Архитектура](docs/ru/architecture.md)** | Как устроен фреймворк внутри |
 
 **[Полная документация ->](docs/README.md)**

@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 23
+SCHEMA_VERSION = 24
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -189,8 +189,9 @@ CREATE TABLE IF NOT EXISTS usage_events (
     tokens_total INTEGER NOT NULL CHECK(tokens_total >= 0),
     cost_usd REAL NOT NULL DEFAULT 0 CHECK(cost_usd >= 0),
     tool_calls INTEGER NOT NULL DEFAULT 0 CHECK(tool_calls >= 0),
-    source TEXT NOT NULL CHECK(source IN ('session_record', 'manual')),
-    recorded_at TEXT NOT NULL
+    source TEXT NOT NULL CHECK(source IN ('session_record', 'manual', 'posttool')),
+    recorded_at TEXT NOT NULL,
+    tool_name TEXT
 );
 """
 

@@ -211,13 +211,15 @@ def build_header(project_name: str, stacks: list[str], agent_name: str) -> str:
 def build_skills_section(ide_subdir: str) -> str:
     return (
         f"## Skills\n\n"
-        f"After bootstrap, **13 core skills** ship from `agents/skills/` and are always available: "
+        f"After bootstrap, **12 core skills** ship from `agents/skills/` and are always available: "
         f"`/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, "
-        f"`/review`, `/test`, `/debug`, `/explore`, `/interview`, `/brain`.\n\n"
-        f"**25+ official/vendor skills** install on demand via "
-        f"`tausik skill install <name>` from the `tausik-skills` repo or "
-        f"`skills-official/`: `/audit`, `/zero-defect`, `/markitdown`, `/excel`, "
-        f"`/pdf`, `/docs`, `/security`, `/onboard`, `/retro`, `/ultra`, `/jira`, "
+        f"`/review`, `/test`, `/debug`, `/explore`, `/interview`. "
+        f"`/brain` is the 13th core skill but only deploys when the project has Notion configured "
+        f"(`tausik brain init`).\n\n"
+        f"**25+ official/vendor skills** are opt-in via `python .tausik-lib/bootstrap/bootstrap.py "
+        f"--include-official` (full bundle) or `tausik skill install <name>` (per skill) from the "
+        f"`tausik-skills` repo or `skills-official/`: `/audit`, `/zero-defect`, `/markitdown`, "
+        f"`/excel`, `/pdf`, `/docs`, `/security`, `/onboard`, `/retro`, `/ultra`, `/jira`, "
         f"`/bitrix24`, `/sentry`, ... See `{ide_subdir}/references/skill-catalog.md`.\n\n"
         f"**Security — external skill repos are arbitrary code + instructions.** "
         f"Adding a repo clones remote content; installing may run pip/scripts. "
@@ -245,9 +247,7 @@ def _load_ide_override(ide: str | None) -> str:
     if not ide:
         return ""
     here = os.path.dirname(os.path.abspath(__file__))
-    candidate = os.path.normpath(
-        os.path.join(here, "..", "agents", "overrides", ide, "rules.md")
-    )
+    candidate = os.path.normpath(os.path.join(here, "..", "agents", "overrides", ide, "rules.md"))
     if not os.path.isfile(candidate):
         return ""
     try:

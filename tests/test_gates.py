@@ -249,13 +249,75 @@ class TestGateRunner:
         passed, output = run_command_gate(gate, [str(f)])
         assert passed is True
 
+    def test_pytest_gate_full_lane_env_var_injects_override(self, tmp_path, monkeypatch):
+        """v14b-pytest-fast-lane: TAUSIK_VERIFY_FULL=1 makes pytest gate run the
+        full battery (override pyproject.toml addopts='-m not slow')."""
+        monkeypatch.setenv("TAUSIK_VERIFY_FULL", "1")
+        # Use a python -c stub that prints argv, dressed up as a 'pytest' command
+        # so the env-var branch fires (the check is on the leading executable).
+        gate = {"command": "pytest -q --collect-only"}
+        # We cannot actually run pytest here without a real suite; instead we
+        # patch subprocess.run to capture the composed cmd.
+        import gate_runner
+
+        captured: dict = {}
+
+        def fake_run(cmd, **kwargs):
+            captured["cmd"] = cmd
+            from types import SimpleNamespace
+
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(gate_runner.subprocess, "run", fake_run)
+        passed, _ = run_command_gate(gate, [])
+        assert passed is True
+        assert "--override-ini=addopts=" in captured["cmd"], (
+            "TAUSIK_VERIFY_FULL must inject --override-ini=addopts= so pytest "
+            "ignores the fast-lane addopts in pyproject.toml"
+        )
+
+    def test_pytest_gate_default_does_not_inject_override(self, tmp_path, monkeypatch):
+        """Without TAUSIK_VERIFY_FULL, pytest cmd is unchanged (fast-lane stays)."""
+        monkeypatch.delenv("TAUSIK_VERIFY_FULL", raising=False)
+        gate = {"command": "pytest -q --collect-only"}
+        import gate_runner
+
+        captured: dict = {}
+
+        def fake_run(cmd, **kwargs):
+            captured["cmd"] = cmd
+            from types import SimpleNamespace
+
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(gate_runner.subprocess, "run", fake_run)
+        passed, _ = run_command_gate(gate, [])
+        assert passed is True
+        assert "--override-ini" not in captured["cmd"]
+
+    def test_full_env_var_does_not_affect_non_pytest_gates(self, tmp_path, monkeypatch):
+        """Negative scenario: TAUSIK_VERIFY_FULL only injects into pytest cmd."""
+        monkeypatch.setenv("TAUSIK_VERIFY_FULL", "1")
+        gate = {"command": "ruff check {files}"}
+        import gate_runner
+
+        captured: dict = {}
+
+        def fake_run(cmd, **kwargs):
+            captured["cmd"] = cmd
+            from types import SimpleNamespace
+
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(gate_runner.subprocess, "run", fake_run)
+        run_command_gate(gate, [])
+        assert "--override-ini" not in captured["cmd"]
+
     def test_format_results_empty(self):
         assert "No gates" in format_results([])
 
     def test_format_results_pass(self):
-        results = [
-            {"name": "pytest", "severity": "block", "passed": True, "output": "ok"}
-        ]
+        results = [{"name": "pytest", "severity": "block", "passed": True, "output": "ok"}]
         out = format_results(results)
         assert "PASS" in out
         assert "pytest" in out
@@ -312,9 +374,7 @@ class TestStackGates:
             "javac",
             "ktlint",
         ):
-            assert gates[name]["enabled"] is False, (
-                f"{name} should be disabled by default"
-            )
+            assert gates[name]["enabled"] is False, f"{name} should be disabled by default"
 
     def test_auto_enable_for_typescript(self):
         from project_config import auto_enable_gates_for_stacks
@@ -466,11 +526,7 @@ class TestCustomGateValidation:
 
     def test_load_gates_does_not_validate_default_overrides(self):
         """Overriding a default gate (e.g. pytest) skips custom validation."""
-        cfg = {
-            "gates": {
-                "pytest": {"command": "pytest tests/ -v --tb=short 2>&1 | head -50"}
-            }
-        }
+        cfg = {"gates": {"pytest": {"command": "pytest tests/ -v --tb=short 2>&1 | head -50"}}}
         gates = load_gates(cfg)
         assert "pytest" in gates
         assert "head -50" in gates["pytest"]["command"]
@@ -620,9 +676,7 @@ class TestFilesizeGateExemptFiles:
         sibling.write_text("x\n" * 700)
         monkeypatch.chdir(tmp_path)
         gate = {"max_lines": 400, "exempt_files": ["config/huge.json"]}
-        passed, output = run_filesize_gate(
-            gate, ["config/huge.json", "other/huge.json"]
-        )
+        passed, output = run_filesize_gate(gate, ["config/huge.json", "other/huge.json"])
         assert passed is False, output
         norm_output = output.replace("\\", "/")
         assert "other/huge.json" in norm_output
@@ -678,12 +732,8 @@ class TestResolveTestFilesForRelevant:
         assert resolve_test_files_for_relevant(None, root=str(tmp_path)) == []
 
     def test_basename_match(self, tmp_path):
-        self._setup_repo(
-            tmp_path, ["scripts/brain_init.py"], ["tests/test_brain_init.py"]
-        )
-        out = resolve_test_files_for_relevant(
-            ["scripts/brain_init.py"], root=str(tmp_path)
-        )
+        self._setup_repo(tmp_path, ["scripts/brain_init.py"], ["tests/test_brain_init.py"])
+        out = resolve_test_files_for_relevant(["scripts/brain_init.py"], root=str(tmp_path))
         assert out == ["tests/test_brain_init.py"]
 
     def test_glob_suffix_variants(self, tmp_path):
@@ -696,9 +746,7 @@ class TestResolveTestFilesForRelevant:
                 "tests/test_brain_sync_more.py",
             ],
         )
-        out = resolve_test_files_for_relevant(
-            ["scripts/brain_sync.py"], root=str(tmp_path)
-        )
+        out = resolve_test_files_for_relevant(["scripts/brain_sync.py"], root=str(tmp_path))
         assert "tests/test_brain_sync.py" in out
         assert "tests/test_brain_sync_extra.py" in out
         assert "tests/test_brain_sync_more.py" in out
@@ -706,17 +754,13 @@ class TestResolveTestFilesForRelevant:
 
     def test_no_match_returns_empty(self, tmp_path):
         self._setup_repo(tmp_path, ["scripts/nothing_here.py"], [])
-        out = resolve_test_files_for_relevant(
-            ["scripts/nothing_here.py"], root=str(tmp_path)
-        )
+        out = resolve_test_files_for_relevant(["scripts/nothing_here.py"], root=str(tmp_path))
         assert out == []
 
     def test_test_file_passthrough(self, tmp_path):
         """When relevant_files already lists a test file, accept it as-is."""
         self._setup_repo(tmp_path, [], ["tests/test_something.py"])
-        out = resolve_test_files_for_relevant(
-            ["tests/test_something.py"], root=str(tmp_path)
-        )
+        out = resolve_test_files_for_relevant(["tests/test_something.py"], root=str(tmp_path))
         assert out == ["tests/test_something.py"]
 
     def test_dedup_when_multiple_sources_share_test(self, tmp_path):
@@ -733,9 +777,7 @@ class TestResolveTestFilesForRelevant:
 
     def test_handles_nonexistent_paths_gracefully(self, tmp_path):
         """Non-existent source paths still get their stem looked up; missing test → skip."""
-        out = resolve_test_files_for_relevant(
-            ["scripts/never_existed.py"], root=str(tmp_path)
-        )
+        out = resolve_test_files_for_relevant(["scripts/never_existed.py"], root=str(tmp_path))
         assert out == []
 
     def test_skips_empty_or_non_string_entries(self, tmp_path):
@@ -746,12 +788,8 @@ class TestResolveTestFilesForRelevant:
         assert out == []
 
     def test_windows_backslash_path_normalized(self, tmp_path):
-        self._setup_repo(
-            tmp_path, ["scripts/brain_init.py"], ["tests/test_brain_init.py"]
-        )
-        out = resolve_test_files_for_relevant(
-            [r"scripts\brain_init.py"], root=str(tmp_path)
-        )
+        self._setup_repo(tmp_path, ["scripts/brain_init.py"], ["tests/test_brain_init.py"])
+        out = resolve_test_files_for_relevant([r"scripts\brain_init.py"], root=str(tmp_path))
         assert out == ["tests/test_brain_init.py"]
 
     def test_glob_subdirectory_test_files(self, tmp_path):
@@ -795,9 +833,7 @@ class TestResolveTestFilesForRelevant:
             ["scripts/x.py"],
             ["tests/test_x.py", "tests/integration/test_x.py"],
         )
-        out = resolve_test_files_for_relevant(
-            ["scripts/x.py", "scripts/x.py"], root=str(tmp_path)
-        )
+        out = resolve_test_files_for_relevant(["scripts/x.py", "scripts/x.py"], root=str(tmp_path))
         # Both subdirs return distinct paths, but each only once
         assert sorted(out) == sorted(["tests/test_x.py", "tests/integration/test_x.py"])
 
@@ -909,9 +945,7 @@ class TestPytestGateScopeSubstitution:
         assert output == _SCOPED_SKIP_SENTINEL
         assert called["ran"] is False
 
-    def test_run_gates_translates_scoped_skip_into_skipped_result(
-        self, tmp_path, monkeypatch
-    ):
+    def test_run_gates_translates_scoped_skip_into_skipped_result(self, tmp_path, monkeypatch):
         """run_gates converts the sentinel into a skipped=True result entry."""
         (tmp_path / "tests").mkdir()
         monkeypatch.chdir(tmp_path)
@@ -925,9 +959,7 @@ class TestPytestGateScopeSubstitution:
             "command": "pytest -q {test_files_for_files}",
             "stacks": ["python"],
         }
-        monkeypatch.setattr(
-            "gate_runner.get_gates_for_trigger", lambda *_a, **_k: [gate_cfg]
-        )
+        monkeypatch.setattr("gate_runner.get_gates_for_trigger", lambda *_a, **_k: [gate_cfg])
         monkeypatch.setattr("gate_runner.load_config", lambda: {})
 
         called = {"ran": False}

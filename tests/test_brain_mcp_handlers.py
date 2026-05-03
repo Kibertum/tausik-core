@@ -8,10 +8,11 @@ import sys
 
 import pytest
 
+# v14b-pytest-fast-lane: brain handler tests load Notion-client plumbing — ~5s each.
+pytestmark = pytest.mark.slow
+
 # Ensure scripts dir is importable (brain handlers.py imports brain_* modules).
-sys.path.insert(
-    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts"))
-)
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts")))
 
 import brain_sync  # noqa: E402
 
@@ -34,9 +35,7 @@ def _load_brain_handlers():
     Avoids clashing with agents/claude/mcp/project/handlers.py when both
     get added to sys.path by different tests in the same session.
     """
-    spec = importlib.util.spec_from_file_location(
-        "tausik_brain_handlers", _HANDLERS_PATH
-    )
+    spec = importlib.util.spec_from_file_location("tausik_brain_handlers", _HANDLERS_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -139,9 +138,7 @@ def test_dispatch_unknown_tool(handlers):
 # ---- Happy path with enabled config --------------------------------------
 
 
-def test_brain_search_enabled_empty_mirror_no_fallback_found(
-    brain_env, handlers, monkeypatch
-):
+def test_brain_search_enabled_empty_mirror_no_fallback_found(brain_env, handlers, monkeypatch):
     """Enabled, mirror empty, no token → handler still works, returns No matches."""
     monkeypatch.delenv("FAKE_BRAIN_TOKEN", raising=False)
     out = handlers.handle_brain_search({"query": "nothing-matches"})
@@ -244,9 +241,7 @@ def test_brain_search_disabled_no_token_warning(handlers, monkeypatch):
     assert "Brain integration token is not set" not in out
 
 
-def test_token_missing_warning_without_env_name_fallback(
-    tmp_path, handlers, monkeypatch
-):
+def test_token_missing_warning_without_env_name_fallback(tmp_path, handlers, monkeypatch):
     """cfg missing notion_integration_token_env → generic warning, no crash.
 
     v1.3.2: cascade resolution falls back to default NOTION_TAUSIK_TOKEN env

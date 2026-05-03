@@ -76,9 +76,7 @@ def _do_task_add(svc: Any, args: dict) -> str:
 
 
 def _do_task_quick(svc: Any, args: dict) -> str:
-    return svc.task_quick(
-        args["title"], args.get("goal"), args.get("role"), args.get("stack")
-    )
+    return svc.task_quick(args["title"], args.get("goal"), args.get("role"), args.get("stack"))
 
 
 def _do_task_next(svc: Any, args: dict) -> str:
@@ -159,9 +157,7 @@ def _do_task_update(svc: Any, args: dict) -> str:
 
 def _do_session_current(svc: Any, args: dict) -> str:
     s = svc.session_current()
-    return (
-        f"Session #{s['id']} started {s['started_at']}" if s else "No active session."
-    )
+    return f"Session #{s['id']} started {s['started_at']}" if s else "No active session."
 
 
 def _handle_task_logs(svc: Any, args: dict) -> str:
@@ -181,9 +177,7 @@ def _do_session_list(svc: Any, args: dict) -> str:
     sessions = svc.session_list(args.get("limit", 10))
     return _handle_list(
         sessions,
-        lambda s: (
-            f"#{s['id']} [{s.get('ended_at', 'active')}] {(s.get('summary') or '')[:60]}"
-        ),
+        lambda s: f"#{s['id']} [{s.get('ended_at', 'active')}] {(s.get('summary') or '')[:60]}",
         "No sessions.",
     )
 
@@ -211,9 +205,7 @@ def _do_epic_list(svc: Any, args: dict) -> str:
 
 
 def _do_story_add(svc: Any, args: dict) -> str:
-    return svc.story_add(
-        args["epic_slug"], args["slug"], args["title"], args.get("description")
-    )
+    return svc.story_add(args["epic_slug"], args["slug"], args["title"], args.get("description"))
 
 
 def _do_story_list(svc: Any, args: dict) -> str:
@@ -285,9 +277,7 @@ def _do_memory_block(svc: Any, args: dict) -> str:
         max_deadends=args.get("max_deadends", 5),
         max_lines=args.get("max_lines", 50),
     )
-    return (
-        output or "(memory block empty — no decisions, conventions, or dead ends yet)"
-    )
+    return output or "(memory block empty — no decisions, conventions, or dead ends yet)"
 
 
 def _do_memory_compact(svc: Any, args: dict) -> str:
@@ -347,9 +337,7 @@ def _do_memory_graph(svc: Any, args: dict) -> str:
 
 def _do_decisions_list(svc: Any, args: dict) -> str:
     decs = svc.decisions(args.get("limit", 20))
-    return _handle_list(
-        decs, lambda d: f"#{d['id']} {d['decision'][:80]}", "No decisions."
-    )
+    return _handle_list(decs, lambda d: f"#{d['id']} {d['decision'][:80]}", "No decisions.")
 
 
 def _do_team(svc: Any, args: dict) -> str:
@@ -383,9 +371,7 @@ def _do_explore_current(svc: Any, args: dict) -> str:
 
         try:
             started = datetime.fromisoformat(exp["started_at"].replace("Z", "+00:00"))
-            elapsed = str(
-                int((datetime.now(timezone.utc) - started).total_seconds() / 60)
-            )
+            elapsed = str(int((datetime.now(timezone.utc) - started).total_seconds() / 60))
         except (ValueError, TypeError):
             pass
     limit = exp.get("time_limit_min", 30)
@@ -432,6 +418,7 @@ def _do_usage_event_log(svc: Any, args: dict) -> str:
 _DISPATCH: dict[str, _Handler] = {
     # --- Health & Status ---
     "tausik_health": lambda svc, args: _handle_health(svc),
+    "tausik_self_check": lambda svc, args: _handle_self_check(),
     "tausik_status": lambda svc, args: _handle_status(svc, args),
     "tausik_metrics": lambda svc, args: _handle_metrics(svc),
     "tausik_usage_event_log": _do_usage_event_log,
@@ -447,32 +434,24 @@ _DISPATCH: dict[str, _Handler] = {
     "tausik_task_start": lambda svc, args: svc.task_start(args["slug"]),
     "tausik_task_done": _do_task_done,
     "tausik_task_done_v2": _do_task_done_v2,
-    "tausik_task_block": lambda svc, args: svc.task_block(
-        args["slug"], args.get("reason")
-    ),
+    "tausik_task_block": lambda svc, args: svc.task_block(args["slug"], args.get("reason")),
     "tausik_task_unblock": lambda svc, args: svc.task_unblock(args["slug"]),
     "tausik_task_update": _do_task_update,
     "tausik_task_plan": lambda svc, args: svc.task_plan(args["slug"], args["steps"]),
     "tausik_task_step": lambda svc, args: svc.task_step(args["slug"], args["step_num"]),
     "tausik_task_delete": lambda svc, args: svc.task_delete(args["slug"]),
     "tausik_task_review": lambda svc, args: svc.task_review(args["slug"]),
-    "tausik_task_move": lambda svc, args: svc.task_move(
-        args["slug"], args["new_story_slug"]
-    ),
+    "tausik_task_move": lambda svc, args: svc.task_move(args["slug"], args["new_story_slug"]),
     "tausik_task_log": lambda svc, args: svc.task_log(args["slug"], args["message"]),
     "tausik_task_logs": lambda svc, args: _handle_task_logs(svc, args),
-    "tausik_task_claim": lambda svc, args: svc.task_claim(
-        args["slug"], args["agent_id"]
-    ),
+    "tausik_task_claim": lambda svc, args: svc.task_claim(args["slug"], args["agent_id"]),
     "tausik_task_unclaim": lambda svc, args: svc.task_unclaim(args["slug"]),
     # --- Sessions ---
     "tausik_session_current": _do_session_current,
     "tausik_session_list": _do_session_list,
     "tausik_session_start": lambda svc, args: svc.session_start(),
     "tausik_session_end": lambda svc, args: svc.session_end(args.get("summary")),
-    "tausik_session_extend": lambda svc, args: svc.session_extend(
-        args.get("minutes", 60)
-    ),
+    "tausik_session_extend": lambda svc, args: svc.session_extend(args.get("minutes", 60)),
     "tausik_session_handoff": _do_session_handoff,
     "tausik_session_last_handoff": _do_session_last_handoff,
     # --- Hierarchy (Epics & Stories) ---
@@ -526,22 +505,14 @@ _DISPATCH: dict[str, _Handler] = {
     "tausik_gates_disable": lambda svc, args: _handle_gate_toggle(args["name"], False),
     # --- Skills (handlers in handlers_skill.py) ---
     "tausik_skill_list": lambda svc, args: _skill.handle_skill_list(),
-    "tausik_skill_activate": lambda svc, args: _skill.handle_skill_activate(
-        svc, args["name"]
-    ),
-    "tausik_skill_deactivate": lambda svc, args: _skill.handle_skill_deactivate(
-        svc, args["name"]
-    ),
+    "tausik_skill_activate": lambda svc, args: _skill.handle_skill_activate(svc, args["name"]),
+    "tausik_skill_deactivate": lambda svc, args: _skill.handle_skill_deactivate(svc, args["name"]),
     "tausik_skill_install": lambda svc, args: _skill.handle_skill_install(args["name"]),
-    "tausik_skill_uninstall": lambda svc, args: _skill.handle_skill_uninstall(
-        args["name"]
-    ),
+    "tausik_skill_uninstall": lambda svc, args: _skill.handle_skill_uninstall(args["name"]),
     "tausik_skill_repo_add": lambda svc, args: _skill.handle_skill_repo_add(
         args["url"], force=bool(args.get("force"))
     ),
-    "tausik_skill_repo_remove": lambda svc, args: _skill.handle_skill_repo_remove(
-        args["name"]
-    ),
+    "tausik_skill_repo_remove": lambda svc, args: _skill.handle_skill_repo_remove(args["name"]),
     "tausik_skill_repo_list": lambda svc, args: _skill.handle_skill_repo_list(),
     # --- Maintenance (handler in handlers_skill.py) ---
     "tausik_update_claudemd": lambda svc, args: _skill.handle_update_claudemd(svc),
@@ -618,9 +589,7 @@ def _handle_role_update(svc: Any, args: dict) -> str:
     from service_roles import role_update
 
     try:
-        row = role_update(
-            svc.be, args["slug"], args.get("title"), args.get("description")
-        )
+        row = role_update(svc.be, args["slug"], args.get("title"), args.get("description"))
         return _json.dumps(row, indent=2, ensure_ascii=False)
     except Exception as e:
         return f"Error: {e}"
@@ -683,9 +652,7 @@ def _handle_verify(
     from tausik_utils import ServiceError
 
     try:
-        result = svc.run_verify_for_task(
-            task_slug=task_slug, scope=scope, trigger=trigger
-        )
+        result = svc.run_verify_for_task(task_slug=task_slug, scope=scope, trigger=trigger)
     except ServiceError as e:
         return f"Error: {e}"
     except Exception as e:
@@ -810,7 +777,9 @@ def _handle_cq_query(args: dict) -> str:
     """Query cq for cross-project knowledge."""
     client = _get_cq_client()
     if not client:
-        return "cq not configured. Add 'cq' section to .tausik/config.json with endpoint and api_key."
+        return (
+            "cq not configured. Add 'cq' section to .tausik/config.json with endpoint and api_key."
+        )
     units = client.query(
         domains=args["domains"],
         language=args.get("language", ""),
@@ -818,7 +787,9 @@ def _handle_cq_query(args: dict) -> str:
         limit=args.get("limit", 5),
     )
     if not units:
-        return "No cq knowledge found for these domains. cq may be unavailable or no matching entries."
+        return (
+            "No cq knowledge found for these domains. cq may be unavailable or no matching entries."
+        )
     lines = []
     for u in units:
         insight = u.get("insight", {})
@@ -861,6 +832,28 @@ def _handle_health(svc: Any) -> str:
         )
     except Exception as e:
         return json.dumps({"status": "error", "error": str(e)})
+
+
+def _handle_self_check() -> str:
+    """v14b-mcp-stale-module-detector — return MCP-server freshness report."""
+    try:
+        import self_check  # type: ignore[import-not-found]
+
+        return json.dumps(self_check.collect(), ensure_ascii=False, default=str)
+    except Exception as e:
+        return json.dumps(
+            {
+                "server": "tausik-project",
+                "drift_detected": None,
+                "error": f"self_check unavailable: {e}",
+                "remediation": (
+                    "self_check module failed to load — likely an old MCP "
+                    "server. Restart IDE so a fresh server boots with the "
+                    "diagnostic available."
+                ),
+            },
+            ensure_ascii=False,
+        )
 
 
 def _handle_status(svc: Any, args: dict | None = None) -> str:
@@ -955,9 +948,7 @@ def _handle_search(svc: Any, args: dict) -> str:
             lines.append(f"--- {scope} ({len(items)}) ---")
             for item in items[:10]:
                 if "slug" in item:
-                    lines.append(
-                        f"  {item['slug']}: {item.get('title', item.get('decision', ''))}"
-                    )
+                    lines.append(f"  {item['slug']}: {item.get('title', item.get('decision', ''))}")
                 elif "query" in item:
                     lines.append(f"  {item['query']}")
                 else:
@@ -1007,9 +998,7 @@ def _handle_gates_status() -> str:
         sev = gate.get("severity", "warn")
         gate_stacks = gate.get("stacks", [])
         stack_info = f" [{','.join(gate_stacks)}]" if gate_stacks else ""
-        lines.append(
-            f"[{status}] {name} ({sev}){stack_info}: {gate.get('description', '')}"
-        )
+        lines.append(f"[{status}] {name} ({sev}){stack_info}: {gate.get('description', '')}")
     if stacks:
         lines.append(f"\nDetected stacks: {', '.join(stacks)}")
     return "\n".join(lines) if lines else "No gates configured."
@@ -1019,9 +1008,7 @@ def _handle_gate_toggle(name: str, enable: bool) -> str:
     import re
 
     if not re.match(r"^[a-z0-9][a-z0-9-]*$", name):
-        return (
-            f"Invalid gate name '{name}': must be lowercase alphanumeric with hyphens."
-        )
+        return f"Invalid gate name '{name}': must be lowercase alphanumeric with hyphens."
     try:
         from project_config import load_config, save_config
 

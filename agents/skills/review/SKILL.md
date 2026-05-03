@@ -1,6 +1,6 @@
 ---
 name: review
-description: "Code review — finds bugs, vulnerabilities, antipatterns. Use when user says 'review', 'code review', 'find bugs', 'check my code', 'PR review'. Args: [file|directory|diff]"
+description: "Code review — bugs, vulnerabilities, antipatterns."
 context: fork
 effort: slow
 ---

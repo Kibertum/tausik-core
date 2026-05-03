@@ -122,6 +122,28 @@ def is_task_next_model_hint_enabled(cfg: dict | None = None) -> bool:
     return bool(tn.get("model_hint"))
 
 
+def is_task_start_model_banner_enabled(cfg: dict | None = None) -> bool:
+    """Whether ``task start`` prints the model recommendation banner.
+
+    Default: True (v1.4 polish). Opt-out for headless/CI runs via root
+    ``.tausik/config.json``::
+
+        "task_start": { "model_banner": false }
+
+    Missing ``task_start`` key or wrong type → True (default-on). Explicit
+    ``false`` disables. Any other truthy value enables.
+    """
+    if cfg is None:
+        cfg = load_config()
+    ts = cfg.get("task_start")
+    if not isinstance(ts, dict):
+        return True
+    flag = ts.get("model_banner")
+    if flag is False:
+        return False
+    return True
+
+
 def normalize_llm_pricing_config(cfg: dict | None) -> dict:
     """Validate ``llm_pricing_usd_per_million``: map ``model_id`` → USD per 1M tokens."""
 
@@ -145,9 +167,7 @@ def normalize_llm_pricing_config(cfg: dict | None) -> dict:
         try:
             val = float(v)
         except (TypeError, ValueError):
-            logger.warning(
-                "Skipping llm_pricing_usd_per_million entry %r — not numeric", k
-            )
+            logger.warning("Skipping llm_pricing_usd_per_million entry %r — not numeric", k)
             continue
         if val != val:  # NaN
             continue

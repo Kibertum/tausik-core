@@ -15,8 +15,11 @@ metrics [--cost]               # With --cost: rollup usage_events by task_slug (
 metrics record-session         # Persist LLM usage (tokens/cost/tool/model) for current or explicit session
 metrics log-usage              # Append one manual usage_events row (--task-slug optional; no session_usage_metrics overwrite)
 metrics cost [--since ISO] [--until ISO]   # SUM tokens/cost + COUNT rows grouped by task (NULL slug excluded)
-                                # Optional tariff table: .tausik/config.json → "llm_pricing_usd_per_million": { "<model_id>": <USD_per_1M_tokens>, … }
-                                # Only non-negative numbers are kept; unknown model_id → no tariff (null for later cost rollups).
+                                # Source: PostToolUse hook scripts/hooks/posttool_usage.py writes one
+                                #   usage_events row per tool call (source='posttool', tool_name=<tool>)
+                                #   attributed to the currently active task.
+                                # Pricing: scripts/cost_pricing.py — single source of truth.
+                                # See docs/{en,ru}/cost-telemetry.md.
 doctor                         # Health check: venv + DB + MCP + skills + drift
 ```
 
@@ -107,6 +110,22 @@ verify [--task SLUG] [--scope {lightweight,standard,high,critical,manual}]
 ```
 
 Now `task done` runs the verify gates inline within its transaction — the v1.3 behavior. Useful for CI where a single long step is preferable to two.
+
+**Pytest fast lane (v1.4.x).** The default pytest configuration (`pyproject.toml` → `[tool.pytest.ini_options]` → `addopts = "-m 'not slow'"`) skips tests marked `@pytest.mark.slow` (subprocess-heavy bootstrap, MCP integration, e2e, stress). This drops a clean `tausik verify` run from ~12 minutes to ~1.5 minutes on the TAUSIK repo. Three escape hatches when you need the full battery:
+
+```bash
+# 1. Direct pytest, override the addopts
+pytest --override-ini='addopts=' tests/
+
+# 2. Marker-only filter (overrides the inherited -m 'not slow')
+pytest -m '' tests/                        # all tests
+pytest -m 'slow' tests/                    # only slow tests (CI nightly)
+
+# 3. Through the verify gate — set the env var before invoking tausik
+TAUSIK_VERIFY_FULL=1 .tausik/tausik verify --task my-task
+```
+
+To mark a new test slow: file-level `pytestmark = pytest.mark.slow` (preferred for whole files) or per-test `@pytest.mark.slow`. Reach for it when a test spawns subprocesses, hits the network/MCP, or sleeps > 200 ms — anything that breaks the < 60 s interactive verify budget.
 
 **Terminology:** [Verify / QG glossary](verify-glossary.md) — opt-out vs bypass vs test shim.
 

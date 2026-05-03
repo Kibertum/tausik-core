@@ -180,7 +180,11 @@ class TestSkillsDocumentation:
         content = open(path, encoding="utf-8").read()
         assert "tausik_memory_block" in content
 
-    def test_checkpoint_skill_mentions_memory_block(self):
+    def test_checkpoint_skill_does_not_call_memory_block(self):
+        """v14b-token-tier1 T1.6: memory_block is re-injected on /start ONLY,
+        not on /checkpoint. Repeating it on every checkpoint costs ~600 tokens
+        without adding new information (the block already lives in context).
+        """
         path = os.path.join(
             os.path.dirname(__file__),
             "..",
@@ -190,4 +194,13 @@ class TestSkillsDocumentation:
             "SKILL.md",
         )
         content = open(path, encoding="utf-8").read()
-        assert "tausik_memory_block" in content
+        # The skill may still mention memory_block in an explanatory note
+        # ("intentionally NOT re-injected"). What we forbid is using it as
+        # a runtime tool call in the algorithm. Pin the contract via
+        # absence of the bullet-list "MCP tool" pattern.
+        forbidden = "`tausik_memory_block` MCP tool"
+        assert forbidden not in content, (
+            "/checkpoint must not invoke tausik_memory_block at runtime "
+            "(T1.6). Remove the line from the algorithm; an explanatory "
+            "note is fine."
+        )

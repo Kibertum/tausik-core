@@ -8,6 +8,9 @@ import time
 
 import pytest
 
+# v14b-pytest-fast-lane: spawns the MCP server and drives JSON-RPC over pipes.
+pytestmark = pytest.mark.slow
+
 SERVER = os.path.join(
     os.path.dirname(__file__), "..", "agents", "claude", "mcp", "project", "server.py"
 )
@@ -318,9 +321,7 @@ class TestMCPNewToolHandlers:
                 "task_slug": None,
             },
         )
-        assert (
-            "dead_end" in result.lower() or "memory" in result.lower() or "#" in result
-        )
+        assert "dead_end" in result.lower() or "memory" in result.lower() or "#" in result
 
     def test_gates_status_handler(self, svc):
         from handlers import handle_tool
@@ -344,11 +345,7 @@ class TestMCPNewToolHandlers:
         from handlers import handle_tool
 
         result = handle_tool(svc, "tausik_audit_check", {})
-        assert (
-            "audit" in result.lower()
-            or "up to date" in result.lower()
-            or "Error" not in result
-        )
+        assert "audit" in result.lower() or "up to date" in result.lower() or "Error" not in result
 
     def test_skill_list_handler(self, svc):
         from handlers import handle_tool
@@ -381,13 +378,7 @@ class TestMCPCrossIDEParity:
         """claude and cursor MCP servers must be byte-identical."""
         base = os.path.join(os.path.dirname(__file__), "..")
         for fname in ("server.py", "tools.py", "handlers.py"):
-            claude_path = os.path.join(
-                base, "agents", "claude", "mcp", "project", fname
-            )
-            cursor_path = os.path.join(
-                base, "agents", "cursor", "mcp", "project", fname
-            )
+            claude_path = os.path.join(base, "agents", "claude", "mcp", "project", fname)
+            cursor_path = os.path.join(base, "agents", "cursor", "mcp", "project", fname)
             with open(claude_path) as f1, open(cursor_path) as f2:
-                assert f1.read() == f2.read(), (
-                    f"{fname} differs between claude and cursor"
-                )
+                assert f1.read() == f2.read(), f"{fname} differs between claude and cursor"

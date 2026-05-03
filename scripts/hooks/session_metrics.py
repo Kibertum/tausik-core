@@ -16,16 +16,9 @@ import os
 import sys
 from glob import glob
 
-# Model pricing (USD per 1M tokens) — updated for Claude 4.x
-MODEL_PRICING = {
-    "claude-opus-4-6":     {"input": 15.0, "output": 75.0},
-    "claude-sonnet-4-6":   {"input": 3.0,  "output": 15.0},
-    "claude-haiku-4-5":    {"input": 0.80, "output": 4.0},
-    # Aliases
-    "opus":                {"input": 15.0, "output": 75.0},
-    "sonnet":              {"input": 3.0,  "output": 15.0},
-    "haiku":               {"input": 0.80, "output": 4.0},
-}
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from cost_pricing import calculate_cost_usd  # noqa: E402
 
 
 def parse_transcript(path: str) -> dict:
@@ -85,18 +78,26 @@ def parse_transcript(path: str) -> dict:
 
     tokens_total = tokens_input + tokens_output
 
-    # Calculate cost
-    cost_usd = 0.0
-    pricing = MODEL_PRICING.get(model, MODEL_PRICING.get("opus"))
-    if pricing:
-        cost_usd = (tokens_input * pricing["input"] / 1_000_000 +
-                    tokens_output * pricing["output"] / 1_000_000)
+    if not model:
+        # No silent Opus fallback — Sonnet/Haiku transcripts would be 5×–19×
+        # over-attributed. Emit a stderr warning (parity with posttool_usage)
+        # and report cost_usd=0.0 so downstream telemetry can flag the gap.
+        if tokens_total > 0:
+            print(
+                "session_metrics: transcript missing 'model' field; "
+                f"reporting cost_usd=0.0 for {tokens_total} tokens",
+                file=sys.stderr,
+            )
+        cost_usd = 0.0
+    else:
+        cost_usd = calculate_cost_usd(model, tokens_input, tokens_output)
 
     # Duration
     duration_sec = 0
     if first_ts and last_ts:
         try:
             from datetime import datetime
+
             t1 = datetime.fromisoformat(first_ts.replace("Z", "+00:00"))
             t2 = datetime.fromisoformat(last_ts.replace("Z", "+00:00"))
             duration_sec = int((t2 - t1).total_seconds())
@@ -128,6 +129,7 @@ def auto_find_transcript() -> str | None:
     Checks ~/.claude/projects/<project-slug>/*.jsonl
     Project slug is derived from CWD by replacing path separators with dashes.
     """
+
     def _auto_find_in_projects_root(projects_dir: str) -> str | None:
         if not os.path.isdir(projects_dir):
             return None
@@ -139,10 +141,7 @@ def auto_find_transcript() -> str | None:
         # Search for matching directory first
         for entry in os.listdir(projects_dir):
             entry_lower = entry.lower()
-            if (
-                slug_candidate.lower() in entry_lower
-                or entry_lower in slug_candidate.lower()
-            ):
+            if slug_candidate.lower() in entry_lower or entry_lower in slug_candidate.lower():
                 project_dir = os.path.join(projects_dir, entry)
                 if os.path.isdir(project_dir):
                     t = find_latest_transcript(project_dir)
@@ -189,9 +188,9 @@ def record_to_db(metrics: dict, project_root: str | None = None) -> bool:
     Returns True on success, False on failure.
     """
     import subprocess
+
     if not project_root:
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(
-            os.path.abspath(__file__))))
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     script = os.path.join(project_root, ".claude", "scripts", "project.py")
     if not os.path.isfile(script):
         # Try root scripts/ (source layout)
@@ -201,17 +200,25 @@ def record_to_db(metrics: dict, project_root: str | None = None) -> bool:
         return False
 
     cmd = [
-        sys.executable, script, "metrics", "record-session",
-        "--tokens-input", str(metrics.get("tokens_input", 0)),
-        "--tokens-output", str(metrics.get("tokens_output", 0)),
-        "--tokens-total", str(metrics.get("tokens_total", 0)),
-        "--cost-usd", str(metrics.get("cost_usd", 0.0)),
-        "--tool-calls", str(metrics.get("tool_calls", 0)),
-        "--model", metrics.get("model", ""),
+        sys.executable,
+        script,
+        "metrics",
+        "record-session",
+        "--tokens-input",
+        str(metrics.get("tokens_input", 0)),
+        "--tokens-output",
+        str(metrics.get("tokens_output", 0)),
+        "--tokens-total",
+        str(metrics.get("tokens_total", 0)),
+        "--cost-usd",
+        str(metrics.get("cost_usd", 0.0)),
+        "--tool-calls",
+        str(metrics.get("tool_calls", 0)),
+        "--model",
+        metrics.get("model", ""),
     ]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30,
-                                cwd=project_root)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, cwd=project_root)
         if result.returncode == 0:
             print(f"DB: {result.stdout.strip()}")
             return True
@@ -261,8 +268,10 @@ def main():
 
     metrics = parse_transcript(path)
     output = write_metrics(metrics)
-    print(f"Metrics: {metrics['tokens_total']:,} tokens, ${metrics['cost_usd']:.2f}, "
-          f"{metrics['tool_calls']} tool calls, model={metrics['model']}")
+    print(
+        f"Metrics: {metrics['tokens_total']:,} tokens, ${metrics['cost_usd']:.2f}, "
+        f"{metrics['tool_calls']} tool calls, model={metrics['model']}"
+    )
     print(f"Written to: {output}")
 
     if record:

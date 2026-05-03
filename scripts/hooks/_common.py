@@ -21,9 +21,27 @@ _TASK_DONE_TOOL_NAMES = (
 
 # Match actual CLI shape: `.tausik/tausik task done <slug>` or `tausik task done <slug>`
 # — not any prose mention of "task done" in a Bash command (echo, grep, git log, ...).
-_BASH_TASK_DONE_RE = re.compile(
-    r"\btausik(?:\.cmd)?\b[^|;&]*?\btask\s+done\s+([a-z0-9][a-z0-9-]*)"
-)
+_BASH_TASK_DONE_RE = re.compile(r"\btausik(?:\.cmd)?\b[^|;&]*?\btask\s+done\s+([a-z0-9][a-z0-9-]*)")
+
+
+def truncate(s: str | None, n: int = 100) -> str:
+    """Truncate a string to at most ``n`` characters.
+
+    v14b-token-tier1 (T1.4): hooks should not flood the agent's context
+    with verbose informational output. This helper caps text at ``n`` chars
+    and appends a single ellipsis so truncation is visible. Empty/None
+    pass through unchanged.
+
+    Use for advisory/informational prints — do NOT truncate decision
+    payloads (the JSON `reason` field of a Stop/PreToolUse block IS the
+    contract, not informational output).
+    """
+    if not s:
+        return ""
+    text = str(s)
+    if len(text) <= n:
+        return text
+    return text[: max(0, n - 1)] + "…"
 
 
 def tausik_path(project_dir: str) -> str | None:
@@ -50,6 +68,32 @@ def is_tausik_project(project_dir: str) -> bool:
     TAUSIK-managed project.
     """
     return os.path.isdir(os.path.join(project_dir, ".tausik"))
+
+
+def current_active_task_slug(project_dir: str) -> str | None:
+    """Return the slug of the single active task, or None.
+
+    Reads `.tausik/tausik.db` directly (no subprocess) so PostTool hooks
+    stay fast. If the DB is missing/locked or there are zero/multiple
+    active tasks, returns None — callers must treat this as "no
+    attribution available" and write usage events with task_slug=NULL.
+
+    Multi-active is rare in practice; when it happens we deliberately
+    refuse to guess which task earned the tool call.
+    """
+    import sqlite3
+
+    db = os.path.join(project_dir, ".tausik", "tausik.db")
+    if not os.path.exists(db):
+        return None
+    try:
+        with sqlite3.connect(db, timeout=2) as conn:
+            rows = conn.execute("SELECT slug FROM tasks WHERE status='active' LIMIT 2").fetchall()
+    except sqlite3.Error:
+        return None
+    if len(rows) != 1:
+        return None
+    return str(rows[0][0])
 
 
 def has_active_task(project_dir: str, timeout: int = 4) -> bool:

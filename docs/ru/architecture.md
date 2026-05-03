@@ -101,14 +101,14 @@
 | `agents/claude/mcp/project/handlers.py` | Диспетчеризация: имя инструмента → метод сервиса |
 | `agents/claude/mcp/project/handlers_skill.py` | Обработчики навыков + обслуживания (split) |
 
-Полный MCP-surface: **92 project + 7 brain = 99 инструментов** (опциональный `codebase-rag` добавляет ещё 7; не в основном счёте).
+Полный MCP-surface: **93 project + 7 brain = 100 инструментов** (опциональный `codebase-rag` добавляет ещё 7; не в основном счёте).
 
 ### Поддержка разных сред разработки
 
 Навыки, роли, стеки — общие для всех сред. MCP-серверы — специфичны для среды:
 ```
 agents/
-├── skills/           # 13 core (auto-deployed) + 25+ в skills-official/ (по запросу)
+├── skills/           # 12 core auto-deployed + brain условно + 25+ в skills-official/ (opt-in через --include-official)
 ├── roles/            # 5 ролей (developer, architect, qa, tech-writer, ui-ux)
 ├── stacks/           # Руководства по стекам
 ├── overrides/        # Переопределения для конкретных сред (claude/, cursor/, qwen/)

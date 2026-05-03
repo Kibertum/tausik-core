@@ -1,6 +1,6 @@
 ---
 name: ship
-description: "Wrap up current work: review + test + gates + commit in one operation. Use when user says 'ship', 'ship it', 'wrap up', 'done', 'finish', 'готово', 'отправляй', 'заверши', 'закрывай'."
+description: "Ship — review + test + gates + commit in one shot."
 context: fork
 effort: slow
 ---

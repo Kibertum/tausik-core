@@ -192,6 +192,11 @@ def generate_settings_qwen(
                     },
                     {
                         "type": "command",
+                        "command": _hook_cmd("posttool_usage.py"),
+                        "timeout": 4,
+                    },
+                    {
+                        "type": "command",
                         "command": _hook_cmd("activity_event.py"),
                         "timeout": 5,
                     },
@@ -245,9 +250,7 @@ def generate_settings_qwen(
                 "hooks": [
                     {
                         "type": "command",
-                        "command": _hook_cmd(
-                            "session_metrics.py", " --auto --record 2>&1 || true"
-                        ),
+                        "command": _hook_cmd("session_metrics.py", " --auto --record 2>&1 || true"),
                     }
                 ],
             },

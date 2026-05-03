@@ -30,8 +30,13 @@ Changelog = "https://github.com/Kibertum/tausik-core/blob/main/CHANGELOG.md"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["scripts"]
+# Default fast lane — slow integration / subprocess / e2e tests are skipped.
+# Run the full battery via `pytest -m ''` or `tausik verify --full` (env:
+# TAUSIK_VERIFY_FULL=1). See docs/{en,ru}/cli.md for the full contract.
+addopts = "-m 'not slow'"
 markers = [
     "verify_first: opt the test in to v1.4 Verify-First Contract enforcement (default conftest fixture sets auto_verify=True for backward compat)",
+    "slow: subprocess/integration/e2e/stress tests; skipped by default in interactive verify, run via `pytest -m ''` or `tausik verify --full` / TAUSIK_VERIFY_FULL=1",
 ]
 
 [tool.coverage.run]

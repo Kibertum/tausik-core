@@ -148,8 +148,12 @@ class TestOverflowDocs:
         path = os.path.join(os.path.dirname(__file__), "..", "CLAUDE.md")
         with open(path, encoding="utf-8") as f:
             text = f.read()
-        assert ">400" in text or "> 400" in text
-        assert "deep" in text.lower()
+        # The 4096B static cap (claude-md-trim-reference-line task) trimmed the
+        # verbose ">400 lines / deep file" prose. Contract now: the cap value
+        # and the gate name must remain mentioned in CLAUDE.md so the agent
+        # still sees the rule.
+        assert "400" in text
+        assert "filesize" in text.lower()
 
     def test_tools_py_mentions_overflow(self):
         path = os.path.join(

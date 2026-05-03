@@ -55,7 +55,9 @@ _CONTENT_SIZE_CAP = 200_000  # ~200 KB of text
 
 def _debug(msg: str) -> None:
     if os.environ.get("TAUSIK_BRAIN_HOOK_DEBUG"):
-        print(f"[brain_post_webfetch] {msg}", file=sys.stderr)
+        from _common import truncate
+
+        print(f"[brain_post_webfetch] {truncate(msg)}", file=sys.stderr)
 
 
 def _read_stdin_json() -> dict:
@@ -197,9 +199,7 @@ def main() -> int:
 
     raw_mirror = cfg.get("local_mirror_path") or DEFAULT_BRAIN["local_mirror_path"]
     try:
-        mirror_path = os.path.abspath(
-            os.path.expandvars(os.path.expanduser(str(raw_mirror)))
-        )
+        mirror_path = os.path.abspath(os.path.expandvars(os.path.expanduser(str(raw_mirror))))
     except (TypeError, ValueError):
         return 0
     if not os.path.isfile(mirror_path):

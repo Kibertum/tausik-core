@@ -41,12 +41,12 @@ Same governance everywhere; only the **wrapper** (hooks vs self-serve) changes. 
 
 | Model / host | Primary TAUSIK surface | Main `tausik_*` tools (two servers) | Notes |
 |----------------|------------------------|-------------------------------------|------|
-| Claude (Code, VS Code Extension) | MCP `tausik-project` + `tausik-brain` | **99** (92 project + 7 brain) | Hooks + MCP |
+| Claude (Code, VS Code Extension) | MCP `tausik-project` + `tausik-brain` | **100** (93 project + 7 brain) | Hooks + MCP |
 | Cursor / Composer / GPT-5.5+ / OpenCode | Same MCP (project MCP config); CLI fallback `.tausik/tausik` | **99** (92+7) | Rule 1 self-serve if no hooks |
 | Qwen Code | MCP + skills under `.qwen/skills/` | **99** (92+7) | Subset of hooks |
 | Codex CLI / headless agents | Prefer MCP if exposed; else mirror CLI | **99** (92+7) | [docs/en/cli.md](docs/en/cli.md) |
 
-**Optional `codebase-rag` server:** +7 tools → **106** total with the main two servers (not part of the 99 baseline). Same numbers as the header in [docs/en/mcp.md](docs/en/mcp.md).
+**Optional `codebase-rag` server:** +7 tools → **107** total with the main two servers (not part of the 100 baseline). Same numbers as the header in [docs/en/mcp.md](docs/en/mcp.md).
 
 **Operating contract for non-Claude models:**
 
@@ -96,8 +96,8 @@ Canonical narrative + branching detail: **[docs/en/workflow.md](docs/en/workflow
 | **CLI command reference** | [docs/en/cli.md](docs/en/cli.md) (EN) / [docs/ru/cli.md](docs/ru/cli.md) (RU) |
 | **Architecture & internals** | [docs/en/architecture.md](docs/en/architecture.md) (EN) / [docs/ru/architecture.md](docs/ru/architecture.md) (RU) |
 | **Testing principles (scoped pytest, when to add tests)** | [docs/en/testing-principles.md](docs/en/testing-principles.md) (EN) / [docs/ru/testing-principles.md](docs/ru/testing-principles.md) (RU) |
-| **MCP tools (92 project + 7 brain = 99; verify-first contract)** | [docs/en/mcp.md](docs/en/mcp.md) |
-| **Skills reference (13 core + 25+ vendor)** | [docs/en/skills.md](docs/en/skills.md) |
+| **MCP tools (93 project + 7 brain = 100; verify-first contract)** | [docs/en/mcp.md](docs/en/mcp.md) |
+| **Skills reference (12 core + brain conditional, 25+ official opt-in)** | [docs/en/skills.md](docs/en/skills.md) |
 | **Quality gates** | [docs/en/hooks.md](docs/en/hooks.md) |
 | **User-facing docs index** | [docs/README.md](docs/README.md) |
 | **SENAR compliance matrix** | [docs/en/senar-compliance-matrix.md](docs/en/senar-compliance-matrix.md) |
@@ -108,11 +108,11 @@ Canonical narrative + branching detail: **[docs/en/workflow.md](docs/en/workflow
 scripts/           Core Python (CLI → Service → Backend)
 docs/              Documentation (en/, ru/, research/)
 agents/            Shared resources for all IDEs
-  skills/          13 core skill definitions (SKILL.md) + 25+ official/vendor skills available on demand
+  skills/          12 core skill definitions auto-deployed (+ /brain conditionally on Notion config) + 25+ official/vendor opt-in via --include-official
   roles/           5 role profiles (developer, architect, qa, tech-writer, ui-ux)
   stacks/          25 stack guides (python, react, go, rust, ansible, terraform, ...)
   overrides/       IDE-specific overrides (claude/, cursor/, qwen/)
-  claude/mcp/      tausik-project (92) + tausik-brain (7) = 99 main; optional codebase-rag +7 → 106 total — see docs/en/mcp.md
+  claude/mcp/      tausik-project (93) + tausik-brain (7) = 100 main; optional codebase-rag +7 → 107 total — see docs/en/mcp.md
 bootstrap/         One-command project setup
 tests/             pytest suite (2590 tests)
 .tausik/           Runtime data (DB, config) — gitignored

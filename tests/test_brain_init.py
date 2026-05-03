@@ -12,7 +12,7 @@ if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
 
 import brain_init  # noqa: E402
-from brain_notion_client import NotionError  # noqa: E402
+from brain_notion_client import NotionAuthError, NotionError  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -96,21 +96,28 @@ class _FakeClient:
         fail_category: str | None = None,
         existing_dbs: dict[str, str] | None = None,
         query_404: set[str] | None = None,
+        users_me_error: Exception | None = None,
     ):
         self.calls: list[dict] = []
         self.search_calls: list[dict] = []
         self.query_calls: list[dict] = []
+        self.users_me_calls: list[None] = []
         self.fail_category = fail_category
         self.existing_dbs = existing_dbs or {}
         self.query_404 = query_404 or set()
+        self.users_me_error = users_me_error
+
+    def users_me(self):
+        self.users_me_calls.append(None)
+        if self.users_me_error is not None:
+            raise self.users_me_error
+        return {"object": "user", "id": "bot_user_id", "type": "bot", "name": "TAUSIK Test Bot"}
 
     def databases_create(self, *, parent_page_id, title, properties):
         self.calls.append(
             {"parent_page_id": parent_page_id, "title": title, "properties": properties}
         )
-        category = next(
-            (c for c, t in brain_init.DB_TITLES.items() if t == title), None
-        )
+        category = next((c for c, t in brain_init.DB_TITLES.items() if t == title), None)
         if self.fail_category and category == self.fail_category:
             raise NotionError("boom", status=500, body={})
         return {"id": f"db_{category}_id", "title": title}
@@ -130,9 +137,7 @@ class _FakeClient:
             )
         return {"results": results, "has_more": False, "next_cursor": None}
 
-    def databases_query(
-        self, db_id, *, filter=None, sorts=None, start_cursor=None, page_size=None
-    ):
+    def databases_query(self, db_id, *, filter=None, sorts=None, start_cursor=None, page_size=None):
         self.query_calls.append({"db_id": db_id, "page_size": page_size})
         if db_id in self.query_404:
             from brain_notion_client import NotionNotFoundError
@@ -274,9 +279,7 @@ def test_merge_brain_config_does_not_mutate_input():
 
 def test_merge_brain_config_ignores_none_values():
     existing = {"brain": {"project_names": ["x"]}}
-    result = brain_init.merge_brain_config(
-        existing, {"project_names": None, "enabled": True}
-    )
+    result = brain_init.merge_brain_config(existing, {"project_names": None, "enabled": True})
     assert result["brain"]["project_names"] == ["x"]
     assert result["brain"]["enabled"] is True
 
@@ -400,9 +403,7 @@ def test_run_wizard_already_configured_without_force_raises(monkeypatch):
 def test_run_wizard_force_overwrites_existing(monkeypatch):
     monkeypatch.setenv("T", "tok")
     io = _FakeIO(is_tty=False)
-    cfg_ops = _FakeConfigOps(
-        {"brain": {"enabled": True, "database_ids": {"decisions": "old"}}}
-    )
+    cfg_ops = _FakeConfigOps({"brain": {"enabled": True, "database_ids": {"decisions": "old"}}})
     brain_init.run_wizard(
         {
             "parent_page_id": "p1",
@@ -1005,7 +1006,8 @@ def test_run_wizard_join_existing_explicit_overrides_discovered(monkeypatch):
 
 
 def test_run_wizard_join_existing_fails_when_no_ids_resolvable(monkeypatch):
-    """--join-existing on empty workspace + no explicit ids → clear error."""
+    """--join-existing on empty workspace + no explicit ids → explicit
+    Connections-share guide (v14b-brain-init-preflight, dead-end #72)."""
     monkeypatch.setenv("T", "tok")
     io = _FakeIO(is_tty=False)
     cfg_ops = _FakeConfigOps()
@@ -1013,12 +1015,40 @@ def test_run_wizard_join_existing_fails_when_no_ids_resolvable(monkeypatch):
     def factory(_token):
         return _FakeClient()  # empty
 
+    with pytest.raises(brain_init.WizardError, match=r"Connections.*add your integration"):
+        brain_init.run_wizard(
+            {
+                "token_env": "T",
+                "yes": True,
+                "join_existing": True,
+            },
+            io,
+            factory,
+            cfg_ops,
+        )
+    assert cfg_ops.saved == []
+
+
+def test_run_wizard_join_existing_partial_explicit_ids_falls_to_could_not_resolve(monkeypatch):
+    """--join-existing with 1-of-4 explicit ids on empty workspace → the
+    legacy 'could not resolve' message still fires (scenario the new
+    Connections guide intentionally does NOT cover, since explicit IDs
+    were supplied — the user is past the share-the-page step).
+    """
+    monkeypatch.setenv("T", "tok")
+    io = _FakeIO(is_tty=False)
+    cfg_ops = _FakeConfigOps()
+
+    def factory(_token):
+        return _FakeClient()
+
     with pytest.raises(brain_init.WizardError, match="could not resolve"):
         brain_init.run_wizard(
             {
                 "token_env": "T",
                 "yes": True,
                 "join_existing": True,
+                "decisions_id": "explicit-dec",
             },
             io,
             factory,
@@ -1108,3 +1138,143 @@ def test_run_wizard_search_failure_logged_then_proceeds(monkeypatch):
     assert result["mode"] == "create"
     combined = "\n".join(io.prints).lower()
     assert "search failed" in combined or "skipping" in combined
+
+
+# --- v14b-brain-init-preflight: users.me() probe + empty-discovery guide ---
+
+
+def test_run_wizard_calls_users_me_before_search(monkeypatch):
+    """Pre-flight users.me() must run before any other API call so token
+    validity is checked first (dead-end #72 root-cause separation)."""
+    monkeypatch.setenv("T", "tok")
+    io = _FakeIO(is_tty=False)
+    cfg_ops = _FakeConfigOps()
+    fake = _FakeClient()
+
+    def factory(_token):
+        return fake
+
+    brain_init.run_wizard(
+        {"parent_page_id": "p1", "token_env": "T", "project_name": "x", "yes": True},
+        io,
+        factory,
+        cfg_ops,
+    )
+    # users_me must have been called exactly once and BEFORE any search call.
+    assert len(fake.users_me_calls) == 1, "users_me must run on every wizard run"
+
+
+def test_run_wizard_users_me_401_raises_token_invalid_message(monkeypatch):
+    """NotionAuthError on users.me() → WizardError with 'Token is invalid' guide."""
+    monkeypatch.setenv("T", "wrong-token")
+    io = _FakeIO(is_tty=False)
+    cfg_ops = _FakeConfigOps()
+    fake = _FakeClient(users_me_error=NotionAuthError("invalid token", status=401))
+
+    def factory(_token):
+        return fake
+
+    with pytest.raises(brain_init.WizardError, match=r"Notion token is invalid"):
+        brain_init.run_wizard(
+            {"parent_page_id": "p1", "token_env": "T", "yes": True},
+            io,
+            factory,
+            cfg_ops,
+        )
+    # Confirm databases_create was NOT called when token is invalid
+    assert fake.calls == []
+    # Confirm cfg was NOT saved
+    assert cfg_ops.saved == []
+
+
+def test_run_wizard_users_me_generic_error_does_not_falsely_say_token_invalid(
+    monkeypatch,
+):
+    """NEGATIVE: a transient/network NotionError (not 401) must NOT produce
+    a 'token invalid' message — that would mislead the user."""
+    monkeypatch.setenv("T", "tok")
+    io = _FakeIO(is_tty=False)
+    cfg_ops = _FakeConfigOps()
+    fake = _FakeClient(users_me_error=NotionError("network down", status=None))
+
+    def factory(_token):
+        return fake
+
+    # Should NOT raise — the wizard logs and proceeds. Subsequent calls may fail
+    # contextually but a transient blip on users.me() is non-fatal.
+    brain_init.run_wizard(
+        {"parent_page_id": "p1", "token_env": "T", "project_name": "x", "yes": True},
+        io,
+        factory,
+        cfg_ops,
+    )
+    combined = "\n".join(io.prints).lower()
+    assert "token is invalid" not in combined  # no false positive
+    assert "users.me" in combined or "users_me" in combined or "pre-flight" in combined
+
+
+def test_run_wizard_join_existing_empty_discovery_emits_connections_guide(monkeypatch):
+    """--join-existing without explicit ids on empty workspace → explicit
+    'share via Connections' guide (replaces opaque 'could not resolve' on
+    this specific path). Dead-end #72 root cause directly addressed."""
+    monkeypatch.setenv("T", "tok")
+    io = _FakeIO(is_tty=False)
+    cfg_ops = _FakeConfigOps()
+    fake = _FakeClient()  # 0 discovered
+
+    def factory(_token):
+        return fake
+
+    with pytest.raises(brain_init.WizardError) as exc_info:
+        brain_init.run_wizard(
+            {"token_env": "T", "yes": True, "join_existing": True},
+            io,
+            factory,
+            cfg_ops,
+        )
+    msg = str(exc_info.value)
+    assert "Connections" in msg
+    assert "add your integration" in msg
+    assert "BRAIN page" in msg
+
+
+def test_run_wizard_join_existing_with_all_explicit_ids_skips_preflight_guide(
+    monkeypatch,
+):
+    """NEGATIVE: when all 4 explicit IDs are passed, pre-flight is skipped
+    and the empty-discovery guide must NOT fire (the user is past the
+    share-the-page step). Wizard should successfully finalize the join.
+    """
+    monkeypatch.setenv("T", "tok")
+    io = _FakeIO(is_tty=False)
+    cfg_ops = _FakeConfigOps()
+    fake = _FakeClient()  # empty workspace, but explicit ids cover everything
+
+    def factory(_token):
+        return fake
+
+    result = brain_init.run_wizard(
+        {
+            "token_env": "T",
+            "project_name": "x",
+            "yes": True,
+            "join_existing": True,
+            "decisions_id": "d1",
+            "web_cache_id": "w1",
+            "patterns_id": "p1",
+            "gotchas_id": "g1",
+        },
+        io,
+        factory,
+        cfg_ops,
+    )
+    # Successfully joined via explicit IDs, no Connections guide shown.
+    assert result["mode"] == "join"
+    combined_io = "\n".join(io.prints)
+    assert "Connections" not in combined_io, (
+        "explicit-id mode should not surface the share-via-Connections guide"
+    )
+    # The pre-flight should have been skipped — search() should not have run.
+    assert fake.search_calls == [], (
+        "with all explicit IDs, pre-flight workspace search should be skipped"
+    )

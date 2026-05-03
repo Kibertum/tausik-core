@@ -207,8 +207,7 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
             result_count INTEGER NOT NULL DEFAULT 0,
             ts TEXT NOT NULL
         )""",
-        "CREATE INDEX IF NOT EXISTS idx_brain_events_session "
-        "ON brain_events(session_id)",
+        "CREATE INDEX IF NOT EXISTS idx_brain_events_session ON brain_events(session_id)",
         "CREATE INDEX IF NOT EXISTS idx_brain_events_type ON brain_events(event_type)",
         "CREATE INDEX IF NOT EXISTS idx_brain_events_ts ON brain_events(ts)",
     ],
@@ -230,6 +229,36 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
         "CREATE INDEX IF NOT EXISTS idx_usage_events_session "
         "ON usage_events(session_id, recorded_at)",
         "CREATE INDEX IF NOT EXISTS idx_usage_events_task ON usage_events(task_slug, recorded_at)",
+    ],
+    # --- v24: per-tool granularity for usage_events (PostToolUse hook) ---
+    # Adds tool_name column + relaxes source CHECK to include 'posttool'.
+    # SQLite cannot modify CHECK in-place — rebuild via temp table.
+    24: [
+        """CREATE TABLE usage_events_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+            task_slug TEXT REFERENCES tasks(slug) ON DELETE SET NULL,
+            model_id TEXT,
+            tokens_input INTEGER NOT NULL CHECK(tokens_input >= 0),
+            tokens_output INTEGER NOT NULL CHECK(tokens_output >= 0),
+            tokens_total INTEGER NOT NULL CHECK(tokens_total >= 0),
+            cost_usd REAL NOT NULL DEFAULT 0 CHECK(cost_usd >= 0),
+            tool_calls INTEGER NOT NULL DEFAULT 0 CHECK(tool_calls >= 0),
+            source TEXT NOT NULL CHECK(source IN ('session_record', 'manual', 'posttool')),
+            recorded_at TEXT NOT NULL,
+            tool_name TEXT
+        )""",
+        "INSERT INTO usage_events_new("
+        "id, session_id, task_slug, model_id, tokens_input, tokens_output, "
+        "tokens_total, cost_usd, tool_calls, source, recorded_at, tool_name) "
+        "SELECT id, session_id, task_slug, model_id, tokens_input, tokens_output, "
+        "tokens_total, cost_usd, tool_calls, source, recorded_at, NULL FROM usage_events",
+        "DROP TABLE usage_events",
+        "ALTER TABLE usage_events_new RENAME TO usage_events",
+        "CREATE INDEX IF NOT EXISTS idx_usage_events_session "
+        "ON usage_events(session_id, recorded_at)",
+        "CREATE INDEX IF NOT EXISTS idx_usage_events_task ON usage_events(task_slug, recorded_at)",
+        "CREATE INDEX IF NOT EXISTS idx_usage_events_tool ON usage_events(tool_name, recorded_at)",
     ],
 }
 
@@ -266,9 +295,7 @@ def seed_v18_roles(conn) -> dict:
         )
         seeded += 1
         if original != norm:
-            cur = conn.execute(
-                "UPDATE tasks SET role = ? WHERE role = ?", (norm, original)
-            )
+            cur = conn.execute("UPDATE tasks SET role = ? WHERE role = ?", (norm, original))
             rewritten += cur.rowcount
     return {
         "seeded": seeded,
@@ -312,9 +339,7 @@ def run_migrations(conn: "sqlite3.Connection", current_version: int) -> int:  # 
             current_version = ver
     if current_version >= 18:
         try:
-            already = conn.execute(
-                "SELECT value FROM meta WHERE key='v18_seeded'"
-            ).fetchone()
+            already = conn.execute("SELECT value FROM meta WHERE key='v18_seeded'").fetchone()
         except Exception:
             already = None
         try:
@@ -328,16 +353,12 @@ def run_migrations(conn: "sqlite3.Connection", current_version: int) -> int:  # 
             try:
                 conn.execute("BEGIN IMMEDIATE")
                 report = seed_v18_roles(conn)
-                conn.execute(
-                    "INSERT OR REPLACE INTO meta(key, value) VALUES('v18_seeded', '1')"
-                )
+                conn.execute("INSERT OR REPLACE INTO meta(key, value) VALUES('v18_seeded', '1')")
                 conn.commit()
             except Exception as e:
                 import logging
 
-                logging.getLogger("tausik.migrations").warning(
-                    "v18 seed/flag failed: %s", e
-                )
+                logging.getLogger("tausik.migrations").warning("v18 seed/flag failed: %s", e)
                 try:
                     conn.rollback()
                 except Exception:

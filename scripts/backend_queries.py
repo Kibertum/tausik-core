@@ -2,6 +2,10 @@
 
 Separated from project_backend.py to keep CRUD layer clean.
 These are mixed into SQLiteBackend via BackendQueriesMixin.
+
+v14b-filesize-debt-paydown: usage_events/session_usage_metrics methods extracted
+to backend_queries_usage.py (BackendQueriesUsageMixin). BackendQueriesMixin
+inherits from it so the public surface on SQLiteBackend is unchanged.
 """
 
 from __future__ import annotations
@@ -9,7 +13,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from tausik_utils import utcnow_iso
+from backend_queries_usage import BackendQueriesUsageMixin
 
 
 def _session_hours(stats: dict | None) -> float:
@@ -37,7 +41,7 @@ def _sanitize_fts5(query: str) -> str:
     return " ".join(parts) if parts else ""
 
 
-class BackendQueriesMixin:
+class BackendQueriesMixin(BackendQueriesUsageMixin):
     """Complex queries: search, metrics, roadmap, events."""
 
     # --- Search ---
@@ -112,153 +116,14 @@ class BackendQueriesMixin:
             "session": self.session_current(),
         }
 
-    def usage_event_append(
-        self,
-        session_id: int,
-        task_slug: str | None,
-        tokens_input: int,
-        tokens_output: int,
-        tokens_total: int,
-        cost_usd: float,
-        tool_calls: int,
-        model_id: str | None,
-        source: str,
-        recorded_at: str | None = None,
-    ) -> int:
-        """Insert one usage_events row; return new row id."""
-        when = recorded_at or utcnow_iso()
-        slug = (task_slug or "").strip() or None
-        ti, to, tt = int(tokens_input), int(tokens_output), int(tokens_total)
-        tc = int(tool_calls)
-        cu = float(cost_usd)
-        mid = (model_id or "").strip() or None
-        return int(
-            self._ex(
-                "INSERT INTO usage_events("
-                "session_id,task_slug,model_id,tokens_input,tokens_output,tokens_total,"
-                "cost_usd,tool_calls,source,recorded_at"
-                ") VALUES(?,?,?,?,?,?,?,?,?,?)",
-                (
-                    int(session_id),
-                    slug,
-                    mid,
-                    ti,
-                    to,
-                    tt,
-                    cu,
-                    tc,
-                    source,
-                    when,
-                ),
-            )
-        )
-
-    def session_usage_record(
-        self,
-        session_id: int,
-        tokens_input: int,
-        tokens_output: int,
-        tokens_total: int,
-        cost_usd: float,
-        tool_calls: int = 0,
-        model: str | None = None,
-    ) -> None:
-        now = utcnow_iso()
-        mid = (model or "").strip() or None
-        ti, to, tt = int(tokens_input), int(tokens_output), int(tokens_total)
-        tc = int(tool_calls)
-        cu = float(cost_usd)
-        self._ex(
-            "INSERT INTO session_usage_metrics("
-            "session_id,tokens_input,tokens_output,tokens_total,cost_usd,tool_calls,model,recorded_at"
-            ") VALUES(?,?,?,?,?,?,?,?) "
-            "ON CONFLICT(session_id) DO UPDATE SET "
-            "tokens_input=excluded.tokens_input, "
-            "tokens_output=excluded.tokens_output, "
-            "tokens_total=excluded.tokens_total, "
-            "cost_usd=excluded.cost_usd, "
-            "tool_calls=excluded.tool_calls, "
-            "model=excluded.model, "
-            "recorded_at=excluded.recorded_at",
-            (
-                int(session_id),
-                ti,
-                to,
-                tt,
-                cu,
-                tc,
-                mid,
-                now,
-            ),
-        )
-        self.usage_event_append(
-            int(session_id),
-            None,
-            ti,
-            to,
-            tt,
-            cu,
-            tc,
-            mid,
-            "session_record",
-            recorded_at=now,
-        )
-
-    def usage_events_cost_rollup_by_task(
-        self,
-        since: str | None = None,
-        until: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """Aggregate tokens/cost/count by task_slug (NULL task_slug excluded)."""
-        clauses = ["task_slug IS NOT NULL"]
-        params: list[Any] = []
-        if since:
-            clauses.append("recorded_at >= ?")
-            params.append(since)
-        if until:
-            clauses.append("recorded_at <= ?")
-            params.append(until)
-        where_sql = " AND ".join(clauses)
-        return self._q(
-            "SELECT task_slug AS task_slug, COUNT(*) AS event_count, "
-            "COALESCE(SUM(tokens_total), 0) AS tokens_total, "
-            "COALESCE(SUM(cost_usd), 0) AS cost_usd "
-            f"FROM usage_events WHERE {where_sql} "
-            "GROUP BY task_slug ORDER BY cost_usd DESC, task_slug",
-            tuple(params),
-        )
-
-    def session_usage_summary(self) -> dict[str, Any]:
-        agg = self._q1(
-            "SELECT COUNT(*) as sessions_with_usage, "
-            "COALESCE(SUM(tokens_input),0) as tokens_input, "
-            "COALESCE(SUM(tokens_output),0) as tokens_output, "
-            "COALESCE(SUM(tokens_total),0) as tokens_total, "
-            "COALESCE(SUM(cost_usd),0) as cost_usd, "
-            "COALESCE(SUM(tool_calls),0) as tool_calls "
-            "FROM session_usage_metrics"
-        ) or {}
-        last = self._q1(
-            "SELECT session_id, tokens_input, tokens_output, tokens_total, "
-            "cost_usd, tool_calls, model, recorded_at "
-            "FROM session_usage_metrics ORDER BY recorded_at DESC LIMIT 1"
-        )
-        return {
-            "sessions_with_usage": int(agg.get("sessions_with_usage") or 0),
-            "tokens_input": int(agg.get("tokens_input") or 0),
-            "tokens_output": int(agg.get("tokens_output") or 0),
-            "tokens_total": int(agg.get("tokens_total") or 0),
-            "cost_usd": round(float(agg.get("cost_usd") or 0.0), 4),
-            "tool_calls": int(agg.get("tool_calls") or 0),
-            "last_session": last,
-        }
+    # usage_event_append, session_usage_record, usage_events_cost_rollup_by_task,
+    # session_usage_summary moved to backend_queries_usage.BackendQueriesUsageMixin
+    # (v14b-filesize-debt-paydown). Inherited via class declaration above.
 
     def get_metrics(self) -> dict[str, Any]:
         task_counts = {
             r["status"]: r["cnt"]
-            for r in self._q(
-                "SELECT status, COUNT(*) as cnt FROM tasks GROUP BY status"
-            )
+            for r in self._q("SELECT status, COUNT(*) as cnt FROM tasks GROUP BY status")
         }
         total = sum(task_counts.values())
         done = task_counts.get("done", 0)
@@ -280,14 +145,10 @@ class BackendQueriesMixin:
         )
 
         avg_hours = (
-            round(combined["cycle_hours"], 1)
-            if combined.get("cycle_hours") is not None
-            else None
+            round(combined["cycle_hours"], 1) if combined.get("cycle_hours") is not None else None
         )
         lead_hours = (
-            round(combined["lead_hours"], 1)
-            if combined.get("lead_hours") is not None
-            else None
+            round(combined["lead_hours"], 1) if combined.get("lead_hours") is not None else None
         )
         first_pass = combined.get("first_pass", 0)
         fpsr = round(first_pass / done * 100, 1) if done else 0
@@ -324,9 +185,7 @@ class BackendQueriesMixin:
 
         story_counts = {
             r["status"]: r["cnt"]
-            for r in self._q(
-                "SELECT status, COUNT(*) as cnt FROM stories GROUP BY status"
-            )
+            for r in self._q("SELECT status, COUNT(*) as cnt FROM stories GROUP BY status")
         }
         from backend_tier_metrics import calibration_drift, per_tier_metrics
 
@@ -462,19 +321,13 @@ class BackendQueriesMixin:
         )
         return self._q(sql, params)
 
-    def graph_resolve_nodes(
-        self, node_refs: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def graph_resolve_nodes(self, node_refs: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Resolve node references to full records (batched to avoid N+1)."""
         if not node_refs:
             return []
         # Batch by type
-        memory_ids = [
-            ref["node_id"] for ref in node_refs if ref["node_type"] == "memory"
-        ]
-        decision_ids = [
-            ref["node_id"] for ref in node_refs if ref["node_type"] == "decision"
-        ]
+        memory_ids = [ref["node_id"] for ref in node_refs if ref["node_type"] == "memory"]
+        decision_ids = [ref["node_id"] for ref in node_refs if ref["node_type"] == "decision"]
         records: dict[tuple[str, int], dict[str, Any]] = {}
         if memory_ids:
             placeholders = ",".join("?" * len(memory_ids))

@@ -367,4 +367,19 @@ TOOLS_EXTRA = [
             "required": ["name"],
         },
     },
+    # === MCP self-check (v14b-mcp-stale-module-detector) ===
+    {
+        "name": "tausik_self_check",
+        "description": (
+            "Diagnose this MCP server's freshness. Returns startup time, "
+            "watched-module mtime snapshot vs current on-disk mtimes, "
+            "drift_detected flag, list of stale modules with delta_seconds, "
+            "and sibling MCP project server count for this project. "
+            "Call from /start (Phase 1) so the agent surfaces an MCP Health "
+            "warning when the running server holds stale code — root cause "
+            "of silent hangs in tausik_verify / tausik_task_done_v2 (gotchas "
+            "#77, #79, #80). Remediation: restart IDE; meanwhile use CLI."
+        ),
+        "inputSchema": {"type": "object", "properties": {}},
+    },
 ]
