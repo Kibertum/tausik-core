@@ -68,13 +68,10 @@ def cmd_status(svc: ProjectService, args: Any) -> None:
         active = svc.session_active_minutes()
         wall = svc.session_wall_minutes()
         idle_pct = (
-            f", {round((1 - active / wall) * 100)}% idle"
-            if wall > 0 and active < wall
-            else ""
+            f", {round((1 - active / wall) * 100)}% idle" if wall > 0 and active < wall else ""
         )
         print(
-            f"Session: #{data['session']['id']} ({active} min active / "
-            f"{wall} min wall{idle_pct})"
+            f"Session: #{data['session']['id']} ({active} min active / {wall} min wall{idle_pct})"
         )
         # SENAR Rule 9.2: session duration warning
         from project_config import load_config, DEFAULT_SESSION_MAX_MINUTES
@@ -106,6 +103,34 @@ def cmd_status(svc: ProjectService, args: Any) -> None:
             f"{cs['planned_active']} planned, {cs['remaining']} remaining{marker}"
         )
 
+    # v14b-skill-core-cleanup: surface a one-line nudge when the deployed
+    # skill set is well above the v1.4 default of 12 (counting brain when
+    # gated). Helps users notice the new opt-in default without reading
+    # changelog. The message points to safe migration paths only — no
+    # automatic mutation.
+    _maybe_print_skill_set_warning()
+
+
+def _maybe_print_skill_set_warning() -> None:
+    """Warn when .claude/skills/ holds many more skills than v1.4 default."""
+    skills_dir = os.path.join(".claude", "skills")
+    if not os.path.isdir(skills_dir):
+        return
+    try:
+        deployed = [d for d in os.listdir(skills_dir) if os.path.isdir(os.path.join(skills_dir, d))]
+    except OSError:
+        return
+    n = len(deployed)
+    # Default 12 + brain conditional + small slack for explicitly installed.
+    if n <= 14:
+        return
+    print(
+        f"  WARNING: Skills: {n} deployed (v1.4 default = 12 core + 1 conditional). "
+        "Re-bootstrap to shrink: `python bootstrap/bootstrap.py --ide claude` "
+        "(use `--include-official` to keep registry stubs). Per-skill: "
+        "`tausik skill activate <name>`."
+    )
+
 
 def cmd_epic(svc: ProjectService, args: Any) -> None:
     if args.epic_cmd == "add":
@@ -124,9 +149,7 @@ def cmd_story(svc: ProjectService, args: Any) -> None:
     if args.story_cmd == "add":
         print(svc.story_add(args.epic_slug, args.slug, args.title, args.description))
     elif args.story_cmd == "list":
-        _print_table(
-            svc.story_list(args.epic), ["slug", "title", "status", "epic_slug"]
-        )
+        _print_table(svc.story_list(args.epic), ["slug", "title", "status", "epic_slug"])
     elif args.story_cmd == "done":
         print(svc.story_done(args.slug))
     elif args.story_cmd == "delete":
@@ -169,9 +192,7 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
         task = svc.task_show(args.slug)
         _print_task_detail(task)
     elif c == "start":
-        _print_with_warnings(
-            svc.task_start(args.slug, force=getattr(args, "force", False))
-        )
+        _print_with_warnings(svc.task_start(args.slug, force=getattr(args, "force", False)))
     elif c == "done":
         # v1.4 r14-mcp-streaming-progress: emit a one-line "Running N gates,
         # max ~Σ seconds" hint to stderr at the start of the gate run, then a
@@ -193,13 +214,10 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                 )
             elif kind == "gate_start":
                 _sys.stderr.write(
-                    f"[gates] {ev.get('index')}/{ev.get('total')} "
-                    f"{ev.get('name')} ...\n"
+                    f"[gates] {ev.get('index')}/{ev.get('total')} {ev.get('name')} ...\n"
                 )
             elif kind == "gate_done":
-                status = "SKIP" if ev.get("skipped") else (
-                    "PASS" if ev.get("passed") else "FAIL"
-                )
+                status = "SKIP" if ev.get("skipped") else ("PASS" if ev.get("passed") else "FAIL")
                 _sys.stderr.write(
                     f"[gates] {ev.get('index')}/{ev.get('total')} "
                     f"{ev.get('name')} {status} "
@@ -290,9 +308,7 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
         if c:
             from difflib import get_close_matches
 
-            matches = get_close_matches(
-                c, subcmds.replace(" ", "").split(","), n=2, cutoff=0.5
-            )
+            matches = get_close_matches(c, subcmds.replace(" ", "").split(","), n=2, cutoff=0.5)
             if matches:
                 print(
                     f"Unknown subcommand 'task {c}'. Did you mean: {', '.join(matches)}?",
@@ -349,8 +365,7 @@ def cmd_session(svc: ProjectService, args: Any) -> None:
         cmd_session_recompute(svc, args)
     else:
         print(
-            "Usage: tausik session "
-            "[start|end|current|list|handoff|last-handoff|extend|recompute]"
+            "Usage: tausik session [start|end|current|list|handoff|last-handoff|extend|recompute]"
         )
 
 
@@ -359,9 +374,7 @@ def cmd_decide(svc: ProjectService, args: Any) -> None:
 
 
 def cmd_decisions(svc: ProjectService, args: Any) -> None:
-    _print_table(
-        svc.decisions(args.limit), ["id", "decision", "task_slug", "created_at"]
-    )
+    _print_table(svc.decisions(args.limit), ["id", "decision", "task_slug", "created_at"])
 
 
 def cmd_roadmap(svc: ProjectService, args: Any) -> None:

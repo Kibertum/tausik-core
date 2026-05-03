@@ -13,6 +13,7 @@ import argparse
 import os
 import subprocess
 import sys
+from typing import Any
 
 # Add bootstrap dir to path
 _bootstrap_dir = os.path.dirname(os.path.abspath(__file__))
@@ -24,6 +25,7 @@ from bootstrap_config import (
     TAUSIK_MODEL_PROFILE_ENV,
     detect_extension_skills,
     detect_stacks,
+    is_brain_enabled,
     load_config,
     parse_strict_model_profile_env,
     save_tausik_config,
@@ -96,13 +98,24 @@ def bootstrap_ide(
     vendor_skills: dict[str, str] | None = None,
     venv_python: str | None = None,
     context_tier: str = "standard",
+    *,
+    include_official_stubs: bool = False,
+    brain_enabled: bool = True,
 ) -> None:
     """Bootstrap for a single IDE."""
     target_dir = get_ide_target(project_dir, ide)
     os.makedirs(target_dir, exist_ok=True)
     print(f"\n=== Bootstrapping for {ide} -> {target_dir} ===")
 
-    n_skills = copy_skills(lib_dir, target_dir, config, ide, vendor_skills)
+    n_skills = copy_skills(
+        lib_dir,
+        target_dir,
+        config,
+        ide,
+        vendor_skills,
+        include_official_stubs=include_official_stubs,
+        brain_enabled=brain_enabled,
+    )
     print(f"  Skills: {n_skills} copied")
 
     n_scripts = copy_scripts(lib_dir, target_dir)
@@ -146,22 +159,14 @@ def bootstrap_ide(
 
     if ide == "claude":
         generate_settings_claude(target_dir, project_dir, lib_dir)
-        generate_claude_md(
-            project_dir, config.get("project", "my-project"), stacks, context_tier
-        )
+        generate_claude_md(project_dir, config.get("project", "my-project"), stacks, context_tier)
     elif ide == "cursor":
-        generate_cursorrules(
-            project_dir, config.get("project", "my-project"), stacks, context_tier
-        )
+        generate_cursorrules(project_dir, config.get("project", "my-project"), stacks, context_tier)
     elif ide == "qwen":
         generate_settings_qwen(target_dir, project_dir, venv_python, lib_dir)
-        generate_qwen_md(
-            project_dir, config.get("project", "my-project"), stacks, context_tier
-        )
+        generate_qwen_md(project_dir, config.get("project", "my-project"), stacks, context_tier)
 
-    generate_agents_md(
-        project_dir, config.get("project", "my-project"), stacks, context_tier
-    )
+    generate_agents_md(project_dir, config.get("project", "my-project"), stacks, context_tier)
 
     if ide == "cursor":
         generate_cursor_mcp_json(project_dir, target_dir, venv_python)
@@ -176,12 +181,8 @@ def main() -> None:
                 stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
 
     parser = argparse.ArgumentParser(description="TAUSIK Bootstrap")
-    parser.add_argument(
-        "--lib-dir", default=None, help="Library root (default: auto-detect)"
-    )
-    parser.add_argument(
-        "--project-dir", default=None, help="Project root (default: cwd)"
-    )
+    parser.add_argument("--lib-dir", default=None, help="Library root (default: auto-detect)")
+    parser.add_argument("--project-dir", default=None, help="Project root (default: cwd)")
     parser.add_argument(
         "--ide",
         default="claude",
@@ -199,9 +200,7 @@ def main() -> None:
         action="store_true",
         help="Skip auto-detection of stacks and skills",
     )
-    parser.add_argument(
-        "--interactive", action="store_true", help="Interactive skill selection"
-    )
+    parser.add_argument("--interactive", action="store_true", help="Interactive skill selection")
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -225,6 +224,20 @@ def main() -> None:
         metavar="NAME",
         help="Bootstrap + init project (default name: directory name)",
     )
+    parser.add_argument(
+        "--include-official",
+        action="store_true",
+        help=(
+            "Include skills-official/registry.json stubs in the deployed set. "
+            "Default since v1.4: only source agents/skills/ are deployed (12 + brain "
+            "conditional). Use this flag to restore the larger pre-v1.4 skill list."
+        ),
+    )
+    parser.add_argument(
+        "--include-vendor",
+        action="store_true",
+        help="Alias for --include-official (legacy compat).",
+    )
     args = parser.parse_args()
 
     lib_dir = args.lib_dir or os.path.dirname(_bootstrap_dir)
@@ -235,9 +248,8 @@ def main() -> None:
     print(f"  Project: {project_dir}")
 
     tausik_config_path = os.path.join(project_dir, ".tausik", "config.json")
-    old_config_path = os.path.join(
-        get_ide_target(project_dir, "claude"), ".tausik-bootstrap.json"
-    )
+    old_config_path = os.path.join(get_ide_target(project_dir, "claude"), ".tausik-bootstrap.json")
+    full_cfg: dict[str, Any] = {}
     if os.path.exists(old_config_path) and not os.path.exists(tausik_config_path):
         config = load_config(old_config_path)
     elif os.path.exists(tausik_config_path):
@@ -247,9 +259,7 @@ def main() -> None:
             with open(tausik_config_path, encoding="utf-8") as _f:
                 full_cfg = _json.load(_f)
         except (_json.JSONDecodeError, OSError) as e:
-            print(
-                f"  Warning: config corrupted ({tausik_config_path}): {e} — using defaults"
-            )
+            print(f"  Warning: config corrupted ({tausik_config_path}): {e} — using defaults")
             full_cfg = {}
         config = full_cfg.get("bootstrap", {})
         if not config:
@@ -260,6 +270,14 @@ def main() -> None:
             )
     else:
         config = dict(DEFAULT_CONFIG)
+
+    # v14b-skill-core-cleanup gating decisions (computed once, passed per IDE).
+    include_official_stubs = bool(args.include_official or args.include_vendor)
+    brain_enabled = is_brain_enabled(full_cfg)
+    if not brain_enabled:
+        print("  brain: skipped (Notion not configured — `tausik brain init` to enable)")
+    if not include_official_stubs:
+        print("  Official-skill stubs: opt-in (use --include-official to deploy them)")
 
     stacks = detect_stacks(project_dir)
     if stacks:
@@ -279,13 +297,9 @@ def main() -> None:
         if sel.lower() == "all":
             config["extension_skills"] = list(ALL_EXTENSION_SKILLS)
         else:
-            indices = [
-                int(x.strip()) - 1 for x in sel.split(",") if x.strip().isdigit()
-            ]
+            indices = [int(x.strip()) - 1 for x in sel.split(",") if x.strip().isdigit()]
             config["extension_skills"] = [
-                ALL_EXTENSION_SKILLS[i]
-                for i in indices
-                if 0 <= i < len(ALL_EXTENSION_SKILLS)
+                ALL_EXTENSION_SKILLS[i] for i in indices if 0 <= i < len(ALL_EXTENSION_SKILLS)
             ]
 
     config["ide"] = args.ide
@@ -303,9 +317,7 @@ def main() -> None:
         for ide in ides:
             target_dir = get_ide_target(project_dir, ide)
             print(f"\n  IDE: {ide} -> {target_dir}")
-            all_skills = config.get("core_skills", []) + config.get(
-                "extension_skills", []
-            )
+            all_skills = config.get("core_skills", []) + config.get("extension_skills", [])
             print(f"  Skills ({len(all_skills)}): {', '.join(all_skills)}")
             if stacks:
                 print(f"  Stacks ({len(stacks)}): {', '.join(stacks)}")
@@ -319,9 +331,7 @@ def main() -> None:
                 print(f"  Will generate: {_generate_map[ide]}")
         print("\n  Config: .tausik/config.json")
         if env_profile_slug:
-            print(
-                f"  {TAUSIK_MODEL_PROFILE_ENV} → top-level model_profile={env_profile_slug!r}"
-            )
+            print(f"  {TAUSIK_MODEL_PROFILE_ENV} → top-level model_profile={env_profile_slug!r}")
         print("  RAG dir: .tausik/rag/")
         print("  CLI wrapper: .tausik/tausik")
         print("\nNo changes made.")
@@ -362,9 +372,7 @@ def main() -> None:
         import shutil
 
         shutil.copy2(skills_example, skills_json)
-        print(
-            "  Copied skills.example.json → skills.json (edit to customize vendor skills)"
-        )
+        print("  Copied skills.example.json → skills.json (edit to customize vendor skills)")
 
     vendor_dir = os.path.join(project_dir, ".tausik", "vendor")
     vendor_skills: dict[str, str] = {}
@@ -416,6 +424,8 @@ def main() -> None:
             vendor_skills,
             venv_python,
             context_tier,
+            include_official_stubs=include_official_stubs,
+            brain_enabled=brain_enabled,
         )
 
     if "claude" in ides:
@@ -461,9 +471,7 @@ def main() -> None:
     if args.init is not None:
         import re
 
-        slug = re.sub(r"[^a-z0-9]+", "-", os.path.basename(project_dir).lower()).strip(
-            "-"
-        )
+        slug = re.sub(r"[^a-z0-9]+", "-", os.path.basename(project_dir).lower()).strip("-")
         init_name = args.init or slug or "my-project"
         wrapper_name = "tausik.cmd" if sys.platform == "win32" else "tausik"
         tausik_wrapper = os.path.join(project_dir, ".tausik", wrapper_name)
@@ -476,9 +484,7 @@ def main() -> None:
             )
             print(f"\nProject '{init_name}' initialized and ready!")
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            print(
-                f"\nBootstrap complete but init failed: {e}\n  Run manually: .tausik/tausik init"
-            )
+            print(f"\nBootstrap complete but init failed: {e}\n  Run manually: .tausik/tausik init")
     else:
         already_init = os.path.isfile(os.path.join(project_dir, ".tausik", "tausik.db"))
         if already_init:
@@ -516,9 +522,7 @@ def main() -> None:
                     "  Run manually later: .tausik/tausik brain init"
                 )
         else:
-            print(
-                "  Skipping Shared Brain setup. Run later with `.tausik/tausik brain init`."
-            )
+            print("  Skipping Shared Brain setup. Run later with `.tausik/tausik brain init`.")
 
 
 if __name__ == "__main__":

@@ -219,13 +219,23 @@ def copy_skills(
     config: dict[str, Any],
     ide: str,
     vendor_skills: dict[str, str] | None = None,
+    *,
+    include_official_stubs: bool = False,
+    brain_enabled: bool = True,
 ) -> int:
     """Copy skills to target IDE directory.
 
-    Built-in skills (in agents/skills/) are always copied in full.
-    Official and vendor skills are installed as stubs for on-demand loading
-    unless explicitly listed in config["installed_skills"].
-    Fully activated skills (via skill activate) are copied in full.
+    Built-in skills (in agents/skills/) are always copied in full, except
+    `brain` which is gated on `brain_enabled` (set by bootstrap from the
+    project's brain config — `tausik brain init` flips it on).
+
+    Official skills (skills-official/registry.json) are auto-stubbed only
+    when `include_official_stubs=True` (CLI flag --include-official). Default
+    is False since v1.4 to keep the system-reminder list small (~−1k tok/turn).
+    Skills explicitly listed in config["installed_skills"] are still deployed
+    (full copy) regardless of the flag — that's the per-skill opt-in.
+
+    Vendor skills follow the same `installed_skills` rule.
 
     Resolution chain: agents/skills/ → adjacent dir → vendor downloads.
     """
@@ -268,6 +278,12 @@ def copy_skills(
         for name in sorted(os.listdir(builtin_dir)):
             if name.startswith(".") or name.startswith("_"):
                 continue
+            if name == "brain" and not brain_enabled:
+                # v14b-skill-core-cleanup: brain stays in source but is not
+                # surfaced into the system-reminder list until the project
+                # has Notion configured (`tausik brain init`). Saves ~600
+                # tokens/turn for projects that never use the shared brain.
+                continue
             if os.path.isdir(os.path.join(builtin_dir, name)):
                 builtin_names.append(name)
     if not builtin_names:
@@ -277,9 +293,19 @@ def copy_skills(
             file=sys.stderr,
         )
     config_skills = config.get("core_skills", []) + config.get("extension_skills", [])
+    # v14b-skill-core-cleanup: drop registry-name entries that the user
+    # didn't explicitly opt into. Without this filter, an `extension_skills`
+    # auto-detected from the project (e.g. `docs`, `diff`) used to add a
+    # stub even when --include-official was off, defeating the budget cut.
+    registry_names = set(registry or {})
+    if not include_official_stubs:
+        explicit = installed | set(vendor_activated)
+        config_skills = [s for s in config_skills if s in explicit or s not in registry_names]
     all_skills_with_vendor = list(dict.fromkeys(builtin_names + config_skills + vendor_activated))
-    # Also add official skills from registry (as stubs)
-    if registry:
+    # Also add official skills from registry (as stubs) — v1.4 opt-in only.
+    # Without --include-official the agent gets a smaller skill list and
+    # discovers extras via `tausik skill list` / bundle CLI on demand.
+    if registry and include_official_stubs:
         for name in registry:
             if name not in all_skills_with_vendor:
                 all_skills_with_vendor.append(name)

@@ -35,8 +35,7 @@ def parse_strict_model_profile_env() -> str | None:
     slug = normalize_model_profile_slug(raw)
     if not slug:
         raise ValueError(
-            f"Invalid {TAUSIK_MODEL_PROFILE_ENV}={raw!r}: "
-            "use letters/digits (e.g. claude, codex)."
+            f"Invalid {TAUSIK_MODEL_PROFILE_ENV}={raw!r}: use letters/digits (e.g. claude, codex)."
         )
     if len(slug) > 64:
         raise ValueError(
@@ -50,6 +49,7 @@ def apply_model_profile_env_to_config(tausik_config: dict[str, Any]) -> None:
     slug = parse_strict_model_profile_env()
     if slug is not None:
         tausik_config["model_profile"] = slug
+
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "core_skills": [
@@ -181,6 +181,21 @@ def load_config(config_path: str) -> dict[str, Any]:
     return dict(DEFAULT_CONFIG)
 
 
+def is_brain_enabled(full_cfg: dict[str, Any] | None) -> bool:
+    """Brain skill is opt-in: deployed only when `brain.enabled` is set in
+    the project config (.tausik/config.json top-level `brain` section).
+
+    Mirrors scripts/brain_config.is_brain_enabled — duplicated here so
+    bootstrap stays standalone (no scripts/ import). Used by bootstrap_copy
+    to filter brain out of the deployed skill set unless the user has run
+    `tausik brain init`. Saves ~600 tokens/turn for projects without Notion.
+    """
+    if not isinstance(full_cfg, dict):
+        return False
+    brain = full_cfg.get("brain", {}) or {}
+    return bool(brain.get("enabled", False))
+
+
 def save_config(config_path: str, cfg: dict[str, Any]) -> None:
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
     with open(config_path, "w", encoding="utf-8") as f:
@@ -239,9 +254,7 @@ def detect_stacks(project_dir: str) -> list[str]:
     return list(set(found))
 
 
-def detect_extension_skills(
-    project_dir: str, core_skills: list[str] | None = None
-) -> list[str]:
+def detect_extension_skills(project_dir: str, core_skills: list[str] | None = None) -> list[str]:
     """Smart-detect which extension skills are useful for this project.
 
     Skills that are already in core_skills are excluded to avoid duplicates.
@@ -287,8 +300,7 @@ def save_tausik_config(
     config["_meta"] = {
         "lib_commit": lib_commit or "unknown",
         "generated_at": datetime.datetime.now().isoformat(),
-        "skills_included": config.get("core_skills", [])
-        + config.get("extension_skills", []),
+        "skills_included": config.get("core_skills", []) + config.get("extension_skills", []),
     }
     tausik_config["bootstrap"] = config
     tausik_config.setdefault("rag", {})["mode"] = "fts5"
@@ -307,9 +319,7 @@ def save_tausik_config(
 
             newly = auto_enable_gates_for_stacks(tausik_config, stacks)
             if newly:
-                print(
-                    f"  Gates auto-enabled for {', '.join(stacks)}: {', '.join(newly)}"
-                )
+                print(f"  Gates auto-enabled for {', '.join(stacks)}: {', '.join(newly)}")
         except ImportError:
             pass
     os.makedirs(os.path.dirname(tausik_config_path), exist_ok=True)
@@ -326,9 +336,7 @@ def save_tausik_config(
         raise
     if get_ide_target_fn:
         for ide in ides:
-            old = os.path.join(
-                get_ide_target_fn(project_dir, ide), ".tausik-bootstrap.json"
-            )
+            old = os.path.join(get_ide_target_fn(project_dir, ide), ".tausik-bootstrap.json")
             if os.path.exists(old):
                 os.remove(old)
                 print(f"  Migrated: removed old {old}")
