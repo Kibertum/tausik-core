@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 22
+SCHEMA_VERSION = 23
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -178,6 +178,20 @@ CREATE TABLE IF NOT EXISTS session_usage_metrics (
     recorded_at TEXT NOT NULL,
     UNIQUE(session_id)
 );
+
+CREATE TABLE IF NOT EXISTS usage_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    task_slug TEXT REFERENCES tasks(slug) ON DELETE SET NULL,
+    model_id TEXT,
+    tokens_input INTEGER NOT NULL CHECK(tokens_input >= 0),
+    tokens_output INTEGER NOT NULL CHECK(tokens_output >= 0),
+    tokens_total INTEGER NOT NULL CHECK(tokens_total >= 0),
+    cost_usd REAL NOT NULL DEFAULT 0 CHECK(cost_usd >= 0),
+    tool_calls INTEGER NOT NULL DEFAULT 0 CHECK(tool_calls >= 0),
+    source TEXT NOT NULL CHECK(source IN ('session_record', 'manual')),
+    recorded_at TEXT NOT NULL
+);
 """
 
 FTS_SQL = """
@@ -300,4 +314,6 @@ CREATE INDEX IF NOT EXISTS idx_verify_task ON verification_runs(task_slug, ran_a
 CREATE INDEX IF NOT EXISTS idx_verify_files_hash ON verification_runs(files_hash);
 CREATE INDEX IF NOT EXISTS idx_session_usage_session_id ON session_usage_metrics(session_id);
 CREATE INDEX IF NOT EXISTS idx_session_usage_recorded_at ON session_usage_metrics(recorded_at);
+CREATE INDEX IF NOT EXISTS idx_usage_events_session ON usage_events(session_id, recorded_at);
+CREATE INDEX IF NOT EXISTS idx_usage_events_task ON usage_events(task_slug, recorded_at);
 """

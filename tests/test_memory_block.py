@@ -12,9 +12,9 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
 
-def _fresh_service(tmp_path):
+def _fresh_service(tmp_path, monkeypatch):
     """Create a ProjectService pointing at an isolated DB inside tmp_path."""
-    os.environ["TAUSIK_DIR"] = str(tmp_path / ".tausik")
+    monkeypatch.setenv("TAUSIK_DIR", str(tmp_path / ".tausik"))
     (tmp_path / ".tausik").mkdir()
     from project_backend import SQLiteBackend
     from project_service import ProjectService
@@ -26,19 +26,15 @@ def _fresh_service(tmp_path):
 
 
 class TestMemoryBlockContent:
-    def test_empty_db_returns_empty_string(self, tmp_path):
-        svc = _fresh_service(tmp_path)
+    def test_empty_db_returns_empty_string(self, tmp_path, monkeypatch):
+        svc = _fresh_service(tmp_path, monkeypatch)
         assert svc.memory_block() == ""
 
-    def test_includes_decisions_conventions_deadends(self, tmp_path):
-        svc = _fresh_service(tmp_path)
+    def test_includes_decisions_conventions_deadends(self, tmp_path, monkeypatch):
+        svc = _fresh_service(tmp_path, monkeypatch)
         svc.decide("Use SQLite, not Postgres, for local storage")
-        svc.memory_add(
-            "convention", "kebab-case slugs", "All task slugs must be kebab-case."
-        )
-        svc.dead_end(
-            "Tried mypy with strict-optional", "Too many false positives in legacy code"
-        )
+        svc.memory_add("convention", "kebab-case slugs", "All task slugs must be kebab-case.")
+        svc.dead_end("Tried mypy with strict-optional", "Too many false positives in legacy code")
 
         block = svc.memory_block()
         assert "## TAUSIK Memory Block" in block
@@ -49,37 +45,35 @@ class TestMemoryBlockContent:
         assert "Recent dead ends" in block
         assert "Tried mypy" in block
 
-    def test_respects_max_lines_truncation(self, tmp_path):
-        svc = _fresh_service(tmp_path)
+    def test_respects_max_lines_truncation(self, tmp_path, monkeypatch):
+        svc = _fresh_service(tmp_path, monkeypatch)
         for i in range(60):
             svc.memory_add("convention", f"convention #{i}", f"Text for convention {i}")
 
-        block = svc.memory_block(
-            max_decisions=0, max_conventions=60, max_deadends=0, max_lines=20
-        )
+        block = svc.memory_block(max_decisions=0, max_conventions=60, max_deadends=0, max_lines=20)
         lines = block.splitlines()
         assert len(lines) <= 21  # max_lines + optional truncation marker
         assert "truncated" in block
 
-    def test_only_decisions(self, tmp_path):
-        svc = _fresh_service(tmp_path)
+    def test_only_decisions(self, tmp_path, monkeypatch):
+        svc = _fresh_service(tmp_path, monkeypatch)
         svc.decide("We will ship on Monday")
         block = svc.memory_block()
         assert "Recent decisions" in block
         assert "Conventions" not in block
         assert "Recent dead ends" not in block
 
-    def test_long_title_is_trimmed(self, tmp_path):
-        svc = _fresh_service(tmp_path)
+    def test_long_title_is_trimmed(self, tmp_path, monkeypatch):
+        svc = _fresh_service(tmp_path, monkeypatch)
         svc.memory_add("convention", "C" * 200, "body")
         block = svc.memory_block()
         for line in block.splitlines():
             if line.startswith("- #"):
                 assert len(line) <= 120  # 80 char title + prefix
 
-    def test_memory_policy_rule_at_top_of_block(self, tmp_path):
+    def test_memory_policy_rule_at_top_of_block(self, tmp_path, monkeypatch):
         """Non-empty block must surface the memory policy rule before any sections."""
-        svc = _fresh_service(tmp_path)
+        svc = _fresh_service(tmp_path, monkeypatch)
         svc.decide("something")
         block = svc.memory_block()
         lines = [line for line in block.splitlines() if line.strip()]
@@ -89,9 +83,9 @@ class TestMemoryBlockContent:
         assert "confirm: cross-project" in rule_line
         assert "tausik memory add" in rule_line
 
-    def test_policy_rule_ordering_before_decisions(self, tmp_path):
+    def test_policy_rule_ordering_before_decisions(self, tmp_path, monkeypatch):
         """NEGATIVE: if the rule ever drifts below 'Recent decisions', this fails."""
-        svc = _fresh_service(tmp_path)
+        svc = _fresh_service(tmp_path, monkeypatch)
         svc.decide("first decision")
         block = svc.memory_block()
         rule_idx = block.find("⚠")
@@ -102,10 +96,10 @@ class TestMemoryBlockContent:
 
 
 class TestMemoryBlockCli:
-    def test_cli_memory_block_outputs(self, tmp_path):
+    def test_cli_memory_block_outputs(self, tmp_path, monkeypatch):
         """The `tausik memory block` CLI sub-command must print the block to stdout."""
         # Use a pre-populated service then invoke the CLI against the same DB
-        svc = _fresh_service(tmp_path)
+        svc = _fresh_service(tmp_path, monkeypatch)
         svc.decide("TestCli decision")
         svc.memory_add("convention", "test-convention", "body")
 
@@ -131,28 +125,24 @@ class TestMemoryBlockCli:
 
 
 class TestMemoryBlockMcp:
-    def test_mcp_handler_returns_formatted_string(self, tmp_path):
-        svc = _fresh_service(tmp_path)
+    def test_mcp_handler_returns_formatted_string(self, tmp_path, monkeypatch):
+        svc = _fresh_service(tmp_path, monkeypatch)
         svc.decide("MCP handler test")
 
         sys.path.insert(
             0,
-            os.path.join(
-                os.path.dirname(__file__), "..", "agents", "claude", "mcp", "project"
-            ),
+            os.path.join(os.path.dirname(__file__), "..", "agents", "claude", "mcp", "project"),
         )
         from handlers import _do_memory_block
 
         result = _do_memory_block(svc, {})
         assert "MCP handler test" in result
 
-    def test_mcp_handler_empty_db(self, tmp_path):
-        svc = _fresh_service(tmp_path)
+    def test_mcp_handler_empty_db(self, tmp_path, monkeypatch):
+        svc = _fresh_service(tmp_path, monkeypatch)
         sys.path.insert(
             0,
-            os.path.join(
-                os.path.dirname(__file__), "..", "agents", "claude", "mcp", "project"
-            ),
+            os.path.join(os.path.dirname(__file__), "..", "agents", "claude", "mcp", "project"),
         )
         from handlers import _do_memory_block
 
@@ -162,9 +152,7 @@ class TestMemoryBlockMcp:
     def test_mcp_tool_registered(self):
         sys.path.insert(
             0,
-            os.path.join(
-                os.path.dirname(__file__), "..", "agents", "claude", "mcp", "project"
-            ),
+            os.path.join(os.path.dirname(__file__), "..", "agents", "claude", "mcp", "project"),
         )
         from tools import TOOLS
 

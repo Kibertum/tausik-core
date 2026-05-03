@@ -85,7 +85,11 @@ def _do_task_next(svc: Any, args: dict) -> str:
     task = svc.task_next(args.get("agent_id"))
     if task:
         action = "claimed and started" if args.get("agent_id") else "suggested"
-        return f"Next task ({action}): {task['slug']} — {task['title']}"
+        lines = [f"Next task ({action}): {task['slug']} — {task['title']}"]
+        mh = task.get("model_hint")
+        if mh:
+            lines.append(f"Model hint: {mh['display']} ({mh['model']})")
+        return "\n".join(lines)
     return "No available tasks."
 
 
@@ -398,6 +402,29 @@ def _do_fts_optimize(svc: Any, args: dict) -> str:
     return "\n".join(f"{t}: {s}" for t, s in results.items())
 
 
+def _do_usage_event_log(svc: Any, args: dict) -> str:
+    from tausik_utils import ServiceError
+
+    required = ("tokens_input", "tokens_output", "tokens_total", "cost_usd")
+    missing = [k for k in required if k not in args]
+    if missing:
+        return f"Error: missing required fields: {', '.join(missing)}"
+
+    try:
+        return svc.metrics_log_usage_event(
+            tokens_input=int(args["tokens_input"]),
+            tokens_output=int(args["tokens_output"]),
+            tokens_total=int(args["tokens_total"]),
+            cost_usd=float(args["cost_usd"]),
+            tool_calls=int(args.get("tool_calls") or 0),
+            model=str(args.get("model") or ""),
+            task_slug=args.get("task_slug"),
+            session_id=args.get("session_id"),
+        )
+    except ServiceError as e:
+        return f"Error: {e}"
+
+
 # ---------------------------------------------------------------------------
 # Dispatch table: tool name -> handler(svc, args)
 # ---------------------------------------------------------------------------
@@ -405,8 +432,9 @@ def _do_fts_optimize(svc: Any, args: dict) -> str:
 _DISPATCH: dict[str, _Handler] = {
     # --- Health & Status ---
     "tausik_health": lambda svc, args: _handle_health(svc),
-    "tausik_status": lambda svc, args: _handle_status(svc),
+    "tausik_status": lambda svc, args: _handle_status(svc, args),
     "tausik_metrics": lambda svc, args: _handle_metrics(svc),
+    "tausik_usage_event_log": _do_usage_event_log,
     "tausik_search": lambda svc, args: _handle_search(svc, args),
     "tausik_events": lambda svc, args: _handle_events(svc, args),
     "tausik_team": _do_team,
@@ -509,7 +537,7 @@ _DISPATCH: dict[str, _Handler] = {
         args["name"]
     ),
     "tausik_skill_repo_add": lambda svc, args: _skill.handle_skill_repo_add(
-        args["url"]
+        args["url"], force=bool(args.get("force"))
     ),
     "tausik_skill_repo_remove": lambda svc, args: _skill.handle_skill_repo_remove(
         args["name"]
@@ -835,8 +863,17 @@ def _handle_health(svc: Any) -> str:
         return json.dumps({"status": "error", "error": str(e)})
 
 
-def _handle_status(svc: Any) -> str:
+def _handle_status(svc: Any, args: dict | None = None) -> str:
+    from project_config import DEFAULT_SESSION_MAX_MINUTES, load_config
+    from tausik_utils import format_status_compact_json
+
+    args = args or {}
     data = svc.get_status()
+    cfg = load_config()
+    max_min = cfg.get("session_max_minutes", DEFAULT_SESSION_MAX_MINUTES)
+    duration_warning = svc.session_check_duration(max_min)
+    if args.get("compact"):
+        return format_status_compact_json(data, duration_warning)
     counts = data["task_counts"]
     total = sum(counts.values())
     done = counts.get("done", 0)
@@ -847,8 +884,6 @@ def _handle_status(svc: Any) -> str:
     session = data.get("session")
     parts.append(f"Session: #{session['id']}" if session else "Session: none")
     result = ", ".join(parts)
-    # SENAR Rule 9.2: warn if session exceeds duration limit
-    duration_warning = svc.session_check_duration()
     if duration_warning:
         result += f"\n⚠ {duration_warning}"
     return result

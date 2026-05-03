@@ -151,14 +151,18 @@ TOOLS_EXTRA = [
     },
     {
         "name": "tausik_skill_repo_add",
-        "description": "Add a TAUSIK-compatible skill repository. Clones repo, validates tausik-skills.json, indexes available skills",
+        "description": "Add a TAUSIK-compatible skill repository. Clones repo, validates tausik-skills.json, indexes available skills. Third-party URLs require force=true (opt-in to trust)",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "url": {
                     "type": "string",
                     "description": "Git URL (e.g. https://github.com/Kibertum/tausik-skills)",
-                }
+                },
+                "force": {
+                    "type": "boolean",
+                    "description": "Required true when URL is not the official Kibertum/tausik-skills repo",
+                },
             },
             "required": ["url"],
         },

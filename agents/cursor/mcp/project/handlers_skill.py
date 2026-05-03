@@ -134,12 +134,12 @@ def handle_skill_uninstall(name: str) -> str:
 # --- Skill repo management ---
 
 
-def handle_skill_repo_add(url: str) -> str:
+def handle_skill_repo_add(url: str, force: bool = False) -> str:
     p = _skill_paths()
     try:
         from skill_repos import repo_add
 
-        return repo_add(url, p["vendor_dir"], p["config_path"])
+        return repo_add(url, p["vendor_dir"], p["config_path"], force=force)
     except Exception as e:
         return f"Error: {e}"
 

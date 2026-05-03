@@ -16,32 +16,11 @@ TAUSIK implements [SENAR v1.3 Core](https://senar.tech) ([GitHub](https://github
 
 ## Your First 60 Seconds
 
-After bootstrap, you have these tools available:
+1. **MCP-first** — use `tausik_*` tools (preferred). Full inventory + parameters live in **[docs/en/mcp.md](docs/en/mcp.md)**; for scripted hosts `tausik_status`/`status` accepts optional **compact JSON** (`compact` / `--compact`).
+2. **CLI fallback** — `.tausik/tausik <cmd>` mirrors MCP; cheatsheet **[docs/en/cli.md](docs/en/cli.md)**.
+3. **Skills / slash wrappers** — if `/start`, `/plan`, `/ship`, … are not expanded by your IDE, execute the numbered procedure inside `agents/skills/<name>/SKILL.md` (**[docs/en/skills.md](docs/en/skills.md)** lists triggers).
 
-**MCP tools** (preferred — 96 tools via `tausik-project` + `tausik-brain` servers):
-```
-tausik_status              — see project state
-tausik_task_quick          — create a task
-tausik_task_start          — begin work (QG-0: goal + AC required)
-tausik_task_done           — complete work (QG-2: evidence required)
-tausik_task_log            — log progress
-tausik_memory_search       — search project knowledge
-```
-
-**CLI** (fallback):
-```bash
-.tausik/tausik status
-.tausik/tausik task start <slug>
-.tausik/tausik task done <slug> --ac-verified
-```
-
-**Skills** (slash commands — if your IDE supports them):
-```
-/start    — open session, load context
-/plan     — create a task with goal + acceptance criteria
-/ship     — review + test + commit in one step
-/end      — save context, close session
-```
+Hard workflow rules (`task_start` before edits, **`tausik_verify` before task closure**, `--ac-verified`) are unchanged — see § *The Rules* below.
 
 ## Are You a Non-Claude Model? Read This First
 
@@ -55,6 +34,19 @@ TAUSIK was originally built around Claude Code conventions, but the framework is
 | `~/.claude/...` auto-memory | Read/write | **Do not write here** — it is a Claude-only profile dir | Read only |
 | Session start | `session_start.py` hook injects status | **Run `tausik_status` and `tausik_session_start` yourself first** | hook (subset) |
 | `/checkpoint` reminder | Hook nudges every 30-50 calls | **You** must self-checkpoint via `tausik_session_handoff` | hook (subset) |
+
+### Model / host → tool surface (MCP)
+
+Same governance everywhere; only the **wrapper** (hooks vs self-serve) changes. **Canonical counts** are asserted from `len(TOOLS)` in code — see **[docs/en/mcp.md](docs/en/mcp.md)** / **[docs/ru/mcp.md](docs/ru/mcp.md)**.
+
+| Model / host | Primary TAUSIK surface | Main `tausik_*` tools (two servers) | Notes |
+|----------------|------------------------|-------------------------------------|------|
+| Claude (Code, VS Code Extension) | MCP `tausik-project` + `tausik-brain` | **99** (92 project + 7 brain) | Hooks + MCP |
+| Cursor / Composer / GPT-5.5+ / OpenCode | Same MCP (project MCP config); CLI fallback `.tausik/tausik` | **99** (92+7) | Rule 1 self-serve if no hooks |
+| Qwen Code | MCP + skills under `.qwen/skills/` | **99** (92+7) | Subset of hooks |
+| Codex CLI / headless agents | Prefer MCP if exposed; else mirror CLI | **99** (92+7) | [docs/en/cli.md](docs/en/cli.md) |
+
+**Optional `codebase-rag` server:** +7 tools → **106** total with the main two servers (not part of the 99 baseline). Same numbers as the header in [docs/en/mcp.md](docs/en/mcp.md).
 
 **Operating contract for non-Claude models:**
 
@@ -76,18 +68,21 @@ TAUSIK was originally built around Claude Code conventions, but the framework is
 7. **Ask before committing.** Never `git commit` or `git push` without user confirmation.
 8. **MCP-first.** Prefer MCP tools over CLI bash commands.
 
+## Testing discipline (agents)
+
+When you touch TAUSIK core (`scripts/`, `scripts/hooks/`, MCP handlers, gates):
+
+1. Add or extend tests that align with **files you changed** so scoped `pytest` on `task done` / `verify --task` stays meaningful.
+2. Call **`tausik_verify`** before closure; do not pad the suite with copy-pasted cases that assert the same behaviour under a new name.
+3. **Security-sensitive paths** (hooks, auth, billing, payment-related code) are **not** exempt from tests — gates and verify-cache rules treat them **stricter**, not looser.
+
+Details and anti-patterns: **[docs/en/testing-principles.md](docs/en/testing-principles.md)** · [RU](docs/ru/testing-principles.md).
+
 ## Work Cycle
 
-```
-Session start    →  /start (or tausik_session_start)
-Plan a task      →  /plan (or tausik_task_quick + tausik_task_update for AC)
-Start task       →  tausik_task_start (QG-0 enforced)
-  Work           →  code, test, log progress
-  Hit dead end?  →  tausik_dead_end "approach" "reason"
-Complete task    →  tausik_task_log "AC: 1. ✓ 2. ✓" → tausik_task_done (QG-2)
-Ship             →  /ship (review + gates + commit)
-End session      →  /end (handoff saved for next session)
-```
+Abbreviated spine: session open (`/start` ↔ `agents/skills/start/SKILL.md` + `tausik_session_*`) → plan (`/plan`, `task_quick`) → **`tausik_task_start` (QG-0)** → implement + `tausik_task_log`/`tausik_dead_end` → **`tausik_verify`** → **`tausik_task_done` / `tausik_task_done_v2` (QG‑2)** → optional `/ship` → `/end`.
+
+Canonical narrative + branching detail: **[docs/en/workflow.md](docs/en/workflow.md)** — keep that file authoritative; this header only orients newcomers.
 
 ## Documentation Map
 
@@ -96,7 +91,8 @@ End session      →  /end (handoff saved for next session)
 | **Quick start for agents** | [docs/en/quickstart.md](docs/en/quickstart.md) (EN) / [docs/ru/quickstart.md](docs/ru/quickstart.md) (RU) |
 | **CLI command reference** | [docs/en/cli.md](docs/en/cli.md) (EN) / [docs/ru/cli.md](docs/ru/cli.md) (RU) |
 | **Architecture & internals** | [docs/en/architecture.md](docs/en/architecture.md) (EN) / [docs/ru/architecture.md](docs/ru/architecture.md) (RU) |
-| **MCP tools (96 tools)** | [docs/en/mcp.md](docs/en/mcp.md) |
+| **Testing principles (scoped pytest, when to add tests)** | [docs/en/testing-principles.md](docs/en/testing-principles.md) (EN) / [docs/ru/testing-principles.md](docs/ru/testing-principles.md) (RU) |
+| **MCP tools (92 project + 7 brain = 99; verify-first contract)** | [docs/en/mcp.md](docs/en/mcp.md) |
 | **Skills reference (13 core + 25+ vendor)** | [docs/en/skills.md](docs/en/skills.md) |
 | **Quality gates** | [docs/en/hooks.md](docs/en/hooks.md) |
 | **User-facing docs index** | [docs/README.md](docs/README.md) |
@@ -112,9 +108,9 @@ agents/            Shared resources for all IDEs
   roles/           5 role profiles (developer, architect, qa, tech-writer, ui-ux)
   stacks/          25 stack guides (python, react, go, rust, ansible, terraform, ...)
   overrides/       IDE-specific overrides (claude/, cursor/, qwen/)
-  claude/mcp/      MCP servers (project: 90 tools, brain: 6 tools)
+  claude/mcp/      tausik-project (92) + tausik-brain (7) = 99 main; optional codebase-rag +7 → 106 total — see docs/en/mcp.md
 bootstrap/         One-command project setup
-tests/             pytest suite (2318 tests)
+tests/             pytest suite (2590 tests)
 .tausik/           Runtime data (DB, config) — gitignored
 ```
 

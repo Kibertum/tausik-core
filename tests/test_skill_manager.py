@@ -454,7 +454,9 @@ class TestRepoAdd:
             return repo_dir, "my-repo"
 
         monkeypatch.setattr("skill_repos.clone_repo", fake_clone)
-        result = repo_add("https://github.com/Org/my-repo", vendor, config)
+        result = repo_add(
+            "https://github.com/Org/my-repo", vendor, config, force=True
+        )
         assert "2 skills" in result
         assert "jira" in result
 
@@ -469,7 +471,7 @@ class TestRepoAdd:
 
         monkeypatch.setattr("skill_repos.clone_repo", fake_clone)
         with pytest.raises(SkillManagerError, match="not TAUSIK-compatible"):
-            repo_add("https://github.com/Org/bad-repo", vendor, config)
+            repo_add("https://github.com/Org/bad-repo", vendor, config, force=True)
 
     def test_many_skills_truncated(self, tmp_path, monkeypatch):
         vendor = str(tmp_path / "vendor")
@@ -484,9 +486,35 @@ class TestRepoAdd:
             return repo_dir, "big-repo"
 
         monkeypatch.setattr("skill_repos.clone_repo", fake_clone)
-        result = repo_add("https://github.com/Org/big-repo", vendor, config)
+        result = repo_add(
+            "https://github.com/Org/big-repo", vendor, config, force=True
+        )
         assert "15 skills" in result
         assert "+5 more" in result
+
+    def test_repo_add_third_party_requires_force(self, tmp_path):
+        vendor = str(tmp_path / "vendor")
+        config = str(tmp_path / "config.json")
+        with pytest.raises(SkillManagerError, match="Untrusted skill repository"):
+            repo_add("https://github.com/Org/my-repo", vendor, config)
+
+    def test_repo_add_builtin_skills_no_force_ok(self, tmp_path, monkeypatch):
+        vendor = str(tmp_path / "vendor")
+        config = str(tmp_path / "config.json")
+
+        def fake_clone(url, vdir):
+            repo_dir = os.path.join(vdir, "tausik-skills")
+            _write_manifest(
+                repo_dir,
+                {"jira": {"path": "jira/", "description": "Jira"}},
+            )
+            return repo_dir, "tausik-skills"
+
+        monkeypatch.setattr("skill_repos.clone_repo", fake_clone)
+        result = repo_add(
+            "https://github.com/Kibertum/tausik-skills", vendor, config
+        )
+        assert "1 skill" in result
 
 
 # ---------------------------------------------------------------------------

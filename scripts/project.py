@@ -39,6 +39,7 @@ def main() -> None:
         cmd_update_claudemd,
     )
     from project_cli_doctor import cmd_doctor
+    from project_cli_hygiene import cmd_hygiene
     from project_cli_role import cmd_role
     from project_cli_verify import cmd_verify
     from project_cli_ops import (
@@ -98,6 +99,7 @@ def main() -> None:
         "doc": cmd_doc,
         "run": cmd_run,
         "review": cmd_review,
+        "hygiene": cmd_hygiene,
     }
 
     if args.command == "doctor":
@@ -122,10 +124,12 @@ def main() -> None:
             )
         sys.exit(1)
 
+    from skill_manager import SkillManagerError
+
     svc = get_service()
     try:
         fn(svc, args)
-    except ServiceError as e:
+    except (ServiceError, SkillManagerError) as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
     except ValueError as e:

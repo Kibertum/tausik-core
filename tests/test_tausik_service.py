@@ -135,6 +135,27 @@ class TestTaskLifecycle:
         task = svc.be.task_get("t1")
         assert json.loads(task["relevant_files"]) == ["src/main.py", "tests/test.py"]
 
+    def test_done_passes_stored_relevant_files_when_cli_omits(self, svc, monkeypatch):
+        """Verify-first: same files_hash as `verify --task` when DB has relevant_files."""
+        _setup_hierarchy(svc)
+        svc.task_add("setup", "rf-merge", "T")
+        svc.task_start("rf-merge", _internal_force=True)
+        svc.be.task_update("rf-merge", relevant_files=json.dumps(["only/path.py"]))
+        captured: list[list[str] | None] = []
+
+        def fake_report(slug, relevant_files, progress_fn=None, trigger="task-done"):
+            captured.append(relevant_files)
+            return {
+                "passed": True,
+                "results": [],
+                "cache_status": None,
+                "blocking_failures": [],
+            }
+
+        monkeypatch.setattr(svc, "_run_quality_gates_report", fake_report)
+        svc.task_done("rf-merge")
+        assert captured == [["only/path.py"]]
+
     def test_block_and_unblock(self, svc):
         _setup_hierarchy(svc)
         svc.task_add("setup", "t1", "T1")

@@ -144,10 +144,7 @@ class GatesMixin:
         missing = []
         if not task.get("goal") or not task["goal"].strip():
             missing.append("goal")
-        if (
-            not task.get("acceptance_criteria")
-            or not task["acceptance_criteria"].strip()
-        ):
+        if not task.get("acceptance_criteria") or not task["acceptance_criteria"].strip():
             missing.append("acceptance_criteria")
         if missing:
             raise ServiceError(
@@ -221,9 +218,7 @@ class GatesMixin:
             )
         return warnings
 
-    def _verify_ac(
-        self, slug: str, task: dict[str, Any], ac_verified: bool
-    ) -> list[str]:
+    def _verify_ac(self, slug: str, task: dict[str, Any], ac_verified: bool) -> list[str]:
         """QG-2: Verify acceptance criteria evidence exists (per-criterion).
 
         Returns list of warning strings (empty if no warnings).
@@ -264,9 +259,7 @@ class GatesMixin:
             )
         # Per-criterion check: warn if not all numbered criteria have evidence
         warnings: list[str] = []
-        ac_verified_lines = re.findall(
-            r"\d+[\.\)].*(?:[\u2713\u2714\u2705]|\[v\])", notes
-        )
+        ac_verified_lines = re.findall(r"\d+[\.\)].*(?:[\u2713\u2714\u2705]|\[v\])", notes)
         if len(ac_verified_lines) < len(ac_items):
             warnings.append(
                 f"WARNING: {len(ac_items)} AC criteria, but only {len(ac_verified_lines)} "
@@ -352,15 +345,34 @@ class GatesMixin:
         tier = self._determine_checklist_tier(task, relevant_files=rf)
         lightweight_kw = ["scope", "phantom", "test tamper", "secret", "hardcoded secret"]
         standard_kw = lightweight_kw + [
-            "delet", "test quality", "input valid", "deprecat", "cross-file", "code quality",
+            "delet",
+            "test quality",
+            "input valid",
+            "deprecat",
+            "cross-file",
+            "code quality",
         ]
         high_kw = standard_kw + [
-            "null guard", "empty config", "header trust", "idor", "return true",
-            "auth coverage", "deserializ", "ssrf",
+            "null guard",
+            "empty config",
+            "header trust",
+            "idor",
+            "return true",
+            "auth coverage",
+            "deserializ",
+            "ssrf",
         ]
         critical_kw = high_kw + [
-            "dependency version", "magic number", "over-engineer", "duplicat", "edge case",
-            "naming", "commit scope", "string format", "unreachable", "swallow",
+            "dependency version",
+            "magic number",
+            "over-engineer",
+            "duplicat",
+            "edge case",
+            "naming",
+            "commit scope",
+            "string format",
+            "unreachable",
+            "swallow",
         ]
         tier_kw = {
             "lightweight": lightweight_kw,
@@ -440,16 +452,13 @@ class GatesMixin:
         }
         try:
             from service_verification import (
-                has_fresh_verify_run,
                 is_security_sensitive,
                 run_gates_with_cache,
             )
         except ImportError:
             import logging
 
-            logging.getLogger("tausik.gates").warning(
-                "service_verification not available"
-            )
+            logging.getLogger("tausik.gates").warning("service_verification not available")
             return report
 
         task = self.be.task_get(slug) or {}
@@ -473,9 +482,7 @@ class GatesMixin:
         report["cache_status"] = status
 
         if not passed:
-            failed = [
-                r for r in results if not r.get("passed") and r.get("severity") == "block"
-            ]
+            failed = [r for r in results if not r.get("passed") and r.get("severity") == "block"]
             report["blocking_failures"] = [
                 {
                     "gate": r.get("name"),
@@ -542,14 +549,11 @@ class GatesMixin:
             else DEFAULT_CACHE_TTL_S
         )
 
-        fresh, hit = has_fresh_verify_run(
-            self.be._conn, slug, relevant_files, max_age_s=ttl
-        )
+        fresh, hit = has_fresh_verify_run(self.be._conn, slug, relevant_files, max_age_s=ttl)
         if fresh and hit is not None:
             self.be.task_append_notes(
                 slug,
-                f"Verify-First: cache hit (verify run #{hit['id']} "
-                f"at {hit['ran_at']})",
+                f"Verify-First: cache hit (verify run #{hit['id']} at {hit['ran_at']})",
             )
             return
 
@@ -637,9 +641,7 @@ class GatesMixin:
         Security-sensitive `relevant_files` (per `is_security_sensitive`)
         promote to `critical`.
         """
-        gate_report = self._run_quality_gates_report(
-            slug, relevant_files, progress_fn=progress_fn
-        )
+        gate_report = self._run_quality_gates_report(slug, relevant_files, progress_fn=progress_fn)
         if not gate_report["passed"]:
             failures = gate_report.get("blocking_failures", [])
             details = "; ".join(

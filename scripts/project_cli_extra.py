@@ -312,7 +312,14 @@ def _cmd_skill_repo(args: Any, vendor_dir: str, config_path: str) -> None:
 
     rc = getattr(args, "repo_cmd", None)
     if rc == "add":
-        print(repo_add(args.url, vendor_dir, config_path))
+        print(
+            repo_add(
+                args.url,
+                vendor_dir,
+                config_path,
+                force=getattr(args, "force", False),
+            )
+        )
     elif rc == "remove":
         print(repo_remove(args.name, vendor_dir, config_path))
     elif rc == "list":

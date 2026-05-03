@@ -112,6 +112,47 @@ class BackendQueriesMixin:
             "session": self.session_current(),
         }
 
+    def usage_event_append(
+        self,
+        session_id: int,
+        task_slug: str | None,
+        tokens_input: int,
+        tokens_output: int,
+        tokens_total: int,
+        cost_usd: float,
+        tool_calls: int,
+        model_id: str | None,
+        source: str,
+        recorded_at: str | None = None,
+    ) -> int:
+        """Insert one usage_events row; return new row id."""
+        when = recorded_at or utcnow_iso()
+        slug = (task_slug or "").strip() or None
+        ti, to, tt = int(tokens_input), int(tokens_output), int(tokens_total)
+        tc = int(tool_calls)
+        cu = float(cost_usd)
+        mid = (model_id or "").strip() or None
+        return int(
+            self._ex(
+                "INSERT INTO usage_events("
+                "session_id,task_slug,model_id,tokens_input,tokens_output,tokens_total,"
+                "cost_usd,tool_calls,source,recorded_at"
+                ") VALUES(?,?,?,?,?,?,?,?,?,?)",
+                (
+                    int(session_id),
+                    slug,
+                    mid,
+                    ti,
+                    to,
+                    tt,
+                    cu,
+                    tc,
+                    source,
+                    when,
+                ),
+            )
+        )
+
     def session_usage_record(
         self,
         session_id: int,
@@ -123,6 +164,10 @@ class BackendQueriesMixin:
         model: str | None = None,
     ) -> None:
         now = utcnow_iso()
+        mid = (model or "").strip() or None
+        ti, to, tt = int(tokens_input), int(tokens_output), int(tokens_total)
+        tc = int(tool_calls)
+        cu = float(cost_usd)
         self._ex(
             "INSERT INTO session_usage_metrics("
             "session_id,tokens_input,tokens_output,tokens_total,cost_usd,tool_calls,model,recorded_at"
@@ -137,14 +182,50 @@ class BackendQueriesMixin:
             "recorded_at=excluded.recorded_at",
             (
                 int(session_id),
-                int(tokens_input),
-                int(tokens_output),
-                int(tokens_total),
-                float(cost_usd),
-                int(tool_calls),
-                (model or "").strip() or None,
+                ti,
+                to,
+                tt,
+                cu,
+                tc,
+                mid,
                 now,
             ),
+        )
+        self.usage_event_append(
+            int(session_id),
+            None,
+            ti,
+            to,
+            tt,
+            cu,
+            tc,
+            mid,
+            "session_record",
+            recorded_at=now,
+        )
+
+    def usage_events_cost_rollup_by_task(
+        self,
+        since: str | None = None,
+        until: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Aggregate tokens/cost/count by task_slug (NULL task_slug excluded)."""
+        clauses = ["task_slug IS NOT NULL"]
+        params: list[Any] = []
+        if since:
+            clauses.append("recorded_at >= ?")
+            params.append(since)
+        if until:
+            clauses.append("recorded_at <= ?")
+            params.append(until)
+        where_sql = " AND ".join(clauses)
+        return self._q(
+            "SELECT task_slug AS task_slug, COUNT(*) AS event_count, "
+            "COALESCE(SUM(tokens_total), 0) AS tokens_total, "
+            "COALESCE(SUM(cost_usd), 0) AS cost_usd "
+            f"FROM usage_events WHERE {where_sql} "
+            "GROUP BY task_slug ORDER BY cost_usd DESC, task_slug",
+            tuple(params),
         )
 
     def session_usage_summary(self) -> dict[str, Any]:

@@ -96,9 +96,7 @@ class TaskMixin(GatesMixin, CascadeMixin):
             self._require_task(defect_of)
         validate_content("goal", goal)
         score = COMPLEXITY_SP.get(complexity, 1) if complexity else 1
-        self.be.task_add(
-            story_slug, slug, title, stack, complexity, score, goal, role, defect_of
-        )
+        self.be.task_add(story_slug, slug, title, stack, complexity, score, goal, role, defect_of)
         notice = ""
         if call_budget is not None:
             self.be.task_set_call_budget(slug, call_budget)
@@ -135,9 +133,7 @@ class TaskMixin(GatesMixin, CascadeMixin):
         task["decisions"] = self.be.decisions_for_task(slug)
         return task
 
-    def task_start(
-        self, slug: str, _internal_force: bool = False, force: bool = False
-    ) -> str:
+    def task_start(self, slug: str, _internal_force: bool = False, force: bool = False) -> str:
         task = self._require_task(slug)
         if task["status"] == "done":
             raise ServiceError(f"Task '{slug}' is already done")
@@ -236,6 +232,29 @@ class TaskMixin(GatesMixin, CascadeMixin):
             "message": "",
         }
         task = self._require_task(slug)
+        # Verify-First: `tausik verify --task` uses DB relevant_files; `task done`
+        # often omits CLI --relevant-files — merge so cache hash matches verify runs.
+        if relevant_files is None:
+            rf_raw = task.get("relevant_files")
+            if rf_raw:
+                try:
+                    parsed = json.loads(rf_raw)
+                    if isinstance(parsed, list):
+                        relevant_files = parsed
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    pass
+        # v14-task-done-relevant-files-fallback: when both caller and DB row are
+        # silent, recover the file set from the most recent fresh verify-row so
+        # `tausik verify --task X` then `task done X` (no CLI args) hits cache.
+        # Security-sensitive paths bypass the fallback — auth/payment/etc. always
+        # require an explicit list to avoid stale-green leakage.
+        if relevant_files is None:
+            from verify_recent_lookup import lookup_relevant_files_from_recent_verify
+            from service_verification import is_security_sensitive
+
+            recovered = lookup_relevant_files_from_recent_verify(self.be._conn, slug)
+            if recovered and not is_security_sensitive(recovered):
+                relevant_files = recovered
         if task["status"] == "done":
             raise ServiceError(f"Task '{slug}' is already done")
         if evidence:
@@ -253,9 +272,7 @@ class TaskMixin(GatesMixin, CascadeMixin):
         except ServiceError as e:
             report["blocking_failures"].append({"stage": "plan", "message": str(e)})
             return report
-        gate_report = self._run_quality_gates_report(
-            slug, relevant_files, progress_fn=progress_fn
-        )
+        gate_report = self._run_quality_gates_report(slug, relevant_files, progress_fn=progress_fn)
         report["gates"] = gate_report.get("results", [])
         report["cache_status"] = gate_report.get("cache_status")
         report["gates_passed"] = bool(gate_report.get("passed"))
@@ -379,9 +396,7 @@ class TaskMixin(GatesMixin, CascadeMixin):
     def task_unblock(self, slug: str, *, force: bool = False) -> str:
         task = self._require_task(slug)
         if task["status"] != "blocked":
-            raise ServiceError(
-                f"Task '{slug}' is not blocked (status: {task['status']})"
-            )
+            raise ServiceError(f"Task '{slug}' is not blocked (status: {task['status']})")
         # v1.3.4 (med-batch-2-qg #4): unblocking returns the task to active
         # state — same risk as task_start. Without this check, the agent
         # could block-then-unblock to bypass session capacity limits and

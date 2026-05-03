@@ -9,6 +9,7 @@ from typing import Any
 
 from project_config import find_tausik_dir, get_config_path, save_config
 from project_service import ProjectService
+from tausik_utils import format_status_compact_json
 
 
 def _print_table(rows: list[dict[str, Any]], columns: list[str]) -> None:
@@ -47,6 +48,14 @@ def cmd_init(svc: ProjectService, args: Any) -> None:
 
 def cmd_status(svc: ProjectService, args: Any) -> None:
     data = svc.get_status()
+    if getattr(args, "compact", False):
+        from project_config import DEFAULT_SESSION_MAX_MINUTES, load_config
+
+        cfg = load_config()
+        max_min = cfg.get("session_max_minutes", DEFAULT_SESSION_MAX_MINUTES)
+        warning = svc.session_check_duration(max_min)
+        print(format_status_compact_json(data, warning))
+        return
     counts = data["task_counts"]
     total = sum(counts.values())
     done = counts.get("done", 0)
@@ -215,6 +224,8 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
     elif c == "review":
         print(svc.task_review(args.slug))
     elif c == "update":
+        import json as _json
+
         fields = {}
         for k in (
             "title",
@@ -233,6 +244,9 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                 fields[k] = v
         if args.ac is not None:
             fields["acceptance_criteria"] = args.ac
+        rf = getattr(args, "update_relevant_files", None)
+        if rf is not None:
+            fields["relevant_files"] = _json.dumps(list(rf))
         if fields:
             print(svc.task_update(args.slug, **fields))
         else:
@@ -256,6 +270,9 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
         if next_task:
             action = "claimed and started" if args.agent else "suggested"
             print(f"Next task ({action}): {next_task['slug']} — {next_task['title']}")
+            mh = next_task.get("model_hint")
+            if mh:
+                print(f"Model hint: {mh['display']} ({mh['model']})")
         else:
             print("No available tasks.")
     elif c == "log":

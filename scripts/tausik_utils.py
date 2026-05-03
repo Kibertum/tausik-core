@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 from datetime import datetime, timezone
+from typing import Any
 
 
 def fix_stdio_encoding() -> None:
@@ -122,3 +124,25 @@ def slugify(title: str, max_len: int = 50) -> str:
     """Generate a slug from title: lowercase, alphanumeric + hyphens."""
     slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
     return slug[:max_len] if slug else "task"
+
+
+def format_status_compact_json(data: dict[str, Any], duration_warning: str | None) -> str:
+    """Dense JSON line for MCP/CLI ``--compact`` — default human status unchanged."""
+
+    counts = data["task_counts"]
+    total = sum(counts.values())
+    done = counts.get("done", 0)
+    sess = data.get("session")
+    payload: dict[str, Any] = {
+        "tasks_done": done,
+        "tasks_total": total,
+        "tasks_planning": counts.get("planning", 0),
+        "tasks_active": counts.get("active", 0),
+        "tasks_blocked": counts.get("blocked", 0),
+        "tasks_review": counts.get("review", 0),
+        "session_id": int(sess["id"]) if sess else None,
+        "epics": len(data.get("epics") or []),
+    }
+    if duration_warning:
+        payload["session_warning"] = duration_warning
+    return json.dumps(payload, separators=(",", ":"), ensure_ascii=False)

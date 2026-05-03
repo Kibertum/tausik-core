@@ -12,7 +12,6 @@ import sqlite3
 import subprocess
 import sys
 
-import pytest
 
 _HOOK = os.path.normpath(
     os.path.join(

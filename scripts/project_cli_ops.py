@@ -6,7 +6,29 @@ import os
 import sys
 from typing import Any
 
+from brain_cli_ops import cmd_brain  # noqa: F401  re-exported for project.py
 from project_service import ProjectService
+
+
+def _print_usage_cost_rollup(svc: ProjectService, since: str | None, until: str | None) -> None:
+    rows = svc.usage_cost_rollup_by_task(since=since, until=until)
+    if not rows:
+        print(
+            "No usage data for tasks in the selected window (usage_events with non-null task_slug)."
+        )
+        return
+    print("task_slug".ljust(32), "events".rjust(8), "tokens".rjust(12), "cost_usd".rjust(12))
+    for r in rows:
+        slug = str(r.get("task_slug") or "")
+        ev = int(r.get("event_count") or 0)
+        tok = int(r.get("tokens_total") or 0)
+        cost = float(r.get("cost_usd") or 0.0)
+        print(
+            slug[:32].ljust(32),
+            str(ev).rjust(8),
+            f"{tok:,}".rjust(12),
+            f"{cost:.4f}".rjust(12),
+        )
 
 
 def cmd_metrics(svc: ProjectService, args: Any) -> None:
@@ -21,6 +43,27 @@ def cmd_metrics(svc: ProjectService, args: Any) -> None:
                 model=getattr(args, "model", ""),
                 session_id=getattr(args, "session_id", None),
             )
+        )
+        return
+    if getattr(args, "metrics_cmd", None) == "log-usage":
+        print(
+            svc.metrics_log_usage_event(
+                tokens_input=args.tokens_input,
+                tokens_output=args.tokens_output,
+                tokens_total=args.tokens_total,
+                cost_usd=args.cost_usd,
+                tool_calls=getattr(args, "tool_calls", 0),
+                model=getattr(args, "model", ""),
+                task_slug=getattr(args, "task_slug", None),
+                session_id=getattr(args, "session_id", None),
+            )
+        )
+        return
+    if getattr(args, "metrics_cmd", None) == "cost" or getattr(args, "cost", False):
+        _print_usage_cost_rollup(
+            svc,
+            getattr(args, "since", None),
+            getattr(args, "until", None),
         )
         return
     m = svc.get_metrics()
@@ -129,9 +172,7 @@ def cmd_hud(svc: ProjectService, args: Any) -> None:
     except Exception:
         session = None
     if session:
-        print(
-            f"Session: #{session.get('id', '?')} started {session.get('started_at', '')}"
-        )
+        print(f"Session: #{session.get('id', '?')} started {session.get('started_at', '')}")
     else:
         print("Session: (none — use /start or tausik session start)")
     # Active task
@@ -161,25 +202,30 @@ def cmd_hud(svc: ProjectService, args: Any) -> None:
                 pass
     else:
         print("\nActive: (no active task)")
+    try:
+        from project_config import is_task_next_model_hint_enabled
+
+        if is_task_next_model_hint_enabled():
+            nxt = svc.task_next(None)
+            if nxt:
+                ttitle = (nxt.get("title") or "")[:72]
+                print(f"\nNext in queue: {nxt['slug']} — {ttitle}")
+                mh = nxt.get("model_hint")
+                if mh:
+                    print(f"  Model hint: {mh['display']} ({mh['model']})")
+    except Exception:
+        pass
     # Gates
     try:
         from project_config import load_config
 
         cfg = load_config()
         gates = cfg.get("gates", {})
-        enabled = [
-            name
-            for name, g in gates.items()
-            if isinstance(g, dict) and g.get("enabled")
-        ]
+        enabled = [name for name, g in gates.items() if isinstance(g, dict) and g.get("enabled")]
         disabled = [
-            name
-            for name, g in gates.items()
-            if isinstance(g, dict) and not g.get("enabled")
+            name for name, g in gates.items() if isinstance(g, dict) and not g.get("enabled")
         ]
-        print(
-            f"\nGates: {len(enabled)} ON ({', '.join(sorted(enabled)[:6])}), {len(disabled)} OFF"
-        )
+        print(f"\nGates: {len(enabled)} ON ({', '.join(sorted(enabled)[:6])}), {len(disabled)} OFF")
     except Exception:
         print("\nGates: (config unavailable)")
     print("═══════════════════")
@@ -199,13 +245,9 @@ def cmd_search(svc: ProjectService, args: Any) -> None:
             print(f"\n--- {scope} ({len(items)} results) ---")
             for item in items:
                 if "slug" in item:
-                    print(
-                        f"  {item['slug']}: {item.get('title', item.get('decision', ''))}"
-                    )
+                    print(f"  {item['slug']}: {item.get('title', item.get('decision', ''))}")
                 else:
-                    print(
-                        f"  {item.get('title', item.get('decision', str(item)[:80]))}"
-                    )
+                    print(f"  {item.get('title', item.get('decision', str(item)[:80]))}")
                 snippet = item.get("_snippet")
                 if snippet:
                     print(f"    {snippet}")
@@ -222,10 +264,7 @@ def cmd_events(svc: ProjectService, args: Any) -> None:
         return
     for ev in events:
         actor = f" by {ev['actor']}" if ev.get("actor") else ""
-        print(
-            f"[{ev['created_at']}] {ev['entity_type']}/{ev['entity_id']}: "
-            f"{ev['action']}{actor}"
-        )
+        print(f"[{ev['created_at']}] {ev['entity_type']}/{ev['entity_id']}: {ev['action']}{actor}")
         if ev.get("details"):
             print(f"  {ev['details']}")
 
@@ -267,205 +306,32 @@ def cmd_audit(svc: ProjectService, args: Any) -> None:
             print("Audit is up to date.")
 
 
-def cmd_brain(svc: ProjectService, args: Any) -> None:
-    """`tausik brain <subcommand>` — init wizard, status."""
-    sub = getattr(args, "brain_cmd", None)
-    if sub == "status":
-        import json as _json
-
-        import brain_status
-
-        snapshot = brain_status.collect_status()
-        if getattr(args, "as_json", False):
-            print(_json.dumps(snapshot, indent=2, ensure_ascii=False))
-        else:
-            print(brain_status.format_status(snapshot))
-        return
-    if sub == "sync":
-        import json as _json
-        import os as _os
-
-        import brain_config
-        import brain_sync
-        from brain_notion_client import NotionClient
-        from project_config import load_config
-
-        cfg = load_config() or {}
-        brain = cfg.get("brain") or {}
-        if not brain.get("enabled"):
-            print(
-                "Error: brain is not configured in this project. "
-                "Run `.tausik/tausik brain init` first.",
-                file=sys.stderr,
-            )
-            sys.exit(2)
-        token_env = brain.get("notion_integration_token_env") or str(
-            brain_config.DEFAULT_BRAIN["notion_integration_token_env"]
-        )
-        token = _os.environ.get(token_env, "")
-        if not token:
-            print(
-                f"Error: env var {token_env!r} is not set.\n"
-                "  Export your Notion integration token and re-run "
-                "`.tausik/tausik brain sync`.",
-                file=sys.stderr,
-            )
-            sys.exit(2)
-        db_ids = brain.get("database_ids") or {}
-        category_filter = getattr(args, "category", None)
-        if category_filter:
-            db_ids = {category_filter: db_ids.get(category_filter)}
-            if not db_ids[category_filter]:
-                print(
-                    f"Error: no database_id for category {category_filter!r} in config.",
-                    file=sys.stderr,
-                )
-                sys.exit(2)
-        client = NotionClient(token)
-        from brain_config import get_brain_mirror_path
-
-        conn = brain_sync.open_brain_db(get_brain_mirror_path())
-        try:
-            results = brain_sync.sync_all(client, conn, db_ids)
-        finally:
-            conn.close()
-        if getattr(args, "as_json", False):
-            print(_json.dumps(results, indent=2, ensure_ascii=False))
-        else:
-            print("Brain sync results:")
-            had_error = False
-            for cat, payload in results.items():
-                if "error" in payload:
-                    had_error = True
-                    print(f"  {cat:>10}: ERROR — {payload['error']}")
-                else:
-                    pulled = payload.get("upserts") or payload.get("pulled") or 0
-                    print(f"  {cat:>10}: pulled {pulled}")
-            if had_error:
-                sys.exit(1)
-        return
-    if sub == "move":
-        import json as _json
-
-        import brain_move
-
-        if getattr(args, "to_brain", False):
-            kind = getattr(args, "kind", None)
-            if not kind:
-                print("Error: --kind is required with --to-brain", file=sys.stderr)
-                sys.exit(2)
-            try:
-                src_id = int(args.source_id)
-            except (TypeError, ValueError):
-                print(
-                    f"Error: source_id must be an integer, got {args.source_id!r}",
-                    file=sys.stderr,
-                )
-                sys.exit(2)
-            result = brain_move.move_to_brain(
-                svc, kind, src_id, keep_source=args.keep_source
-            )
-        else:
-            cat = getattr(args, "category", None)
-            if not cat:
-                print("Error: --category is required with --to-local", file=sys.stderr)
-                sys.exit(2)
-            result = brain_move.move_to_local(
-                svc,
-                args.source_id,
-                cat,
-                force=args.force,
-                keep_source=args.keep_source,
-            )
-        print(_json.dumps(result, indent=2, ensure_ascii=False))
-        if result.get("status") not in ("ok",):
-            sys.exit(1 if result.get("status") in ("failed", "not_found") else 0)
-        return
-    if sub != "init":
-        print(
-            "Usage:\n"
-            "  tausik brain init [--parent-page-id X] [--token-env Y] "
-            "[--project-name Z] [--yes] [--force] [--non-interactive]\n"
-            "                    [--join-existing [--decisions-id ID "
-            "--web-cache-id ID --patterns-id ID --gotchas-id ID]]\n"
-            "                    [--force-create]\n"
-            "  tausik brain status [--json]\n"
-            "  tausik brain sync   [--category decisions|patterns|gotchas|web_cache] [--json]\n"
-            "  tausik brain move   <source_id> --to-brain --kind ... | --to-local --category ...",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    import brain_init
-    from brain_notion_client import NotionClient
-    from project_config import load_config, save_config
-
-    class _ConfigOps:
-        def load(self) -> dict:
-            return load_config()
-
-        def save(self, cfg: dict) -> None:
-            save_config(cfg)
-
-    def _factory(token: str):
-        return NotionClient(token)
-
-    interactive = None
-    if getattr(args, "non_interactive", False):
-        interactive = False
-
-    wizard_args = {
-        "parent_page_id": getattr(args, "parent_page_id", None),
-        "token_env": getattr(args, "token_env", None),
-        "project_name": getattr(args, "project_name", None),
-        "yes": getattr(args, "yes", False),
-        "force": getattr(args, "force", False),
-        "interactive": interactive,
-        "join_existing": getattr(args, "join_existing", False),
-        "force_create": getattr(args, "force_create", False),
-        "decisions_id": getattr(args, "decisions_id", None),
-        "web_cache_id": getattr(args, "web_cache_id", None),
-        "patterns_id": getattr(args, "patterns_id", None),
-        "gotchas_id": getattr(args, "gotchas_id", None),
-    }
-
-    try:
-        result = brain_init.run_wizard(
-            wizard_args, brain_init.CliIO(), _factory, _ConfigOps()
-        )
-    except brain_init.WizardError as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    mode = result.get("mode", "create")
-    if mode == "join":
-        print("\nBrain joined existing workspace databases.")
-    else:
-        print("\nBrain initialized.")
-        print(f"  parent_page_id: {result['parent_page_id']}")
-    print(f"  token_env:      {result['token_env']}")
-    print(f"  project_name:   {result['project_name']}")
-    for cat, db_id in result["database_ids"].items():
-        print(f"  {cat:>10}: {db_id}")
-
-
 def cmd_doc(svc: ProjectService, args: Any) -> None:
-    """`tausik doc <subcommand>` — optional document extraction via markitdown."""
+    """`tausik doc <subcommand>` — extract via markitdown; constants JSON generator."""
     sub = getattr(args, "doc_cmd", None)
-    if sub != "extract":
-        print(
-            "Usage: tausik doc extract <file> [--format=X]",
-            file=sys.stderr,
-        )
-        sys.exit(2)
-    import doc_extract
+    if sub == "constants":
+        import gen_doc_constants
 
-    md = doc_extract.extract_to_markdown(
-        args.path, format_hint=getattr(args, "format_hint", None)
+        code = gen_doc_constants.run_main(
+            gen_doc_constants.find_repo_root(),
+            check=bool(getattr(args, "doc_constants_check", False)),
+        )
+        raise SystemExit(code)
+    if sub == "extract":
+        import doc_extract
+
+        md = doc_extract.extract_to_markdown(
+            args.path, format_hint=getattr(args, "format_hint", None)
+        )
+        if md is None:
+            sys.exit(1)
+        print(md)
+        return
+    print(
+        "Usage: tausik doc extract <file> [--format=X] | tausik doc constants [--check]",
+        file=sys.stderr,
     )
-    if md is None:
-        sys.exit(1)
-    print(md)
+    sys.exit(2)
 
 
 def cmd_run(svc: ProjectService, args: Any) -> None:
@@ -527,9 +393,5 @@ def cmd_session_recompute(svc: ProjectService, args: Any) -> None:
         total_active += active
         idle_pct = f"{round((1 - active / wall) * 100)}%" if wall > 0 else "  -"
         print(f"{r['id']:>4} {wall:>6} {active:>7} {idle_pct:>6}  {r['started_at']}")
-    total_idle = (
-        f"{round((1 - total_active / total_wall) * 100)}%" if total_wall > 0 else "  -"
-    )
+    total_idle = f"{round((1 - total_active / total_wall) * 100)}%" if total_wall > 0 else "  -"
     print(f"{'TOTAL':>4} {total_wall:>6} {total_active:>7} {total_idle:>6}")
-
-

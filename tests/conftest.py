@@ -3,6 +3,8 @@
 import pytest
 from unittest.mock import patch
 
+from verify_first_compat_predicate import should_apply_verify_first_autouse_compat_shim
+
 
 @pytest.fixture(autouse=True)
 def _mock_run_gates():
@@ -16,21 +18,27 @@ def _mock_run_gates():
 
 
 @pytest.fixture(autouse=True)
-def _opt_out_verify_first(request, monkeypatch):
-    """v1.4 Verify-First Contract: by default `task_done` refuses to close
-    until a `tausik verify` run is cached. That breaks every existing test
-    that exercises `task_done` directly without setting up a verify run.
+def _verify_first_autouse_compat_shim(request, monkeypatch):
+    """Bridge legacy tests into v1.4 Verify-First without rewriting the suite.
 
-    Backward-compat shim: replace `_enforce_verify_first` with a no-op so
-    legacy tests aren't blocked. Tests that WANT to exercise verify-first
-    behavior carry ``@pytest.mark.verify_first`` and the shim is skipped.
+    **Product contract.** With ``task_done.auto_verify`` left at default
+    ``false``, ``task_done`` requires a fresh green from ``tausik verify`` in
+    ``verification_runs``. Most unit tests call ``task_done`` without seeding
+    that cache.
 
-    We patch the method (not load_config) because tests rightfully read and
-    write to the real config.json for unrelated knobs (verify_cache_ttl_seconds,
-    session_idle_threshold_minutes, etc.). A global load_config mock would
-    break those.
+    **Shim (this fixture).** When `should_apply_verify_first_autouse_compat_shim`
+    is true for ``request.node``, patch ``GatesMixin._enforce_verify_first`` to
+    a no-op so those tests keep passing.
+
+    **Opt-in to real enforcement.** Declare ``@pytest.mark.verify_first`` on a
+    test (or class). The shim is then skipped; see `verify_first_compat_predicate`
+    and `docs/en/verify-glossary.md` (test shim).
+
+    **Why patch the method, not config.** Tests legitimately tweak
+    ``load_config()`` for unrelated keys (TTL, idle thresholds); mocking the
+    whole config globally would regress them.
     """
-    if request.node.get_closest_marker("verify_first"):
+    if not should_apply_verify_first_autouse_compat_shim(request.node):
         yield
         return
 

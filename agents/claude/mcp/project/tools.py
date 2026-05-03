@@ -45,7 +45,15 @@ TOOLS = [
     {
         "name": "tausik_status",
         "description": "Get project status: task counts, active session, epics",
-        "inputSchema": {"type": "object", "properties": {}},
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "compact": {
+                    "type": "boolean",
+                    "description": "If true, return one-line JSON (tasks + session + optional session_warning). Default human text is unchanged.",
+                }
+            },
+        },
     },
     {
         "name": "tausik_task_list",
@@ -785,6 +793,24 @@ TOOLS = [
         "name": "tausik_metrics",
         "description": "Project metrics: completion %, velocity, session hours",
         "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "tausik_usage_event_log",
+        "description": "Append manual LLM usage to usage_events (source=manual). Does not update session_usage_metrics. Requires active session or session_id.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "tokens_input": {"type": "integer"},
+                "tokens_output": {"type": "integer"},
+                "tokens_total": {"type": "integer"},
+                "cost_usd": {"type": "number"},
+                "tool_calls": {"type": "integer", "description": "Default 0"},
+                "model": {"type": "string", "description": "Optional model_id"},
+                "task_slug": {"type": "string", "description": "Optional; must exist if set"},
+                "session_id": {"type": "integer", "description": "Optional explicit session FK"},
+            },
+            "required": ["tokens_input", "tokens_output", "tokens_total", "cost_usd"],
+        },
     },
     {
         "name": "tausik_events",

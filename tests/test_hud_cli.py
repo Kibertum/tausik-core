@@ -10,8 +10,8 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
 
-def _fresh_svc(tmp_path):
-    os.environ["TAUSIK_DIR"] = str(tmp_path / ".tausik")
+def _fresh_svc(tmp_path, monkeypatch):
+    monkeypatch.setenv("TAUSIK_DIR", str(tmp_path / ".tausik"))
     (tmp_path / ".tausik").mkdir()
     from project_backend import SQLiteBackend
     from project_service import ProjectService
@@ -29,22 +29,22 @@ def _run_hud(svc):
 
 
 class TestHudCli:
-    def test_empty_project_does_not_crash(self, tmp_path):
-        svc = _fresh_svc(tmp_path)
+    def test_empty_project_does_not_crash(self, tmp_path, monkeypatch):
+        svc = _fresh_svc(tmp_path, monkeypatch)
         out = _run_hud(svc)
         assert "TAUSIK HUD" in out
         assert "no active task" in out.lower()
 
-    def test_with_active_task(self, tmp_path):
-        svc = _fresh_svc(tmp_path)
+    def test_with_active_task(self, tmp_path, monkeypatch):
+        svc = _fresh_svc(tmp_path, monkeypatch)
         svc.task_add(None, "demo", "Demo task")
         svc.be.task_update("demo", status="active")  # bypass QG-0 for HUD smoke-test
         out = _run_hud(svc)
         assert "demo" in out
         assert "Demo task" in out
 
-    def test_with_session_and_logs(self, tmp_path):
-        svc = _fresh_svc(tmp_path)
+    def test_with_session_and_logs(self, tmp_path, monkeypatch):
+        svc = _fresh_svc(tmp_path, monkeypatch)
         svc.task_add(None, "demo", "Demo task")
         svc.be.task_update("demo", status="active")  # bypass QG-0 for HUD smoke-test
         svc.be.task_log_add("demo", "First log", phase="implementation")
@@ -53,8 +53,8 @@ class TestHudCli:
         assert "Recent logs" in out
         assert "First log" in out or "Second log" in out
 
-    def test_long_title_truncated(self, tmp_path):
-        svc = _fresh_svc(tmp_path)
+    def test_long_title_truncated(self, tmp_path, monkeypatch):
+        svc = _fresh_svc(tmp_path, monkeypatch)
         long_title = "X" * 200
         svc.task_add(None, "big", long_title)
         svc.be.task_update("big", status="active")  # bypass QG-0 for HUD smoke-test
@@ -64,8 +64,8 @@ class TestHudCli:
         assert header
         assert len(header[0]) < 200
 
-    def test_output_has_borders(self, tmp_path):
-        svc = _fresh_svc(tmp_path)
+    def test_output_has_borders(self, tmp_path, monkeypatch):
+        svc = _fresh_svc(tmp_path, monkeypatch)
         out = _run_hud(svc)
         assert out.startswith("═══ TAUSIK HUD ═══")
         assert out.rstrip().endswith("═══════════════════")

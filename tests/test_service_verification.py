@@ -292,17 +292,12 @@ class TestRecordAndLookup:
             summary="ok",
             files_hash="hash-abc",
         )
-        hit = sv.lookup_recent_for_task(
-            conn, "t1", files_hash="hash-abc", command="cmd-x"
-        )
+        hit = sv.lookup_recent_for_task(conn, "t1", files_hash="hash-abc", command="cmd-x")
         assert hit is not None
         assert hit["scope"] == "lightweight"
 
     def test_lookup_misses_on_no_runs(self, conn):
-        assert (
-            sv.lookup_recent_for_task(conn, "never", files_hash="x", command="y")
-            is None
-        )
+        assert sv.lookup_recent_for_task(conn, "never", files_hash="x", command="y") is None
 
     def test_lookup_misses_on_files_hash_mismatch(self, conn):
         sv.record_run(
@@ -314,9 +309,7 @@ class TestRecordAndLookup:
             summary="ok",
             files_hash="hash-OLD",
         )
-        miss = sv.lookup_recent_for_task(
-            conn, "t1", files_hash="hash-NEW", command="cmd-x"
-        )
+        miss = sv.lookup_recent_for_task(conn, "t1", files_hash="hash-NEW", command="cmd-x")
         assert miss is None
 
     def test_lookup_misses_on_command_mismatch(self, conn):
@@ -363,9 +356,7 @@ class TestRecordAndLookup:
             ("2020-01-01T00:00:00Z", "t1"),
         )
         conn.commit()
-        miss = sv.lookup_recent_for_task(
-            conn, "t1", files_hash="h", command="cmd", max_age_s=600
-        )
+        miss = sv.lookup_recent_for_task(conn, "t1", files_hash="h", command="cmd", max_age_s=600)
         assert miss is None
 
     def test_lookup_takes_most_recent(self, conn):
@@ -391,6 +382,35 @@ class TestRecordAndLookup:
         hit = sv.lookup_recent_for_task(conn, "t1", files_hash="h", command="cmd")
         assert hit is not None
         assert hit["exit_code"] == 0
+
+    def test_lookup_not_shadowed_by_newer_different_command(self, conn):
+        """Verify-first: newer task-done row must not hide older verify hit."""
+        sv.record_run(
+            conn,
+            task_slug="t1",
+            scope="manual",
+            command="trigger=verify|sig=a|files=x.py",
+            exit_code=0,
+            summary="pytest=PASS",
+            files_hash="h1",
+        )
+        sv.record_run(
+            conn,
+            task_slug="t1",
+            scope="standard",
+            command="trigger=task-done|sig=b|files=x.py",
+            exit_code=0,
+            summary="filesize=PASS",
+            files_hash="h1",
+        )
+        hit = sv.lookup_recent_for_task(
+            conn,
+            "t1",
+            files_hash="h1",
+            command="trigger=verify|sig=a|files=x.py",
+        )
+        assert hit is not None
+        assert "trigger=verify|" in hit["command"]
 
     def test_lookup_empty_slug_returns_none(self, conn):
         assert sv.lookup_recent_for_task(conn, "", files_hash="h", command="c") is None
@@ -444,9 +464,7 @@ class TestResolveGateSignature:
         monkeypatch.setattr(
             project_config,
             "get_gates_for_trigger",
-            lambda _t, _c: [
-                {"name": "pytest", "command": "pytest -q", "severity": "block"}
-            ],
+            lambda _t, _c: [{"name": "pytest", "command": "pytest -q", "severity": "block"}],
         )
         sig_old = sv.resolve_gate_signature("task-done")
 
@@ -481,9 +499,7 @@ class TestCacheInvalidatesOnGateChange:
         monkeypatch.setattr(
             project_config,
             "get_gates_for_trigger",
-            lambda _t, _c: [
-                {"name": "pytest", "command": "alpha", "severity": "block"}
-            ],
+            lambda _t, _c: [{"name": "pytest", "command": "alpha", "severity": "block"}],
         )
         passed1, _, status1 = sv.run_gates_with_cache(
             conn, "x-task", ["scripts/foo.py"], scope="lightweight"
@@ -576,9 +592,7 @@ class TestRunGatesWithCacheIntegration:
             "run_gates",
             lambda *_a, **_k: (calls.append(1), self._stub_gate()(_a, _k))[1],
         )
-        sv.run_gates_with_cache(
-            conn, "task-y", ["scripts/beta.py"], scope="lightweight"
-        )
+        sv.run_gates_with_cache(conn, "task-y", ["scripts/beta.py"], scope="lightweight")
         assert len(calls) == 1
         # Touch the file — mtime changes → files_hash changes → cache miss
         _time.sleep(0.05)
@@ -649,9 +663,7 @@ class TestRunGatesWithCacheIntegration:
         )
         assert any("cache hit" in m for _, m in notes)
 
-    def test_append_notes_called_on_miss_with_summary(
-        self, conn, tmp_path, monkeypatch
-    ):
+    def test_append_notes_called_on_miss_with_summary(self, conn, tmp_path, monkeypatch):
         import gate_runner
 
         (tmp_path / "scripts").mkdir()
@@ -678,9 +690,7 @@ class TestRunGatesWithCacheScopePropagation:
         import gate_runner
 
         def fake_run_gates(_trigger, _files, **_kw):
-            return True, [
-                {"name": "stub", "passed": True, "severity": "block", "output": "ok"}
-            ]
+            return True, [{"name": "stub", "passed": True, "severity": "block", "output": "ok"}]
 
         monkeypatch.setattr(gate_runner, "run_gates", fake_run_gates)
         passed, results, status = sv.run_gates_with_cache(
@@ -718,9 +728,7 @@ class TestRunGatesWithCacheScopePropagation:
 # --- v1.3.4: changed_files_since + git-diff cross-check -------------------
 
 
-def _fake_run(
-    stdout_log: str = "", stdout_diff: str = "", rc_log: int = 0, rc_diff: int = 0
-):
+def _fake_run(stdout_log: str = "", stdout_diff: str = "", rc_log: int = 0, rc_diff: int = 0):
     """Build a runner that returns canned subprocess.CompletedProcess.
 
     The first call (git log) returns stdout_log/rc_log; the second call
@@ -760,9 +768,7 @@ class TestChangedFilesSince:
             stdout_log="scripts/a.py\nscripts/b.py\n",
             stdout_diff="scripts/c.py\nscripts/a.py\n",
         )
-        out = sv.changed_files_since(
-            "2026-04-28T12:00:00Z", root=str(tmp_path), runner=runner
-        )
+        out = sv.changed_files_since("2026-04-28T12:00:00Z", root=str(tmp_path), runner=runner)
         assert out == {"scripts/a.py", "scripts/b.py", "scripts/c.py"}
 
     def test_returns_none_when_no_git_dir(self, tmp_path):
@@ -777,17 +783,13 @@ class TestChangedFilesSince:
     def test_returns_none_when_git_log_fails(self, tmp_path, monkeypatch):
         monkeypatch.setattr("os.path.isdir", lambda p: True)
         runner = _fake_run(rc_log=128)
-        out = sv.changed_files_since(
-            "2026-04-28T12:00:00Z", root=str(tmp_path), runner=runner
-        )
+        out = sv.changed_files_since("2026-04-28T12:00:00Z", root=str(tmp_path), runner=runner)
         assert out is None
 
     def test_returns_none_when_git_diff_fails(self, tmp_path, monkeypatch):
         monkeypatch.setattr("os.path.isdir", lambda p: True)
         runner = _fake_run(stdout_log="x\n", rc_diff=128)
-        out = sv.changed_files_since(
-            "2026-04-28T12:00:00Z", root=str(tmp_path), runner=runner
-        )
+        out = sv.changed_files_since("2026-04-28T12:00:00Z", root=str(tmp_path), runner=runner)
         assert out is None
 
     def test_returns_none_when_subprocess_raises(self, tmp_path, monkeypatch):
@@ -796,9 +798,7 @@ class TestChangedFilesSince:
         def boom(*_a, **_kw):
             raise OSError("fork failed")
 
-        out = sv.changed_files_since(
-            "2026-04-28T12:00:00Z", root=str(tmp_path), runner=boom
-        )
+        out = sv.changed_files_since("2026-04-28T12:00:00Z", root=str(tmp_path), runner=boom)
         assert out is None
 
     def test_normalizes_backslashes_and_dot_slash(self, tmp_path, monkeypatch):
@@ -807,9 +807,7 @@ class TestChangedFilesSince:
             stdout_log="./scripts/a.py\n",
             stdout_diff="./scripts/b.py\n",  # git emits forward slash; this exercises normalization
         )
-        out = sv.changed_files_since(
-            "2026-04-28T12:00:00Z", root=str(tmp_path), runner=runner
-        )
+        out = sv.changed_files_since("2026-04-28T12:00:00Z", root=str(tmp_path), runner=runner)
         assert out == {"scripts/a.py", "scripts/b.py"}
 
 
@@ -870,9 +868,7 @@ class TestIsDeclaredConsistentWithGitDiff:
         )
         assert ok is True
 
-    def test_partial_overlap_with_extra_changed_returns_false(
-        self, tmp_path, monkeypatch
-    ):
+    def test_partial_overlap_with_extra_changed_returns_false(self, tmp_path, monkeypatch):
         """Declared = {a.py}, changed = {a.py, b.py} → b.py was missed → False."""
         monkeypatch.setattr("os.path.isdir", lambda p: True)
         runner = _fake_run(stdout_log="scripts/a.py\nscripts/b.py\n", stdout_diff="")
@@ -945,9 +941,7 @@ class TestRunGatesWithCacheGitDiffIntegration:
         assert passed2 is True
         assert status2 == "hit"
 
-    def test_cache_refused_when_declared_underreports(
-        self, conn, monkeypatch, tmp_path
-    ):
+    def test_cache_refused_when_declared_underreports(self, conn, monkeypatch, tmp_path):
         """Pre-warm cache for declared=[scripts/foo.py]. Then declare same
         files BUT git diff shows scripts/auth.py also changed → cache must
         return status='git-mismatch', not 'hit'."""
@@ -1018,3 +1012,258 @@ class TestRunGatesWithCacheGitDiffIntegration:
             ["scripts/foo.py"],
         )
         assert status == "hit"
+
+
+# --- v14-verify-pipeline-envelope-timeout ----------------------------------
+
+
+class TestPipelineEnvelopeTimeout:
+    """v14-verify-pipeline-envelope-timeout: wall-time bound on run_gates."""
+
+    def test_resolve_default_when_missing(self):
+        assert sv.resolve_pipeline_timeout_s({}) == sv.DEFAULT_PIPELINE_TIMEOUT_S
+
+    def test_resolve_default_when_invalid(self):
+        assert (
+            sv.resolve_pipeline_timeout_s({"verify_pipeline_timeout_seconds": "forever"})
+            == sv.DEFAULT_PIPELINE_TIMEOUT_S
+        )
+        assert sv.resolve_pipeline_timeout_s(None) == sv.DEFAULT_PIPELINE_TIMEOUT_S
+
+    def test_resolve_preserves_zero_disable(self):
+        assert sv.resolve_pipeline_timeout_s({"verify_pipeline_timeout_seconds": 0}) == 0
+
+    def test_resolve_preserves_int(self):
+        assert sv.resolve_pipeline_timeout_s({"verify_pipeline_timeout_seconds": 12}) == 12
+
+    def test_resolve_clamps_negative_to_zero(self):
+        assert sv.resolve_pipeline_timeout_s({"verify_pipeline_timeout_seconds": -5}) == 0
+
+    def test_envelope_timeout_aborts_long_pipeline(self, conn, monkeypatch):
+        """A gate that sleeps past the envelope must raise GateEnvelopeTimeoutError."""
+        monkeypatch.setattr(
+            "project_config.load_config",
+            lambda: {"verify_pipeline_timeout_seconds": 1},
+        )
+
+        def slow_run_gates(_trigger, _files, **_kw):
+            time.sleep(5)
+            return True, []
+
+        monkeypatch.setattr("gate_runner.run_gates", slow_run_gates)
+        t0 = time.monotonic()
+        with pytest.raises(sv.GateEnvelopeTimeoutError, match="verify_pipeline_timeout_seconds"):
+            sv.run_gates_with_cache(conn, "envelope-task", ["scripts/foo.py"])
+        elapsed = time.monotonic() - t0
+        assert elapsed < 4.5, f"envelope did not abort early: took {elapsed:.2f}s"
+
+    def test_envelope_disabled_when_zero(self, conn, monkeypatch):
+        """timeout=0 disables envelope; legacy unbounded run."""
+        monkeypatch.setattr(
+            "project_config.load_config",
+            lambda: {"verify_pipeline_timeout_seconds": 0},
+        )
+
+        called = {"count": 0}
+
+        def fast_run_gates(_trigger, _files, **_kw):
+            called["count"] += 1
+            return (
+                True,
+                [{"name": "g", "passed": True, "skipped": False, "severity": "block"}],
+            )
+
+        monkeypatch.setattr("gate_runner.run_gates", fast_run_gates)
+        passed, results, status = sv.run_gates_with_cache(conn, "envelope-zero", ["scripts/foo.py"])
+        assert called["count"] == 1
+        assert passed is True
+
+    def test_envelope_remediation_text_complete(self, conn, monkeypatch):
+        """Error message must list all three remediation paths."""
+        monkeypatch.setattr(
+            "project_config.load_config",
+            lambda: {"verify_pipeline_timeout_seconds": 1},
+        )
+
+        def slow(_trigger, _files, **_kw):
+            time.sleep(3)
+            return True, []
+
+        monkeypatch.setattr("gate_runner.run_gates", slow)
+        with pytest.raises(sv.GateEnvelopeTimeoutError) as exc:
+            sv.run_gates_with_cache(conn, "envelope-msg", ["scripts/foo.py"])
+        msg = str(exc.value)
+        assert "verify_pipeline_timeout_seconds" in msg
+        assert "auto_verify=true" in msg
+        assert "relevant_files" in msg
+
+
+# --- v14-cache-relaxed-mismatch-hit ----------------------------------------
+
+
+class TestRelaxedMismatchCacheHit:
+    """Sharp edge #2: verify ran with files=[] (manual scope), task_done with
+    explicit relevant_files — strict cache misses (hashes differ) but the
+    user clearly verified this slug recently. Relaxed lookup accepts the
+    broad-pass row only when the recorded run named NO files."""
+
+    def test_lookup_any_fresh_run_unit(self, conn):
+        from datetime import datetime, timezone
+
+        from verify_recent_lookup import lookup_any_fresh_run_for_task
+
+        # No row → None.
+        assert lookup_any_fresh_run_for_task(conn, "t") is None
+
+        # Fresh green row regardless of hash → returned.
+        now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        conn.execute(
+            "INSERT INTO verification_runs (task_slug, scope, command, exit_code, "
+            "summary, files_hash, ran_at) VALUES (?,?,?,?,?,?,?)",
+            ("t", "manual", "trigger=verify|sig=x|files=", 0, "ok", "h1", now),
+        )
+        conn.commit()
+        row = lookup_any_fresh_run_for_task(conn, "t")
+        assert row is not None
+        assert row["files_hash"] == "h1"
+
+        # Failed run → ignored.
+        conn.execute("DELETE FROM verification_runs")
+        conn.execute(
+            "INSERT INTO verification_runs (task_slug, scope, command, exit_code, "
+            "summary, files_hash, ran_at) VALUES (?,?,?,?,?,?,?)",
+            ("t", "manual", "trigger=verify|sig=x|files=", 1, "fail", "h", now),
+        )
+        conn.commit()
+        assert lookup_any_fresh_run_for_task(conn, "t") is None
+
+    def test_relaxed_hit_when_verify_recorded_no_files(self, conn, monkeypatch):
+        """The headline case: verify ran with files=[], task_done with files."""
+        monkeypatch.setattr(
+            "project_config.load_config",
+            lambda: {"verify_pipeline_timeout_seconds": 0},
+        )
+        # Record a manual-scope verify run (files=[] in command payload).
+        sv.record_run(
+            conn,
+            task_slug="relaxed-task",
+            scope="manual",
+            command=sv._build_cache_command("verify", []),
+            exit_code=0,
+            summary="manual scope ok",
+            files_hash=sv.compute_files_hash([]),
+            duration_ms=10,
+        )
+
+        called = {"n": 0}
+
+        def fake_run(_trigger, _files, **_kw):
+            called["n"] += 1
+            return True, []
+
+        monkeypatch.setattr("gate_runner.run_gates", fake_run)
+        passed, results, status = sv.run_gates_with_cache(conn, "relaxed-task", ["scripts/foo.py"])
+        assert status == "hit"
+        assert called["n"] == 0, "relaxed hit must skip run_gates entirely"
+
+    def test_relaxed_skipped_for_security_sensitive(self, conn, monkeypatch):
+        """is_cache_allowed gates the whole branch — auth/payment paths still re-verify."""
+        monkeypatch.setattr(
+            "project_config.load_config",
+            lambda: {"verify_pipeline_timeout_seconds": 0},
+        )
+        sv.record_run(
+            conn,
+            task_slug="sec-task",
+            scope="manual",
+            command=sv._build_cache_command("verify", []),
+            exit_code=0,
+            summary="manual scope ok",
+            files_hash=sv.compute_files_hash([]),
+            duration_ms=10,
+        )
+
+        called = {"n": 0}
+
+        def fake_run(_trigger, _files, **_kw):
+            called["n"] += 1
+            return (
+                True,
+                [{"name": "g", "passed": True, "skipped": False, "severity": "block"}],
+            )
+
+        monkeypatch.setattr("gate_runner.run_gates", fake_run)
+        sv.run_gates_with_cache(conn, "sec-task", ["scripts/auth.py"])
+        assert called["n"] == 1, "security-sensitive must bypass relaxed and run gates"
+
+    def test_relaxed_skipped_when_recorded_with_files(self, conn, monkeypatch):
+        """Verify rows that named specific files must keep strict hash semantics —
+        mtime / gate-signature invalidation should still kick in.
+        """
+        monkeypatch.setattr(
+            "project_config.load_config",
+            lambda: {"verify_pipeline_timeout_seconds": 0},
+        )
+        sv.record_run(
+            conn,
+            task_slug="strict-task",
+            scope="standard",
+            command=sv._build_cache_command("verify", ["scripts/bar.py"]),
+            exit_code=0,
+            summary="ok",
+            files_hash=sv.compute_files_hash(["scripts/bar.py"]),
+            duration_ms=10,
+        )
+
+        called = {"n": 0}
+
+        def fake_run(_trigger, _files, **_kw):
+            called["n"] += 1
+            return (
+                True,
+                [{"name": "g", "passed": True, "skipped": False, "severity": "block"}],
+            )
+
+        monkeypatch.setattr("gate_runner.run_gates", fake_run)
+        # task_done arrives with a different file — strict miss, relaxed
+        # also rejects (recorded files were non-empty).
+        sv.run_gates_with_cache(conn, "strict-task", ["scripts/foo.py"])
+        assert called["n"] == 1, (
+            "relaxed must NOT bridge file-set drift when verify named specific files"
+        )
+
+    def test_relaxed_skipped_when_stale(self, conn, monkeypatch):
+        from datetime import datetime, timedelta, timezone
+
+        monkeypatch.setattr(
+            "project_config.load_config",
+            lambda: {
+                "verify_pipeline_timeout_seconds": 0,
+                "verify_cache_ttl_seconds": 60,
+            },
+        )
+        stale = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat().replace("+00:00", "Z")
+        conn.execute(
+            "INSERT INTO verification_runs (task_slug, scope, command, exit_code, "
+            "summary, files_hash, ran_at) VALUES (?,?,?,?,?,?,?)",
+            (
+                "stale-task",
+                "manual",
+                sv._build_cache_command("verify", []),
+                0,
+                "ok",
+                sv.compute_files_hash([]),
+                stale,
+            ),
+        )
+        conn.commit()
+
+        called = {"n": 0}
+
+        def fake_run(_trigger, _files, **_kw):
+            called["n"] += 1
+            return True, []
+
+        monkeypatch.setattr("gate_runner.run_gates", fake_run)
+        sv.run_gates_with_cache(conn, "stale-task", ["scripts/foo.py"])
+        assert called["n"] == 1, "stale relaxed row must not satisfy task_done"

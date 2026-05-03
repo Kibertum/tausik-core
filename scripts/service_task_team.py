@@ -48,6 +48,13 @@ class TaskTeamMixin:
                 task["_qg0_failed"] = True
             refreshed: dict[str, Any] | None = self.be.task_get(task["slug"])  # type: ignore[attr-defined]
             task = refreshed or task
+        from project_config import is_task_next_model_hint_enabled
+
+        if is_task_next_model_hint_enabled():
+            from model_routing import suggest_model
+
+            task = dict(task)
+            task["model_hint"] = suggest_model(task.get("complexity"))
         return task
 
     def task_claim(self, slug: str, agent_id: str) -> str:

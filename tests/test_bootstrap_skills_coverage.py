@@ -25,6 +25,8 @@ def _list_builtin_skills() -> list[str]:
     """All directories under agents/skills/ that contain a SKILL.md."""
     out = []
     for name in sorted(os.listdir(_builtin_skills_dir)):
+        if name.startswith(".") or name.startswith("_"):
+            continue
         d = os.path.join(_builtin_skills_dir, name)
         if os.path.isdir(d) and os.path.isfile(os.path.join(d, "SKILL.md")):
             out.append(name)

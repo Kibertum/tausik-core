@@ -79,6 +79,103 @@ _SHELL_INJECTION_PATTERN = re.compile(r"\||\&\&|\|\||;|\$\(|`")
 # allowed-executable whitelist. HIGH-2 review fix.
 _SHELL_CHAIN_PATTERN = re.compile(r"&&|\|\||;|\$\(|`")
 
+# --- Agent rule pack size (bootstrap templates: CLAUDE.md / AGENTS.md / .cursorrules) ---
+CONTEXT_TIER_VALUES = frozenset({"minimal", "standard", "full"})
+DEFAULT_CONTEXT_TIER = "standard"
+
+
+def resolve_context_tier(cfg: dict | None) -> str:
+    """Return normalized ``context_tier`` from the root of ``.tausik/config.json``.
+
+    Missing or null → ``standard``. Invalid string → ``ValueError``.
+    """
+
+    if not cfg:
+        return DEFAULT_CONTEXT_TIER
+    raw = cfg.get("context_tier", DEFAULT_CONTEXT_TIER)
+    if raw is None or raw == "":
+        return DEFAULT_CONTEXT_TIER
+    if not isinstance(raw, str):
+        raise ValueError("context_tier must be a string")
+    t = raw.strip().lower()
+    if t not in CONTEXT_TIER_VALUES:
+        raise ValueError(
+            f"Invalid context_tier {raw!r}; expected one of {sorted(CONTEXT_TIER_VALUES)}"
+        )
+    return t
+
+
+def is_task_next_model_hint_enabled(cfg: dict | None = None) -> bool:
+    """Whether to append non-blocking Claude model hints to ``task next`` / ``hud``.
+
+    Opt-in via root ``.tausik/config.json``::
+
+        "task_next": { "model_hint": true }
+
+    Missing ``task_next``, wrong type, or ``model_hint: false`` → ``False`` (unchanged behavior).
+    """
+    if cfg is None:
+        cfg = load_config()
+    tn = cfg.get("task_next")
+    if not isinstance(tn, dict):
+        return False
+    return bool(tn.get("model_hint"))
+
+
+def normalize_llm_pricing_config(cfg: dict | None) -> dict:
+    """Validate ``llm_pricing_usd_per_million``: map ``model_id`` → USD per 1M tokens."""
+
+    if not cfg:
+        return {}
+    out = dict(cfg)
+    raw = out.get("llm_pricing_usd_per_million")
+    if raw is None:
+        return out
+    if not isinstance(raw, dict):
+        logger.warning(
+            "llm_pricing_usd_per_million must be a JSON object (model → price) — dropped"
+        )
+        del out["llm_pricing_usd_per_million"]
+        return out
+    clean: dict[str, float] = {}
+    for k, v in raw.items():
+        key = str(k).strip()
+        if not key:
+            continue
+        try:
+            val = float(v)
+        except (TypeError, ValueError):
+            logger.warning(
+                "Skipping llm_pricing_usd_per_million entry %r — not numeric", k
+            )
+            continue
+        if val != val:  # NaN
+            continue
+        if val < 0:
+            logger.warning(
+                "Skipping llm_pricing_usd_per_million for %r — negative price not allowed",
+                key,
+            )
+            continue
+        clean[key] = val
+    out["llm_pricing_usd_per_million"] = clean
+    return out
+
+
+def lookup_llm_usd_per_million_tokens(cfg: dict | None, model_id: str | None) -> float | None:
+    """USD per million tokens for *exact* ``model_id`` match, else ``None`` (unknown tariff)."""
+
+    if not cfg or model_id is None:
+        return None
+    tbl = cfg.get("llm_pricing_usd_per_million")
+    if not isinstance(tbl, dict):
+        return None
+    key = model_id.strip()
+    if not key or key not in tbl:
+        return None
+    return float(tbl[key])
+
+
 # --- SENAR Rule 9.2: Session duration limit (minutes) ---
 # SENAR v1.3: sessions exceeding 180 min show diminishing returns.
 # Measured against ACTIVE minutes (gap-based), not wall clock — AFK breaks
@@ -201,7 +298,13 @@ def load_config() -> dict:
     if os.path.exists(path):
         try:
             with open(path, encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+                if not isinstance(data, dict):
+                    logging.getLogger("tausik.config").warning(
+                        "Config root must be an object (%s)", path
+                    )
+                    return {}
+                return normalize_llm_pricing_config(data)
         except (json.JSONDecodeError, OSError) as e:
             logging.getLogger("tausik.config").warning(
                 "Config corrupted (%s): %s — using defaults", path, e

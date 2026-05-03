@@ -76,8 +76,8 @@ class TestDimensionsScore:
 class TestIntegrationWithQg0Start:
     """The warning is emitted by _check_qg0_start when <5 dims are filled."""
 
-    def _fresh_svc(self, tmp_path):
-        os.environ["TAUSIK_DIR"] = str(tmp_path / ".tausik")
+    def _fresh_svc(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("TAUSIK_DIR", str(tmp_path / ".tausik"))
         (tmp_path / ".tausik").mkdir()
         from project_backend import SQLiteBackend
         from project_service import ProjectService
@@ -85,19 +85,17 @@ class TestIntegrationWithQg0Start:
         be = SQLiteBackend(str(tmp_path / ".tausik" / "tausik.db"))
         return ProjectService(be)
 
-    def test_minimal_task_emits_context_warning(self, tmp_path):
-        svc = self._fresh_svc(tmp_path)
+    def test_minimal_task_emits_context_warning(self, tmp_path, monkeypatch):
+        svc = self._fresh_svc(tmp_path, monkeypatch)
         svc.task_add(None, "t1", "minimal")
-        svc.task_update(
-            "t1", goal="do thing", acceptance_criteria="Error on empty input"
-        )
+        svc.task_update("t1", goal="do thing", acceptance_criteria="Error on empty input")
         warnings = svc._check_qg0_start("t1", svc.task_show("t1"))
         context_warnings = [w for w in warnings if w.startswith("CONTEXT:")]
         assert context_warnings, f"Expected CONTEXT warning, got: {warnings}"
         assert "/9 intent dimensions" in context_warnings[0]
 
-    def test_rich_task_no_context_warning(self, tmp_path):
-        svc = self._fresh_svc(tmp_path)
+    def test_rich_task_no_context_warning(self, tmp_path, monkeypatch):
+        svc = self._fresh_svc(tmp_path, monkeypatch)
         svc.task_add(
             None,
             "t2",

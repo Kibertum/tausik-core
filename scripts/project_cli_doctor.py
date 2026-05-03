@@ -9,9 +9,56 @@ from __future__ import annotations
 
 import os
 import sys
+from collections.abc import Mapping
 from typing import Any
 
 from project_service import ProjectService
+
+_CI_ENV_MARKERS = frozenset(
+    {
+        "CI",
+        "CONTINUOUS_INTEGRATION",
+        "GITHUB_ACTIONS",
+        "GITLAB_CI",
+        "BUILDKITE",
+        "CIRCLECI",
+        "TF_BUILD",
+        "JENKINS_URL",
+        "TRAVIS",
+    }
+)
+
+
+def _env_truthy(environ: Mapping[str, str], key: str) -> bool:
+    val = environ.get(key)
+    if val is None:
+        return False
+    return str(val).strip().lower() not in ("", "0", "false", "no", "off")
+
+
+def looks_like_ci_environment(environ: Mapping[str, str]) -> bool:
+    """True when common CI/CD vars suggest an automated runner (not local IDE)."""
+
+    return any(_env_truthy(environ, k) for k in _CI_ENV_MARKERS)
+
+
+def auto_verify_interactive_warning_detail(
+    cfg: dict,
+    environ: Mapping[str, str],
+) -> str | None:
+    """Warning text when legacy inline verify is enabled outside CI; else None."""
+
+    td_raw = cfg.get("task_done")
+    td = td_raw if isinstance(td_raw, dict) else {}
+    if not bool(td.get("auto_verify")):
+        return None
+    if looks_like_ci_environment(environ):
+        return None
+    return (
+        "task_done.auto_verify=true — heavy gates inline on `task done` (legacy). "
+        "Prefer `verify` then `task done` for interactive agents; CI may keep "
+        "`auto_verify` for single-step pipelines."
+    )
 
 
 def _supports_utf8() -> bool:
@@ -91,11 +138,7 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
 
     skills_dir = os.path.join(project_dir, ".claude", "skills")
     if os.path.isdir(skills_dir):
-        skills = [
-            d
-            for d in os.listdir(skills_dir)
-            if os.path.isdir(os.path.join(skills_dir, d))
-        ]
+        skills = [d for d in os.listdir(skills_dir) if os.path.isdir(os.path.join(skills_dir, d))]
         critical = {
             "start",
             "end",
@@ -142,13 +185,13 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
     elif md_drift:
         _print_warn(
             "CLAUDE.md drift",
-            f"{md_drift} static section(s) differ — run: tausik update-claudemd --dry-run",
+            f"{md_drift} static section(s) differ from bootstrap template "
+            "(likely project customisation; re-run bootstrap to reset). "
+            "`tausik update-claudemd` only refreshes the DYNAMIC block.",
         )
         warnings += 1
     else:
-        _print_ok(
-            "CLAUDE.md drift", "none — static sections match bootstrap_templates"
-        )
+        _print_ok("CLAUDE.md drift", "none — static sections match bootstrap_templates")
 
     try:
         from project_config import (
@@ -167,6 +210,10 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
             "Config knobs",
             f"max={max_min}m warn={warn_th}m idle={idle_th}m capacity={cap} cache_ttl={ttl}s",
         )
+        av_hint = auto_verify_interactive_warning_detail(cfg, dict(os.environ))
+        if av_hint:
+            _print_warn("Verify-First profile", av_hint)
+            warnings += 1
     except Exception as e:
         _print_warn("Config knobs", f"load failed: {e}")
         warnings += 1
@@ -193,9 +240,7 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
 
     print("=" * 40)
     if failures:
-        print(
-            f"{RED} {failures} FAIL, {warnings} WARN — fix above before running tasks."
-        )
+        print(f"{RED} {failures} FAIL, {warnings} WARN — fix above before running tasks.")
         sys.exit(1)
     elif warnings:
         print(f"{YELLOW} OK with {warnings} warning(s).")
@@ -241,17 +286,19 @@ def _check_claudemd_drift(project_dir: str) -> int | None:
     except Exception:
         return None
     try:
-        from project_config import load_config  # noqa: PLC0415
+        from project_config import load_config, resolve_context_tier  # noqa: PLC0415
 
         cfg = load_config() or {}
         project_name = cfg.get("project_name") or os.path.basename(project_dir)
         stacks = cfg.get("stacks") or []
+        tier = resolve_context_tier(cfg)
         expected = build_full_body(
             project_name,
             stacks,
             "an AI agent (Claude Code)",
             ".claude",
             ide="claude",
+            context_tier=tier,
         )
     except Exception:
         return None
@@ -307,9 +354,7 @@ def _check_scripts_drift(project_dir: str) -> int | None:
             continue
         try:
             with open(s, "rb") as f1, open(d, "rb") as f2:
-                if f1.read().replace(b"\r\n", b"\n") != f2.read().replace(
-                    b"\r\n", b"\n"
-                ):
+                if f1.read().replace(b"\r\n", b"\n") != f2.read().replace(b"\r\n", b"\n"):
                     differ += 1
         except OSError:
             pass

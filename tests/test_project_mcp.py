@@ -43,6 +43,14 @@ class TestStatus:
         assert "Tasks: 0/1 done" in result
         assert "1 planning" in result
 
+    def test_status_compact_returns_json_with_expected_keys(self, seeded):
+        result = _handle_tool(seeded, "tausik_status", {"compact": True})
+        data = json.loads(result)
+        assert data["tasks_total"] == 1
+        assert data["tasks_done"] == 0
+        assert data["tasks_planning"] == 1
+        assert "session_id" in data
+
 
 class TestTaskCRUD:
     def test_task_add(self, svc):

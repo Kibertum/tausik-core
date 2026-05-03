@@ -32,6 +32,38 @@ from verify_git_diff import (  # noqa: F401
 # cadence (30-50 tool calls ≈ 5-15 min) — cache covers a coherent work session.
 DEFAULT_CACHE_TTL_S = 600
 
+# v14-verify-pipeline-envelope-timeout: wall-time envelope for the entire
+# `run_gates` cycle (NOT per-gate). Guards against a misconfigured / hanging
+# gate making `task done` look like the agent froze. Default 60s suits
+# interactive MCP hosts; CI can disable via `verify_pipeline_timeout_seconds=0`.
+DEFAULT_PIPELINE_TIMEOUT_S = 60
+
+
+class GateEnvelopeTimeoutError(RuntimeError):
+    """Raised when `run_gates` exceeds the verify pipeline envelope timeout.
+
+    Surfaces a remediation hint (raise the limit, opt into auto_verify, or
+    narrow `relevant_files`) so an interactive agent can recover deliberately
+    instead of guessing whether the host hung.
+    """
+
+
+def resolve_pipeline_timeout_s(cfg: dict | None) -> int:
+    """Resolve `verify_pipeline_timeout_seconds` from config.
+
+    Returns the configured value when ≥0; `DEFAULT_PIPELINE_TIMEOUT_S` when
+    missing or invalid; `0` is a valid disable-sentinel and is preserved.
+    """
+    if not isinstance(cfg, dict):
+        return DEFAULT_PIPELINE_TIMEOUT_S
+    raw = cfg.get("verify_pipeline_timeout_seconds", DEFAULT_PIPELINE_TIMEOUT_S)
+    try:
+        v = int(raw)
+    except (TypeError, ValueError):
+        return DEFAULT_PIPELINE_TIMEOUT_S
+    return max(0, v)
+
+
 # Security path tokens — bare match anywhere, slashes match only as path.
 _SECURITY_PATH_TOKENS = tuple(
     "scripts/hooks/ /auth/ /payment/ /payments/ /billing/ /oauth/ /sso/ "
@@ -46,18 +78,11 @@ _SEC_BASE = (
 _SEC_EXT = (".py", ".ts", ".tsx", ".js", ".go", ".rs", ".php")
 _SECURITY_BASENAMES = frozenset(f"{b}{e}" for b in _SEC_BASE for e in _SEC_EXT)
 
-_SECURITY_EXTENSIONS = frozenset(
-    {".env", ".pem", ".key", ".p12", ".pfx", ".crt", ".asc", ".gpg"}
-)
+_SECURITY_EXTENSIONS = frozenset({".env", ".pem", ".key", ".p12", ".pfx", ".crt", ".asc", ".gpg"})
 
 
 def _utcnow_iso() -> str:
-    return (
-        datetime.now(timezone.utc)
-        .replace(microsecond=0)
-        .isoformat()
-        .replace("+00:00", "Z")
-    )
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 # v1.3.4: compute_files_hash extracted to verify_files_hash.py for filesize
@@ -66,6 +91,7 @@ from verify_files_hash import (  # noqa: F401, E402
     _FILES_HASH_CONTENT_SAMPLE_BYTES,
     compute_files_hash,
 )
+from verify_recent_lookup import lookup_recent_for_task  # noqa: E402
 
 
 def is_security_sensitive(file_paths: list[str]) -> bool:
@@ -124,57 +150,6 @@ def record_run(
     )
     conn.commit()
     return int(cur.lastrowid or 0)
-
-
-def lookup_recent_for_task(
-    conn: sqlite3.Connection,
-    task_slug: str,
-    *,
-    files_hash: str,
-    command: str,
-    max_age_s: int = DEFAULT_CACHE_TTL_S,
-) -> dict[str, Any] | None:
-    """Return the most recent green verify run for `task_slug` if usable.
-
-    Returns None when:
-      - no run for this task
-      - most recent run failed (exit_code != 0)
-      - files_hash mismatch (files changed since)
-      - command mismatch (gate config changed)
-      - older than `max_age_s` seconds
-
-    The caller treats `None` as "must run fresh verify".
-    """
-    if not task_slug:
-        return None
-    row = conn.execute(
-        """
-        SELECT id, task_slug, scope, command, exit_code, summary,
-               files_hash, ran_at, duration_ms
-        FROM verification_runs
-        WHERE task_slug = ?
-        ORDER BY id DESC
-        LIMIT 1
-        """,
-        (task_slug,),
-    ).fetchone()
-    if row is None:
-        return None
-    run = dict(row) if not isinstance(row, dict) else row
-    if run["exit_code"] != 0:
-        return None
-    if run["files_hash"] != files_hash:
-        return None
-    if run["command"] != command:
-        return None
-    try:
-        ran_at = datetime.fromisoformat(run["ran_at"].replace("Z", "+00:00"))
-    except (TypeError, ValueError):
-        return None
-    age = (datetime.now(timezone.utc) - ran_at).total_seconds()
-    if age > max_age_s:
-        return None
-    return run
 
 
 def is_cache_allowed(file_paths: list[str]) -> bool:
@@ -309,9 +284,7 @@ def run_gates_with_cache(
 
     git_diff_consistent = True
     if cache_ok and task_created_at and files:
-        git_diff_consistent = is_declared_consistent_with_git_diff(
-            files, task_created_at
-        )
+        git_diff_consistent = is_declared_consistent_with_git_diff(files, task_created_at)
         if not git_diff_consistent and append_notes_fn is not None:
             append_notes_fn(
                 slug,
@@ -338,16 +311,74 @@ def run_gates_with_cache(
                     f"ran_at={hit['ran_at']}, scope={hit['scope']})",
                 )
             return True, [], "hit"
+        # v14-cache-relaxed-mismatch-hit: a strict miss is acceptable for the
+        # specific Sharp edge where verify ran with `files=[]` (manual scope —
+        # user explicitly verified *this slug* without naming files) and
+        # task_done arrives with explicit `relevant_files`. Accept the
+        # broad-pass row in *that direction only*. Verify rows that named
+        # specific files must keep their strict hash check so mtime / gate
+        # signature invalidation continues to work.
+        from verify_recent_lookup import (
+            _extract_files_from_cache_command,
+            lookup_any_fresh_run_for_task,
+        )
+
+        relaxed = lookup_any_fresh_run_for_task(conn, slug, max_age_s=ttl)
+        if relaxed is not None:
+            relaxed_files = _extract_files_from_cache_command(relaxed.get("command", "") or "")
+            if not relaxed_files:
+                if append_notes_fn is not None:
+                    append_notes_fn(
+                        slug,
+                        f"Gates: cache hit (relaxed — verify run #{relaxed['id']} "
+                        f"recorded with files=[] (manual scope), "
+                        f"ran_at={relaxed['ran_at']}, scope={relaxed['scope']})",
+                    )
+                return True, [], "hit"
 
     t0 = _time.monotonic()
-    passed, results = run_gates(
-        trigger, relevant_files, progress_callback=progress_fn
-    )
+    # v14-verify-pipeline-envelope-timeout: enforce wall-time bound around
+    # the whole gate cycle so a hung gate can't make `task done` look frozen.
+    try:
+        from project_config import load_config as _load_envelope_cfg
+
+        envelope_s = resolve_pipeline_timeout_s(_load_envelope_cfg())
+    except Exception:
+        envelope_s = DEFAULT_PIPELINE_TIMEOUT_S
+    if envelope_s <= 0:
+        passed, results = run_gates(trigger, relevant_files, progress_callback=progress_fn)
+    else:
+        # daemon thread + join(timeout): ThreadPoolExecutor.__exit__ waits for
+        # in-flight workers, which would block the abort path. A daemon thread
+        # leaves the lingering subprocess unwound at interpreter exit instead.
+        import threading as _threading
+
+        _result: dict[str, Any] = {}
+        _exc: dict[str, BaseException] = {}
+
+        def _runner() -> None:
+            try:
+                _result["v"] = run_gates(trigger, relevant_files, progress_callback=progress_fn)
+            except BaseException as _e:  # noqa: BLE001
+                _exc["e"] = _e
+
+        _t = _threading.Thread(target=_runner, daemon=True)
+        _t.start()
+        _t.join(envelope_s)
+        if _t.is_alive():
+            raise GateEnvelopeTimeoutError(
+                f"verify pipeline exceeded {envelope_s}s envelope timeout. "
+                "Options: raise `verify_pipeline_timeout_seconds` in "
+                ".tausik/config.json, set `task_done.auto_verify=true` "
+                "to run gates inline (legacy), or narrow `relevant_files` "
+                "to reduce gate fan-out."
+            )
+        if "e" in _exc:
+            raise _exc["e"]
+        passed, results = _result["v"]
     duration_ms = int((_time.monotonic() - t0) * 1000)
     if results and append_notes_fn is not None:
-        summary = ", ".join(
-            r["name"] + "=" + ("PASS" if r["passed"] else "FAIL") for r in results
-        )
+        summary = ", ".join(r["name"] + "=" + ("PASS" if r["passed"] else "FAIL") for r in results)
         append_notes_fn(slug, f"Gates: {summary}")
     if not files and any(r.get("skipped") for r in results):
         if append_notes_fn is not None:
@@ -384,10 +415,7 @@ def run_gates_with_cache(
     if passed and cache_ok and has_real_pass:
         try:
             summary = (
-                ", ".join(
-                    r["name"] + "=" + ("PASS" if r["passed"] else "FAIL")
-                    for r in results
-                )
+                ", ".join(r["name"] + "=" + ("PASS" if r["passed"] else "FAIL") for r in results)
                 or "ok"
             )
             record_run(

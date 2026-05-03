@@ -212,6 +212,25 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
         "CREATE INDEX IF NOT EXISTS idx_brain_events_type ON brain_events(event_type)",
         "CREATE INDEX IF NOT EXISTS idx_brain_events_ts ON brain_events(ts)",
     ],
+    # --- v23: append-only LLM usage ledger (rollup / cost dashboards later) ---
+    23: [
+        """CREATE TABLE IF NOT EXISTS usage_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+            task_slug TEXT REFERENCES tasks(slug) ON DELETE SET NULL,
+            model_id TEXT,
+            tokens_input INTEGER NOT NULL CHECK(tokens_input >= 0),
+            tokens_output INTEGER NOT NULL CHECK(tokens_output >= 0),
+            tokens_total INTEGER NOT NULL CHECK(tokens_total >= 0),
+            cost_usd REAL NOT NULL DEFAULT 0 CHECK(cost_usd >= 0),
+            tool_calls INTEGER NOT NULL DEFAULT 0 CHECK(tool_calls >= 0),
+            source TEXT NOT NULL CHECK(source IN ('session_record', 'manual')),
+            recorded_at TEXT NOT NULL
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_usage_events_session "
+        "ON usage_events(session_id, recorded_at)",
+        "CREATE INDEX IF NOT EXISTS idx_usage_events_task ON usage_events(task_slug, recorded_at)",
+    ],
 }
 
 

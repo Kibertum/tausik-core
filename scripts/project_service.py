@@ -221,6 +221,47 @@ class ProjectService(
             )
         return row
 
+    @staticmethod
+    def _validate_usage_counters(
+        tokens_input: int,
+        tokens_output: int,
+        tokens_total: int,
+        tool_calls: int,
+        cost_usd: float,
+    ) -> None:
+        for label, val in (
+            ("tokens_input", tokens_input),
+            ("tokens_output", tokens_output),
+            ("tokens_total", tokens_total),
+            ("tool_calls", tool_calls),
+        ):
+            if int(val) < 0:
+                raise ServiceError(f"{label} cannot be negative")
+        if float(cost_usd) < 0:
+            raise ServiceError("cost_usd cannot be negative")
+
+    @staticmethod
+    def _normalize_usage_time_bound(label: str, raw: str | None) -> str | None:
+        if raw is None:
+            return None
+        spec = str(raw).strip()
+        if not spec:
+            return None
+        from datetime import datetime, timezone
+
+        s = spec.replace("Z", "+00:00")
+        try:
+            dt = datetime.fromisoformat(s)
+        except ValueError as e:
+            raise ServiceError(
+                f"Invalid {label} timestamp (ISO-8601): {spec!r}"
+            ) from e
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        else:
+            dt = dt.astimezone(timezone.utc)
+        return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
     # --- Top-level operations ---
 
     def get_status(self) -> dict[str, Any]:
@@ -239,6 +280,9 @@ class ProjectService(
         model: str = "",
         session_id: int | None = None,
     ) -> str:
+        self._validate_usage_counters(
+            tokens_input, tokens_output, tokens_total, tool_calls, cost_usd
+        )
         sid = session_id
         if sid is None:
             current = self.be.session_current()
@@ -260,6 +304,61 @@ class ProjectService(
             f"Session usage recorded for session #{sid}: "
             f"{int(tokens_total):,} tokens, ${float(cost_usd):.4f}."
         )
+
+    def metrics_log_usage_event(
+        self,
+        tokens_input: int,
+        tokens_output: int,
+        tokens_total: int,
+        cost_usd: float,
+        tool_calls: int = 0,
+        model: str = "",
+        task_slug: str | None = None,
+        session_id: int | None = None,
+    ) -> str:
+        """Append a manual usage_events row (does not touch session_usage_metrics)."""
+        self._validate_usage_counters(
+            tokens_input, tokens_output, tokens_total, tool_calls, cost_usd
+        )
+        sid = session_id
+        if sid is None:
+            current = self.be.session_current()
+            if not current:
+                raise ServiceError(
+                    "No active session. Pass --session-id or start session first."
+                )
+            sid = int(current["id"])
+        ts: str | None = None
+        if task_slug is not None and str(task_slug).strip():
+            ts = str(task_slug).strip()
+            self._require_task(ts)
+        rid = self.be.usage_event_append(
+            sid,
+            ts,
+            int(tokens_input),
+            int(tokens_output),
+            int(tokens_total),
+            float(cost_usd),
+            int(tool_calls),
+            (model or "").strip() or None,
+            "manual",
+        )
+        task_part = f", task={ts}" if ts else ""
+        return (
+            f"usage_events #{rid}: manual log for session #{sid}{task_part} "
+            f"({int(tokens_total):,} tokens, ${float(cost_usd):.4f})."
+        )
+
+    def usage_cost_rollup_by_task(
+        self,
+        since: str | None = None,
+        until: str | None = None,
+    ) -> list[dict[str, Any]]:
+        s_bound = self._normalize_usage_time_bound("since", since)
+        u_bound = self._normalize_usage_time_bound("until", until)
+        if s_bound and u_bound and s_bound > u_bound:
+            raise ServiceError("`since` must be <= `until` (ISO timestamps).")
+        return self.be.usage_events_cost_rollup_by_task(since=s_bound, until=u_bound)
 
     def get_roadmap(self, include_done: bool = False) -> list[dict[str, Any]]:
         return self.be.get_roadmap_data(include_done)
