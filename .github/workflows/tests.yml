@@ -37,5 +37,8 @@ jobs:
       - name: Bootstrap .claude/ (required by mirror-sync tests)
         run: python bootstrap/bootstrap.py --no-detect --ide claude
 
+      - name: Doc-constants drift check (v14-ci-doc-check)
+        run: python scripts/gen_doc_constants.py --check
+
       - name: Run tests
         run: pytest tests/ -v --tb=short --ignore=tests/test_bootstrap_skills_coverage.py --ignore=tests/test_bootstrap_real.py
