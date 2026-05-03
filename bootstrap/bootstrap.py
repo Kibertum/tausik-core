@@ -21,9 +21,11 @@ sys.path.insert(0, _bootstrap_dir)
 from bootstrap_config import (
     ALL_EXTENSION_SKILLS,
     DEFAULT_CONFIG,
+    TAUSIK_MODEL_PROFILE_ENV,
     detect_extension_skills,
     detect_stacks,
     load_config,
+    parse_strict_model_profile_env,
     save_tausik_config,
 )
 from bootstrap_copy import (
@@ -93,6 +95,7 @@ def bootstrap_ide(
     stacks: list[str],
     vendor_skills: dict[str, str] | None = None,
     venv_python: str | None = None,
+    context_tier: str = "standard",
 ) -> None:
     """Bootstrap for a single IDE."""
     target_dir = get_ide_target(project_dir, ide)
@@ -143,16 +146,23 @@ def bootstrap_ide(
 
     if ide == "claude":
         generate_settings_claude(target_dir, project_dir, lib_dir)
-        generate_claude_md(project_dir, config.get("project", "my-project"), stacks)
+        generate_claude_md(
+            project_dir, config.get("project", "my-project"), stacks, context_tier
+        )
     elif ide == "cursor":
-        generate_cursorrules(project_dir, config.get("project", "my-project"), stacks)
+        generate_cursorrules(
+            project_dir, config.get("project", "my-project"), stacks, context_tier
+        )
     elif ide == "qwen":
         generate_settings_qwen(target_dir, project_dir, venv_python, lib_dir)
-        generate_qwen_md(project_dir, config.get("project", "my-project"), stacks)
+        generate_qwen_md(
+            project_dir, config.get("project", "my-project"), stacks, context_tier
+        )
 
-    generate_agents_md(project_dir, config.get("project", "my-project"), stacks)
+    generate_agents_md(
+        project_dir, config.get("project", "my-project"), stacks, context_tier
+    )
 
-    generate_mcp_json(project_dir, target_dir, venv_python)
     if ide == "cursor":
         generate_cursor_mcp_json(project_dir, target_dir, venv_python)
 
@@ -196,6 +206,11 @@ def main() -> None:
         "--dry-run",
         action="store_true",
         help="Show what would be done without writing files",
+    )
+    parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="Rewrite .tausik/config.json from bootstrap state + env (no IDE skill/script copy)",
     )
     parser.add_argument(
         "--update-deps",
@@ -277,6 +292,12 @@ def main() -> None:
 
     ides = ["claude", "cursor", "qwen"] if args.ide == "all" else [args.ide]
 
+    try:
+        env_profile_slug = parse_strict_model_profile_env()
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
     if args.dry_run:
         print("\n=== DRY RUN — no files will be written ===")
         for ide in ides:
@@ -297,9 +318,42 @@ def main() -> None:
             if ide in _generate_map:
                 print(f"  Will generate: {_generate_map[ide]}")
         print("\n  Config: .tausik/config.json")
+        if env_profile_slug:
+            print(
+                f"  {TAUSIK_MODEL_PROFILE_ENV} → top-level model_profile={env_profile_slug!r}"
+            )
         print("  RAG dir: .tausik/rag/")
         print("  CLI wrapper: .tausik/tausik")
         print("\nNo changes made.")
+        return
+
+    if args.refresh:
+        tausik_dir = os.path.join(project_dir, ".tausik")
+        os.makedirs(tausik_dir, exist_ok=True)
+        tausik_config_path = os.path.join(tausik_dir, "config.json")
+        _scripts = os.path.join(lib_dir, "scripts")
+        if _scripts not in sys.path:
+            sys.path.insert(0, _scripts)
+        try:
+            save_tausik_config(
+                tausik_config_path,
+                config,
+                get_lib_commit(lib_dir),
+                stacks,
+                ides,
+                project_dir,
+                get_ide_target,
+                lib_dir=lib_dir,
+            )
+        except ValueError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+        from bootstrap_venv import install_cli_wrapper
+
+        install_cli_wrapper(_bootstrap_dir, tausik_dir)
+        print("\n=== Refresh complete ===")
+        print("  Updated .tausik/config.json only (no skills/scripts/MCP copy).")
+        print("  CLI wrapper: .tausik/tausik (or .tausik/tausik.cmd on Windows)")
         return
 
     skills_json = os.path.join(lib_dir, "skills.json")
@@ -332,10 +386,42 @@ def main() -> None:
     if not install_requirements(tausik_dir, lib_dir):
         print("  WARNING: dependency installation failed. MCP servers may not work.")
 
+    _scripts = os.path.join(lib_dir, "scripts")
+    if _scripts not in sys.path:
+        sys.path.insert(0, _scripts)
+    import json as _json_ct
+
+    _cfg_for_tier: dict = {}
+    if os.path.isfile(tausik_config_path):
+        try:
+            with open(tausik_config_path, encoding="utf-8") as _cf:
+                _cfg_for_tier = _json_ct.load(_cf)
+        except (_json_ct.JSONDecodeError, OSError):
+            _cfg_for_tier = {}
+    from project_config import resolve_context_tier
+
+    try:
+        context_tier = resolve_context_tier(_cfg_for_tier)
+    except ValueError as exc:
+        print(f"Error: {exc} (file: {tausik_config_path})")
+        sys.exit(1)
+
     for ide in ides:
         bootstrap_ide(
-            lib_dir, project_dir, ide, config, stacks, vendor_skills, venv_python
+            lib_dir,
+            project_dir,
+            ide,
+            config,
+            stacks,
+            vendor_skills,
+            venv_python,
+            context_tier,
         )
+
+    if "claude" in ides:
+        generate_mcp_json(project_dir, get_ide_target(project_dir, "claude"), venv_python)
+    else:
+        generate_mcp_json(project_dir, get_ide_target(project_dir, ides[0]), venv_python)
 
     for ide in ides:
         target_dir = get_ide_target(project_dir, ide)
@@ -352,16 +438,20 @@ def main() -> None:
     os.makedirs(rag_dir, exist_ok=True)
     print("\n  RAG: FTS5 mode (keyword search)")
 
-    save_tausik_config(
-        tausik_config_path,
-        config,
-        get_lib_commit(lib_dir),
-        stacks,
-        ides,
-        project_dir,
-        get_ide_target,
-        lib_dir=lib_dir,
-    )
+    try:
+        save_tausik_config(
+            tausik_config_path,
+            config,
+            get_lib_commit(lib_dir),
+            stacks,
+            ides,
+            project_dir,
+            get_ide_target,
+            lib_dir=lib_dir,
+        )
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
     from bootstrap_venv import install_cli_wrapper
 
@@ -390,7 +480,14 @@ def main() -> None:
                 f"\nBootstrap complete but init failed: {e}\n  Run manually: .tausik/tausik init"
             )
     else:
-        print("\nBootstrap complete! Run:\n  .tausik/tausik init")
+        already_init = os.path.isfile(os.path.join(project_dir, ".tausik", "tausik.db"))
+        if already_init:
+            print(
+                "\nBootstrap complete — project DB already exists. "
+                "Try: `.tausik/tausik status` / `.tausik/tausik doctor`"
+            )
+        else:
+            print("\nBootstrap complete! Run:\n  .tausik/tausik init")
 
     # Optional: invite the user to the Shared Brain wizard. Only in
     # interactive mode (so CI / non-TTY runs are not blocked) and only when

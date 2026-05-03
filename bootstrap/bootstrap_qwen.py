@@ -259,7 +259,9 @@ def generate_settings_qwen(
         json.dump(settings, f, indent=2)
 
 
-def generate_qwen_md(project_dir: str, project_name: str, stacks: list[str]) -> None:
+def generate_qwen_md(
+    project_dir: str, project_name: str, stacks: list[str], context_tier: str = "standard"
+) -> None:
     """Generate QWEN.md for Qwen Code CLI — same constraints as CLAUDE.md.
 
     Preserves existing QWEN.md if present.
@@ -267,7 +269,12 @@ def generate_qwen_md(project_dir: str, project_name: str, stacks: list[str]) -> 
     from bootstrap_templates import build_full_body
 
     body = build_full_body(
-        project_name, stacks, "Qwen Code (an AI coding agent)", ".qwen", ide="qwen"
+        project_name,
+        stacks,
+        "Qwen Code (an AI coding agent)",
+        ".qwen",
+        ide="qwen",
+        context_tier=context_tier,
     )
     content = f"# QWEN.md\n\n{body}"
     path = os.path.join(project_dir, "QWEN.md")

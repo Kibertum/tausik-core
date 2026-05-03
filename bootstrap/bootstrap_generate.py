@@ -8,9 +8,7 @@ import sys
 from typing import Any
 
 
-def generate_settings_claude(
-    target_dir: str, project_dir: str, lib_dir: str | None = None
-) -> None:
+def generate_settings_claude(target_dir: str, project_dir: str, lib_dir: str | None = None) -> None:
     """Generate .claude/settings.json for Claude Code.
 
     lib_dir: path to TAUSIK library (submodule). Auto-detected from bootstrap location.
@@ -137,7 +135,6 @@ def generate_settings_claude(
                     "matcher": (
                         "mcp__tausik-project__tausik_task_done"
                         "|mcp__tausik-project__tausik_task_done_v2"
-                        "|Bash"
                     ),
                     "hooks": [
                         {
@@ -247,9 +244,7 @@ def generate_settings_claude(
         json.dump(settings, f, indent=2)
 
 
-def generate_mcp_json(
-    project_dir: str, ide_dir: str, venv_python: str | None = None
-) -> None:
+def generate_mcp_json(project_dir: str, ide_dir: str, venv_python: str | None = None) -> None:
     """Generate .mcp.json at project root.
 
     Merges with existing .mcp.json to preserve user-configured servers.
@@ -347,7 +342,9 @@ def generate_cursor_mcp_json(
         json.dump(mcp_config, f, indent=2)
 
 
-def generate_claude_md(project_dir: str, project_name: str, stacks: list[str]) -> None:
+def generate_claude_md(
+    project_dir: str, project_name: str, stacks: list[str], context_tier: str = "standard"
+) -> None:
     """Generate CLAUDE.md — load-bearing instructions for Claude Code.
 
     Constraints-first structure prevents agent drift: hard rules before softer guidance.
@@ -357,7 +354,12 @@ def generate_claude_md(project_dir: str, project_name: str, stacks: list[str]) -
     from bootstrap_templates import build_full_body
 
     body = build_full_body(
-        project_name, stacks, "an AI agent (Claude Code)", ".claude", ide="claude"
+        project_name,
+        stacks,
+        "an AI agent (Claude Code)",
+        ".claude",
+        ide="claude",
+        context_tier=context_tier,
     )
     content = f"# CLAUDE.md\n\n{body}"
     path = os.path.join(project_dir, "CLAUDE.md")
@@ -366,7 +368,9 @@ def generate_claude_md(project_dir: str, project_name: str, stacks: list[str]) -
             f.write(content)
 
 
-def generate_agents_md(project_dir: str, project_name: str, stacks: list[str]) -> None:
+def generate_agents_md(
+    project_dir: str, project_name: str, stacks: list[str], context_tier: str = "standard"
+) -> None:
     """Generate AGENTS.md — universal agent onboarding (OpenCode/Codex/Cursor/Claude compatible).
 
     Shares the same hard constraints and SENAR rules as CLAUDE.md so no IDE gets a weaker ruleset.
@@ -374,7 +378,9 @@ def generate_agents_md(project_dir: str, project_name: str, stacks: list[str]) -
     """
     from bootstrap_templates import build_full_body
 
-    body = build_full_body(project_name, stacks, "an AI agent", ".claude", ide=None)
+    body = build_full_body(
+        project_name, stacks, "an AI agent", ".claude", ide=None, context_tier=context_tier
+    )
     content = f"# AGENTS.md — AI Agent Onboarding\n\n{body}"
     path = os.path.join(project_dir, "AGENTS.md")
     if not os.path.exists(path):
@@ -386,7 +392,7 @@ def generate_agents_md(project_dir: str, project_name: str, stacks: list[str]) -
 
 
 def generate_cursorrules(
-    project_dir: str, project_name: str, stacks: list[str]
+    project_dir: str, project_name: str, stacks: list[str], context_tier: str = "standard"
 ) -> None:
     """Generate .cursorrules for Cursor IDE — same constraints as CLAUDE.md.
 
@@ -395,7 +401,12 @@ def generate_cursorrules(
     from bootstrap_templates import build_full_body
 
     body = build_full_body(
-        project_name, stacks, "Cursor (an AI coding agent)", ".cursor", ide="cursor"
+        project_name,
+        stacks,
+        "Cursor (an AI coding agent)",
+        ".cursor",
+        ide="cursor",
+        context_tier=context_tier,
     )
     content = f"# Cursor Rules\n\n{body}"
     path = os.path.join(project_dir, ".cursorrules")

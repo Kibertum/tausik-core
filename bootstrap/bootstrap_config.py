@@ -5,8 +5,51 @@ from __future__ import annotations
 import datetime
 import json
 import os
+import re
 import sys
 from typing import Any
+
+# Environment variable → top-level `model_profile` in `.tausik/config.json` (bootstrap).
+TAUSIK_MODEL_PROFILE_ENV = "TAUSIK_MODEL_PROFILE"
+
+
+def normalize_model_profile_slug(raw: str) -> str:
+    """Lowercase `a-z0-9-` slug; mirrors skill host profiles."""
+    s = raw.strip().lower()
+    s = re.sub(r"[^a-z0-9]+", "-", s)
+    return s.strip("-")
+
+
+def parse_strict_model_profile_env() -> str | None:
+    """Return canonical slug if ``TAUSIK_MODEL_PROFILE`` requests an override.
+
+    - Env absent → ``None`` (caller keeps existing ``model_profile`` in JSON).
+    - Env blank after strip → ``None`` (no override).
+    - Non-blank invalid → raises ``ValueError``.
+    """
+    raw = os.environ.get(TAUSIK_MODEL_PROFILE_ENV)
+    if raw is None:
+        return None
+    if not raw.strip():
+        return None
+    slug = normalize_model_profile_slug(raw)
+    if not slug:
+        raise ValueError(
+            f"Invalid {TAUSIK_MODEL_PROFILE_ENV}={raw!r}: "
+            "use letters/digits (e.g. claude, codex)."
+        )
+    if len(slug) > 64:
+        raise ValueError(
+            f"Invalid {TAUSIK_MODEL_PROFILE_ENV}: normalized slug exceeds 64 characters."
+        )
+    return slug
+
+
+def apply_model_profile_env_to_config(tausik_config: dict[str, Any]) -> None:
+    """Merge ``TAUSIK_MODEL_PROFILE`` into ``tausik_config`` (mutates)."""
+    slug = parse_strict_model_profile_env()
+    if slug is not None:
+        tausik_config["model_profile"] = slug
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "core_skills": [
@@ -240,6 +283,7 @@ def save_tausik_config(
                 tausik_config = json.load(f)
         except (json.JSONDecodeError, OSError):
             tausik_config = {}
+    apply_model_profile_env_to_config(tausik_config)
     config["_meta"] = {
         "lib_commit": lib_commit or "unknown",
         "generated_at": datetime.datetime.now().isoformat(),
@@ -248,11 +292,16 @@ def save_tausik_config(
     }
     tausik_config["bootstrap"] = config
     tausik_config.setdefault("rag", {})["mode"] = "fts5"
+    _lib = lib_dir or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    scripts_path = os.path.join(_lib, "scripts")
+    if scripts_path not in sys.path:
+        sys.path.insert(0, scripts_path)
+    try:
+        from project_config import DEFAULT_CONTEXT_TIER as _dct
+    except ImportError:
+        _dct = "standard"
+    tausik_config.setdefault("context_tier", _dct)
     if stacks:
-        _lib = lib_dir or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        scripts_path = os.path.join(_lib, "scripts")
-        if scripts_path not in sys.path:
-            sys.path.insert(0, scripts_path)
         try:
             from project_config import auto_enable_gates_for_stacks
 

@@ -1,0 +1,99 @@
+#!/usr/bin/env python3
+"""TAUSIK MCP server — project management via SQLite.
+
+Tools defined in tools.py, handlers in handlers.py.
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+import traceback
+
+
+def _get_service(project_dir: str):
+    """Create ProjectService for project."""
+    mcp_dir = os.path.dirname(os.path.abspath(__file__))
+    scripts_dir = os.path.normpath(os.path.join(mcp_dir, "..", "..", "scripts"))
+    if os.path.isdir(scripts_dir) and scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from project_backend import SQLiteBackend
+    from project_service import ProjectService
+
+    db_path = os.path.join(project_dir, ".tausik", "tausik.db")
+    be = SQLiteBackend(db_path)
+    return ProjectService(be)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--project", required=True, help="Project root directory")
+    args = parser.parse_args()
+
+    # Pin cwd to --project so handlers that resolve paths relative to cwd
+    # (e.g. _project_dir() in handlers.py, cq_client config lookup) read the
+    # right project regardless of the host's launch directory. Mirrors
+    # tausik-brain server.py behavior — keeps the two MCP servers symmetric.
+    if not os.path.isdir(args.project):
+        print(
+            f"Error: --project {args.project!r} is not a directory.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    os.chdir(args.project)
+
+    try:
+        from mcp.server import Server
+        from mcp.server.stdio import stdio_server
+        from mcp.types import TextContent, Tool
+    except ImportError:
+        print("Error: mcp package not installed. Run: pip install mcp", file=sys.stderr)
+        sys.exit(1)
+
+    from handlers import handle_tool
+    from tools import TOOLS
+
+    server = Server("tausik-project")
+    svc = _get_service(args.project)
+
+    @server.list_tools()
+    async def list_tools():
+        return [
+            Tool(
+                name=t["name"],
+                description=t["description"],
+                inputSchema=t["inputSchema"],
+            )
+            for t in TOOLS
+        ]
+
+    import asyncio
+
+    @server.call_tool()
+    async def call_tool(name: str, arguments: dict):
+        try:
+            result = await asyncio.to_thread(handle_tool, svc, name, arguments)
+            return [TextContent(type="text", text=result)]
+        except Exception as e:
+            # Full traceback to host stderr for diagnostics, mirroring
+            # tausik-brain server. The text reply to the agent stays minimal
+            # so frame-locals (potentially containing secrets/paths) do not
+            # leak into model context.
+            print(
+                f"[tausik-project] tool {name!r} failed:\n{traceback.format_exc()}",
+                file=sys.stderr,
+            )
+            return [TextContent(type="text", text=f"Error: {e}")]
+
+    async def _run():
+        async with stdio_server() as (read_stream, write_stream):
+            await server.run(
+                read_stream, write_stream, server.create_initialization_options()
+            )
+
+    asyncio.run(_run())
+
+
+if __name__ == "__main__":
+    main()

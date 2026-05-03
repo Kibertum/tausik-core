@@ -122,6 +122,19 @@ Don't reach for `Grep`/`Glob` first. TAUSIK ships dedicated retrieval MCP server
 Run `mcp__codebase-rag__rag_status` once per session to confirm the index is fresh. If `chunks=0`, run `mcp__codebase-rag__reindex` before any `search_code` call.
 """
 
+CURSOR_MCP_SETUP = """## Local MCP in Cursor (this workspace)
+
+Bootstrap (`python bootstrap/bootstrap.py --ide cursor` or `--ide all`) generates:
+
+- **`.cursor/mcp.json`** — TAUSIK MCP servers for Cursor (absolute paths to `.tausik/venv`, server entrypoints under **`.cursor/mcp/`**).
+- **`.mcp.json` at repo root** — always points at **`.claude/mcp/`** (VS Code Claude Extension / shared); **Cursor reads `.cursor/mcp.json`** for project-scoped tools.
+
+If tools do not appear: open **Cursor Settings → MCP**, ensure project MCP is enabled, then **Developer: Reload Window**.
+
+Servers: `tausik-project`, `tausik-brain`, optional `codebase-rag`.
+
+"""
+
 MULTIMODEL_NOTE = """## Are you a non-Claude agent? (GPT-5.5, Composer, Codex, OpenCode, Gemini …)
 
 TAUSIK is model-agnostic, but the surface you actually use differs from Claude Code:
@@ -141,6 +154,46 @@ Always respond in the user's language.
 
 DYNAMIC_BLOCK = """<!-- DYNAMIC:START -->
 <!-- DYNAMIC:END -->
+"""
+
+MINIMAL_WORKFLOW = """## Workflow (minimal tier)
+
+`/start` → `/plan` or `task start` → implement → `.tausik/tausik verify --task <slug>` →
+`task done --ac-verified` → `/end`.
+
+Full diagram: [Workflow](docs/en/workflow.md) (or `docs/ru/workflow.md`).
+"""
+
+MINIMAL_MEMORY = """## Memory (minimal)
+
+- Project patterns / dead ends: TAUSIK `memory add` (SQLite `.tausik/tausik.db`).
+- Host prefs: agent-specific auto-memory (`~/.claude/` is Claude-only — see glossary).
+"""
+
+MINIMAL_COMMANDS = """## Commands (minimal)
+
+```bash
+.tausik/tausik status
+.tausik/tausik verify --task <slug>
+.tausik/tausik task done <slug> --ac-verified
+.tausik/tausik task log <slug> "…"
+```
+
+Full CLI: [docs/en/cli.md](docs/en/cli.md).
+"""
+
+MINIMAL_TIER_FOOTER = """## Rule pack size
+
+This body was generated with **`context_tier: minimal`** (`.tausik/config.json`). Switch to
+`standard` or `full` and re-run TAUSIK bootstrap / refresh for long-form tool routing, full
+SENAR tables, and skill/role sections.
+"""
+
+FULL_TIER_NOTE = """## Deep onboarding (full tier)
+
+Use this only when you routinely change gates, MCP tooling, or bootstrap templates. Read
+[Architecture](docs/en/architecture.md) and [SENAR compliance matrix](docs/en/senar-compliance-matrix.md)
+alongside this file.
 """
 
 
@@ -166,6 +219,11 @@ def build_skills_section(ide_subdir: str) -> str:
         f"`skills-official/`: `/audit`, `/zero-defect`, `/markitdown`, `/excel`, "
         f"`/pdf`, `/docs`, `/security`, `/onboard`, `/retro`, `/ultra`, `/jira`, "
         f"`/bitrix24`, `/sentry`, ... See `{ide_subdir}/references/skill-catalog.md`.\n\n"
+        f"**Security — external skill repos are arbitrary code + instructions.** "
+        f"Adding a repo clones remote content; installing may run pip/scripts. "
+        f"Only use `tausik skill repo add <url>` for trusted sources; third-party URLs "
+        f"require `--force` after review. See `docs/en/vendor-skills.md` and "
+        f"`docs/en/skill-ecosystem.md`.\n\n"
         f"When a user request matches a trigger keyword for a not-installed skill, proactively suggest installing it.\n"
     )
 
@@ -208,8 +266,9 @@ def build_full_body(
     agent_name: str,
     ide_subdir: str,
     ide: str | None = None,
+    context_tier: str = "standard",
 ) -> str:
-    """Compose the full shared body used by all IDE-specific generators.
+    """Compose the shared body used by all IDE-specific generators.
 
     Caller prepends its own file-level header (e.g. '# CLAUDE.md'). When
     `ide` is supplied, the matching `agents/overrides/<ide>/rules.md`
@@ -217,9 +276,31 @@ def build_full_body(
     closing the audit gap r14-overrides-integration where these files
     existed but were never wired into the generated CLAUDE.md/.cursorrules
     /QWEN.md.
+
+    ``context_tier`` (from ``.tausik/config.json``) selects how verbose the
+    generated rules are: ``minimal`` (short), ``standard`` (default), or
+    ``full`` (standard + extra pointers for framework work).
     """
+    tier = (context_tier or "standard").strip().lower()
+    if tier not in ("minimal", "standard", "full"):
+        tier = "standard"
+
+    header = build_header(project_name, stacks, agent_name)
+    if tier == "minimal":
+        parts = [
+            header,
+            HARD_CONSTRAINTS,
+            MINIMAL_WORKFLOW,
+            MINIMAL_MEMORY,
+            MINIMAL_COMMANDS,
+            RESPONSE_LANGUAGE,
+            MINIMAL_TIER_FOOTER,
+            DYNAMIC_BLOCK,
+        ]
+        return "\n".join(p for p in parts if p)
+
     parts = [
-        build_header(project_name, stacks, agent_name),
+        header,
         HARD_CONSTRAINTS,
         WORKFLOW,
         TOOL_ROUTING,
@@ -232,6 +313,11 @@ def build_full_body(
         MULTIMODEL_NOTE,
         RESPONSE_LANGUAGE,
         _load_ide_override(ide),
-        DYNAMIC_BLOCK,
     ]
+    if ide == "cursor":
+        idx = parts.index(MULTIMODEL_NOTE)
+        parts.insert(idx, CURSOR_MCP_SETUP)
+    if tier == "full":
+        parts.append(FULL_TIER_NOTE)
+    parts.append(DYNAMIC_BLOCK)
     return "\n".join(p for p in parts if p)

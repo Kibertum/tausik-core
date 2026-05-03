@@ -266,7 +266,9 @@ def copy_skills(
     builtin_names: list[str] = []
     if os.path.isdir(builtin_dir):
         for name in sorted(os.listdir(builtin_dir)):
-            if os.path.isdir(os.path.join(builtin_dir, name)) and not name.startswith("."):
+            if name.startswith(".") or name.startswith("_"):
+                continue
+            if os.path.isdir(os.path.join(builtin_dir, name)):
                 builtin_names.append(name)
     if not builtin_names:
         print(
