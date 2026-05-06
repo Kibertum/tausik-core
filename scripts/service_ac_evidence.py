@@ -17,8 +17,11 @@ Public API:
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
+
+from tausik_utils import ServiceError
 
 CHECK_MARK_RE = re.compile(r"[\u2713\u2714\u2705]|\[v\]")
 AC_NUMBER_PREFIX_RE = re.compile(r"^\s*(?:AC[-\s]*)?(\d+)[\.\)]?\s*(.*)$", re.IGNORECASE)
@@ -99,8 +102,7 @@ class AcCoverageReport:
 
     def to_summary(self) -> str:
         lines = [
-            f"AC coverage: {self.covered}/{self.total_ac} "
-            f"({self.coverage_pct}%)",
+            f"AC coverage: {self.covered}/{self.total_ac} ({self.coverage_pct}%)",
             f"  with test refs: {self.covered_with_tests}/{self.total_ac}",
         ]
         if self.gaps():
@@ -181,10 +183,7 @@ def match_evidence_to_ac(
     ac_items: list[str], evidence_lines: list[EvidenceLine]
 ) -> AcCoverageReport:
     """Map evidence lines to AC items by explicit `AC-N`/`N.` prefix."""
-    items = [
-        AcCoverageItem(ac_index=idx + 1, ac_text=text)
-        for idx, text in enumerate(ac_items)
-    ]
+    items = [AcCoverageItem(ac_index=idx + 1, ac_text=text) for idx, text in enumerate(ac_items)]
     by_idx = {i.ac_index: i for i in items}
     unmatched: list[EvidenceLine] = []
     for ev in evidence_lines:
@@ -206,3 +205,69 @@ def build_report(ac_text: str, notes_text: str) -> AcCoverageReport:
     ac_items = parse_ac_text(ac_text)
     evidence = parse_evidence_lines(notes_text)
     return match_evidence_to_ac(ac_items, evidence)
+
+
+def evidence_json_to_prose(raw: str) -> str:
+    """Convert agent-supplied JSON evidence into the canonical prose form.
+
+    Schema:
+      {"ac_evidence": [
+         {"n": int>=1, "status": "pass"|"fail", "evidence": str,
+          "manual": bool?, "negative": bool?},
+         ...
+       ]}
+
+    Output (one line per AC item, prefixed with 'AC verified:' header so
+    parse_evidence_lines + service_gates._verify_ac recognise the marker):
+
+      AC verified:
+      1. ✓ tests/foo.py::test_bar
+      2. ✓ manual: smoke run on prod
+      3. FAIL: regression in edge case
+
+    Raises ServiceError on any schema violation. No DB / IO.
+    """
+    if not isinstance(raw, str) or not raw.strip():
+        raise ServiceError("invalid --evidence-json: empty input")
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise ServiceError(f"invalid --evidence-json: {e.msg} (line {e.lineno})") from e
+    if not isinstance(data, dict):
+        raise ServiceError("invalid --evidence-json: top-level must be an object")
+    items = data.get("ac_evidence")
+    if not isinstance(items, list):
+        raise ServiceError("invalid --evidence-json: 'ac_evidence' must be a list")
+    if not items:
+        raise ServiceError("invalid --evidence-json: 'ac_evidence' is empty")
+    lines: list[str] = ["AC verified:"]
+    for idx, item in enumerate(items):
+        if not isinstance(item, dict):
+            raise ServiceError(f"invalid --evidence-json: ac_evidence[{idx}] must be an object")
+        n = item.get("n")
+        # bool is subclass of int — exclude explicitly.
+        if isinstance(n, bool) or not isinstance(n, int) or n < 1:
+            raise ServiceError(
+                f"invalid --evidence-json: ac_evidence[{idx}].n must be a positive integer"
+            )
+        status = item.get("status")
+        if status not in ("pass", "fail"):
+            raise ServiceError(
+                f"invalid --evidence-json: ac_evidence[{idx}].status must be 'pass' or 'fail'"
+            )
+        evidence = item.get("evidence")
+        if not isinstance(evidence, str) or not evidence.strip():
+            raise ServiceError(
+                f"invalid --evidence-json: ac_evidence[{idx}].evidence must be a non-empty string"
+            )
+        marker = "✓" if status == "pass" else "FAIL:"
+        tags: list[str] = []
+        if item.get("manual"):
+            tags.append("manual")
+        if item.get("negative"):
+            tags.append("negative")
+        prefix = f"{n}. {marker}"
+        if tags:
+            prefix += " " + " ".join(tags) + ":"
+        lines.append(f"{prefix} {evidence.strip()}")
+    return "\n".join(lines)

@@ -68,8 +68,19 @@ class TaskDoneReportMixin:
         ac_verified: bool,
         no_knowledge: bool,
         evidence: str | None,
+        evidence_json: str | None = None,
         progress_fn: Any | None = None,
     ) -> dict[str, Any]:
+        # v14b-token-t15: structured evidence — convert JSON to canonical
+        # prose before the existing log path. Mutex with --evidence prose
+        # (caller intent must be unambiguous; prose wins by virtue of being
+        # the legacy form, but disallowing both keeps the behavior obvious).
+        if evidence is not None and evidence_json is not None:
+            raise ServiceError("task_done: 'evidence' and 'evidence_json' are mutually exclusive")
+        if evidence_json is not None:
+            from service_ac_evidence import evidence_json_to_prose
+
+            evidence = evidence_json_to_prose(evidence_json)
         report: dict[str, Any] = {
             "ok": False,
             "slug": slug,

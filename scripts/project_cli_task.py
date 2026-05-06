@@ -93,6 +93,7 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                 args.ac_verified,
                 getattr(args, "no_knowledge", False),
                 evidence=getattr(args, "evidence", None),
+                evidence_json=getattr(args, "evidence_json", None),
                 progress_fn=_stderr_progress,
             )
         )

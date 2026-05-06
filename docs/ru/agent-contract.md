@@ -29,6 +29,27 @@ quality gates. Pytest gate использует `{test_files_for_files}` substit
 
 Залогируй проверку AC через `task log` перед закрытием.
 
+### Структурированный evidence (`--evidence-json`, v1.4 polish)
+
+Альтернатива prose-форме — JSON-аргумент, который конвертится в каноническую
+prose-форму внутри сервиса:
+
+```bash
+.tausik/tausik task done my-task --ac-verified --evidence-json '{
+  "ac_evidence": [
+    {"n": 1, "status": "pass", "evidence": "tests/test_foo.py::test_bar"},
+    {"n": 2, "status": "pass", "evidence": "smoke run", "manual": true},
+    {"n": 3, "status": "pass", "evidence": "401 на bad creds", "negative": true}
+  ]
+}'
+```
+
+Опциональные per-item флаги `manual` / `negative` пробрасываются как маркеры
+в prose, чтобы `service_ac_evidence` парсер корректно проставил
+`has_manual` / `has_negative_evidence` в отчёте. `--evidence` и `--evidence-json`
+взаимоисключающие (argparse + сервис). Та же семантика у MCP-tool
+`tausik_task_done` через аргумент `evidence_json`.
+
 ---
 
 ## Agent-native estimation

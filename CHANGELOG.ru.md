@@ -34,6 +34,22 @@
 
 ### Добавлено
 
+- **Структурированный `--evidence-json` для `task done` (`v14b-token-t15-evidence-json`).**
+  Новый флаг принимает JSON от агента:
+  `{"ac_evidence":[{"n":1,"status":"pass","evidence":"tests/foo.py::test_bar"}, ...]}`
+  с опциональными per-item флагами `manual` / `negative`. Хелпер
+  `service_ac_evidence.evidence_json_to_prose()` конвертирует JSON в
+  каноническую prose-форму ("AC verified: 1. ✓ ..."), которая дальше
+  проходит через существующий пайплайн `task_log` +
+  `service_ac_evidence` без изменений. Mutually exclusive с
+  `--evidence` (argparse отвергает на уровне CLI;
+  `_task_done_report` дублирует проверку для MCP-вызовов). MCP-tool
+  `tausik_task_done` получил аргумент `evidence_json` с теми же
+  семантиками; полная обратная совместимость — prose-форма
+  `--evidence` / `evidence` работает как раньше. Тесты в
+  `tests/test_ac_evidence_json.py` — 19 кейсов (5 positive с round-trip
+  по 3 AC, 12 negative по схеме, 1 SQL-payload, 1 service-layer mutex).
+
 - **AIDD project scaffold (`v14b-aidd-scaffold-basic`).** Новая CLI-подкоманда
   `tausik init --template aidd` копирует три слойных шаблона —
   `idea.md`, `vision.md`, `conventions.md` — из `harness/aidd-templates/`

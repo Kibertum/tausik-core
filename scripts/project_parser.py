@@ -137,11 +137,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="Confirm no knowledge to capture",
     )
     tdone.add_argument("--relevant-files", nargs="*", default=None)
-    tdone.add_argument(
+    evidence_group = tdone.add_mutually_exclusive_group()
+    evidence_group.add_argument(
         "--evidence",
         default=None,
         help='Inline AC verification log — e.g. "AC verified: 1. ✓ 2. ✓ ...". '
         "Saves a separate task_log call.",
+    )
+    evidence_group.add_argument(
+        "--evidence-json",
+        default=None,
+        dest="evidence_json",
+        help='Structured AC evidence as JSON: \'{"ac_evidence":[{"n":1,'
+        '"status":"pass","evidence":"tests/foo.py::test_bar"}, ...]}\'. '
+        "Converted to canonical prose before logging. "
+        "Mutually exclusive with --evidence.",
     )
 
     tblock = task_sub.add_parser("block")

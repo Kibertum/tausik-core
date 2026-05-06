@@ -157,6 +157,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin):
         no_knowledge: bool = False,
         evidence: str | None = None,
         progress_fn: Any | None = None,
+        evidence_json: str | None = None,
     ) -> str:
         report = self._task_done_report(
             slug,
@@ -164,6 +165,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin):
             ac_verified=ac_verified,
             no_knowledge=no_knowledge,
             evidence=evidence,
+            evidence_json=evidence_json,
             progress_fn=progress_fn,
         )
         if not report.get("ok"):

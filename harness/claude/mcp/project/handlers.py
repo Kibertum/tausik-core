@@ -123,6 +123,7 @@ def _do_task_done(svc: Any, args: dict) -> str:
         ac_verified=args.get("ac_verified", False),
         no_knowledge=args.get("no_knowledge", False),
         evidence=args.get("evidence"),
+        evidence_json=args.get("evidence_json"),
         progress_fn=_progress,
     )
     return json.dumps(result, ensure_ascii=False)

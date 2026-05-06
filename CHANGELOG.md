@@ -32,6 +32,22 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Structured `--evidence-json` for `task done` (`v14b-token-t15-evidence-json`).**
+  New flag accepts agent-supplied JSON: `{"ac_evidence":[{"n":1,"status":"pass","evidence":"tests/foo.py::test_bar"}, ...]}`
+  with optional `manual` / `negative` flags per item. The new helper
+  `service_ac_evidence.evidence_json_to_prose()` converts JSON to the
+  canonical "AC verified: 1. ✓ ..." prose form, which then flows
+  unchanged through the existing `task_log` + `service_ac_evidence`
+  parser pipeline. Mutually exclusive with `--evidence` (argparse
+  enforces at the CLI; `_task_done_report` re-checks for MCP callers).
+  MCP tool `tausik_task_done` gains an `evidence_json` arg with the
+  same semantics; backward-compat is full — prose `--evidence` /
+  `evidence` continues to work as before. Tests in
+  `tests/test_ac_evidence_json.py` — 19 cases (5 positive incl.
+  3-AC round-trip, 12 negative incl. malformed JSON / missing keys /
+  invalid status / `n` as bool, 1 SQL-payload safety, 1 service-layer
+  mutex).
+
 - **AIDD project scaffold (`v14b-aidd-scaffold-basic`).** New CLI subcommand
   `tausik init --template aidd` copies three layered templates —
   `idea.md`, `vision.md`, `conventions.md` — from `harness/aidd-templates/`

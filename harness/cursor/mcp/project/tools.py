@@ -177,6 +177,10 @@ TOOLS = [
                     "type": "string",
                     "description": 'Inline AC verification log (e.g. "AC verified: 1. ✓ 2. ✓ ..."). Replaces a separate task_log call.',
                 },
+                "evidence_json": {
+                    "type": "string",
+                    "description": 'Structured AC evidence as JSON: \'{"ac_evidence":[{"n":1,"status":"pass","evidence":"tests/foo.py::test_bar"}, ...]}\'. Converted to canonical prose. Mutually exclusive with evidence.',
+                },
             },
             "required": ["slug"],
         },
