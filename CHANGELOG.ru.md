@@ -16,6 +16,30 @@
 - **Compound RPC `tausik_session_open` для Phase 1 `/start` (`v14b-session-open-compound-rpc-impl`).**
   Один MCP-вызов возвращает JSON-конверт `{session, status, handoff, tasks{active,blocked}, self_check}` — замещает 5 последовательных вызовов (session_start + status compact + last_handoff + task_list active+blocked + self_check) одним round-trip'ом. Каждая под-секция best-effort: при сбое sub-вызова в секцию вставляется inline `error`-ключ, но envelope не падает — `/start` рендерит degraded dashboard. Счёт MCP-инструментов: 99 → 100 (93 project + 7 brain). Phase 1 в SKILL.md схлопнут с "5 параллельных вызовов" до "1 compound call"; CLI fallback при `self_check.drift_detected=true` сохранён.
 
+- **Cross-file проверка version-ref консистентности (`v14b-doc-gen-cross-files`).**
+  `scripts/gen_doc_constants.py --check` теперь также обходит
+  README.md, README.ru.md, AGENTS.md, CLAUDE.md,
+  docs/en/architecture.md, docs/ru/architecture.md и проверяет каждое
+  вхождение `vX.Y` / `vX.Y.Z` вне fenced code-блоков против
+  `constants.json["tausik_version"]`. 2-part refs (`v1.4`) сверяются
+  только по major+minor; 3-part refs (`v1.4.0`) требуют точного
+  совпадения. Чужие версионные таймлайны (`SENAR vX`, `Python vX`,
+  `OWASP vX`) детектируются 24-символьным lookback'ом и
+  пропускаются — эти продукты версионируются независимо. Fenced
+  code-блоки вырезаются заменой на пробелы с сохранением номеров
+  строк, чтобы `file:line` в отчёте указывал на реальную строку
+  источника. Новый CLI-флаг `--skip-cross-files` сохраняет старое
+  single-file поведение для контекстов, где doc-scan запускается
+  отдельно. Первый прогон по живому дереву всплыл 4 устаревших
+  `v1.3` ref в `docs/{en,ru}/architecture.md` (секция Scripts
+  утверждала "73 source files (v1.3)" — текущий счёт 117 в v1.4)
+  плюс 2 parenthetical `v1.3 CLI handlers` заметки. Все четыре
+  обновлены. Тесты: +7 кейсов — clean-when-all-match, minor-drift
+  detection, patch-drift detection, foreign-version skip
+  (SENAR/Python/OWASP), fenced-code-block skip, run_main cross-file
+  drift exit-1, --skip-cross-files preserves legacy. pytest
+  2910 → 2917 passed; ruff + mypy чистые.
+
 - **Translation-drift audit: skip-маркер + учёт code-fence'ов (`v14b-audit-translation-skip-marker`).**
   Два улучшения `scripts/audit_translation_drift.py`, закрывающие
   оставшиеся 3 отложенные пары без принудительной structural parity

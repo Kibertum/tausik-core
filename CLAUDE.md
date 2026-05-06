@@ -66,6 +66,24 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 <!-- DYNAMIC:START -->
 ## Current State
 Session: #62 (active) | Branch: main | Version: 1.4.0
-Tasks: 674/699 done, 0 active, 1 blocked
+Tasks: 680/704 done, 0 active, 1 blocked
 Blocked: v14b-skill-bundles-marketplace
+
+### Memory tail
+Decisions (5):
+- #66 tausik_session_open compound RPC orchestrator placed in handler layer (not service layer). Each sub-section (session/sta
+- #65 Surface SENAR signals (exploration_open, audit_overdue_sessions) directly in tausik_status compact JSON instead of resto
+- #64 memory_block re-injection moved from /start MCP call to CLAUDE.md via update_claudemd. New helper build_compact_memory_t
+- #63 brain_search read-path uses 5s timeout (SEARCH_TIMEOUT_S); writes keep 10s (DEFAULT_TIMEOUT). Per-call timeout kwarg in 
+- #62 Brain discovery uses two-pass title-then-schema matching, NOT a new CLI subcommand. Schema-match is soft: required-prope
+Conventions (5):
+- #101 After editing scripts/* — bootstrap before dogfood via .tausik/tausik CLI
+- #94 Cross-IDE hook parity test: bootstrap_qwen mirrors bootstrap_hooks
+- #91 Filesize debt: extract via Mixin inheritance for stateful methods
+- #89 Session active-time uses CLIP (not EXCLUDE) semantics
+- #85 Claude-first, then Cursor/Qwen for new optimizations
+Dead ends (3):
+- #109 v14b-token-t12-todo-reminder: гейтить TodoWrite reminder hook условиями (>5 tool calls без update +
+- #102 First-volna recon: read brain_init.py up to create_brain_databases (line 188) and rapidly conclude "
+- #72 tausik brain init --join-existing --yes --non-interactive on a project where the Notion integration
 <!-- DYNAMIC:END -->

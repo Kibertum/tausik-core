@@ -48,14 +48,14 @@ the Backend handles only CRUD and SQL. CLI and MCP are two equal entry points.
 
 ### Scripts (Business Logic)
 
-73 source files in `scripts/` (v1.3). Highlights:
+117 source files in `scripts/` (v1.4). Highlights:
 
 | File | Purpose |
 |------|---------|
 | `project.py` | CLI entry point, dispatch |
 | `project_parser.py` | argparse command tree |
 | `project_cli.py` / `_extra.py` / `_ops.py` | CLI handlers (status, task, session, memory, gates, skills, fts, metrics, search, events, explore, audit, run) |
-| `project_cli_doctor.py` / `_role.py` / `_stack.py` / `_verify.py` | v1.3 CLI handlers (doctor, roles, stacks, verify) |
+| `project_cli_doctor.py` / `_role.py` / `_stack.py` / `_verify.py` | CLI handlers (doctor, roles, stacks, verify) |
 | `project_service.py` + `service_*.py` mixins | Business logic: tasks, knowledge, skills, gates, cascade, roles, verification |
 | `service_verification.py` | Scoped pytest gate + verify cache (10 min TTL) |
 | `service_roles.py` | Hybrid role storage (DB metadata + harness/roles/*.md) |

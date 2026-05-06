@@ -14,6 +14,30 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - **Compound RPC `tausik_session_open` for `/start` Phase 1 (`v14b-session-open-compound-rpc-impl`).**
   Single MCP call returns one JSON envelope with `{session, status, handoff, tasks{active,blocked}, self_check}` — replaces 5 sequential calls (session_start + status compact + last_handoff + task_list active+blocked + self_check) with one round-trip. Each sub-section is best-effort: a sub-call failure surfaces an inline `error` key without aborting the envelope, so `/start` still renders a degraded dashboard. MCP tool count: 99 → 100 (93 project + 7 brain). `/start` SKILL.md Phase 1 collapses from "5 parallel tools" to "single compound call"; drift fallback to CLI on `self_check.drift_detected=true` is preserved.
 
+- **Cross-file version-ref consistency check (`v14b-doc-gen-cross-files`).**
+  `scripts/gen_doc_constants.py --check` now also walks README.md,
+  README.ru.md, AGENTS.md, CLAUDE.md, docs/en/architecture.md,
+  docs/ru/architecture.md and verifies every `vX.Y` / `vX.Y.Z`
+  occurrence outside fenced code blocks against
+  `constants.json["tausik_version"]`. 2-part refs (`v1.4`) match by
+  major+minor only; 3-part refs (`v1.4.0`) require exact match.
+  Foreign version timelines (`SENAR vX`, `Python vX`, `OWASP vX`) are
+  detected via a 24-char lookback window and skipped — those
+  products version independently. Fenced code blocks are stripped
+  with line-number-preserving whitespace so reported `file:line`
+  positions point at the original source line. New `--skip-cross-files`
+  CLI flag preserves the prior single-file check behaviour for
+  contexts where doc-scan runs separately. First run on the live
+  tree surfaced 4 stale `v1.3` refs in
+  `docs/{en,ru}/architecture.md` (the Scripts section was claiming
+  "73 source files (v1.3)" — current count is 117 in v1.4) plus 2
+  parenthetical `v1.3 CLI handlers` notes. All four updated to
+  reflect current state. Tests: +7 cases — clean-when-all-match,
+  minor-drift detection, patch-drift detection, foreign-version
+  skip (SENAR/Python/OWASP), fenced-code-block skip, run_main
+  cross-file drift exit-1, --skip-cross-files preserves legacy.
+  pytest 2910 → 2917 passed; ruff + mypy clean.
+
 - **Translation-drift audit: skip-marker + code-fence awareness (`v14b-audit-translation-skip-marker`).**
   Two improvements to `scripts/audit_translation_drift.py` that close
   the remaining 3 deferred pairs from the RU-mirror sweep without

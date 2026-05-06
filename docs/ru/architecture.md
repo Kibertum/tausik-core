@@ -48,14 +48,14 @@
 
 ### Скрипты (бизнес-логика)
 
-73 source-файла в `scripts/` (v1.3). Хайлайты:
+117 source-файлов в `scripts/` (v1.4). Хайлайты:
 
 | Файл | Назначение |
 |------|------------|
 | `project.py` | Точка входа CLI, диспетчеризация |
 | `project_parser.py` | Дерево команд argparse |
 | `project_cli.py` / `_extra.py` / `_ops.py` | CLI-обработчики (статус, задачи, сессии, память, шлюзы, навыки, FTS, метрики, поиск, события, исследования, аудит, run) |
-| `project_cli_doctor.py` / `_role.py` / `_stack.py` / `_verify.py` | v1.3 CLI-обработчики (doctor, roles, stacks, verify) |
+| `project_cli_doctor.py` / `_role.py` / `_stack.py` / `_verify.py` | CLI-обработчики (doctor, roles, stacks, verify) |
 | `project_service.py` + миксины `service_*.py` | Бизнес-логика: задачи, знания, навыки, шлюзы, каскады, роли, верификация |
 | `service_verification.py` | Scoped pytest gate + verify cache (10 min TTL) |
 | `service_roles.py` | Гибридное хранение ролей (DB-метаданные + harness/roles/*.md) |
