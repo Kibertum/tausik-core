@@ -5,13 +5,19 @@ Usage:
   python scripts/gen_doc_constants.py --check              # exit 1 on drift (constants.json + cross-file refs)
   python scripts/gen_doc_constants.py --check --skip-cross-files
                                                             # exit 1 on constants.json drift only (legacy)
+  python scripts/gen_doc_constants.py --check --skip-mcp-counts
+                                                            # exit 1 on constants + version refs only (skip MCP counts)
 
 Also available as: ``tausik doc constants [--check]``.
 
 Cross-file scan walks README.md, README.ru.md, AGENTS.md, CLAUDE.md,
-docs/en/architecture.md, docs/ru/architecture.md and verifies every
-``vX.Y`` / ``vX.Y.Z`` version ref outside fenced code blocks against
-``constants.json["tausik_version"]``.
+docs/en/architecture.md, docs/ru/architecture.md, docs/en/mcp.md, docs/ru/mcp.md
+and verifies (a) every ``vX.Y`` / ``vX.Y.Z`` version ref against
+``constants.json["tausik_version"]`` and (b) common MCP tool-count phrasings
+(``**N tools**``, ``N project tools``, ``N brain tools``, ``(N project + M brain``,
+```tausik-brain`, N tools``) against ``constants.json``
+(``mcp_project_tools`` / ``mcp_brain_tools`` / ``mcp_main_tools``). All scans
+strip fenced code blocks first to avoid false positives in examples.
 """
 
 from __future__ import annotations
@@ -34,6 +40,50 @@ CROSS_FILE_SCAN_TARGETS: tuple[str, ...] = (
     "CLAUDE.md",
     "docs/en/architecture.md",
     "docs/ru/architecture.md",
+    "docs/en/mcp.md",
+    "docs/ru/mcp.md",
+)
+
+# RU/EN word for "tool" in MCP-count contexts. Matches singular + plural genitive
+# forms: tools, tool, инструмент, инструмента, инструментов.
+_TOOL_WORD = r"(?:tools?|инструмент(?:а|ов)?)"
+
+# MCP tool-count patterns. Each entry is (compiled regex, constants_key, label).
+# The capture group is a single integer compared against constants.json[key].
+# Patterns are ordered specific-first so context-rich matches (brain header)
+# fire before generic ones (`X project tools`).
+_MCP_COUNT_PATTERNS: tuple[tuple[re.Pattern[str], str, str], ...] = (
+    # `tausik-brain`, N tools — brain server header, e.g. "## Shared Brain (`tausik-brain`, 7 tools)"
+    (
+        re.compile(rf"`tausik-brain`[^)]*?,\s*(\d+)\s+{_TOOL_WORD}", re.IGNORECASE),
+        "mcp_brain_tools",
+        "tausik-brain server header",
+    ),
+    # **N tools** / **N MCP tools** / **N MCP-инструментов** — markdown bold main count
+    (
+        re.compile(rf"\*\*(\d+)\s+(?:MCP[-\s]+)?{_TOOL_WORD}\*\*", re.IGNORECASE),
+        "mcp_main_tools",
+        "main count (bold)",
+    ),
+    # N project tools — explicit project count, e.g. "93 project tools"
+    (
+        re.compile(rf"\b(\d+)\s+project\s+{_TOOL_WORD}\b", re.IGNORECASE),
+        "mcp_project_tools",
+        "project count",
+    ),
+    # N brain tools — explicit brain count, e.g. "7 brain tools"
+    (
+        re.compile(rf"\b(\d+)\s+brain\s+{_TOOL_WORD}\b", re.IGNORECASE),
+        "mcp_brain_tools",
+        "brain count",
+    ),
+)
+
+# Pair pattern: "(N project + M brain ...)" — both groups checked independently.
+_MCP_COUNT_PAIR_PATTERN: tuple[re.Pattern[str], tuple[str, str], str] = (
+    re.compile(r"\((\d+)\s+project\s*\+\s*(\d+)\s+brain", re.IGNORECASE),
+    ("mcp_project_tools", "mcp_brain_tools"),
+    "project+brain pair",
 )
 
 
@@ -150,11 +200,67 @@ def scan_version_refs(repo_root: Path, expected_version: str) -> list[str]:
     return messages
 
 
+def scan_mcp_tool_counts(repo_root: Path, payload: dict[str, object]) -> list[str]:
+    """Return drift messages for cross-file MCP tool-count refs.
+
+    Walks :data:`CROSS_FILE_SCAN_TARGETS`, strips fenced code blocks, and flags
+    every ``**N tools**`` / ``N project tools`` / ``N brain tools`` /
+    ``(N project + M brain`` / ```tausik-brain`, N tools`` whose captured int
+    does not match the corresponding constants.json key.
+
+    Patterns are deliberately specific-context (require "project"/"brain"/
+    backtick-wrapped server name nearby) to avoid noise on generic phrases like
+    "200 tool calls" or "Should have 26+ tools".
+    """
+    messages: list[str] = []
+    for rel in CROSS_FILE_SCAN_TARGETS:
+        path = repo_root / rel
+        if not path.is_file():
+            continue
+        text = _strip_fenced_blocks(path.read_text(encoding="utf-8"))
+
+        for pattern, key, label in _MCP_COUNT_PATTERNS:
+            expected = payload.get(key)
+            if not isinstance(expected, int):
+                continue
+            for m in pattern.finditer(text):
+                found = int(m.group(1))
+                if found == expected:
+                    continue
+                line_no = text[: m.start()].count("\n") + 1
+                messages.append(
+                    f"{rel}:{line_no}: MCP {label} drift '{m.group(0)}' "
+                    f"(found={found}) does not match constants.json {key}={expected}"
+                )
+
+        pair_re, (k1, k2), pair_label = _MCP_COUNT_PAIR_PATTERN
+        exp1 = payload.get(k1)
+        exp2 = payload.get(k2)
+        if isinstance(exp1, int) and isinstance(exp2, int):
+            for m in pair_re.finditer(text):
+                got1, got2 = int(m.group(1)), int(m.group(2))
+                if got1 == exp1 and got2 == exp2:
+                    continue
+                line_no = text[: m.start()].count("\n") + 1
+                messages.append(
+                    f"{rel}:{line_no}: MCP {pair_label} drift '{m.group(0)}' "
+                    f"(found={got1} project + {got2} brain) does not match "
+                    f"constants.json {k1}={exp1}, {k2}={exp2}"
+                )
+    return messages
+
+
 def render_json(payload: dict[str, object]) -> str:
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
 
-def run_main(repo_root: Path, *, check: bool, skip_cross_files: bool = False) -> int:
+def run_main(
+    repo_root: Path,
+    *,
+    check: bool,
+    skip_cross_files: bool = False,
+    skip_mcp_counts: bool = False,
+) -> int:
     path = output_json_path(repo_root)
     payload = build_constants_doc(repo_root)
     if check:
@@ -181,6 +287,13 @@ def run_main(repo_root: Path, *, check: bool, skip_cross_files: bool = False) ->
                 for msg in cross_drift:
                     print(f"  {msg}", file=sys.stderr)
                 return 1
+        if not skip_cross_files and not skip_mcp_counts:
+            mcp_drift = scan_mcp_tool_counts(repo_root, payload)
+            if mcp_drift:
+                print("Cross-file MCP tool-count drift:", file=sys.stderr)
+                for msg in mcp_drift:
+                    print(f"  {msg}", file=sys.stderr)
+                return 1
         print(f"OK — {path} matches repository constants.")
         return 0
 
@@ -200,7 +313,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument(
         "--skip-cross-files",
         action="store_true",
-        help="Skip the cross-file version-ref scan (constants.json drift only)",
+        help="Skip both cross-file scans (version refs and MCP tool counts) — constants.json drift only",
+    )
+    p.add_argument(
+        "--skip-mcp-counts",
+        action="store_true",
+        help="Skip the cross-file MCP tool-count scan (keep version-ref scan)",
     )
     p.add_argument(
         "--repo-root",
@@ -210,7 +328,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = p.parse_args(argv)
     root = Path(args.repo_root).resolve() if args.repo_root else find_repo_root()
-    return run_main(root, check=args.check, skip_cross_files=args.skip_cross_files)
+    return run_main(
+        root,
+        check=args.check,
+        skip_cross_files=args.skip_cross_files,
+        skip_mcp_counts=args.skip_mcp_counts,
+    )
 
 
 if __name__ == "__main__":

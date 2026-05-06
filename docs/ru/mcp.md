@@ -24,7 +24,7 @@ tausik_verify(task_slug=…)                   # тяжёлое: subprocess-ге
 tausik_task_done(slug=…, ac_verified=True)   # лёгкое: lookup в кеше
 ```
 
-`tausik_task_done` откажется закрывать задачу, если verify-кеш отсутствует или устарел — возвращает структурированный failure с явной remediation. Opt-out для CI: установите `{"task_done": {"auto_verify": true}}` в `.tausik/config.json` — тогда heavy гейты выполнятся внутри `task_done` как в v1.3.
+`tausik_task_done` откажется закрывать задачу, если verify-кеш отсутствует или устарел — возвращает структурированный failure с явной remediation. Opt-out для CI: установите `{"task_done": {"auto_verify": true}}` в `.tausik/config.json` — тогда heavy гейты выполнятся внутри `task_done` как в релизах до v1.4.
 
 **Терминология:** [Глоссарий verify / QG](verify-glossary.md) — *поддерживаемый opt-out*, *обход QG* (для `task_done` недоступен), *обход verify-кеша* и pytest **test shim**.
 
@@ -223,7 +223,7 @@ DEFAULT_STACKS: 25 записей (python, fastapi, django, flask, react, next, 
 | `tausik_update_claudemd` | Обновить динамическую секцию в CLAUDE.md | — |
 | `tausik_fts_optimize` | Оптимизировать FTS5 индексы | — |
 
-## Shared Brain (`tausik-brain`, 6 инструментов)
+## Shared Brain (`tausik-brain`, 7 инструментов)
 
 | Инструмент | Описание | Обязательные параметры |
 |---|---|---|
@@ -232,9 +232,10 @@ DEFAULT_STACKS: 25 записей (python, fastapi, django, flask, react, next, 
 | `brain_store_decision` | Сохранить cross-project решение | `name`, `decision` |
 | `brain_store_pattern` | Сохранить cross-project паттерн | `name`, `description` |
 | `brain_store_gotcha` | Сохранить cross-project gotcha | `name`, `description` |
+| `brain_draft_artifact` | Dry-run публикация артефакта (taxonomy + scrub + risk-classifier; без записи в Notion) | `kind` |
 | `brain_cache_web` | Кешировать web-результат для token reuse | `name`, `url`, `content` |
 
-`tausik-brain` MCP-сервер запускается config-agnostic и читает реестр из `.tausik-brain/` конфигурации. Полный счётчик brain-инструментов = 6 (проверено через `len(TOOLS)` в `harness/claude/mcp/brain/tools.py`).
+`tausik-brain` MCP-сервер запускается config-agnostic и читает реестр из `.tausik-brain/` конфигурации. Полный счётчик brain-инструментов = 7 (проверено через `len(TOOLS)` в `harness/claude/mcp/brain/tools.py`).
 
 ### Требования к brain-конфигу
 

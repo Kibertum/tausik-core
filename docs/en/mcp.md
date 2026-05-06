@@ -24,7 +24,7 @@ tausik_verify(task_slug=…)        # heavy: subprocess gates → caches green
 tausik_task_done(slug=…, ac_verified=True)   # lightweight: cache lookup
 ```
 
-`tausik_task_done` will refuse to close the task if the verify cache is missing or stale — it returns a structured failure with explicit remediation. Opt-out for CI: set `{"task_done": {"auto_verify": true}}` in `.tausik/config.json` so the heavy gates fire inside `task_done` like in v1.3.
+`tausik_task_done` will refuse to close the task if the verify cache is missing or stale — it returns a structured failure with explicit remediation. Opt-out for CI: set `{"task_done": {"auto_verify": true}}` in `.tausik/config.json` so the heavy gates fire inside `task_done` like in pre-v1.4 releases.
 
 **Terminology:** [Verify / QG glossary](verify-glossary.md) distinguishes *supported opt-out*, *QG bypass* (not available for `task_done`), *verify-cache bypass*, and the pytest **test shim**.
 
@@ -223,7 +223,7 @@ Role storage is hybrid: SQLite metadata + `harness/roles/{role}.md` profile mark
 | `tausik_update_claudemd` | Update dynamic section in CLAUDE.md | — |
 | `tausik_fts_optimize` | Optimize FTS5 indexes | — |
 
-## Shared Brain (`tausik-brain`, 6 tools)
+## Shared Brain (`tausik-brain`, 7 tools)
 
 | Tool | Description | Required Parameters |
 |---|---|---|
@@ -232,9 +232,10 @@ Role storage is hybrid: SQLite metadata + `harness/roles/{role}.md` profile mark
 | `brain_store_decision` | Store a cross-project decision | `name`, `decision` |
 | `brain_store_pattern` | Store a cross-project pattern | `name`, `description` |
 | `brain_store_gotcha` | Store a cross-project gotcha | `name`, `description` |
+| `brain_draft_artifact` | Dry-run artifact publish (taxonomy + scrub + classifier risk; no Notion write) | `kind` |
 | `brain_cache_web` | Cache a web result for token reuse | `name`, `url`, `content` |
 
-The `tausik-brain` MCP server runs config-agnostic at startup and reads registry from `.tausik-brain/` configuration. The total tool count for this server is 6 (verified via `len(TOOLS)` in `harness/claude/mcp/brain/tools.py`).
+The `tausik-brain` MCP server runs config-agnostic at startup and reads registry from `.tausik-brain/` configuration. The total tool count for this server is 7 (verified via `len(TOOLS)` in `harness/claude/mcp/brain/tools.py`).
 
 ### Brain config requirements
 

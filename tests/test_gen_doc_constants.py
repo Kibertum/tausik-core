@@ -17,6 +17,7 @@ from gen_doc_constants import (  # noqa: E402
     build_constants_doc,
     output_json_path,
     run_main,
+    scan_mcp_tool_counts,
     scan_version_refs,
 )
 from mcp_tool_counts import count_mcp_tool_totals  # noqa: E402
@@ -144,3 +145,89 @@ def test_run_main_check_passes_with_skip_cross_files(
     )
     assert run_main(repo, check=False) == 0
     assert run_main(repo, check=True, skip_cross_files=True) == 0
+
+
+# Cross-file MCP tool-count scanner ---------------------------------------
+
+
+_FAKE_MCP_PAYLOAD: dict[str, object] = {
+    "schema_version": 1,
+    "tausik_version": "1.4.0",
+    "mcp_project_tools": 93,
+    "mcp_brain_tools": 7,
+    "mcp_main_tools": 100,
+    "mcp_rag_tools": 7,
+    "mcp_tools_with_optional_rag": 107,
+}
+
+
+def test_scan_mcp_counts_clean_when_all_match(tmp_path: Path):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text(
+        "**100 MCP tools** (93 project + 7 brain) — programmatic access.\n",
+        encoding="utf-8",
+    )
+    (repo / "AGENTS.md").write_text(
+        "Total: 93 project tools + 7 brain tools = 100.\n",
+        encoding="utf-8",
+    )
+    (repo / "docs/en/mcp.md").write_text(
+        "## Shared Brain (`tausik-brain`, 7 tools)\n",
+        encoding="utf-8",
+    )
+    assert scan_mcp_tool_counts(repo, _FAKE_MCP_PAYLOAD) == []
+
+
+def test_scan_mcp_counts_flags_brain_header_drift(tmp_path: Path):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "docs/en/mcp.md").write_text(
+        "## Shared Brain (`tausik-brain`, 6 tools)\n",
+        encoding="utf-8",
+    )
+    drifts = scan_mcp_tool_counts(repo, _FAKE_MCP_PAYLOAD)
+    assert any("docs/en/mcp.md:1" in d and "tausik-brain" in d and "found=6" in d for d in drifts)
+
+
+def test_scan_mcp_counts_flags_project_drift(tmp_path: Path):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "AGENTS.md").write_text(
+        "We expose 96 project tools today.\n",
+        encoding="utf-8",
+    )
+    drifts = scan_mcp_tool_counts(repo, _FAKE_MCP_PAYLOAD)
+    assert any("AGENTS.md:1" in d and "project count" in d and "found=96" in d for d in drifts)
+
+
+def test_scan_mcp_counts_flags_pair_drift(tmp_path: Path):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text("Surface: (90 project + 10 brain)\n", encoding="utf-8")
+    drifts = scan_mcp_tool_counts(repo, _FAKE_MCP_PAYLOAD)
+    assert any("README.md:1" in d and "project+brain pair" in d for d in drifts)
+
+
+def test_scan_mcp_counts_skips_fenced_code_blocks(tmp_path: Path):
+    """Counts inside ``` ... ``` are doc examples, not authoritative refs."""
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text(
+        "Counts in code\n\n```\n90 project tools (legacy example)\n```\n",
+        encoding="utf-8",
+    )
+    assert scan_mcp_tool_counts(repo, _FAKE_MCP_PAYLOAD) == []
+
+
+def test_run_main_check_passes_with_skip_mcp_counts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """--skip-mcp-counts disables only the MCP-counts scan; version-ref check stays on."""
+    import gen_doc_constants as g
+
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "docs/en/mcp.md").write_text(
+        "## Shared Brain (`tausik-brain`, 6 tools)\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(g, "build_constants_doc", lambda _root: dict(_FAKE_MCP_PAYLOAD))
+    assert run_main(repo, check=False) == 0
+    # Without skip — fails on brain drift
+    assert run_main(repo, check=True) == 1
+    # With skip-mcp-counts — passes (no version drift in this fixture)
+    assert run_main(repo, check=True, skip_mcp_counts=True) == 0
