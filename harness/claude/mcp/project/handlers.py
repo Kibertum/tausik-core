@@ -861,6 +861,23 @@ def _handle_status(svc: Any, args: dict | None = None) -> str:
         data["active_seconds"] = active_sec
         data["wall_minutes"] = wall_min
     data["session_max_minutes"] = max_min
+    # v14b-status-exploration-audit-signals: enrich data with SENAR 5.1
+    # (open exploration) and 9.5 (audit overdue) so /start Phase 1 batch
+    # can drop the dedicated MCP calls. Both lookups are best-effort.
+    exp: dict | None = None
+    try:
+        exp = svc.exploration_current()
+    except Exception:  # noqa: BLE001 — never fail status on metric calc
+        exp = None
+    if exp:
+        data["exploration"] = exp
+    audit_overdue = 0
+    try:
+        audit_overdue = int(svc.audit_overdue_sessions())
+    except (AttributeError, ValueError, TypeError):
+        audit_overdue = 0
+    if audit_overdue:
+        data["audit_overdue_sessions"] = audit_overdue
     if args.get("compact"):
         return format_status_compact_json(data, duration_warning)
     counts = data["task_counts"]
@@ -881,6 +898,14 @@ def _handle_status(svc: Any, args: dict | None = None) -> str:
     result = ", ".join(parts)
     if duration_warning:
         result += f"\n⚠ {duration_warning}"
+    if exp:
+        elapsed = exp.get("elapsed_min", "?")
+        over = " — OVER LIMIT" if exp.get("over_limit") else ""
+        result += (
+            f"\n⚠ Open exploration #{exp.get('id')}: {exp.get('title', '')} ({elapsed}m{over})"
+        )
+    if audit_overdue:
+        result += f"\n⚠ SENAR Rule 9.5: {audit_overdue} sessions since last audit. Run /review then audit mark."
     return result
 
 

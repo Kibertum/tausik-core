@@ -51,6 +51,51 @@ class TestStatus:
         assert data["tasks_planning"] == 1
         assert "session_id" in data
 
+    # v14b-status-exploration-audit-signals: ensure /start can drop
+    # tausik_explore_current and tausik_audit_check from Phase 1 batch.
+
+    def test_status_compact_omits_signals_when_clean(self, seeded):
+        data = json.loads(_handle_tool(seeded, "tausik_status", {"compact": True}))
+        assert "exploration_open" not in data
+        assert "exploration_id" not in data
+        assert "exploration_over_limit" not in data
+        assert "audit_overdue_sessions" not in data
+
+    def test_status_compact_surfaces_active_exploration(self, seeded):
+        seeded.exploration_start("research auth flow")
+        data = json.loads(_handle_tool(seeded, "tausik_status", {"compact": True}))
+        assert data["exploration_open"] is True
+        assert isinstance(data["exploration_id"], int)
+
+    def test_status_human_warns_on_active_exploration(self, seeded):
+        seeded.exploration_start("research auth flow")
+        result = _handle_tool(seeded, "tausik_status", {})
+        assert "Open exploration" in result
+        assert "research auth flow" in result
+
+    def test_status_compact_emits_audit_overdue_when_threshold_met(self, seeded):
+        seeded.be.session_start()
+        first_id = seeded.be.session_current()["id"]
+        seeded.be.meta_set("last_audit_session", str(first_id))
+        seeded.be.session_start()
+        seeded.be.session_start()
+        seeded.be.session_start()
+        data = json.loads(_handle_tool(seeded, "tausik_status", {"compact": True}))
+        assert data["audit_overdue_sessions"] >= 3
+
+    def test_status_compact_audit_absent_when_under_threshold(self, seeded):
+        seeded.be.session_start()
+        seeded.be.meta_set("last_audit_session", str(seeded.be.session_current()["id"]))
+        data = json.loads(_handle_tool(seeded, "tausik_status", {"compact": True}))
+        assert "audit_overdue_sessions" not in data
+
+    def test_status_handles_malformed_audit_meta(self, seeded):
+        seeded.be.session_start()
+        seeded.be.meta_set("last_audit_session", "not-an-int")
+        data = json.loads(_handle_tool(seeded, "tausik_status", {"compact": True}))
+        assert "audit_overdue_sessions" not in data
+        assert "tasks_total" in data
+
 
 class TestTaskCRUD:
     def test_task_add(self, svc):

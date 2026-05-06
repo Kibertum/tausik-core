@@ -249,19 +249,18 @@ class ProjectService(
         return self.be.fts_optimize()
 
     def audit_check(self) -> str | None:
-        """Check if periodic audit is overdue (SENAR Rule 9.5). Returns warning or None."""
-        value = self.be.meta_get("last_audit_session")
-        if not value:
+        """SENAR Rule 9.5 warning string, None when not overdue."""
+        if not self.be.meta_get("last_audit_session"):
             return "SENAR Rule 9.5: No audit has been performed yet. Run: .tausik/tausik audit mark"
-        last_audit = int(value)
-        current = self.be.session_current()
-        current_id = current["id"] if current else 0
-        if current_id - last_audit >= 3:
-            return (
-                f"SENAR Rule 9.5: {current_id - last_audit} sessions since last audit. "
-                f"Run a quality sweep, then: .tausik/tausik audit mark"
-            )
-        return None
+        n = self.audit_overdue_sessions()
+        if n < 3:
+            return None
+        return f"SENAR Rule 9.5: {n} sessions since last audit. Run a quality sweep, then: .tausik/tausik audit mark"
+
+    def audit_overdue_sessions(self) -> int:
+        from service_session_metrics import audit_overdue_sessions as _f
+
+        return _f(self.be)
 
     def audit_mark(self) -> str:
         """Mark periodic audit as completed for current session."""

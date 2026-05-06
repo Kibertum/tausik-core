@@ -152,4 +152,16 @@ def format_status_compact_json(data: dict[str, Any], duration_warning: str | Non
         payload["session_max_minutes"] = int(data["session_max_minutes"])
     if duration_warning:
         payload["session_warning"] = duration_warning
+    exp = data.get("exploration")
+    if exp:
+        payload["exploration_open"] = True
+        try:
+            payload["exploration_id"] = int(exp["id"])
+        except (KeyError, TypeError, ValueError):
+            pass
+        if exp.get("over_limit"):
+            payload["exploration_over_limit"] = True
+    overdue = data.get("audit_overdue_sessions")
+    if overdue:
+        payload["audit_overdue_sessions"] = int(overdue)
     return json.dumps(payload, separators=(",", ":"), ensure_ascii=False)

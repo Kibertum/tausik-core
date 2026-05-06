@@ -119,3 +119,16 @@ def session_overrun_warning(be: Any, max_minutes: int | None = None) -> str | No
         f"Session #{current['id']} has {active} min active "
         f"({wall} min wall) — over {limit}-min limit. Consider ending with /end."
     )
+
+
+def audit_overdue_sessions(be: Any) -> int:
+    """SENAR Rule 9.5: sessions since last audit when ≥3, else 0."""
+    try:
+        last = int(be.meta_get("last_audit_session") or 0)
+    except (ValueError, TypeError):
+        return 0
+    if not last:
+        return 0
+    cur = be.session_current()
+    diff = (cur["id"] if cur else 0) - last
+    return diff if diff >= 3 else 0
