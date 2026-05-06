@@ -9,6 +9,11 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased] — v1.4.0 polish (Phase B)
 
+### Added
+
+- **Compound RPC `tausik_session_open` for `/start` Phase 1 (`v14b-session-open-compound-rpc-impl`).**
+  Single MCP call returns one JSON envelope with `{session, status, handoff, tasks{active,blocked}, self_check}` — replaces 5 sequential calls (session_start + status compact + last_handoff + task_list active+blocked + self_check) with one round-trip. Each sub-section is best-effort: a sub-call failure surfaces an inline `error` key without aborting the envelope, so `/start` still renders a degraded dashboard. MCP tool count: 99 → 100 (93 project + 7 brain). `/start` SKILL.md Phase 1 collapses from "5 parallel tools" to "single compound call"; drift fallback to CLI on `self_check.drift_detected=true` is preserved.
+
 ### Changed
 
 - **Source directory `agents/` renamed to `harness/` (`v14b-rename-harness`).**

@@ -138,7 +138,7 @@ Bootstrap автоматически определяет стек и включ
 ## Что внутри
 
 - **12 core навыков + `/brain` conditional** (auto-deployed) — `/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, `/review`, `/test`, `/debug`, `/explore`, `/interview` всегда; `/brain` только после `tausik brain init`. Плюс **25+ official/vendor навыков** (`/audit`, `/zero-defect`, `/markitdown`, `/docs`, `/security`, `/onboard`, …) opt-in через `bootstrap --include-official` или `tausik skill install <name>`.
-- **99 MCP-инструментов** (92 project + 7 brain) — полный программный доступ к базе проекта
+- **100 MCP-инструментов** (93 project + 7 brain) — полный программный доступ к базе проекта
 - **25 проверок качества** — pytest, ruff, tsc, eslint, cargo check, go vet и другие для вашего стека
 - **6 автоматических метрик** — производительность, FPSR, уровень дефектов, активное время сессий
 - **Проектная память** — SQLite + FTS5, граф связей, трекинг тупиков, Memory Block re-injection

@@ -137,7 +137,7 @@ Bootstrap auto-detects your tech stack and enables matching quality gates. Proje
 ## What's Inside
 
 - **12 core skills + `/brain` conditional** (auto-deployed) — `/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, `/review`, `/test`, `/debug`, `/explore`, `/interview` always; `/brain` only after `tausik brain init`. Plus **25+ official/vendor skills** (`/audit`, `/zero-defect`, `/markitdown`, `/docs`, `/security`, `/onboard`, …) opt-in via `bootstrap --include-official` or `tausik skill install <name>`.
-- **99 MCP tools** (92 project + 7 brain) — full programmatic access to the project database
+- **100 MCP tools** (93 project + 7 brain) — full programmatic access to the project database
 - **25 quality checks** — pytest, ruff, tsc, eslint, cargo check, go vet, and more for your stack
 - **6 automatic metrics** — throughput, first-pass success rate, defect rate, lead time
 - **Project memory** — SQLite + FTS5, graph relations, dead-end tracking, Memory Block re-injection
@@ -153,11 +153,11 @@ Other integrations are supported by design, but are marked as expected/partial u
 
 | IDE | MCP Tools | Skills | Hooks | Rules | Validation status |
 |-----|-----------|--------|-------|-------|-------------------|
-| VSCode + Claude Extension | 99 tools | 12 core + brain conditional, 25+ on demand | 19 hooks (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md + .mcp.json | **Officially tested** |
-| Cursor | 99 tools | 12 core + brain conditional, 25+ on demand | — | .cursorrules + .cursor/mcp.json | **Officially tested** |
-| Claude Code (CLI) | 99 tools | 12 core + brain conditional, 25+ on demand | 19 hooks | CLAUDE.md + .mcp.json | Expected (partial matrix) |
-| Qwen Code | 99 tools | 12 core + brain conditional, 25+ on demand | 19 hooks (same as Claude) | QWEN.md + .mcp.json | Expected (partial matrix) |
-| Windsurf | 99 tools | 12 core + brain conditional, 25+ on demand | — | .windsurfrules + .mcp.json | Expected (partial matrix) |
+| VSCode + Claude Extension | 100 tools | 12 core + brain conditional, 25+ on demand | 19 hooks (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md + .mcp.json | **Officially tested** |
+| Cursor | 100 tools | 12 core + brain conditional, 25+ on demand | — | .cursorrules + .cursor/mcp.json | **Officially tested** |
+| Claude Code (CLI) | 100 tools | 12 core + brain conditional, 25+ on demand | 19 hooks | CLAUDE.md + .mcp.json | Expected (partial matrix) |
+| Qwen Code | 100 tools | 12 core + brain conditional, 25+ on demand | 19 hooks (same as Claude) | QWEN.md + .mcp.json | Expected (partial matrix) |
+| Windsurf | 100 tools | 12 core + brain conditional, 25+ on demand | — | .windsurfrules + .mcp.json | Expected (partial matrix) |
 | Codex / OpenCode-style agents | MCP + rules-driven where supported | Depends on host | Host-specific | AGENTS.md | Expected (manual validation) |
 
 **Hooks** block code edits without a task, dangerous shell commands, and direct push to main — in real time. Available in Claude Code and Qwen Code. Cursor and Windsurf get the same MCP tools and skills, with quality gates at `task start` and `task done`.
@@ -192,7 +192,7 @@ TAUSIK implements [SENAR](https://senar.tech) ([GitHub](https://github.com/Kiber
 | **[Skills](docs/en/skills.md)** | 12 core + brain conditional, 25+ official skills opt-in (38 total) |
 | **[Hooks](docs/en/hooks.md)** | Real-time enforcement |
 | **[CLI Commands](docs/en/cli.md)** | Terminal command reference |
-| **[MCP Tools](docs/en/mcp.md)** | 99 tools for the AI agent |
+| **[MCP Tools](docs/en/mcp.md)** | 100 tools for the AI agent |
 | **[Architecture](docs/en/architecture.md)** | How the framework works inside |
 
 **[Full documentation ->](docs/README.md)**

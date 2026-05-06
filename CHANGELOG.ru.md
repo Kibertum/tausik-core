@@ -11,6 +11,11 @@
 
 ## [Unreleased] — v1.4.0 polish (Phase B)
 
+### Добавлено
+
+- **Compound RPC `tausik_session_open` для Phase 1 `/start` (`v14b-session-open-compound-rpc-impl`).**
+  Один MCP-вызов возвращает JSON-конверт `{session, status, handoff, tasks{active,blocked}, self_check}` — замещает 5 последовательных вызовов (session_start + status compact + last_handoff + task_list active+blocked + self_check) одним round-trip'ом. Каждая под-секция best-effort: при сбое sub-вызова в секцию вставляется inline `error`-ключ, но envelope не падает — `/start` рендерит degraded dashboard. Счёт MCP-инструментов: 99 → 100 (93 project + 7 brain). Phase 1 в SKILL.md схлопнут с "5 параллельных вызовов" до "1 compound call"; CLI fallback при `self_check.drift_detected=true` сохранён.
+
 ### Изменено
 
 - **Source-директория `agents/` переименована в `harness/` (`v14b-rename-harness`).**

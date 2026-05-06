@@ -432,6 +432,7 @@ _DISPATCH: dict[str, _Handler] = {
     "tausik_session_extend": lambda svc, args: svc.session_extend(args.get("minutes", 60)),
     "tausik_session_handoff": _do_session_handoff,
     "tausik_session_last_handoff": _do_session_last_handoff,
+    "tausik_session_open": lambda svc, args: _handle_session_open(svc, args),
     # --- Hierarchy (Epics & Stories) ---
     "tausik_epic_add": lambda svc, args: svc.epic_add(
         args["slug"], args["title"], args.get("description")
@@ -910,6 +911,64 @@ def _handle_status(svc: Any, args: dict | None = None) -> str:
     if audit_overdue:
         result += f"\n⚠ SENAR Rule 9.5: {audit_overdue} sessions since last audit. Run /review then audit mark."
     return result
+
+
+def _handle_session_open(svc: Any, args: dict | None = None) -> str:
+    """v14b-session-open-compound-rpc — single envelope for /start Phase 1.
+
+    Replaces 5 sequential MCP calls (session_start + status compact +
+    last_handoff + task_list active+blocked + self_check) with one
+    round-trip. Each sub-section is best-effort: a sub-call failure
+    surfaces as an "error" key inside that section so /start can render
+    a degraded dashboard rather than aborting. On self_check.drift_detected
+    the agent still falls back to CLI per /start SKILL.md.
+    """
+    args = args or {}
+    # 1. Session — start (idempotent) + current dict snapshot.
+    try:
+        svc.session_start()  # text return ignored — we rebuild from session_current
+        session_data = svc.session_current()
+    except Exception as e:  # noqa: BLE001 — never fail open on any sub-error
+        session_data = {"error": str(e)}
+    # 2. Status (compact JSON identical to tausik_status compact:true).
+    try:
+        status_data = json.loads(_handle_status(svc, {"compact": True}))
+    except Exception as e:  # noqa: BLE001
+        status_data = {"error": str(e)}
+    # 3. Last handoff (None if absent — caller distinguishes from error).
+    try:
+        handoff = svc.session_last_handoff()
+    except Exception as e:  # noqa: BLE001
+        handoff = {"error": str(e)}
+
+    # 4. Active + blocked tasks. Each task slimmed to slug/title/status.
+    def _slim(t: dict) -> dict:
+        return {"slug": t["slug"], "title": t["title"], "status": t["status"]}
+
+    try:
+        tasks = {
+            "active": [_slim(t) for t in svc.task_list(status="active")],
+            "blocked": [_slim(t) for t in svc.task_list(status="blocked")],
+        }
+    except Exception as e:  # noqa: BLE001
+        tasks = {"active": [], "blocked": [], "error": str(e)}
+    # 5. Self-check (re-use existing handler — already serialized).
+    try:
+        self_check_data = json.loads(_handle_self_check())
+    except Exception as e:  # noqa: BLE001
+        self_check_data = {"error": str(e)}
+    return json.dumps(
+        {
+            "session": session_data,
+            "status": status_data,
+            "handoff": handoff,
+            "tasks": tasks,
+            "self_check": self_check_data,
+        },
+        indent=2,
+        ensure_ascii=False,
+        default=str,
+    )
 
 
 def _handle_task_list(svc: Any, args: dict) -> str:

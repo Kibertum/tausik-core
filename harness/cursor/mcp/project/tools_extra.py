@@ -382,4 +382,18 @@ TOOLS_EXTRA = [
         ),
         "inputSchema": {"type": "object", "properties": {}},
     },
+    # === Session-open compound RPC (v14b-session-open-compound-rpc) ===
+    {
+        "name": "tausik_session_open",
+        "description": (
+            "Compound RPC for /start Phase 1 — single JSON envelope "
+            "replacing 5 calls (session_start + status compact + "
+            "last_handoff + task_list active+blocked + self_check). "
+            "Returns {session, status, handoff, tasks{active,blocked}, "
+            "self_check}; each section best-effort with inline error "
+            "key on failure so the dashboard renders degraded rather "
+            "than aborts. /start SKILL.md Phase 1 calls this once."
+        ),
+        "inputSchema": {"type": "object", "properties": {}},
+    },
 ]

@@ -11,22 +11,24 @@ Load project context, start session. **Token-economy: minimum work, maximum sign
 
 ## Algorithm
 
-### Phase 1 — Open + gather (one parallel batch)
+### Phase 1 — Open + gather (single compound RPC)
 
 Check `.tausik/tausik.db` exists. If not — tell user: `python .tausik-lib/bootstrap/bootstrap.py --init`. Stop.
 
-Run **these 5 MCP tools in one parallel batch** (no other phases until they all return):
+Run **one** MCP tool — `tausik_session_open` (no args). It returns a JSON envelope with all 5 dashboard signals already aggregated server-side:
 
-- `tausik_session_start`
-- `tausik_status` with `compact: true`
-- `tausik_session_last_handoff`
-- `tausik_task_list` with `status=active,blocked` (planning is in CLAUDE.md already)
-- `tausik_self_check`
+- `session` — current session id + started_at (auto-started if absent)
+- `status` — compact JSON identical to `tausik_status({"compact": true})`, includes `exploration` + `audit_overdue_sessions` when relevant
+- `handoff` — last session's handoff dict, or `null` if none
+- `tasks.active` + `tasks.blocked` — slim {slug,title,status} entries (planning is in CLAUDE.md already)
+- `self_check` — MCP freshness report; check `drift_detected` for stale-module warning
+
+Each section is best-effort: a sub-call failure surfaces as an `error` key inside that section, the other four still render. **Drift fallback**: if `self_check.drift_detected=true`, do NOT trust subsequent MCP results in this session — warn the user and fall back to `.tausik/tausik` CLI (which reloads from disk every call) until IDE restart.
 
 Skip these by default — they bloat context without commensurate signal:
 - `tausik_metrics` — pull only on user request (`/metrics`)
-- `tausik_explore_current` — `tausik_status` already flags open exploration
-- `tausik_audit_check` — `tausik_status` already shows audit overdue
+- `tausik_explore_current` — `tausik_session_open.status` already flags open exploration
+- `tausik_audit_check` — `tausik_session_open.status` already shows audit overdue
 - `tausik_memory_block` — content lives in CLAUDE.md "Current State" via `update_claudemd`
 
 ### Phase 2 — Update CLAUDE.md
@@ -81,4 +83,4 @@ Prefer cheapest tool that fits:
 
 - **Session numbering** is auto-incremented. If `session start` fails, DB might be locked — check `.tausik/tausik.db-wal`.
 - **Session duration limit** — SENAR Rule 9.2. If `compact` status flags warning, surface it prominently and suggest `/end`.
-- **MCP self_check** must run in Phase 1 — it's the only signal for stale-module hangs (#77/#79/#80). If `drift_detected=true`, do NOT trust subsequent MCP results in this session; warn the user and use `.tausik/tausik` CLI for verify/task_done until IDE restart.
+- **MCP self_check** is bundled into `tausik_session_open` (Phase 1) — it's the only signal for stale-module hangs (#77/#79/#80). If `self_check.drift_detected=true`, do NOT trust subsequent MCP results in this session; warn the user and use `.tausik/tausik` CLI for verify/task_done until IDE restart.
