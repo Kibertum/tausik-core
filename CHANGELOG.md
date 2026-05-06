@@ -16,6 +16,26 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Filesize debt paydown: `bootstrap/bootstrap_copy.py` 420 → 311
+  (`v14b-bootstrap-copy-debt-paydown`).**
+  Skill-specific helpers (`parse_skill_frontmatter`,
+  `validate_skill_frontmatter`, `_resolve_skill`, `_generate_stub`,
+  `_load_registry`, plus `VALID_CONTEXT` / `VALID_EFFORT` constants)
+  extracted to a new `bootstrap/bootstrap_skill_helpers.py` (139 lines).
+  `bootstrap_copy.py` re-exports the names with `# noqa: F401` so all
+  external imports keep working unchanged: `bootstrap.py` (uses
+  `copy_skills` which closes over `_resolve_skill` via a local import),
+  `scripts/skill_profile.py` (uses `parse_skill_frontmatter`),
+  `tests/test_bootstrap_frontmatter.py` (uses both frontmatter
+  functions), `tests/test_vendor.py`, `tests/test_v13_hardening.py`,
+  `tests/test_copy_symlinks_disabled.py`. The `import re` import is
+  also gone from `bootstrap_copy.py` — only the new helpers module
+  needs it. Behaviour byte-for-byte identical: re-running
+  `python bootstrap/bootstrap.py --ide claude --smart` against this
+  repo produced zero `.claude/` diffs after the split. 76 bootstrap
+  tests (frontmatter + vendor + non-destructive + symlink-disable +
+  v13-hardening) green. Filesize gate clean for both files.
+
 - **Filesize debt paydown: `scripts/project_backend.py` 403 → 327
   (`v14b-project-backend-debt-paydown`).**
   The 67-line `_init_schema` method (DDL bootstrap + version-guard +

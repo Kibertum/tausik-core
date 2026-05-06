@@ -18,6 +18,26 @@
 
 ### Изменено
 
+- **Filesize debt paydown: `bootstrap/bootstrap_copy.py` 420 → 311
+  (`v14b-bootstrap-copy-debt-paydown`).**
+  Skill-специфичные хелперы (`parse_skill_frontmatter`,
+  `validate_skill_frontmatter`, `_resolve_skill`, `_generate_stub`,
+  `_load_registry` плюс константы `VALID_CONTEXT` / `VALID_EFFORT`)
+  вынесены в новый `bootstrap/bootstrap_skill_helpers.py` (139 строк).
+  `bootstrap_copy.py` re-export'ит имена с `# noqa: F401`, чтобы все
+  внешние импорты продолжили работать без изменений: `bootstrap.py`
+  (через `copy_skills`, который замыкает `_resolve_skill`),
+  `scripts/skill_profile.py` (`parse_skill_frontmatter`),
+  `tests/test_bootstrap_frontmatter.py` (обе frontmatter-функции),
+  `tests/test_vendor.py`, `tests/test_v13_hardening.py`,
+  `tests/test_copy_symlinks_disabled.py`. Импорт `import re` тоже
+  ушёл из `bootstrap_copy.py` — нужен только новому хелпер-модулю.
+  Поведение байт-в-байт идентично: повторный
+  `python bootstrap/bootstrap.py --ide claude --smart` после split'а
+  не дал ни одного diff'а в `.claude/`. 76 bootstrap-тестов
+  (frontmatter + vendor + non-destructive + symlink-disable +
+  v13-hardening) зелёные. Filesize gate clean для обоих файлов.
+
 - **Filesize debt paydown: `scripts/project_backend.py` 403 → 327
   (`v14b-project-backend-debt-paydown`).**
   67-строчный метод `_init_schema` (DDL bootstrap + version-guard +
