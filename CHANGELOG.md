@@ -193,6 +193,38 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Verify-First STRICT vs relaxed asymmetry between `has_fresh_verify_run`
+  and `run_gates_with_cache` (`v14b-verify-first-relaxed-symmetry`,
+  gotcha #111).**
+  `service_verification.run_gates_with_cache` already accepted the
+  one-direction relaxed match (Sharp edge #2: `tausik verify` ran with
+  `files=[]` manual scope, follow-up `task done` arrives with explicit
+  `relevant_files`), but `verify_cache.has_fresh_verify_run` — used by
+  the QG-2 verify-first guard in `service_gates._enforce_verify_first` —
+  did STRICT lookup only. Result: `task done <slug> --relevant-files
+  scripts/foo.py` against a fresh `tausik verify --task <slug>` (no
+  `--relevant-files` arg) returned `cache_status='git-mismatch'` even
+  though heavy gates had just passed. Surfaced in three sessions before
+  the structural fix. `has_fresh_verify_run` now mirrors the relaxed
+  fallback after a strict miss: accepts a fresh exit-zero verify-trigger
+  row with `files=[]` in the recorded command, rejects rows that named
+  specific files (reverse direction stays strict so mtime / gate-signature
+  invalidation keeps working) and rejects task-done-bucket rows
+  (cache-bucket separation contract preserved). Security-sensitive paths
+  are short-circuited by the existing `is_cache_allowed` check — never
+  reach the relaxed branch.
+  `verify_recent_lookup.lookup_any_fresh_run_for_task` gains an optional
+  `command_prefix` parameter so the trigger filter applies in SQL — without
+  it, an interleaved task-done bucket row between `tausik verify` and the
+  follow-up `task done` would shadow the verify row by having a higher
+  id under `ORDER BY id DESC LIMIT 1` (exact failure mode hit during
+  dogfood verification of this fix).
+  Tests: `tests/test_verify_cache.py` (9 cases —
+  manual→explicit accept incl. multi-file, strict-priority-over-relaxed,
+  reverse-direction reject, interleaved-bucket-shadowing, security
+  short-circuit incl. strict row, no-row miss, red-row miss). Full
+  pytest 2889 passed (was 2880, +9 new, 0 regressions).
+
 - **Brain `--join-existing` discovery missed renamed databases
   (`v14b-defect-brain-enable-no-discovery`).**
   `find_workspace_brain_databases` matched candidate Notion databases

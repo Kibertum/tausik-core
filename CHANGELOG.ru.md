@@ -200,6 +200,39 @@
 
 ### Исправлено
 
+- **Verify-First STRICT vs relaxed асимметрия между `has_fresh_verify_run`
+  и `run_gates_with_cache` (`v14b-verify-first-relaxed-symmetry`,
+  gotcha #111).**
+  `service_verification.run_gates_with_cache` уже принимал односторонний
+  relaxed-матч (Sharp edge #2: `tausik verify` запущен с `files=[]`
+  manual scope, последующий `task done` приходит с явными
+  `relevant_files`), а `verify_cache.has_fresh_verify_run` — функция,
+  которую дёргает QG-2 verify-first guard в
+  `service_gates._enforce_verify_first` — делал только STRICT lookup.
+  Результат: `task done <slug> --relevant-files scripts/foo.py` поверх
+  свежего `tausik verify --task <slug>` (без `--relevant-files`)
+  возвращал `cache_status='git-mismatch'`, хотя heavy gates только что
+  прошли. Натыкались три сессии подряд до структурного фикса. Теперь
+  `has_fresh_verify_run` после strict-miss зеркалит relaxed-фолбэк:
+  принимает свежий exit-zero verify-trigger row с `files=[]` в
+  записанной command, отбрасывает строки с конкретными файлами
+  (обратное направление остаётся strict — mtime / gate-signature
+  инвалидация продолжает работать) и отбрасывает строки из task-done
+  бакета (контракт cache-bucket separation сохранён). Security-чувствительные
+  пути коротятся существующей проверкой `is_cache_allowed` — до relaxed
+  ветки не доходят.
+  `verify_recent_lookup.lookup_any_fresh_run_for_task` получил опциональный
+  параметр `command_prefix` — фильтр trigger=verify| применяется в SQL.
+  Без него вклинившийся task-done bucket row между `tausik verify` и
+  последующим `task done` затенял бы verify row через бо́льший id под
+  `ORDER BY id DESC LIMIT 1` (точно этот failure mode словили в
+  dogfood-верификации фикса).
+  Тесты: `tests/test_verify_cache.py` (9 кейсов —
+  manual→explicit принятие в т.ч. multi-file, strict-приоритет-над-relaxed,
+  reverse-direction reject, interleaved-bucket-shadowing, security
+  short-circuit с strict row, no-row miss, red-row miss). Full pytest
+  2889 passed (было 2880, +9 новых, 0 регрессий).
+
 - **Brain `--join-existing` discovery не находил переименованные БД
   (`v14b-defect-brain-enable-no-discovery`).**
   `find_workspace_brain_databases` сматчивал кандидатов в Notion

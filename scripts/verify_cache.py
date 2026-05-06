@@ -19,7 +19,11 @@ from typing import Any
 
 from security_pattern import is_security_sensitive
 from verify_files_hash import compute_files_hash
-from verify_recent_lookup import lookup_recent_for_task
+from verify_recent_lookup import (
+    _extract_files_from_cache_command,
+    lookup_any_fresh_run_for_task,
+    lookup_recent_for_task,
+)
 
 
 # Mirrors service_verification.DEFAULT_CACHE_TTL_S; kept local to avoid an
@@ -101,4 +105,31 @@ def has_fresh_verify_run(
         command=cache_command,
         max_age_s=max_age_s,
     )
-    return (hit is not None), hit
+    if hit is not None:
+        return True, hit
+    # v14b-verify-first-relaxed-symmetry: mirror the one-direction relaxed
+    # fallback from `run_gates_with_cache`. Sharp edge #2 (gotcha #111):
+    # verify ran with `files=[]` (manual scope, no CLI args) and `task_done`
+    # arrives with explicit `relevant_files`. Strict miss is acceptable in
+    # that direction only — accept the broad-pass row when its recorded
+    # command had no files. The reverse direction (verify recorded with
+    # specific files → task_done with a different file set) MUST stay strict
+    # so mtime / gate-signature invalidation keeps working. Security-
+    # sensitive paths are short-circuited by the `is_cache_allowed` check
+    # above, so they never reach the relaxed branch.
+    # Cache-bucket separation: only consider rows from the verify trigger.
+    # task-done rows live in a separate bucket and must not satisfy the
+    # verify-first lookup — contract pinned by
+    # test_task_done_bucket_does_not_satisfy_verify_first. The filter must
+    # be in SQL (not a post-hoc rejection) so an interleaved task-done row
+    # between the agent's `tausik verify` and the follow-up `task done`
+    # cannot shadow the verify row by being more recent.
+    relaxed = lookup_any_fresh_run_for_task(
+        conn, slug, max_age_s=max_age_s, command_prefix="trigger=verify|"
+    )
+    if relaxed is None:
+        return False, None
+    relaxed_files = _extract_files_from_cache_command(relaxed.get("command", "") or "")
+    if relaxed_files:
+        return False, None
+    return True, relaxed
