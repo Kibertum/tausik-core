@@ -93,22 +93,20 @@ def test_dry_run_exits_nonzero_when_drift(temp_project, monkeypatch):
     sys.path.insert(0, str(REPO / "scripts"))
     from bootstrap_templates import build_full_body
 
-    body = build_full_body(
-        "temp", ["python"], "an AI agent (Claude Code)", ".claude", ide="claude"
-    )
+    body = build_full_body("temp", ["python"], "an AI agent (Claude Code)", ".claude", ide="claude")
     (temp_project / "CLAUDE.md").write_text(
         f"# CLAUDE.md\n\n{body}\n<!-- DYNAMIC:START -->\n## Current State\nold\n<!-- DYNAMIC:END -->\n",
         encoding="utf-8",
     )
 
-    venv_py = REPO / ".tausik" / "venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    venv_py = (
+        REPO / ".tausik" / "venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    )
     if not venv_py.exists():
         pytest.skip("venv python not available; skipping subprocess dry-run check")
 
     env = os.environ.copy()
-    env["PYTHONPATH"] = (
-        str(REPO / "scripts") + os.pathsep + env.get("PYTHONPATH", "")
-    )
+    env["PYTHONPATH"] = str(REPO / "scripts") + os.pathsep + env.get("PYTHONPATH", "")
     # Run via the same module path the CLI uses.
     code = textwrap.dedent(
         """
@@ -133,3 +131,89 @@ def test_dry_run_exits_nonzero_when_drift(temp_project, monkeypatch):
         [str(venv_py), "-c", code], capture_output=True, text=True, cwd=str(temp_project), env=env
     )
     assert "EXIT=1" in res.stdout, (res.stdout, res.stderr)
+
+
+# --- Memory tail injection (A4 — update-claudemd-memory-tail) ----------
+
+
+class _BeStub:
+    """Minimal backend stub for _build_memory_tail tests."""
+
+    def __init__(self, *, decisions=None, conventions=None, deadends=None, raise_on=False):
+        self._decisions = decisions or []
+        self._conventions = conventions or []
+        self._deadends = deadends or []
+        self._raise = raise_on
+
+    def decision_list(self, limit):
+        if self._raise:
+            raise RuntimeError("db down")
+        return self._decisions[:limit]
+
+    def memory_list(self, mtype, limit):
+        if self._raise:
+            raise RuntimeError("db down")
+        if mtype == "convention":
+            return self._conventions[:limit]
+        if mtype == "dead_end":
+            return self._deadends[:limit]
+        return []
+
+
+class _SvcStub:
+    def __init__(self, be):
+        self.be = be
+
+
+def test_memory_tail_empty_db_returns_empty_list():
+    from service_knowledge_aggregates import build_compact_memory_tail as _build_memory_tail
+
+    assert _build_memory_tail(_BeStub()) == []
+
+
+def test_memory_tail_renders_decisions_conventions_deadends():
+    from service_knowledge_aggregates import build_compact_memory_tail as _build_memory_tail
+
+    be = _BeStub(
+        decisions=[{"id": 1, "decision": "Use SQLite for local"}],
+        conventions=[{"id": 2, "title": "kebab-case slugs"}],
+        deadends=[{"id": 3, "title": "Tried bcrypt — incompatible"}],
+    )
+    out = _build_memory_tail(be)
+    text = "\n".join(out)
+    assert "### Memory tail" in text
+    assert "Use SQLite" in text
+    assert "kebab-case slugs" in text
+    assert "Tried bcrypt" in text
+    assert "Decisions (1)" in text
+    assert "Conventions (1)" in text
+    assert "Dead ends (1)" in text
+
+
+def test_memory_tail_db_failure_returns_empty_no_crash():
+    from service_knowledge_aggregates import build_compact_memory_tail as _build_memory_tail
+
+    # Must not raise — update_claudemd should still produce a valid CLAUDE.md
+    # even if the memory subsystem is broken.
+    assert _build_memory_tail(_BeStub(raise_on=True)) == []
+
+
+def test_memory_tail_truncates_long_text():
+    from service_knowledge_aggregates import build_compact_memory_tail as _build_memory_tail
+
+    be = _BeStub(decisions=[{"id": 1, "decision": "x" * 500}])
+    out = _build_memory_tail(be)
+    long_line = next(line for line in out if "x" in line)
+    assert len(long_line) < 200, "decision lines must be truncated to ~120 chars"
+
+
+def test_memory_tail_only_decisions_no_conventions_or_deadends():
+    from service_knowledge_aggregates import build_compact_memory_tail as _build_memory_tail
+
+    be = _BeStub(decisions=[{"id": 1, "decision": "Solo decision"}])
+    out = _build_memory_tail(be)
+    text = "\n".join(out)
+    assert "### Memory tail" in text
+    assert "Solo decision" in text
+    assert "Conventions" not in text
+    assert "Dead ends" not in text

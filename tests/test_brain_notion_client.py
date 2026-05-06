@@ -191,6 +191,37 @@ def test_empty_body_returns_empty_dict():
     assert client.pages_retrieve("p1") == {}
 
 
+def test_search_uses_search_timeout_by_default():
+    client, rec, _ = _client([_FakeResponse(200, {"results": []})])
+    client.search(query="hello")
+    assert rec.requests[0]["timeout"] == bnc.SEARCH_TIMEOUT_S
+    assert bnc.SEARCH_TIMEOUT_S <= 5.0
+
+
+def test_databases_query_uses_search_timeout_by_default():
+    client, rec, _ = _client([_FakeResponse(200, {"results": [], "has_more": False})])
+    client.databases_query("db-1")
+    assert rec.requests[0]["timeout"] == bnc.SEARCH_TIMEOUT_S
+
+
+def test_search_per_call_timeout_override():
+    client, rec, _ = _client([_FakeResponse(200, {"results": []})])
+    client.search(query="x", timeout=2.0)
+    assert rec.requests[0]["timeout"] == 2.0
+
+
+def test_default_timeout_is_lowered():
+    """Global DEFAULT_TIMEOUT must be <= 10s to fail fast on writes too."""
+    assert bnc.DEFAULT_TIMEOUT <= 10.0
+
+
+def test_pages_retrieve_uses_client_timeout_not_search_timeout():
+    """Non-search reads still use the client-level timeout, not SEARCH_TIMEOUT_S."""
+    client, rec, _ = _client([_FakeResponse(200, {"id": "p1"})])
+    client.pages_retrieve("p1")
+    assert rec.requests[0]["timeout"] == bnc.DEFAULT_TIMEOUT
+
+
 # --- Pagination --------------------------------------------------------
 
 
@@ -241,9 +272,7 @@ def test_iter_stops_when_cursor_missing_despite_has_more():
 
 
 def test_401_raises_auth_error_without_retry():
-    client, rec, cs = _client(
-        [_FakeHTTPError("u", 401, body={"message": "unauthorized"})]
-    )
+    client, rec, cs = _client([_FakeHTTPError("u", 401, body={"message": "unauthorized"})])
     with pytest.raises(bnc.NotionAuthError) as ei:
         client.pages_retrieve("p1")
     assert ei.value.status == 401
@@ -266,9 +295,7 @@ def test_404_raises_not_found_error_without_retry():
 
 
 def test_400_raises_generic_notion_error_without_retry():
-    client, rec, _ = _client(
-        [_FakeHTTPError("u", 400, body={"message": "bad request"})]
-    )
+    client, rec, _ = _client([_FakeHTTPError("u", 400, body={"message": "bad request"})])
     with pytest.raises(bnc.NotionError) as ei:
         client.pages_retrieve("p1")
     assert not isinstance(
@@ -458,10 +485,7 @@ def test_token_not_in_not_found_error():
 
 def test_token_not_in_rate_limit_error():
     """429 with retries exhausted → NotionRateLimitError; no token in message."""
-    responses = [
-        _FakeHTTPError("/pages", 429, {}, headers={"Retry-After": "1"})
-        for _ in range(3)
-    ]
+    responses = [_FakeHTTPError("/pages", 429, {}, headers={"Retry-After": "1"}) for _ in range(3)]
     client, _, _ = _leak_client(responses, max_retries=2)
     with pytest.raises(bnc.NotionRateLimitError) as ei:
         client.pages_create(parent={"database_id": "db-1"}, properties={})

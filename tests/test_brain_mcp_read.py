@@ -163,12 +163,8 @@ class FakeClient:
 
 
 def test_search_local_only_no_fallback_when_client_none(conn):
-    _insert_decision(
-        conn, pid="id1", name="Pgbouncer adoption", context="chose pgbouncer"
-    )
-    out = brain_mcp_read.search_with_fallback(
-        conn, client=None, query="pgbouncer", limit=10
-    )
+    _insert_decision(conn, pid="id1", name="Pgbouncer adoption", context="chose pgbouncer")
+    out = brain_mcp_read.search_with_fallback(conn, client=None, query="pgbouncer", limit=10)
     assert len(out["results"]) == 1
     assert out["results"][0]["notion_page_id"] == "id1"
     assert out["warnings"] == []
@@ -207,9 +203,7 @@ def test_search_fallback_dedup_prefers_local(conn):
     pid = "shared-id-1"
     db_decisions = "db-dec-xxxx"
     _insert_decision(conn, pid=pid, name="Local name", context="pgbouncer local")
-    page = _notion_page(
-        page_id=pid, db_id=db_decisions, name="Remote name", context="pgbouncer"
-    )
+    page = _notion_page(page_id=pid, db_id=db_decisions, name="Remote name", context="pgbouncer")
     client = FakeClient(search_results=[page])
     out = brain_mcp_read.search_with_fallback(
         conn,
@@ -239,6 +233,41 @@ def test_search_fallback_network_error_returns_local_with_warning(conn):
     # the network markdown is acceptable.
     joined = " ".join(out["warnings"]).lower()
     assert "notion error" in joined or "local mirror" in joined or "offline" in joined
+
+
+def test_search_fallback_notion_network_error_classified_as_offline(conn):
+    """NotionNetworkError (timeout / DNS / connection refused) must be caught,
+    classified as 'network', and surfaced as offline-style warning — never
+    propagate, never block /start."""
+    import sys as _sys
+
+    _sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+    from brain_notion_client import NotionNetworkError
+
+    _insert_decision(conn, pid="id1", name="A", context="match")
+
+    class _TimeoutClient:
+        def __init__(self):
+            self.search_calls: list[dict] = []
+
+        def search(self, **kwargs):
+            self.search_calls.append(kwargs)
+            raise NotionNetworkError("Notion network error: timed out")
+
+    client = _TimeoutClient()
+    # Must not raise — the whole point is /start cannot block on Notion.
+    out = brain_mcp_read.search_with_fallback(
+        conn,
+        client=client,
+        query="match",
+        limit=10,
+        database_ids={"decisions": "db1"},
+    )
+    assert len(out["results"]) == 1, "local results must still surface"
+    assert out["results"][0]["notion_page_id"] == "id1"
+    joined = " ".join(out["warnings"]).lower()
+    # brain_fallback.classify_error maps NotionNetworkError -> 'network'.
+    assert "offline" in joined or "local mirror" in joined or "network" in joined
 
 
 def test_search_no_fallback_when_local_meets_limit(conn):
@@ -274,9 +303,7 @@ def test_search_fallback_skips_pages_outside_brain_dbs(conn):
     our_db = "brain-db-000"
     foreign_db = "other-db-xxx"
     our_page = _notion_page(page_id="ours", db_id=our_db, name="Ours", context="hi")
-    foreign_page = _notion_page(
-        page_id="foreign", db_id=foreign_db, name="NotOurs", context="hi"
-    )
+    foreign_page = _notion_page(page_id="foreign", db_id=foreign_db, name="NotOurs", context="hi")
     client = FakeClient(search_results=[foreign_page, our_page])
     out = brain_mcp_read.search_with_fallback(
         conn,
@@ -392,13 +419,9 @@ def test_get_local_hit_no_fallback(conn):
 
 
 def test_get_fallback_to_notion_on_local_miss(conn):
-    page = _notion_page(
-        page_id="remote1", db_id="db1", name="Remote", context="body text"
-    )
+    page = _notion_page(page_id="remote1", db_id="db1", name="Remote", context="body text")
     client = FakeClient(retrieve_map={"remote1": page})
-    rec, warnings = brain_mcp_read.get_with_fallback(
-        conn, client, "remote1", "decisions"
-    )
+    rec, warnings = brain_mcp_read.get_with_fallback(conn, client, "remote1", "decisions")
     assert rec is not None
     assert rec["name"] == "Remote"
     assert rec["source"] == "notion"
@@ -407,18 +430,14 @@ def test_get_fallback_to_notion_on_local_miss(conn):
 
 def test_get_notion_error_returns_warning(conn):
     client = FakeClient(raise_on={"retrieve"})
-    rec, warnings = brain_mcp_read.get_with_fallback(
-        conn, client, "remote1", "decisions"
-    )
+    rec, warnings = brain_mcp_read.get_with_fallback(conn, client, "remote1", "decisions")
     assert rec is None
     joined = " ".join(warnings).lower()
     assert "notion error" in joined or "local mirror" in joined
 
 
 def test_get_unknown_category_returns_error(conn):
-    rec, warnings = brain_mcp_read.get_with_fallback(
-        conn, None, "id1", "not_a_category"
-    )
+    rec, warnings = brain_mcp_read.get_with_fallback(conn, None, "id1", "not_a_category")
     assert rec is None
     assert warnings and "Unknown category" in warnings[0]
 
@@ -516,9 +535,7 @@ def test_format_search_results_empty_with_query():
 
 
 def test_format_search_results_with_warnings():
-    md = brain_mcp_read.format_search_results(
-        [], ["Notion fallback failed: timeout"], query="x"
-    )
+    md = brain_mcp_read.format_search_results([], ["Notion fallback failed: timeout"], query="x")
     assert "**Warnings:**" in md
     assert "- Notion fallback failed: timeout" in md
 

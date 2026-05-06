@@ -16,6 +16,44 @@ _FILE_PATTERN = re.compile(
 )
 
 
+def build_compact_memory_tail(be: Any) -> list[str]:
+    """One-line-per-item memory recap for CLAUDE.md Current State.
+
+    Used by `tausik update-claudemd` to embed the latest decisions /
+    conventions / dead ends inside the dynamic block, so /start no longer
+    needs a separate `tausik_memory_block` re-injection call. Empty DB
+    (or any backend exception) → return [] and the caller omits the
+    subsection entirely.
+    """
+    try:
+        decisions = be.decision_list(5) or []
+        conventions = be.memory_list("convention", 5) or []
+        deadends = be.memory_list("dead_end", 3) or []
+    except Exception:
+        return []
+
+    if not decisions and not conventions and not deadends:
+        return []
+
+    out: list[str] = ["### Memory tail"]
+    if decisions:
+        out.append(f"Decisions ({len(decisions)}):")
+        for d in decisions:
+            text = (d.get("decision") or "").strip().replace("\n", " ")
+            out.append(f"- #{d.get('id')} {text[:120]}")
+    if conventions:
+        out.append(f"Conventions ({len(conventions)}):")
+        for c in conventions:
+            title = (c.get("title") or "").strip().replace("\n", " ")
+            out.append(f"- #{c.get('id')} {title[:100]}")
+    if deadends:
+        out.append(f"Dead ends ({len(deadends)}):")
+        for de in deadends:
+            title = (de.get("title") or "").strip().replace("\n", " ")
+            out.append(f"- #{de.get('id')} {title[:100]}")
+    return out
+
+
 def build_memory_block(
     be: Any,
     max_decisions: int = 5,
@@ -100,15 +138,12 @@ def build_memory_compact(be: Any, last_n: int = 50) -> str:
     parts = [
         f"## Compacted logs ({len(logs)} entries)",
         "",
-        "**Phases:** "
-        + ", ".join(f"{ph}={n}" for ph, n in phase_counts.most_common(5)),
+        "**Phases:** " + ", ".join(f"{ph}={n}" for ph, n in phase_counts.most_common(5)),
     ]
 
     top_words = first_word_counts.most_common(3)
     if top_words:
-        parts.append(
-            "**Top message openers:** " + ", ".join(f"{w}({n})" for w, n in top_words)
-        )
+        parts.append("**Top message openers:** " + ", ".join(f"{w}({n})" for w, n in top_words))
 
     top_files = file_mentions.most_common(5)
     if top_files:

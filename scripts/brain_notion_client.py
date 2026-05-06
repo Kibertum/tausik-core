@@ -35,7 +35,8 @@ DEFAULT_BASE_URL = "https://api.notion.com/v1"
 DEFAULT_VERSION = "2022-06-28"
 DEFAULT_THROTTLE_MS = 350
 DEFAULT_MAX_RETRIES = 5
-DEFAULT_TIMEOUT = 30.0
+DEFAULT_TIMEOUT = 10.0
+SEARCH_TIMEOUT_S = 5.0
 DEFAULT_BACKOFF_CAP = 30.0
 
 
@@ -181,6 +182,7 @@ class NotionClient:
         sorts: list | None = None,
         start_cursor: str | None = None,
         page_size: int | None = None,
+        timeout: float | None = None,
     ) -> dict:
         body: dict[str, Any] = {}
         if filter is not None:
@@ -191,7 +193,12 @@ class NotionClient:
             body["start_cursor"] = start_cursor
         if page_size is not None:
             body["page_size"] = page_size
-        return self._request("POST", f"/databases/{database_id}/query", body=body)
+        return self._request(
+            "POST",
+            f"/databases/{database_id}/query",
+            body=body,
+            timeout=timeout if timeout is not None else SEARCH_TIMEOUT_S,
+        )
 
     def iter_database_query(
         self,
@@ -228,6 +235,7 @@ class NotionClient:
         sort: dict | None = None,
         start_cursor: str | None = None,
         page_size: int | None = None,
+        timeout: float | None = None,
     ) -> dict:
         body: dict[str, Any] = {}
         if query is not None:
@@ -240,7 +248,12 @@ class NotionClient:
             body["start_cursor"] = start_cursor
         if page_size is not None:
             body["page_size"] = page_size
-        return self._request("POST", "/search", body=body)
+        return self._request(
+            "POST",
+            "/search",
+            body=body,
+            timeout=timeout if timeout is not None else SEARCH_TIMEOUT_S,
+        )
 
     # --- Internals ---
 
@@ -270,14 +283,16 @@ class NotionClient:
         *,
         body: dict | None = None,
         is_write: bool = False,
+        timeout: float | None = None,
     ) -> dict:
         if is_write:
             self._throttle_writes()
+        effective_timeout = timeout if timeout is not None else self._timeout
         attempt = 0
         while True:
             req = self._build_request(method, path, body)
             try:
-                with self._urlopen(req, timeout=self._timeout) as resp:
+                with self._urlopen(req, timeout=effective_timeout) as resp:
                     raw = resp.read()
                 if not raw:
                     return {}

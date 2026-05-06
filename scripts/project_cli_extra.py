@@ -111,15 +111,12 @@ def cmd_update_claudemd(svc: ProjectService, args: Any) -> None:
     import os
     import subprocess
 
-    # Find CLAUDE.md
     claudemd = args.claudemd
     if not claudemd:
-        # Auto-detect: look in cwd, then parent dirs
         try:
             from ide_utils import detect_ide, get_ide_config
 
-            _ide = detect_ide(os.getcwd())
-            _cfg = get_ide_config(_ide)
+            _cfg = get_ide_config(detect_ide(os.getcwd()))
             _candidates = ["CLAUDE.md", os.path.join(_cfg["config_dir"], "CLAUDE.md")]
         except ImportError:
             _candidates = ["CLAUDE.md", ".claude/CLAUDE.md"]
@@ -131,20 +128,15 @@ def cmd_update_claudemd(svc: ProjectService, args: Any) -> None:
         print("Error: CLAUDE.md not found. Use --claudemd to specify path.")
         return
 
-    # Gather data
     tasks = svc.task_list()
     session = svc.session_current()
 
-    # Build dynamic section
     active = [t for t in tasks if t["status"] == "active"]
     blocked = [t for t in tasks if t["status"] == "blocked"]
     done_count = sum(1 for t in tasks if t["status"] == "done")
     total = len(tasks)
 
-    # Get branch
-    # stdin=DEVNULL: when called from MCP server's update_claudemd worker,
-    # otherwise inherits the JSON-RPC stdin pipe and may hang. See
-    # v14b-defect-mcp-task-done-stdin-hang.
+    # stdin=DEVNULL: avoids inherit of MCP JSON-RPC pipe (v14b-defect-mcp-task-done-stdin-hang).
     try:
         r = subprocess.run(
             ["git", "branch", "--show-current"],
@@ -168,6 +160,13 @@ def cmd_update_claudemd(svc: ProjectService, args: Any) -> None:
         lines.append(f"Active: {', '.join(t['slug'] for t in active)}")
     if blocked:
         lines.append(f"Blocked: {', '.join(t['slug'] for t in blocked)}")
+
+    if (be := getattr(svc, "be", None)) is not None:
+        from service_knowledge_aggregates import build_compact_memory_tail
+
+        if memory_tail := build_compact_memory_tail(be):
+            lines.append("")
+            lines.extend(memory_tail)
 
     dynamic_content = "\n".join(lines)
 

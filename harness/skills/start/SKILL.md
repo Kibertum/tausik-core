@@ -7,90 +7,76 @@ context: inline
 
 # /start — Session Start (SENAR-aligned)
 
-Load project context, start session.
+Load project context, start session. **Token-economy: minimum work, maximum signal.**
+
 ## Algorithm
 
-**3 phases. Batch parallel calls aggressively.**
+### Phase 1 — Open + gather (one parallel batch)
 
-### Phase 1 — Open Session + Gather State
+Check `.tausik/tausik.db` exists. If not — tell user: `python .tausik-lib/bootstrap/bootstrap.py --init`. Stop.
 
-Check that `.tausik/tausik.db` exists. If not — tell the user to run bootstrap first: `python .tausik-lib/bootstrap/bootstrap.py --init`. Stop here until DB exists.
+Run **these 5 MCP tools in one parallel batch** (no other phases until they all return):
 
-Run in parallel (prefer MCP tools, CLI as fallback):
-- `tausik_session_start` MCP tool
-- `tausik_status` MCP tool
-- `tausik_session_last_handoff` MCP tool
-- `tausik_task_list` MCP tool with status=active,blocked,planning
-- `tausik_metrics` MCP tool
-- `tausik_explore_current` MCP tool
-- `tausik_audit_check` MCP tool
-- `tausik_memory_block` MCP tool — decisions + conventions + recent dead ends (re-inject project memory to prevent drift between sessions)
-- `tausik_self_check` MCP tool — verify the running MCP project server is fresh (no stale modules) before any heavy tool call. **If `drift_detected=true` OR `sibling_mcp_count > 0`** stop the parallel batch from being trusted further: warn the user prominently and recommend an IDE restart. See gotchas #77/#79/#80 for the silent-hang failure mode this guards against.
+- `tausik_session_start`
+- `tausik_status` with `compact: true`
+- `tausik_session_last_handoff`
+- `tausik_task_list` with `status=active,blocked` (planning is in CLAUDE.md already)
+- `tausik_self_check`
 
-### Phase 1.5 — Brain primer (cross-project knowledge)
-
-After Phase 1 finishes, run **one** broad `brain_search` call to surface up to 3 cross-project patterns and 3 gotchas relevant to this project's stack. Skip silently if `tausik-brain` MCP is not configured.
-
-```
-brain_search(
-  query="<comma-separated stack tags from tausik_status, e.g. 'python,fastapi,sqlite'>",
-  category="patterns",
-  limit=3
-)
-brain_search(
-  query="<same stack tags>",
-  category="gotchas",
-  limit=3
-)
-```
-
-When results come back, render them under a `Brain primer` heading in Phase 3 (top-3 patterns + top-3 gotchas, each with one-line description and Notion URL). If the user marks any item as not useful for this project, store the page id locally:
-
-```
-tausik_memory_quick(
-  type="convention",
-  title="brain.ignored:<notion_page_id>",
-  content="hidden in /start primer"
-)
-```
-
-Future `/start` runs filter the primer against `memory_list type=convention title startswith brain.ignored:` so unhelpful tips stop reappearing.
+Skip these by default — they bloat context without commensurate signal:
+- `tausik_metrics` — pull only on user request (`/metrics`)
+- `tausik_explore_current` — `tausik_status` already flags open exploration
+- `tausik_audit_check` — `tausik_status` already shows audit overdue
+- `tausik_memory_block` — content lives in CLAUDE.md "Current State" via `update_claudemd`
 
 ### Phase 2 — Update CLAUDE.md
 
-Use `tausik_update_claudemd` MCP tool to refresh the dynamic section.
+Call `tausik_update_claudemd`. This refreshes the dynamic section AND injects compact memory tail (recent decisions + conventions + dead ends, one line each) so memory persists across sessions without a separate re-injection call.
 
-### Phase 3 — Present Dashboard
+### Phase 3 — Present Dashboard (under 800 tokens)
 
-Show the user a summary:
-1. Session number and status
-2. **MCP Health** — if `tausik_self_check` returned `drift_detected=true` or `sibling_mcp_count > 0`, render a top-of-dashboard `⚠ MCP Health` block: list stale modules with their `delta_seconds`, list sibling PIDs, and recommend `Restart your IDE before continuing` + `Use .tausik/tausik CLI for verify/task done until then`. If clean, render a single OK line or omit the section.
-3. **SENAR metrics** from previous work: Throughput, FPSR, DER (if data exists)
-4. **Session duration warning** — if `status` shows a warning, highlight it prominently
-5. Handoff highlights (if last-handoff has data): what was done, what's blocked, next steps
-6. **Dead ends from handoff** — so we don't repeat failed approaches
-7. Active tasks (with slugs and titles)
-8. Blocked tasks (with blockers)
-9. Planning tasks available to pick up
-10. **Open exploration** (if any) — warn that it should be ended or continued
-11. **Audit status** — if audit is overdue, suggest running `/review` as quality sweep
-12. **Memory block** — mention that decisions/conventions/dead ends are loaded; keep them in mind for this session
-13. Suggested next action
+Render in this order, **omit empty sections silently**:
 
-**If open exploration exists:** Suggest ending it with `/explore end` or continuing it.
-**If no tasks exist:** Suggest using `/plan` to create the first task.
-**If active tasks exist:** Suggest `/task <slug>` to resume.
-**If blocked tasks exist:** Suggest investigating blockers first.
+1. **MCP Health** — only if `self_check` returned `drift_detected=true` or `sibling_mcp_count > 0`: list stale modules + sibling PIDs, recommend IDE restart + CLI fallback. If clean, omit entirely (don't write "OK").
+2. **Session** — number + active-time warning if status flagged it.
+3. **Handoff highlights** — if `last_handoff` has data: 1-line "done", 1-line "blocked", 1-line "next". Skip if empty.
+4. **Active tasks** — slug + title, one per line. Skip if none.
+5. **Blocked tasks** — slug + blocker reason, one per line. Skip if none.
+6. **Suggested next action** — one sentence:
+   - open exploration → "End or continue with `/explore`"
+   - active tasks → "Resume with `/task <slug>`"
+   - blocked → "Investigate blocker on `<slug>`"
+   - clean slate → "`/plan` to create the first task"
+
+Do **not** render: planning tasks list (use `/next` on demand), metrics block, audit reminder (status surfaces it), "Memory block loaded" notice (it's in CLAUDE.md).
+
+## Brain primer — opt-in only
+
+Brain primer (cross-project knowledge from `tausik-brain`) is **not** in the default `/start` flow because:
+- It costs 2 HTTP round-trips to Notion on local-index shortfall.
+- Most session starts don't need cross-project context — only kickoffs of a new feature do.
+
+If user invokes `/start --brain` or asks "what does the brain say about X", run:
+
+```
+brain_search(query="<stack-tags-or-feature-words>", category="patterns", limit=3)
+brain_search(query="<same-query>", category="gotchas", limit=3)
+```
+
+`brain_search` already fails fast (5s timeout) and returns local-only results on Notion failure — never blocks.
+
+If `tausik-brain` MCP is not configured: skip silently, no warning, no fallback. The primer is opt-in by design.
 
 ## Code search hierarchy
 
-When you need to locate code during this session, prefer the cheapest tool that fits:
+Prefer cheapest tool that fits:
 
-1. **`mcp__codebase-rag__search_code`** — first choice for symbols, patterns, "where is X used", "how does Y work". Returns ranked chunks, not full files. Cheapest token-wise.
-2. **`Grep`** — only when you already know which file(s) to search in, or when RAG is empty/stale.
-3. **`Read`** — only when you have an exact path. Don't `Read` unfamiliar code — use `search_code` first to locate the relevant chunks.
+1. **`mcp__codebase-rag__search_code`** — first choice for symbols, patterns, "where is X used". Returns ranked chunks, cheapest token-wise.
+2. **`Grep`** — only when you already know which file(s) to search in.
+3. **`Read`** — only when you have an exact path.
 
 ## Gotchas
 
-- **Session numbering** is auto-incremented. If `session start` fails, the DB might be locked — check `.tausik/tausik.db-wal`.
-- **Session duration limit** — SENAR Rule 9.2. If session is already active and over limit, warn prominently and suggest `/end`.
+- **Session numbering** is auto-incremented. If `session start` fails, DB might be locked — check `.tausik/tausik.db-wal`.
+- **Session duration limit** — SENAR Rule 9.2. If `compact` status flags warning, surface it prominently and suggest `/end`.
+- **MCP self_check** must run in Phase 1 — it's the only signal for stale-module hangs (#77/#79/#80). If `drift_detected=true`, do NOT trust subsequent MCP results in this session; warn the user and use `.tausik/tausik` CLI for verify/task_done until IDE restart.
