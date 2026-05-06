@@ -102,17 +102,17 @@ Reference task slug in the commit message body.
 
 **Only after successful commit AND step 5b verify green.**
 
-**Preferred (v1.4+):** `tausik_task_done_v2` — returns a structured JSON report with `stage` ("closed" | "blocked"), per-gate results, and a `blocking_failures` array the agent can iterate to fix issues without re-parsing prose. Use this whenever the project's MCP server exposes it.
+**Preferred (v1.4+):** `tausik_task_done` — returns a structured JSON report with `stage` ("closed" | "blocked"), per-gate results, and a `blocking_failures` array the agent can iterate to fix issues without re-parsing prose. Use this whenever the project's MCP server exposes it.
 
 ```
-tausik_task_done_v2(
+tausik_task_done(
   slug={slug},
   ac_verified=True,
   relevant_files=[...]
 )
 ```
 
-**Fallback (legacy v1):** if the MCP server bundled with the project predates 1.3.7 and `tausik_task_done_v2` is not in the tool list, fall back to `tausik_task_done` with the same arguments. v1 raises a single aggregated error string (1.4 fix, see CHANGELOG) — read it, fix, retry. Do **not** loop on failures silently.
+**Fallback (legacy v1):** if the MCP server bundled with the project predates 1.3.7 and `tausik_task_done` is not in the tool list, fall back to `tausik_task_done` with the same arguments. v1 raises a single aggregated error string (1.4 fix, see CHANGELOG) — read it, fix, retry. Do **not** loop on failures silently.
 
 Verify-First Contract: both v1 and v2 look up the cached green from step 5b. If you skipped step 5b on a project with verify-trigger gates, `task_done` will refuse to close — go back, run `tausik_verify`, then retry.
 

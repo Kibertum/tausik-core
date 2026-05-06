@@ -87,12 +87,14 @@ def find_python() -> str | None:
             continue
 
         # Resolve to absolute path
+        resolved: str
         if os.path.isabs(candidate):
             resolved = candidate
         else:
-            resolved = shutil.which(candidate)
-            if not resolved:
+            which_result = shutil.which(candidate)
+            if not which_result:
                 continue
+            resolved = which_result
 
             # For 'py' launcher on Windows, get the actual python it delegates to
             if os.path.basename(resolved).startswith("py"):

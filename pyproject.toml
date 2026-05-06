@@ -54,10 +54,20 @@ exclude_lines = [
 [tool.mypy]
 python_version = "3.11"
 files = ["scripts"]
+# scripts/hooks/*.py is reachable as both `<name>` (via pythonpath=scripts at
+# runtime) and `hooks.<name>` (via scripts/hooks/). Excluding the hooks/
+# subdir from the default check avoids the dual-module-names error;
+# hooks are exercised via tests/ rather than mypy directly.
+exclude = ["scripts/hooks/"]
 warn_return_any = true
 warn_unused_configs = true
 check_untyped_defs = true
 no_implicit_optional = true
+# memory_markers is a hooks/ module imported from scripts/brain_classifier.py
+# via runtime sys.path injection; mypy can't follow it statically.
+[[tool.mypy.overrides]]
+module = "memory_markers"
+ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "project_types"
@@ -89,10 +99,6 @@ disable_error_code = "name-defined"
 
 [[tool.mypy.overrides]]
 module = "project_config"
-warn_return_any = false
-
-[[tool.mypy.overrides]]
-module = "project_cli_extra"
 warn_return_any = false
 
 [tool.ruff]

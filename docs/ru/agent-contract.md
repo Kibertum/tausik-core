@@ -72,7 +72,7 @@ overshoot is intentional (audit event + notes line trace it).
 | Rule 5 Verification Checklist | 28-item checklist, 4 тира; **pytest gate scoped по relevant_files**, verify cache reuse в окне 10 мин; v1.4 — структурированный AC-evidence parser (`service_ac_evidence`) сообщает про gaps и отсутствующие test-refs/негативные сценарии | Warning + Hard scope |
 | Rule 7 Root Cause | Defect-задачи предупреждают если нет root cause | Warning |
 | Rule 8 Knowledge Capture | Warning при task_done + `--no-knowledge` для confirm-none | Warning |
-| Rule 9.2 Лимит сессии | `task start` блокируется при >180 мин **active time** (gap-based, threshold 10 мин). `session extend` продлевает; `session recompute` retro. | Hard (CLI + MCP блокирует) |
+| Rule 9.2 Лимит сессии | `task start` блокируется при >180 мин **active time** (bounded sum: каждый gap = `min(Δ, 10 мин)`, длинный AFK клипуется). `session extend` продлевает; `session recompute` retro. | Hard (CLI + MCP блокирует) |
 | Rule 9.3 Checkpoint | `/checkpoint` + auto-reminder в `/task` | Instruction |
 | Rule 9.4 Dead Ends | `tausik_dead_end` MCP + CLI + skills напоминают | Instruction |
 | Rule 9.5 Periodic Audit | `tausik_audit_check/mark` MCP + CLI | Warning |

@@ -35,7 +35,7 @@
 | 7 | Root cause for defects | ✅ Implemented | Warning | Keyword detection in notes |
 | 8 | Knowledge capture | ✅ Implemented | Warning | memory/decision count + `--no-knowledge` opt-out |
 | 9.1 | No code without task | ✅ Implemented | Hard (hook) | Same as Rule 1 |
-| 9.2 | Session time limit (180 min **active**) | ✅ Implemented | Hard block | Gap-based active time (≥10 min idle = AFK, not counted). `service_gates.py` blocks `task_start` at >180 min active; `status` shows "X min active / Y min wall"; `session extend` and `session recompute` available. Threshold configurable via `session_idle_threshold_minutes`. |
+| 9.2 | Session time limit (180 min **active**) | ✅ Implemented | Hard block | Bounded gap-based active time (`Σ min(Δ, threshold)`, default threshold 10 min — long AFK clipped to threshold, v14b-session-active-time). `service_gates.py` blocks `task_start` at >180 min active; `status` shows "X min active / Y min wall"; `session extend` and `session recompute` available. Threshold configurable via `session_idle_threshold_minutes`. |
 | 9.3 | Checkpoint every 30-50 calls | ✅ Implemented | Warning (auto) | MCP counter in meta table, warning at 40 calls, reset on handoff |
 | 9.4 | Document dead ends | ✅ Implemented | Instruction + tooling | `dead_end()` + skill instructions + `/end` check |
 | 9.5 | Periodic audit | ✅ Implemented | Warning | `audit_check/mark` + `/start` integration |

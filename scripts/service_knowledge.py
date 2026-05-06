@@ -39,14 +39,10 @@ class KnowledgeMixin:
         mid = self.be.memory_add(mem_type, title, content, tags, task_slug)
         return f"Memory #{mid} ({mem_type}) saved."
 
-    def memory_list(
-        self, mem_type: str | None = None, n: int = 50
-    ) -> list[dict[str, Any]]:
+    def memory_list(self, mem_type: str | None = None, n: int = 50) -> list[dict[str, Any]]:
         return self.be.memory_list(mem_type, n)
 
-    def memory_search(
-        self, query: str, include_cq: bool = True
-    ) -> list[dict[str, Any]]:
+    def memory_search(self, query: str, include_cq: bool = True) -> list[dict[str, Any]]:
         """Search local memory + optional cq cross-project knowledge."""
         local = self.be.memory_search(query)
         if not include_cq:
@@ -101,26 +97,43 @@ class KnowledgeMixin:
 
     # --- Decisions ---
 
-    def decide(
-        self, text: str, task_slug: str | None = None, rationale: str | None = None
-    ) -> str:
+    def decide(self, text: str, task_slug: str | None = None, rationale: str | None = None) -> str:
         validate_length("decision", text)
 
         # Task-linked decisions are inherently project-specific — never route to brain.
         if task_slug is not None:
             did = self.be.decision_add(text, task_slug, rationale)
             return (
-                f"Decision #{did} recorded — saved to local "
-                f"(reason: linked to task {task_slug})."
+                f"Decision #{did} recorded — saved to local (reason: linked to task {task_slug})."
             )
 
         from brain_classifier import classify
-        from brain_config import load_brain
+        from brain_config import load_brain, validate_brain
 
         cfg = load_brain()
         decision = classify(text, "decision", cfg=cfg)
 
         if decision.target == "brain" and cfg.get("enabled"):
+            # Defect v14b-defect-brain-decisions-empty: when brain.enabled=true
+            # but database_ids/token are empty, store_record silently returns
+            # status=config_error and the local-fallback path runs with a quiet
+            # "brain write failed" reason. Pre-validate so the user sees a loud,
+            # actionable message instead of accumulating local-only decisions
+            # that should have been mirrored to Notion.
+            cfg_errors = validate_brain()
+            if cfg_errors:
+                did = self.be.decision_add(text, task_slug, rationale)
+                error_lines = "\n".join(f"  - {e}" for e in cfg_errors)
+                return (
+                    f"⚠ Decision #{did} saved LOCALLY ONLY — brain mirror BLOCKED.\n\n"
+                    f"Brain is enabled in .tausik/config.json but misconfigured:\n"
+                    f"{error_lines}\n\n"
+                    f"Fix one of:\n"
+                    f"  1. Run `.tausik/tausik brain init` to complete setup, OR\n"
+                    f"  2. Set `brain.enabled = false` in .tausik/config.json to disable.\n\n"
+                    f"After fixing, migrate local-only decisions with "
+                    f"`tausik brain move --to-brain`."
+                )
             from brain_runtime import try_brain_write_decision
 
             ok, detail = try_brain_write_decision(text, rationale, cfg)
@@ -131,8 +144,7 @@ class KnowledgeMixin:
                 )
             did = self.be.decision_add(text, task_slug, rationale)
             return (
-                f"Decision #{did} recorded — saved to local "
-                f"(reason: brain write failed: {detail})."
+                f"Decision #{did} recorded — saved to local (reason: brain write failed: {detail})."
             )
 
         did = self.be.decision_add(text, task_slug, rationale)
@@ -152,9 +164,7 @@ class KnowledgeMixin:
         """Thin delegator — real logic lives in service_knowledge_aggregates."""
         from service_knowledge_aggregates import build_memory_block
 
-        return build_memory_block(
-            self.be, max_decisions, max_conventions, max_deadends, max_lines
-        )
+        return build_memory_block(self.be, max_decisions, max_conventions, max_deadends, max_lines)
 
     def memory_compact(self, last_n: int = 50) -> str:
         """Thin delegator — real logic lives in service_knowledge_aggregates."""
@@ -243,10 +253,7 @@ class KnowledgeMixin:
                 created_by,
             )
             for old_edge in existing:
-                if (
-                    old_edge["source_type"] == target_type
-                    and old_edge["source_id"] == target_id
-                ):
+                if old_edge["source_type"] == target_type and old_edge["source_id"] == target_id:
                     self.be.edge_invalidate(old_edge["id"], eid)
         else:
             eid = self.be.edge_add(
@@ -299,9 +306,7 @@ class KnowledgeMixin:
             )
         return self.be.edge_list(node_type, node_id, relation, include_invalid, n)
 
-    def memory_find_similar(
-        self, title: str, content: str, n: int = 5
-    ) -> list[dict[str, Any]]:
+    def memory_find_similar(self, title: str, content: str, n: int = 5) -> list[dict[str, Any]]:
         """Find similar memory entries (for auto-suggest on add). Uses FTS5."""
         query = f"{title} {content}"[:200]
         return self.be.memory_search(query, n)
@@ -317,9 +322,7 @@ class KnowledgeMixin:
         eid = self.be.exploration_start(title, time_limit_min)
         return f"Exploration #{eid} started ({time_limit_min} min limit): {title}"
 
-    def exploration_end(
-        self, summary: str | None = None, create_task: bool = False
-    ) -> str:
+    def exploration_end(self, summary: str | None = None, create_task: bool = False) -> str:
         current = self.be.exploration_current()
         if not current:
             raise ServiceError("No active exploration")
@@ -356,9 +359,7 @@ class KnowledgeMixin:
             from datetime import datetime, timezone
 
             try:
-                started = datetime.fromisoformat(
-                    exp["started_at"].replace("Z", "+00:00")
-                )
+                started = datetime.fromisoformat(exp["started_at"].replace("Z", "+00:00"))
                 elapsed = (datetime.now(timezone.utc) - started).total_seconds() / 60
                 exp["elapsed_min"] = round(elapsed, 1)
                 exp["over_limit"] = elapsed > (exp.get("time_limit_min") or 30)

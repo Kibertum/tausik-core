@@ -169,6 +169,46 @@ Brain-хуки делят helpers в `scripts/brain_hook_utils.py` — одна 
 
 Аналогично `scripts/model_routing.py` + `plugin_data.py` — чистые модули, импортируемые из CLI/MCP handlers.
 
+## Prompt caching
+
+TAUSIK опирается на автоматический prompt caching от Anthropic — это удерживает
+стоимость агентских прогонов в разумных границах. Сам фреймворк не делает
+API-вызовов (это делает Claude Code), но *структура* того, что TAUSIK
+кладёт в каждый ход, определяет: попадёт префикс в кеш или перебиллится
+заново. Кешируемая поверхность по приоритету:
+
+| Поверхность | Где живёт | Почему кешируется хорошо |
+|---|---|---|
+| System prompt + схемы инструментов | Инжектится Claude Code'ом из `.claude/mcp/project/tools.py` и `tools_extra.py` | Идентично между ходами в рамках сессии — самый длинный стабильный префикс |
+| `CLAUDE.md` | Корень проекта | Читается раз за сессию и реинжектится; стабилен пока `tausik_update_claudemd` не перепишет dynamic-блок |
+| Описания MCP-инструментов | Те же `tools.py` | Любая правка инвалидирует кеш — изменение формулировки переписывает весь префикс |
+| Skills (`SKILL.md`) | `agents/skills/<name>/SKILL.md` | Подгружаются только при активации скилла |
+
+**Что инвалидирует кеш в середине сессии.** Любая правка перечисленных файлов
+между ходами переписывает префикс и заставляет следующий ход платить
+`cache_creation_input_tokens` вместо `cache_read_input_tokens`. Главный
+нарушитель — `tausik_update_claudemd`: его прогон в середине сессии
+переписывает dynamic-state блок (номер сессии, счётчики задач и т.д.), и
+весь префикс `CLAUDE.md` перекешируется. Зови его на границах сессии
+(`/start`, `/checkpoint`, `/end`), а не между рядовыми tool-вызовами.
+
+**Как проверить, что caching реально работает.** Anthropic возвращает
+`cache_creation_input_tokens` (префикс только что записан) и
+`cache_read_input_tokens` (последующий ход попал в кеш) в `usage`-блоке
+каждого ответа. `scripts/validate_prompt_caching.py` парсит транскрипт
+Claude Code (JSONL) и выдаёт обе суммы + hit-rate:
+
+```bash
+python scripts/validate_prompt_caching.py --auto
+# или
+python scripts/validate_prompt_caching.py path/to/transcript.jsonl
+```
+
+Exit code `0` = caching активен (`cache_read_input_tokens > 0`);
+`1` = префикс нестабилен (creation > 0, reads = 0);
+`2` = API вообще не вернул cache-поля. См. [troubleshooting.md](troubleshooting.md)
+секцию «Prompt caching не активен» — типовые причины.
+
 ## Тестирование
 
 ```bash

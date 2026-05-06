@@ -27,7 +27,7 @@ Hooks are scripts that run automatically with every agent action. They decide wh
 | `activity_event.py` | After any tool call | Records activity timestamps for **gap-based active-time** session metric (SENAR Rule 9.2) |
 | `memory_posttool_audit.py` | After Write to auto-memory | Audits cross-project leakage (uses `memory_markers.py` regex library) and warns |
 | `brain_post_webfetch.py` | After WebFetch | Auto-caches result in shared brain `web_cache` for token reuse |
-| `task_done_verify.py` | After `task_done` / `task_done_v2` | Audits AC evidence via 5 rule-based checks (Ralph-mode-lite). Matcher v1.4: `tausik_task_done\|tausik_task_done_v2\|Bash` |
+| `task_done_verify.py` | After `task_done` / `task_done` | Audits AC evidence via 5 rule-based checks (Ralph-mode-lite). Matcher v1.4: `tausik_task_done\|tausik_task_done\|Bash` |
 
 ## SessionStart / SessionEnd
 

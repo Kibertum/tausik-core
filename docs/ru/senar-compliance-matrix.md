@@ -35,7 +35,7 @@
 | 7 | Root cause для дефектов | ✅ Реализовано | Warning | Обнаружение ключевых слов в notes |
 | 8 | Захват знаний | ✅ Реализовано | Warning | Подсчёт memory/decision + `--no-knowledge` opt-out |
 | 9.1 | Нет кода без задачи | ✅ Реализовано | Hard (hook) | То же что Rule 1 |
-| 9.2 | Лимит сессии (180 мин **active**) | ✅ Реализовано | Hard block | Gap-based active time (≥10 мин idle = AFK, не учитывается). `service_gates.py` блокирует `task_start` при >180 мин active; `status` показывает "X min active / Y min wall"; `session extend` и `session recompute` доступны. Threshold настраивается через `session_idle_threshold_minutes`. |
+| 9.2 | Лимит сессии (180 мин **active**) | ✅ Реализовано | Hard block | Bounded gap-based active time (`Σ min(Δ, threshold)`, default threshold 10 мин — длинный AFK клипуется до threshold'а, v14b-session-active-time). `service_gates.py` блокирует `task_start` при >180 мин active; `status` показывает "X min active / Y min wall"; `session extend` и `session recompute` доступны. Threshold настраивается через `session_idle_threshold_minutes`. |
 | 9.3 | Checkpoint каждые 30-50 вызовов | ✅ Реализовано | Warning (авто) | MCP счётчик в meta, warning при 40 вызовах, сброс при handoff |
 | 9.4 | Документирование dead ends | ✅ Реализовано | Instruction + tooling | `dead_end()` + инструкции в скиллах + `/end` проверка |
 | 9.5 | Периодический аудит | ✅ Реализовано | Warning | `audit_check/mark` + интеграция в `/start` |

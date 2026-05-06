@@ -45,9 +45,7 @@ def install_file_logging(project_dir: str | None = None) -> None:
             encoding="utf-8",
         )
         handler.setLevel(logging.WARNING)
-        handler.setFormatter(
-            logging.Formatter("%(asctime)s %(name)s %(levelname)s: %(message)s")
-        )
+        handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s: %(message)s"))
         logging.getLogger("tausik").addHandler(handler)
         _LOG_INSTALLED = True
     except OSError:
@@ -98,11 +96,7 @@ def validate_slug(slug: str) -> None:
     """Raise ValueError if slug is invalid. Error message suggests a sanitized alternative."""
     if not slug or not SLUG_RE.match(slug):
         suggestion = sanitize_slug(slug)
-        hint = (
-            f" Did you mean '{suggestion}'?"
-            if suggestion and suggestion != slug
-            else ""
-        )
+        hint = f" Did you mean '{suggestion}'?" if suggestion and suggestion != slug else ""
         raise ValueError(f"Invalid slug '{slug}': must match [a-z0-9][a-z0-9-]*.{hint}")
     if len(slug) > MAX_SLUG:
         raise ValueError(f"Slug '{slug[:20]}...' is {len(slug)} chars, max {MAX_SLUG}")
@@ -127,7 +121,12 @@ def slugify(title: str, max_len: int = 50) -> str:
 
 
 def format_status_compact_json(data: dict[str, Any], duration_warning: str | None) -> str:
-    """Dense JSON line for MCP/CLI ``--compact`` — default human status unchanged."""
+    """Dense JSON line for MCP/CLI ``--compact`` — default human status unchanged.
+
+    v14b-session-active-time: also embeds session active/wall minutes and the
+    configured limit so agents can read SENAR Rule 9.2 progress directly off
+    the compact response without a follow-up tausik_status call.
+    """
 
     counts = data["task_counts"]
     total = sum(counts.values())
@@ -143,6 +142,14 @@ def format_status_compact_json(data: dict[str, Any], duration_warning: str | Non
         "session_id": int(sess["id"]) if sess else None,
         "epics": len(data.get("epics") or []),
     }
+    if sess and "active_minutes" in data:
+        payload["session_active_minutes"] = int(data["active_minutes"])
+    if sess and "active_seconds" in data:
+        payload["session_active_seconds"] = int(data["active_seconds"])
+    if sess and "wall_minutes" in data:
+        payload["session_wall_minutes"] = int(data["wall_minutes"])
+    if "session_max_minutes" in data:
+        payload["session_max_minutes"] = int(data["session_max_minutes"])
     if duration_warning:
         payload["session_warning"] = duration_warning
     return json.dumps(payload, separators=(",", ":"), ensure_ascii=False)

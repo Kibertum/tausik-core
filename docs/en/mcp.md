@@ -2,9 +2,9 @@
 
 # TAUSIK MCP — Tool Reference (v1.4)
 
-**100 tools** for AI agents (93 project + 7 brain; v1.4 actual count, asserted via `len(TOOLS)` on both servers). The MCP surface mirrors the CLI 1:1 with zero CLI-only gaps. Prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
+**99 tools** for AI agents (92 project + 7 brain; v1.4 actual count, asserted via `len(TOOLS)` on both servers). The MCP surface mirrors the CLI 1:1 with zero CLI-only gaps. Prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
 
-> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 100 count — total with it is 107 tools.
+> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 99 count — total with it is 106 tools.
 
 Two MCP servers live in this project:
 
@@ -47,8 +47,7 @@ tausik_task_done(slug=…, ac_verified=True)   # lightweight: cache lookup
 | `tausik_task_add` | Create task (optionally in a story) | `slug`, `title` |
 | `tausik_task_quick` | Quick creation with auto-slug | `title` |
 | `tausik_task_start` | Start work (QG-0: requires goal + AC + negative scenario) | `slug` |
-| `tausik_task_done` | Complete (QG-2: `ac_verified=true`, scoped pytest, verify cache) | `slug` |
-| `tausik_task_done_v2` | Complete with structured JSON response (`blocking_failures`, per-gate results, cache status) | `slug` |
+| `tausik_task_done` | Complete (QG-2: `ac_verified=true`, scoped pytest, verify cache). Returns structured JSON: `blocking_failures`, per-gate results, cache status. | `slug` |
 | `tausik_task_show` | Full task information | `slug` |
 | `tausik_task_list` | List tasks with filters (status enum: `planning,active,blocked,review,done`) | — |
 | `tausik_task_update` | Update fields (title/goal/AC/scope/notes/stack/complexity/role/tier/call_budget) | `slug` |
@@ -74,15 +73,15 @@ tausik_task_done(slug=…, ac_verified=True)   # lightweight: cache lookup
 
 There is **no `--force`** on `task_done` — QG-2 cannot be bypassed. `task_start` does have `--force` to bypass session capacity, with audit trail.
 
-### `tausik_task_done_v2`
+### `tausik_task_done` structured response
 
-**Preferred for QG-2 since 1.3.7.** Uses the same input fields as `tausik_task_done`, but returns structured JSON for agent workflows:
+`tausik_task_done` returns JSON for agent workflows:
 - stage flags (`plan_complete`, `ac_verified`, `gates_passed`)
 - per-gate results (`gates[]`)
 - `blocking_failures[]` with gate, files, output, and remediation hints
 - `warnings[]`, `cache_status`, and final `ok`
 
-Skills (`/ship`, `/task`) call v2 when it's exposed by the MCP server and fall back to v1 (single aggregated error string, 1.4 behaviour) otherwise. Both paths honour the Verify-First Contract.
+Pre-1.4 there was a parallel `tausik_task_done_v2` alias for the structured-JSON variant. **v14b-task-done-rename-drop-v2 consolidated both into the single `tausik_task_done` returning the structured JSON above** — there is no `_v2` suffix. The Verify-First Contract is honoured on every path.
 
 ## Sessions
 
@@ -236,6 +235,15 @@ Role storage is hybrid: SQLite metadata + `agents/roles/{role}.md` profile markd
 | `brain_cache_web` | Cache a web result for token reuse | `name`, `url`, `content` |
 
 The `tausik-brain` MCP server runs config-agnostic at startup and reads registry from `.tausik-brain/` configuration. The total tool count for this server is 6 (verified via `len(TOOLS)` in `agents/claude/mcp/brain/tools.py`).
+
+### Brain config requirements
+
+When `brain.enabled=true` in `.tausik/config.json`, ALL of the following must be set or `tausik_decide` (and other brain-routing operations) will return a `⚠ ... saved LOCALLY ONLY — brain mirror BLOCKED` warning and skip the Notion mirror:
+
+- `brain.database_ids.decisions`, `database_ids.patterns`, `database_ids.gotchas`, `database_ids.web_cache` — all four Notion database UUIDs.
+- `brain.notion_integration_token_env` — env var name (default `NOTION_TAUSIK_TOKEN`) that must resolve to a non-empty token via env, `.tausik/.env`, or `brain.notion_integration_token` in config.
+
+`tausik doctor` surfaces validation errors as a `Brain config` warning row. The fastest fix is `tausik brain init` (interactive wizard) or set `brain.enabled=false` to opt out cleanly. After fixing the config, run `tausik brain move --to-brain` to migrate decisions/gotchas/patterns that were saved locally during the misconfiguration window.
 
 ## Codebase RAG (separate optional MCP server)
 

@@ -1,7 +1,7 @@
 """TAUSIK MCP self-check — detect stale in-memory modules + sibling MCP servers.
 
 Background: gotchas #77, #79, #80 describe `tausik_verify` and
-`tausik_task_done_v2` hanging silently when the running MCP project server
+`tausik_task_done` hanging silently when the running MCP project server
 holds stale Python modules — usually because the user (or bootstrap)
 edited `scripts/service_verification.py`, `scripts/gate_runner.py`, or
 similar service code AFTER the MCP server booted, and the IDE never
@@ -110,11 +110,25 @@ def _enumerate_sibling_mcps(self_pid: int, project_dir: str) -> dict[str, Any]:
 
     `count == -1` means we could not introspect — the agent should treat
     this as "unknown, check manually" rather than "no siblings".
+
+    v14b-defect-mcp-self-check-venv-launcher: also exclude the direct
+    parent PID. On Windows, `venv\\Scripts\\python.exe` is a launcher
+    shim that re-execs the real interpreter as a child while keeping the
+    same command line; the parent process matches the same needle/project
+    filter as the child and would otherwise count as a "sibling MCP",
+    producing a chronic +1 false-positive that masquerades as a real
+    leak. POSIX rarely shows the same shape (venv usually returns the
+    interpreter's PID directly), but `os.getppid()` works on all
+    platforms so the guard is uniform.
     """
     needle = "mcp/project/server.py"
     project_norm = os.path.normpath(project_dir)
     pids: list[int] = []
     err: str | None = None
+    try:
+        parent_pid = os.getppid()
+    except Exception:  # noqa: BLE001
+        parent_pid = -1  # never matches a real PID — guard becomes a no-op
     if sys.platform == "win32":
         # Two introspection paths in priority order:
         #   1. wmic.exe — present on legacy Windows / older Win11 builds
@@ -154,7 +168,7 @@ def _enumerate_sibling_mcps(self_pid: int, project_dir: str) -> dict[str, Any]:
                     pid = int(raw_pid.strip())
                 except ValueError:
                     continue
-                if pid == self_pid:
+                if pid == self_pid or pid == parent_pid:
                     continue
                 if project_norm.replace("\\", "/").lower() in cmd.replace("\\", "/").lower():
                     pids.append(pid)
@@ -185,7 +199,7 @@ def _enumerate_sibling_mcps(self_pid: int, project_dir: str) -> dict[str, Any]:
                         pid = int(raw_pid.strip())
                     except ValueError:
                         continue
-                    if pid == self_pid:
+                    if pid == self_pid or pid == parent_pid:
                         continue
                     if project_norm.replace("\\", "/").lower() in cmd.replace("\\", "/").lower():
                         pids.append(pid)
@@ -205,7 +219,7 @@ def _enumerate_sibling_mcps(self_pid: int, project_dir: str) -> dict[str, Any]:
                 if not entry.isdigit():
                     continue
                 pid = int(entry)
-                if pid == self_pid:
+                if pid == self_pid or pid == parent_pid:
                     continue
                 try:
                     with open(f"/proc/{pid}/cmdline", "rb") as f:
@@ -234,7 +248,7 @@ def _enumerate_sibling_mcps(self_pid: int, project_dir: str) -> dict[str, Any]:
                         pid = int(parts[0])
                     except ValueError:
                         continue
-                    if pid != self_pid:
+                    if pid != self_pid and pid != parent_pid:
                         pids.append(pid)
             except Exception as e:  # noqa: BLE001
                 err = f"ps fallback failed: {e}"
@@ -252,7 +266,7 @@ def collect() -> dict[str, Any]:
 
     `drift_detected` is the headline signal — when True, the running MCP
     server is executing stale Python bytecode and the user should restart
-    the IDE before running heavy tools (`tausik_verify`, `tausik_task_done_v2`).
+    the IDE before running heavy tools (`tausik_verify`, `tausik_task_done`).
     """
     drift: list[dict[str, Any]] = []
     current: dict[str, float] = {}

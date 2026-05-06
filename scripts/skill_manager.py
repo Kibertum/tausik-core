@@ -108,11 +108,10 @@ def clone_repo(url: str, vendor_dir: str) -> tuple[str, str]:
                 encoding="utf-8",
                 errors="replace",
                 timeout=60,
+                stdin=subprocess.DEVNULL,
             )
             if result.returncode != 0:
-                print(
-                    f"  Warning: git pull failed for {repo_name}, using existing checkout"
-                )
+                print(f"  Warning: git pull failed for {repo_name}, using existing checkout")
         except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
             print(f"  Warning: could not update {repo_name}, using existing checkout")
         return repo_dir, repo_name
@@ -126,6 +125,7 @@ def clone_repo(url: str, vendor_dir: str) -> tuple[str, str]:
             encoding="utf-8",
             errors="replace",
             timeout=120,
+            stdin=subprocess.DEVNULL,
         )
         if result.returncode != 0:
             raise SkillManagerError(f"git clone failed: {result.stderr.strip()}")
@@ -169,9 +169,7 @@ def get_skill_info(manifest: dict[str, Any], name: str) -> dict[str, Any]:
     skills: dict[str, Any] = manifest.get("skills", {})
     if name not in skills:
         available = ", ".join(sorted(skills.keys()))
-        raise SkillManagerError(
-            f"Skill '{name}' not found in repo. Available: {available}"
-        )
+        raise SkillManagerError(f"Skill '{name}' not found in repo. Available: {available}")
     info: dict[str, Any] = skills[name]
     return info
 
@@ -181,9 +179,7 @@ def get_skill_info(manifest: dict[str, Any], name: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def find_skill_source(
-    vendor_dir: str, skill_name: str
-) -> tuple[str, str, dict[str, Any]] | None:
+def find_skill_source(vendor_dir: str, skill_name: str) -> tuple[str, str, dict[str, Any]] | None:
     """Find a skill across all installed repos.
 
     Returns (repo_dir, repo_name, skill_info) or None.
@@ -221,9 +217,7 @@ def copy_skill(
     source = os.path.join(repo_dir, skill_path.rstrip("/"))
     _validate_path_inside(source, repo_dir)
     if not os.path.isdir(source):
-        raise SkillManagerError(
-            f"Skill path '{skill_path}' not found in repo at {repo_dir}"
-        )
+        raise SkillManagerError(f"Skill path '{skill_path}' not found in repo at {repo_dir}")
     skill_md = os.path.join(source, "SKILL.md")
     if not os.path.isfile(skill_md):
         raise SkillManagerError(f"SKILL.md not found in {source}")
@@ -256,9 +250,7 @@ def copy_skill(
     return dst
 
 
-def install_skill_deps(
-    repo_dir: str, skill_info: dict[str, Any], tausik_dir: str
-) -> bool:
+def install_skill_deps(repo_dir: str, skill_info: dict[str, Any], tausik_dir: str) -> bool:
     """Install skill pip dependencies into .tausik/venv/.
 
     Dependencies come from skill_info["requires"] list.
@@ -280,8 +272,7 @@ def install_skill_deps(
 
     print(f"  Installing dependencies: {', '.join(requires)}")
     print(
-        "  WARNING: packages come from an external skill manifest. "
-        "Review before use in production."
+        "  WARNING: packages come from an external skill manifest. Review before use in production."
     )
 
     # Find venv python
@@ -317,14 +308,14 @@ def install_skill_deps(
         safe_env.pop(var, None)
     try:
         result = subprocess.run(
-            [venv_python, "-m", "pip", "install", "--no-config", "--quiet", "--"]
-            + requires,
+            [venv_python, "-m", "pip", "install", "--no-config", "--quiet", "--"] + requires,
             capture_output=True,
             text=True,
             encoding="utf-8",
             errors="replace",
             timeout=120,
             env=safe_env,
+            stdin=subprocess.DEVNULL,
         )
         if result.returncode != 0:
             print(f"  pip install failed: {result.stderr}")

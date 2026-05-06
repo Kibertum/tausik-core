@@ -344,6 +344,22 @@ def add_metrics(sub: argparse._SubParsersAction) -> None:
     )
     mc.add_argument("--since", default=None, help="ISO-8601 lower bound on recorded_at (inclusive)")
     mc.add_argument("--until", default=None, help="ISO-8601 upper bound on recorded_at (inclusive)")
+    mt = metrics_sub.add_parser(
+        "tokens",
+        help="Per-tool token aggregates (p50/p90) over last N sessions from .tausik/token_metrics.jsonl",
+    )
+    mt.add_argument(
+        "--last",
+        type=int,
+        default=10,
+        help="Window size — last N distinct sessions (default: 10)",
+    )
+    mt.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Emit machine-readable JSON instead of formatted table",
+    )
     sub.add_parser("hud", help="Live dashboard")
     sub.add_parser("suggest-model", help="Suggest Claude model for complexity").add_argument(
         "complexity", nargs="?", default=None

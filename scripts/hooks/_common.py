@@ -10,13 +10,12 @@ import sys
 
 
 _TASK_DONE_TOOL_NAMES = (
+    # v14b-task-done-rename-drop-v2: single MCP tool name. The v2 variant was
+    # an interim alias from 1.3.7–1.4 while we proved out the structured-JSON
+    # return contract; the rename consolidated both into a single
+    # `tausik_task_done` returning structured JSON.
     "mcp__tausik-project__tausik_task_done",
     "tausik_task_done",
-    # v1.4: also cover the v2 structured-response variant (added in 1.3.7
-    # MCP servers as `tausik_task_done_v2`). When v2 is promoted to the
-    # default skill path the original matcher would silently fall off.
-    "mcp__tausik-project__tausik_task_done_v2",
-    "tausik_task_done_v2",
 )
 
 # Match actual CLI shape: `.tausik/tausik task done <slug>` or `tausik task done <slug>`

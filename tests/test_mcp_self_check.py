@@ -1,8 +1,9 @@
 """Tests for the MCP project server's self-check diagnostic.
 
 Covers v14b-mcp-stale-module-detector — detection of stale in-memory
-modules that cause silent hangs in `tausik_verify` /
-`tausik_task_done_v2` (gotchas #77 / #79 / #80).
+modules that cause silent hangs in `tausik_verify` / `tausik_task_done`
+(gotchas #77 / #79 / #80; the rename in v14b-task-done-rename-drop-v2
+consolidated `tausik_task_done_v2` back into `tausik_task_done`).
 """
 
 from __future__ import annotations
@@ -185,3 +186,56 @@ def test_handler_returns_json_envelope(self_check_mod):
     parsed = json.loads(raw)
     assert parsed["server"] == "tausik-project"
     assert "drift_detected" in parsed
+
+
+def test_enumerate_excludes_parent_pid_venv_launcher(self_check_mod, monkeypatch, tmp_path):
+    """Regression for v14b-defect-mcp-self-check-venv-launcher.
+
+    On Windows, `venv\\Scripts\\python.exe` is a launcher shim that re-execs
+    the real interpreter as a child while keeping the same command line. The
+    parent therefore matches the same `mcp/project/server.py` + project
+    needle as the child and would otherwise count as a "sibling MCP",
+    producing a chronic +1 false-positive after every IDE restart. Fix:
+    `_enumerate_sibling_mcps` must exclude `os.getppid()` from the candidate
+    set on every introspection backend (wmic, PowerShell, /proc, ps).
+    """
+    import subprocess
+
+    self_pid = 47332
+    parent_pid = 30968
+    real_sibling_pid = 99999
+    project_str = str(tmp_path).replace("\\", "/")
+
+    monkeypatch.setattr(self_check_mod.os, "getpid", lambda: self_pid)
+    monkeypatch.setattr(self_check_mod.os, "getppid", lambda: parent_pid)
+    # Force the PowerShell branch (modern Windows) by making wmic appear absent.
+    cmd_line = f"python.exe .claude/mcp/project/server.py --project {project_str}"
+    ps_stdout = "\n".join(
+        [
+            f"{parent_pid}|{cmd_line}",  # venv shim parent — must be skipped
+            f"{self_pid}|{cmd_line}",  # self — must be skipped
+            f"{real_sibling_pid}|{cmd_line}",  # actual leak — must be counted
+        ]
+    )
+
+    def fake_run(cmd, *args, **kwargs):
+        first = cmd[0] if cmd else ""
+        if first == "wmic":
+            raise FileNotFoundError("wmic absent (simulated)")
+        if first == "powershell":
+            return subprocess.CompletedProcess(args=cmd, returncode=0, stdout=ps_stdout, stderr="")
+        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(self_check_mod.sys, "platform", "win32")
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    out = self_check_mod._enumerate_sibling_mcps(self_pid, str(tmp_path))
+
+    assert out["error"] is None
+    assert parent_pid not in out["pids"], (
+        "venv launcher shim parent PID leaked into sibling list — "
+        "v14b-defect-mcp-self-check-venv-launcher regressed."
+    )
+    assert self_pid not in out["pids"]
+    assert real_sibling_pid in out["pids"]
+    assert out["count"] == 1

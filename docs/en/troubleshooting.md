@@ -2,9 +2,28 @@
 
 Machine-readable guide: error → diagnosis → fix.
 
+## Prompt caching not active
+
+Symptom: token cost per session grows faster than expected; the LLM bill shows
+almost all input as plain `input_tokens` rather than `cache_read_input_tokens`.
+Check with `python scripts/validate_prompt_caching.py --auto` (or pass a JSONL
+path). Exit code 2 = API never returns cache fields; exit code 1 =
+`cache_creation > 0` but `cache_read = 0` (every turn re-caches the prefix).
+
+| Symptom | Diagnosis | Fix |
+|---|---|---|
+| `validate_prompt_caching.py` exit=2 (no cache fields) | Current client / endpoint does not request caching | Use the official Claude Code (caching on by default). For third-party wrappers, verify they send `cache_control` on at least system prompt + tools. |
+| Exit=1 (creation > 0, reads = 0) | Prefix unstable — something is changing between turns | See the invalidator list below. |
+| `cache_read_input_tokens` drops to zero mid-session | `tausik_update_claudemd` rewrote the dynamic CLAUDE.md block | Do not run `update_claudemd` between tool calls; keep it on session boundaries (`/start`, `/checkpoint`, `/end`). |
+| Low hit-rate (<50%) even without CLAUDE.md edits | A `SKILL.md` or MCP `tools.py` was edited in the worktree between turns | After editing any agent artifact, restart MCP / IDE — the prior prefix is already invalidated; continuing the session is pointless cache-wise. |
+| Want a live hit-rate read | — | Run `python scripts/validate_prompt_caching.py --auto` after a long session. `usage` blocks are already in `~/.claude/projects/<slug>/*.jsonl`. |
+
+See [architecture.md](architecture.md) "Prompt Caching" section for the
+cacheable-surface list and which edits rewrite the prefix.
+
 ## Stale MCP modules (silent hangs)
 
-Symptom: `tausik_verify` or `tausik_task_done_v2` never returns. CLI works
+Symptom: `tausik_verify` or `tausik_task_done` never returns. CLI works
 fine. The MCP server is running stale Python modules — usually because the
 user (or bootstrap) edited service code AFTER the IDE opened, and the IDE
 never respawned the MCP child. Multiple MCP project servers for the same
@@ -18,7 +37,7 @@ project are also a strong signal (each prior IDE window leaks one).
 | `tausik_self_check` returns `error: self_check unavailable` | The running MCP server predates this diagnostic (older than v1.4 polish) | Restart IDE so the new server boots; the diagnostic is registered on fresh startups only. |
 
 Companion gotchas in `.tausik/tausik.db`: #77 (verify hang after editing
-`service_verification.py`/`gate_runner.py`), #79 (`task_done_v2` hang on
+`service_verification.py`/`gate_runner.py`), #79 (`task_done` hang on
 large evidence), #80 (root cause = stale modules + sibling MCP servers).
 The Verify-First Contract's 60 s envelope timeout
 (`verify_pipeline_timeout_seconds`) catches new servers; stale ones loaded
@@ -70,9 +89,9 @@ their code BEFORE that timer was added and ignore it.
 | MCP tool not found / unavailable | `.mcp.json` missing or wrong paths | Re-run `python bootstrap/bootstrap.py` to regenerate `.mcp.json` |
 | `raven_briefing` returns error | Raven not running or wrong project | Check `.tausik/tausik brain health` |
 | MCP server crashes on start | Wrong Python path in `.mcp.json` | Re-run `python bootstrap/bootstrap.py` to regenerate `.mcp.json` with correct paths |
-| `task_done` hangs / times out in VS Code Claude Extension | Heavy gates (pytest, tsc) ran inline, host killed call at the per-tool timeout | v1.4 Verify-First Contract: call `tausik_verify` first (streams progress, host can interrupt), then `tausik_task_done_v2` reads cache and closes in milliseconds. See [Host limits](#host-limits-task_done-ux). |
+| `task_done` hangs / times out in VS Code Claude Extension | Heavy gates (pytest, tsc) ran inline, host killed call at the per-tool timeout | v1.4 Verify-First Contract: call `tausik_verify` first (streams progress, host can interrupt), then `tausik_task_done` reads cache and closes in milliseconds. See [Host limits](#host-limits-task_done-ux). |
 | `task_done` returns generic timeout error, no traceback | Old MCP server (pre 1.4) swallowed exceptions to single-line text | Update MCP server: `python bootstrap/bootstrap.py` (1.4 prints traceback to stderr). |
-| Agent ignores `tausik_task_done_v2`, calls v1 every time | MCP server bundled in project predates 1.3.7 | Update bootstrap; v2 is published next to v1 since 1.3.7 and is the preferred QG-2 entrypoint. |
+| Agent ignores `tausik_task_done`, calls v1 every time | MCP server bundled in project predates 1.3.7 | Update bootstrap; v2 is published next to v1 since 1.3.7 and is the preferred QG-2 entrypoint. |
 
 ## Host limits & `task_done` UX
 
@@ -80,11 +99,11 @@ The TAUSIK MCP servers run inside an IDE host (VS Code Claude Extension, JetBrai
 
 **Workflow (preferred):**
 1. `tausik_verify(task_slug=…)` — runs heavy gates (pytest, tsc, cargo, phpstan, …), streams progress, the user can interrupt cleanly. Result is cached for 10 minutes.
-2. `tausik_task_done_v2(slug=…, ac_verified=True, relevant_files=[…])` — reads the cache, closes the task in milliseconds. Returns structured JSON (`stage`, `gate_results`, `blocking_failures`).
+2. `tausik_task_done(slug=…, ac_verified=True, relevant_files=[…])` — reads the cache, closes the task in milliseconds. Returns structured JSON (`stage`, `gate_results`, `blocking_failures`).
 
 **Opt-out (CI / batch runs):** add `{ "task_done": { "auto_verify": true } }` to `.tausik/config.json`. `task_done` will run the heavy gates inline like in 1.3 — fine outside an interactive host where there is no per-tool timeout.
 
-**`task_done_v2` vs `task_done`:** when the bundled MCP server publishes both, skills (`/ship`, `/task`) call `tausik_task_done_v2` for the structured response. Older bundles fall back to legacy `tausik_task_done` (single aggregated error string in 1.4). Both honour the Verify-First Contract and read the same cache.
+**`task_done` vs `task_done`:** when the bundled MCP server publishes both, skills (`/ship`, `/task`) call `tausik_task_done` for the structured response. Older bundles fall back to legacy `tausik_task_done` (single aggregated error string in 1.4). Both honour the Verify-First Contract and read the same cache.
 
 **Streaming progress (v1.4):** when `task done` runs gates inline (`auto_verify=true` or interactive `tausik task done`), `gate_runner` emits a `run_start` progress event up-front with `total` (gate count) and `max_seconds` (sum of per-gate timeouts) so MCP hosts can render an ETA before pytest blocks the channel. The CLI handler maps this to one stderr line per event:
 
@@ -120,7 +139,7 @@ The current extension build kills any single MCP tool call that runs longer than
 | Tool | Pre-1.4 behavior | v1.4 mitigation |
 |---|---|---|
 | `tausik_task_done` | Ran pytest/tsc/cargo inline → 60s+ on big repos → killed → generic timeout error | **Verify-First Contract**: refuses to close until `tausik_verify` ran. Verify streams stderr progress, the user can stop it, and its result is cached for 10 min. Then `task done` reads cache and finishes in <100ms. |
-| `tausik_task_done_v2` | (didn't exist) | Same Verify-First Contract, returns structured JSON instead of single error string. Skills (`/ship`, `/task`) prefer it. |
+| `tausik_task_done` | (didn't exist) | Same Verify-First Contract, returns structured JSON instead of single error string. Skills (`/ship`, `/task`) prefer it. |
 | `codebase-rag.reindex` (full) | Walked every file silently → host killed at 60s | Accepts `max_seconds` soft limit; emits `[rag] indexed X/Y files...` to stderr every 100 files. Default mode is `incremental` — only files changed since `last_commit`. |
 | `tausik_verify` | (introduced 1.4) | The intended foreground heavy-work entrypoint. Streams progress; the user sees what's happening; the host doesn't time out as long as we keep emitting bytes within its idle threshold. |
 
@@ -131,7 +150,7 @@ For routine task closure in VS Code Claude Extension:
 1. Skill or agent calls `tausik_verify(task_slug=...)` **first**. This is the only place pytest/tsc/etc. are allowed to run inline.
 2. The user sees streaming progress and can intervene (Ctrl-C is delivered to the MCP process).
 3. On green, `tausik_verify` writes a `verification_runs` row.
-4. Skill calls `tausik_task_done_v2(task_slug=..., relevant_files=[...], ac_verified=true)`.
+4. Skill calls `tausik_task_done(task_slug=..., relevant_files=[...], ac_verified=true)`.
 5. `task_done` checks the cache (≤10 min old, same `files_hash`, same gate signature), confirms green, and closes within ~100ms.
 6. If the cache lookup fails, `task_done` returns a structured error explaining exactly which gate is missing — *not* a transport timeout.
 

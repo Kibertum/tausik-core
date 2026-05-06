@@ -29,7 +29,7 @@ Review + test + verify + commit + close — one operation.
 8. **Commit via `/commit` skill.** Read `agents/skills/commit/SKILL.md`, follow its full algorithm. Reference task slug in body. Commit fails → STOP, do NOT close task.
 
 9. **Close task.** Only after successful commit + step 6 green.
-   - Preferred: `tausik_task_done_v2(slug, ac_verified=true, relevant_files=[...])`
+   - Preferred: `tausik_task_done(slug, ac_verified=true, relevant_files=[...])`
    - Legacy fallback: `tausik_task_done` with same args.
    - If you skipped step 6 on verify-trigger gates, close refuses — go run verify first.
 

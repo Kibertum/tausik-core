@@ -1,25 +1,31 @@
 [English](../en/session-active-time.md) | **Русский**
 
-# Session Active Time (v1.3)
+# Session Active Time (v1.4)
 
-SENAR Rule 9.2 ограничивает сессию **180 минутами**. В v1.3 эти 180 — **active time**, не wall-clock: паузы не учитываются. Эта страница объясняет, как измеряется active time, почему изменилось, и как тюнить threshold.
+SENAR Rule 9.2 ограничивает сессию **180 минутами**. В v1.4 эти 180 — **active time**, не wall-clock: длинные паузы клипуются до threshold'а вместо того, чтобы их выбрасывать. Эта страница объясняет алгоритм, semantics-выбор (clip vs exclude), и как тюнить threshold.
 
 ## Зачем active time
 
-Wall clock наказывает за естественные перерывы. Сессия, которая стартует в 09:00, паузится на часовой митинг и продолжается в 11:00, упёрлась бы в "120 min" без того, чтобы агент сделал 120 min работы. v1.3 это фиксит, считая **gap-based active time**: время, когда агент реально что-то делал.
+Wall clock наказывает за естественные перерывы. Сессия, которая стартует в 09:00, паузится на часовой митинг и продолжается в 11:00, упёрлась бы в "120 min" без того, чтобы агент сделал 120 min работы. v1.3+ это фиксит, считая **gap-based active time**: bounded sum интервалов между tool calls.
 
 ## Алгоритм
 
-Каждый tool call пишет строку в `session_activity` (через PostToolUse-хук `activity_event.py`). Active time — сумма интервалов между последовательными activity-таймстемпами, где gap **меньше idle threshold'а**.
+Каждый tool call пишет строку в `events` (через PostToolUse-хук `activity_event.py`). Active time — сумма **bounded** интервалов между последовательными timestamps:
 
 ```
-events:    t1   t2   t3 ----- (gap ≥ idle) ----- t4   t5
-intervals: [t1..t2] + [t2..t3] + [t4..t5]
-active     = sum of those intervals
-wall       = last_event - first_event
+active_seconds = Σ min(t[i+1] − t[i], idle_threshold_seconds)
 ```
 
-Если gap между двумя последовательными событиями ≥ `session_idle_threshold_minutes` (default **10 min**), gap трактуется как **AFK** и выбрасывается из суммы.
+Каждый gap клипуется до `idle_threshold` (default **600 секунд / 10 минут**). Длинный AFK gap (например, 3 часа) добавляет ровно threshold к active — этого достаточно, чтобы кредитнуть "агент только что работал перед паузой", но не настолько много, чтобы съесть всё окно Rule 9.2.
+
+```
+events:    t1   t2   t3 ---(huge gap)--- t4   t5
+intervals: Δ1   Δ2   Δ3(clipped→10m)     Δ4
+active     = Δ1 + Δ2 + 10m + Δ4
+wall       = t5 − t1
+```
+
+**v1.4-полишинг (v14b-session-active-time)** переключил semantics с "exclude" (gap≥threshold → 0) на "clip" (gap≥threshold → threshold). Clip консервативнее: длинная AFK всё равно тратит ~10 мин против лимита, и агент не получает "бесплатно" сессии длиной в дни.
 
 ## Конфигурация threshold
 

@@ -9,8 +9,205 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased] — v1.4.0 polish (Phase B)
 
+### Added
+
+- **AIDD project scaffold (`v14b-aidd-scaffold-basic`).** New CLI subcommand
+  `tausik init --template aidd` copies three layered templates —
+  `idea.md`, `vision.md`, `conventions.md` — from `agents/aidd-templates/`
+  (path will move to `harness/aidd-templates/` when `v14b-rename-harness`
+  lands) into the current project root. Conflict detection: each existing
+  file triggers a 4-option prompt (overwrite / merge-append / skip /
+  abort-all); empty input or unknown choice defaults to skip with a
+  warning. `--force` bypasses prompting and overwrites every conflict.
+  `merge-append` preserves the user's existing content and appends the
+  template under a `<!-- merged from AIDD template -->` marker. New
+  `scripts/project_cli_aidd.py` module (handler), `scripts/project_parser.py`
+  + `scripts/project_cli.py` extended with `--template` / `--force`.
+  v1.5 follow-ups recorded as stories under epic `v15-cross-ide-parity`:
+  `v15-aidd-autogen` (autogen `vision.md` from existing code) and
+  `v15-aidd-ai-validation` (drift detection between AIDD layers and
+  shipped code). Tests (`tests/test_aidd_scaffold.py`): 14 cases —
+  resolve-choice mapping (empty / first-letter / unknown), template-name
+  whitelist, scaffold scenarios (clean dir, partial conflict, full
+  conflict default-skip, `--force` overwrites all without prompt,
+  explicit `o` / `m` choices, `abort-all` short-circuits remaining files),
+  CLI dispatch (unknown template → exit 2 + stderr; happy path → exit 0).
+  Smoke-tested end-to-end via `python scripts/project.py init --template aidd`
+  in a clean tmp dir. Docs: `docs/en/cli.md` + `docs/ru/cli.md` document
+  the new flags and conflict-prompt semantics.
+
+- **Prompt-caching validation script + docs (`v14b-token-t13-prompt-caching-docs`).**
+  New `scripts/validate_prompt_caching.py` parses a Claude Code transcript
+  JSONL (`--auto` finds the latest, or pass an explicit path) and reports
+  `cache_creation_input_tokens`, `cache_read_input_tokens`, hit rate, and a
+  classification: exit 0 = caching active, 1 = prefix unstable (creation
+  but no reads), 2 = API never returned cache fields, 64 = bad CLI / file
+  not found. New `docs/{en,ru}/architecture.md` "Prompt Caching" section
+  enumerates the cacheable surface (system prompt + tool schemas, CLAUDE.md,
+  MCP tool descriptions, SKILL.md) and the invalidators (chiefly
+  `tausik_update_claudemd` mid-session). New `docs/{en,ru}/troubleshooting.md`
+  "Prompt caching not active" entry maps low / zero hit-rate symptoms to
+  causes (third-party wrapper not sending `cache_control`, mid-session
+  CLAUDE.md edit, agent artifacts edited in worktree). Hard prerequisite
+  for `v14b-baseline-token-metrics` — that task measures tokens, this one
+  pins down whether the measurement is coming from a stable cache regime
+  or a noisy one. Tests: `tests/test_validate_prompt_caching.py` covers
+  the parser (extracts both fields, handles missing fields, top-level
+  vs nested usage, blank lines, explicit-zero cache field still counted),
+  the classifier (3 exit-code states), and CLI dispatch (missing file,
+  no args, active-cache happy path). 11 tests pass; mypy clean.
+
+### Changed
+
+- **Session active-time switched from "exclude" to "clip" semantics
+  (`v14b-session-active-time`).** `compute_active_minutes` (and the new
+  `compute_active_seconds` companion) used to drop any inter-tool-call
+  gap ≥ `idle_threshold` from the active sum (gap → 0 contribution). The
+  bounded-deltas intent in SENAR Rule 9.2 was always "each gap counts
+  for at most threshold seconds", so a multi-day session that briefly
+  works once a day would otherwise log near-zero active time and never
+  trip the 180-min limit. v1.4 polish flips the SQL CASE branch from
+  `THEN 0` to `THEN ?` (clipped to `idle_threshold_seconds`): a long
+  AFK now contributes exactly `idle_threshold` (default 600 s / 10 min)
+  to the active sum. Sub-minute precision exposed via
+  `backend_session_metrics.compute_active_seconds`,
+  `service_session_metrics.session_active_seconds`,
+  `ProjectService.session_active_seconds`, and a new `active_seconds`
+  field in both `tausik_status` MCP responses (claude + cursor handlers)
+  alongside the existing `active_minutes`. `recompute_all_sessions`
+  now also returns `active_seconds` per row. **Behavior change:**
+  sessions that previously logged a 0-min "long AFK gap" will now
+  show `~10 min` more active each — Rule 9.2 will now correctly enforce
+  the 180-min budget on sessions that were previously under-counted.
+  Tests: `test_backend_session_metrics::TestComputeActiveSeconds` adds
+  9 cases covering AC scenarios (a) short session, (b) 30-min gap clipped,
+  (c) 180-min triggers warning, plus negative scenarios (no events,
+  long AFK keeps active low, non-monotonic timestamps best-effort,
+  sub-minute precision, minutes-wrapper rounding). Existing
+  `test_gap_above_threshold_excluded` renamed `_clipped_not_excluded`
+  with assertion flipped from 10 → 20 min. `test_custom_threshold` updated:
+  threshold-bound gap now contributes the threshold value (5 min), not 0.
+  Docs: `docs/{en,ru}/session-active-time.md` rewritten around clip
+  formula `Σ min(Δ, idle_threshold)`; `senar-compliance-matrix.md`
+  + `agent-contract.md` (RU) Rule 9.2 row updated. 24 backend-metric
+  tests + full fast lane pass.
+
+- **`tausik_task_done_v2` MCP tool dropped — single `tausik_task_done`
+  returns the structured JSON dict
+  (`v14b-task-done-rename-drop-v2`).** The interim `_v2` alias added in
+  1.3.7 (when the structured-JSON contract was being proven out) caused
+  ongoing confusion: skills shipped fallback prose ("call v2; if absent,
+  fall back to v1"), `/troubleshooting.md` had a whole "v2 vs v1" entry,
+  and the PostToolUse matcher carried both names. Consolidation: the
+  single MCP tool is `tausik_task_done` and it always returns the
+  structured-response dict (`ok`, `gates`, `blocking_failures`,
+  `cache_status`, …). Internal: `service_task.py::task_done_v2` method
+  removed; the str-returning `task_done()` wrapper kept for the CLI
+  command (`scripts/project_cli.py`) — backward compatible there.
+  `agents/{claude,cursor}/mcp/project/handlers.py::_do_task_done` now
+  calls `_task_done_report()` directly and JSON-encodes; `_do_task_done_v2`
+  removed from both handlers and the `_DISPATCH` table; `tools.py` drops
+  the duplicate `tausik_task_done_v2` tool definition (project tool count:
+  93 → 92, total with brain: 100 → 99). `bootstrap_hooks.py` PostToolUse
+  matcher: `tausik_task_done|tausik_task_done_v2` → `tausik_task_done`.
+  `scripts/hooks/_common.py::_TASK_DONE_TOOL_NAMES` simplified to the two
+  canonical forms only. Tests: `tests/test_task_done_v2_matcher.py` →
+  renamed `test_task_done_matcher.py`, asserts no `_v2` alias remains;
+  `test_project_mcp.py::test_task_done_v2_returns_structured_json` →
+  `test_task_done_returns_structured_json` against the canonical name;
+  `test_mcp_integration.py` and `test_verify_first_contract.py` updated.
+  Skills (`/task`, `/ship` SKILL.md + variants/{haiku,sonnet}.md) drop
+  the "fall back to legacy v1" guidance; docs (`mcp.md`, `troubleshooting.md`,
+  `quickstart.md`, `hooks.md` EN+RU + AGENTS.md + QWEN.md + READMEs)
+  scrubbed of `_v2` mentions and tool counts updated (100 → 99,
+  107 → 106 with codebase-rag). **Breaking** for any agent or third-party
+  tool that called `mcp__tausik-project__tausik_task_done_v2` directly —
+  switch to `mcp__tausik-project__tausik_task_done` (same input schema,
+  same structured-JSON return). Tests: 2741 passed, 7 skipped, 118 deselected.
+
 ### Fixed
 
+- **`tausik_self_check.sibling_mcp_count` chronic +1 false-positive on
+  Windows venv (`v14b-defect-mcp-self-check-venv-launcher`,
+  defect_of=`v14b-mcp-stale-module-detector`).** Every IDE restart left
+  `sibling_mcp_count=1` even on a clean machine, repeatedly nudging the
+  user toward "Restart your IDE" — the same symptom we'd been treating
+  as real for sessions #49/#50/#51. Root cause: on Windows
+  `venv\Scripts\python.exe` is a launcher SHIM that re-execs the real
+  interpreter (`C:\Python311\python.exe`) as a CHILD process while
+  keeping the same `CommandLine`; the parent therefore matches the same
+  `mcp/project/server.py --project <project>` filter as the child and
+  gets counted as a "sibling MCP". POSIX rarely shows this shape (venv
+  resolves the real interpreter PID directly), but the guard is uniform.
+  Fix: `_enumerate_sibling_mcps` captures `os.getppid()` at entry and
+  excludes that PID from every introspection backend (wmic, PowerShell
+  `Get-CimInstance`, `/proc` walk, `ps -A` fallback). Mirrored to
+  `agents/cursor/mcp/project/self_check.py`. Regression test:
+  `tests/test_mcp_self_check.py::test_enumerate_excludes_parent_pid_venv_launcher`
+  mocks the PowerShell branch with three rows (parent + self + real
+  sibling) and asserts only the real sibling is counted. Pre-existing
+  6 self-check tests + the 2 windows-fallback tests unchanged. Project
+  memory: gotcha #87 already documents the venv-launcher mechanism.
+- **MCP `task_done_v2` 10-second silent hang — root cause after 5-day
+  investigation (`v14b-defect-mcp-task-done-stdin-hang`).** `tausik_task_done_v2`
+  consistently spent ~10s in the cache-lookup path before returning, observed
+  for sessions #47–#51 across multiple users. Prior fixes (`tausik_self_check`
+  diagnostics in `v14b-mcp-stale-module-detector`, wmic→PowerShell fallback in
+  `v14b-defect-mcp-self-check-windows-fallback`) treated peripheral symptoms —
+  none caught this real cause. Root cause traced via in-MCP timing probes:
+  `is_declared_consistent_with_git_diff` in `scripts/verify_git_diff.py` calls
+  `subprocess.run(["git", "log", "--since=...", ...], capture_output=True,
+  timeout=10)` and `git diff --name-only HEAD`. `subprocess.run` with
+  `capture_output=True` does NOT redirect stdin — the child inherits the
+  parent's stdin. Inside the MCP project server's `asyncio.to_thread` worker,
+  stdin IS the JSON-RPC pipe to the IDE. On Windows, git blocks reading from
+  that pipe (paginator probe / credential prompt detection / generic stdin
+  handling) until the 10s timeout fires; the except branch then defensively
+  returns `None` and `is_declared_consistent_with_git_diff` returns `True`
+  (its "git failed → assume cache OK" fallback), masking the hang as a
+  successful-but-slow `cache_status=hit`. Fix: add `stdin=subprocess.DEVNULL`
+  to the affected `subprocess.run` calls. Empirical measurement: MCP
+  `task_done_v2` dropped from 10031ms to 63ms — **159× speedup** — in an
+  end-to-end JSON-RPC harness against a fresh MCP server. Patched files:
+  `scripts/verify_git_diff.py` (both git probes), `scripts/project_service.py`
+  (session_metrics spawn), `scripts/project_cli_extra.py` (git branch detection),
+  `scripts/skill_manager.py` (git pull, git clone, pip install). All four are
+  reachable from the MCP project server's worker thread. Tests:
+  `tests/test_verify_git_diff_stdin.py` (NEW) asserts `subprocess.run` is
+  invoked with `stdin=subprocess.DEVNULL` on both git probes — protects
+  against regression. Project memory: gotcha #88 documents the rule
+  ("subprocess.run inside MCP worker MUST pass `stdin=subprocess.DEVNULL`")
+  and detection recipe (grep for `subprocess\.(run|Popen)\(` lacking `stdin=`,
+  triage by reachability from MCP handlers). Decision #56 sets the convention
+  project-wide. **Lesson** (saved as gotcha): diagnostic toolchains can mask
+  bugs that look like timeouts — when a 10s ceiling is suspicious, audit for
+  defensive except-branches that swallow `subprocess.TimeoutExpired`.
+- **Brain-enabled-but-misconfigured silent fallback
+  (`v14b-defect-brain-decisions-empty`).** When `.tausik/config.json` had
+  `brain.enabled=true` but `database_ids` were empty (or token env unset),
+  `tausik_decide` silently fell back to local SQLite with a quiet "brain
+  write failed: config_error: brain.database_ids.decisions is empty"
+  reason. Users accumulated local-only decisions that should have been
+  mirrored to Notion without realising their brain config was broken. Root
+  cause: `brain_config.validate_brain()` existed and detected the issue,
+  but no production code called it — only tests. Fix: (1)
+  `service_knowledge.decide()` now invokes `validate_brain()` before any
+  brain write attempt; on validation errors it still saves the decision
+  locally (data preservation) but returns a LOUD multi-line warning
+  prefixed with `⚠ Decision #N saved LOCALLY ONLY — brain mirror BLOCKED`,
+  enumerates each config error, and gives explicit fix paths (`tausik
+  brain init` OR `brain.enabled=false`) plus a `tausik brain move
+  --to-brain` migration hint for accumulated local-only decisions. (2)
+  `tausik doctor` gains a `Brain config` health row that surfaces
+  `validate_brain()` errors at health-check time so misconfiguration is
+  visible before the user makes any decisions. Tests:
+  `tests/test_service_knowledge_decide.py` +1 case
+  (`test_brain_enabled_with_empty_database_ids_returns_loud_warning`);
+  three existing brain-enabled tests now also patch `validate_brain` to
+  return `[]` (testing the post-validation path). One-time gap: existing
+  local-only decisions from this defect are not auto-migrated — fix the
+  config, then run `tausik brain move --to-brain` per decision (or per
+  category) to backfill Notion.
 - **Self-check sibling enumeration on Windows 11 24H2+ + remediation
   false-positive on `count=-1` (`v14b-defect-mcp-self-check-windows-fallback`,
   defect_of=`v14b-mcp-stale-module-detector`).** First live run of

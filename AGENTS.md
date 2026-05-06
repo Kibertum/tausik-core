@@ -41,12 +41,12 @@ Same governance everywhere; only the **wrapper** (hooks vs self-serve) changes. 
 
 | Model / host | Primary TAUSIK surface | Main `tausik_*` tools (two servers) | Notes |
 |----------------|------------------------|-------------------------------------|------|
-| Claude (Code, VS Code Extension) | MCP `tausik-project` + `tausik-brain` | **100** (93 project + 7 brain) | Hooks + MCP |
+| Claude (Code, VS Code Extension) | MCP `tausik-project` + `tausik-brain` | **99** (92 project + 7 brain) | Hooks + MCP |
 | Cursor / Composer / GPT-5.5+ / OpenCode | Same MCP (project MCP config); CLI fallback `.tausik/tausik` | **99** (92+7) | Rule 1 self-serve if no hooks |
 | Qwen Code | MCP + skills under `.qwen/skills/` | **99** (92+7) | Subset of hooks |
 | Codex CLI / headless agents | Prefer MCP if exposed; else mirror CLI | **99** (92+7) | [docs/en/cli.md](docs/en/cli.md) |
 
-**Optional `codebase-rag` server:** +7 tools → **107** total with the main two servers (not part of the 100 baseline). Same numbers as the header in [docs/en/mcp.md](docs/en/mcp.md).
+**Optional `codebase-rag` server:** +7 tools → **106** total with the main two servers (not part of the 99 baseline). Same numbers as the header in [docs/en/mcp.md](docs/en/mcp.md).
 
 **Operating contract for non-Claude models:**
 
@@ -54,8 +54,8 @@ Same governance everywhere; only the **wrapper** (hooks vs self-serve) changes. 
 2. **No slash commands → read the SKILL files.** If your host doesn't expand `/ship`, open `agents/skills/ship/SKILL.md` and execute its numbered steps. Skills are deliberately written as procedures, not as host-specific magic.
 3. **Don't touch `~/.claude/`.** It's a Claude-specific profile. Use the project DB (`.tausik/tausik.db`) via `tausik_memory_*` MCP tools or the local file under `CLAUDE_PLUGIN_DATA` if it is set.
 4. **Self-enforce Rule 1 in Cursor.** No PreToolUse hook means nothing prevents you from editing files outside an active task. Always start with `tausik_task_start` (or `tausik_task_quick` for the rapid path) before any Edit/Write.
-5. **Verify-First Contract is universal.** Call `tausik_verify` before `tausik_task_done_v2`, exactly like Claude Code does. The 60s per-MCP-tool timeout that VS Code Claude Extension applies is the strictest case; if you keep heavy work inside `verify`, every other host stays in budget too.
-6. **`task_done_v2` over `task_done`.** Whenever the MCP server publishes `tausik_task_done_v2`, prefer it — the structured JSON response is much friendlier to non-Claude tool-use loops that expect typed payloads.
+5. **Verify-First Contract is universal.** Call `tausik_verify` before `tausik_task_done`, exactly like Claude Code does. The 60s per-MCP-tool timeout that VS Code Claude Extension applies is the strictest case; if you keep heavy work inside `verify`, every other host stays in budget too.
+6. **`tausik_task_done` returns structured JSON.** v14b consolidated the prior `tausik_task_done_v2` alias back into the canonical `tausik_task_done` — the response is always the structured-JSON dict (`ok`, `gates`, `blocking_failures`, `cache_status`). Non-Claude tool-use loops parse it directly.
 
 ## The Rules You Must Follow
 
@@ -84,7 +84,7 @@ Details, anti-patterns, fake-test detector list: **[docs/en/testing-principles.m
 
 ## Work Cycle
 
-Abbreviated spine: session open (`/start` ↔ `agents/skills/start/SKILL.md` + `tausik_session_*`) → plan (`/plan`, `task_quick`) → **`tausik_task_start` (QG-0)** → implement + `tausik_task_log`/`tausik_dead_end` → **`tausik_verify`** → **`tausik_task_done` / `tausik_task_done_v2` (QG‑2)** → optional `/ship` → `/end`.
+Abbreviated spine: session open (`/start` ↔ `agents/skills/start/SKILL.md` + `tausik_session_*`) → plan (`/plan`, `task_quick`) → **`tausik_task_start` (QG-0)** → implement + `tausik_task_log`/`tausik_dead_end` → **`tausik_verify`** → **`tausik_task_done` (QG‑2)** → optional `/ship` → `/end`.
 
 Canonical narrative + branching detail: **[docs/en/workflow.md](docs/en/workflow.md)** — keep that file authoritative; this header only orients newcomers.
 
@@ -96,7 +96,7 @@ Canonical narrative + branching detail: **[docs/en/workflow.md](docs/en/workflow
 | **CLI command reference** | [docs/en/cli.md](docs/en/cli.md) (EN) / [docs/ru/cli.md](docs/ru/cli.md) (RU) |
 | **Architecture & internals** | [docs/en/architecture.md](docs/en/architecture.md) (EN) / [docs/ru/architecture.md](docs/ru/architecture.md) (RU) |
 | **Testing principles (scoped pytest, when to add tests)** | [docs/en/testing-principles.md](docs/en/testing-principles.md) (EN) / [docs/ru/testing-principles.md](docs/ru/testing-principles.md) (RU) |
-| **MCP tools (93 project + 7 brain = 100; verify-first contract)** | [docs/en/mcp.md](docs/en/mcp.md) |
+| **MCP tools (92 project + 7 brain = 99; verify-first contract)** | [docs/en/mcp.md](docs/en/mcp.md) |
 | **Skills reference (12 core + brain conditional, 25+ official opt-in)** | [docs/en/skills.md](docs/en/skills.md) |
 | **Quality gates** | [docs/en/hooks.md](docs/en/hooks.md) |
 | **User-facing docs index** | [docs/README.md](docs/README.md) |
@@ -112,7 +112,7 @@ agents/            Shared resources for all IDEs
   roles/           5 role profiles (developer, architect, qa, tech-writer, ui-ux)
   stacks/          25 stack guides (python, react, go, rust, ansible, terraform, ...)
   overrides/       IDE-specific overrides (claude/, cursor/, qwen/)
-  claude/mcp/      tausik-project (93) + tausik-brain (7) = 100 main; optional codebase-rag +7 → 107 total — see docs/en/mcp.md
+  claude/mcp/      tausik-project (92) + tausik-brain (7) = 99 main; optional codebase-rag +7 → 106 total — see docs/en/mcp.md
 bootstrap/         One-command project setup
 tests/             pytest suite (2590 tests)
 .tausik/           Runtime data (DB, config) — gitignored

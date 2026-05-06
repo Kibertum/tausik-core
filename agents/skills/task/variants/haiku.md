@@ -22,7 +22,7 @@ Work on tasks from project DB. **Never code without `task start` first.**
   - `tausik_task_show(slug)` — verify plan complete
   - Walk AC, log evidence: `tausik_task_log(slug, "AC verified: 1. ✓ ... 2. ✓ ...")`
   - `tausik_verify(task_slug=slug)` — must pass before close
-  - Close: `tausik_task_done_v2(slug, ac_verified=true, relevant_files=[...])` (preferred) or `tausik_task_done` (legacy fallback)
+  - Close: `tausik_task_done(slug, ac_verified=true, relevant_files=[...])` (preferred) or `tausik_task_done` (legacy fallback)
 
 ## $ARGUMENTS = "list"
 
@@ -41,7 +41,7 @@ Work on tasks from project DB. **Never code without `task start` first.**
 | Tool | Required | Optional |
 |---|---|---|
 | `tausik_task_start` | `slug` | — |
-| `tausik_task_done_v2` (preferred) | `slug` | `ac_verified`, `relevant_files`, `evidence`, `no_knowledge` |
+| `tausik_task_done` (preferred) | `slug` | `ac_verified`, `relevant_files`, `evidence`, `no_knowledge` |
 | `tausik_task_done` (legacy) | `slug` | same args |
 | `tausik_task_log` | `slug`, `message` | — |
 | `tausik_task_step` | `slug`, `step_num` (1-based) | — |

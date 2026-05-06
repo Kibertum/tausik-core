@@ -223,7 +223,6 @@ class TestMCPHandlerDispatch:
             "tausik_task_add",
             "tausik_task_start",
             "tausik_task_done",
-            "tausik_task_done_v2",
             "tausik_task_block",
             "tausik_task_unblock",
             "tausik_task_update",
@@ -371,6 +370,46 @@ class TestMCPNewToolHandlers:
 
         result = handle_tool(svc, "tausik_gates_enable", {"name": "mypy"})
         assert "enabled" in result.lower()
+
+    def test_task_list_csv_status(self, svc):
+        from handlers import handle_tool
+
+        svc.epic_add("e1", "Epic 1")
+        svc.story_add("e1", "s1", "Story 1")
+        svc.task_add("s1", "t-active", "Active task", role="developer")
+        svc.task_add("s1", "t-blocked", "Blocked task", role="developer")
+        svc.task_add("s1", "t-done", "Done task", role="developer")
+        svc.task_add("s1", "t-planning", "Planning task", role="developer")
+        svc.be.task_update("t-active", status="active")
+        svc.be.task_update("t-blocked", status="blocked")
+        svc.be.task_update("t-done", status="done")
+
+        result = handle_tool(svc, "tausik_task_list", {"status": "active,blocked"})
+        assert "t-active" in result
+        assert "t-blocked" in result
+        assert "t-done" not in result
+        assert "t-planning" not in result
+
+        result = handle_tool(svc, "tausik_task_list", {"status": "active"})
+        assert "t-active" in result
+        assert "t-blocked" not in result
+
+    def test_task_list_csv_status_schema_pattern(self):
+        from tools import TOOLS
+
+        tool = next(t for t in TOOLS if t["name"] == "tausik_task_list")
+        status_schema = tool["inputSchema"]["properties"]["status"]
+        assert "enum" not in status_schema, "status enum blocks CSV input"
+        assert "pattern" in status_schema, "status needs regex pattern for CSV validation"
+        import re
+
+        rx = re.compile(status_schema["pattern"])
+        assert rx.match("active")
+        assert rx.match("active,blocked")
+        assert rx.match("active,blocked,planning")
+        assert not rx.match("bogus")
+        assert not rx.match("active,bogus")
+        assert not rx.match("active,")
 
 
 class TestMCPCrossIDEParity:

@@ -6,7 +6,7 @@
 
 ## Stale MCP-модули (тихие зависания)
 
-Симптом: `tausik_verify` или `tausik_task_done_v2` не возвращаются. CLI той же операции работает мгновенно. MCP-сервер исполняет stale Python-модули — обычно потому, что код service-слоя редактировался ПОСЛЕ старта IDE, а MCP-дочерний процесс не перезапустился. Несколько MCP project-серверов для одного проекта — тоже жёсткий признак (каждое прошлое IDE-окно оставляет один процесс).
+Симптом: `tausik_verify` или `tausik_task_done` не возвращаются. CLI той же операции работает мгновенно. MCP-сервер исполняет stale Python-модули — обычно потому, что код service-слоя редактировался ПОСЛЕ старта IDE, а MCP-дочерний процесс не перезапустился. Несколько MCP project-серверов для одного проекта — тоже жёсткий признак (каждое прошлое IDE-окно оставляет один процесс).
 
 | Симптом | Диагноз | Фикс |
 |---|---|---|
@@ -15,7 +15,7 @@
 | `sibling_mcp_count > 0` | Несколько MCP project-серверов на одном проекте (window leak) | Закрой stale IDE-окна, затем `Get-Process python` (Windows) / `pgrep -f mcp/project/server.py` (POSIX), убей старые PID'ы. |
 | `tausik_self_check` возвращает `error: self_check unavailable` | Запущенный MCP-сервер старше этой диагностики (предшествует v1.4 polish) | Перезапусти IDE — на новом старте инструмент уже зарегистрируется. |
 
-Сопутствующие gotchas в `.tausik/tausik.db`: #77 (verify висит после правки `service_verification.py`/`gate_runner.py`), #79 (`task_done_v2` виснет на большом evidence), #80 (root cause = stale-модули + параллельные MCP-серверы). Envelope timeout (60 с, `verify_pipeline_timeout_seconds`) Verify-First Contract'а ловит новые серверы; старые загрузили свой код ДО появления envelope и игнорируют его.
+Сопутствующие gotchas в `.tausik/tausik.db`: #77 (verify висит после правки `service_verification.py`/`gate_runner.py`), #79 (`task_done` виснет на большом evidence), #80 (root cause = stale-модули + параллельные MCP-серверы). Envelope timeout (60 с, `verify_pipeline_timeout_seconds`) Verify-First Contract'а ловит новые серверы; старые загрузили свой код ДО появления envelope и игнорируют его.
 
 ## Bootstrap
 
@@ -30,9 +30,9 @@
 
 | Симптом | Диагноз | Фикс |
 |---|---|---|
-| `tausik_task_done` зависает / таймаут в VS Code Claude Extension | Тяжёлые гейты (pytest, tsc) шли inline, хост убил вызов на per-tool таймауте | v1.4 Verify-First Contract: сначала `tausik_verify` (стримит прогресс, можно прервать), затем `tausik_task_done_v2` читает кеш и закрывает за миллисекунды. См. [Лимиты хоста](#лимиты-хоста-task_done-ux). |
+| `tausik_task_done` зависает / таймаут в VS Code Claude Extension | Тяжёлые гейты (pytest, tsc) шли inline, хост убил вызов на per-tool таймауте | v1.4 Verify-First Contract: сначала `tausik_verify` (стримит прогресс, можно прервать), затем `tausik_task_done` читает кеш и закрывает за миллисекунды. См. [Лимиты хоста](#лимиты-хоста-task_done-ux). |
 | `tausik_task_done` возвращает generic timeout без traceback | Старый MCP-сервер (до 1.4) проглатывал исключения в одну строку | Обнови MCP-сервер: `python bootstrap/bootstrap.py` (1.4 пишет traceback в stderr). |
-| Агент игнорирует `tausik_task_done_v2`, всегда зовёт v1 | MCP-сервер в проекте старее 1.3.7 | Перебутстрапь; v2 публикуется рядом с v1 с 1.3.7 и предпочтительный для QG-2. |
+| Агент игнорирует `tausik_task_done`, всегда зовёт v1 | MCP-сервер в проекте старее 1.3.7 | Перебутстрапь; v2 публикуется рядом с v1 с 1.3.7 и предпочтительный для QG-2. |
 | MCP tool returns stale data | MCP server cached старые scripts/* модули | Restart IDE session (re-bootstrap не помогает) |
 | `tausik doctor` reports drift | Source `scripts/` отличается от `.claude/scripts/` | Re-run `python bootstrap/bootstrap.py --ide claude` |
 | `Memory #N not found` | Не указано в какой DB | Сейчас всегда project DB; brain — отдельная команда `tausik brain show` |
@@ -43,11 +43,11 @@ MCP-серверы TAUSIK работают внутри IDE-хоста (VS Code 
 
 **Workflow (предпочитаемый):**
 1. `tausik_verify(task_slug=…)` — запускает тяжёлые гейты (pytest, tsc, cargo, phpstan, …), стримит прогресс, пользователь может корректно прервать. Результат кешируется на 10 минут.
-2. `tausik_task_done_v2(slug=…, ac_verified=True, relevant_files=[…])` — читает кеш, закрывает задачу за миллисекунды. Возвращает structured JSON (`stage`, `gate_results`, `blocking_failures`).
+2. `tausik_task_done(slug=…, ac_verified=True, relevant_files=[…])` — читает кеш, закрывает задачу за миллисекунды. Возвращает structured JSON (`stage`, `gate_results`, `blocking_failures`).
 
 **Opt-out (CI / batch):** добавь `{ "task_done": { "auto_verify": true } }` в `.tausik/config.json`. `task_done` будет запускать тяжёлые гейты inline как в 1.3 — это нормально вне интерактивного хоста, где нет per-tool таймаута.
 
-**`task_done_v2` vs `task_done`:** когда MCP-сервер публикует оба, скиллы (`/ship`, `/task`) зовут `tausik_task_done_v2` ради структурированного ответа. Старые сборки откатываются на legacy `tausik_task_done` (одна агрегированная строка ошибки в 1.4). Оба соблюдают Verify-First Contract и читают один и тот же кеш.
+**`task_done` vs `task_done`:** когда MCP-сервер публикует оба, скиллы (`/ship`, `/task`) зовут `tausik_task_done` ради структурированного ответа. Старые сборки откатываются на legacy `tausik_task_done` (одна агрегированная строка ошибки в 1.4). Оба соблюдают Verify-First Contract и читают один и тот же кеш.
 
 **Streaming-прогресс (v1.4):** когда `task done` запускает гейты inline (`auto_verify=true` или интерактивный `tausik task done`), `gate_runner` шлёт событие `run_start` ДО первого гейта с `total` (количество гейтов) и `max_seconds` (сумма таймаутов), чтобы MCP-хост показал ETA до того, как pytest заблокирует канал. CLI-обработчик мапит каждое событие в одну stderr-строку:
 
@@ -83,7 +83,7 @@ VS Code Claude Extension — самый строгий MCP-хост для TAUSI
 | Tool | До 1.4 | Mitigation в 1.4 |
 |---|---|---|
 | `tausik_task_done` | Запускал pytest/tsc/cargo inline → 60с+ на большом repo → kill → generic timeout | **Verify-First Contract**: отказывается закрывать пока не отработал `tausik_verify`. Verify пишет stderr прогресс, юзер может прервать, результат кешируется на 10 мин. Затем `task done` читает кеш и закрывает за <100мс. |
-| `tausik_task_done_v2` | (не существовал) | Тот же Verify-First Contract, возвращает структурированный JSON вместо одной строки. Скиллы (`/ship`, `/task`) предпочитают его. |
+| `tausik_task_done` | (не существовал) | Тот же Verify-First Contract, возвращает структурированный JSON вместо одной строки. Скиллы (`/ship`, `/task`) предпочитают его. |
 | `codebase-rag.reindex` (full) | Молча обходил все файлы → kill на 60с | Принимает `max_seconds` soft-limit; пишет `[rag] indexed X/Y files...` в stderr каждые 100 файлов. По умолчанию `incremental` — только файлы изменённые с `last_commit`. |
 | `tausik_verify` | (введён в 1.4) | Намеренная foreground-точка для тяжёлой работы. Стримит прогресс; юзер видит что происходит; хост не таймаутит пока мы пишем байты в свой idle-порог. |
 
@@ -94,7 +94,7 @@ VS Code Claude Extension — самый строгий MCP-хост для TAUSI
 1. Скилл/агент сначала зовёт `tausik_verify(task_slug=...)`. Это единственное место, где pytest/tsc/etc. разрешено запускать inline.
 2. Юзер видит streaming-прогресс и может вмешаться (Ctrl-C доходит до MCP-процесса).
 3. На зелёном `tausik_verify` пишет строку в `verification_runs`.
-4. Скилл зовёт `tausik_task_done_v2(task_slug=..., relevant_files=[...], ac_verified=true)`.
+4. Скилл зовёт `tausik_task_done(task_slug=..., relevant_files=[...], ac_verified=true)`.
 5. `task_done` проверяет кеш (≤10 мин, тот же `files_hash`, та же gate signature), убеждается в зелёном статусе и закрывает задачу за ~100мс.
 6. Если в кеше промах — `task_done` возвращает структурированную ошибку с указанием конкретного отсутствующего gate, **не** transport timeout.
 
@@ -121,6 +121,25 @@ VS Code Claude Extension — самый строгий MCP-хост для TAUSI
 | Симптом | Диагноз | Фикс |
 |---|---|---|
 | `reindex` зависает / падает по таймауту на большом monorepo | `mode=full` обходит все tracked-файлы; на 50k+ файлах вызов превышает per-tool timeout MCP-хоста | Передай `max_seconds=N` (soft limit — вернётся частичный результат с `truncated=true`) или используй `mode=incremental` (по умолчанию; реиндексирует только файлы изменённые с `last_commit`). v1.4 пишет `[rag] indexed X/Y files, N chunks, ZZs elapsed` в stderr каждые 100 файлов — хост рендерит прогресс вместо «зависло». |
+
+## Prompt caching не активен
+
+Симптом: stoимость токенов на сессию растёт быстрее, чем ожидается; LLM-биллинг
+показывает почти весь input как «обычный», а не как `cache_read`. Проверь через
+`python scripts/validate_prompt_caching.py --auto` (или передай путь к JSONL).
+Exit code 2 = API не возвращает cache-поля вовсе; exit code 1 = `cache_creation > 0`,
+но `cache_read = 0` — каждый ход кешируется заново.
+
+| Симптом | Диагноз | Фикс |
+|---|---|---|
+| `validate_prompt_caching.py` exit=2 (нет cache-полей) | Текущий клиент / endpoint не запрашивает caching | Используй официальный Claude Code (он включает caching по умолчанию). У сторонних оболочек проверь, что они шлют `cache_control` хотя бы на system prompt + tools. |
+| Exit=1 (creation > 0, reads = 0) | Префикс нестабилен — что-то меняется между ходами | См. ниже список инвалидаторов. |
+| `cache_read_input_tokens` падает к нулю в середине сессии | `tausik_update_claudemd` переписал dynamic-блок CLAUDE.md | Не запускай `update_claudemd` между tool-вызовами; держи его на границах (`/start`, `/checkpoint`, `/end`). |
+| Низкий hit-rate (<50%) даже без правок CLAUDE.md | Скилл-файл (`SKILL.md`) или MCP `tools.py` редактировался в worktree между ходами | После любой правки агентских артефактов перезапусти MCP / IDE — старый префикс уже инвалидирован, продолжать сессию бессмысленно с точки зрения кеша. |
+| Хочется видеть hit-rate в реальном времени | — | `python scripts/validate_prompt_caching.py --auto` после каждой длинной сессии. Записи `usage`-блоков уже лежат в `~/.claude/projects/<slug>/*.jsonl`. |
+
+См. [architecture.md](architecture.md) секцию «Prompt caching» — там список
+кешируемых поверхностей и какие правки переписывают префикс.
 
 ## Hooks
 

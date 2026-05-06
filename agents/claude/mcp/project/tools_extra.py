@@ -377,7 +377,7 @@ TOOLS_EXTRA = [
             "and sibling MCP project server count for this project. "
             "Call from /start (Phase 1) so the agent surfaces an MCP Health "
             "warning when the running server holds stale code — root cause "
-            "of silent hangs in tausik_verify / tausik_task_done_v2 (gotchas "
+            "of silent hangs in tausik_verify / tausik_task_done (gotchas "
             "#77, #79, #80). Remediation: restart IDE; meanwhile use CLI."
         ),
         "inputSchema": {"type": "object", "properties": {}},

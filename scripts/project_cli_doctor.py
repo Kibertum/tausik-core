@@ -145,10 +145,19 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
             "task",
             "plan",
             "review",
-            "brain",
             "ship",
             "checkpoint",
         }
+        # brain skill is opt-in: only required when brain.enabled=true.
+        # Mirrors bootstrap_copy gating so disabling brain doesn't FAIL doctor.
+        try:
+            from project_config import load_config  # noqa: PLC0415
+
+            _cfg = load_config() or {}
+            if bool((_cfg.get("brain") or {}).get("enabled", False)):
+                critical.add("brain")
+        except Exception:
+            critical.add("brain")  # default-on when config unreadable
         missing = critical - set(skills)
         if not missing:
             _print_ok("Core skills", f"{len(skills)} deployed (all critical present)")
@@ -227,6 +236,31 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
         _print_fail("Quality gates", f"registry load failed: {e}")
         failures += 1
 
+    # Brain config — surfaces "enabled but misconfigured" before the user
+    # accumulates local-only decisions/gotchas that should reach Notion.
+    # See defect v14b-defect-brain-decisions-empty.
+    try:
+        from brain_config import is_brain_enabled, validate_brain
+
+        if is_brain_enabled():
+            brain_errors = validate_brain()
+            if brain_errors:
+                first = brain_errors[0]
+                more = f" (+{len(brain_errors) - 1} more)" if len(brain_errors) > 1 else ""
+                _print_warn(
+                    "Brain config",
+                    f"enabled but misconfigured: {first}{more} — "
+                    f"run `tausik brain init` or set `brain.enabled=false`",
+                )
+                warnings += 1
+            else:
+                _print_ok("Brain config", "enabled, all 4 database_ids + token set")
+        else:
+            _print_ok("Brain config", "disabled (opt-in)")
+    except Exception as e:
+        _print_warn("Brain config", f"could not validate: {e}")
+        warnings += 1
+
     try:
         active = svc.session_active_minutes()
         wall = svc.session_wall_minutes()
@@ -260,102 +294,11 @@ def _print_fail(label: str, detail: str) -> None:
     print(f"  {RED}  {label:<25} {detail}")
 
 
-def _check_claudemd_drift(project_dir: str) -> int | None:
-    """Compare static (non-DYNAMIC) sections of CLAUDE.md against the live
-    bootstrap_templates.build_full_body output.
-
-    Returns the number of sections that differ, or None when comparison is
-    not possible (file missing, project name unknown, template import failed).
-    The CLAUDE.md head + DYNAMIC block + user-customised tail are ignored —
-    we hash the static body sections individually so cosmetic edits
-    (e.g. an extra newline at the end of file) don't trigger a false drift.
-    """
-    md_path = os.path.join(project_dir, "CLAUDE.md")
-    if not os.path.isfile(md_path):
-        return None
-    try:
-        sys.path.insert(0, os.path.join(project_dir, ".tausik-lib", "bootstrap"))
-        sys.path.insert(0, os.path.join(project_dir, "bootstrap"))
-        import importlib  # noqa: PLC0415
-
-        try:
-            bt = importlib.import_module("bootstrap_templates")
-            build_full_body = bt.build_full_body
-        except Exception:
-            return None
-    except Exception:
-        return None
-    try:
-        from project_config import load_config, resolve_context_tier  # noqa: PLC0415
-
-        cfg = load_config() or {}
-        project_name = cfg.get("project_name") or os.path.basename(project_dir)
-        stacks = cfg.get("stacks") or []
-        tier = resolve_context_tier(cfg)
-        expected = build_full_body(
-            project_name,
-            stacks,
-            "an AI agent (Claude Code)",
-            ".claude",
-            ide="claude",
-            context_tier=tier,
-        )
-    except Exception:
-        return None
-    try:
-        with open(md_path, encoding="utf-8") as f:
-            current = f.read()
-    except OSError:
-        return None
-    # Compare per H2 block (## …). Sections present in expected but altered
-    # or missing in current count as drift. New sections in current that
-    # don't exist in expected are not flagged — those are user customisations.
-    import re as _re
-
-    def _split(text: str) -> dict[str, str]:
-        sections: dict[str, str] = {}
-        # Skip everything before the first H2 (header / project metadata
-        # which is rendered uniquely per file).
-        parts = _re.split(r"^(## [^\n]+)$", text, flags=_re.MULTILINE)
-        for i in range(1, len(parts), 2):
-            heading = parts[i].strip()
-            body = parts[i + 1] if i + 1 < len(parts) else ""
-            lower_h = heading.lower()
-            # Drop sections whose heading is itself dynamic per project.
-            if lower_h.startswith("## project:"):
-                continue
-            if "DYNAMIC:START" in body or lower_h.startswith("## current state"):
-                continue
-            sections[heading] = body.strip()
-        return sections
-
-    expected_sections = _split(expected)
-    current_sections = _split(current)
-    differ = 0
-    for heading, body in expected_sections.items():
-        if current_sections.get(heading, "").strip() != body.strip():
-            differ += 1
-    return differ
-
-
-def _check_scripts_drift(project_dir: str) -> int | None:
-    src = os.path.join(project_dir, "scripts")
-    dst = os.path.join(project_dir, ".claude", "scripts")
-    if not os.path.isdir(src) or not os.path.isdir(dst):
-        return None
-    differ = 0
-    for name in os.listdir(src):
-        if not name.endswith(".py"):
-            continue
-        s = os.path.join(src, name)
-        d = os.path.join(dst, name)
-        if not os.path.isfile(d):
-            differ += 1
-            continue
-        try:
-            with open(s, "rb") as f1, open(d, "rb") as f2:
-                if f1.read().replace(b"\r\n", b"\n") != f2.read().replace(b"\r\n", b"\n"):
-                    differ += 1
-        except OSError:
-            pass
-    return differ
+# Drift checks moved to service_doctor_drift.py (filesize gate). Re-exported
+# here under the legacy underscore-prefixed names so existing tests + callers
+# continue to work without import surgery.
+from service_doctor_drift import (  # noqa: E402,F401
+    check_claudemd_drift as _check_claudemd_drift,
+    check_scripts_drift as _check_scripts_drift,
+    is_trimmed_baseline as _is_trimmed_baseline,
+)

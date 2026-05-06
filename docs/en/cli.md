@@ -9,6 +9,10 @@ On Windows the wrapper is `.tausik/tausik.cmd`. The same surface is also availab
 
 ```bash
 init --name <slug>             # Initialize project (creates .tausik/tausik.db)
+init --template aidd [--force] # Scaffold AIDD layers (idea.md/vision.md/conventions.md) into project root.
+                               #   Existing files trigger a 4-option prompt: overwrite / merge-append / skip / abort-all.
+                               #   Default (Enter) = skip. `--force` overwrites without prompting.
+                               #   Unknown --template values exit non-zero with a stderr error.
 status [--compact]             # Project overview + SENAR session duration warning (active vs wall); --compact → one-line JSON
 metrics                        # SENAR metrics: Throughput, Lead Time, FPSR, DER, Dead End Rate, Cost per Task
 metrics [--cost]               # With --cost: rollup usage_events by task_slug (same as `metrics cost`)

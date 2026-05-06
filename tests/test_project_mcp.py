@@ -91,14 +91,9 @@ class TestTaskCRUD:
         result = _handle_tool(seeded, "tausik_task_start", {"slug": "t1"})
         assert "started" in result
 
-    def test_task_done(self, seeded):
+    def test_task_done_returns_structured_json(self, seeded):
         seeded.task_start("t1", _internal_force=True)
         result = _handle_tool(seeded, "tausik_task_done", {"slug": "t1"})
-        assert "completed" in result
-
-    def test_task_done_v2_returns_structured_json(self, seeded):
-        seeded.task_start("t1", _internal_force=True)
-        result = _handle_tool(seeded, "tausik_task_done_v2", {"slug": "t1"})
         payload = json.loads(result)
         assert payload["slug"] == "t1"
         assert payload["ok"] is True
@@ -106,17 +101,13 @@ class TestTaskCRUD:
 
     def test_task_block_unblock(self, seeded):
         seeded.task_start("t1", _internal_force=True)
-        result = _handle_tool(
-            seeded, "tausik_task_block", {"slug": "t1", "reason": "blocked"}
-        )
+        result = _handle_tool(seeded, "tausik_task_block", {"slug": "t1", "reason": "blocked"})
         assert "blocked" in result
         result = _handle_tool(seeded, "tausik_task_unblock", {"slug": "t1"})
         assert "unblocked" in result
 
     def test_task_update(self, seeded):
-        result = _handle_tool(
-            seeded, "tausik_task_update", {"slug": "t1", "goal": "New goal"}
-        )
+        result = _handle_tool(seeded, "tausik_task_update", {"slug": "t1", "goal": "New goal"})
         assert "updated" in result
 
     def test_task_update_no_fields(self, seeded):
@@ -241,7 +232,13 @@ class TestKnowledge:
         result = _handle_tool(svc, "tausik_memory_search", {"query": "nothing"})
         assert "No memories" in result
 
-    def test_decide(self, svc):
+    def test_decide(self, svc, monkeypatch):
+        # Stub brain disabled so decide() doesn't read the real project's
+        # half-configured brain (would surface the v14b BLOCKED warning
+        # instead of the "recorded" path this dispatch test asserts).
+        import brain_config
+
+        monkeypatch.setattr(brain_config, "load_brain", lambda cfg=None: {"enabled": False})
         result = _handle_tool(
             svc,
             "tausik_decide",

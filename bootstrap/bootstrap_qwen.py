@@ -197,6 +197,11 @@ def generate_settings_qwen(
                     },
                     {
                         "type": "command",
+                        "command": _hook_cmd("token_metrics.py"),
+                        "timeout": 3,
+                    },
+                    {
+                        "type": "command",
                         "command": _hook_cmd("activity_event.py"),
                         "timeout": 5,
                     },

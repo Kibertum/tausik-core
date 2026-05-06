@@ -156,6 +156,45 @@ service_task.py         -> _run_quality_gates() (called from task_done)
 Gates: `pytest`, `ruff`, `mypy`, `bandit`, `filesize`, `tdd_order`, `tsc`, `eslint`,
 `go-vet`, `golangci-lint`, `cargo-check`, `clippy`, `phpstan`, `phpcs`, `javac`, `ktlint`.
 
+## Prompt Caching
+
+TAUSIK relies on Anthropic's automatic prompt caching to keep agent runs cheap.
+The framework itself does not call the API — Claude Code does — but the
+*structure* of what TAUSIK feeds into each turn decides whether the API
+caches a prefix or re-bills it. Cacheable surface, in priority order:
+
+| Surface | Where it lives | Why it caches well |
+|---|---|---|
+| System prompt + tool schemas | Injected by Claude Code from `.claude/mcp/project/tools.py` and `tools_extra.py` | Identical across turns within a session — the longest stable prefix |
+| `CLAUDE.md` | Project root | Read once per session and re-injected; stable unless `tausik_update_claudemd` rewrites the dynamic block |
+| MCP tool descriptions | Same `tools.py` files | Editing them invalidates the cache — every wording change rewrites the prefix |
+| Skills (`SKILL.md`) | `agents/skills/<name>/SKILL.md` | Loaded only when the skill activates |
+
+**What invalidates the cache mid-session.** Editing any of the files above
+between turns rewrites the prefix and forces the next turn to pay
+`cache_creation_input_tokens` instead of `cache_read_input_tokens`. The
+biggest offender is `tausik_update_claudemd` — running it mid-session
+rewrites the dynamic-state block (session #, task counts, etc.) and the
+entire `CLAUDE.md` prefix re-caches. Run it at session boundaries (`/start`,
+`/checkpoint`, `/end`), not between regular tool calls.
+
+**Verifying caching is actually active.** Anthropic returns
+`cache_creation_input_tokens` (the prefix was just laid down) and
+`cache_read_input_tokens` (a later turn hit the cache) in every response's
+`usage` block. `scripts/validate_prompt_caching.py` parses a Claude Code
+transcript JSONL and reports both totals plus a hit-rate:
+
+```bash
+python scripts/validate_prompt_caching.py --auto
+# or
+python scripts/validate_prompt_caching.py path/to/transcript.jsonl
+```
+
+Exit code `0` = caching active (`cache_read_input_tokens > 0`);
+`1` = prefix is unstable (creation > 0 but reads = 0);
+`2` = API never returned cache fields. See [troubleshooting.md](troubleshooting.md)
+"Prompt caching not active" for common failure modes.
+
 ## Testing
 
 ```bash

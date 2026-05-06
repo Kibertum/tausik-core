@@ -70,9 +70,7 @@ class TestHierarchy:
 class TestTaskLifecycle:
     def test_add_task(self, svc):
         _setup_hierarchy(svc)
-        msg = svc.task_add(
-            "setup", "t1", "Task 1", complexity="simple", role="developer"
-        )
+        msg = svc.task_add("setup", "t1", "Task 1", complexity="simple", role="developer")
         assert "created" in msg
         tasks = svc.task_list()
         assert len(tasks) == 1
@@ -294,9 +292,7 @@ class TestTaskLifecycle:
         """task_next with goal+AC claims AND starts."""
         _setup_hierarchy(svc)
         svc.task_add("setup", "t1", "Task 1", goal="Implement")
-        svc.task_update(
-            "t1", acceptance_criteria="1. Works. 2. Returns error on invalid input."
-        )
+        svc.task_update("t1", acceptance_criteria="1. Works. 2. Returns error on invalid input.")
         picked = svc.task_next(agent_id="agent-1")
         assert picked is not None
         assert picked["status"] == "active"
@@ -347,9 +343,7 @@ class TestPlanGate:
         """task_done no longer accepts force parameter — gates always run."""
         _setup_hierarchy(svc)
         svc.task_add("setup", "t1", "T1", goal="Test goal")
-        svc.task_update(
-            "t1", acceptance_criteria="1. Works. 2. Returns error on bad input."
-        )
+        svc.task_update("t1", acceptance_criteria="1. Works. 2. Returns error on bad input.")
         svc.task_start("t1")
         svc.task_plan("t1", ["Step 1", "Step 2"])
         svc.task_step("t1", 1)
@@ -508,7 +502,13 @@ class TestKnowledge:
         with pytest.raises(ServiceError, match="not found"):
             svc.memory_show(9999)
 
-    def test_decisions(self, svc):
+    def test_decisions(self, svc, monkeypatch):
+        # Stub brain disabled so decide() doesn't read the real project's
+        # half-configured brain (would surface the v14b BLOCKED warning
+        # instead of the "recorded" path this dispatch test asserts).
+        import brain_config
+
+        monkeypatch.setattr(brain_config, "load_brain", lambda cfg=None: {"enabled": False})
         msg = svc.decide("Use REST API", rationale="Simpler than GraphQL")
         assert "recorded" in msg
         decs = svc.decisions()

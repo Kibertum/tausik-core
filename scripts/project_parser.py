@@ -26,6 +26,17 @@ def build_parser() -> argparse.ArgumentParser:
     # --- init ---
     init_p = sub.add_parser("init", help="Initialize project")
     init_p.add_argument("--name", default=None, help="Project slug (default: directory name)")
+    init_p.add_argument(
+        "--template",
+        default=None,
+        help="Scaffold template: 'aidd' creates idea.md/vision.md/conventions.md "
+        "with conflict prompt (default skip).",
+    )
+    init_p.add_argument(
+        "--force",
+        action="store_true",
+        help="With --template: overwrite existing files without prompting.",
+    )
 
     # --- status ---
     st_p = sub.add_parser("status", help="Project overview")

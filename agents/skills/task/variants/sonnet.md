@@ -51,7 +51,7 @@ Work on tasks from project DB.
      - Verify plan completion via `tausik_task_show(slug)`
      - Walk each AC, log evidence: `tausik_task_log(slug, "AC verified: 1. [criterion] ✓ [evidence] 2. ...")`
      - **Verify-First (v1.4):** `tausik_verify(task_slug=slug)` — seeds cache. If fails, fix and retry.
-     - Close (preferred, v1.4+): `tausik_task_done_v2(slug, ac_verified=true, relevant_files=[...])` — structured JSON with `stage` + `blocking_failures`.
+     - Close (preferred, v1.4+): `tausik_task_done(slug, ac_verified=true, relevant_files=[...])` — structured JSON with `stage` + `blocking_failures`.
      - Close (legacy fallback): `tausik_task_done` with same args — raises aggregated error string; iterate fixes.
 
 **Why redirect?** `/ship` runs full `/review` + `/test` + gates + commit. Closing without review violates SENAR Rule 9.15.
@@ -79,7 +79,7 @@ Prefer MCP over CLI. Key tools:
 | Tool | Required | Optional |
 |---|---|---|
 | `tausik_task_start` | `slug` | — |
-| `tausik_task_done_v2` (v1.4+) | `slug` | `ac_verified`, `relevant_files`, `evidence`, `no_knowledge` |
+| `tausik_task_done` (v1.4+) | `slug` | `ac_verified`, `relevant_files`, `evidence`, `no_knowledge` |
 | `tausik_task_done` (legacy) | `slug` | same args |
 | `tausik_task_log` | `slug`, `message` | — |
 | `tausik_task_step` | `slug`, `step_num` (1-based) | — |

@@ -44,14 +44,18 @@ TOOLS = [
     # === Core: task + session + status ===
     {
         "name": "tausik_status",
-        "description": "Get project status: task counts, active session, epics",
+        "description": "Get project status: task counts, active session (active min / 180 min limit), epics. SENAR Rule 9.2 limit applies to active time, not wall clock.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "compact": {
                     "type": "boolean",
-                    "description": "If true, return one-line JSON (tasks + session + optional session_warning). Default human text is unchanged.",
-                }
+                    "description": "If true, return one-line JSON (tasks + session + active/wall minutes + optional session_warning). Default human text is unchanged.",
+                },
+                "verbose": {
+                    "type": "boolean",
+                    "description": "If true, also show wall-clock minutes alongside active. Default: active only (SENAR Rule 9.2 metric).",
+                },
             },
         },
     },
@@ -63,8 +67,8 @@ TOOLS = [
             "properties": {
                 "status": {
                     "type": "string",
-                    "description": "Filter by status (comma-separated). Example: 'active,review'",
-                    "enum": ["planning", "active", "blocked", "review", "done"],
+                    "description": "Filter by status. Single value or comma-separated list. Allowed: planning, active, blocked, review, done. Examples: 'active' or 'active,blocked,planning'",
+                    "pattern": "^(planning|active|blocked|review|done)(,(planning|active|blocked|review|done))*$",
                 },
                 "story": {"type": "string", "description": "Filter by story slug"},
                 "epic": {"type": "string", "description": "Filter by epic slug"},
@@ -155,31 +159,7 @@ TOOLS = [
     },
     {
         "name": "tausik_task_done",
-        "description": "Complete a task (QG-2: requires ac_verified). Auto-closes parent story/epic if all tasks done",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "slug": {"type": "string"},
-                "ac_verified": {
-                    "type": "boolean",
-                    "description": "Confirm AC verification evidence was logged (REQUIRED for QG-2)",
-                },
-                "no_knowledge": {
-                    "type": "boolean",
-                    "description": "Confirm no knowledge to capture (suppresses warning)",
-                },
-                "relevant_files": {"type": "array", "items": {"type": "string"}},
-                "evidence": {
-                    "type": "string",
-                    "description": 'Inline AC verification log (e.g. "AC verified: 1. ✓ 2. ✓ ..."). Replaces a separate task_log call.',
-                },
-            },
-            "required": ["slug"],
-        },
-    },
-    {
-        "name": "tausik_task_done_v2",
-        "description": "Complete task with structured JSON result: stage status, gate results, and blocking_failures for agent remediation",
+        "description": "Complete task (QG-2). Returns structured JSON: ok, stage status, gate results, blocking_failures for agent remediation. Auto-closes parent story/epic when all tasks done.",
         "inputSchema": {
             "type": "object",
             "properties": {

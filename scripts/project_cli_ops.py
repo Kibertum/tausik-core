@@ -32,39 +32,9 @@ def _print_usage_cost_rollup(svc: ProjectService, since: str | None, until: str 
 
 
 def cmd_metrics(svc: ProjectService, args: Any) -> None:
-    if getattr(args, "metrics_cmd", None) == "record-session":
-        print(
-            svc.metrics_record_session(
-                tokens_input=args.tokens_input,
-                tokens_output=args.tokens_output,
-                tokens_total=args.tokens_total,
-                cost_usd=args.cost_usd,
-                tool_calls=getattr(args, "tool_calls", 0),
-                model=getattr(args, "model", ""),
-                session_id=getattr(args, "session_id", None),
-            )
-        )
-        return
-    if getattr(args, "metrics_cmd", None) == "log-usage":
-        print(
-            svc.metrics_log_usage_event(
-                tokens_input=args.tokens_input,
-                tokens_output=args.tokens_output,
-                tokens_total=args.tokens_total,
-                cost_usd=args.cost_usd,
-                tool_calls=getattr(args, "tool_calls", 0),
-                model=getattr(args, "model", ""),
-                task_slug=getattr(args, "task_slug", None),
-                session_id=getattr(args, "session_id", None),
-            )
-        )
-        return
-    if getattr(args, "metrics_cmd", None) == "cost" or getattr(args, "cost", False):
-        _print_usage_cost_rollup(
-            svc,
-            getattr(args, "since", None),
-            getattr(args, "until", None),
-        )
+    from project_cli_metrics import dispatch_metrics_subcmd
+
+    if dispatch_metrics_subcmd(svc, args):
         return
     m = svc.get_metrics()
     print(f"Tasks: {m['tasks_done']}/{m['tasks_total']} done ({m['completion_pct']}%)")

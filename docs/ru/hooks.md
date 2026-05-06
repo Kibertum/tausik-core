@@ -27,7 +27,7 @@ TAUSIK использует хуки Claude Code для автоматическ
 | `activity_event.py` | После любого tool call | Записывает activity-таймстемпы для **gap-based active-time** метрики (SENAR Rule 9.2) |
 | `memory_posttool_audit.py` | После Write в auto-memory | Аудитит cross-project leakage (использует regex-библиотеку `memory_markers.py`) и предупреждает |
 | `brain_post_webfetch.py` | После WebFetch | Авто-кешит результат в shared brain `web_cache` для token reuse |
-| `task_done_verify.py` | После `task_done` / `task_done_v2` | Аудитит AC evidence через 5 правило-base проверок (Ralph-mode-lite). Matcher v1.4: `tausik_task_done\|tausik_task_done_v2\|Bash` |
+| `task_done_verify.py` | После `task_done` / `task_done` | Аудитит AC evidence через 5 правило-base проверок (Ralph-mode-lite). Matcher v1.4: `tausik_task_done\|tausik_task_done\|Bash` |
 
 ## SessionStart / SessionEnd
 

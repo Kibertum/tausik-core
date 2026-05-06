@@ -15,6 +15,7 @@ from typing import Any, Callable
 from backend_session_metrics import (
     DEFAULT_IDLE_THRESHOLD_MINUTES,
     compute_active_minutes,
+    compute_active_seconds,
 )
 from project_config import DEFAULT_SESSION_MAX_MINUTES, load_config
 
@@ -27,9 +28,7 @@ def resolve_idle_threshold(idle_threshold: int | None) -> int:
     if idle_threshold is not None:
         return idle_threshold
     cfg = load_config()
-    return int(
-        cfg.get("session_idle_threshold_minutes", DEFAULT_IDLE_THRESHOLD_MINUTES)
-    )
+    return int(cfg.get("session_idle_threshold_minutes", DEFAULT_IDLE_THRESHOLD_MINUTES))
 
 
 def session_active_minutes(
@@ -43,6 +42,19 @@ def session_active_minutes(
         session_id = current["id"]
     threshold = resolve_idle_threshold(idle_threshold)
     return compute_active_minutes(be._q, be._q1, session_id, threshold)
+
+
+def session_active_seconds(
+    be: Any, session_id: int | None = None, idle_threshold: int | None = None
+) -> int:
+    """Active seconds for a session (current if id is None) — sub-minute precision."""
+    if session_id is None:
+        current = be.session_current()
+        if not current:
+            return 0
+        session_id = current["id"]
+    threshold = resolve_idle_threshold(idle_threshold)
+    return compute_active_seconds(be._q, be._q1, session_id, threshold)
 
 
 def session_wall_minutes(be: Any, session_id: int | None = None) -> int:

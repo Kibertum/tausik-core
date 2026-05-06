@@ -9,6 +9,10 @@
 
 ```bash
 init --name <slug>             # Инициализация проекта (создаёт .tausik/tausik.db)
+init --template aidd [--force] # Скаффолдит AIDD-слои (idea.md/vision.md/conventions.md) в корень проекта.
+                               #   Существующие файлы → 4-option prompt: overwrite / merge-append / skip / abort-all.
+                               #   Default (Enter) = skip. `--force` перезаписывает без вопросов.
+                               #   Неизвестное значение --template — exit ≠ 0, сообщение в stderr.
 status [--compact]             # Обзор проекта + SENAR; --compact → JSON одной строкой
 metrics                        # Метрики SENAR: Throughput, Lead Time, FPSR, DER, Dead End Rate, Cost per Task
 metrics [--cost]               # С --cost: агрегат по usage_events по task_slug (то же что `metrics cost`)

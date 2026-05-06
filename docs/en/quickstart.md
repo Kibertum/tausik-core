@@ -197,7 +197,7 @@ Answer "yes" to the commit offer — and your first task is complete.
 
 > **VS Code Claude Extension users.** The extension applies a default per-MCP-tool timeout (~60s in current builds). If you skip the explicit `tausik verify` step, the extension may kill `task_done` mid-run on large projects and the agent will see a generic timeout instead of a useful error. **Always run `tausik verify` first**; `task_done` then completes in milliseconds via the cache. The same applies to JetBrains and Cursor — keep the heavy step inside `verify`, where it can stream progress and you can interrupt cleanly.
 
-> **`task_done_v2` (preferred since 1.3.7).** When the agent's MCP server lists `tausik_task_done_v2`, it returns a structured JSON report (`stage`, `gate_results`, `blocking_failures`) the agent uses to fix issues without re-parsing prose. Older bundled servers fall back to the legacy `tausik_task_done` (single aggregated error string). Both honour the Verify-First Contract and read the same cache.
+> **`task_done` (preferred since 1.3.7).** When the agent's MCP server lists `tausik_task_done`, it returns a structured JSON report (`stage`, `gate_results`, `blocking_failures`) the agent uses to fix issues without re-parsing prose. Older bundled servers fall back to the legacy `tausik_task_done` (single aggregated error string). Both honour the Verify-First Contract and read the same cache.
 
 ## Step 8. Wrap Up
 

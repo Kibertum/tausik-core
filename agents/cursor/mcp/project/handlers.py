@@ -92,6 +92,13 @@ def _do_task_next(svc: Any, args: dict) -> str:
 
 
 def _do_task_done(svc: Any, args: dict) -> str:
+    """tausik_task_done — returns structured JSON dict (was task_done_v2 prior to v14b rename).
+
+    Calls the internal `_task_done_report` directly to get the dict report,
+    then JSON-encodes for transport. CLI keeps using `svc.task_done()` which
+    wraps the same report into the legacy str-or-raise contract.
+    """
+
     def _progress(ev: dict) -> None:
         event = ev.get("event")
         idx = ev.get("index", "?")
@@ -110,38 +117,9 @@ def _do_task_done(svc: Any, args: dict) -> str:
             flush=True,
         )
 
-    return svc.task_done(
+    result = svc._task_done_report(
         args["slug"],
-        args.get("relevant_files"),
-        ac_verified=args.get("ac_verified", False),
-        no_knowledge=args.get("no_knowledge", False),
-        evidence=args.get("evidence"),
-        progress_fn=_progress,
-    )
-
-
-def _do_task_done_v2(svc: Any, args: dict) -> str:
-    def _progress(ev: dict) -> None:
-        event = ev.get("event")
-        idx = ev.get("index", "?")
-        total = ev.get("total", "?")
-        name = ev.get("name", "?")
-        if event == "gate_start":
-            print(f"[gate {idx}/{total}] running {name}...", file=sys.stderr, flush=True)
-            return
-        status = "PASS" if ev.get("passed") else "FAIL"
-        if ev.get("skipped"):
-            status = "SKIP"
-        dur = ev.get("duration_ms", 0)
-        print(
-            f"[gate {idx}/{total}] {status} {name} ({dur} ms)",
-            file=sys.stderr,
-            flush=True,
-        )
-
-    result = svc.task_done_v2(
-        args["slug"],
-        args.get("relevant_files"),
+        relevant_files=args.get("relevant_files"),
         ac_verified=args.get("ac_verified", False),
         no_knowledge=args.get("no_knowledge", False),
         evidence=args.get("evidence"),
@@ -433,7 +411,6 @@ _DISPATCH: dict[str, _Handler] = {
     "tausik_task_next": _do_task_next,
     "tausik_task_start": lambda svc, args: svc.task_start(args["slug"]),
     "tausik_task_done": _do_task_done,
-    "tausik_task_done_v2": _do_task_done_v2,
     "tausik_task_block": lambda svc, args: svc.task_block(args["slug"], args.get("reason")),
     "tausik_task_unblock": lambda svc, args: svc.task_unblock(args["slug"]),
     "tausik_task_update": _do_task_update,
@@ -865,6 +842,25 @@ def _handle_status(svc: Any, args: dict | None = None) -> str:
     cfg = load_config()
     max_min = cfg.get("session_max_minutes", DEFAULT_SESSION_MAX_MINUTES)
     duration_warning = svc.session_check_duration(max_min)
+    # v14b-session-active-time: surface active/wall minutes alongside the
+    # session id. Active is the SENAR Rule 9.2 metric (sum of bounded
+    # inter-tool-call deltas, capped at idle threshold per gap); wall is
+    # informational. active_seconds carries sub-minute precision for callers
+    # that aggregate deltas over short bursts (e.g. capacity dashboards).
+    session = data.get("session")
+    active_min = wall_min = 0
+    active_sec = 0
+    if session:
+        try:
+            active_sec = svc.session_active_seconds()
+            active_min = svc.session_active_minutes()
+            wall_min = svc.session_wall_minutes()
+        except Exception:  # noqa: BLE001 — never fail status on metric calc
+            active_sec = active_min = wall_min = 0
+        data["active_minutes"] = active_min
+        data["active_seconds"] = active_sec
+        data["wall_minutes"] = wall_min
+    data["session_max_minutes"] = max_min
     if args.get("compact"):
         return format_status_compact_json(data, duration_warning)
     counts = data["task_counts"]
@@ -874,8 +870,14 @@ def _handle_status(svc: Any, args: dict | None = None) -> str:
     for st in ("planning", "active", "blocked", "review"):
         if counts.get(st):
             parts.append(f"{counts[st]} {st}")
-    session = data.get("session")
-    parts.append(f"Session: #{session['id']}" if session else "Session: none")
+    if session:
+        sess_part = f"Session: #{session['id']} (active {active_min}m / {max_min}m"
+        if args.get("verbose"):
+            sess_part += f", wall {wall_min}m"
+        sess_part += ")"
+        parts.append(sess_part)
+    else:
+        parts.append("Session: none")
     result = ", ".join(parts)
     if duration_warning:
         result += f"\n⚠ {duration_warning}"

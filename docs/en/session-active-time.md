@@ -1,25 +1,31 @@
 **English** | [Русский](../ru/session-active-time.md)
 
-# Session Active Time (v1.3)
+# Session Active Time (v1.4)
 
-SENAR Rule 9.2 limits a session to **180 minutes**. In v1.3 that 180 is **active time**, not wall-clock — paused intervals are not counted. This page explains how active time is measured, why it changed, and how to tune the threshold.
+SENAR Rule 9.2 limits a session to **180 minutes**. In v1.4 that 180 is **active time**, not wall-clock — long pauses are clipped to the idle threshold instead of being dropped entirely. This page explains the algorithm, the semantics choice (clip vs exclude), and how to tune the threshold.
 
 ## Why Active Time
 
-Wall clock punishes natural breaks. A session that starts at 09:00, pauses for an hour-long meeting, and resumes at 11:00 would hit "120 min" without the agent doing 120 min of work. v1.3 fixes that by computing **gap-based active time**: time the agent was actually doing things.
+Wall clock punishes natural breaks. A session that starts at 09:00, pauses for an hour-long meeting, and resumes at 11:00 would hit "120 min" without the agent doing 120 min of work. v1.3+ fixes that by computing **gap-based active time**: a bounded sum of inter-tool-call intervals.
 
 ## Algorithm
 
-Every tool call writes a row to `session_activity` (via the `activity_event.py` PostToolUse hook). Active time is the sum of intervals between consecutive activity timestamps where the gap is **below the idle threshold**.
+Every tool call writes a row to `events` (via the `activity_event.py` PostToolUse hook). Active time is the **bounded** sum of intervals between consecutive timestamps:
 
 ```
-events:    t1   t2   t3 ----- (gap ≥ idle) ----- t4   t5
-intervals: [t1..t2] + [t2..t3] + [t4..t5]
-active     = sum of those intervals
-wall       = last_event - first_event
+active_seconds = Σ min(t[i+1] − t[i], idle_threshold_seconds)
 ```
 
-If the gap between two consecutive events is ≥ `session_idle_threshold_minutes` (default **10 min**), the gap is treated as **AFK** and dropped from the sum.
+Each gap is clipped at `idle_threshold` (default **600 s / 10 min**). A long AFK gap (e.g. three hours) contributes exactly the threshold to active — enough to credit "the agent worked right before pausing", but not enough to give a multi-day session for free against the Rule 9.2 budget.
+
+```
+events:    t1   t2   t3 ---(huge gap)--- t4   t5
+intervals: Δ1   Δ2   Δ3(clipped→10m)     Δ4
+active     = Δ1 + Δ2 + 10m + Δ4
+wall       = t5 − t1
+```
+
+**v1.4 polish (v14b-session-active-time)** flipped the semantics from "exclude" (gap ≥ threshold → 0) to "clip" (gap ≥ threshold → threshold). Clip is more conservative: a long AFK still spends ~10 min against the limit, so an agent can't run a multi-day session for free.
 
 ## Threshold Configuration
 

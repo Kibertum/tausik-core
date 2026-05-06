@@ -75,6 +75,12 @@ def changed_files_since(
     run = runner or subprocess.run
     changed: set[str] = set()
     try:
+        # stdin=DEVNULL is critical: when these git calls run inside the MCP
+        # project server's worker thread, they would otherwise inherit the
+        # MCP server's stdin (a JSON-RPC pipe to the IDE). On Windows git can
+        # block trying to read that stdin (paginator probe / credential prompt
+        # detection / something else), making every `task done` look like a
+        # silent 10s hang per call. See defect v14b-defect-mcp-task-done-stdin-hang.
         log_out = run(
             [
                 "git",
@@ -88,6 +94,7 @@ def changed_files_since(
             text=True,
             timeout=10,
             check=False,
+            stdin=subprocess.DEVNULL,
         )
         if log_out.returncode != 0:
             return None
@@ -102,6 +109,7 @@ def changed_files_since(
             text=True,
             timeout=10,
             check=False,
+            stdin=subprocess.DEVNULL,
         )
         if diff_out.returncode != 0:
             return None

@@ -11,11 +11,7 @@ from project_service import ProjectService
 def cmd_memory(svc: ProjectService, args: Any) -> None:
     c = args.memory_cmd
     if c == "add":
-        print(
-            svc.memory_add(
-                args.mem_type, args.title, args.content, args.tags, args.task
-            )
-        )
+        print(svc.memory_add(args.mem_type, args.title, args.content, args.tags, args.task))
     elif c == "list":
         rows = svc.memory_list(args.mem_type, args.limit)
         if not rows:
@@ -65,9 +61,7 @@ def cmd_memory(svc: ProjectService, args: Any) -> None:
     elif c == "unlink":
         print(svc.memory_unlink(args.edge_id, args.replacement))
     elif c == "related":
-        results = svc.memory_related(
-            args.node_type, args.node_id, args.hops, args.include_invalid
-        )
+        results = svc.memory_related(args.node_type, args.node_id, args.hops, args.include_invalid)
         if not results:
             print("  No related nodes found.")
             return
@@ -148,12 +142,16 @@ def cmd_update_claudemd(svc: ProjectService, args: Any) -> None:
     total = len(tasks)
 
     # Get branch
+    # stdin=DEVNULL: when called from MCP server's update_claudemd worker,
+    # otherwise inherits the JSON-RPC stdin pipe and may hang. See
+    # v14b-defect-mcp-task-done-stdin-hang.
     try:
         r = subprocess.run(
             ["git", "branch", "--show-current"],
             capture_output=True,
             text=True,
             timeout=5,
+            stdin=subprocess.DEVNULL,
         )
         branch = r.stdout.strip() or "unknown"
     except Exception:
@@ -259,11 +257,7 @@ def cmd_skill(svc: ProjectService, args: Any) -> None:
     config_path = os.path.join(project_dir, ".tausik", "config.json")
 
     if c == "activate":
-        print(
-            svc.skill_activate(
-                args.name, vendor_dir, skills_dst, lib_skills_dir, config_path
-            )
-        )
+        print(svc.skill_activate(args.name, vendor_dir, skills_dst, lib_skills_dir, config_path))
     elif c == "deactivate":
         print(svc.skill_deactivate(args.name, skills_dst, lib_skills_dir, config_path))
     elif c == "list":
@@ -289,11 +283,7 @@ def cmd_skill(svc: ProjectService, args: Any) -> None:
         if not data["active"] and not data["vendored"] and not all_repo_skills:
             print("  (none)")
     elif c == "install":
-        print(
-            svc.skill_install(
-                args.name, vendor_dir, skills_dst, config_path, tausik_dir
-            )
-        )
+        print(svc.skill_install(args.name, vendor_dir, skills_dst, config_path, tausik_dir))
     elif c == "uninstall":
         print(svc.skill_uninstall(args.name, skills_dst, config_path))
     elif c == "repo":
@@ -377,9 +367,7 @@ def cmd_gates(svc: ProjectService, args: Any) -> None:
         for stack in sorted(stack_groups):
             if stack == "general":
                 continue
-            stack_gates = [
-                g for g in stack_groups[stack] if g in gates and g not in shown
-            ]
+            stack_gates = [g for g in stack_groups[stack] if g in gates and g not in shown]
             if not stack_gates:
                 continue
             active = stack in active_stacks
@@ -397,13 +385,9 @@ def cmd_gates(svc: ProjectService, args: Any) -> None:
                 if no_goal:
                     print(f"    ⚠{len(no_goal)} without goal: {', '.join(no_goal)}")
                 if no_ac:
-                    print(
-                        f"    ⚠{len(no_ac)} without acceptance_criteria: {', '.join(no_ac)}"
-                    )
+                    print(f"    ⚠{len(no_ac)} without acceptance_criteria: {', '.join(no_ac)}")
             elif planning:
-                print(
-                    f"\n  QG-0 Readiness: all {planning} planning tasks have goal + AC"
-                )
+                print(f"\n  QG-0 Readiness: all {planning} planning tasks have goal + AC")
 
     elif c == "enable":
         print(svc.gate_enable(args.name))

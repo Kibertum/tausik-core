@@ -6,11 +6,11 @@ Validates input, enforces business rules, delegates to SQLiteBackend.
 
 from __future__ import annotations
 
-import json
 from typing import TYPE_CHECKING, Any
 
 from tausik_utils import ServiceError, validate_length, validate_slug
 from service_knowledge import KnowledgeMixin
+from service_session import SessionMixin
 from service_skills import SkillsMixin
 from service_task import TaskMixin
 from service_task_team import TaskTeamMixin
@@ -72,118 +72,7 @@ class HierarchyMixin:
         return f"Story '{slug}' deleted."
 
 
-class SessionMixin:
-    """Session lifecycle with handoff persistence."""
-
-    be: SQLiteBackend
-
-    def session_start(self) -> str:
-        current = self.be.session_current()
-        if current:
-            return f"Session #{current['id']} already active (started {current['started_at']})."
-        sid = self.be.session_start()
-        return f"Session #{sid} started."
-
-    def session_active_minutes(
-        self, session_id: int | None = None, idle_threshold: int | None = None
-    ) -> int:
-        from service_session_metrics import session_active_minutes as _f
-
-        return _f(self.be, session_id, idle_threshold)
-
-    def session_wall_minutes(self, session_id: int | None = None) -> int:
-        from service_session_metrics import session_wall_minutes as _f
-
-        return _f(self.be, session_id)
-
-    def session_check_duration(self, max_minutes: int | None = None) -> str | None:
-        from service_session_metrics import session_overrun_warning
-
-        return session_overrun_warning(self.be, max_minutes)
-
-    def session_extend(self, minutes: int = 60) -> str:
-        """Extend session active-time limit by N minutes (SENAR Rule 9.2)."""
-        from project_config import DEFAULT_SESSION_MAX_MINUTES, load_config
-        from service_session_metrics import (
-            effective_session_limit,
-            session_active_minutes,
-        )
-
-        current = self.be.session_current()
-        if not current:
-            raise ServiceError("No active session to extend.")
-        cfg = load_config()
-        base = cfg.get("session_max_minutes", DEFAULT_SESSION_MAX_MINUTES)
-        effective_limit = effective_session_limit(self.be, current["id"], base)
-        new_limit = effective_limit + minutes
-        active = session_active_minutes(self.be, current["id"])
-        self.be.event_add(
-            "session",
-            str(current["id"]),
-            "session_extend",
-            f'{{"old_limit":{effective_limit},"new_limit":{new_limit},"active":{active}}}',
-        )
-        return (
-            f"Session #{current['id']} extended by {minutes} min. "
-            f"New limit: {new_limit} min (active: {active} min)."
-        )
-
-    def session_end(self, summary: str | None = None) -> str:
-        import os
-        import subprocess
-        import sys
-
-        current = self.be.session_current()
-        if not current:
-            raise ServiceError(
-                "No active session. Start one: .tausik/tausik session start"
-            )
-        self.be.session_end(current["id"], summary)
-        if os.environ.get("TAUSIK_DISABLE_SESSION_METRICS") == "1":
-            return f"Session #{current['id']} ended."
-        hooks_script = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            "hooks",
-            "session_metrics.py",
-        )
-        if not os.path.isfile(hooks_script):
-            return f"Session #{current['id']} ended."
-        try:
-            # Best-effort: do not fail session end when transcript isn't available.
-            subprocess.run(
-                [sys.executable, hooks_script, "--auto", "--record"],
-                cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                capture_output=True,
-                text=True,
-                timeout=30,
-                check=False,
-            )
-        except Exception:
-            pass
-        return f"Session #{current['id']} ended."
-
-    def session_current(self) -> dict[str, Any] | None:
-        return self.be.session_current()
-
-    def session_list(self, n: int = 10) -> list[dict[str, Any]]:
-        return self.be.session_list(n)
-
-    def session_handoff(self, handoff: dict[str, Any]) -> str:
-        current = self.be.session_current()
-        if not current:
-            raise ServiceError(
-                "No active session. Start one: .tausik/tausik session start"
-            )
-        self.be.session_update_handoff(current["id"], handoff)
-        return f"Handoff saved for session #{current['id']}."
-
-    def session_last_handoff(self) -> dict[str, Any] | None:
-        row = self.be.session_last_handoff()
-        if row and row.get("handoff"):
-            return dict(json.loads(row["handoff"]))
-        return None
-
-
+# SessionMixin moved to service_session.py (filesize-debt-paydown-2).
 class ProjectService(
     HierarchyMixin,
     TaskMixin,
@@ -200,25 +89,19 @@ class ProjectService(
     def _require_epic(self, slug: str) -> dict[str, Any]:
         row = self.be.epic_get(slug)
         if not row:
-            raise ServiceError(
-                f"Epic '{slug}' not found. List epics: .tausik/tausik epic list"
-            )
+            raise ServiceError(f"Epic '{slug}' not found. List epics: .tausik/tausik epic list")
         return row
 
     def _require_story(self, slug: str) -> dict[str, Any]:
         row = self.be.story_get(slug)
         if not row:
-            raise ServiceError(
-                f"Story '{slug}' not found. List stories: .tausik/tausik story list"
-            )
+            raise ServiceError(f"Story '{slug}' not found. List stories: .tausik/tausik story list")
         return row
 
     def _require_task(self, slug: str) -> dict[str, Any]:
         row = self.be.task_get(slug)
         if not row:
-            raise ServiceError(
-                f"Task '{slug}' not found. List tasks: .tausik/tausik task list"
-            )
+            raise ServiceError(f"Task '{slug}' not found. List tasks: .tausik/tausik task list")
         return row
 
     @staticmethod
@@ -253,9 +136,7 @@ class ProjectService(
         try:
             dt = datetime.fromisoformat(s)
         except ValueError as e:
-            raise ServiceError(
-                f"Invalid {label} timestamp (ISO-8601): {spec!r}"
-            ) from e
+            raise ServiceError(f"Invalid {label} timestamp (ISO-8601): {spec!r}") from e
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         else:
@@ -287,9 +168,7 @@ class ProjectService(
         if sid is None:
             current = self.be.session_current()
             if not current:
-                raise ServiceError(
-                    "No active session. Pass --session-id or start session first."
-                )
+                raise ServiceError("No active session. Pass --session-id or start session first.")
             sid = int(current["id"])
         self.be.session_usage_record(
             sid,
@@ -324,9 +203,7 @@ class ProjectService(
         if sid is None:
             current = self.be.session_current()
             if not current:
-                raise ServiceError(
-                    "No active session. Pass --session-id or start session first."
-                )
+                raise ServiceError("No active session. Pass --session-id or start session first.")
             sid = int(current["id"])
         ts: str | None = None
         if task_slug is not None and str(task_slug).strip():
@@ -390,9 +267,7 @@ class ProjectService(
         """Mark periodic audit as completed for current session."""
         current = self.be.session_current()
         if not current:
-            raise ServiceError(
-                "No active session. Start one: .tausik/tausik session start"
-            )
+            raise ServiceError("No active session. Start one: .tausik/tausik session start")
         self.be.meta_set("last_audit_session", str(current["id"]))
         return f"Audit marked at session #{current['id']}."
 
@@ -402,8 +277,7 @@ class ProjectService(
         """Return per-stack gate inventory + honest gap notice."""
         from difflib import get_close_matches
 
-        from project_config import DEFAULT_GATES, load_gates
-        from project_config import load_config
+        from project_config import DEFAULT_GATES, load_config, load_gates
         from project_types import get_valid_stacks
 
         valid = get_valid_stacks(load_config())
@@ -412,9 +286,7 @@ class ProjectService(
 
             suggest = get_close_matches(stack, sorted(valid), n=2, cutoff=0.5)
             hint = f" Did you mean: {', '.join(suggest)}?" if suggest else ""
-            raise ServiceError(
-                f"Unknown stack '{stack}'. Valid: {', '.join(sorted(valid))}.{hint}"
-            )
+            raise ServiceError(f"Unknown stack '{stack}'. Valid: {', '.join(sorted(valid))}.{hint}")
         gates = load_gates()
         applicable: list[dict[str, Any]] = []
         for name, gate_def in DEFAULT_GATES.items():
@@ -435,8 +307,7 @@ class ProjectService(
 
     def stack_list(self) -> list[dict[str, Any]]:
         """List all known stacks with applicable gate count."""
-        from project_config import DEFAULT_GATES
-        from project_config import load_config
+        from project_config import DEFAULT_GATES, load_config
         from project_types import DEFAULT_STACKS, get_valid_stacks
 
         valid = get_valid_stacks(load_config())
@@ -485,14 +356,11 @@ class ProjectService(
         qg0_report: dict[str, Any] = {}
         try:
             tasks = self.task_list("planning")
-            no_goal = [
-                t for t in tasks if not t.get("goal") or not str(t["goal"]).strip()
-            ]
+            no_goal = [t for t in tasks if not t.get("goal") or not str(t["goal"]).strip()]
             no_ac = [
                 t
                 for t in tasks
-                if not t.get("acceptance_criteria")
-                or not str(t["acceptance_criteria"]).strip()
+                if not t.get("acceptance_criteria") or not str(t["acceptance_criteria"]).strip()
             ]
             qg0_report = {
                 "planning_count": len(tasks),

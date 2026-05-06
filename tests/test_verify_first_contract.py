@@ -89,15 +89,19 @@ class TestVerifyFirstEnforcement:
                 task_ready.task_done("t", ac_verified=True)
 
     def test_block_message_points_to_remediation(self, task_ready, monkeypatch):
-        # Use task_done_v2 — it returns the structured report including the
-        # full remediation/output without the 180-char truncation that the
-        # legacy v1 ServiceError applies to the user-facing message.
+        # Use the internal _task_done_report to inspect the full structured
+        # report (full remediation/output without the 180-char truncation
+        # that the public legacy task_done() applies to the ServiceError).
+        # Pre-rename this called task_done_v2(); v14b-task-done-rename-drop-v2
+        # consolidated to a single tausik_task_done returning structured JSON.
         _stub_verify_only(monkeypatch, auto_verify=False)
         with patch.dict(
             "sys.modules",
             {"gate_runner": MagicMock(run_gates=MagicMock(return_value=(True, [])))},
         ):
-            report = task_ready.task_done_v2("t", ac_verified=True)
+            report = task_ready._task_done_report(
+                "t", relevant_files=None, ac_verified=True, no_knowledge=False, evidence=None
+            )
         assert not report["ok"]
         failures = report["blocking_failures"]
         assert any(

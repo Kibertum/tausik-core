@@ -111,12 +111,10 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 ],
             },
             {
-                # v1.4 (r14-task-done-verify-v2): cover both v1 and the
-                # structured-response v2 MCP tool. Falling off v2 would
-                # silently disable the verify-fix-loop hook.
-                "matcher": (
-                    "mcp__tausik-project__tausik_task_done|mcp__tausik-project__tausik_task_done_v2"
-                ),
+                # v14b-task-done-rename-drop-v2: single tausik_task_done MCP tool.
+                # Was a `tausik_task_done|tausik_task_done_v2` alternation pre-1.4
+                # when both names existed; rename consolidated them.
+                "matcher": "mcp__tausik-project__tausik_task_done",
                 "hooks": [
                     {
                         "type": "command",
@@ -160,6 +158,21 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                         "type": "command",
                         "command": hook_cmd("posttool_usage.py"),
                         "timeout": 4,
+                    }
+                ],
+            },
+            {
+                # v14b-baseline-token-metrics: append-only JSONL telemetry
+                # for per-tool baseline measurement (incl. cache_read /
+                # cache_create from prompt caching). Distinct from
+                # posttool_usage above which writes to the usage_events
+                # DB for per-task cost rollup. Best-effort, never blocks.
+                "matcher": "",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": hook_cmd("token_metrics.py"),
+                        "timeout": 3,
                     }
                 ],
             },

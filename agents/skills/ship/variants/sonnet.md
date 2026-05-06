@@ -78,13 +78,13 @@ Commit fails (pre-commit hook, user declines) → Stop. Do NOT close task.
 
 **Only after successful commit AND step 5b green.**
 
-**Preferred (v1.4+):** `tausik_task_done_v2` returns structured JSON with `stage` ("closed" | "blocked"), per-gate results, `blocking_failures` array.
+**Preferred (v1.4+):** `tausik_task_done` returns structured JSON with `stage` ("closed" | "blocked"), per-gate results, `blocking_failures` array.
 
 ```
-tausik_task_done_v2(slug, ac_verified=True, relevant_files=[...])
+tausik_task_done(slug, ac_verified=True, relevant_files=[...])
 ```
 
-**Fallback (legacy v1):** if `tausik_task_done_v2` not in tool list, use `tausik_task_done` with same args. v1 raises aggregated error string — read, fix, retry. Do NOT loop on failures silently.
+**Fallback (legacy v1):** if `tausik_task_done` not in tool list, use `tausik_task_done` with same args. v1 raises aggregated error string — read, fix, retry. Do NOT loop on failures silently.
 
 Verify-First: both v1 and v2 look up step 5b cache. Skipping 5b on verify-trigger projects → `task_done` refuses. Run verify, retry.
 

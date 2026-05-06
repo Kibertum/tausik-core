@@ -105,6 +105,7 @@ def test_clean_content_brain_enabled_routes_brain(svc):
     }
     with (
         patch("brain_config.load_brain", return_value=brain_cfg),
+        patch("brain_config.validate_brain", return_value=[]),
         patch(
             "brain_runtime.try_brain_write_decision",
             return_value=(True, "page-abc-123"),
@@ -119,6 +120,47 @@ def test_clean_content_brain_enabled_routes_brain(svc):
     assert len(svc.decisions()) == 0
 
 
+# --- v14b: brain enabled but misconfigured → loud warning, not silent fallback ---
+
+
+def test_brain_enabled_with_empty_database_ids_returns_loud_warning(svc, monkeypatch):
+    """Defect v14b-defect-brain-decisions-empty: when brain.enabled=true but
+    database_ids are empty, decide() must save locally AND surface a LOUD
+    warning instead of the quiet "brain write failed" fallback. Without this,
+    users accumulate local-only decisions that should have been mirrored.
+    """
+    brain_cfg = {
+        "enabled": True,
+        "notion_integration_token_env": "TEST_TOKEN",
+        "database_ids": {"decisions": "", "patterns": "", "gotchas": "", "web_cache": ""},
+    }
+    monkeypatch.setenv("TEST_TOKEN", "fake-token")
+    import brain_config
+
+    monkeypatch.setattr(brain_config, "load_brain", lambda cfg=None: brain_cfg)
+    monkeypatch.setattr(
+        brain_config,
+        "validate_brain",
+        lambda cfg=None: [
+            "brain.database_ids.decisions is empty but brain is enabled",
+            "brain.database_ids.patterns is empty but brain is enabled",
+            "brain.database_ids.gotchas is empty but brain is enabled",
+            "brain.database_ids.web_cache is empty but brain is enabled",
+        ],
+    )
+
+    msg = svc.decide("Use SQLite for project DB")
+
+    assert "BLOCKED" in msg
+    assert "LOCALLY ONLY" in msg
+    assert "brain init" in msg
+    assert "brain.enabled = false" in msg
+    assert "decisions is empty" in msg
+    assert "brain move --to-brain" in msg
+    # Decision still saved locally so user data is never lost.
+    assert len(svc.decisions()) == 1
+
+
 # --- AC5: brain write failure → local fallback ---
 
 
@@ -126,6 +168,7 @@ def test_brain_write_failure_falls_back_local(svc):
     brain_cfg = {"enabled": True, "notion_integration_token_env": "TEST_TOKEN"}
     with (
         patch("brain_config.load_brain", return_value=brain_cfg),
+        patch("brain_config.validate_brain", return_value=[]),
         patch(
             "brain_runtime.try_brain_write_decision",
             return_value=(False, "notion_error: 429 Too Many Requests"),
@@ -150,6 +193,7 @@ def test_brain_scrub_blocked_falls_back_local(svc, monkeypatch):
     monkeypatch.setenv("TEST_TOKEN", "fake-token")
     with (
         patch("brain_config.load_brain", return_value=brain_cfg),
+        patch("brain_config.validate_brain", return_value=[]),
         patch("brain_notion_client.NotionClient"),
         patch("brain_sync.open_brain_db"),
         patch(
@@ -198,6 +242,7 @@ def test_brain_ok_not_mirrored_treated_as_success(svc, monkeypatch):
     monkeypatch.setenv("TEST_TOKEN", "fake-token")
     with (
         patch("brain_config.load_brain", return_value=brain_cfg),
+        patch("brain_config.validate_brain", return_value=[]),
         patch("brain_notion_client.NotionClient"),
         patch("brain_sync.open_brain_db"),
         patch(
