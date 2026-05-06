@@ -173,6 +173,13 @@ Re-running on an already-configured project fails loudly unless you pass `--forc
 
 The wizard searches your Notion workspace for the canonical 4 BRAIN databases (auto-discovers via `POST /v1/search`) and writes their IDs into this project's `.tausik/config.json`. **No new databases are created.** All projects pointed at the same 4 IDs share one knowledge store; the `Source Project Hash` column keeps per-project rows distinguishable.
 
+**Auto-discovery is two-pass (v1.4-polish):**
+
+1. **Title-match.** Databases titled exactly `Brain · Decisions / Web Cache / Patterns / Gotchas` (the canonical names the wizard creates) are wired by name.
+2. **Schema-fallback.** For any category not matched by title, the wizard inspects each remaining visible database's `properties` schema. A database whose properties contain the per-category required set (e.g. `decisions` requires `Name`, `Decision`, `Rationale`, `Source Project Hash`) is wired regardless of its title. Catches databases renamed in Notion (UI rename, emoji prefix, translation) and databases created outside the wizard.
+
+When auto-discovery returns 0 hits but the integration sees other databases, the error lists those candidates so you can either rename them canonically or pass IDs explicitly. When the integration sees nothing at all, the error points at the share-with-integration step.
+
 If auto-discovery cannot find the databases (e.g. the integration was not invited to the parent page), pass IDs explicitly:
 
 ```bash

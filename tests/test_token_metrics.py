@@ -1,8 +1,10 @@
-"""Tests for v14b-baseline-token-metrics — JSONL hook + aggregator.
+"""Tests for v14b-baseline-token-metrics — aggregator + SessionEnd emitter.
 
-Covers AC #5 (hook unit test, aggregation query test) and AC #7-8
-(negative paths: malformed payload, missing usage block, IO error,
-empty/zero-N inputs).
+After defect v14b-defect-token-metrics-no-realworld-write (decision #61),
+per-tool token rows are produced by the SessionEnd transcript-parser in
+scripts/hooks/session_metrics.py (extract_token_rows / append_token_rows /
+resolve_session_id), NOT by a PostToolUse hook. The aggregator
+(scripts/service_token_metrics.py) reads the same JSONL schema as before.
 """
 
 from __future__ import annotations
@@ -10,13 +12,18 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
-import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks"))
 
 from service_token_metrics import _percentile, aggregate, format_table  # noqa: E402
+from session_metrics import (  # noqa: E402
+    append_token_rows,
+    extract_token_rows,
+    resolve_session_id,
+)
 
 
 # ---------- aggregator unit tests ----------
@@ -30,7 +37,6 @@ class TestPercentile:
         assert _percentile([42], 90) == 42
 
     def test_p50_of_evens(self):
-        # values [10, 20, 30, 40] — p50 is interpolated midpoint between 20 and 30
         assert _percentile([10, 20, 30, 40], 50) == 25
 
     def test_p90_takes_high_end(self):
@@ -46,7 +52,6 @@ class TestAggregate:
                 fh.write(json.dumps(r) + "\n")
 
     def test_no_jsonl_returns_zero_state(self, tmp_path):
-        # AC #8: empty/missing file → clean zero state, no crash
         agg = aggregate(project_dir=str(tmp_path), last_n=10)
         assert agg["events"] == 0
         assert agg["sessions_observed"] == 0
@@ -54,14 +59,13 @@ class TestAggregate:
         assert agg["totals"] == {"input": 0, "output": 0, "cache_read": 0, "cache_create": 0}
 
     def test_last_n_zero_returns_empty_window(self, tmp_path):
-        # AC #8: --last 0 returns clean state, not stack trace
         self._write_jsonl(
             tmp_path,
             [{"ts": "x", "session_id": 1, "tool_name": "Read", "input_tokens": 100}],
         )
         agg = aggregate(project_dir=str(tmp_path), last_n=0)
         assert agg["events"] == 0
-        assert agg["sessions_observed"] == 1  # observed but excluded from window
+        assert agg["sessions_observed"] == 1
 
     def test_aggregates_per_tool_with_p50_p90(self, tmp_path):
         rows = [
@@ -113,7 +117,6 @@ class TestAggregate:
         assert per_tool["Read"]["input_tokens_p50"] == 20
         assert per_tool["Edit"]["cache_read_total"] == 200
         assert per_tool["Edit"]["cache_create_total"] == 100
-        # Tools sorted by input_tokens_total desc — Edit (100) > Read (60)
         assert agg["per_tool"][0]["tool_name"] == "Edit"
 
     def test_filter_keeps_only_last_n_sessions(self, tmp_path):
@@ -125,7 +128,6 @@ class TestAggregate:
         ]
         self._write_jsonl(tmp_path, rows)
         agg = aggregate(project_dir=str(tmp_path), last_n=2)
-        # Only sessions 3 and 4 in window
         assert agg["events"] == 2
         assert agg["sessions_observed"] == 4
         assert agg["sessions_in_window"] == 2
@@ -171,128 +173,272 @@ class TestAggregate:
         assert "Token metrics" in out
 
 
-# ---------- hook integration tests ----------
+# ---------- SessionEnd transcript-parser tests ----------
 
 
-HOOK_PATH = Path(__file__).parent.parent / "scripts" / "hooks" / "token_metrics.py"
+def _write_transcript(path: Path, entries: list[dict]) -> None:
+    with open(path, "w", encoding="utf-8") as fh:
+        for e in entries:
+            fh.write(json.dumps(e) + "\n")
 
 
-def _run_hook(project_dir: Path, payload: str | None) -> tuple[int, str]:
-    """Run the hook script with the given stdin payload. Returns (rc, stderr)."""
-    env = os.environ.copy()
-    env["CLAUDE_PROJECT_DIR"] = str(project_dir)
-    env.pop("TAUSIK_SKIP_HOOKS", None)
-    r = subprocess.run(
-        [sys.executable, str(HOOK_PATH)],
-        input=payload if payload is not None else "",
-        text=True,
-        capture_output=True,
-        env=env,
-        timeout=10,
-    )
-    return r.returncode, r.stderr
+class TestExtractTokenRows:
+    def test_empty_transcript_yields_no_rows(self, tmp_path):
+        path = tmp_path / "t.jsonl"
+        _write_transcript(path, [])
+        assert extract_token_rows(str(path), session_id=1) == []
+
+    def test_skips_non_assistant_entries(self, tmp_path):
+        path = tmp_path / "t.jsonl"
+        _write_transcript(
+            path,
+            [
+                {"type": "human", "content": "hi", "usage": {"input_tokens": 100}},
+                {"type": "system", "content": "x"},
+            ],
+        )
+        assert extract_token_rows(str(path), session_id=1) == []
+
+    def test_skips_assistant_with_no_usage(self, tmp_path):
+        path = tmp_path / "t.jsonl"
+        _write_transcript(
+            path,
+            [{"type": "assistant", "content": [{"type": "tool_use", "name": "Read"}]}],
+        )
+        assert extract_token_rows(str(path), session_id=1) == []
+
+    def test_skips_assistant_text_only_no_tool_use(self, tmp_path):
+        path = tmp_path / "t.jsonl"
+        _write_transcript(
+            path,
+            [
+                {
+                    "type": "assistant",
+                    "content": [{"type": "text", "text": "ok"}],
+                    "usage": {"input_tokens": 100, "output_tokens": 10},
+                }
+            ],
+        )
+        assert extract_token_rows(str(path), session_id=1) == []
+
+    def test_single_tool_use_attributes_full_usage(self, tmp_path):
+        path = tmp_path / "t.jsonl"
+        _write_transcript(
+            path,
+            [
+                {
+                    "type": "assistant",
+                    "timestamp": "2026-05-06T10:00:00Z",
+                    "model": "claude-opus-4-7",
+                    "content": [{"type": "tool_use", "name": "Read"}],
+                    "usage": {
+                        "input_tokens": 1000,
+                        "output_tokens": 50,
+                        "cache_read_input_tokens": 4000,
+                        "cache_creation_input_tokens": 200,
+                    },
+                }
+            ],
+        )
+        rows = extract_token_rows(str(path), session_id=42)
+        assert len(rows) == 1
+        r = rows[0]
+        assert r["session_id"] == 42
+        assert r["tool_name"] == "Read"
+        assert r["input_tokens"] == 1000
+        assert r["output_tokens"] == 50
+        assert r["cache_read"] == 4000
+        assert r["cache_create"] == 200
+        assert r["model"] == "claude-opus-4-7"
+        assert r["ts"] == "2026-05-06T10:00:00Z"
+
+    def test_multi_tool_use_splits_evenly_with_remainder_on_last(self, tmp_path):
+        path = tmp_path / "t.jsonl"
+        _write_transcript(
+            path,
+            [
+                {
+                    "type": "assistant",
+                    "content": [
+                        {"type": "tool_use", "name": "Read"},
+                        {"type": "tool_use", "name": "Grep"},
+                        {"type": "tool_use", "name": "Glob"},
+                    ],
+                    "usage": {"input_tokens": 100, "output_tokens": 10},
+                }
+            ],
+        )
+        rows = extract_token_rows(str(path), session_id=1)
+        assert len(rows) == 3
+        # 100 // 3 = 33; last row absorbs 100 - 33*2 = 34
+        assert [r["input_tokens"] for r in rows] == [33, 33, 34]
+        assert sum(r["input_tokens"] for r in rows) == 100
+        # 10 // 3 = 3; last absorbs 10 - 3*2 = 4
+        assert [r["output_tokens"] for r in rows] == [3, 3, 4]
+        assert [r["tool_name"] for r in rows] == ["Read", "Grep", "Glob"]
+
+    def test_usage_inside_message_field(self, tmp_path):
+        # Some Claude Code transcript variants nest usage under "message"
+        path = tmp_path / "t.jsonl"
+        _write_transcript(
+            path,
+            [
+                {
+                    "type": "assistant",
+                    "message": {
+                        "model": "claude-sonnet-4-6",
+                        "content": [{"type": "tool_use", "name": "Edit"}],
+                        "usage": {"input_tokens": 500, "output_tokens": 25},
+                    },
+                }
+            ],
+        )
+        rows = extract_token_rows(str(path), session_id=1)
+        assert len(rows) == 1
+        assert rows[0]["model"] == "claude-sonnet-4-6"
+        assert rows[0]["input_tokens"] == 500
+
+    def test_skips_malformed_lines(self, tmp_path):
+        path = tmp_path / "t.jsonl"
+        path.write_text(
+            json.dumps(
+                {
+                    "type": "assistant",
+                    "content": [{"type": "tool_use", "name": "Read"}],
+                    "usage": {"input_tokens": 100, "output_tokens": 5},
+                }
+            )
+            + "\n"
+            + "not json at all\n"
+            + "\n",
+            encoding="utf-8",
+        )
+        rows = extract_token_rows(str(path), session_id=1)
+        assert len(rows) == 1
 
 
-def _make_tausik_project(project_dir: Path, with_open_session: bool = True) -> int | None:
-    tausik = project_dir / ".tausik"
-    tausik.mkdir(exist_ok=True)
-    db_path = tausik / "tausik.db"
-    conn = sqlite3.connect(str(db_path))
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS sessions ("
-        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
-        "started_at TEXT, ended_at TEXT)"
-    )
-    sid: int | None = None
-    if with_open_session:
-        cur = conn.execute(
+class TestAppendTokenRows:
+    def test_no_rows_returns_none(self, tmp_path):
+        (tmp_path / ".tausik").mkdir()
+        assert append_token_rows([], project_dir=str(tmp_path)) is None
+
+    def test_no_tausik_dir_returns_none(self, tmp_path):
+        rows = [{"ts": "x", "session_id": 1, "tool_name": "Read", "input_tokens": 5}]
+        assert append_token_rows(rows, project_dir=str(tmp_path)) is None
+        assert not (tmp_path / ".tausik" / "token_metrics.jsonl").exists()
+
+    def test_appends_rows_idempotent_across_calls(self, tmp_path):
+        (tmp_path / ".tausik").mkdir()
+        rows1 = [{"ts": "a", "session_id": 1, "tool_name": "Read", "input_tokens": 5}]
+        rows2 = [{"ts": "b", "session_id": 1, "tool_name": "Edit", "input_tokens": 7}]
+        append_token_rows(rows1, project_dir=str(tmp_path))
+        append_token_rows(rows2, project_dir=str(tmp_path))
+        path = tmp_path / ".tausik" / "token_metrics.jsonl"
+        lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        assert len(lines) == 2
+        assert json.loads(lines[0])["tool_name"] == "Read"
+        assert json.loads(lines[1])["tool_name"] == "Edit"
+
+
+class TestResolveSessionId:
+    def _make_db(self, project_dir: Path, sessions: list[tuple[str, str | None]]) -> None:
+        tausik = project_dir / ".tausik"
+        tausik.mkdir(exist_ok=True)
+        conn = sqlite3.connect(str(tausik / "tausik.db"))
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS sessions ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "started_at TEXT, ended_at TEXT)"
+        )
+        for started, ended in sessions:
+            conn.execute(
+                "INSERT INTO sessions(started_at, ended_at) VALUES (?, ?)",
+                (started, ended),
+            )
+        conn.commit()
+        conn.close()
+
+    def test_no_db_returns_none(self, tmp_path):
+        assert resolve_session_id(project_dir=str(tmp_path)) is None
+
+    def test_empty_table_returns_none(self, tmp_path):
+        self._make_db(tmp_path, [])
+        assert resolve_session_id(project_dir=str(tmp_path)) is None
+
+    def test_returns_most_recent_id_regardless_of_ended_at(self, tmp_path):
+        self._make_db(
+            tmp_path,
+            [
+                ("2026-05-06T10:00:00Z", "2026-05-06T10:30:00Z"),
+                ("2026-05-06T11:00:00Z", None),  # in-progress
+            ],
+        )
+        sid = resolve_session_id(project_dir=str(tmp_path))
+        assert sid == 2
+
+
+class TestEndToEndEmitter:
+    """Wire the three functions together against a realistic transcript."""
+
+    def test_real_transcript_to_jsonl(self, tmp_path, monkeypatch):
+        # Build a tausik project + DB
+        tausik = tmp_path / ".tausik"
+        tausik.mkdir()
+        conn = sqlite3.connect(str(tausik / "tausik.db"))
+        conn.execute(
+            "CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "started_at TEXT, ended_at TEXT)"
+        )
+        conn.execute(
             "INSERT INTO sessions(started_at, ended_at) VALUES (?, NULL)",
             ("2026-05-06T10:00:00Z",),
         )
-        sid = cur.lastrowid
-    conn.commit()
-    conn.close()
-    return sid
+        conn.commit()
+        conn.close()
 
-
-class TestHook:
-    def test_no_tausik_dir_silent_exit_zero(self, tmp_path):
-        # Plain dir, no .tausik/ → hook is a no-op
-        rc, _ = _run_hook(tmp_path, '{"tool_name":"Read"}')
-        assert rc == 0
-        assert not (tmp_path / ".tausik" / "token_metrics.jsonl").exists()
-
-    def test_empty_stdin_silent_exit_zero(self, tmp_path):
-        # AC #7: empty payload → no crash, no row appended
-        _make_tausik_project(tmp_path)
-        rc, _ = _run_hook(tmp_path, "")
-        assert rc == 0
-        assert not (tmp_path / ".tausik" / "token_metrics.jsonl").exists()
-
-    def test_malformed_json_silent_exit_zero(self, tmp_path):
-        # AC #7: malformed JSON → no crash, no row appended
-        _make_tausik_project(tmp_path)
-        rc, _ = _run_hook(tmp_path, "{not valid json")
-        assert rc == 0
-        assert not (tmp_path / ".tausik" / "token_metrics.jsonl").exists()
-
-    def test_payload_without_usage_block_skips(self, tmp_path):
-        # AC #7: missing usage block → skip silently (no zero-row noise)
-        _make_tausik_project(tmp_path)
-        rc, _ = _run_hook(
-            tmp_path,
-            json.dumps({"tool_name": "Read", "tool_response": {"content": "..."}}),
-        )
-        assert rc == 0
-        assert not (tmp_path / ".tausik" / "token_metrics.jsonl").exists()
-
-    def test_full_payload_records_row(self, tmp_path):
-        sid = _make_tausik_project(tmp_path)
-        payload = {
-            "tool_name": "Read",
-            "tool_response": {
-                "model": "claude-opus-4-7",
-                "usage": {
-                    "input_tokens": 1234,
-                    "output_tokens": 56,
-                    "cache_read_input_tokens": 4321,
-                    "cache_creation_input_tokens": 100,
+        # Build a transcript with two assistant turns
+        transcript = tmp_path / "transcript.jsonl"
+        _write_transcript(
+            transcript,
+            [
+                {
+                    "type": "assistant",
+                    "timestamp": "2026-05-06T10:00:00Z",
+                    "model": "claude-opus-4-7",
+                    "content": [{"type": "tool_use", "name": "Read"}],
+                    "usage": {"input_tokens": 1000, "output_tokens": 50},
                 },
-            },
-        }
-        rc, _ = _run_hook(tmp_path, json.dumps(payload))
-        assert rc == 0
-        path = tmp_path / ".tausik" / "token_metrics.jsonl"
-        assert path.exists()
-        line = path.read_text(encoding="utf-8").strip()
-        rec = json.loads(line)
-        assert rec["session_id"] == sid
-        assert rec["tool_name"] == "Read"
-        assert rec["input_tokens"] == 1234
-        assert rec["cache_read"] == 4321
-        assert rec["cache_create"] == 100
-        assert rec["model"] == "claude-opus-4-7"
+                {
+                    "type": "assistant",
+                    "timestamp": "2026-05-06T10:01:00Z",
+                    "content": [
+                        {"type": "tool_use", "name": "Grep"},
+                        {"type": "tool_use", "name": "Glob"},
+                    ],
+                    "usage": {"input_tokens": 200, "output_tokens": 20},
+                },
+            ],
+        )
 
-    def test_no_open_session_skips(self, tmp_path):
-        # No active session → can't attribute → skip silently
-        _make_tausik_project(tmp_path, with_open_session=False)
-        payload = {
-            "tool_name": "Read",
-            "tool_response": {"usage": {"input_tokens": 100, "output_tokens": 5}},
-        }
-        rc, _ = _run_hook(tmp_path, json.dumps(payload))
-        assert rc == 0
-        assert not (tmp_path / ".tausik" / "token_metrics.jsonl").exists()
+        monkeypatch.chdir(tmp_path)
+        sid = resolve_session_id()
+        assert sid == 1
+        rows = extract_token_rows(str(transcript), session_id=sid)
+        assert len(rows) == 3  # 1 + 2 tool_uses
+        out = append_token_rows(rows)
+        assert out is not None
+        assert (tausik / "token_metrics.jsonl").exists()
 
-    def test_appends_multiple_rows(self, tmp_path):
-        _make_tausik_project(tmp_path)
-        for i in range(3):
-            payload = {
-                "tool_name": f"Tool{i}",
-                "tool_response": {"usage": {"input_tokens": 10 * (i + 1), "output_tokens": 1}},
-            }
-            rc, _ = _run_hook(tmp_path, json.dumps(payload))
-            assert rc == 0
-        path = tmp_path / ".tausik" / "token_metrics.jsonl"
-        lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
-        assert len(lines) == 3
+        # Aggregator should now read it back as 3 events
+        agg = aggregate(project_dir=str(tmp_path), last_n=10)
+        assert agg["events"] == 3
+        assert agg["sessions_observed"] == 1
+        per_tool = {t["tool_name"]: t for t in agg["per_tool"]}
+        assert "Read" in per_tool
+        assert "Grep" in per_tool
+        assert "Glob" in per_tool
+        assert per_tool["Read"]["input_tokens_total"] == 1000
+        # Grep+Glob split 200 → 100/100
+        assert (
+            per_tool["Grep"]["input_tokens_total"] + per_tool["Glob"]["input_tokens_total"] == 200
+        )

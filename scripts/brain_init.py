@@ -185,69 +185,13 @@ def create_brain_databases(client: Any, parent_page_id: str) -> dict[str, str]:
 
 # --- Discovery / verification (anti-hallucination guards) ---
 
-
-def _extract_db_title(db: dict) -> str:
-    """Extract plain-text title from a Notion database object.
-
-    Notion returns `title` as a list of rich-text fragments. For canonical
-    BRAIN databases we created with a single text fragment, fragments[0].plain_text
-    is the title. Defensive: tolerate missing/empty/malformed shapes.
-    """
-    fragments = db.get("title") or []
-    pieces: list[str] = []
-    for f in fragments:
-        if not isinstance(f, dict):
-            continue
-        pt = f.get("plain_text")
-        if isinstance(pt, str):
-            pieces.append(pt)
-            continue
-        text = f.get("text")
-        if isinstance(text, dict):
-            content = text.get("content")
-            if isinstance(content, str):
-                pieces.append(content)
-    return "".join(pieces).strip()
-
-
-def find_workspace_brain_databases(client: Any) -> dict[str, str]:
-    """Search Notion workspace for existing canonical-titled BRAIN databases.
-
-    Returns {category: db_id} for each canonical title found. Empty dict when
-    nothing exists. Categories with multiple matches keep the FIRST id —
-    callers that detect duplicates should warn and ask the user to point
-    explicitly at the canonical four with --join-existing IDs.
-
-    Reads only — does not mutate Notion.
-    """
-    found: dict[str, str] = {}
-    title_to_category = {v: k for k, v in DB_TITLES.items()}
-
-    cursor: str | None = None
-    while True:
-        page = client.search(
-            query="Brain",
-            filter={"property": "object", "value": "database"},
-            start_cursor=cursor,
-            page_size=100,
-        )
-        for db in page.get("results", []) or []:
-            if db.get("object") != "database":
-                continue
-            if db.get("archived"):
-                continue
-            title = _extract_db_title(db)
-            cat = title_to_category.get(title)
-            if cat and cat not in found:
-                db_id = db.get("id") or ""
-                if db_id:
-                    found[cat] = db_id
-        if not page.get("has_more"):
-            break
-        cursor = page.get("next_cursor")
-        if not cursor:
-            break
-    return found
+# Discovery (title-match + schema-fallback) lives in brain_discovery.py;
+# re-exported here so callers and existing tests keep their imports.
+from brain_discovery import (  # noqa: E402
+    _extract_db_title,
+    find_workspace_brain_databases,
+    inspect_workspace_brain_databases,
+)
 
 
 def verify_brain_databases(client: Any, db_ids: dict[str, str]) -> dict[str, str]:
@@ -508,11 +452,45 @@ def run_wizard(
 
     # Branch A: --join-existing requested → resolve IDs (explicit > discovered).
     if join_existing:
-        # v1.4 dead-end #72 fix: when discovery is empty AND no explicit IDs
-        # were passed, the user's integration is almost certainly not shared
-        # with the BRAIN page. Surface that explicitly instead of the
-        # generic "could not resolve" message that masks the root cause.
+        # v1.4 dead-end #72 + v1.4-polish: when discovery returns 0 and no
+        # explicit IDs were passed, distinguish "integration sees nothing"
+        # (likely not-shared) from "integration sees databases that don't
+        # match canonical titles or schemas" (likely renamed BRAIN dbs).
         if not discovered and not explicit_join_ids and not pre_flight_skipped:
+            try:
+                inspection = inspect_workspace_brain_databases(client)
+            except NotionError:
+                inspection = {
+                    "visible": [],
+                    "matched": {},
+                    "unmatched_visible": [],
+                    "schema_conflicts": [],
+                }
+            visible = inspection.get("visible") or []
+            if visible:
+                listing = "\n".join(
+                    f"  - id={v['id']}  title={v['title']!r}  "
+                    f"parent_page={(v['parent_page_id'] or '?')[:8]}…"
+                    for v in visible
+                )
+                raise WizardError(
+                    "--join-existing: integration sees "
+                    f"{len(visible)} database(s) but none match canonical "
+                    "BRAIN titles ('Brain · Decisions' etc.) or the per-"
+                    "category property schema.\n"
+                    "\n"
+                    f"Visible databases:\n{listing}\n"
+                    "\n"
+                    "Probable cause: these are your BRAIN databases under "
+                    "non-canonical titles (renamed in Notion, or created by "
+                    "an older TAUSIK release). Two ways forward:\n"
+                    "  1. Rename them in Notion to the canonical titles "
+                    "('Brain · Decisions', 'Brain · Web Cache', "
+                    "'Brain · Patterns', 'Brain · Gotchas') and re-run.\n"
+                    "  2. Pass IDs explicitly:\n"
+                    "       --decisions-id <ID> --web-cache-id <ID> "
+                    "--patterns-id <ID> --gotchas-id <ID>"
+                )
             raise WizardError(
                 "--join-existing: search() returned 0 BRAIN databases in "
                 "this workspace, and no explicit IDs were passed.\n"

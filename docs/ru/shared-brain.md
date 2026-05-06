@@ -173,6 +173,13 @@ Parent page ID — 32-символьный hex после `notion.so/...-` в UR
 
 Wizard ищет в Notion-workspace канонические 4 BRAIN-базы (auto-discovery через `POST /v1/search`) и пишет их ID в `.tausik/config.json` этого проекта. **Новые базы не создаются.** Все проекты, указывающие на одни и те же 4 ID, делят один knowledge store; колонка `Source Project Hash` сохраняет различимость по проектам.
 
+**Auto-discovery — два прохода (v1.4-polish):**
+
+1. **Title-match.** Базы с точным названием `Brain · Decisions / Web Cache / Patterns / Gotchas` (как создаёт wizard) подключаются по имени.
+2. **Schema-fallback.** Для категорий, не сматченных по title, wizard инспектирует `properties` каждой оставшейся видимой базы. База, у которой `properties` содержат required-набор для категории (например, `decisions` требует `Name`, `Decision`, `Rationale`, `Source Project Hash`), подключается независимо от title. Перехватывает базы, переименованные в Notion (UI rename, emoji-префикс, перевод) и базы, созданные вне wizard'а.
+
+Когда auto-discovery возвращает 0 совпадений, но интеграция видит другие базы, ошибка перечислит этих кандидатов — можно либо переименовать их канонически, либо передать ID явно. Когда интеграция не видит ничего, ошибка укажет на share-with-integration шаг.
+
 Если auto-discovery не находит базы (например, интеграция не приглашена на parent page), передай ID явно:
 
 ```bash

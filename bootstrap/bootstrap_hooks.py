@@ -162,21 +162,6 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 ],
             },
             {
-                # v14b-baseline-token-metrics: append-only JSONL telemetry
-                # for per-tool baseline measurement (incl. cache_read /
-                # cache_create from prompt caching). Distinct from
-                # posttool_usage above which writes to the usage_events
-                # DB for per-task cost rollup. Best-effort, never blocks.
-                "matcher": "",
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": hook_cmd("token_metrics.py"),
-                        "timeout": 3,
-                    }
-                ],
-            },
-            {
                 # v1.3: writes one row per tool call to the events table
                 # so backend_session_metrics.compute_active_minutes
                 # actually has data to sum. Without it the 180-min SENAR

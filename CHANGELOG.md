@@ -147,6 +147,63 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Brain `--join-existing` discovery missed renamed databases
+  (`v14b-defect-brain-enable-no-discovery`).**
+  `find_workspace_brain_databases` matched candidate Notion databases
+  exclusively by exact title equality with `DB_TITLES`
+  (`Brain · Decisions / Web Cache / Patterns / Gotchas`). When the four
+  BRAIN databases existed under any other title — UI rename, emoji
+  prefix, translation, or because they were created outside the wizard
+  with category-only names (`decisions` / `web_cache` / `patterns` /
+  `gotchas`) — discovery returned `{}` and the wizard surfaced the
+  misleading "integration not shared with the BRAIN page" error even
+  when the integration could see the databases just fine.
+  Discovery is now two-pass: title-match first (unchanged happy path,
+  zero extra API calls), then a schema-fallback pass that scans
+  unassigned visible databases and assigns the first one whose Notion
+  `properties` contain the per-category required set. Discovery now
+  also issues `search()` without `query="Brain"` — that pre-filter
+  silently dropped databases without that word in the title. Branch A
+  of `run_wizard` calls a new `inspect_workspace_brain_databases()`
+  helper when discovery returns 0 hits and renders an enriched
+  `WizardError` listing the visible candidates (id, title, parent
+  page) plus two paths forward (rename canonically, or pass IDs
+  explicitly), so users can self-diagnose without re-reading the
+  source. The "integration not shared" message is preserved for the
+  visible-zero case where it is still the right diagnosis.
+  Discovery extracted to `scripts/brain_discovery.py` to keep
+  `brain_init.py` focused. Tests: 69 passing in `tests/test_brain_init.py`
+  (10 new — schema-fallback positive, mixed title+schema, schema
+  conflicts, enriched error, share-via-Connections regression).
+  Live evidence on this project: 4 dbs titled `decisions` / `web_cache`
+  / `patterns` / `gotchas` (no `Brain ·` prefix) auto-discovered via
+  `via=schema`, identical IDs to those previously wired by hand.
+
+- **Token metrics never wrote in production
+  (`v14b-defect-token-metrics-no-realworld-write`,
+  defect_of=`v14b-baseline-token-metrics`).** `.tausik/token_metrics.jsonl`
+  silently stayed empty across every real session because the original
+  PostToolUse hook (`scripts/hooks/token_metrics.py`) read
+  `tool_response.usage` from the harness payload — a field Claude Code
+  never populates per-tool-call (token usage is message-level only). The
+  hook was unit-tested against synthetic payloads that fabricated the
+  field, so CI green and production silent. Per decision #61, capture
+  moved to the existing SessionEnd transcript-parser
+  (`scripts/hooks/session_metrics.py`): new `extract_token_rows` walks
+  each assistant entry, splits message-level `usage` evenly across
+  `tool_use` blocks (last block absorbs the integer-division remainder
+  to keep totals exact), and `append_token_rows` writes the same
+  schema `service_token_metrics.aggregate()` already consumes. The
+  broken PostToolUse hook is removed from `bootstrap/bootstrap_hooks.py`
+  + `bootstrap/bootstrap_qwen.py`; `scripts/hooks/token_metrics.py`
+  remains as a no-op stub so live IDE instances with stale hook config
+  don't error before restart (delete after IDE restart). Tests: 26
+  cases in rewritten `tests/test_token_metrics.py` (aggregator, row
+  extractor, appender, session_id resolver, end-to-end). End-to-end
+  verification: ran on the live transcript of session #55 and got 73
+  rows across 22 tools, `tausik metrics tokens` rendered the table
+  correctly with cache_read dominating input_tokens (expected under
+  prompt caching).
 - **`tausik_self_check.sibling_mcp_count` chronic +1 false-positive on
   Windows venv (`v14b-defect-mcp-self-check-venv-launcher`,
   defect_of=`v14b-mcp-stale-module-detector`).** Every IDE restart left

@@ -10,9 +10,7 @@ from __future__ import annotations
 import os
 import sys
 
-_SCRIPTS_DIR = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "scripts")
-)
+_SCRIPTS_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "scripts"))
 if os.path.isdir(_SCRIPTS_DIR):
     if _SCRIPTS_DIR not in sys.path:
         sys.path.insert(0, _SCRIPTS_DIR)
@@ -30,10 +28,17 @@ from brain_runtime import open_brain_deps as _open_deps  # noqa: E402
 def _not_configured_msg() -> str:
     return (
         "_Brain is not enabled in this project._\n\n"
-        "To enable: run `.tausik/tausik brain init` — it creates the 4 "
-        "Notion databases and writes `.tausik/config.json` for you. "
+        "To enable, pick one:\n"
+        "  • If you have NO BRAIN databases yet — run `.tausik/tausik brain init` "
+        "to create the 4 Notion databases and write `.tausik/config.json`. "
         "Non-interactive flags: `--parent-page-id X --token-env Y "
-        "--project-name Z --yes --non-interactive`."
+        "--project-name Z --yes --non-interactive`.\n"
+        "  • If 4 BRAIN databases already exist in your Notion workspace "
+        "(common — adding TAUSIK to a 2nd/3rd project, or migrating from "
+        "another machine) — run `.tausik/tausik brain init --join-existing "
+        "--token-env <ENV>`. Auto-discovery finds them by canonical title or "
+        "by per-category schema (catches renamed databases). No new databases "
+        "are created."
     )
 
 
@@ -67,9 +72,7 @@ def _parse_prefer_stack(raw: object) -> list[str] | None:
 def handle_brain_search(args: dict) -> str:
     query = (args.get("query") or "").strip()
     if not query:
-        return (
-            "_brain_search: query is empty — provide a non-whitespace search string._"
-        )
+        return "_brain_search: query is empty — provide a non-whitespace search string._"
     conn, client, cfg = _open_deps()
     if not cfg.get("enabled") or conn is None:
         return _not_configured_msg()
@@ -95,9 +98,7 @@ def handle_brain_search(args: dict) -> str:
     warnings = list(result["warnings"])
     if client is None:
         warnings.insert(0, _token_missing_warning(cfg))
-    return brain_mcp_read.format_search_results(
-        result["results"], warnings, query=query
-    )
+    return brain_mcp_read.format_search_results(result["results"], warnings, query=query)
 
 
 def handle_brain_get(args: dict) -> str:

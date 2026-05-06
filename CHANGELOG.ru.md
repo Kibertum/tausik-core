@@ -154,6 +154,64 @@
 
 ### Исправлено
 
+- **Brain `--join-existing` discovery не находил переименованные БД
+  (`v14b-defect-brain-enable-no-discovery`).**
+  `find_workspace_brain_databases` сматчивал кандидатов в Notion
+  только точным сравнением title с `DB_TITLES`
+  (`Brain · Decisions / Web Cache / Patterns / Gotchas`). Если 4 BRAIN
+  БД существовали под любым другим title — переименование в UI,
+  emoji-префикс, перевод, или они были созданы вне wizard'а с
+  category-only названиями (`decisions` / `web_cache` / `patterns` /
+  `gotchas`) — discovery возвращал `{}`, а wizard выдавал
+  misleading-сообщение «integration not shared with the BRAIN page»,
+  хотя integration видел БД нормально.
+  Теперь discovery в два прохода: сначала title-match (happy path
+  не меняется, ноль лишних API-вызовов), потом schema-fallback —
+  скан непривязанных visible БД с проверкой что Notion `properties`
+  содержат required-набор для категории. Discovery также теперь
+  не передаёт `query="Brain"` в `search()` — этот префильтр тихо
+  отбрасывал БД без этого слова в title. Ветка A `run_wizard`
+  при пустом discovery дёргает новый помощник
+  `inspect_workspace_brain_databases()` и выдаёт enriched-ошибку
+  со списком visible кандидатов (id, title, parent page) и двумя
+  путями (переименовать канонически или передать IDs явно), чтобы
+  пользователь мог сам поставить диагноз без чтения исходников.
+  Сообщение «integration not shared» сохранено для visible-zero
+  случая, где это всё ещё правильный диагноз.
+  Discovery вынесен в `scripts/brain_discovery.py`, чтобы
+  `brain_init.py` оставался сфокусированным. Тесты: 69 проходят
+  в `tests/test_brain_init.py` (10 новых — schema-fallback positive,
+  mixed title+schema, schema conflicts, enriched error, регрессия
+  share-via-Connections). Live evidence на этом проекте: 4 БД с
+  title `decisions` / `web_cache` / `patterns` / `gotchas` (без
+  `Brain ·` префикса) сматчены через `via=schema`, ID идентичны
+  тем, что были вручную указаны раньше.
+
+- **Token metrics никогда не писались в production
+  (`v14b-defect-token-metrics-no-realworld-write`,
+  defect_of=`v14b-baseline-token-metrics`).** `.tausik/token_metrics.jsonl`
+  тихо оставался пустым во всех реальных сессиях, потому что оригинальный
+  PostToolUse-хук (`scripts/hooks/token_metrics.py`) читал
+  `tool_response.usage` из harness-payload — поле, которое Claude Code
+  никогда не заполняет per-tool-call (token usage существует только на
+  уровне message). Хук был юнит-тестирован против синтетических payloads,
+  которые подделывали это поле — поэтому CI зелёный, а в production тишина.
+  По решению #61 capture перенесён в существующий SessionEnd transcript-
+  parser (`scripts/hooks/session_metrics.py`): новый `extract_token_rows`
+  проходит по каждой assistant-записи, делит message-level `usage` поровну
+  между `tool_use` блоками (последний блок забирает остаток integer-
+  деления, чтобы суммы оставались точными), а `append_token_rows` пишет
+  ту же схему, которую уже потребляет `service_token_metrics.aggregate()`.
+  Сломанный PostToolUse-хук удалён из `bootstrap/bootstrap_hooks.py` +
+  `bootstrap/bootstrap_qwen.py`; `scripts/hooks/token_metrics.py` остался
+  no-op stub'ом, чтобы живые IDE-инстансы со старым hook-конфигом не
+  падали до перезапуска (удалить после рестарта IDE). Тесты: 26 кейсов
+  в переписанном `tests/test_token_metrics.py` (aggregator, row
+  extractor, appender, session_id resolver, end-to-end). End-to-end
+  проверка: прогнали на живом transcript сессии #55 и получили 73
+  строки по 22 тулам, `tausik metrics tokens` корректно отрендерил
+  таблицу с доминированием cache_read над input_tokens (ожидаемо под
+  prompt caching).
 - **`tausik_self_check.sibling_mcp_count` хронический +1 false-positive
   на Windows venv (`v14b-defect-mcp-self-check-venv-launcher`,
   defect_of=`v14b-mcp-stale-module-detector`).** Каждый рестарт IDE

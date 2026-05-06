@@ -182,6 +182,108 @@ def write_metrics(metrics: dict, output_path: str | None = None) -> str:
     return output_path
 
 
+def extract_token_rows(path: str, session_id: int) -> list[dict]:
+    """Walk transcript JSONL, emit one row per tool_use occurrence.
+
+    Schema matches service_token_metrics.aggregate(): ts, session_id, tool_name,
+    input_tokens, output_tokens, cache_read, cache_create, model. API usage is
+    message-level, so per-tool attribution divides input/output/cache_* equally
+    across tool_use blocks in the same assistant entry; the last block absorbs
+    the integer-division remainder so totals stay exact. Pure-text turns and
+    entries without tool_use blocks emit no rows.
+    """
+    rows: list[dict] = []
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if entry.get("type") != "assistant":
+                continue
+            msg = entry.get("message") if isinstance(entry.get("message"), dict) else {}
+            usage = entry.get("usage") or msg.get("usage") or {}
+            if not isinstance(usage, dict) or not usage:
+                continue
+            content = entry.get("content") or msg.get("content") or []
+            if not isinstance(content, list):
+                continue
+            tool_uses = [b for b in content if isinstance(b, dict) and b.get("type") == "tool_use"]
+            if not tool_uses:
+                continue
+            n = len(tool_uses)
+            ts = entry.get("timestamp") or ""
+            input_tokens = int(usage.get("input_tokens") or 0)
+            output_tokens = int(usage.get("output_tokens") or 0)
+            cache_read = int(usage.get("cache_read_input_tokens") or 0)
+            cache_create = int(usage.get("cache_creation_input_tokens") or 0)
+            entry_model = entry.get("model") or msg.get("model") or None
+            if not isinstance(entry_model, str) or not entry_model.strip():
+                entry_model = None
+
+            def _split(total: int, idx: int) -> int:
+                base = total // n
+                if idx == n - 1:
+                    return total - base * (n - 1)
+                return base
+
+            for i, tu in enumerate(tool_uses):
+                rows.append(
+                    {
+                        "ts": ts,
+                        "session_id": session_id,
+                        "tool_name": tu.get("name") or "(unknown)",
+                        "input_tokens": _split(input_tokens, i),
+                        "output_tokens": _split(output_tokens, i),
+                        "cache_read": _split(cache_read, i),
+                        "cache_create": _split(cache_create, i),
+                        "model": entry_model,
+                    }
+                )
+    return rows
+
+
+def append_token_rows(rows: list[dict], project_dir: str | None = None) -> str | None:
+    """Append rows to .tausik/token_metrics.jsonl. Returns path or None on no-op."""
+    if not rows:
+        return None
+    proj = project_dir or os.getcwd()
+    tausik_dir = os.path.join(proj, ".tausik")
+    if not os.path.isdir(tausik_dir):
+        return None
+    path = os.path.join(tausik_dir, "token_metrics.jsonl")
+    try:
+        with open(path, "a", encoding="utf-8") as fh:
+            for r in rows:
+                fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+    except OSError as exc:
+        print(f"token_metrics.jsonl append failed: {exc}", file=sys.stderr)
+        return None
+    return path
+
+
+def resolve_session_id(project_dir: str | None = None) -> int | None:
+    """Most-recent session id from .tausik/tausik.db. None when DB missing/empty."""
+    proj = project_dir or os.getcwd()
+    db = os.path.join(proj, ".tausik", "tausik.db")
+    if not os.path.exists(db):
+        return None
+    try:
+        import sqlite3
+
+        conn = sqlite3.connect(db, timeout=2)
+        try:
+            row = conn.execute("SELECT id FROM sessions ORDER BY id DESC LIMIT 1").fetchone()
+            return int(row[0]) if row else None
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return None
+
+
 def record_to_db(metrics: dict, project_root: str | None = None) -> bool:
     """Call project.py metrics record-session to write metrics to CouchDB.
 
@@ -276,6 +378,13 @@ def main():
 
     if record:
         record_to_db(metrics)
+
+    sid = resolve_session_id()
+    if sid is not None:
+        rows = extract_token_rows(path, sid)
+        jsonl = append_token_rows(rows)
+        if jsonl:
+            print(f"token_metrics.jsonl: appended {len(rows)} row(s) to {jsonl}")
 
 
 if __name__ == "__main__":

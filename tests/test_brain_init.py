@@ -97,6 +97,7 @@ class _FakeClient:
         existing_dbs: dict[str, str] | None = None,
         query_404: set[str] | None = None,
         users_me_error: Exception | None = None,
+        search_results: list[dict] | None = None,
     ):
         self.calls: list[dict] = []
         self.search_calls: list[dict] = []
@@ -106,6 +107,10 @@ class _FakeClient:
         self.existing_dbs = existing_dbs or {}
         self.query_404 = query_404 or set()
         self.users_me_error = users_me_error
+        # When supplied, overrides the synthesized canonical-titled list
+        # produced from existing_dbs. Each entry is a Notion-shaped dict
+        # (id, title, properties, parent, archived).
+        self.search_results = search_results
 
     def users_me(self):
         self.users_me_calls.append(None)
@@ -124,6 +129,12 @@ class _FakeClient:
 
     def search(self, *, query=None, filter=None, start_cursor=None, page_size=None):
         self.search_calls.append({"query": query, "filter": filter})
+        if self.search_results is not None:
+            return {
+                "results": list(self.search_results),
+                "has_more": False,
+                "next_cursor": None,
+            }
         results = []
         for category, db_id in self.existing_dbs.items():
             title = brain_init.DB_TITLES[category]
@@ -1278,3 +1289,277 @@ def test_run_wizard_join_existing_with_all_explicit_ids_skips_preflight_guide(
     assert fake.search_calls == [], (
         "with all explicit IDs, pre-flight workspace search should be skipped"
     )
+
+
+# --- v1.4-polish: schema-based discovery fallback -------------------------
+
+
+def _db_obj(
+    *,
+    db_id: str,
+    title: str,
+    properties: dict | None = None,
+    parent_page_id: str = "page-x",
+    archived: bool = False,
+) -> dict:
+    """Build a Notion-shaped database object for tests."""
+    return {
+        "object": "database",
+        "id": db_id,
+        "title": [{"type": "text", "plain_text": title}],
+        "properties": properties or {},
+        "parent": {"type": "page_id", "page_id": parent_page_id},
+        "archived": archived,
+    }
+
+
+def _schema_props(category: str) -> dict:
+    """Properties shape sufficient for schema-fallback to assign `category`.
+
+    Uses the same {name: {type: ...}} shape Notion returns on database objects.
+    Mirrors the required-props whitelist in scripts/brain_discovery.py.
+    """
+    if category == "decisions":
+        return {
+            "Name": {"type": "title", "title": {}},
+            "Decision": {"type": "rich_text", "rich_text": {}},
+            "Rationale": {"type": "rich_text", "rich_text": {}},
+            "Source Project Hash": {"type": "rich_text", "rich_text": {}},
+        }
+    if category == "web_cache":
+        return {
+            "Name": {"type": "title", "title": {}},
+            "URL": {"type": "url", "url": {}},
+            "Content": {"type": "rich_text", "rich_text": {}},
+            "Content Hash": {"type": "rich_text", "rich_text": {}},
+        }
+    if category == "patterns":
+        return {
+            "Name": {"type": "title", "title": {}},
+            "Description": {"type": "rich_text", "rich_text": {}},
+            "When to Use": {"type": "rich_text", "rich_text": {}},
+        }
+    if category == "gotchas":
+        return {
+            "Name": {"type": "title", "title": {}},
+            "Description": {"type": "rich_text", "rich_text": {}},
+            "Wrong Way": {"type": "rich_text", "rich_text": {}},
+            "Right Way": {"type": "rich_text", "rich_text": {}},
+        }
+    raise ValueError(category)
+
+
+def test_find_workspace_schema_match_when_titles_renamed():
+    """4 BRAIN dbs with non-canonical titles but matching schemas → all 4 found."""
+    client = _FakeClient(
+        search_results=[
+            _db_obj(db_id="d1", title="decisions", properties=_schema_props("decisions")),
+            _db_obj(db_id="w1", title="web_cache", properties=_schema_props("web_cache")),
+            _db_obj(db_id="p1", title="patterns", properties=_schema_props("patterns")),
+            _db_obj(db_id="g1", title="gotchas", properties=_schema_props("gotchas")),
+        ]
+    )
+    found = brain_init.find_workspace_brain_databases(client)
+    assert found == {
+        "decisions": "d1",
+        "web_cache": "w1",
+        "patterns": "p1",
+        "gotchas": "g1",
+    }
+
+
+def test_find_workspace_mixed_title_and_schema_match():
+    """2 canonical-titled + 2 renamed (schema-only) → all 4 found, no overlap."""
+    client = _FakeClient(
+        search_results=[
+            _db_obj(
+                db_id="d1",
+                title=brain_init.DB_TITLES["decisions"],
+                properties=_schema_props("decisions"),
+            ),
+            _db_obj(
+                db_id="w1",
+                title=brain_init.DB_TITLES["web_cache"],
+                properties=_schema_props("web_cache"),
+            ),
+            _db_obj(db_id="p1", title="my-patterns", properties=_schema_props("patterns")),
+            _db_obj(db_id="g1", title="📛 gotchas", properties=_schema_props("gotchas")),
+        ]
+    )
+    found = brain_init.find_workspace_brain_databases(client)
+    assert found == {
+        "decisions": "d1",
+        "web_cache": "w1",
+        "patterns": "p1",
+        "gotchas": "g1",
+    }
+
+
+def test_find_workspace_schema_skips_unrelated_db():
+    """A database with neither canonical title nor matching schema is ignored."""
+    unrelated_props = {
+        "Name": {"type": "title", "title": {}},
+        "Status": {"type": "select", "select": {}},
+    }
+    client = _FakeClient(
+        search_results=[
+            _db_obj(db_id="x1", title="Project Tracker", properties=unrelated_props),
+            _db_obj(db_id="d1", title="decisions", properties=_schema_props("decisions")),
+        ]
+    )
+    found = brain_init.find_workspace_brain_databases(client)
+    assert found == {"decisions": "d1"}
+
+
+def test_find_workspace_search_query_is_no_longer_filtered_by_brain_word():
+    """Regression: search() must NOT pass query='Brain' (silently dropped renamed dbs)."""
+    client = _FakeClient(
+        search_results=[
+            _db_obj(db_id="d1", title="decisions", properties=_schema_props("decisions")),
+        ]
+    )
+    brain_init.find_workspace_brain_databases(client)
+    assert client.search_calls, "expected at least one search() call"
+    for call in client.search_calls:
+        assert call["query"] is None, (
+            f"search() should not pre-filter by query='Brain'; got {call['query']!r}"
+        )
+
+
+def test_inspect_workspace_reports_visible_when_no_match():
+    """4 unrelated dbs → matched={}, visible has all 4, unmatched_visible has all 4."""
+    unrelated = {
+        "Name": {"type": "title", "title": {}},
+        "Notes": {"type": "rich_text", "rich_text": {}},
+    }
+    client = _FakeClient(
+        search_results=[
+            _db_obj(db_id="x1", title="Tasks", properties=unrelated, parent_page_id="p1"),
+            _db_obj(db_id="x2", title="Inbox", properties=unrelated, parent_page_id="p1"),
+        ]
+    )
+    from brain_discovery import inspect_workspace_brain_databases
+
+    result = inspect_workspace_brain_databases(client)
+    assert len(result["visible"]) == 2
+    assert {v["id"] for v in result["visible"]} == {"x1", "x2"}
+    assert result["matched"] == {}
+    assert len(result["unmatched_visible"]) == 2
+    assert result["schema_conflicts"] == []
+
+
+def test_inspect_workspace_records_via_label():
+    """matched entries carry 'via': 'title' for canonical, 'schema' for fallback."""
+    client = _FakeClient(
+        search_results=[
+            _db_obj(
+                db_id="d1",
+                title=brain_init.DB_TITLES["decisions"],
+                properties=_schema_props("decisions"),
+            ),
+            _db_obj(db_id="g1", title="gotchas-renamed", properties=_schema_props("gotchas")),
+        ]
+    )
+    from brain_discovery import inspect_workspace_brain_databases
+
+    result = inspect_workspace_brain_databases(client)
+    assert result["matched"]["decisions"]["via"] == "title"
+    assert result["matched"]["gotchas"]["via"] == "schema"
+
+
+def test_inspect_workspace_records_schema_conflict():
+    """Two unassigned dbs with the same category schema → recorded as conflict."""
+    client = _FakeClient(
+        search_results=[
+            _db_obj(db_id="d1", title="decisions-A", properties=_schema_props("decisions")),
+            _db_obj(db_id="d2", title="decisions-B", properties=_schema_props("decisions")),
+        ]
+    )
+    from brain_discovery import inspect_workspace_brain_databases
+
+    result = inspect_workspace_brain_databases(client)
+    assert result["matched"] == {}
+    assert len(result["schema_conflicts"]) == 1
+    conflict = result["schema_conflicts"][0]
+    assert conflict["category"] == "decisions"
+    assert {c["id"] for c in conflict["candidates"]} == {"d1", "d2"}
+
+
+def test_run_wizard_join_existing_succeeds_via_schema_fallback(monkeypatch):
+    """End-to-end: --join-existing with renamed dbs auto-discovers via schema."""
+    monkeypatch.setenv("T", "tok")
+    io = _FakeIO(is_tty=False)
+    cfg_ops = _FakeConfigOps()
+
+    fake = _FakeClient(
+        search_results=[
+            _db_obj(db_id="d1", title="decisions", properties=_schema_props("decisions")),
+            _db_obj(db_id="w1", title="web_cache", properties=_schema_props("web_cache")),
+            _db_obj(db_id="p1", title="patterns", properties=_schema_props("patterns")),
+            _db_obj(db_id="g1", title="gotchas", properties=_schema_props("gotchas")),
+        ]
+    )
+
+    result = brain_init.run_wizard(
+        {"token_env": "T", "project_name": "x", "yes": True, "join_existing": True},
+        io,
+        lambda _t: fake,
+        cfg_ops,
+    )
+    assert result["mode"] == "join"
+    assert result["database_ids"] == {
+        "decisions": "d1",
+        "web_cache": "w1",
+        "patterns": "p1",
+        "gotchas": "g1",
+    }
+
+
+def test_run_wizard_join_existing_error_lists_visible_dbs_when_zero_match(monkeypatch):
+    """Branch A: visible>0 but none match → error names them, NOT the 'not shared' message."""
+    monkeypatch.setenv("T", "tok")
+    io = _FakeIO(is_tty=False)
+    cfg_ops = _FakeConfigOps()
+
+    unrelated = {
+        "Name": {"type": "title", "title": {}},
+        "Status": {"type": "select", "select": {}},
+    }
+    fake = _FakeClient(
+        search_results=[
+            _db_obj(db_id="x1", title="Tasks", properties=unrelated, parent_page_id="p1"),
+            _db_obj(db_id="x2", title="Inbox", properties=unrelated, parent_page_id="p1"),
+        ]
+    )
+
+    with pytest.raises(brain_init.WizardError) as ei:
+        brain_init.run_wizard(
+            {"token_env": "T", "project_name": "x", "yes": True, "join_existing": True},
+            io,
+            lambda _t: fake,
+            cfg_ops,
+        )
+    msg = str(ei.value)
+    assert "x1" in msg
+    assert "x2" in msg
+    assert "'Tasks'" in msg
+    assert "'Inbox'" in msg
+    assert "Connections" not in msg, (
+        "share-via-Connections message is for visible=0; should not appear here"
+    )
+
+
+def test_run_wizard_join_existing_says_not_shared_when_integration_sees_zero(monkeypatch):
+    """Branch A regression: visible=0 → keeps the existing 'not shared' message."""
+    monkeypatch.setenv("T", "tok")
+    io = _FakeIO(is_tty=False)
+    cfg_ops = _FakeConfigOps()
+    fake = _FakeClient(search_results=[])  # empty workspace
+
+    with pytest.raises(brain_init.WizardError, match="Connections"):
+        brain_init.run_wizard(
+            {"token_env": "T", "project_name": "x", "yes": True, "join_existing": True},
+            io,
+            lambda _t: fake,
+            cfg_ops,
+        )
