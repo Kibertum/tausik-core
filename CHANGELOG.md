@@ -14,6 +14,29 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - **Compound RPC `tausik_session_open` for `/start` Phase 1 (`v14b-session-open-compound-rpc-impl`).**
   Single MCP call returns one JSON envelope with `{session, status, handoff, tasks{active,blocked}, self_check}` — replaces 5 sequential calls (session_start + status compact + last_handoff + task_list active+blocked + self_check) with one round-trip. Each sub-section is best-effort: a sub-call failure surfaces an inline `error` key without aborting the envelope, so `/start` still renders a degraded dashboard. MCP tool count: 99 → 100 (93 project + 7 brain). `/start` SKILL.md Phase 1 collapses from "5 parallel tools" to "single compound call"; drift fallback to CLI on `self_check.drift_detected=true` is preserved.
 
+- **Translation-drift audit script (`v14b-junk-translation-drift-audit`).**
+  New `scripts/audit_translation_drift.py` reports structural drift
+  between EN/RU mirror docs (`docs/en/foo.md` ↔ `docs/ru/foo.md`)
+  by comparing three coarse metrics per pair: ATX heading count
+  (`#`..`######`), fenced code-block count (triple-backtick fences),
+  markdown-table-separator count (`|---|---|` rows). Pairing by
+  basename — `paired-with-drift`, `en-only`, `ru-only` rendered as
+  separate sections. Three modes mirroring `audit_stale_docs.py`:
+  default markdown report, `--json`, `--check`. Default mode is
+  always advisory (exit 0 even when drift exists). `--check` exits
+  1 only when paired drift is found, never on unpaired files alone
+  — those are informational. Pure-stdlib (`re` + `pathlib` +
+  `argparse` + `json`); no NLP, no semantic comparison, no auto-fix,
+  no integration into pre-commit hooks or `gate_runner.py`. First run
+  against the live tree surfaces 8 drifted pairs (architecture,
+  brain-db-schema, claude-md-guide, environment, security,
+  senar-compliance-matrix, stacks, upgrade) plus 4 EN-only and 1
+  RU-only docs — exactly the visibility the spin-off was scoped for.
+  Tests: 14 cases in `tests/test_audit_translation_drift.py` cover
+  metric counting, drift detection per metric, unpaired
+  categorisation, exit-code semantics, and JSON shape. ruff + mypy
+  clean; full pytest 2889 → 2903 passed (+14, zero regression).
+
 ### Changed
 
 - **Filesize debt paydown: `scripts/service_gates.py` 653 → 368 over

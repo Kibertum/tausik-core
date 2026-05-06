@@ -16,6 +16,30 @@
 - **Compound RPC `tausik_session_open` для Phase 1 `/start` (`v14b-session-open-compound-rpc-impl`).**
   Один MCP-вызов возвращает JSON-конверт `{session, status, handoff, tasks{active,blocked}, self_check}` — замещает 5 последовательных вызовов (session_start + status compact + last_handoff + task_list active+blocked + self_check) одним round-trip'ом. Каждая под-секция best-effort: при сбое sub-вызова в секцию вставляется inline `error`-ключ, но envelope не падает — `/start` рендерит degraded dashboard. Счёт MCP-инструментов: 99 → 100 (93 project + 7 brain). Phase 1 в SKILL.md схлопнут с "5 параллельных вызовов" до "1 compound call"; CLI fallback при `self_check.drift_detected=true` сохранён.
 
+- **Скрипт аудита translation-drift (`v14b-junk-translation-drift-audit`).**
+  Новый `scripts/audit_translation_drift.py` сообщает о структурном
+  расхождении EN/RU зеркал документации (`docs/en/foo.md` ↔
+  `docs/ru/foo.md`) по трём грубым метрикам на пару: число ATX
+  заголовков (`#`..`######`), число fenced code-блоков (тройные
+  backtick'и), число markdown-таблиц (по separator-строкам
+  `|---|---|`). Парность по basename — секции `paired-with-drift`,
+  `en-only`, `ru-only` рендерятся отдельно. Три режима, повторяющие
+  `audit_stale_docs.py`: дефолтный markdown-отчёт, `--json`, `--check`.
+  Дефолтный режим всегда advisory (exit 0 даже при наличии drift'а).
+  `--check` возвращает 1 ТОЛЬКО при drift'е на спаренных файлах,
+  никогда — на одиноких файлах (они информационные). Pure-stdlib
+  (`re` + `pathlib` + `argparse` + `json`); нет NLP, нет семантического
+  сравнения, нет auto-fix, нет интеграции в pre-commit hooks или
+  `gate_runner.py`. Первый прогон по живому дереву surface'ит 8 пар
+  с drift'ом (architecture, brain-db-schema, claude-md-guide,
+  environment, security, senar-compliance-matrix, stacks, upgrade)
+  плюс 4 EN-only и 1 RU-only документа — ровно та видимость, ради
+  которой spin-off задумывался. Тесты: 14 кейсов в
+  `tests/test_audit_translation_drift.py` покрывают подсчёт метрик,
+  детекцию drift'а на каждой метрике, категоризацию unpaired,
+  exit-коды и JSON-shape. ruff + mypy чистые; полный pytest
+  2889 → 2903 passed (+14, нулевая регрессия).
+
 ### Изменено
 
 - **Filesize debt paydown: `scripts/service_gates.py` 653 → 368 на три
