@@ -18,6 +18,7 @@ from gen_doc_constants import (  # noqa: E402
     output_json_path,
     run_main,
     scan_mcp_tool_counts,
+    scan_test_counts,
     scan_version_refs,
 )
 from mcp_tool_counts import count_mcp_tool_totals  # noqa: E402
@@ -231,3 +232,84 @@ def test_run_main_check_passes_with_skip_mcp_counts(
     assert run_main(repo, check=True) == 1
     # With skip-mcp-counts — passes (no version drift in this fixture)
     assert run_main(repo, check=True, skip_mcp_counts=True) == 0
+
+
+# Cross-file test-count scanner -------------------------------------------
+
+
+_FAKE_TEST_COUNT_PAYLOAD: dict[str, object] = {
+    "schema_version": 1,
+    "tausik_version": "1.4.0",
+    "test_count": 3050,
+}
+
+
+def test_scan_test_counts_clean_when_all_match(tmp_path: Path):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "AGENTS.md").write_text(
+        "Run pytest suite (3050 tests) before merging.\n",
+        encoding="utf-8",
+    )
+    (repo / "README.md").write_text(
+        "[![3050 tests](https://example.com/badge/tests-3050%20passed-green.svg)](#)\n",
+        encoding="utf-8",
+    )
+    assert scan_test_counts(repo, _FAKE_TEST_COUNT_PAYLOAD) == []
+
+
+def test_scan_test_counts_flags_pytest_suite_drift(tmp_path: Path):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "AGENTS.md").write_text(
+        "tests/             pytest suite (2590 tests)\n",
+        encoding="utf-8",
+    )
+    drifts = scan_test_counts(repo, _FAKE_TEST_COUNT_PAYLOAD)
+    assert any(
+        "AGENTS.md:1" in d and "pytest suite count" in d and "found=2590" in d for d in drifts
+    )
+
+
+def test_scan_test_counts_flags_badge_drift(tmp_path: Path):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text(
+        "[![2590 tests](https://example.com/badge/tests-2590%20passed-green.svg)](#)\n",
+        encoding="utf-8",
+    )
+    drifts = scan_test_counts(repo, _FAKE_TEST_COUNT_PAYLOAD)
+    # Both badge URL and badge label patterns fire
+    assert any("badge URL count" in d and "found=2590" in d for d in drifts)
+    assert any("badge label count" in d and "found=2590" in d for d in drifts)
+
+
+def test_scan_test_counts_skips_fenced_code_blocks(tmp_path: Path):
+    """pytest suite (N tests) inside fenced repo-structure blocks is skipped."""
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "AGENTS.md").write_text(
+        "Repo layout:\n\n```\ntests/   pytest suite (2590 tests)\n```\n",
+        encoding="utf-8",
+    )
+    assert scan_test_counts(repo, _FAKE_TEST_COUNT_PAYLOAD) == []
+
+
+def test_scan_test_counts_does_not_flag_illustrative_numbers(tmp_path: Path):
+    """Phrases like 'Never add 5 tests' must NOT be flagged — narrow patterns only."""
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "AGENTS.md").write_text(
+        "Never add 5 tests where one parametrized test covers the same matrix.\n",
+        encoding="utf-8",
+    )
+    assert scan_test_counts(repo, _FAKE_TEST_COUNT_PAYLOAD) == []
+
+
+def test_run_main_check_passes_with_skip_test_count(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """--skip-test-count disables only the test-count scan; other scans stay on."""
+    import gen_doc_constants as g
+
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "AGENTS.md").write_text("pytest suite (2590 tests)\n", encoding="utf-8")
+    monkeypatch.setattr(g, "build_constants_doc", lambda _root: dict(_FAKE_TEST_COUNT_PAYLOAD))
+    assert run_main(repo, check=False) == 0
+    assert run_main(repo, check=True) == 1
+    assert run_main(repo, check=True, skip_test_count=True) == 0

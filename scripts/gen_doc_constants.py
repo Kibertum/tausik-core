@@ -25,10 +25,12 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
 from mcp_tool_counts import mcp_counts_flat
+from pytest_test_count import count_tests
 
 _VERSION_RE = re.compile(r"\bv(\d+)\.(\d+)(?:\.(\d+))?(?:\.x)?\b")
 _FENCED_BLOCK_RE = re.compile(r"^```.*?^```", re.MULTILINE | re.DOTALL)
@@ -86,6 +88,21 @@ _MCP_COUNT_PAIR_PATTERN: tuple[re.Pattern[str], tuple[str, str], str] = (
     "project+brain pair",
 )
 
+# Test-count patterns. Each entry is (compiled regex, label). The capture
+# group is a single integer compared against constants.json["test_count"].
+# Patterns are deliberately narrow to avoid false positives on illustrative
+# numbers like "Never add 5 tests where one parametrized test covers".
+_TEST_COUNT_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    # "pytest suite (N tests)"
+    (re.compile(r"pytest\s+suite\s+\((\d+)\s+tests?\)", re.IGNORECASE), "pytest suite count"),
+    # Badge URL: "tests-2590%20passed-brightgreen"
+    (re.compile(r"tests-(\d+)%20passed", re.IGNORECASE), "badge URL count"),
+    # Badge alt-text: "[![2590 tests](...)]"
+    (re.compile(r"!\[(\d+)\s+tests?\]"), "badge label count"),
+    # Markdown bold: "**N tests**" (used in changelogs / release notes)
+    (re.compile(r"\*\*(\d+)\s+tests?\*\*"), "bold tests count"),
+)
+
 
 def find_repo_root(start: Path | None = None) -> Path:
     """Walk upward from ``start`` (default: cwd) for ``pyproject.toml``."""
@@ -116,13 +133,37 @@ def read_project_version(repo_root: Path) -> str:
 
 
 def build_constants_doc(repo_root: Path) -> dict[str, object]:
-    """Canonical payload written to ``constants.json``."""
+    """Canonical payload written to ``constants.json``.
+
+    ``test_count`` is the FULL suite size (no marker filter) measured via
+    ``pytest --collect-only``; if collection fails the previous on-disk
+    value is preserved so a transient pytest error doesn't poison the
+    constants payload.
+    """
     payload: dict[str, object] = {
         "schema_version": 1,
         "tausik_version": read_project_version(repo_root),
     }
     counts = mcp_counts_flat(repo_root)
     payload.update(counts)
+    try:
+        payload["test_count"] = count_tests(repo_root)
+    except (ValueError, FileNotFoundError, subprocess.TimeoutExpired) as e:
+        # Preserve prior value rather than crash; surfaced in --check via
+        # constants drift if the on-disk value diverges from a future re-run.
+        on_disk_path = output_json_path(repo_root)
+        if on_disk_path.is_file():
+            try:
+                prior = json.loads(on_disk_path.read_text(encoding="utf-8"))
+                if isinstance(prior.get("test_count"), int):
+                    payload["test_count"] = prior["test_count"]
+            except (OSError, json.JSONDecodeError):
+                pass
+        if "test_count" not in payload:
+            print(
+                f"Warning: test_count omitted — pytest collection failed: {e}",
+                file=sys.stderr,
+            )
     return payload
 
 
@@ -250,6 +291,38 @@ def scan_mcp_tool_counts(repo_root: Path, payload: dict[str, object]) -> list[st
     return messages
 
 
+def scan_test_counts(repo_root: Path, payload: dict[str, object]) -> list[str]:
+    """Return drift messages for cross-file test-count refs.
+
+    Walks :data:`CROSS_FILE_SCAN_TARGETS`, strips fenced code blocks, and
+    flags every match of :data:`_TEST_COUNT_PATTERNS` whose captured int does
+    not match ``constants.json["test_count"]``. Patterns are narrow
+    (badge URL, ``pytest suite (N tests)``, ``**N tests**``, badge label) to
+    avoid noise on illustrative numbers in prose.
+    """
+    expected = payload.get("test_count")
+    if not isinstance(expected, int):
+        return []
+    messages: list[str] = []
+    for rel in CROSS_FILE_SCAN_TARGETS:
+        path = repo_root / rel
+        if not path.is_file():
+            continue
+        text = _strip_fenced_blocks(path.read_text(encoding="utf-8"))
+        for pattern, label in _TEST_COUNT_PATTERNS:
+            for m in pattern.finditer(text):
+                found = int(m.group(1))
+                if found == expected:
+                    continue
+                line_no = text[: m.start()].count("\n") + 1
+                messages.append(
+                    f"{rel}:{line_no}: test-count drift '{m.group(0)}' "
+                    f"({label}, found={found}) does not match "
+                    f"constants.json test_count={expected}"
+                )
+    return messages
+
+
 def render_json(payload: dict[str, object]) -> str:
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
@@ -260,6 +333,7 @@ def run_main(
     check: bool,
     skip_cross_files: bool = False,
     skip_mcp_counts: bool = False,
+    skip_test_count: bool = False,
 ) -> int:
     path = output_json_path(repo_root)
     payload = build_constants_doc(repo_root)
@@ -274,7 +348,7 @@ def run_main(
             return 1
         if existing != payload:
             print(
-                f"Drift: {path} does not match live pyproject / MCP tools.\n"
+                f"Drift: {path} does not match live pyproject / MCP tools / test count.\n"
                 f"  expected tausik_version={payload.get('tausik_version')!r}\n"
                 f"  Run: python scripts/gen_doc_constants.py",
                 file=sys.stderr,
@@ -292,6 +366,13 @@ def run_main(
             if mcp_drift:
                 print("Cross-file MCP tool-count drift:", file=sys.stderr)
                 for msg in mcp_drift:
+                    print(f"  {msg}", file=sys.stderr)
+                return 1
+        if not skip_cross_files and not skip_test_count:
+            test_drift = scan_test_counts(repo_root, payload)
+            if test_drift:
+                print("Cross-file test-count drift:", file=sys.stderr)
+                for msg in test_drift:
                     print(f"  {msg}", file=sys.stderr)
                 return 1
         print(f"OK — {path} matches repository constants.")
@@ -313,12 +394,17 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument(
         "--skip-cross-files",
         action="store_true",
-        help="Skip both cross-file scans (version refs and MCP tool counts) — constants.json drift only",
+        help="Skip all cross-file scans (version refs, MCP tool counts, test count) — constants.json drift only",
     )
     p.add_argument(
         "--skip-mcp-counts",
         action="store_true",
-        help="Skip the cross-file MCP tool-count scan (keep version-ref scan)",
+        help="Skip the cross-file MCP tool-count scan (keep version-ref + test-count scans)",
+    )
+    p.add_argument(
+        "--skip-test-count",
+        action="store_true",
+        help="Skip the cross-file test-count scan (keep version-ref + MCP-counts scans)",
     )
     p.add_argument(
         "--repo-root",
@@ -333,6 +419,7 @@ def main(argv: list[str] | None = None) -> int:
         check=args.check,
         skip_cross_files=args.skip_cross_files,
         skip_mcp_counts=args.skip_mcp_counts,
+        skip_test_count=args.skip_test_count,
     )
 
 

@@ -114,7 +114,7 @@ harness/           Shared resources for all IDEs (renamed from agents/ in v1.4 t
   overrides/       IDE-specific overrides (claude/, cursor/, qwen/)
   claude/mcp/      tausik-project (93) + tausik-brain (7) = 100 main; optional codebase-rag +7 → 107 total — see docs/en/mcp.md
 bootstrap/         One-command project setup
-tests/             pytest suite (2590 tests)
+tests/             pytest suite (3056 tests)
 .tausik/           Runtime data (DB, config) — gitignored
 ```
 
