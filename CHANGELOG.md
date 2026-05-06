@@ -14,6 +14,26 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - **Compound RPC `tausik_session_open` for `/start` Phase 1 (`v14b-session-open-compound-rpc-impl`).**
   Single MCP call returns one JSON envelope with `{session, status, handoff, tasks{active,blocked}, self_check}` — replaces 5 sequential calls (session_start + status compact + last_handoff + task_list active+blocked + self_check) with one round-trip. Each sub-section is best-effort: a sub-call failure surfaces an inline `error` key without aborting the envelope, so `/start` still renders a degraded dashboard. MCP tool count: 99 → 100 (93 project + 7 brain). `/start` SKILL.md Phase 1 collapses from "5 parallel tools" to "single compound call"; drift fallback to CLI on `self_check.drift_detected=true` is preserved.
 
+- **RU-mirror sweep batch 1: 3 of 8 drifted pairs cleared (`v14b-ru-mirror-sync-batch`).**
+  First pass through the drift report from the new translation-drift
+  audit script. Resolved: `docs/ru/stacks.md` (removed RU-only
+  `## DEFAULT_STACKS (25)` list — TODO followup: add this 25-stack
+  list to `docs/en/stacks.md`); `docs/ru/upgrade.md` (removed RU-only
+  `## Версионная политика` semver section + `## См. также` cross-link
+  block — TODO followup: backport both to `docs/en/upgrade.md`);
+  `docs/ru/senar-compliance-matrix.md` (added missing
+  `### Gaps и план закрытия` subsection with the gap-tracking table
+  to match EN's `### Gaps and Plan to Close`). Deferred to
+  `v14b-ru-mirror-sync-batch-2` with per-file rationale: `architecture.md`
+  (EN has a broken empty table at line 51-52 — fixing parity requires
+  editing EN, blocked by one-direction-sweep AC), `security.md` (RU
+  has 10+ extra sections — informed review needed whether RU is stale
+  or EN dropped content), `claude-md-guide.md` (+21 heading delta),
+  `brain-db-schema.md` (+10 hd / +6 tbl), `environment.md` (+43 hd /
+  +12 cb / +4 tbl) — last three need real translation scoped to a
+  dedicated session. Audit count: 8 → 5 paired drift; full pytest
+  suite still green (zero regression on markdown-only edits).
+
 - **Translation-drift audit script (`v14b-junk-translation-drift-audit`).**
   New `scripts/audit_translation_drift.py` reports structural drift
   between EN/RU mirror docs (`docs/en/foo.md` ↔ `docs/ru/foo.md`)

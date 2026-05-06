@@ -16,6 +16,27 @@
 - **Compound RPC `tausik_session_open` для Phase 1 `/start` (`v14b-session-open-compound-rpc-impl`).**
   Один MCP-вызов возвращает JSON-конверт `{session, status, handoff, tasks{active,blocked}, self_check}` — замещает 5 последовательных вызовов (session_start + status compact + last_handoff + task_list active+blocked + self_check) одним round-trip'ом. Каждая под-секция best-effort: при сбое sub-вызова в секцию вставляется inline `error`-ключ, но envelope не падает — `/start` рендерит degraded dashboard. Счёт MCP-инструментов: 99 → 100 (93 project + 7 brain). Phase 1 в SKILL.md схлопнут с "5 параллельных вызовов" до "1 compound call"; CLI fallback при `self_check.drift_detected=true` сохранён.
 
+- **Подбивка RU-зеркал, batch 1: закрыто 3 из 8 drift-пар (`v14b-ru-mirror-sync-batch`).**
+  Первый проход по drift-отчёту нового translation-drift скрипта.
+  Закрыто: `docs/ru/stacks.md` (удалён RU-only список
+  `## DEFAULT_STACKS (25)` — TODO followup: добавить его в
+  `docs/en/stacks.md`); `docs/ru/upgrade.md` (удалены RU-only
+  секции `## Версионная политика` и `## См. также` — TODO followup:
+  бэкпортировать обе в `docs/en/upgrade.md`); `docs/ru/senar-compliance-matrix.md`
+  (добавлен пропущенный подраздел `### Gaps и план закрытия` с
+  gap-таблицей в зеркало EN-овского `### Gaps and Plan to Close`).
+  Отложено в `v14b-ru-mirror-sync-batch-2` с пояснением по каждому:
+  `architecture.md` — EN имеет broken пустую таблицу на строках 51-52,
+  закрытие parity требует правки EN (заблокировано
+  one-direction-sweep AC); `security.md` — RU имеет 10+ лишних
+  секций, требуется informed review (RU устарел или EN дропнул
+  контент); `claude-md-guide.md` (Δ+21 заголовок),
+  `brain-db-schema.md` (Δ+10 hd / +6 tbl), `environment.md`
+  (Δ+43 hd / +12 cb / +4 tbl) — последние три требуют реальной
+  работы по переводу, скоупиться отдельной сессией. Drift count:
+  8 → 5 paired; полный pytest всё ещё зелёный (нулевая регрессия
+  на markdown-only правках).
+
 - **Скрипт аудита translation-drift (`v14b-junk-translation-drift-audit`).**
   Новый `scripts/audit_translation_drift.py` сообщает о структурном
   расхождении EN/RU зеркал документации (`docs/en/foo.md` ↔
