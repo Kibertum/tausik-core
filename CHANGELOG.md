@@ -16,6 +16,51 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Filesize debt paydown: `scripts/brain_init.py` 722 → 367 over four
+  files (`v14b-followup-brain-init-filesize-debt`).**
+  The brain init wizard module had a sticky 322-line filesize-gate
+  exemption (entry in `.tausik/config.json` `gates.filesize.exempt_files`)
+  ever since the v1.4 initial-discovery split landed `brain_discovery.py`.
+  Paying it down without changing semantics meant carving up the wizard
+  by responsibility, not by line count: schemas + Notion DB ops moved
+  to a new `scripts/brain_init_schemas.py` (186 lines — `CATEGORIES`,
+  `DB_TITLES`, four `_<category>_schema()` helpers, `_SCHEMAS` dispatch,
+  `db_schema`, `PartialCreateError`, `create_brain_databases`,
+  `verify_brain_databases`); the `--join-existing` branch + post-create
+  config save migrated to `scripts/brain_init_join.py` (190 lines —
+  `run_join_branch`, `_finalize_join`, full diagnostics for the
+  integration-not-shared / non-canonical-titles cases); the
+  `--force-create` / clean-workspace branch went to
+  `scripts/brain_init_create.py` (138 lines — `run_create_branch`
+  including parent_page_id / project_name prompts, registration,
+  orphan-cleanup guidance for partial creates and post-create save
+  failures). `brain_init.py` keeps the dispatcher: token resolution,
+  `users.me()` pre-flight, workspace search, branch selection
+  (Branch B/C refusals stay inline, Branch A/D delegate to the new
+  modules), CLI IO classes (`WizardIO`, `ConfigOps`, `WizardError`,
+  `CliIO`), shared helpers (`_print_orphan_cleanup_guidance`,
+  `_has_existing_brain`, `_collect_explicit_join_ids`),
+  `merge_brain_config`. All 19 public names that test code or other
+  modules historically imported from `brain_init.*` (CATEGORIES,
+  DB_TITLES, db_schema, create_brain_databases, verify_brain_databases,
+  merge_brain_config, PartialCreateError, WizardError, WizardIO,
+  ConfigOps, CliIO, run_wizard, _finalize_join, _has_existing_brain,
+  _collect_explicit_join_ids, _print_orphan_cleanup_guidance,
+  find_workspace_brain_databases, inspect_workspace_brain_databases,
+  _extract_db_title) are re-exported via `# noqa: F401` so test code
+  needs **zero** modifications. `import brain_project_registry` stays
+  at module level in `brain_init.py` so the existing
+  `monkeypatch.setattr(brain_init.brain_project_registry, ...)` call
+  in `test_brain_init.py:559` keeps working — modules are singletons
+  in `sys.modules`, so the patch propagates to `brain_init_create.py`
+  through the same module object. Cycle is avoided by lazy imports of
+  `run_join_branch` / `run_create_branch` inside `run_wizard`. Result:
+  all 69 `tests/test_brain_init.py` cases green, plus 192 broader brain
+  tests pass; ruff + mypy clean across the four files; filesize gate
+  PASS for all four; `scripts/brain_init.py` removed from
+  `.tausik/config.json` `gates.filesize.exempt_files` (dropped the
+  string entry, leaving the array empty).
+
 - **Filesize debt paydown: `bootstrap/bootstrap_copy.py` 420 → 311
   (`v14b-bootstrap-copy-debt-paydown`).**
   Skill-specific helpers (`parse_skill_frontmatter`,

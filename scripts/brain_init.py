@@ -8,6 +8,13 @@ Public API (pure + injectable):
 
 All side-effectful inputs are injected: the CLI layer wires real impls,
 tests inject fakes. Token is NEVER persisted — only env var name.
+
+Schemas + DB ops live in brain_init_schemas.py. The two run_wizard branches
+live in brain_init_join.py (--join-existing) and brain_init_create.py
+(--force-create / clean workspace). brain_init.py keeps the dispatcher,
+shared types, and the CLI-IO classes — extracted in v14b polish Phase B
+(`v14b-followup-brain-init-filesize-debt`) to land under the 400-line
+filesize gate.
 """
 
 from __future__ import annotations
@@ -16,8 +23,32 @@ import os
 from typing import Any, Callable, Protocol
 
 import brain_config
-import brain_project_registry
-from brain_notion_client import NotionAuthError, NotionError, NotionNotFoundError
+import brain_project_registry  # noqa: F401  re-export so tests can monkeypatch via brain_init.brain_project_registry
+from brain_notion_client import NotionAuthError, NotionError
+
+# Re-export schemas + DB ops so callers (tests, brain_cli_ops) can keep
+# importing from brain_init.* unchanged.
+from brain_init_schemas import (  # noqa: F401
+    CATEGORIES,
+    DB_TITLES,
+    PartialCreateError,
+    _decisions_schema,
+    _gotchas_schema,
+    _patterns_schema,
+    _SCHEMAS,
+    _web_cache_schema,
+    create_brain_databases,
+    db_schema,
+    verify_brain_databases,
+)
+
+# Discovery (title-match + schema-fallback) lives in brain_discovery.py;
+# re-exported here so callers and existing tests keep their imports.
+from brain_discovery import (  # noqa: F401
+    _extract_db_title,
+    find_workspace_brain_databases,
+    inspect_workspace_brain_databases,
+)
 
 
 class WizardIO(Protocol):
@@ -30,190 +61,6 @@ class WizardIO(Protocol):
 class ConfigOps(Protocol):
     def load(self) -> dict: ...
     def save(self, cfg: dict) -> None: ...
-
-
-CATEGORIES = ("decisions", "web_cache", "patterns", "gotchas")
-
-DB_TITLES: dict[str, str] = {
-    "decisions": "Brain · Decisions",
-    "web_cache": "Brain · Web Cache",
-    "patterns": "Brain · Patterns",
-    "gotchas": "Brain · Gotchas",
-}
-
-
-# --- Schemas (one function per category so test assertions target the shape) ---
-
-
-def _decisions_schema() -> dict:
-    return {
-        "Name": {"title": {}},
-        "Context": {"rich_text": {}},
-        "Decision": {"rich_text": {}},
-        "Rationale": {"rich_text": {}},
-        "Tags": {"multi_select": {}},
-        "Stack": {"multi_select": {}},
-        "Date": {"date": {}},
-        "Source Project Hash": {"rich_text": {}},
-        "Generalizable": {"checkbox": {}},
-        "Superseded By": {"url": {}},
-    }
-
-
-def _web_cache_schema() -> dict:
-    return {
-        "Name": {"title": {}},
-        "URL": {"url": {}},
-        "Query": {"rich_text": {}},
-        "Content": {"rich_text": {}},
-        "Fetched At": {"date": {}},
-        "TTL Days": {"number": {"format": "number"}},
-        "Domain": {"select": {}},
-        "Tags": {"multi_select": {}},
-        "Source Project Hash": {"rich_text": {}},
-        "Content Hash": {"rich_text": {}},
-    }
-
-
-def _patterns_schema() -> dict:
-    return {
-        "Name": {"title": {}},
-        "Description": {"rich_text": {}},
-        "When to Use": {"rich_text": {}},
-        "Example": {"rich_text": {}},
-        "Tags": {"multi_select": {}},
-        "Stack": {"multi_select": {}},
-        "Source Project Hash": {"rich_text": {}},
-        "Date": {"date": {}},
-        "Confidence": {
-            "select": {
-                "options": [
-                    {"name": "experimental"},
-                    {"name": "tested"},
-                    {"name": "proven"},
-                ]
-            }
-        },
-    }
-
-
-def _gotchas_schema() -> dict:
-    return {
-        "Name": {"title": {}},
-        "Description": {"rich_text": {}},
-        "Wrong Way": {"rich_text": {}},
-        "Right Way": {"rich_text": {}},
-        "Tags": {"multi_select": {}},
-        "Stack": {"multi_select": {}},
-        "Source Project Hash": {"rich_text": {}},
-        "Date": {"date": {}},
-        "Severity": {
-            "select": {
-                "options": [
-                    {"name": "low"},
-                    {"name": "medium"},
-                    {"name": "high"},
-                ]
-            }
-        },
-        "Evidence URL": {"url": {}},
-    }
-
-
-_SCHEMAS: dict[str, Callable[[], dict]] = {
-    "decisions": _decisions_schema,
-    "web_cache": _web_cache_schema,
-    "patterns": _patterns_schema,
-    "gotchas": _gotchas_schema,
-}
-
-
-def db_schema(category: str) -> dict:
-    """Return Notion property schema for a brain category.
-
-    Raises ValueError for unknown category.
-    """
-    if category not in _SCHEMAS:
-        raise ValueError(f"Unknown brain category: {category!r}")
-    return _SCHEMAS[category]()
-
-
-# --- Notion database creation ---
-
-
-class PartialCreateError(NotionError):
-    """Raised when create_brain_databases fails mid-batch.
-
-    Carries the `created_ids` dict of categories that DID land in Notion before
-    the failure so callers can emit accurate orphan-cleanup guidance instead of
-    `<missing>` placeholders.
-    """
-
-    def __init__(self, message: str, created_ids: dict[str, str]):
-        super().__init__(message)
-        self.created_ids = created_ids
-
-
-def create_brain_databases(client: Any, parent_page_id: str) -> dict[str, str]:
-    """Create 4 brain databases under parent_page_id. Returns {category: db_id}.
-
-    Raises `PartialCreateError` (subclass of NotionError) when any category
-    fails after at least one succeeded — carries `created_ids` for cleanup.
-    On the very first call failure (zero successes), re-raises the original
-    NotionError unchanged.
-    """
-    if not parent_page_id:
-        raise ValueError("parent_page_id is required")
-    ids: dict[str, str] = {}
-    for category in CATEGORIES:
-        try:
-            resp = client.databases_create(
-                parent_page_id=parent_page_id,
-                title=DB_TITLES[category],
-                properties=db_schema(category),
-            )
-        except NotionError as e:
-            if ids:
-                raise PartialCreateError(
-                    f"databases_create failed mid-batch on '{category}': {e}",
-                    ids,
-                ) from e
-            raise
-        ids[category] = resp.get("id") or ""
-    return ids
-
-
-# --- Discovery / verification (anti-hallucination guards) ---
-
-# Discovery (title-match + schema-fallback) lives in brain_discovery.py;
-# re-exported here so callers and existing tests keep their imports.
-from brain_discovery import (  # noqa: E402
-    _extract_db_title,
-    find_workspace_brain_databases,
-    inspect_workspace_brain_databases,
-)
-
-
-def verify_brain_databases(client: Any, db_ids: dict[str, str]) -> dict[str, str]:
-    """Verify each db_id resolves to a queryable Notion database.
-
-    Returns {category: error_message} for IDs that fail verification.
-    Empty dict means all four IDs are valid. Used by --join-existing to
-    catch typos before writing config.json.
-    """
-    errors: dict[str, str] = {}
-    for category in CATEGORIES:
-        db_id = (db_ids.get(category) or "").strip()
-        if not db_id:
-            errors[category] = "missing id"
-            continue
-        try:
-            client.databases_query(db_id, page_size=1)
-        except NotionNotFoundError as e:
-            errors[category] = f"not found: {e}"
-        except NotionError as e:
-            errors[category] = f"verify failed: {e}"
-    return errors
 
 
 # --- Config merging ---
@@ -452,90 +299,19 @@ def run_wizard(
 
     # Branch A: --join-existing requested → resolve IDs (explicit > discovered).
     if join_existing:
-        # v1.4 dead-end #72 + v1.4-polish: when discovery returns 0 and no
-        # explicit IDs were passed, distinguish "integration sees nothing"
-        # (likely not-shared) from "integration sees databases that don't
-        # match canonical titles or schemas" (likely renamed BRAIN dbs).
-        if not discovered and not explicit_join_ids and not pre_flight_skipped:
-            try:
-                inspection = inspect_workspace_brain_databases(client)
-            except NotionError:
-                inspection = {
-                    "visible": [],
-                    "matched": {},
-                    "unmatched_visible": [],
-                    "schema_conflicts": [],
-                }
-            visible = inspection.get("visible") or []
-            if visible:
-                listing = "\n".join(
-                    f"  - id={v['id']}  title={v['title']!r}  "
-                    f"parent_page={(v['parent_page_id'] or '?')[:8]}…"
-                    for v in visible
-                )
-                raise WizardError(
-                    "--join-existing: integration sees "
-                    f"{len(visible)} database(s) but none match canonical "
-                    "BRAIN titles ('Brain · Decisions' etc.) or the per-"
-                    "category property schema.\n"
-                    "\n"
-                    f"Visible databases:\n{listing}\n"
-                    "\n"
-                    "Probable cause: these are your BRAIN databases under "
-                    "non-canonical titles (renamed in Notion, or created by "
-                    "an older TAUSIK release). Two ways forward:\n"
-                    "  1. Rename them in Notion to the canonical titles "
-                    "('Brain · Decisions', 'Brain · Web Cache', "
-                    "'Brain · Patterns', 'Brain · Gotchas') and re-run.\n"
-                    "  2. Pass IDs explicitly:\n"
-                    "       --decisions-id <ID> --web-cache-id <ID> "
-                    "--patterns-id <ID> --gotchas-id <ID>"
-                )
-            raise WizardError(
-                "--join-existing: search() returned 0 BRAIN databases in "
-                "this workspace, and no explicit IDs were passed.\n"
-                "\n"
-                "Most likely cause: your Notion integration has not been "
-                "shared with the BRAIN page yet, so search() cannot see "
-                "the existing databases.\n"
-                "\n"
-                "Fix:\n"
-                "  1. Open the BRAIN page in Notion (the parent that holds "
-                "the 4 'Brain · …' databases).\n"
-                "  2. Click `…` (top-right) → `Connections` → add your "
-                "integration to the connection list.\n"
-                "  3. Re-run `.tausik/tausik brain init --join-existing`.\n"
-                "\n"
-                "If you'd rather wire IDs by hand, pass them explicitly:\n"
-                "  --decisions-id ... --web-cache-id ... "
-                "--patterns-id ... --gotchas-id ..."
-            )
-        merged_ids: dict[str, str] = {}
-        for c in CATEGORIES:
-            if c in explicit_join_ids:
-                merged_ids[c] = explicit_join_ids[c]
-            elif c in discovered:
-                merged_ids[c] = discovered[c]
-        missing = [c for c in CATEGORIES if c not in merged_ids]
-        if missing:
-            raise WizardError(
-                "--join-existing could not resolve all 4 database IDs. "
-                f"Missing: {', '.join(missing)}. "
-                "Either share existing canonical-titled BRAIN databases with "
-                "the integration so search() finds them, or pass them "
-                "explicitly with --decisions-id / --web-cache-id / "
-                "--patterns-id / --gotchas-id."
-            )
-        verify_errors = verify_brain_databases(client, merged_ids)
-        if verify_errors:
-            details = "; ".join(f"{c}: {msg}" for c, msg in verify_errors.items())
-            raise WizardError(
-                f"--join-existing verification failed for some IDs: {details}. "
-                "Fix the IDs (or share the databases with your integration) "
-                "and re-run."
-            )
-        return _finalize_join(
-            io, config_ops, existing, merged_ids, token_env, project_name, interactive
+        from brain_init_join import run_join_branch
+
+        return run_join_branch(
+            io,
+            config_ops,
+            existing,
+            client,
+            explicit_join_ids,
+            discovered,
+            pre_flight_skipped,
+            token_env,
+            project_name,
+            interactive,
         )
 
     # Branch B: full match discovered + no --force-create → refuse.
@@ -569,154 +345,24 @@ def run_wizard(
         )
 
     # Branch D: --force-create OR clean workspace → create 4 new DBs.
-    if not parent_page_id:
-        if not interactive:
-            raise WizardError("--parent-page-id is required in non-interactive mode")
-        io.print(
-            "\nParent page: open the Notion page where the 4 BRAIN databases will be\n"
-            "created, then copy the 32-char page ID from the URL.\n"
-            "  Example URL:  https://www.notion.so/your-workspace/Brain-1234abcd5678ef901234abcd5678ef90\n"
-            "  Page ID:      1234abcd5678ef901234abcd5678ef90\n"
-            "Make sure you've shared this page with the integration ('...' → 'Connections')."
-        )
-        parent_page_id = io.prompt("Notion parent page ID: ").strip()
-        if not parent_page_id:
-            raise WizardError("parent_page_id cannot be empty")
+    from brain_init_create import run_create_branch
 
-    if not project_name:
-        default_name = os.path.basename(os.getcwd()) or "project"
-        if interactive:
-            entered = io.prompt(f"Project name [{default_name}]: ").strip()
-            project_name = entered or default_name
-        else:
-            project_name = default_name
-
-    if interactive and not args.get("yes"):
-        if force_create and discovered:
-            io.print(
-                "\n⚠ --force-create: existing canonical BRAIN databases were "
-                "detected in this workspace, but you asked to create new ones "
-                "anyway. This will produce TWO independent brains in the same "
-                "workspace — projects pointed at one will not see records "
-                "from the other."
-            )
-        io.print(
-            "\nAbout to create 4 Notion databases under the parent page and "
-            "write .tausik/config.json. The token itself is NOT saved — only "
-            "the env var name."
-        )
-        confirm = io.prompt("Proceed? [y/N]: ").strip().lower()
-        if confirm not in ("y", "yes"):
-            raise WizardError("Aborted by user.")
-
-    io.print(f"Creating 4 Notion databases under page {parent_page_id}…")
-    try:
-        db_ids = create_brain_databases(client, parent_page_id)
-    except PartialCreateError as e:
-        # Surface real created_ids so user can archive partial orphans
-        _print_orphan_cleanup_guidance(io, e.created_ids, e)
-        raise WizardError(
-            f"Notion databases_create partially failed: {e}. See orphan cleanup guidance above."
-        ) from e
-    except NotionError as e:
-        raise WizardError(f"Notion databases_create failed: {e}") from e
-
-    try:
-        registry_entry = brain_project_registry.register_project(project_name, os.getcwd())
-        resolved_name = registry_entry["name"]
-        if resolved_name != project_name:
-            io.print(
-                f"Project name {project_name!r} collides in the brain registry; "
-                f"using {resolved_name!r} instead."
-            )
-
-        existing_names = list((existing.get("brain") or {}).get("project_names") or [])
-        union_names = list(existing_names)
-        for n in brain_project_registry.all_project_names():
-            if n not in union_names:
-                union_names.append(n)
-
-        updates = {
-            "enabled": True,
-            "notion_integration_token_env": token_env,
-            "database_ids": db_ids,
-            "project_names": union_names,
-        }
-        new_cfg = merge_brain_config(existing, updates)
-        config_ops.save(new_cfg)
-    except Exception as e:
-        _print_orphan_cleanup_guidance(io, db_ids, e)
-        raise WizardError(
-            f"Post-create step failed ({type(e).__name__}): {e}. "
-            f"The 4 Notion databases were created but config was NOT saved — "
-            f"see the cleanup guidance above to archive them manually."
-        ) from e
-
-    io.print("Brain configured. Next: run `.tausik/tausik brain sync` to pull existing data.")
-    return {
-        "parent_page_id": parent_page_id,
-        "token_env": token_env,
-        "project_name": resolved_name,
-        "database_ids": db_ids,
-        "mode": "create",
-    }
-
-
-def _finalize_join(
-    io: WizardIO,
-    config_ops: ConfigOps,
-    existing: dict,
-    db_ids: dict[str, str],
-    token_env: str,
-    project_name: str,
-    interactive: bool,
-) -> dict:
-    """Write config for --join-existing flow (no databases_create call).
-
-    Mirrors the post-create config-save block, but skips orphan-cleanup
-    guidance (no DBs were created here, so nothing to orphan).
-    """
-    if not project_name:
-        default_name = os.path.basename(os.getcwd()) or "project"
-        if interactive:
-            entered = io.prompt(f"Project name [{default_name}]: ").strip()
-            project_name = entered or default_name
-        else:
-            project_name = default_name
-
-    registry_entry = brain_project_registry.register_project(project_name, os.getcwd())
-    resolved_name = registry_entry["name"]
-    if resolved_name != project_name:
-        io.print(
-            f"Project name {project_name!r} collides in the brain registry; "
-            f"using {resolved_name!r} instead."
-        )
-
-    existing_names = list((existing.get("brain") or {}).get("project_names") or [])
-    union_names = list(existing_names)
-    for n in brain_project_registry.all_project_names():
-        if n not in union_names:
-            union_names.append(n)
-
-    updates = {
-        "enabled": True,
-        "notion_integration_token_env": token_env,
-        "database_ids": db_ids,
-        "project_names": union_names,
-    }
-    new_cfg = merge_brain_config(existing, updates)
-    config_ops.save(new_cfg)
-
-    io.print(
-        "\nJoined existing BRAIN databases. This project now shares knowledge "
-        "with every other project pointed at the same 4 databases. Per-project "
-        "privacy is enforced via Source Project Hash on each row.\n"
-        "Next: run `.tausik/tausik brain sync` to pull existing data."
+    return run_create_branch(
+        io,
+        config_ops,
+        existing,
+        client,
+        args,
+        parent_page_id,
+        project_name,
+        discovered,
+        force_create,
+        interactive,
+        token_env,
     )
-    return {
-        "parent_page_id": "",
-        "token_env": token_env,
-        "project_name": resolved_name,
-        "database_ids": db_ids,
-        "mode": "join",
-    }
+
+
+# Re-export _finalize_join from brain_init_join for any external caller that
+# still imports it from brain_init (no in-tree caller does today, but keep
+# the contract stable across the split).
+from brain_init_join import _finalize_join  # noqa: F401, E402

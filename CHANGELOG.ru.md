@@ -18,6 +18,52 @@
 
 ### Изменено
 
+- **Filesize debt paydown: `scripts/brain_init.py` 722 → 367 на четыре
+  файла (`v14b-followup-brain-init-filesize-debt`).**
+  У модуля brain init wizard висел липкий 322-строчный exempt в
+  `.tausik/config.json` `gates.filesize.exempt_files` ещё со времён
+  v1.4 split'а, который вынес `brain_discovery.py`. Чтобы погасить
+  долг без изменения семантики, поделили wizard по ответственности,
+  а не по строкам: schemas + Notion DB ops переехали в новый
+  `scripts/brain_init_schemas.py` (186 строк — `CATEGORIES`,
+  `DB_TITLES`, четыре `_<category>_schema()`-хелпера, `_SCHEMAS`
+  диспатч, `db_schema`, `PartialCreateError`, `create_brain_databases`,
+  `verify_brain_databases`); ветка `--join-existing` + post-create
+  config save мигрировала в `scripts/brain_init_join.py` (190 строк —
+  `run_join_branch`, `_finalize_join`, полные диагностики для
+  integration-not-shared / non-canonical-titles); ветка
+  `--force-create` / clean-workspace ушла в
+  `scripts/brain_init_create.py` (138 строк — `run_create_branch` с
+  prompt'ами parent_page_id / project_name, регистрацией,
+  orphan-cleanup guidance для partial creates и post-create save
+  failures). `brain_init.py` оставил себе dispatcher: token
+  resolution, pre-flight `users.me()`, workspace search, branch
+  selection (Branch B/C refusals остались inline, Branch A/D
+  делегируют новым модулям), CLI IO classes (`WizardIO`, `ConfigOps`,
+  `WizardError`, `CliIO`), shared helpers
+  (`_print_orphan_cleanup_guidance`, `_has_existing_brain`,
+  `_collect_explicit_join_ids`), `merge_brain_config`. Все 19
+  публичных имён, которые тесты или другие модули исторически
+  импортировали из `brain_init.*` (CATEGORIES, DB_TITLES, db_schema,
+  create_brain_databases, verify_brain_databases, merge_brain_config,
+  PartialCreateError, WizardError, WizardIO, ConfigOps, CliIO,
+  run_wizard, _finalize_join, _has_existing_brain,
+  _collect_explicit_join_ids, _print_orphan_cleanup_guidance,
+  find_workspace_brain_databases, inspect_workspace_brain_databases,
+  _extract_db_title), re-export'нуты через `# noqa: F401`, так что
+  тестовый код менять не пришлось вообще. `import
+  brain_project_registry` остался на module-level в `brain_init.py`,
+  чтобы существующий `monkeypatch.setattr(brain_init.brain_project_registry,
+  ...)` в `test_brain_init.py:559` продолжал работать — модули в
+  `sys.modules` это singleton'ы, патч проброшен в `brain_init_create.py`
+  через тот же объект. Cycle избежан через ленивые импорты
+  `run_join_branch` / `run_create_branch` внутри `run_wizard`. Итого:
+  все 69 кейсов `tests/test_brain_init.py` зелёные, плюс 192 более
+  широких brain-тестов проходят; ruff + mypy чисты по всем 4 файлам;
+  filesize gate PASS для всех четырёх; `scripts/brain_init.py`
+  удалён из `.tausik/config.json` `gates.filesize.exempt_files`
+  (строковая запись убрана, массив пуст).
+
 - **Filesize debt paydown: `bootstrap/bootstrap_copy.py` 420 → 311
   (`v14b-bootstrap-copy-debt-paydown`).**
   Skill-специфичные хелперы (`parse_skill_frontmatter`,
