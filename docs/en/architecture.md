@@ -15,7 +15,7 @@ the Backend handles only CRUD and SQL. CLI and MCP are two equal entry points.
   +---------------------------+
   | Skills (SKILL.md)         |  <- instructions for the agent
   +---------------------------+
-       |                |
+       v                v
   +---------+    +---------+
   | MCP     |    | CLI     |  <- two entry points
   | (tools) |    | (bash)  |
@@ -48,8 +48,6 @@ the Backend handles only CRUD and SQL. CLI and MCP are two equal entry points.
 
 ### Scripts (Business Logic)
 
-| File | Lines | Purpose |
-|------|-------|---------|
 73 source files in `scripts/` (v1.3). Highlights:
 
 | File | Purpose |
@@ -155,6 +153,21 @@ service_task.py         -> _run_quality_gates() (called from task_done)
 
 Gates: `pytest`, `ruff`, `mypy`, `bandit`, `filesize`, `tdd_order`, `tsc`, `eslint`,
 `go-vet`, `golangci-lint`, `cargo-check`, `clippy`, `phpstan`, `phpcs`, `javac`, `ktlint`.
+
+## Hooks (anti-drift, see [hooks.md](hooks.md))
+
+All hook files under `scripts/hooks/` are registered via `bootstrap/bootstrap_generate.py` (Claude Code) and `bootstrap/bootstrap_qwen.py` (Qwen Code). Hook scripts are non-blocking (exit 0); errors go to stderr. Shared helpers live in `scripts/hooks/_common.py`.
+
+Brain hooks share helpers in `scripts/brain_hook_utils.py` — a single mirror-lookup + TTL-semantics implementation. Brain-connection setup is in `scripts/brain_runtime.py`: `open_brain_deps() -> (conn, client, cfg)`. The `/brain` skill provides the conversational UI.
+
+## Memory Aggregates
+
+`service_knowledge_aggregates.py` holds pure functions for memory re-injection:
+
+- `build_memory_block(be, ...)` — compact markdown (decisions + conventions + dead ends), ≤50 lines, called from `/start`, `/checkpoint`, and the SessionStart hook
+- `build_memory_compact(be, last_n)` — `task_logs` aggregation: phases + top words + top files
+
+Likewise `scripts/model_routing.py` and `plugin_data.py` are pure modules imported by CLI/MCP handlers.
 
 ## Prompt Caching
 

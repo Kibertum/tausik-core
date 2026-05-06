@@ -58,22 +58,83 @@ See also: [security-checklist.md](security-checklist.md) — OWASP Top 10 checkl
 
 ---
 
+## Authentication
+
+### Password requirements
+- At least 12 characters
+- Mix of uppercase, lowercase, digits, symbols
+- Check against well-known breached-password lists
+
+### Cookie security
+```
+httpOnly: true    — no JS access
+secure: true      — HTTPS only
+sameSite: strict  — CSRF protection
+```
+
+---
+
 ## Secrets management
 
-- Never commit secrets to git
-- Use `.env` for local development (gitignored)
+### Never
+- Hardcode secrets in source
+- Commit `.env` files
+- Log secret values
+
+### Do this instead
+- Environment variables for local dev (gitignored `.env`)
 - Production: secret manager (AWS Secrets Manager, HashiCorp Vault)
 - Rotate keys periodically
-- Don't log secret values
+
+### .gitignore for secrets
+```
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+```
+
+---
 
 ## Audit logging
 
+### What to log
 - All authentication events (success + failure)
 - Permission changes
 - Sensitive data access
-- Configuration changes
+- Configuration / administrative actions
 
-Logs must contain: timestamp, actor, action, resource. Logs MUST NOT contain: passwords, tokens, PII without need.
+### What NOT to log
+- Passwords (even hashed)
+- API keys
+- Session tokens
+- Card numbers
+- PII in cleartext
+
+Logs must contain: timestamp, actor, action, resource.
+
+---
+
+## Checklists
+
+### Pre-commit
+- [ ] No hardcoded secrets
+- [ ] Input validation on all endpoints
+- [ ] Authorization checks present
+- [ ] Error messages don't leak information
+- [ ] No SQL / command injection
+- [ ] Rate limiting on sensitive endpoints
+
+### Pre-deploy
+- [ ] Dependencies scanned for vulnerabilities
+- [ ] Security headers configured
+- [ ] HTTPS enforced
+- [ ] Secrets in proper storage
+- [ ] Logging configured correctly
+
+---
 
 ## TAUSIK-specific guards
 

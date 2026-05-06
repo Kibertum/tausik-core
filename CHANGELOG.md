@@ -14,6 +14,40 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - **Compound RPC `tausik_session_open` for `/start` Phase 1 (`v14b-session-open-compound-rpc-impl`).**
   Single MCP call returns one JSON envelope with `{session, status, handoff, tasks{active,blocked}, self_check}` — replaces 5 sequential calls (session_start + status compact + last_handoff + task_list active+blocked + self_check) with one round-trip. Each sub-section is best-effort: a sub-call failure surfaces an inline `error` key without aborting the envelope, so `/start` still renders a degraded dashboard. MCP tool count: 99 → 100 (93 project + 7 brain). `/start` SKILL.md Phase 1 collapses from "5 parallel tools" to "single compound call"; drift fallback to CLI on `self_check.drift_detected=true` is preserved.
 
+- **RU-mirror sweep batch 2: 2 of 5 deferred pairs cleared bilaterally (`v14b-ru-mirror-sync-batch-2`).**
+  Second pass through the drift report. Resolved bilaterally:
+  `architecture.md` (Δ-2 hd / +2 tbl) — removed a broken empty 3-col
+  table from EN at line 51-52 (header + separator with no rows; the
+  new audit script surfaced it as a doc bug); changed EN line 18 ASCII
+  art `|                |` to `v                v` so the audit regex
+  no longer treats vertical-pipe diagram lines as table separators
+  (false-positive); added `## Hooks (anti-drift)` and `## Memory
+  Aggregates` sections to EN, translated from existing RU content
+  that documented `scripts/hooks/` registration and
+  `service_knowledge_aggregates.py`. `security.md` (Δ-10 hd / -2 cb)
+  — backported 4 RU-only sections to EN: `## Authentication` (Password
+  requirements + Cookie security), restructured `## Secrets
+  management` with Never / Do this instead / `.gitignore` subsections
+  and a fenced `.gitignore` example, restructured `## Audit logging`
+  with What to log / What NOT to log subsections, new `## Checklists`
+  with Pre-commit / Pre-deploy lists. Added `## Гарантии TAUSIK`
+  section to RU translated from EN's existing `## TAUSIK-specific
+  guards`. Both pairs now at zero drift.
+
+  Deferred to `v14b-audit-translation-skip-marker`: the remaining 3
+  pairs (`claude-md-guide.md`, `brain-db-schema.md`, `environment.md`)
+  are intentionally-abbreviated RU mirrors that explicitly point
+  readers to the full EN version. Forcing structural parity defeats
+  their design. The follow-up adds two improvements to the audit
+  script: (a) honor a `<!-- audit-translation-drift: skip -->`
+  HTML-comment marker so abbreviated mirrors are listed in their own
+  section rather than as drift; (b) heading regex tracks fenced-code-
+  block context so triple-backtick markdown examples (`# BAD` /
+  `# GOOD` lines inside code fences) no longer count as real headings.
+
+  Audit drift count: 5 → 3 paired (after batch 1's 8 → 5 + batch 2's
+  5 → 3); pytest 2903 passed; ruff + mypy clean.
+
 - **RU-mirror sweep batch 1: 3 of 8 drifted pairs cleared (`v14b-ru-mirror-sync-batch`).**
   First pass through the drift report from the new translation-drift
   audit script. Resolved: `docs/ru/stacks.md` (removed RU-only

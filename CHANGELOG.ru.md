@@ -16,6 +16,40 @@
 - **Compound RPC `tausik_session_open` для Phase 1 `/start` (`v14b-session-open-compound-rpc-impl`).**
   Один MCP-вызов возвращает JSON-конверт `{session, status, handoff, tasks{active,blocked}, self_check}` — замещает 5 последовательных вызовов (session_start + status compact + last_handoff + task_list active+blocked + self_check) одним round-trip'ом. Каждая под-секция best-effort: при сбое sub-вызова в секцию вставляется inline `error`-ключ, но envelope не падает — `/start` рендерит degraded dashboard. Счёт MCP-инструментов: 99 → 100 (93 project + 7 brain). Phase 1 в SKILL.md схлопнут с "5 параллельных вызовов" до "1 compound call"; CLI fallback при `self_check.drift_detected=true` сохранён.
 
+- **Подбивка RU-зеркал, batch 2: 2 из 5 отложенных пар закрыты bilaterally (`v14b-ru-mirror-sync-batch-2`).**
+  Второй проход по drift-отчёту. Закрыто bilaterally:
+  `architecture.md` (Δ-2 hd / +2 tbl) — удалена broken пустая 3-кол
+  таблица в EN на строках 51-52 (заголовок + separator без строк;
+  новый audit-скрипт всплыл это как doc-баг); EN line 18 ASCII art
+  `|                |` заменён на `v                v` (regex audit'а
+  больше не считает вертикальные `|` пайпы диаграмм за table-separator
+  — устранение false-positive); в EN добавлены секции
+  `## Hooks (anti-drift)` и `## Memory Aggregates`, переведённые из
+  уже существующего RU-контента про регистрацию `scripts/hooks/` и
+  `service_knowledge_aggregates.py`. `security.md` (Δ-10 hd / -2 cb)
+  — backport 4 RU-only секций в EN: `## Authentication` (Password
+  requirements + Cookie security), реструктурирован `## Secrets
+  management` с подразделами Never / Do this instead / `.gitignore`
+  и fenced `.gitignore` example, реструктурирован `## Audit logging`
+  с What to log / What NOT to log, новый `## Checklists` с
+  Pre-commit / Pre-deploy. В RU добавлен `## Гарантии TAUSIK`,
+  переведённый с существующего EN `## TAUSIK-specific guards`. Обе
+  пары теперь в нулевом drift'е.
+
+  Отложено в `v14b-audit-translation-skip-marker`: оставшиеся 3 пары
+  (`claude-md-guide.md`, `brain-db-schema.md`, `environment.md`) —
+  намеренно сокращённые RU-зеркала, явно указывающие читателю на
+  полную EN-версию. Принудительная structural parity ломает их
+  дизайн. Follow-up добавит два улучшения audit-скрипта: (a) учёт
+  HTML-comment маркера `<!-- audit-translation-drift: skip -->`,
+  чтобы сокращённые зеркала отображались в своей секции, а не как
+  drift; (b) regex заголовков отслеживает fenced-code-block контекст,
+  чтобы triple-backtick markdown-примеры (строки `# BAD` / `# GOOD`
+  внутри code fence'ов) не считались за реальные заголовки.
+
+  Drift count: 5 → 3 paired (после batch 1: 8 → 5 + batch 2: 5 → 3);
+  pytest 2903 passed; ruff + mypy чистые.
+
 - **Подбивка RU-зеркал, batch 1: закрыто 3 из 8 drift-пар (`v14b-ru-mirror-sync-batch`).**
   Первый проход по drift-отчёту нового translation-drift скрипта.
   Закрыто: `docs/ru/stacks.md` (удалён RU-only список

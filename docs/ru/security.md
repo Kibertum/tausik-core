@@ -131,3 +131,13 @@ secrets/
 - [ ] HTTPS enforced
 - [ ] Секреты в безопасном хранилище
 - [ ] Логирование настроено правильно
+
+---
+
+## Гарантии TAUSIK
+
+- `bash_firewall.py` блокирует `rm -rf /`, `git reset --hard origin`, force-push
+- `git_push_gate.py` требует `TAUSIK_ALLOW_PUSH=1` (выставляется `/ship` после подтверждения)
+- `memory_pretool_block.py` блокирует Write/Edit в `~/.claude/**/memory/` (защита от утечки auto-memory)
+- `brain_scrubbing.py` вырезает приватные URL и имена проектов перед записью в Brain
+- Валидация slug'ов в scaffold ролей/стеков блокирует path traversal
