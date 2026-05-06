@@ -91,6 +91,10 @@ stacks/
 
 Запуск: `pytest tests/test_stack_registry.py -v`.
 
+## DEFAULT_STACKS (25)
+
+`python, fastapi, django, flask, react, next, vue, nuxt, svelte, typescript, javascript, go, rust, java, kotlin, swift, flutter, laravel, php, blade, ansible, terraform, helm, kubernetes, docker`. Список открыт для расширения через `.tausik/config.json` → `custom_stacks`.
+
 ## См. также
 
 - [Кастомизация](customization.md) — как переопределить встроенный стек без правки `stacks/<name>/`.

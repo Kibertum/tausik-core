@@ -89,6 +89,10 @@ Every consumer carries a hardcoded fallback so module import never crashes if th
 
 Run: `pytest tests/test_stack_registry.py -v`.
 
+## DEFAULT_STACKS (25)
+
+`python, fastapi, django, flask, react, next, vue, nuxt, svelte, typescript, javascript, go, rust, java, kotlin, swift, flutter, laravel, php, blade, ansible, terraform, helm, kubernetes, docker`. The list is open for extension via `.tausik/config.json` → `custom_stacks`.
+
 ## See also
 
 - [Customization Guide](customization.md) — how to override a built-in stack without touching `stacks/<name>/`.
