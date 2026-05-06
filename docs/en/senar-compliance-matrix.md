@@ -8,17 +8,17 @@
 
 | Gate | Requirement | Status | Enforcement | Evidence |
 |------|-------------|--------|-------------|----------|
-| QG-0 | Goal required | ✅ Implemented | Hard block | `service_gates.py` `_check_qg0_start()` — ServiceError |
-| QG-0 | AC required | ✅ Implemented | Hard block | `service_gates.py` `_check_qg0_start()` — ServiceError |
-| QG-0 | Negative scenario in AC | ✅ Implemented | Hard block | `service_gates.py` `NEGATIVE_SCENARIO_KEYWORDS` (30+ en+ru) |
-| QG-0 | Scope warning | ✅ Implemented | Warning | `service_gates.py` — scope + scope_exclude stderr |
-| QG-0 | Security surface detection | ✅ Implemented | Warning | `service_gates.py` `SECURITY_KEYWORDS` + `SECURITY_AC_KEYWORDS` |
-| QG-2 | AC verified with evidence | ✅ Implemented | Hard block | `service_gates.py` `_verify_ac()` — flag + notes + per-criterion. NO `--force` bypass. |
-| QG-2 | Plan steps complete | ✅ Implemented | Hard block | `service_gates.py` `_verify_plan_complete()` — JSON plan check |
+| QG-0 | Goal required | ✅ Implemented | Hard block | `gate_qg0_check.py` `check_qg0_start()` — ServiceError (via `service_gates.GatesMixin._check_qg0_start` delegator) |
+| QG-0 | AC required | ✅ Implemented | Hard block | `gate_qg0_check.py` `check_qg0_start()` — ServiceError (via `service_gates.GatesMixin._check_qg0_start` delegator) |
+| QG-0 | Negative scenario in AC | ✅ Implemented | Hard block | `gate_negative_scenario.py` `NEGATIVE_SCENARIO_KEYWORDS` + `has_negative_scenario()` (30+ en+ru); enforced inside `gate_qg0_check.check_qg0_start()` |
+| QG-0 | Scope warning | ✅ Implemented | Warning | `gate_qg0_check.py` `check_qg0_start()` — scope + scope_exclude stderr |
+| QG-0 | Security surface detection | ✅ Implemented | Warning | `gate_qg0_check.py` `SECURITY_KEYWORDS` + `SECURITY_AC_KEYWORDS` (re-exported by `service_gates` for backward-compat) |
+| QG-2 | AC verified with evidence | ✅ Implemented | Hard block | `gate_ac_check.py` `verify_ac()` — flag + notes + per-criterion. NO `--force` bypass. (via `service_gates.GatesMixin._verify_ac` delegator) |
+| QG-2 | Plan steps complete | ✅ Implemented | Hard block | `gate_ac_check.py` `verify_plan_complete()` — JSON plan check (via `service_gates.GatesMixin._verify_plan_complete` delegator) |
 | QG-2 | Scoped pytest gate | ✅ Implemented | Hard block | `service_verification.py` — basename match `tests/test_<file>.py` per `relevant_files` (no fallback to full suite when files supplied) |
 | QG-2 | Verify cache (10 min TTL) | ✅ Implemented | Skip-on-hit | `verification_runs` table — same `files_hash` + green = skip; security paths bypass cache |
 | QG-2 | Quality gates (pytest/ruff) | ✅ Implemented | Hard block | `gate_runner.py` + `service_gates.py` `_run_quality_gates()` |
-| QG-2 | Verification checklist (4 tiers) | ✅ Implemented | Warning | `service_gates.py` `_check_verification_checklist()` auto-tier — v1.4 also runs `service_ac_evidence.build_report()` to surface per-AC coverage gaps and missing test refs |
+| QG-2 | Verification checklist (4 tiers) | ✅ Implemented | Warning | `gate_ac_check.py` `check_verification_checklist()` + `determine_checklist_tier()` auto-tier — v1.4 also runs `service_ac_evidence.build_report()` to surface per-AC coverage gaps and missing test refs (via `service_gates.GatesMixin._check_verification_checklist` delegator) |
 | QG-2 | Root cause for defects | ✅ Implemented | Warning | `service_task.py` `task_done()` — keyword check |
 | QG-2 | Knowledge capture | ✅ Implemented | Warning | `service_task.py` `task_done()` — memory/decision count |
 

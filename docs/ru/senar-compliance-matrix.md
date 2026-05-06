@@ -8,17 +8,17 @@
 
 | Gate | Требование | Статус | Enforcement | Evidence |
 |------|-----------|--------|-------------|----------|
-| QG-0 | Цель обязательна | ✅ Реализовано | Hard block | `service_gates.py` `_check_qg0_start()` — ServiceError |
-| QG-0 | AC обязательны | ✅ Реализовано | Hard block | `service_gates.py` `_check_qg0_start()` — ServiceError |
-| QG-0 | Негативный сценарий в AC | ✅ Реализовано | Hard block | `service_gates.py` `NEGATIVE_SCENARIO_KEYWORDS` (30+ en+ru) |
-| QG-0 | Предупреждение о scope | ✅ Реализовано | Warning | `service_gates.py` — scope + scope_exclude в stderr |
-| QG-0 | Обнаружение security surface | ✅ Реализовано | Warning | `service_gates.py` `SECURITY_KEYWORDS` + `SECURITY_AC_KEYWORDS` |
-| QG-2 | AC проверены с evidence | ✅ Реализовано | Hard block | `service_gates.py` `_verify_ac()` — flag + notes + per-criterion. НЕТ `--force` байпаса. |
-| QG-2 | Шаги плана выполнены | ✅ Реализовано | Hard block | `service_gates.py` `_verify_plan_complete()` — JSON план |
+| QG-0 | Цель обязательна | ✅ Реализовано | Hard block | `gate_qg0_check.py` `check_qg0_start()` — ServiceError (через делегатор `service_gates.GatesMixin._check_qg0_start`) |
+| QG-0 | AC обязательны | ✅ Реализовано | Hard block | `gate_qg0_check.py` `check_qg0_start()` — ServiceError (через делегатор `service_gates.GatesMixin._check_qg0_start`) |
+| QG-0 | Негативный сценарий в AC | ✅ Реализовано | Hard block | `gate_negative_scenario.py` `NEGATIVE_SCENARIO_KEYWORDS` + `has_negative_scenario()` (30+ en+ru); проверяется внутри `gate_qg0_check.check_qg0_start()` |
+| QG-0 | Предупреждение о scope | ✅ Реализовано | Warning | `gate_qg0_check.py` `check_qg0_start()` — scope + scope_exclude в stderr |
+| QG-0 | Обнаружение security surface | ✅ Реализовано | Warning | `gate_qg0_check.py` `SECURITY_KEYWORDS` + `SECURITY_AC_KEYWORDS` (re-export из `service_gates` для backward-compat) |
+| QG-2 | AC проверены с evidence | ✅ Реализовано | Hard block | `gate_ac_check.py` `verify_ac()` — flag + notes + per-criterion. НЕТ `--force` байпаса. (через делегатор `service_gates.GatesMixin._verify_ac`) |
+| QG-2 | Шаги плана выполнены | ✅ Реализовано | Hard block | `gate_ac_check.py` `verify_plan_complete()` — JSON план (через делегатор `service_gates.GatesMixin._verify_plan_complete`) |
 | QG-2 | Scoped pytest gate | ✅ Реализовано | Hard block | `service_verification.py` — basename match `tests/test_<file>.py` per `relevant_files` (нет fallback на full suite, когда files supplied) |
 | QG-2 | Verify cache (10 min TTL) | ✅ Реализовано | Skip-on-hit | таблица `verification_runs` — same `files_hash` + green = skip; security paths байпасят cache |
 | QG-2 | Quality gates (pytest/ruff) | ✅ Реализовано | Hard block | `gate_runner.py` + `service_gates.py` `_run_quality_gates()` |
-| QG-2 | Checklist верификации (4 тира) | ✅ Реализовано | Warning | `service_gates.py` `_check_verification_checklist()` авто-тир — v1.4 дополнительно прогоняет `service_ac_evidence.build_report()` и сообщает о per-AC покрытии, отсутствующих test-ref и негативных сценариях |
+| QG-2 | Checklist верификации (4 тира) | ✅ Реализовано | Warning | `gate_ac_check.py` `check_verification_checklist()` + `determine_checklist_tier()` авто-тир — v1.4 дополнительно прогоняет `service_ac_evidence.build_report()` и сообщает о per-AC покрытии, отсутствующих test-ref и негативных сценариях (через делегатор `service_gates.GatesMixin._check_verification_checklist`) |
 | QG-2 | Root cause для дефектов | ✅ Реализовано | Warning | `service_task.py` `task_done()` — проверка ключевых слов |
 | QG-2 | Захват знаний | ✅ Реализовано | Warning | `service_task.py` `task_done()` — подсчёт memory/decision |
 
