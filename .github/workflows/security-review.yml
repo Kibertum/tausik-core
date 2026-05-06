@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - 'scripts/**'
-      - 'agents/**/mcp/**'
+      - 'harness/**/mcp/**'
       - 'bootstrap/**'
 
 jobs:

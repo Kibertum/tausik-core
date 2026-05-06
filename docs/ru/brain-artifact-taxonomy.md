@@ -43,7 +43,7 @@
 - Поля в v1 **не** отправляются в свойства Notion: проверяются и удаляются на сервере до `pages.create`.
 - **Строгий режим таксономии:** в `.tausik/config.json` → **`brain.require_artifact_taxonomy_kind`: `true`** — для pattern/gotcha обязателен валидный kind; без него или с опечаткой — **`taxonomy_blocked`**.
 
-JSON Schema (draft 2020-12): [`agents/schemas/brain-artifact-card.schema.json`](../../agents/schemas/brain-artifact-card.schema.json).
+JSON Schema (draft 2020-12): [`harness/schemas/brain-artifact-card.schema.json`](../../harness/schemas/brain-artifact-card.schema.json).
 
 **Поток публикации (v1.4):** MCP **`brain_draft_artifact`** — черновик без Notion + уровень **risk** классификатора. Если контент выглядит проектно-специфичным, **`brain_store_pattern`** / **`brain_store_gotcha`** вернут **`risk_blocked`**, пока не передан **`confirm_high_risk: true`**. CLI: `tausik brain draft` / `tausik brain publish` (`--json` или `--file`). Успешная публикация пишет **`write`** в `brain_events` с префиксом `artifact_publish:`.
 

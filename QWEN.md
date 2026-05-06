@@ -114,7 +114,7 @@ Check status: `.tausik/tausik gates status`. Fix blocking failures before commit
 
 ## Skills
 
-After bootstrap, **12 core skills** ship from `agents/skills/` and are always available: `/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, `/review`, `/test`, `/debug`, `/explore`, `/interview`. `/brain` is the 13th core skill but only deploys when the project has Notion configured (`tausik brain init`).
+After bootstrap, **12 core skills** ship from `harness/skills/` and are always available: `/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, `/review`, `/test`, `/debug`, `/explore`, `/interview`. `/brain` is the 13th core skill but only deploys when the project has Notion configured (`tausik brain init`).
 
 **25+ official/vendor skills** are opt-in via `python .tausik-lib/bootstrap/bootstrap.py --include-official` (full bundle) or `tausik skill install <name>` (per skill) from the `tausik-skills` repo or `skills-official/`: `/audit`, `/zero-defect`, `/markitdown`, `/excel`, `/pdf`, `/docs`, `/security`, `/onboard`, `/retro`, `/ultra`, `/jira`, `/bitrix24`, `/sentry`, ... See `.qwen/references/skill-catalog.md`.
 
@@ -130,7 +130,7 @@ Role profiles live in `.qwen/roles/<role>.md`.
 TAUSIK is model-agnostic, but the surface you actually use differs from Claude Code:
 
 - **MCP tools first.** Every quality gate (QG-0, QG-2, session limit, dead-end tracking) is enforced inside the `tausik-project` MCP server. Calling MCP tools gives you the same hard guarantees Claude Code gets. Bash CLI is a fallback only when MCP is unreachable.
-- **Slash commands may not exist.** If your host doesn't expand `/start`, `/plan`, `/ship`, `/end`, open the matching `agents/skills/<name>/SKILL.md` and execute its numbered steps. Skills are written as procedures, not host-specific magic.
+- **Slash commands may not exist.** If your host doesn't expand `/start`, `/plan`, `/ship`, `/end`, open the matching `harness/skills/<name>/SKILL.md` and execute its numbered steps. Skills are written as procedures, not host-specific magic.
 - **PreToolUse hooks may not exist.** Cursor and a number of GPT-style agents have no hooks API: `task_gate.py` will not protect Rule 1 ("no code without a task"). Self-enforce — always call `tausik_task_start` (or `tausik_task_quick`) before any Edit/Write.
 - **Don't write to `~/.claude/`.** It is a Claude-specific profile. Use the project DB (`.tausik/tausik.db`) via `tausik_memory_*` MCP tools, or the path under `CLAUDE_PLUGIN_DATA` if your host sets it.
 - **Verify-First Contract is universal.** Run `tausik_verify` before `tausik_task_done`, regardless of model. The 60s per-MCP-tool timeout that VS Code Claude Extension applies is the strictest case; if you keep heavy work inside `verify`, every other host stays in budget too.

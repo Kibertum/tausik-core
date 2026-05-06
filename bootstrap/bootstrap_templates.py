@@ -140,7 +140,7 @@ MULTIMODEL_NOTE = """## Are you a non-Claude agent? (GPT-5.5, Composer, Codex, O
 TAUSIK is model-agnostic, but the surface you actually use differs from Claude Code:
 
 - **MCP tools first.** Every quality gate (QG-0, QG-2, session limit, dead-end tracking) is enforced inside the `tausik-project` MCP server. Calling MCP tools gives you the same hard guarantees Claude Code gets. Bash CLI is a fallback only when MCP is unreachable.
-- **Slash commands may not exist.** If your host doesn't expand `/start`, `/plan`, `/ship`, `/end`, open the matching `agents/skills/<name>/SKILL.md` and execute its numbered steps. Skills are written as procedures, not host-specific magic.
+- **Slash commands may not exist.** If your host doesn't expand `/start`, `/plan`, `/ship`, `/end`, open the matching `harness/skills/<name>/SKILL.md` and execute its numbered steps. Skills are written as procedures, not host-specific magic.
 - **PreToolUse hooks may not exist.** Cursor and a number of GPT-style agents have no hooks API: `task_gate.py` will not protect Rule 1 ("no code without a task"). Self-enforce — always call `tausik_task_start` (or `tausik_task_quick`) before any Edit/Write.
 - **Don't write to `~/.claude/`.** It is a Claude-specific profile. Use the project DB (`.tausik/tausik.db`) via `tausik_memory_*` MCP tools, or the path under `CLAUDE_PLUGIN_DATA` if your host sets it.
 - **Verify-First Contract is universal.** Run `tausik_verify` before `tausik_task_done_v2`, regardless of model. The 60s per-MCP-tool timeout that VS Code Claude Extension applies is the strictest case; if you keep heavy work inside `verify`, every other host stays in budget too.
@@ -211,7 +211,7 @@ def build_header(project_name: str, stacks: list[str], agent_name: str) -> str:
 def build_skills_section(ide_subdir: str) -> str:
     return (
         f"## Skills\n\n"
-        f"After bootstrap, **12 core skills** ship from `agents/skills/` and are always available: "
+        f"After bootstrap, **12 core skills** ship from `harness/skills/` and are always available: "
         f"`/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, "
         f"`/review`, `/test`, `/debug`, `/explore`, `/interview`. "
         f"`/brain` is the 13th core skill but only deploys when the project has Notion configured "
@@ -239,7 +239,7 @@ def build_roles_section(ide_subdir: str) -> str:
 
 
 def _load_ide_override(ide: str | None) -> str:
-    """Load IDE-specific override block from agents/overrides/{ide}/rules.md.
+    """Load IDE-specific override block from harness/overrides/{ide}/rules.md.
 
     Returns "" if `ide` is None/unknown or the override file is missing.
     Wrapped so a missing file never breaks bootstrap.
@@ -247,7 +247,7 @@ def _load_ide_override(ide: str | None) -> str:
     if not ide:
         return ""
     here = os.path.dirname(os.path.abspath(__file__))
-    candidate = os.path.normpath(os.path.join(here, "..", "agents", "overrides", ide, "rules.md"))
+    candidate = os.path.normpath(os.path.join(here, "..", "harness", "overrides", ide, "rules.md"))
     if not os.path.isfile(candidate):
         return ""
     try:
@@ -271,7 +271,7 @@ def build_full_body(
     """Compose the shared body used by all IDE-specific generators.
 
     Caller prepends its own file-level header (e.g. '# CLAUDE.md'). When
-    `ide` is supplied, the matching `agents/overrides/<ide>/rules.md`
+    `ide` is supplied, the matching `harness/overrides/<ide>/rules.md`
     block (if present) is appended right before the dynamic state block —
     closing the audit gap r14-overrides-integration where these files
     existed but were never wired into the generated CLAUDE.md/.cursorrules

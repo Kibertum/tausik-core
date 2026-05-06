@@ -5,9 +5,9 @@ server in an installed `.claude/mcp/brain/` layout (subprocess + filesystem).
 
 Background
 ----------
-Commit b5f6281 shipped agents/{claude,cursor}/mcp/brain/server.py and
+Commit b5f6281 shipped harness/{claude,cursor}/mcp/brain/server.py and
 handlers.py with 4-segment `..` path arithmetic that only resolves
-scripts/ correctly in the source-tree layout (agents/claude/mcp/brain/ →
+scripts/ correctly in the source-tree layout (harness/claude/mcp/brain/ →
 repo root). In the installed layout (.claude/mcp/brain/) four `..` jumps
 to the parent of the project — scripts/ is not found and handlers.py
 fails at `import brain_config` with ModuleNotFoundError. The MCP server
@@ -15,7 +15,7 @@ then refuses to start. The existing test suite passed because it exec'd
 handlers.py from the source tree, where the wrong arithmetic happens to
 coincide with reality.
 
-The fix copies the convention used by agents/claude/mcp/project/server.py:17
+The fix copies the convention used by harness/claude/mcp/project/server.py:17
 which is 2-segment `..` (.claude/mcp/project/ → .claude/scripts/).
 
 These tests exercise a simulated installed layout in tmp_path and import
@@ -36,8 +36,8 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BRAIN_SRCS = {
-    "claude": REPO_ROOT / "agents" / "claude" / "mcp" / "brain",
-    "cursor": REPO_ROOT / "agents" / "cursor" / "mcp" / "brain",
+    "claude": REPO_ROOT / "harness" / "claude" / "mcp" / "brain",
+    "cursor": REPO_ROOT / "harness" / "cursor" / "mcp" / "brain",
 }
 
 # Minimal stubs that satisfy handlers.py's module-level imports.

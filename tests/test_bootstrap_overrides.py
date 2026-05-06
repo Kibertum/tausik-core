@@ -1,4 +1,4 @@
-"""r14-overrides-integration: agents/overrides/{ide}/rules.md is wired
+"""r14-overrides-integration: harness/overrides/{ide}/rules.md is wired
 into the generated CLAUDE.md / .cursorrules / QWEN.md.
 
 The audit found the override files exist on disk but no generator was
@@ -45,7 +45,7 @@ def test_overrides_block_present_for_known_ide(build, ide):
 
 def test_claude_override_carries_claude_specific_text(build):
     body = build("p", ["python"], "agent", ".claude", ide="claude")
-    # Sanity: pull a short, stable phrase from agents/overrides/claude/rules.md
+    # Sanity: pull a short, stable phrase from harness/overrides/claude/rules.md
     # so we know the actual file content reached the rendered body, not just
     # the section header.
     assert "AskUserQuestion" in body or "dedicated tools" in body

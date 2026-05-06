@@ -9,7 +9,7 @@ import pytest
 SCRIPTS_DIR = os.path.join(os.path.dirname(__file__), "..", "scripts")
 sys.path.insert(0, SCRIPTS_DIR)
 
-AGENTS_DIR = os.path.join(os.path.dirname(__file__), "..", "agents")
+AGENTS_DIR = os.path.join(os.path.dirname(__file__), "..", "harness")
 BOOTSTRAP_DIR = os.path.join(os.path.dirname(__file__), "..", "bootstrap")
 SKILLS_OFFICIAL_DIR = os.path.join(os.path.dirname(__file__), "..", "skills-official")
 

@@ -26,7 +26,7 @@ Or via MCP: `tausik_doctor` (no parameters). The MCP variant returns the same da
 | **MCP** | Server can start | `python server.py --probe` returns success |
 | **Skills** | Deployment | Skills present in `.claude/skills/` (count) |
 | **Skills** | Critical skills | core skills `start`, `end`, `task`, `plan`, `review`, `brain`, `ship`, `checkpoint` all present |
-| **Drift** | Bootstrap freshness | Files in `.claude/` match generators in `agents/`/`bootstrap/`. Drift = stale generated copy. |
+| **Drift** | Bootstrap freshness | Files in `.claude/` match generators in `harness/`/`bootstrap/`. Drift = stale generated copy. |
 | **Config** | Knobs | `session_max_minutes`, `session_warn_threshold_minutes`, `session_idle_threshold_minutes`, `session_capacity_minutes`, `verify_cache_ttl_seconds` |
 | **Gates** | Registered gates | Stack-detected + universal gates count |
 | **Session** | Active vs wall | If session is open: `Xm active / Ym wall` (gap-based) |

@@ -58,7 +58,7 @@
 | `project_cli_doctor.py` / `_role.py` / `_stack.py` / `_verify.py` | v1.3 CLI-обработчики (doctor, roles, stacks, verify) |
 | `project_service.py` + миксины `service_*.py` | Бизнес-логика: задачи, знания, навыки, шлюзы, каскады, роли, верификация |
 | `service_verification.py` | Scoped pytest gate + verify cache (10 min TTL) |
-| `service_roles.py` | Гибридное хранение ролей (DB-метаданные + agents/roles/*.md) |
+| `service_roles.py` | Гибридное хранение ролей (DB-метаданные + harness/roles/*.md) |
 | `service_stack_ops.py` | Stack scaffold, lint, diff, reset |
 | `project_backend.py` + `backend_*.py` | SQLite + FTS5 backend (WAL mode, 18 таблиц) |
 | `backend_session_metrics.py` | Gap-based active-time computation |
@@ -95,11 +95,11 @@
 
 | Файл | Назначение |
 |------|------------|
-| `agents/claude/mcp/project/server.py` | JSON-RPC stdio-сервер |
-| `agents/claude/mcp/project/tools.py` | core tool definitions |
-| `agents/claude/mcp/project/tools_extra.py` | расширенные tool definitions (skills, gates, doctor, verify, roles, stacks, brain) |
-| `agents/claude/mcp/project/handlers.py` | Диспетчеризация: имя инструмента → метод сервиса |
-| `agents/claude/mcp/project/handlers_skill.py` | Обработчики навыков + обслуживания (split) |
+| `harness/claude/mcp/project/server.py` | JSON-RPC stdio-сервер |
+| `harness/claude/mcp/project/tools.py` | core tool definitions |
+| `harness/claude/mcp/project/tools_extra.py` | расширенные tool definitions (skills, gates, doctor, verify, roles, stacks, brain) |
+| `harness/claude/mcp/project/handlers.py` | Диспетчеризация: имя инструмента → метод сервиса |
+| `harness/claude/mcp/project/handlers_skill.py` | Обработчики навыков + обслуживания (split) |
 
 Полный MCP-surface: **93 project + 7 brain = 100 инструментов** (опциональный `codebase-rag` добавляет ещё 7; не в основном счёте).
 
@@ -107,7 +107,7 @@
 
 Навыки, роли, стеки — общие для всех сред. MCP-серверы — специфичны для среды:
 ```
-agents/
+harness/
 ├── skills/           # 12 core auto-deployed + brain условно + 25+ в skills-official/ (opt-in через --include-official)
 ├── roles/            # 5 ролей (developer, architect, qa, tech-writer, ui-ux)
 ├── stacks/           # Руководства по стекам
@@ -136,7 +136,7 @@ agents/
 | `fts_decisions` | FTS5 индекс по решениям |
 | `task_logs` | Структурированные логи задач (phase, message) |
 | `fts_task_logs` | FTS5 индекс по логам задач |
-| `roles` | Реестр ролей (гибрид: метаданные + agents/roles/{slug}.md) |
+| `roles` | Реестр ролей (гибрид: метаданные + harness/roles/{slug}.md) |
 | `session_activity` | Per-tool-call таймстемпы для gap-based active time |
 | `verification_runs` | Verify cache: file_hash + timestamp для QG-2 reuse (10 min TTL) |
 
@@ -182,7 +182,7 @@ API-вызовов (это делает Claude Code), но *структура* 
 | System prompt + схемы инструментов | Инжектится Claude Code'ом из `.claude/mcp/project/tools.py` и `tools_extra.py` | Идентично между ходами в рамках сессии — самый длинный стабильный префикс |
 | `CLAUDE.md` | Корень проекта | Читается раз за сессию и реинжектится; стабилен пока `tausik_update_claudemd` не перепишет dynamic-блок |
 | Описания MCP-инструментов | Те же `tools.py` | Любая правка инвалидирует кеш — изменение формулировки переписывает весь префикс |
-| Skills (`SKILL.md`) | `agents/skills/<name>/SKILL.md` | Подгружаются только при активации скилла |
+| Skills (`SKILL.md`) | `harness/skills/<name>/SKILL.md` | Подгружаются только при активации скилла |
 
 **Что инвалидирует кеш в середине сессии.** Любая правка перечисленных файлов
 между ходами переписывает префикс и заставляет следующий ход платить

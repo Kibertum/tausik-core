@@ -229,7 +229,7 @@ def main() -> None:
         action="store_true",
         help=(
             "Include skills-official/registry.json stubs in the deployed set. "
-            "Default since v1.4: only source agents/skills/ are deployed (12 + brain "
+            "Default since v1.4: only source harness/skills/ are deployed (12 + brain "
             "conditional). Use this flag to restore the larger pre-v1.4 skill list."
         ),
     )

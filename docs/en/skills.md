@@ -4,7 +4,7 @@
 
 Skills are intent-based instructions that define agent behaviour. You don't memorize names or syntax — you write what you want, and the agent picks the right skill. Slash-prefix (`/plan`, `/ship`) explicitly invokes one.
 
-After bootstrap, **12 core skills** ship with TAUSIK from `agents/skills/` (plus `/brain` *conditionally* when the project has Notion configured — see [Shared Brain](shared-brain.md)). Additional **official / vendor skills** (25+) are available on demand: install per-skill via `tausik skill install <name>`, or expand the whole bundle via `python .tausik-lib/bootstrap/bootstrap.py --include-official` (alias: `--include-vendor`). **Map of repo skills:** [Skill ecosystem (one page)](skill-ecosystem.md).
+After bootstrap, **12 core skills** ship with TAUSIK from `harness/skills/` (plus `/brain` *conditionally* when the project has Notion configured — see [Shared Brain](shared-brain.md)). Additional **official / vendor skills** (25+) are available on demand: install per-skill via `tausik skill install <name>`, or expand the whole bundle via `python .tausik-lib/bootstrap/bootstrap.py --include-official` (alias: `--include-vendor`). **Map of repo skills:** [Skill ecosystem (one page)](skill-ecosystem.md).
 
 > **v1.4.x default change.** Before v1.4.x bootstrap auto-deployed all 38 source + registry skills (~1,520 tok in the system-reminder list). v1.4.x ships 12 + brain conditional (~480 tok) by default — saving ~1,040 tokens per turn. Re-run bootstrap with `--include-official` if you want the full set surfaced to the agent.
 
@@ -113,7 +113,7 @@ Installed from the `tausik-skills` repo. Use `tausik skill install <name>` to ad
 .tausik/tausik skill list                    # active + vendored + available
 .tausik/tausik skill repo add <url>          # register a TAUSIK-compatible repo
 .tausik/tausik skill install <name>          # clone + copy + pip deps
-.tausik/tausik skill activate <name>         # copy from agents/skills → .claude/skills
+.tausik/tausik skill activate <name>         # copy from harness/skills → .claude/skills
 .tausik/tausik skill deactivate <name>       # remove from .claude/skills (keep vendored copy)
 .tausik/tausik skill uninstall <name>        # remove completely
 ```

@@ -35,12 +35,12 @@ preceded_by: "tausik-1.4 master plan (removed pre-release)"
 - `scripts/brain_artifact_card.py`, `brain_artifact_taxonomy.py`, `brain_publish_cli.py`, `brain_publish_flow.py`, `brain_store_format.py`, `brain_cli_ops.py` — Brain artifact pipeline (эпик 1).
 - `scripts/skill_profile.py` — multi-model profile resolver (эпик 2).
 - `scripts/gen_doc_constants.py` + `docs/_generated/constants.json` — single source of truth для версии/MCP counts (эпик 7).
-- `scripts/mcp_tool_counts.py` — derive counts from agents/* (эпик 7).
+- `scripts/mcp_tool_counts.py` — derive counts from harness/* (эпик 7).
 - `scripts/verify_recent_lookup.py` — compat helper для verify cache (эпик 3).
 
 ### 1.4 Новая структура
-- `agents/schemas/brain-artifact-card.schema.json` — JSON Schema (эпик 1).
-- `agents/skills/_profile-demo/` — демо мульти-модельного скилла (эпик 2). `_` prefix → bootstrap пропускает в реальной генерации (защита от утечки демо).
+- `harness/schemas/brain-artifact-card.schema.json` — JSON Schema (эпик 1).
+- `harness/skills/_profile-demo/` — демо мульти-модельного скилла (эпик 2). `_` prefix → bootstrap пропускает в реальной генерации (защита от утечки демо).
 - `.qwen/` + `QWEN.md` + изменения в `bootstrap_qwen.py` — **бонус сверх мастер-плана**: ещё одна IDE поддержана (Qwen Code agent). Согласуется с философией multi-model.
 
 ### 1.5 Тесты

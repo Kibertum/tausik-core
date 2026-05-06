@@ -2,7 +2,7 @@
 
 Service-layer free functions returning structured dicts (no printing).
 CLI handlers in project_cli_stack.py format the output for terminal;
-MCP handlers in agents/{ide}/mcp/project/handlers.py JSON-serialize them.
+MCP handlers in harness/{ide}/mcp/project/handlers.py JSON-serialize them.
 
 Kept out of project_service.py to respect the 400-line filesize gate.
 """

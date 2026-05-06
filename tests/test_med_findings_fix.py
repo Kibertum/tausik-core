@@ -159,7 +159,7 @@ class TestOverflowDocs:
         path = os.path.join(
             os.path.dirname(__file__),
             "..",
-            "agents",
+            "harness",
             "claude",
             "mcp",
             "project",
@@ -173,12 +173,12 @@ class TestOverflowDocs:
     def test_mcp_mirrors_in_sync(self):
         base = os.path.join(os.path.dirname(__file__), "..")
         with open(
-            os.path.join(base, "agents", "claude", "mcp", "project", "tools.py"),
+            os.path.join(base, "harness", "claude", "mcp", "project", "tools.py"),
             encoding="utf-8",
         ) as f:
             claude = f.read()
         with open(
-            os.path.join(base, "agents", "cursor", "mcp", "project", "tools.py"),
+            os.path.join(base, "harness", "cursor", "mcp", "project", "tools.py"),
             encoding="utf-8",
         ) as f:
             cursor = f.read()

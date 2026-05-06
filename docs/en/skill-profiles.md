@@ -7,7 +7,7 @@ TAUSIK skills are normally a single **`SKILL.md`**. When behaviour differs by ho
 ## Layout
 
 ```
-agents/skills/<skill-name>/
+harness/skills/<skill-name>/
   SKILL.md              # Shared instructions + YAML frontmatter
   variants/
     claude.md           # Fragment appended when profile resolves to claude
@@ -34,4 +34,4 @@ Reference implementation: `scripts/skill_profile.py` (`merge_skill_markdown`, `r
 
 ## Example
 
-See **`agents/skills/_profile-demo/`** (reference layout — not deployed to IDE; prefixed with `_`): shared core plus **`variants/claude.md`** and **`variants/codex.md`**. Requesting profile `gpt` with `profile_fallback: claude` uses the Claude overlay when no `variants/gpt.md` exists.
+See **`harness/skills/_profile-demo/`** (reference layout — not deployed to IDE; prefixed with `_`): shared core plus **`variants/claude.md`** and **`variants/codex.md`**. Requesting profile `gpt` with `profile_fallback: claude` uses the Claude overlay when no `variants/gpt.md` exists.

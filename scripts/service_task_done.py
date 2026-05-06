@@ -2,7 +2,7 @@
 
 Holds the heavy `_task_done_report` body and the `_format_task_done_failures`
 helper. Mixed into TaskMixin via TaskDoneReportMixin so existing call-sites
-(svc._task_done_report, agents/*/mcp/project/handlers.py) keep working
+(svc._task_done_report, harness/*/mcp/project/handlers.py) keep working
 unchanged. Pure re-org for the 400-line filesize gate
 (filesize-debt-paydown-2). No semantic changes.
 """

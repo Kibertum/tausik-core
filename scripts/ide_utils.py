@@ -109,19 +109,19 @@ def get_rules_file(project_dir: str, ide: str | None = None) -> str:
 
 
 def get_agents_skills_dir(lib_dir: str, ide: str | None = None) -> str:
-    """Get source skills directory in agents/, with fallback chain.
+    """Get source skills directory in harness/, with fallback chain.
 
-    Order: agents/skills/ (shared) -> agents/{ide}/skills/ -> agents/claude/skills/
+    Order: harness/skills/ (shared) -> harness/{ide}/skills/ -> harness/claude/skills/
     """
     if ide is None:
         ide = DEFAULT_IDE
     # Shared skills (preferred)
-    shared = os.path.join(lib_dir, "agents", "skills")
+    shared = os.path.join(lib_dir, "harness", "skills")
     if os.path.isdir(shared):
         return shared
     # IDE-specific
-    primary = os.path.join(lib_dir, "agents", ide, "skills")
+    primary = os.path.join(lib_dir, "harness", ide, "skills")
     if os.path.isdir(primary):
         return primary
     # Fallback to claude (canonical source)
-    return os.path.join(lib_dir, "agents", "claude", "skills")
+    return os.path.join(lib_dir, "harness", "claude", "skills")

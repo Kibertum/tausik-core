@@ -25,7 +25,7 @@ echo "mypy: OK"
 # search_code reflects what was just committed. Soft-fails — never blocks
 # the commit, even on timeout or missing rag deps.
 RAG_SERVER=""
-for p in ".claude/mcp/codebase-rag/server.py" "agents/claude/mcp/codebase-rag/server.py"; do
+for p in ".claude/mcp/codebase-rag/server.py" "harness/claude/mcp/codebase-rag/server.py"; do
     [ -f "$p" ] && RAG_SERVER="$p" && break
 done
 if [ -n "$RAG_SERVER" ]; then

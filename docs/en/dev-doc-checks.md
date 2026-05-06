@@ -15,7 +15,7 @@ python scripts/gen_doc_constants.py --check
 
 Fails the matrix when `docs/_generated/constants.json` no longer matches
 the live `pyproject.toml` `version` field or the MCP tool counts derived
-from `agents/{claude,cursor}/mcp/*/tools.py`.
+from `harness/{claude,cursor}/mcp/*/tools.py`.
 
 ## Run locally before commit
 

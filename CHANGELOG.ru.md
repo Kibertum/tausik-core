@@ -11,12 +11,32 @@
 
 ## [Unreleased] — v1.4.0 polish (Phase B)
 
+### Изменено
+
+- **Source-директория `agents/` переименована в `harness/` (`v14b-rename-harness`).**
+  Устраняет долгую коллизию с нативным `.claude/agents/` namespace в
+  Claude Code (профили sub-agents). `git mv` сохраняет историю;
+  bootstrap-скрипты, docstrings, комментарии, тесты и help-тексты CLI
+  все обновлены и читают из `harness/`. Чистый разрыв — без backward-
+  compat alias на старый путь. **Миграция:** если есть форк или локальный
+  скрипт с захардкоженным source-путём, замени `agents/skills/`,
+  `agents/roles/`, `agents/stacks/`, `agents/{ide}/mcp/`,
+  `agents/overrides/`, `agents/schemas/`, `agents/aidd-templates/` на
+  соответствующий `harness/...`. Три понятия намеренно остались как
+  `agents/`: хостовая `.claude/agents/` (sub-agents в Claude Code),
+  vendor-skill `agents/` namespace внутри vendor-tarball (всё ещё
+  устанавливается в хостовую `.claude/agents/`), и внутренний подкаталог
+  `harness/skills/review/agents/<name>.md` (инструкции параллельных
+  ревьюеров в `/review` — это не framework-source `agents/`).
+  Проверено: pytest 2812 passed, `tausik doctor` clean, bootstrap dry-run
+  + полный прогон чисто регенерируют `.claude/`, `.cursor/`, `.qwen/` из
+  `harness/`.
+
 ### Добавлено
 
 - **AIDD project scaffold (`v14b-aidd-scaffold-basic`).** Новая CLI-подкоманда
   `tausik init --template aidd` копирует три слойных шаблона —
-  `idea.md`, `vision.md`, `conventions.md` — из `agents/aidd-templates/`
-  (путь переедет в `harness/aidd-templates/` после `v14b-rename-harness`)
+  `idea.md`, `vision.md`, `conventions.md` — из `harness/aidd-templates/`
   в корень текущего проекта. Conflict detection: каждый существующий
   файл триггерит 4-option prompt (overwrite / merge-append / skip /
   abort-all); empty-ввод или unknown-выбор → skip с предупреждением.

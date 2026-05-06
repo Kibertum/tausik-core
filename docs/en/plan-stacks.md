@@ -6,36 +6,36 @@ Used by /plan skill to auto-detect project stacks.
 
 | Detect Files | Stack Name | Reference |
 |-------------|------------|-----------|
-| requirements.txt, pyproject.toml + fastapi | fastapi | agents/stacks/fastapi.md |
-| manage.py, django in requirements | django | agents/stacks/django.md |
-| composer.json + laravel | laravel | agents/stacks/laravel.md |
-| composer.json + symfony | symfony | agents/stacks/symfony.md |
-| package.json + express/fastify | node | agents/stacks/node.md |
-| go.mod | go | agents/stacks/go.md |
-| mix.exs | elixir | agents/stacks/elixir.md |
-| nuxt.config.ts | nuxt | agents/stacks/nuxt.md |
-| next.config.* | next | agents/stacks/next.md |
-| svelte.config.js + @sveltejs/kit | sveltekit | agents/stacks/sveltekit.md |
-| svelte.config.js (no kit) | svelte | agents/stacks/svelte.md |
-| package.json + react (no next) | react | agents/stacks/react.md |
-| pubspec.yaml + flutter | flutter | agents/stacks/flutter.md |
-| *.xcodeproj, Package.swift | ios | agents/stacks/ios.md |
-| *.csproj + Unity | unity | agents/stacks/unity.md |
-| build.gradle + android | android | agents/stacks/android.md |
-| package.json + react-native | react-native | agents/stacks/react-native.md |
-| Cargo.toml | rust | agents/stacks/rust.md |
-| pyproject.toml (no fastapi) | python | agents/stacks/python.md |
-| composer.json (no framework) | php | agents/stacks/php.md |
-| docker-compose.yml, Dockerfile, k8s/ | devops | agents/stacks/devops.md |
-| SQL files, migrations/ | db | agents/stacks/db.md |
-| OWASP, security configs | security | agents/stacks/security.md |
-| SLO, monitoring configs | sre | agents/stacks/sre.md |
-| CSS, design tokens, a11y | ux | agents/stacks/ux.md |
-| architecture, ADR | lead | agents/stacks/lead.md |
-| Unity + game design docs | game-designer | agents/stacks/game-designer.md |
-| narrative docs, lore | narrative | agents/stacks/narrative.md |
-| pixel art, sprites, ComfyUI | pixel-artist | agents/stacks/pixel-artist.md |
-| audio, FMOD, sound assets | sound-designer | agents/stacks/sound-designer.md |
+| requirements.txt, pyproject.toml + fastapi | fastapi | harness/stacks/fastapi.md |
+| manage.py, django in requirements | django | harness/stacks/django.md |
+| composer.json + laravel | laravel | harness/stacks/laravel.md |
+| composer.json + symfony | symfony | harness/stacks/symfony.md |
+| package.json + express/fastify | node | harness/stacks/node.md |
+| go.mod | go | harness/stacks/go.md |
+| mix.exs | elixir | harness/stacks/elixir.md |
+| nuxt.config.ts | nuxt | harness/stacks/nuxt.md |
+| next.config.* | next | harness/stacks/next.md |
+| svelte.config.js + @sveltejs/kit | sveltekit | harness/stacks/sveltekit.md |
+| svelte.config.js (no kit) | svelte | harness/stacks/svelte.md |
+| package.json + react (no next) | react | harness/stacks/react.md |
+| pubspec.yaml + flutter | flutter | harness/stacks/flutter.md |
+| *.xcodeproj, Package.swift | ios | harness/stacks/ios.md |
+| *.csproj + Unity | unity | harness/stacks/unity.md |
+| build.gradle + android | android | harness/stacks/android.md |
+| package.json + react-native | react-native | harness/stacks/react-native.md |
+| Cargo.toml | rust | harness/stacks/rust.md |
+| pyproject.toml (no fastapi) | python | harness/stacks/python.md |
+| composer.json (no framework) | php | harness/stacks/php.md |
+| docker-compose.yml, Dockerfile, k8s/ | devops | harness/stacks/devops.md |
+| SQL files, migrations/ | db | harness/stacks/db.md |
+| OWASP, security configs | security | harness/stacks/security.md |
+| SLO, monitoring configs | sre | harness/stacks/sre.md |
+| CSS, design tokens, a11y | ux | harness/stacks/ux.md |
+| architecture, ADR | lead | harness/stacks/lead.md |
+| Unity + game design docs | game-designer | harness/stacks/game-designer.md |
+| narrative docs, lore | narrative | harness/stacks/narrative.md |
+| pixel art, sprites, ComfyUI | pixel-artist | harness/stacks/pixel-artist.md |
+| audio, FMOD, sound assets | sound-designer | harness/stacks/sound-designer.md |
 
 ## Keyword Mapping
 

@@ -128,15 +128,15 @@ class TestPathHelpers:
         assert get_rules_file(str(tmp_path), "codex").endswith("AGENTS.md")
 
     def test_get_agents_skills_dir_shared(self, tmp_path):
-        """Shared agents/skills/ is preferred."""
-        shared = tmp_path / "agents" / "skills"
+        """Shared harness/skills/ is preferred."""
+        shared = tmp_path / "harness" / "skills"
         shared.mkdir(parents=True)
         result = get_agents_skills_dir(str(tmp_path), "windsurf")
         assert str(shared) == result
 
     def test_get_agents_skills_dir_ide_specific(self, tmp_path):
         """Falls back to IDE-specific if no shared dir."""
-        ide_dir = tmp_path / "agents" / "cursor" / "skills"
+        ide_dir = tmp_path / "harness" / "cursor" / "skills"
         ide_dir.mkdir(parents=True)
         result = get_agents_skills_dir(str(tmp_path), "cursor")
         assert str(ide_dir) == result

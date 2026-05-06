@@ -183,9 +183,9 @@ DEFAULT_STACKS: 25 entries (python, fastapi, django, flask, react, next, vue, nu
 | `tausik_role_create` | Create role (optionally `extends` a base profile) | `slug`, `title` |
 | `tausik_role_update` | Update role metadata | `slug` |
 | `tausik_role_delete` | Delete role | `slug` |
-| `tausik_role_seed` | Bootstrap rows from `agents/roles/*.md` + existing task usage | — |
+| `tausik_role_seed` | Bootstrap rows from `harness/roles/*.md` + existing task usage | — |
 
-Role storage is hybrid: SQLite metadata + `agents/roles/{role}.md` profile markdown. Roles on tasks remain free-text.
+Role storage is hybrid: SQLite metadata + `harness/roles/{role}.md` profile markdown. Roles on tasks remain free-text.
 
 ## Periodic Audit (SENAR Rule 9.5)
 
@@ -234,7 +234,7 @@ Role storage is hybrid: SQLite metadata + `agents/roles/{role}.md` profile markd
 | `brain_store_gotcha` | Store a cross-project gotcha | `name`, `description` |
 | `brain_cache_web` | Cache a web result for token reuse | `name`, `url`, `content` |
 
-The `tausik-brain` MCP server runs config-agnostic at startup and reads registry from `.tausik-brain/` configuration. The total tool count for this server is 6 (verified via `len(TOOLS)` in `agents/claude/mcp/brain/tools.py`).
+The `tausik-brain` MCP server runs config-agnostic at startup and reads registry from `.tausik-brain/` configuration. The total tool count for this server is 6 (verified via `len(TOOLS)` in `harness/claude/mcp/brain/tools.py`).
 
 ### Brain config requirements
 
@@ -261,4 +261,4 @@ These are not part of the main 98 count — they belong to the optional `codebas
 
 ## Launching the Tausik MCP Server
 
-The bootstrap step generates IDE-specific MCP launchers under `agents/<ide>/mcp/`. Claude Code reads `.claude/settings.json` (auto-generated). To regenerate IDE assets and MCP wiring, run `python bootstrap/bootstrap.py` from your TAUSIK checkout (or `python .tausik-lib/bootstrap/bootstrap.py` when using the submodule layout). Use **`python bootstrap/bootstrap.py --refresh`** only to rewrite `.tausik/config.json` (e.g. after setting **`TAUSIK_MODEL_PROFILE`**) without copying skills/scripts — it does **not** regenerate `.mcp.json` files.
+The bootstrap step generates IDE-specific MCP launchers under `harness/<ide>/mcp/`. Claude Code reads `.claude/settings.json` (auto-generated). To regenerate IDE assets and MCP wiring, run `python bootstrap/bootstrap.py` from your TAUSIK checkout (or `python .tausik-lib/bootstrap/bootstrap.py` when using the submodule layout). Use **`python bootstrap/bootstrap.py --refresh`** only to rewrite `.tausik/config.json` (e.g. after setting **`TAUSIK_MODEL_PROFILE`**) without copying skills/scripts — it does **not** regenerate `.mcp.json` files.

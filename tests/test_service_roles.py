@@ -23,9 +23,9 @@ def be(tmp_path):
 
 @pytest.fixture
 def isolate_profiles(tmp_path, monkeypatch):
-    """Redirect _profile_path_source to tmp so tests don't touch real agents/."""
+    """Redirect _profile_path_source to tmp so tests don't touch real harness/."""
     fake_repo = tmp_path / "repo"
-    (fake_repo / "agents" / "roles").mkdir(parents=True)
+    (fake_repo / "harness" / "roles").mkdir(parents=True)
     monkeypatch.setattr(_r, "_repo_root", lambda: str(fake_repo))
     monkeypatch.chdir(tmp_path)
     return fake_repo
@@ -117,7 +117,7 @@ class TestRoleDelete:
 
 class TestSeed:
     def test_seed_from_files(self, be, isolate_profiles):
-        roles_dir = os.path.join(_r._repo_root(), "agents", "roles")
+        roles_dir = os.path.join(_r._repo_root(), "harness", "roles")
         for slug in ("developer", "qa"):
             path = os.path.join(roles_dir, f"{slug}.md")
             with open(path, "w", encoding="utf-8") as f:
@@ -128,7 +128,7 @@ class TestSeed:
         assert out["from_files"] == 2
 
     def test_seed_idempotent(self, be, isolate_profiles):
-        roles_dir = os.path.join(_r._repo_root(), "agents", "roles")
+        roles_dir = os.path.join(_r._repo_root(), "harness", "roles")
         with open(os.path.join(roles_dir, "developer.md"), "w", encoding="utf-8") as f:
             f.write("# Role: Developer\n")
         _r.seed_existing_roles(be)

@@ -8,7 +8,7 @@ import pytest
 
 # Add MCP source to path
 _mcp_dir = os.path.join(
-    os.path.dirname(__file__), "..", "agents", "claude", "mcp", "codebase-rag"
+    os.path.dirname(__file__), "..", "harness", "claude", "mcp", "codebase-rag"
 )
 sys.path.insert(0, os.path.abspath(_mcp_dir))
 

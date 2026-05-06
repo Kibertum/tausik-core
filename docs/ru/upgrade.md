@@ -11,7 +11,7 @@
 ├── stacks/                ← владение фреймворка. Bootstrap перезаписывает.
 ├── scripts/               ← владение фреймворка.
 ├── bootstrap/             ← владение фреймворка.
-├── agents/                ← владение фреймворка.
+├── harness/                ← владение фреймворка.
 ├── .claude/               ← вывод bootstrap (можно игнорировать; регенерируется).
 └── .tausik/               ← ВАШИ данные. Bootstrap НИКОГДА их не трогает.
     ├── tausik.db
@@ -25,7 +25,7 @@
 | Путь | Владелец | Переживает обновление? |
 |---|---|---|
 | `stacks/<name>/stack.json` | Фреймворк | Нет — перезаписывается на каждый bootstrap. |
-| `agents/stacks/*.md` (legacy) | Фреймворк | Заменяется на bootstrap; только как legacy fallback. |
+| `harness/stacks/*.md` (legacy) | Фреймворк | Заменяется на bootstrap; только как legacy fallback. |
 | `.claude/` | Вывод bootstrap | Регенерируется при каждом запуске. |
 | `.tausik/stacks/<name>/stack.json` | **Вы** | **Да — bootstrap не трогает.** |
 | `.tausik/config.json` | **Вы** | **Да.** |

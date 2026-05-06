@@ -5,8 +5,8 @@ from __future__ import annotations
 import os
 
 _BASE = os.path.join(os.path.dirname(__file__), "..")
-_CRITIC_PATH = os.path.join(_BASE, "agents", "skills", "review", "agents", "critic.md")
-_SKILL_PATH = os.path.join(_BASE, "agents", "skills", "review", "SKILL.md")
+_CRITIC_PATH = os.path.join(_BASE, "harness", "skills", "review", "agents", "critic.md")
+_SKILL_PATH = os.path.join(_BASE, "harness", "skills", "review", "SKILL.md")
 
 
 class TestCriticAgentFile:
@@ -15,11 +15,7 @@ class TestCriticAgentFile:
 
     def test_critic_mentions_three_weaknesses(self):
         content = open(_CRITIC_PATH, encoding="utf-8").read().lower()
-        assert (
-            "3 weaknesses" in content
-            or "3 weakness" in content
-            or "three weaknesses" in content
-        )
+        assert "3 weaknesses" in content or "3 weakness" in content or "three weaknesses" in content
 
     def test_critic_describes_output_format(self):
         content = open(_CRITIC_PATH, encoding="utf-8").read()
@@ -61,9 +57,7 @@ class TestSkillRegistration:
             "documentation",
             "critic",
         ):
-            assert f"**{agent}**" in content, (
-                f"agent {agent} missing from SKILL.md table"
-            )
+            assert f"**{agent}**" in content, f"agent {agent} missing from SKILL.md table"
 
     def test_adversarial_mode_still_documented(self):
         """The opt-in deep mode should still be explained, now as extra pass."""

@@ -252,7 +252,7 @@ def cmd_skill(svc: ProjectService, args: Any) -> None:
         lib_skills_dir = get_agents_skills_dir(project_dir, _ide)
     except ImportError:
         skills_dst = os.path.join(project_dir, ".claude", "skills")
-        lib_skills_dir = os.path.join(project_dir, "agents", "claude", "skills")
+        lib_skills_dir = os.path.join(project_dir, "harness", "claude", "skills")
 
     config_path = os.path.join(project_dir, ".tausik", "config.json")
 

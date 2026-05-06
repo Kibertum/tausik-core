@@ -11,7 +11,7 @@ import glob
 import os
 
 
-_SKILLS_DIR = os.path.join(os.path.dirname(__file__), "..", "agents", "skills")
+_SKILLS_DIR = os.path.join(os.path.dirname(__file__), "..", "harness", "skills")
 
 REDUNDANT_PHRASES = (
     "always respond in the user's language",

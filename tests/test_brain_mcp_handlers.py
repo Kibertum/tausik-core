@@ -1,4 +1,4 @@
-"""Tests for tausik-brain MCP handlers (agents/claude/mcp/brain/handlers.py)."""
+"""Tests for tausik-brain MCP handlers (harness/claude/mcp/brain/handlers.py)."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ _HANDLERS_PATH = os.path.abspath(
     os.path.join(
         os.path.dirname(__file__),
         "..",
-        "agents",
+        "harness",
         "claude",
         "mcp",
         "brain",
@@ -30,9 +30,9 @@ _HANDLERS_PATH = os.path.abspath(
 
 
 def _load_brain_handlers():
-    """Load agents/claude/mcp/brain/handlers.py under a unique module name.
+    """Load harness/claude/mcp/brain/handlers.py under a unique module name.
 
-    Avoids clashing with agents/claude/mcp/project/handlers.py when both
+    Avoids clashing with harness/claude/mcp/project/handlers.py when both
     get added to sys.path by different tests in the same session.
     """
     spec = importlib.util.spec_from_file_location("tausik_brain_handlers", _HANDLERS_PATH)

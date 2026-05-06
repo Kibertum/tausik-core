@@ -28,7 +28,7 @@ def isolate_roles(tmp_path, monkeypatch):
     import service_roles as _r
 
     fake_repo = tmp_path / "repo"
-    (fake_repo / "agents" / "roles").mkdir(parents=True)
+    (fake_repo / "harness" / "roles").mkdir(parents=True)
     monkeypatch.setattr(_r, "_repo_root", lambda: str(fake_repo))
     monkeypatch.chdir(tmp_path)
     return fake_repo

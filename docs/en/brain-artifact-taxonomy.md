@@ -43,7 +43,7 @@ Optional **`external_repo_url`** on **`brain_store_pattern`**, **`brain_store_go
 - Optional logical fields (**`artifact_taxonomy_kind`**, **`scope`**) are **not** written to Notion properties in v1; they are validated and stripped server-side before `pages.create`.
 - **Strict mode:** set **`brain.require_artifact_taxonomy_kind`: `true`** in `.tausik/config.json`. Then pattern/gotcha writes **must** include a valid taxonomy kind; omission or invalid values return **`taxonomy_blocked`**.
 
-JSON Schema (draft 2020-12): [`agents/schemas/brain-artifact-card.schema.json`](../../agents/schemas/brain-artifact-card.schema.json).
+JSON Schema (draft 2020-12): [`harness/schemas/brain-artifact-card.schema.json`](../../harness/schemas/brain-artifact-card.schema.json).
 
 **Publish flow (v1.4):** MCP tool **`brain_draft_artifact`** (no Notion I/O) runs the same gates as store plus a **classifier risk** level. If the text looks project-specific (path markers, blocklist, etc.), `brain_store_pattern` / `brain_store_gotcha` return **`risk_blocked`** unless you pass **`confirm_high_risk: true`** (human gate). CLI: `tausik brain draft` / `tausik brain publish` (JSON via `--json` or `--file`). A successful publish logs a **write** row in `brain_events` (`artifact_publish:...`).
 

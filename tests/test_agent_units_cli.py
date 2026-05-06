@@ -123,7 +123,7 @@ class TestMcpHandlers:
         sys.path.insert(
             0,
             os.path.join(
-                os.path.dirname(__file__), "..", "agents", "claude", "mcp", "project"
+                os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"
             ),
         )
         from handlers import _do_task_add, _do_task_update
@@ -152,7 +152,7 @@ class TestMcpHandlers:
         sys.path.insert(
             0,
             os.path.join(
-                os.path.dirname(__file__), "..", "agents", "claude", "mcp", "project"
+                os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"
             ),
         )
         from handlers import _do_task_add

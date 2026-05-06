@@ -4,7 +4,7 @@
 Optional `external_repo_url`: validated here (format + optional HTTP reachability),
 stripped before Notion (no column in v1).
 
-See agents/schemas/brain-artifact-card.schema.json and docs/en/brain-artifact-taxonomy.md.
+See harness/schemas/brain-artifact-card.schema.json and docs/en/brain-artifact-taxonomy.md.
 """
 
 from __future__ import annotations

@@ -35,9 +35,9 @@ def count_lines(filepath: str) -> int:
 
 _FILESIZE_EXEMPT_DIRS = (
     "tests/",
-    "agents/claude/mcp/",
-    "agents/cursor/mcp/",
-    "agents/qwen/mcp/",
+    "harness/claude/mcp/",
+    "harness/cursor/mcp/",
+    "harness/qwen/mcp/",
     ".claude/mcp/",
     # Common exempt dirs for source materials, ADR markdowns, agent configs.
     "docs/content/",

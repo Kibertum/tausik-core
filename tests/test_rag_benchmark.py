@@ -17,7 +17,7 @@ pytestmark = pytest.mark.slow
 
 
 # Add RAG module to path
-_rag_dir = os.path.join(os.path.dirname(__file__), "..", "agents", "claude", "mcp", "codebase-rag")
+_rag_dir = os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "codebase-rag")
 sys.path.insert(0, os.path.abspath(_rag_dir))
 
 from rag_store import RAGStore

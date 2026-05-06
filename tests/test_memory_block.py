@@ -131,7 +131,7 @@ class TestMemoryBlockMcp:
 
         sys.path.insert(
             0,
-            os.path.join(os.path.dirname(__file__), "..", "agents", "claude", "mcp", "project"),
+            os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"),
         )
         from handlers import _do_memory_block
 
@@ -142,7 +142,7 @@ class TestMemoryBlockMcp:
         svc = _fresh_service(tmp_path, monkeypatch)
         sys.path.insert(
             0,
-            os.path.join(os.path.dirname(__file__), "..", "agents", "claude", "mcp", "project"),
+            os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"),
         )
         from handlers import _do_memory_block
 
@@ -152,7 +152,7 @@ class TestMemoryBlockMcp:
     def test_mcp_tool_registered(self):
         sys.path.insert(
             0,
-            os.path.join(os.path.dirname(__file__), "..", "agents", "claude", "mcp", "project"),
+            os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"),
         )
         from tools import TOOLS
 
@@ -175,7 +175,7 @@ class TestSessionStartIntegration:
 class TestSkillsDocumentation:
     def test_start_skill_mentions_memory_block(self):
         path = os.path.join(
-            os.path.dirname(__file__), "..", "agents", "skills", "start", "SKILL.md"
+            os.path.dirname(__file__), "..", "harness", "skills", "start", "SKILL.md"
         )
         content = open(path, encoding="utf-8").read()
         assert "tausik_memory_block" in content
@@ -188,7 +188,7 @@ class TestSkillsDocumentation:
         path = os.path.join(
             os.path.dirname(__file__),
             "..",
-            "agents",
+            "harness",
             "skills",
             "checkpoint",
             "SKILL.md",

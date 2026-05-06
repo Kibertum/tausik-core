@@ -1,7 +1,7 @@
 """Parser for batch-run markdown plans.
 
 Extracts context, validation commands, and tasks from a markdown plan file.
-Format: see agents/skills/run/SKILL.md for specification.
+Format: see harness/skills/run/SKILL.md for specification.
 """
 
 from __future__ import annotations

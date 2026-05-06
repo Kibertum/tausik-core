@@ -74,7 +74,7 @@ class TestMcpHandlerSchemaContract:
             os.path.join(
                 os.path.dirname(__file__),
                 "..",
-                "agents",
+                "harness",
                 "claude",
                 "mcp",
                 "project",
@@ -95,7 +95,7 @@ class TestMcpHandlerSchemaContract:
             os.path.join(
                 os.path.dirname(__file__),
                 "..",
-                "agents",
+                "harness",
                 "claude",
                 "mcp",
                 "project",
@@ -121,7 +121,7 @@ class TestMcpHandlerNoPrivateAttrAccess:
             path = os.path.join(
                 os.path.dirname(__file__),
                 "..",
-                "agents",
+                "harness",
                 ide,
                 "mcp",
                 "project",

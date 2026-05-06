@@ -76,7 +76,7 @@
 | Fake test detection | ✅ Реализовано | `/review` — 10 паттернов |
 | Skills система | ✅ Реализовано | 13 core + 25+ vendor (markitdown, zero-defect, skill-test и др. — opt-in) — `service_skills.py` + `tausik-skills` репо |
 | Hooks система | ✅ Реализовано | 19 хуков на PreToolUse / PostToolUse / SessionStart / Stop / pre-commit |
-| Реестр ролей | ✅ Реализовано | Гибрид: SQLite-метаданные + `agents/roles/{role}.md` профиль; CRUD CLI + 6 MCP инструментов |
+| Реестр ролей | ✅ Реализовано | Гибрид: SQLite-метаданные + `harness/roles/{role}.md` профиль; CRUD CLI + 6 MCP инструментов |
 | Doctor health check | ✅ Реализовано | `tausik doctor` + `tausik_doctor` MCP — 4 группы (venv/DB/MCP/skills) + drift |
 | Zero-defect skill | ✅ Реализовано | `/zero-defect` (Maestro-inspired): read-before-write, verify-before-claim, never-hallucinate-APIs |
 

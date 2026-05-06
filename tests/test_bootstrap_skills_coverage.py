@@ -21,11 +21,11 @@ pytestmark = pytest.mark.slow
 
 _repo_root = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
 _bootstrap = os.path.join(_repo_root, "bootstrap", "bootstrap.py")
-_builtin_skills_dir = os.path.join(_repo_root, "agents", "skills")
+_builtin_skills_dir = os.path.join(_repo_root, "harness", "skills")
 
 
 def _list_builtin_skills() -> list[str]:
-    """All directories under agents/skills/ that contain a SKILL.md."""
+    """All directories under harness/skills/ that contain a SKILL.md."""
     out = []
     for name in sorted(os.listdir(_builtin_skills_dir)):
         if name.startswith(".") or name.startswith("_"):
@@ -66,7 +66,7 @@ def _enable_brain_for_test(target: str) -> None:
 class TestBootstrapSkillsCoverage:
     def test_every_builtin_skill_lands_in_claude_skills(self, tmp_path):
         builtin = _list_builtin_skills()
-        assert builtin, "agents/skills/ should contain at least one built-in skill"
+        assert builtin, "harness/skills/ should contain at least one built-in skill"
 
         # Brain is gated on Notion config — enable it so this coverage smoke
         # test still verifies the full source set deploys (v14b-skill-core-cleanup).
@@ -81,7 +81,7 @@ class TestBootstrapSkillsCoverage:
         missing = [s for s in builtin if s not in deployed_names]
         assert not missing, (
             f"Built-in skills not deployed to .claude/skills/: {missing}. "
-            f"Built-in source-of-truth in agents/skills/ must always reach the IDE — "
+            f"Built-in source-of-truth in harness/skills/ must always reach the IDE — "
             f"this is the v1.3 regression that hid /review, /brain, /commit, etc."
         )
 
@@ -138,7 +138,7 @@ class TestBootstrapSkillsCoverage:
 
         deployed = tmp_path / ".claude" / "skills"
         deployed_names = {p.name for p in deployed.iterdir() if p.is_dir()}
-        # These come from registry/extension lists, not agents/skills/.
+        # These come from registry/extension lists, not harness/skills/.
         external_examples = {"audit", "init", "diff", "docs"}
         present = external_examples & deployed_names
         assert present, (

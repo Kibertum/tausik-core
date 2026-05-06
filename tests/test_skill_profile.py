@@ -59,7 +59,7 @@ def test_direct_variant_no_fallback_needed(tmp_path):
 
 def test_resolve_unknown_profile_falls_back_without_crash():
     """Unknown slug uses ``profile_fallback`` variant when present — no exception."""
-    demo = REPO / "agents" / "skills" / "_profile-demo"
+    demo = REPO / "harness" / "skills" / "_profile-demo"
     if not (demo / "SKILL.md").is_file():
         return
     ov, slug = resolve_variant_overlay(str(demo), "totally-unknown-model-999")

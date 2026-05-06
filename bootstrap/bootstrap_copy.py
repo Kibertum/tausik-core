@@ -152,7 +152,7 @@ def _resolve_skill(
 
     Returns (path, source_type) or (None, "missing").
     """
-    # 1. Built-in (core repo agents/skills/)
+    # 1. Built-in (core repo harness/skills/)
     p = os.path.join(builtin_dir, name)
     if os.path.isdir(p):
         return p, "builtin"
@@ -225,7 +225,7 @@ def copy_skills(
 ) -> int:
     """Copy skills to target IDE directory.
 
-    Built-in skills (in agents/skills/) are always copied in full, except
+    Built-in skills (in harness/skills/) are always copied in full, except
     `brain` which is gated on `brain_enabled` (set by bootstrap from the
     project's brain config — `tausik brain init` flips it on).
 
@@ -237,9 +237,9 @@ def copy_skills(
 
     Vendor skills follow the same `installed_skills` rule.
 
-    Resolution chain: agents/skills/ → adjacent dir → vendor downloads.
+    Resolution chain: harness/skills/ → adjacent dir → vendor downloads.
     """
-    builtin_dir = os.path.join(lib_dir, "agents", "skills")
+    builtin_dir = os.path.join(lib_dir, "harness", "skills")
     # Adjacent skills repo: ../skills-official/ or ../skills/
     adjacent_dir: str | None = None
     for candidate in ("skills-official", "skills"):
@@ -272,7 +272,7 @@ def copy_skills(
     installed = set(config.get("installed_skills", []))
     installed.update(vendor_activated)
 
-    # Built-in skills under agents/skills/ are source-of-truth.
+    # Built-in skills under harness/skills/ are source-of-truth.
     builtin_names: list[str] = []
     if os.path.isdir(builtin_dir):
         for name in sorted(os.listdir(builtin_dir)):
@@ -288,7 +288,7 @@ def copy_skills(
                 builtin_names.append(name)
     if not builtin_names:
         print(
-            f"  WARN: agents/skills/ empty or missing at {builtin_dir} — "
+            f"  WARN: harness/skills/ empty or missing at {builtin_dir} — "
             "core skills will not be deployed (config-only fallback active).",
             file=sys.stderr,
         )
@@ -369,10 +369,10 @@ def copy_scripts(lib_dir: str, target_dir: str) -> int:
 
 
 def copy_mcp(lib_dir: str, target_dir: str, ide: str) -> int:
-    """Copy MCP servers from agents/{ide}/mcp/ to target."""
-    mcp_src = os.path.join(lib_dir, "agents", ide, "mcp")
+    """Copy MCP servers from harness/{ide}/mcp/ to target."""
+    mcp_src = os.path.join(lib_dir, "harness", ide, "mcp")
     if not os.path.isdir(mcp_src):
-        mcp_src = os.path.join(lib_dir, "agents", "claude", "mcp")
+        mcp_src = os.path.join(lib_dir, "harness", "claude", "mcp")
     if not os.path.isdir(mcp_src):
         return 0
     mcp_dst = os.path.join(target_dir, "mcp")
@@ -381,12 +381,12 @@ def copy_mcp(lib_dir: str, target_dir: str, ide: str) -> int:
 
 
 def copy_roles(lib_dir: str, target_dir: str, ide: str) -> int:
-    """Copy role profiles from agents/roles/ (shared) to target."""
-    roles_src = os.path.join(lib_dir, "agents", "roles")
+    """Copy role profiles from harness/roles/ (shared) to target."""
+    roles_src = os.path.join(lib_dir, "harness", "roles")
     if not os.path.isdir(roles_src):
-        roles_src = os.path.join(lib_dir, "agents", ide, "roles")
+        roles_src = os.path.join(lib_dir, "harness", ide, "roles")
     if not os.path.isdir(roles_src):
-        roles_src = os.path.join(lib_dir, "agents", "claude", "roles")
+        roles_src = os.path.join(lib_dir, "harness", "claude", "roles")
     if not os.path.isdir(roles_src):
         return 0
     roles_dst = os.path.join(target_dir, "roles")
@@ -405,7 +405,7 @@ def copy_references(lib_dir: str, target_dir: str, ide: str) -> int:
         return 0
     copy_dir(docs_src, docs_dst)
     count = sum(1 for _ in os.walk(docs_dst))
-    ide_refs = os.path.join(lib_dir, "agents", ide, "references")
+    ide_refs = os.path.join(lib_dir, "harness", ide, "references")
     if os.path.isdir(ide_refs):
         legacy_dst = os.path.join(target_dir, "references")
         os.makedirs(legacy_dst, exist_ok=True)

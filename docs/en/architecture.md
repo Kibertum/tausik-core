@@ -60,7 +60,7 @@ the Backend handles only CRUD and SQL. CLI and MCP are two equal entry points.
 | `project_cli_doctor.py` / `_role.py` / `_stack.py` / `_verify.py` | v1.3 CLI handlers (doctor, roles, stacks, verify) |
 | `project_service.py` + `service_*.py` mixins | Business logic: tasks, knowledge, skills, gates, cascade, roles, verification |
 | `service_verification.py` | Scoped pytest gate + verify cache (10 min TTL) |
-| `service_roles.py` | Hybrid role storage (DB metadata + agents/roles/*.md) |
+| `service_roles.py` | Hybrid role storage (DB metadata + harness/roles/*.md) |
 | `service_stack_ops.py` | Stack scaffold, lint, diff, reset |
 | `project_backend.py` + `backend_*.py` | SQLite + FTS5 backend (WAL mode, 18 tables) |
 | `backend_session_metrics.py` | Gap-based active-time computation |
@@ -97,11 +97,11 @@ the Backend handles only CRUD and SQL. CLI and MCP are two equal entry points.
 
 | File | Purpose |
 |------|---------|
-| `agents/claude/mcp/project/server.py` | JSON-RPC stdio server |
-| `agents/claude/mcp/project/tools.py` | core tool definitions |
-| `agents/claude/mcp/project/tools_extra.py` | extended tool definitions (skills, gates, doctor, verify, roles, stacks, brain) |
-| `agents/claude/mcp/project/handlers.py` | Dispatch: tool name -> service method |
-| `agents/claude/mcp/project/handlers_skill.py` | Skill + maintenance handlers (split) |
+| `harness/claude/mcp/project/server.py` | JSON-RPC stdio server |
+| `harness/claude/mcp/project/tools.py` | core tool definitions |
+| `harness/claude/mcp/project/tools_extra.py` | extended tool definitions (skills, gates, doctor, verify, roles, stacks, brain) |
+| `harness/claude/mcp/project/handlers.py` | Dispatch: tool name -> service method |
+| `harness/claude/mcp/project/handlers_skill.py` | Skill + maintenance handlers (split) |
 
 Total MCP surface: **93 project tools + 7 brain tools = 100** (optional `codebase-rag` adds 7 more; not part of the main count).
 
@@ -109,7 +109,7 @@ Total MCP surface: **93 project tools + 7 brain tools = 100** (optional `codebas
 
 Skills, roles, stacks -- shared across IDEs. MCP servers are IDE-specific:
 ```
-agents/
+harness/
 +-- skills/           # 12 core auto-deployed + brain conditional + 25+ in skills-official/ (opt-in via --include-official)
 +-- roles/            # 5 roles (developer, architect, qa, tech-writer, ui-ux)
 +-- stacks/           # Stack guides
@@ -138,7 +138,7 @@ agents/
 | `fts_decisions` | FTS5 index for decisions |
 | `task_logs` | Structured task logs (phase, message) |
 | `fts_task_logs` | FTS5 index for task logs |
-| `roles` | Role registry (hybrid: metadata + agents/roles/{slug}.md) |
+| `roles` | Role registry (hybrid: metadata + harness/roles/{slug}.md) |
 | `session_activity` | Per-tool-call timestamps for gap-based active time |
 | `verification_runs` | Verify cache: file_hash + timestamp for QG-2 reuse (10 min TTL) |
 
@@ -168,7 +168,7 @@ caches a prefix or re-bills it. Cacheable surface, in priority order:
 | System prompt + tool schemas | Injected by Claude Code from `.claude/mcp/project/tools.py` and `tools_extra.py` | Identical across turns within a session — the longest stable prefix |
 | `CLAUDE.md` | Project root | Read once per session and re-injected; stable unless `tausik_update_claudemd` rewrites the dynamic block |
 | MCP tool descriptions | Same `tools.py` files | Editing them invalidates the cache — every wording change rewrites the prefix |
-| Skills (`SKILL.md`) | `agents/skills/<name>/SKILL.md` | Loaded only when the skill activates |
+| Skills (`SKILL.md`) | `harness/skills/<name>/SKILL.md` | Loaded only when the skill activates |
 
 **What invalidates the cache mid-session.** Editing any of the files above
 between turns rewrites the prefix and forces the next turn to pay

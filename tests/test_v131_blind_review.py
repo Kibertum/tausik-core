@@ -147,7 +147,7 @@ def test_memory_block_detects_uppercase_memory_dir():
         os.path.join(home, ".claude", "projects", "foo", "Memory", "x.md")
     )
     assert is_in_claude_memory(
-        os.path.join(home, ".claude", "agents", "test", "MeMoRy", "x.md")
+        os.path.join(home, ".claude", "harness", "test", "MeMoRy", "x.md")
     )
     # Non-memory paths still allowed
     assert not is_in_claude_memory(

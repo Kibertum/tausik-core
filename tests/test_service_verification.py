@@ -210,7 +210,7 @@ class TestIsSecuritySensitive:
             "scripts/hooks/posttool_usage.py",
             "tests/test_session_start_hook.py",  # test of an infra hook
             "src/widget/password_reset.py",  # widget dir is not auth surface
-            "agents/skills/start/SKILL.md",  # docs
+            "harness/skills/start/SKILL.md",  # docs
             "README.md",
         ],
     )

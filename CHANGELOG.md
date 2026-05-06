@@ -9,13 +9,33 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased] — v1.4.0 polish (Phase B)
 
+### Changed
+
+- **Source directory `agents/` renamed to `harness/` (`v14b-rename-harness`).**
+  Eliminates the long-standing collision with Claude Code's native
+  `.claude/agents/` namespace (sub-agent profiles). `git mv` preserves
+  history; bootstrap scripts, doc strings, comments, tests, and CLI help
+  text all updated to read from `harness/`. Clean break — no
+  backward-compat alias for the old path. **Migration:** if you have a
+  fork or local script that hardcodes the source path, replace
+  `agents/skills/`, `agents/roles/`, `agents/stacks/`, `agents/{ide}/mcp/`,
+  `agents/overrides/`, `agents/schemas/`, `agents/aidd-templates/` with
+  the matching `harness/...` path. Three concepts are deliberately
+  preserved as `agents/`: the host's `.claude/agents/` directory (Claude
+  Code sub-agents), the vendor-skill `agents/` namespace inside vendor
+  tarballs (still installs into the host's `.claude/agents/`), and the
+  internal `harness/skills/review/agents/<name>.md` subfolder (parallel
+  reviewer instructions inside the `/review` skill — distinct from
+  framework-source `agents/`). Verified: full pytest 2812 passed,
+  `tausik doctor` clean, bootstrap dry-run + real run regenerate
+  `.claude/`, `.cursor/`, `.qwen/` from `harness/` cleanly.
+
 ### Added
 
 - **AIDD project scaffold (`v14b-aidd-scaffold-basic`).** New CLI subcommand
   `tausik init --template aidd` copies three layered templates —
-  `idea.md`, `vision.md`, `conventions.md` — from `agents/aidd-templates/`
-  (path will move to `harness/aidd-templates/` when `v14b-rename-harness`
-  lands) into the current project root. Conflict detection: each existing
+  `idea.md`, `vision.md`, `conventions.md` — from `harness/aidd-templates/`
+  into the current project root. Conflict detection: each existing
   file triggers a 4-option prompt (overwrite / merge-append / skip /
   abort-all); empty input or unknown choice defaults to skip with a
   warning. `--force` bypasses prompting and overwrites every conflict.

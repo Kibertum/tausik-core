@@ -22,7 +22,7 @@ def self_check_mod():
         os.path.join(
             os.path.dirname(__file__),
             "..",
-            "agents",
+            "harness",
             "claude",
             "mcp",
             "project",
@@ -170,7 +170,7 @@ def test_handler_returns_json_envelope(self_check_mod):
         os.path.join(
             os.path.dirname(__file__),
             "..",
-            "agents",
+            "harness",
             "claude",
             "mcp",
             "project",

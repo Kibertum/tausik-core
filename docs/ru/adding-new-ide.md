@@ -34,7 +34,7 @@ def generate_myiderules(project_dir, project_name, stacks):
 
 Если IDE требует специфические правила, создать:
 ```
-agents/overrides/myide/rules.md
+harness/overrides/myide/rules.md
 ```
 
 Этот файл **автоматически дописывается** в сгенерированный `CLAUDE.md` /
@@ -71,7 +71,7 @@ if os.environ.get("MYIDE_DIR"):
 ## Как это работает
 
 ```
-agents/
+harness/
 ├── skills/          # 33 общих скилла (все IDE)
 ├── roles/           # роли (все IDE)
 ├── stacks/          # стеки (все IDE)
@@ -82,4 +82,4 @@ agents/
 └── cursor/mcp/      # MCP серверы для Cursor
 ```
 
-Bootstrap lookup chain: `agents/skills/` → `agents/{ide}/skills/` → `agents/claude/skills/`
+Bootstrap lookup chain: `harness/skills/` → `harness/{ide}/skills/` → `harness/claude/skills/`

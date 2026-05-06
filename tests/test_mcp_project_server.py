@@ -20,7 +20,7 @@ SERVER = os.path.normpath(
     os.path.join(
         os.path.dirname(__file__),
         "..",
-        "agents",
+        "harness",
         "claude",
         "mcp",
         "project",
@@ -31,7 +31,7 @@ CURSOR_SERVER = os.path.normpath(
     os.path.join(
         os.path.dirname(__file__),
         "..",
-        "agents",
+        "harness",
         "cursor",
         "mcp",
         "project",

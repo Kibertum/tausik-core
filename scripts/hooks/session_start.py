@@ -39,7 +39,7 @@ def _rag_server_path(project_dir: str) -> str | None:
         p = os.path.join(project_dir, ".claude", "mcp", "codebase-rag", "server.py")
         if os.path.exists(p):
             return p
-        p2 = os.path.join(project_dir, "agents", ide, "mcp", "codebase-rag", "server.py")
+        p2 = os.path.join(project_dir, "harness", ide, "mcp", "codebase-rag", "server.py")
         if os.path.exists(p2):
             return p2
     return None

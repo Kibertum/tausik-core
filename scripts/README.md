@@ -36,7 +36,7 @@ TAUSIK framework modules. Python 3.11+ stdlib only.
 
 ## MCP Servers
 
-Located in `agents/{ide}/mcp/`:
+Located in `harness/{ide}/mcp/`:
 
 | Server | Purpose |
 |--------|---------|

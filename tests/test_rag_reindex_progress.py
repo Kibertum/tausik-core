@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-RAG_DIR = ROOT / "agents" / "claude" / "mcp" / "codebase-rag"
+RAG_DIR = ROOT / "harness" / "claude" / "mcp" / "codebase-rag"
 if str(RAG_DIR) not in sys.path:
     sys.path.insert(0, str(RAG_DIR))
 

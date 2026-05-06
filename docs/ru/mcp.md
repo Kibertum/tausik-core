@@ -183,9 +183,9 @@ DEFAULT_STACKS: 25 записей (python, fastapi, django, flask, react, next, 
 | `tausik_role_create` | Создать роль (опционально `extends` базовый профиль) | `slug`, `title` |
 | `tausik_role_update` | Обновить метаданные | `slug` |
 | `tausik_role_delete` | Удалить роль | `slug` |
-| `tausik_role_seed` | Bootstrap из `agents/roles/*.md` + использования в задачах | — |
+| `tausik_role_seed` | Bootstrap из `harness/roles/*.md` + использования в задачах | — |
 
-Хранение ролей гибридное: SQLite-метаданные + markdown-профиль `agents/roles/{role}.md`. Роли в задачах остаются свободным текстом.
+Хранение ролей гибридное: SQLite-метаданные + markdown-профиль `harness/roles/{role}.md`. Роли в задачах остаются свободным текстом.
 
 ## Периодический аудит (SENAR Rule 9.5)
 
@@ -234,7 +234,7 @@ DEFAULT_STACKS: 25 записей (python, fastapi, django, flask, react, next, 
 | `brain_store_gotcha` | Сохранить cross-project gotcha | `name`, `description` |
 | `brain_cache_web` | Кешировать web-результат для token reuse | `name`, `url`, `content` |
 
-`tausik-brain` MCP-сервер запускается config-agnostic и читает реестр из `.tausik-brain/` конфигурации. Полный счётчик brain-инструментов = 6 (проверено через `len(TOOLS)` в `agents/claude/mcp/brain/tools.py`).
+`tausik-brain` MCP-сервер запускается config-agnostic и читает реестр из `.tausik-brain/` конфигурации. Полный счётчик brain-инструментов = 6 (проверено через `len(TOOLS)` в `harness/claude/mcp/brain/tools.py`).
 
 ### Требования к brain-конфигу
 
@@ -261,4 +261,4 @@ DEFAULT_STACKS: 25 записей (python, fastapi, django, flask, react, next, 
 
 ## Запуск Tausik MCP-сервера
 
-Bootstrap-шаг генерирует IDE-specific MCP-launchers под `agents/<ide>/mcp/`. Claude Code читает `.claude/settings.json` (auto-generated). Для регенерации запустите `python .tausik-lib/bootstrap/bootstrap.py --refresh`.
+Bootstrap-шаг генерирует IDE-specific MCP-launchers под `harness/<ide>/mcp/`. Claude Code читает `.claude/settings.json` (auto-generated). Для регенерации запустите `python .tausik-lib/bootstrap/bootstrap.py --refresh`.

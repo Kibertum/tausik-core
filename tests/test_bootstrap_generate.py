@@ -71,7 +71,7 @@ class TestGenerateClaudeMd:
         """Should be 80-180 lines — dense enough to be load-bearing, short enough to read.
 
         Upper bound was 150 before r14-overrides-integration; v1.4 appends the
-        `agents/overrides/claude/rules.md` block (~15 lines) right before the
+        `harness/overrides/claude/rules.md` block (~15 lines) right before the
         DYNAMIC marker, so the budget needed to grow to absorb it without
         forcing every IDE-specific rule into the shared body.
         """
@@ -87,7 +87,7 @@ class TestGenerateClaudeMd:
             "project_backend.py",
             "project_service.py",
             "scripts/project.py",
-            "agents/stacks/",
+            "harness/stacks/",
             "dogfooding",
         ]
         for phrase in forbidden:

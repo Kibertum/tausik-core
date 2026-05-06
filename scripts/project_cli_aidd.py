@@ -28,16 +28,13 @@ def is_known_template(name: str) -> bool:
 
 
 def find_templates_dir() -> str | None:
-    """Return absolute path of agents/aidd-templates/ relative to this file's
-    repo. Looks at both the live framework checkout (`agents/aidd-templates/`)
-    and a future renamed `harness/aidd-templates/`. Returns None if neither
-    exists."""
+    """Return absolute path of harness/aidd-templates/ relative to this file's
+    repo. Returns None if it doesn't exist."""
     here = os.path.dirname(os.path.abspath(__file__))
     repo = os.path.dirname(here)  # scripts/ → repo root
-    for rel in ("agents/aidd-templates", "harness/aidd-templates"):
-        cand = os.path.join(repo, rel)
-        if os.path.isdir(cand):
-            return cand
+    cand = os.path.join(repo, "harness/aidd-templates")
+    if os.path.isdir(cand):
+        return cand
     return None
 
 
@@ -105,9 +102,7 @@ def scaffold_aidd(
 
     src_dir = find_templates_dir()
     if src_dir is None:
-        raise FileNotFoundError(
-            "AIDD templates not found in agents/aidd-templates or harness/aidd-templates"
-        )
+        raise FileNotFoundError("AIDD templates not found in harness/aidd-templates")
 
     result: dict[str, Any] = {
         "created": [],

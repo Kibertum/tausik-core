@@ -1,7 +1,7 @@
 """Roles CRUD — hybrid SQLite + markdown profile.
 
 `roles` table (slug PK + metadata) is source-of-truth for which roles exist
-and which tasks reference them. The markdown profile at agents/roles/<slug>.md
+and which tasks reference them. The markdown profile at harness/roles/<slug>.md
 (in TAUSIK source) is bootstrap-copied to .claude/roles/. User-created roles
 (via `tausik role create`) write their profile to a USER override location:
 `.tausik/roles/<slug>.md`. Bootstrap NEVER touches `.tausik/`, so user
@@ -24,7 +24,7 @@ from tausik_utils import (
     validate_slug,
 )
 
-ROLES_DIR_REL = os.path.join("agents", "roles")
+ROLES_DIR_REL = os.path.join("harness", "roles")
 DEPLOYED_ROLES_DIR_REL = os.path.join(".claude", "roles")
 USER_ROLES_DIR_REL = os.path.join(".tausik", "roles")
 
@@ -100,7 +100,7 @@ def role_create(
     """Insert role row. Optionally clone profile from `extends` slug.
 
     Profile is written to .tausik/roles/<slug>.md (USER dir, NEVER overwritten
-    by bootstrap). Bootstrap-source profiles in agents/roles/ are read-only.
+    by bootstrap). Bootstrap-source profiles in harness/roles/ are read-only.
     """
     import sqlite3 as _sqlite3
 
@@ -232,7 +232,7 @@ def role_delete(be: Any, slug: str, force: bool = False) -> str:
 
 
 def seed_existing_roles(be: Any) -> dict[str, Any]:
-    """Bootstrap: create roles from agents/roles/*.md + distinct task.role values.
+    """Bootstrap: create roles from harness/roles/*.md + distinct task.role values.
 
     Idempotent — uses INSERT OR IGNORE semantics through `role_create` skip.
     Returns {scanned, inserted, skipped}.

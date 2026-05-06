@@ -23,7 +23,7 @@
 |---|---|---|
 | `python: command not found` | Python не в PATH | Установи Python 3.11+, проверь `python --version` |
 | `Bootstrap halts on .claude/ write` | Read-only FS | Mount `.tausik/` writable; bootstrap пишет и в `.claude/` |
-| Bootstrap "Skills: 0 copied" | `agents/skills/` пуст | Pull актуальный source, проверь `ls agents/skills/` |
+| Bootstrap "Skills: 0 copied" | `harness/skills/` пуст | Pull актуальный source, проверь `ls harness/skills/` |
 | Bootstrap занимает >60s на Windows | Antivirus сканирует каждый файл | Исключи `.claude/` и `.tausik/` из real-time scan |
 
 ## CLI / MCP

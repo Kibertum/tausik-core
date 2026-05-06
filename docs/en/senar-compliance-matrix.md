@@ -83,7 +83,7 @@
 | Fake test detection | ✅ Implemented | `/review` skill — 10 patterns |
 | Skills system | ✅ Implemented | 13 core skills + 25+ official/vendor on demand — `service_skills.py` + `tausik-skills` repo |
 | Hooks system | ✅ Implemented | 19 hooks across PreToolUse / PostToolUse / SessionStart / Stop / pre-commit |
-| Roles registry | ✅ Implemented | Hybrid: SQLite metadata + `agents/roles/{role}.md` profile; CRUD CLI + 6 MCP tools |
+| Roles registry | ✅ Implemented | Hybrid: SQLite metadata + `harness/roles/{role}.md` profile; CRUD CLI + 6 MCP tools |
 | Doctor health check | ✅ Implemented | `tausik doctor` + `tausik_doctor` MCP — 4 groups (venv/DB/MCP/skills) + drift |
 | Zero-defect skill | ✅ Implemented | `/zero-defect` (Maestro-inspired): read-before-write, verify-before-claim, never-hallucinate-APIs |
 

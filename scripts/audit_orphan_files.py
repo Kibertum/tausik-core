@@ -37,7 +37,7 @@ DEFAULT_EXCLUDES: tuple[str, ...] = (
     ".qwen/**/*",
     "docs/_generated/*",
     "docs/_generated/**/*",
-    "agents/skills/_*/**/*",
+    "harness/skills/_*/**/*",
     "bootstrap/*",
     "bootstrap/**/*",
     "scripts/project.py",
@@ -101,9 +101,9 @@ def collect_orphans(repo_root: Path, excludes: tuple[str, ...] = DEFAULT_EXCLUDE
         module_to_rel[_module_name(rel)] = rel
 
     # Build the set of imported module names from the entire repo
-    # (scripts/, agents/**, bootstrap/**, tests/** — for completeness).
+    # (scripts/, harness/**, bootstrap/**, tests/** — for completeness).
     referenced: set[str] = set(ENTRY_POINTS)
-    for searched_dir in ("scripts", "agents", "bootstrap", "tests"):
+    for searched_dir in ("scripts", "harness", "bootstrap", "tests"):
         d = repo_root / searched_dir
         if not d.is_dir():
             continue
@@ -125,12 +125,12 @@ def collect_orphans(repo_root: Path, excludes: tuple[str, ...] = DEFAULT_EXCLUDE
 
 def _doc_referenced_modules(repo_root: Path, module_names: list[str]) -> set[str]:
     """Modules whose ``<name>.py`` is mentioned anywhere under ``docs/`` or
-    ``agents/skills/``. Picks up CLI scripts that nothing imports but the
+    ``harness/skills/``. Picks up CLI scripts that nothing imports but the
     architecture docs / skill READMEs reference by file name.
     """
     needles = {f"{m}.py" for m in module_names}
     found: set[str] = set()
-    for searched_dir in ("docs", "agents/skills", "agents/roles", "agents/stacks"):
+    for searched_dir in ("docs", "harness/skills", "harness/roles", "harness/stacks"):
         d = repo_root / searched_dir
         if not d.is_dir():
             continue

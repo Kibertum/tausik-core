@@ -18,7 +18,7 @@ TAUSIK implements [SENAR v1.3 Core](https://senar.tech) ([GitHub](https://github
 
 1. **MCP-first** — use `tausik_*` tools (preferred). Full inventory + parameters live in **[docs/en/mcp.md](docs/en/mcp.md)**; for scripted hosts `tausik_status`/`status` accepts optional **compact JSON** (`compact` / `--compact`).
 2. **CLI fallback** — `.tausik/tausik <cmd>` mirrors MCP; cheatsheet **[docs/en/cli.md](docs/en/cli.md)**.
-3. **Skills / slash wrappers** — if `/start`, `/plan`, `/ship`, … are not expanded by your IDE, execute the numbered procedure inside `agents/skills/<name>/SKILL.md` (**[docs/en/skills.md](docs/en/skills.md)** lists triggers).
+3. **Skills / slash wrappers** — if `/start`, `/plan`, `/ship`, … are not expanded by your IDE, execute the numbered procedure inside `harness/skills/<name>/SKILL.md` (**[docs/en/skills.md](docs/en/skills.md)** lists triggers).
 
 Hard workflow rules (`task_start` before edits, **`tausik_verify` before task closure**, `--ac-verified`) are unchanged — see § *The Rules* below.
 
@@ -29,7 +29,7 @@ TAUSIK was originally built around Claude Code conventions, but the framework is
 | Capability | Claude Code / VS Code Claude Extension | Cursor Composer / GPT-5.5 / OpenCode | Qwen Code |
 |---|---|---|---|
 | MCP tools (`tausik_*`) | Yes — preferred | **Yes — preferred and primary** | Yes — preferred |
-| Slash skills (`/start`, `/plan`, `/ship`) | Native | **Not native** — read `agents/skills/<name>/SKILL.md` and follow the algorithm yourself | Read `.qwen/skills/<name>/SKILL.md` |
+| Slash skills (`/start`, `/plan`, `/ship`) | Native | **Not native** — read `harness/skills/<name>/SKILL.md` and follow the algorithm yourself | Read `.qwen/skills/<name>/SKILL.md` |
 | PreToolUse hooks (`task_gate.py` etc.) | Yes (`.claude/settings.json`) | **No hooks API** — Rule 1 is enforced by you reading the rules | Yes (limited subset, see [r14-qwen-parity-or-honesty]) |
 | `~/.claude/...` auto-memory | Read/write | **Do not write here** — it is a Claude-only profile dir | Read only |
 | Session start | `session_start.py` hook injects status | **Run `tausik_status` and `tausik_session_start` yourself first** | hook (subset) |
@@ -51,7 +51,7 @@ Same governance everywhere; only the **wrapper** (hooks vs self-serve) changes. 
 **Operating contract for non-Claude models:**
 
 1. **MCP-first, always.** Every workflow rule (QG-0, QG-2, session limits, dead-ends) is enforced inside the `tausik-project` MCP server — calling MCP tools gives you the same hard guarantees Claude Code gets. Bash CLI is a fallback only when MCP is unreachable.
-2. **No slash commands → read the SKILL files.** If your host doesn't expand `/ship`, open `agents/skills/ship/SKILL.md` and execute its numbered steps. Skills are deliberately written as procedures, not as host-specific magic.
+2. **No slash commands → read the SKILL files.** If your host doesn't expand `/ship`, open `harness/skills/ship/SKILL.md` and execute its numbered steps. Skills are deliberately written as procedures, not as host-specific magic.
 3. **Don't touch `~/.claude/`.** It's a Claude-specific profile. Use the project DB (`.tausik/tausik.db`) via `tausik_memory_*` MCP tools or the local file under `CLAUDE_PLUGIN_DATA` if it is set.
 4. **Self-enforce Rule 1 in Cursor.** No PreToolUse hook means nothing prevents you from editing files outside an active task. Always start with `tausik_task_start` (or `tausik_task_quick` for the rapid path) before any Edit/Write.
 5. **Verify-First Contract is universal.** Call `tausik_verify` before `tausik_task_done`, exactly like Claude Code does. The 60s per-MCP-tool timeout that VS Code Claude Extension applies is the strictest case; if you keep heavy work inside `verify`, every other host stays in budget too.
@@ -84,7 +84,7 @@ Details, anti-patterns, fake-test detector list: **[docs/en/testing-principles.m
 
 ## Work Cycle
 
-Abbreviated spine: session open (`/start` ↔ `agents/skills/start/SKILL.md` + `tausik_session_*`) → plan (`/plan`, `task_quick`) → **`tausik_task_start` (QG-0)** → implement + `tausik_task_log`/`tausik_dead_end` → **`tausik_verify`** → **`tausik_task_done` (QG‑2)** → optional `/ship` → `/end`.
+Abbreviated spine: session open (`/start` ↔ `harness/skills/start/SKILL.md` + `tausik_session_*`) → plan (`/plan`, `task_quick`) → **`tausik_task_start` (QG-0)** → implement + `tausik_task_log`/`tausik_dead_end` → **`tausik_verify`** → **`tausik_task_done` (QG‑2)** → optional `/ship` → `/end`.
 
 Canonical narrative + branching detail: **[docs/en/workflow.md](docs/en/workflow.md)** — keep that file authoritative; this header only orients newcomers.
 
@@ -107,7 +107,7 @@ Canonical narrative + branching detail: **[docs/en/workflow.md](docs/en/workflow
 ```
 scripts/           Core Python (CLI → Service → Backend)
 docs/              Documentation (en/, ru/, research/)
-agents/            Shared resources for all IDEs
+harness/           Shared resources for all IDEs (renamed from agents/ in v1.4 to avoid collision with .claude/agents/)
   skills/          12 core skill definitions auto-deployed (+ /brain conditionally on Notion config) + 25+ official/vendor opt-in via --include-official
   roles/           5 role profiles (developer, architect, qa, tech-writer, ui-ux)
   stacks/          25 stack guides (python, react, go, rust, ansible, terraform, ...)
@@ -127,9 +127,9 @@ tests/             pytest suite (2590 tests)
 | Database schema | `scripts/backend_schema.py` |
 | Quality gates config | `scripts/project_config.py` |
 | Gate runner | `scripts/gate_runner.py` |
-| MCP server | `agents/claude/mcp/project/server.py` |
+| MCP server | `harness/claude/mcp/project/server.py` |
 | Bootstrap logic | `bootstrap/bootstrap.py` |
-| Add a skill | `agents/skills/<name>/SKILL.md` |
+| Add a skill | `harness/skills/<name>/SKILL.md` |
 
 ## How Things Connect
 

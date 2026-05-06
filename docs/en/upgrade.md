@@ -9,7 +9,7 @@ What bootstrap touches, what it leaves alone, and how to upgrade without losing 
 ├── stacks/                ← framework-owned. Bootstrap rewrites this.
 ├── scripts/               ← framework-owned.
 ├── bootstrap/             ← framework-owned.
-├── agents/                ← framework-owned.
+├── harness/                ← framework-owned.
 ├── .claude/               ← bootstrap output (ignore-able; regenerable).
 └── .tausik/               ← YOUR data. Bootstrap NEVER touches this.
     ├── tausik.db
@@ -23,7 +23,7 @@ What bootstrap touches, what it leaves alone, and how to upgrade without losing 
 | Path | Owner | Survives upgrade? |
 |---|---|---|
 | `stacks/<name>/stack.json` | Framework | No — overwritten on every bootstrap. |
-| `agents/stacks/*.md` (legacy) | Framework | Replaced on bootstrap; legacy fallback only. |
+| `harness/stacks/*.md` (legacy) | Framework | Replaced on bootstrap; legacy fallback only. |
 | `.claude/` | Bootstrap output | Regenerated each run. |
 | `.tausik/stacks/<name>/stack.json` | **You** | **Yes — bootstrap never touches it.** |
 | `.tausik/config.json` | **You** | **Yes.** |

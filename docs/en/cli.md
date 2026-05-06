@@ -162,10 +162,10 @@ role show <slug>
 role create <slug> <title> [--description TEXT] [--extends BASE_ROLE]
 role update <slug> [--title T] [--description D]
 role delete <slug>
-role seed                       # Bootstrap role rows from agents/roles/*.md and existing task usage
+role seed                       # Bootstrap role rows from harness/roles/*.md and existing task usage
 ```
 
-Role storage is hybrid: SQLite metadata + `agents/roles/{role}.md` profile markdown. Roles remain free-text on tasks (`--role developer/architect/qa/...`).
+Role storage is hybrid: SQLite metadata + `harness/roles/{role}.md` profile markdown. Roles remain free-text on tasks (`--role developer/architect/qa/...`).
 
 ## Sessions
 
@@ -346,6 +346,6 @@ suggest-model [complexity]            # Recommend Claude model: simple→Haiku, 
 | Complexity → SP | simple=1, medium=3, complex=8 |
 | Tiers (call calls) | trivial ≤10, light ≤25, moderate ≤60, substantial ≤150, deep ≤400 |
 | Memory types | pattern, gotcha, convention, context, dead_end |
-| Roles | Free text (no enum); registry under `agents/roles/{slug}.md` |
+| Roles | Free text (no enum); registry under `harness/roles/{slug}.md` |
 | SENAR gates | QG-0 (Context Gate on `task start`), QG-2 (Implementation Gate on `task done`) |
 | Session limit | 180 min **active** by default (configurable: `session_max_minutes`, idle threshold: `session_idle_threshold_minutes`) |

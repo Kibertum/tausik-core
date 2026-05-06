@@ -11,7 +11,7 @@ In TAUSIK roles are **free text** on tasks (`task add ... --role developer`), ba
 | Layer | Where | What |
 |-------|-------|------|
 | Metadata | `roles` table in `.tausik/tausik.db` | slug, title, description, base/extends |
-| Profile | `agents/roles/{slug}.md` | Behavioural prompt the agent reads when claiming a task with that role |
+| Profile | `harness/roles/{slug}.md` | Behavioural prompt the agent reads when claiming a task with that role |
 
 A role exists in either layer independently. `role list` merges both views, marking rows as **registered** (DB), **profile-only** (markdown without DB row), or **db-only** (DB row without profile).
 
@@ -19,7 +19,7 @@ You don't need to register a role before assigning it — `--role qa-lead` works
 
 ## Default Profiles
 
-After bootstrap, `agents/roles/` ships with five default profiles:
+After bootstrap, `harness/roles/` ships with five default profiles:
 
 - `architect.md` — system design, trade-offs, decision records
 - `developer.md` — implementation, refactoring, debugging
@@ -37,7 +37,7 @@ role show <slug>                             # show role record + profile path
 role create <slug> <title> [--description T] [--extends BASE_ROLE]
 role update <slug> [--title T] [--description D]
 role delete <slug>
-role seed                                    # bootstrap from agents/roles/*.md + task usage
+role seed                                    # bootstrap from harness/roles/*.md + task usage
 ```
 
 `--extends` clones the profile from a base role. For example:
@@ -46,7 +46,7 @@ role seed                                    # bootstrap from agents/roles/*.md 
 .tausik/tausik role create senior-dev "Senior Developer" --extends developer
 ```
 
-This copies `agents/roles/developer.md` to `agents/roles/senior-dev.md` so you can refine it. The DB row tracks the `extends` relationship.
+This copies `harness/roles/developer.md` to `harness/roles/senior-dev.md` so you can refine it. The DB row tracks the `extends` relationship.
 
 ## MCP
 
@@ -57,7 +57,7 @@ This copies `agents/roles/developer.md` to `agents/roles/senior-dev.md` so you c
 | `tausik_role_create` | Create role (optionally extends a base) |
 | `tausik_role_update` | Update title/description |
 | `tausik_role_delete` | Delete role row (profile file is preserved) |
-| `tausik_role_seed` | Bootstrap from `agents/roles/*.md` + existing task `role` values |
+| `tausik_role_seed` | Bootstrap from `harness/roles/*.md` + existing task `role` values |
 
 ## Common Patterns
 
@@ -85,7 +85,7 @@ This copies `agents/roles/developer.md` to `agents/roles/senior-dev.md` so you c
 ## Negative Cases
 
 - Roles are **not** restricted to a fixed enum. Any string is accepted on `--role`. The validator does not reject unregistered roles.
-- `role delete` does **not** remove `agents/roles/{slug}.md`. The profile is preserved so you can re-seed later. To delete the file, remove it manually.
+- `role delete` does **not** remove `harness/roles/{slug}.md`. The profile is preserved so you can re-seed later. To delete the file, remove it manually.
 - `role seed` is **idempotent**: re-running it does not duplicate rows.
 
 ## What's Next

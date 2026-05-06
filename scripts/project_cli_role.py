@@ -30,7 +30,7 @@ def _cmd_list(svc: ProjectService) -> None:
 
     rows = role_list(svc.be)
     if not rows:
-        print("No roles. Run `tausik role seed` to bootstrap from agents/roles/*.md.")
+        print("No roles. Run `tausik role seed` to bootstrap from harness/roles/*.md.")
         return
     for r in rows:
         cnt = r.get("task_count", 0)

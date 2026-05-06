@@ -9,7 +9,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 sys.path.insert(
     0,
-    os.path.join(os.path.dirname(__file__), "..", "agents", "claude", "mcp", "project"),
+    os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"),
 )
 
 from project_backend import SQLiteBackend

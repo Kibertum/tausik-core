@@ -46,7 +46,7 @@ DEFAULT_EXCLUDES: tuple[str, ...] = (
 
 # Where to look for inbound references (files that may link into docs/).
 INBOUND_DIRS: tuple[str, ...] = (
-    "agents",
+    "harness",
     "bootstrap",
     "scripts",
     "tests",

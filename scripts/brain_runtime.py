@@ -3,7 +3,7 @@
 Callers today:
 - service_knowledge.decide() (auto-routing CLI path)
 - scripts/hooks/brain_post_webfetch.py (auto-cache WebFetch results)
-- agents/<ide>/mcp/brain/handlers.py (MCP read+write dispatch)
+- harness/<ide>/mcp/brain/handlers.py (MCP read+write dispatch)
 
 `open_brain_deps()` is the shared setup primitive — returns
 (conn, client, cfg) with None-semantics for "brain disabled" and

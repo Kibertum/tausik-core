@@ -108,9 +108,7 @@ class TestExtractSkillDirs:
             }
         )
         vendor_dir = os.path.join(tmp_dir, "seo")
-        counts = _extract_skill_dirs(
-            tarball, vendor_dir, ["skills/seo-audit", "skills/seo-page"]
-        )
+        counts = _extract_skill_dirs(tarball, vendor_dir, ["skills/seo-audit", "skills/seo-page"])
         assert counts["skills"] == 2
         assert os.path.exists(os.path.join(vendor_dir, "seo-audit", "SKILL.md"))
         assert os.path.exists(os.path.join(vendor_dir, "seo-page", "SKILL.md"))
@@ -125,9 +123,7 @@ class TestExtractSkillDirs:
             }
         )
         vendor_dir = os.path.join(tmp_dir, "seo")
-        counts = _extract_skill_dirs(
-            tarball, vendor_dir, ["seo"], scripts_dir="scripts"
-        )
+        counts = _extract_skill_dirs(tarball, vendor_dir, ["seo"], scripts_dir="scripts")
         assert counts["scripts"] == 2
         assert os.path.exists(os.path.join(vendor_dir, "scripts", "fetch.py"))
 
@@ -178,9 +174,7 @@ class TestExtractSkillDirs:
         assert os.path.exists(os.path.join(vendor_dir, "myskill", "SKILL.md"))
         assert os.path.exists(os.path.join(vendor_dir, "myskill", "data", "styles.csv"))
         assert os.path.exists(os.path.join(vendor_dir, "myskill", "data", "colors.csv"))
-        assert os.path.exists(
-            os.path.join(vendor_dir, "myskill", "scripts", "search.py")
-        )
+        assert os.path.exists(os.path.join(vendor_dir, "myskill", "scripts", "search.py"))
 
     def test_symlink_resolution(self, tmp_dir):
         """Symlinks in skill_dirs are resolved to their target files."""
@@ -283,9 +277,9 @@ class TestCopySkillsWithVendor:
         from bootstrap_copy import copy_skills
 
         lib_dir = os.path.join(tmp_dir, "lib")
-        os.makedirs(os.path.join(lib_dir, "agents", "skills", "start"))
+        os.makedirs(os.path.join(lib_dir, "harness", "skills", "start"))
         with open(
-            os.path.join(lib_dir, "agents", "skills", "start", "SKILL.md"),
+            os.path.join(lib_dir, "harness", "skills", "start", "SKILL.md"),
             "w",
         ) as f:
             f.write("# Start")
@@ -315,7 +309,7 @@ class TestCopySkillsWithVendor:
         from bootstrap_copy import copy_skills
 
         lib_dir = os.path.join(tmp_dir, "lib")
-        skill_dir = os.path.join(lib_dir, "agents", "skills", "review")
+        skill_dir = os.path.join(lib_dir, "harness", "skills", "review")
         os.makedirs(skill_dir)
         with open(os.path.join(skill_dir, "SKILL.md"), "w") as f:
             f.write("# Library Review")
@@ -379,9 +373,7 @@ class TestSkillCatalogGeneration:
         target_dir = os.path.join(tmp_dir, ".claude")
         os.makedirs(target_dir)
         generate_skill_catalog(target_dir, {}, installed_skills=[])
-        assert not os.path.exists(
-            os.path.join(target_dir, "references", "skill-catalog.md")
-        )
+        assert not os.path.exists(os.path.join(target_dir, "references", "skill-catalog.md"))
 
 
 class TestSkillCLI:
@@ -425,14 +417,12 @@ class TestSkillActivatePersistence:
             f.write("# UI UX Pro Max")
         skills_dst = os.path.join(tmp_dir, ".claude", "skills")
         os.makedirs(skills_dst)
-        lib_skills = os.path.join(tmp_dir, "agents", "claude", "skills")
+        lib_skills = os.path.join(tmp_dir, "harness", "claude", "skills")
         os.makedirs(lib_skills)
         config_path = os.path.join(tmp_dir, ".tausik", "config.json")
         os.makedirs(os.path.dirname(config_path), exist_ok=True)
         with open(config_path, "w") as f:
-            json.dump(
-                {"bootstrap": {"core_skills": ["start"], "extension_skills": []}}, f
-            )
+            json.dump({"bootstrap": {"core_skills": ["start"], "extension_skills": []}}, f)
         return vendor_dir, skills_dst, lib_skills, config_path
 
     def test_activate_writes_to_config(self, tmp_dir):
@@ -474,9 +464,7 @@ class TestSkillActivatePersistence:
         ProjectService.skill_activate(
             "ui-ux-pro-max", vendor_dir, skills_dst, lib_skills, config_path
         )
-        ProjectService.skill_deactivate(
-            "ui-ux-pro-max", skills_dst, lib_skills, config_path
-        )
+        ProjectService.skill_deactivate("ui-ux-pro-max", skills_dst, lib_skills, config_path)
         with open(config_path) as f:
             cfg = json.load(f)
         assert "ui-ux-pro-max" not in cfg["bootstrap"].get("vendor_activated", [])
@@ -490,9 +478,7 @@ class TestSkillActivatePersistence:
         ProjectService.skill_activate(
             "ui-ux-pro-max", vendor_dir, skills_dst, lib_skills, config_path
         )
-        result = ProjectService.skill_deactivate(
-            "ui-ux-pro-max", skills_dst, lib_skills
-        )
+        result = ProjectService.skill_deactivate("ui-ux-pro-max", skills_dst, lib_skills)
         assert "deactivated" in result.lower()
 
 
@@ -503,7 +489,7 @@ class TestBootstrapPreservesVendorSkills:
         from bootstrap_copy import copy_skills
 
         lib_dir = os.path.join(tmp_dir, "lib")
-        start_dir = os.path.join(lib_dir, "agents", "skills", "start")
+        start_dir = os.path.join(lib_dir, "harness", "skills", "start")
         os.makedirs(start_dir)
         with open(os.path.join(start_dir, "SKILL.md"), "w") as f:
             f.write("# Start")
@@ -532,15 +518,13 @@ class TestBootstrapPreservesVendorSkills:
 
         copy_skills(lib_dir, target_dir, config, "claude", vendor_map)
         # Vendor skill should survive
-        assert os.path.exists(
-            os.path.join(target_dir, "skills", "ui-ux-pro-max", "SKILL.md")
-        )
+        assert os.path.exists(os.path.join(target_dir, "skills", "ui-ux-pro-max", "SKILL.md"))
 
     def test_non_vendor_skill_cleaned_up(self, tmp_dir):
         from bootstrap_copy import copy_skills
 
         lib_dir = os.path.join(tmp_dir, "lib")
-        start_dir = os.path.join(lib_dir, "agents", "skills", "start")
+        start_dir = os.path.join(lib_dir, "harness", "skills", "start")
         os.makedirs(start_dir)
         with open(os.path.join(start_dir, "SKILL.md"), "w") as f:
             f.write("# Start")
@@ -566,7 +550,7 @@ class TestBootstrapPreservesVendorSkills:
         from bootstrap_copy import copy_skills
 
         lib_dir = os.path.join(tmp_dir, "lib")
-        start_dir = os.path.join(lib_dir, "agents", "skills", "start")
+        start_dir = os.path.join(lib_dir, "harness", "skills", "start")
         os.makedirs(start_dir)
         with open(os.path.join(start_dir, "SKILL.md"), "w") as f:
             f.write("# Start")
@@ -586,15 +570,11 @@ class TestBootstrapPreservesVendorSkills:
 
         # Run 1
         copy_skills(lib_dir, target_dir, config, "claude", vendor_map)
-        assert os.path.exists(
-            os.path.join(target_dir, "skills", "ui-ux-pro-max", "SKILL.md")
-        )
+        assert os.path.exists(os.path.join(target_dir, "skills", "ui-ux-pro-max", "SKILL.md"))
 
         # Run 2
         copy_skills(lib_dir, target_dir, config, "claude", vendor_map)
-        assert os.path.exists(
-            os.path.join(target_dir, "skills", "ui-ux-pro-max", "SKILL.md")
-        )
+        assert os.path.exists(os.path.join(target_dir, "skills", "ui-ux-pro-max", "SKILL.md"))
 
 
 class TestGetVendorSkillDirs:

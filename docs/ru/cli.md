@@ -162,10 +162,10 @@ role show <slug>
 role create <slug> <title> [--description TEXT] [--extends BASE_ROLE]
 role update <slug> [--title T] [--description D]
 role delete <slug>
-role seed                       # Bootstrap из agents/roles/*.md и использования в задачах
+role seed                       # Bootstrap из harness/roles/*.md и использования в задачах
 ```
 
-Хранение ролей гибридное: SQLite-метаданные + markdown-профиль `agents/roles/{role}.md`. Роли в задачах остаются свободным текстом (`--role developer/architect/qa/...`).
+Хранение ролей гибридное: SQLite-метаданные + markdown-профиль `harness/roles/{role}.md`. Роли в задачах остаются свободным текстом (`--role developer/architect/qa/...`).
 
 ## Сессии
 
@@ -346,6 +346,6 @@ suggest-model [complexity]            # Рекомендация Claude-моде
 | Сложность → SP | simple=1, medium=3, complex=8 |
 | Tiers (call calls) | trivial ≤10, light ≤25, moderate ≤60, substantial ≤150, deep ≤400 |
 | Типы памяти | pattern, gotcha, convention, context, dead_end |
-| Роли | Свободный текст (без enum); реестр в `agents/roles/{slug}.md` |
+| Роли | Свободный текст (без enum); реестр в `harness/roles/{slug}.md` |
 | SENAR gates | QG-0 (Context Gate на `task start`), QG-2 (Implementation Gate на `task done`) |
 | Лимит сессии | 180 мин **active** по умолчанию (настраивается: `session_max_minutes`, idle threshold: `session_idle_threshold_minutes`) |

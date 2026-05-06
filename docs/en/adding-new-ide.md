@@ -34,7 +34,7 @@ And register it in `generate_ide_rules()`.
 
 If the IDE requires specific rules, create:
 ```
-agents/overrides/myide/rules.md
+harness/overrides/myide/rules.md
 ```
 
 This file is **automatically appended** to the generated `CLAUDE.md` /
@@ -72,7 +72,7 @@ In `tests/test_ide_utils.py` add tests for the new IDE.
 ## How It Works
 
 ```
-agents/
+harness/
 ├── skills/          # 12 core auto-deployed (+ /brain conditional) + 25 vendor opt-in (--include-official)
 ├── roles/           # roles (all IDEs)
 ├── stacks/          # stacks (all IDEs)
@@ -85,4 +85,4 @@ agents/
 └── qwen/ → claude/  # Qwen Code (falls back to Claude MCP)
 ```
 
-Bootstrap lookup chain: `agents/skills/` → `agents/{ide}/skills/` → `agents/claude/skills/`
+Bootstrap lookup chain: `harness/skills/` → `harness/{ide}/skills/` → `harness/claude/skills/`

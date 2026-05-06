@@ -23,7 +23,7 @@ Stack: Python 3.11+ stdlib | CLI `.tausik/tausik` | DB SQLite+FTS5 | Tests pytes
 - **Нет коммита без gates.** Исправь blocking failures.
 - **Нет прямого доступа к БД.** Только MCP/CLI.
 - **Не угадывай аргументы CLI.** `tausik <cmd> --help` или `docs/ru/cli.md`.
-- **Исходники в корне** (`scripts/`, `docs/`, `agents/`, `bootstrap/`). Не редактируй `.claude/` напрямую.
+- **Исходники в корне** (`scripts/`, `docs/`, `harness/`, `bootstrap/`). Не редактируй `.claude/` напрямую.
 - **MCP-first.** MCP > CLI когда equivalent.
 - **Git: спроси перед commit/push.**
 - **Макс. 400 строк/файл.** Filesize gate. Исключения: тесты, generated.
@@ -65,7 +65,7 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #53 (active) | Branch: main | Version: 1.4.0
+Session: #54 (active) | Branch: main | Version: 1.4.0
 Tasks: 656/683 done, 0 active, 1 blocked
 Blocked: v14b-skill-bundles-marketplace
 <!-- DYNAMIC:END -->

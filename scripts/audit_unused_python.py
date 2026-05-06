@@ -78,7 +78,7 @@ ALWAYS_REFERENCED_NAMES: frozenset[str] = frozenset(
 # scripts + skill docs + root markdown / TOML.
 REFERENCE_DIRS: tuple[str, ...] = (
     "scripts",
-    "agents",
+    "harness",
     "bootstrap",
     "tests",
 )

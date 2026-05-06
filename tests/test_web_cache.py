@@ -8,7 +8,7 @@ import sys
 sys.path.insert(
     0,
     os.path.join(
-        os.path.dirname(__file__), "..", "agents", "claude", "mcp", "codebase-rag"
+        os.path.dirname(__file__), "..", "harness", "claude", "mcp", "codebase-rag"
     ),
 )
 

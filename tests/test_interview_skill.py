@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 
 _SKILL_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "agents", "skills", "interview", "SKILL.md"
+    os.path.dirname(__file__), "..", "harness", "skills", "interview", "SKILL.md"
 )
 
 

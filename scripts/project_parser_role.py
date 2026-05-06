@@ -39,5 +39,5 @@ def build_role_subparsers(sub: Any) -> None:
     )
     role_sub.add_parser(
         "seed",
-        help="Bootstrap role rows from agents/roles/*.md and existing task usage",
+        help="Bootstrap role rows from harness/roles/*.md and existing task usage",
     )

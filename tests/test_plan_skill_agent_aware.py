@@ -21,16 +21,16 @@ def _exists(*parts: str) -> bool:
 
 class TestPlanSkill:
     def test_mentions_tier_or_call_budget(self):
-        text = _read("agents", "skills", "plan", "SKILL.md").lower()
+        text = _read("harness", "skills", "plan", "SKILL.md").lower()
         assert "tier" in text
         assert "call_budget" in text or "call-budget" in text
 
     def test_mentions_tool_calls_not_hours(self):
-        text = _read("agents", "skills", "plan", "SKILL.md").lower()
+        text = _read("harness", "skills", "plan", "SKILL.md").lower()
         assert "tool call" in text or "tool-call" in text
 
     def test_lists_all_five_tiers(self):
-        text = _read("agents", "skills", "plan", "SKILL.md").lower()
+        text = _read("harness", "skills", "plan", "SKILL.md").lower()
         for label in ("trivial", "light", "moderate", "substantial", "deep"):
             assert label in text, f"missing tier label: {label}"
 
@@ -61,7 +61,7 @@ class TestClaudeMd:
 
 class TestMcpToolsDescription:
     def test_task_add_description_mentions_tool_calls(self):
-        text = _read("agents", "claude", "mcp", "project", "tools.py")
+        text = _read("harness", "claude", "mcp", "project", "tools.py")
         # Find tausik_task_add block and check its description.
         assert "tausik_task_add" in text
         idx = text.index('"name": "tausik_task_add"')
@@ -69,12 +69,12 @@ class TestMcpToolsDescription:
         assert "TOOL CALLS" in block
 
     def test_call_budget_description_lists_tiers(self):
-        text = _read("agents", "claude", "mcp", "project", "tools.py")
+        text = _read("harness", "claude", "mcp", "project", "tools.py")
         # All five tier labels should appear in the call_budget description text.
         for label in ("trivial", "light", "moderate", "substantial", "deep"):
             assert label in text, f"missing tier label in tools.py: {label}"
 
     def test_mirror_in_sync(self):
-        src = _read("agents", "claude", "mcp", "project", "tools.py")
+        src = _read("harness", "claude", "mcp", "project", "tools.py")
         mirror = _read(".claude", "mcp", "project", "tools.py")
-        assert src == mirror, "agents/claude/mcp tools.py and .claude/mcp mirror diverged"
+        assert src == mirror, "harness/claude/mcp tools.py and .claude/mcp mirror diverged"

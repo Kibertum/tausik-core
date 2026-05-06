@@ -11,7 +11,7 @@
 | Слой | Где | Что |
 |------|-----|-----|
 | Метаданные | таблица `roles` в `.tausik/tausik.db` | slug, title, description, base/extends |
-| Профиль | `agents/roles/{slug}.md` | Behavioural-промпт, который агент читает при claim'е задачи с этой ролью |
+| Профиль | `harness/roles/{slug}.md` | Behavioural-промпт, который агент читает при claim'е задачи с этой ролью |
 
 Роль может существовать в каждом слое независимо. `role list` мерджит обе view, помечая записи как **registered** (DB), **profile-only** (markdown без DB-row), или **db-only** (DB-row без профиля).
 
@@ -19,7 +19,7 @@
 
 ## Дефолтные профили
 
-После bootstrap в `agents/roles/` есть пять дефолтных профилей:
+После bootstrap в `harness/roles/` есть пять дефолтных профилей:
 
 - `architect.md` — системный дизайн, trade-off'ы, ADR
 - `developer.md` — реализация, рефакторинг, дебаг
@@ -37,7 +37,7 @@ role show <slug>                             # запись + путь к про
 role create <slug> <title> [--description T] [--extends BASE_ROLE]
 role update <slug> [--title T] [--description D]
 role delete <slug>
-role seed                                    # bootstrap из agents/roles/*.md + использования в задачах
+role seed                                    # bootstrap из harness/roles/*.md + использования в задачах
 ```
 
 `--extends` клонирует профиль из базовой роли. Например:
@@ -46,7 +46,7 @@ role seed                                    # bootstrap из agents/roles/*.md 
 .tausik/tausik role create senior-dev "Senior Developer" --extends developer
 ```
 
-Это копирует `agents/roles/developer.md` в `agents/roles/senior-dev.md`, чтобы вы могли его доработать. DB-row отслеживает связь `extends`.
+Это копирует `harness/roles/developer.md` в `harness/roles/senior-dev.md`, чтобы вы могли его доработать. DB-row отслеживает связь `extends`.
 
 ## MCP
 
@@ -57,7 +57,7 @@ role seed                                    # bootstrap из agents/roles/*.md 
 | `tausik_role_create` | Создать роль (опционально extends базовую) |
 | `tausik_role_update` | Обновить title/description |
 | `tausik_role_delete` | Удалить DB-row (файл профиля сохраняется) |
-| `tausik_role_seed` | Bootstrap из `agents/roles/*.md` + значений `role` в задачах |
+| `tausik_role_seed` | Bootstrap из `harness/roles/*.md` + значений `role` в задачах |
 
 ## Типичные паттерны
 
@@ -85,7 +85,7 @@ role seed                                    # bootstrap из agents/roles/*.md 
 ## Negative cases
 
 - Роли **не** ограничены фиксированным enum'ом. Любая строка принимается на `--role`. Валидатор не отвергает незарегистрированные роли.
-- `role delete` **не** удаляет `agents/roles/{slug}.md`. Профиль сохраняется, чтобы можно было пересидить позже. Чтобы удалить файл — удалите вручную.
+- `role delete` **не** удаляет `harness/roles/{slug}.md`. Профиль сохраняется, чтобы можно было пересидить позже. Чтобы удалить файл — удалите вручную.
 - `role seed` **идемпотентна**: повторный запуск не дублирует строки.
 
 ## См. также

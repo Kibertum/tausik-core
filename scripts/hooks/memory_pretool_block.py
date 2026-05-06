@@ -4,7 +4,7 @@
 Protects Claude auto-memory from accidental project-specific records. Project
 knowledge belongs in TAUSIK memory (`.tausik/tausik memory add`); the user's
 home memory is for cross-project preferences only. Matches any `memory`
-directory under `.claude/` — `projects/<slug>/memory`, `agents/<name>/memory`,
+directory under `.claude/` — `projects/<slug>/memory`, `harness/<name>/memory`,
 and bare `.claude/memory`.
 
 Bypass: if the last user turn in the transcript contains the marker

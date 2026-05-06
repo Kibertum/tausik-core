@@ -7,7 +7,7 @@
 ## Структура
 
 ```
-agents/skills/<skill-name>/
+harness/skills/<skill-name>/
   SKILL.md              # Общие инструкции + YAML frontmatter
   variants/
     claude.md           # Фрагмент, если профиль разрешился в claude
@@ -34,4 +34,4 @@ agents/skills/<skill-name>/
 
 ## Пример
 
-Каталог **`agents/skills/_profile-demo/`** (эталонная структура — не копируется в IDE; префикс `_`): общее тело и **`variants/claude.md`**, **`variants/codex.md`**. Запрос профиля `gpt` при `profile_fallback: claude` подставит оверлей Claude, если нет `variants/gpt.md`.
+Каталог **`harness/skills/_profile-demo/`** (эталонная структура — не копируется в IDE; префикс `_`): общее тело и **`variants/claude.md`**, **`variants/codex.md`**. Запрос профиля `gpt` при `profile_fallback: claude` подставит оверлей Claude, если нет `variants/gpt.md`.

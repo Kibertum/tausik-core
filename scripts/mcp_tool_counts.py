@@ -12,15 +12,15 @@ from pathlib import Path
 
 def count_rag_tool_defs(repo_root: Path) -> int:
     """Count ``Tool(`` definitions in codebase-rag ``server.py``."""
-    rag_server = repo_root / "agents" / "claude" / "mcp" / "codebase-rag" / "server.py"
+    rag_server = repo_root / "harness" / "claude" / "mcp" / "codebase-rag" / "server.py"
     text = rag_server.read_text(encoding="utf-8")
     return len(re.findall(r"^\s+Tool\(", text, re.MULTILINE))
 
 
 def count_mcp_tool_totals(repo_root: Path) -> tuple[int, int, int]:
     """Return ``(n_project, n_brain, n_rag)`` using ``len(TOOLS)`` where applicable."""
-    proj = str(repo_root / "agents" / "claude" / "mcp" / "project")
-    brain = str(repo_root / "agents" / "claude" / "mcp" / "brain")
+    proj = str(repo_root / "harness" / "claude" / "mcp" / "project")
+    brain = str(repo_root / "harness" / "claude" / "mcp" / "brain")
 
     sys.path.insert(0, proj)
     import tools as project_tools  # type: ignore[import-not-found]  # noqa: E402

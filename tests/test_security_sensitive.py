@@ -137,7 +137,7 @@ class TestFalsePositiveElimination:
     @pytest.mark.parametrize(
         "path",
         [
-            "agents/skills/start/SKILL.md",
+            "harness/skills/start/SKILL.md",
             "README.md",
             "CHANGELOG.md",
             "docs/en/architecture.md",

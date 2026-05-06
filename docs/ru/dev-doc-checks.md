@@ -15,7 +15,7 @@ python scripts/gen_doc_constants.py --check
 
 Матрица падает, если `docs/_generated/constants.json` больше не совпадает
 с полем `version` в `pyproject.toml` или с количеством MCP-инструментов,
-выводимым из `agents/{claude,cursor}/mcp/*/tools.py`.
+выводимым из `harness/{claude,cursor}/mcp/*/tools.py`.
 
 ## Запуск локально перед коммитом
 

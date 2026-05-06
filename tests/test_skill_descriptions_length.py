@@ -1,6 +1,6 @@
 """Regression test for v14b-token-tier1-quick-wins T1.1.
 
-Every agents/skills/*/SKILL.md description must be at most 60 characters
+Every harness/skills/*/SKILL.md description must be at most 60 characters
 (target ~20 tokens). The cap saves ~760 tokens/turn across 14 skills
 re-emitted on every model turn in the system prompt.
 
@@ -17,7 +17,7 @@ import re
 import pytest
 
 _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-_SKILLS_DIR = os.path.join(_REPO_ROOT, "agents", "skills")
+_SKILLS_DIR = os.path.join(_REPO_ROOT, "harness", "skills")
 _DESC_RE = re.compile(r'^description:\s*"([^"]*)"\s*$', re.MULTILINE)
 _MAX_CHARS = 60
 
@@ -53,7 +53,7 @@ def test_skill_description_length(skill_path):
 def test_at_least_one_skill_present():
     """Sanity check: parametrize fan-out must not silently skip everything."""
     files = _all_skill_files()
-    assert len(files) >= 5, f"expected ≥5 skills under agents/skills/, found {len(files)}"
+    assert len(files) >= 5, f"expected ≥5 skills under harness/skills/, found {len(files)}"
 
 
 @pytest.mark.parametrize("skill_path", _all_skill_files())

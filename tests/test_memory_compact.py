@@ -26,7 +26,7 @@ def _seed_task_and_logs(svc, slug="t1"):
     svc.be.task_log_add(slug, "AC verified: scripts/service_knowledge.py ✓", phase="testing")
     svc.be.task_log_add(slug, "AC verified: tests/test_memory_block.py ✓", phase="testing")
     svc.be.task_log_add(slug, "Fixed scripts/service_knowledge.py bug", phase="implementation")
-    svc.be.task_log_add(slug, "Added docs to agents/skills/start/SKILL.md", phase="review")
+    svc.be.task_log_add(slug, "Added docs to harness/skills/start/SKILL.md", phase="review")
 
 
 class TestMemoryCompact:
@@ -76,7 +76,7 @@ class TestMcpAndCli:
     def test_mcp_handler_registered(self):
         sys.path.insert(
             0,
-            os.path.join(os.path.dirname(__file__), "..", "agents", "claude", "mcp", "project"),
+            os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"),
         )
         from handlers import _DISPATCH
         from tools import TOOLS
@@ -89,7 +89,7 @@ class TestMcpAndCli:
         _seed_task_and_logs(svc)
         sys.path.insert(
             0,
-            os.path.join(os.path.dirname(__file__), "..", "agents", "claude", "mcp", "project"),
+            os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"),
         )
         from handlers import _do_memory_compact
 

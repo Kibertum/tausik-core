@@ -105,7 +105,7 @@ overshoot is intentional (audit event + notes line trace it).
 
 ## Роли
 
-Свободный текст (любая строка). Частые: `developer`, `architect`, `qa`, `tech-writer`. Профили в `agents/roles/{role}.md`.
+Свободный текст (любая строка). Частые: `developer`, `architect`, `qa`, `tech-writer`. Профили в `harness/roles/{role}.md`.
 
 ---
 
@@ -129,7 +129,7 @@ overshoot is intentional (audit event + notes line trace it).
 
 После этого `task add --stack ruby` принимается. Stack-scoped gates (pytest, go-test и т.д.) автоматически НЕ применяются к custom стэкам — для них нужно зарегистрировать custom gate в `gates` секции `config.json`. Universal gates (filesize, tdd_order) работают для всех стэков. `tausik stack list` показывает custom стэки с пометкой `(custom)`.
 
-Гайды в `agents/stacks/{stack}.md`.
+Гайды в `harness/stacks/{stack}.md`.
 
 ---
 

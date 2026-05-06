@@ -18,7 +18,7 @@ _Generated 2026-04-25 by `research-anthropic-repos` task. Sources: github.com/an
 
 ### 1. Skill manifest spec & registry (simple, source: anthropics/skills)
 
-**Why TAUSIK cares:** TAUSIK ships 20+ skills in `agents/{role}/skills/` but lacks a machine-readable registry. YAML frontmatter (name, description, tags, activation triggers) would let the CLI expose `tausik skill list --filter agent` and auto-enable skills based on task context.
+**Why TAUSIK cares:** TAUSIK ships 20+ skills in `harness/{role}/skills/` but lacks a machine-readable registry. YAML frontmatter (name, description, tags, activation triggers) would let the CLI expose `tausik skill list --filter agent` and auto-enable skills based on task context.
 
 **Sketch:** Add `skill.yaml` alongside each `SKILL.md` with `name`, `role`, `stack_affinity`, `triggers` (complexity threshold), `dependencies`. CLI reads `.tausik/skills.json` (generated registry) on `task start`. Gates can warn if multiple conflicting skills match.
 
@@ -32,7 +32,7 @@ _Generated 2026-04-25 by `research-anthropic-repos` task. Sources: github.com/an
 
 **Why TAUSIK cares:** TAUSIK's batch workflow (`/run plan.md`) spins up parallel subagents with no official scaffolding for multi-stage composition (basic → tool-using → delegating → memory-aware). Anthropic's 4-stage pattern gives a roadmap.
 
-**Sketch:** Add `agents/agent-templates/{stage}.md` (0=basic prompt, 1=mcp_servers list, 2=AgentDefinition + Task tool delegate, 3=session hooks for memory). `/batch` skill references these and suggests a stage matching the user's complexity estimate.
+**Sketch:** Add `harness/agent-templates/{stage}.md` (0=basic prompt, 1=mcp_servers list, 2=AgentDefinition + Task tool delegate, 3=session hooks for memory). `/batch` skill references these and suggests a stage matching the user's complexity estimate.
 
 ### 4. CI/CD mode inference (medium, source: anthropics/claude-code-action)
 
@@ -44,19 +44,19 @@ _Generated 2026-04-25 by `research-anthropic-repos` task. Sources: github.com/an
 
 **Why TAUSIK cares:** TAUSIK metrics track FPSR / DER / lead time but no standardized "achievement tier". Tier bands (bronze/silver/gold/platinum) give aspirational targets and regression detection.
 
-**Sketch:** `agents/evals/tiers.json`: bronze (FPSR <80%), silver (<90%), gold (<95%), platinum (<98%). Gates warn on tier regression. `/metrics` displays tier + rank.
+**Sketch:** `harness/evals/tiers.json`: bronze (FPSR <80%), silver (<90%), gold (<95%), platinum (<98%). Gates warn on tier regression. `/metrics` displays tier + rank.
 
 ### 6. Brain connector abstraction (medium, source: anthropics/knowledge-work-plugins)
 
 **Why TAUSIK cares:** TAUSIK's brain MCP is hard-coded to Notion. Knowledge-work-plugins splits skills (Markdown) from connectors (`.mcp.json`), letting users swap HubSpot ↔ Slack ↔ Linear without touching Python.
 
-**Sketch:** Refactor `agents/brain/`: keep `.claude/mcp/brain/` as core orchestrator; new `.claude/connectors/brain-notion.mcp.json` (env-var pluggable URL); docs show fork pattern. Skills reference brain via `{brain:query "topic"}` syntax.
+**Sketch:** Refactor `harness/brain/`: keep `.claude/mcp/brain/` as core orchestrator; new `.claude/connectors/brain-notion.mcp.json` (env-var pluggable URL); docs show fork pattern. Skills reference brain via `{brain:query "topic"}` syntax.
 
 ### 7. Lightweight skill spec (simple, source: anthropics/skills)
 
 **Why TAUSIK cares:** TAUSIK's SKILL.md files are Markdown but lack standardization. Anthropic's spec enforces YAML structure (name, description; examples, guidelines as sections) — enables `skill list --search` and filtering by role/stack.
 
-**Sketch:** Upgrade `agents/skills/{name}/SKILL.md` headers: `---` YAML fence with `name`, `role`, `stacks` (list), `complexity_ideal`, `examples_count`. CLI parses on `skill install`. Zero runtime deps.
+**Sketch:** Upgrade `harness/skills/{name}/SKILL.md` headers: `---` YAML fence with `name`, `role`, `stacks` (list), `complexity_ideal`, `examples_count`. CLI parses on `skill install`. Zero runtime deps.
 
 ### 8. Session hooks for mode-specific behavior (medium, source: anthropics/agent-sdk-workshop)
 

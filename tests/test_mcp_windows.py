@@ -16,7 +16,7 @@ import sys
 
 
 # Add RAG module to path
-_rag_dir = os.path.join(os.path.dirname(__file__), "..", "agents", "claude", "mcp", "codebase-rag")
+_rag_dir = os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "codebase-rag")
 sys.path.insert(0, os.path.abspath(_rag_dir))
 
 from rag_indexer import _get_current_commit, _get_changed_files, _safe_path, chunk_file
@@ -56,8 +56,7 @@ class TestGitHeadReading:
         # No loose ref file — only packed-refs
         commit = "b" * 40
         (git_dir / "packed-refs").write_text(
-            "# pack-refs with: peeled fully-peeled sorted\n"
-            f"{commit} refs/heads/feature\n"
+            f"# pack-refs with: peeled fully-peeled sorted\n{commit} refs/heads/feature\n"
         )
 
         result = _get_current_commit(str(tmp_path))

@@ -12,7 +12,7 @@ import pytest
 pytestmark = pytest.mark.slow
 
 SERVER = os.path.join(
-    os.path.dirname(__file__), "..", "agents", "claude", "mcp", "project", "server.py"
+    os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project", "server.py"
 )
 PYTHON = sys.executable
 
@@ -151,7 +151,7 @@ class TestMCPToolsListing:
     def test_tools_list_has_all_tools(self, project_dir):
         """Verify tools list matches expected count via direct import."""
         mcp_dir = os.path.join(
-            os.path.dirname(__file__), "..", "agents", "claude", "mcp", "project"
+            os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"
         )
         sys.path.insert(0, mcp_dir)
         from tools import TOOLS
@@ -168,7 +168,7 @@ class TestMCPToolsListing:
     def test_all_tools_have_unique_names(self):
         """No duplicate tool names."""
         mcp_dir = os.path.join(
-            os.path.dirname(__file__), "..", "agents", "claude", "mcp", "project"
+            os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"
         )
         sys.path.insert(0, mcp_dir)
         from tools import TOOLS
@@ -184,7 +184,7 @@ class TestMCPHandlerDispatch:
 
     def test_unknown_tool_returns_error(self, project_dir):
         mcp_dir = os.path.join(
-            os.path.dirname(__file__), "..", "agents", "claude", "mcp", "project"
+            os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"
         )
         scripts_dir = os.path.join(os.path.dirname(__file__), "..", "scripts")
         sys.path.insert(0, mcp_dir)
@@ -203,7 +203,7 @@ class TestMCPHandlerDispatch:
     def test_every_tool_name_has_handler(self, project_dir):
         """Every tool in TOOLS list should be handled (not return 'Unknown tool')."""
         mcp_dir = os.path.join(
-            os.path.dirname(__file__), "..", "agents", "claude", "mcp", "project"
+            os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"
         )
         scripts_dir = os.path.join(os.path.dirname(__file__), "..", "scripts")
         sys.path.insert(0, mcp_dir)
@@ -291,7 +291,7 @@ class TestMCPNewToolHandlers:
     @pytest.fixture
     def svc(self, tmp_path):
         mcp_dir = os.path.join(
-            os.path.dirname(__file__), "..", "agents", "claude", "mcp", "project"
+            os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"
         )
         scripts_dir = os.path.join(os.path.dirname(__file__), "..", "scripts")
         if mcp_dir not in sys.path:
@@ -417,7 +417,7 @@ class TestMCPCrossIDEParity:
         """claude and cursor MCP servers must be byte-identical."""
         base = os.path.join(os.path.dirname(__file__), "..")
         for fname in ("server.py", "tools.py", "handlers.py"):
-            claude_path = os.path.join(base, "agents", "claude", "mcp", "project", fname)
-            cursor_path = os.path.join(base, "agents", "cursor", "mcp", "project", fname)
+            claude_path = os.path.join(base, "harness", "claude", "mcp", "project", fname)
+            cursor_path = os.path.join(base, "harness", "cursor", "mcp", "project", fname)
             with open(claude_path) as f1, open(cursor_path) as f2:
                 assert f1.read() == f2.read(), f"{fname} differs between claude and cursor"
