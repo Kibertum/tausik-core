@@ -18,6 +18,23 @@
 
 ### Изменено
 
+- **Preempt-split `harness/{claude,cursor}/mcp/project/tools_extra.py`
+  (`v14b-tools-extra-preempt-split`).**
+  Файл был на 399/400 строк после приземления session-open compound RPC —
+  одна следующая добавка tool schema упёрлась бы в filesize gate. Roles
+  CRUD (`tausik_role_{list,show,create,update,delete,seed}`) и
+  `tausik_stack_scaffold` вынесены в новый список
+  `tools_extra_admin.TOOLS_EXTRA_ADMIN` (admin / config-modifying tools —
+  когезивная тематическая группа). `tools.py` импортирует оба списка и
+  extends `TOOLS` каждым. После split: `tools_extra.py` 317 строк (было
+  399), `tools_extra_admin.py` 97 строк. Tool count не изменился (93
+  project + 7 brain = 100 total, sanity-check: дубликатов нет, все 7
+  admin tools резолвятся после split). Cursor mirror байт-в-байт
+  идентичен. Bootstrap регенерирует `.claude/mcp/project/tools_extra_admin.py`
+  рядом с существующей копией. Full pytest 2889 passed (mirror-sync тесты
+  `test_mcp_mirrors_in_sync` + `test_mirror_in_sync` падали до bootstrap'а
+  — ожидаемо; после ресинка `.claude/` зелёные).
+
 - **Source-директория `agents/` переименована в `harness/` (`v14b-rename-harness`).**
   Устраняет долгую коллизию с нативным `.claude/agents/` namespace в
   Claude Code (профили sub-agents). `git mv` сохраняет историю;

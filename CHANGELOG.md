@@ -16,6 +16,23 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Preempt-split `harness/{claude,cursor}/mcp/project/tools_extra.py`
+  (`v14b-tools-extra-preempt-split`).**
+  The file was at 399/400 lines after the session-open compound RPC
+  landed — one tool addition away from the filesize gate. Roles CRUD
+  (`tausik_role_{list,show,create,update,delete,seed}`) and
+  `tausik_stack_scaffold` extracted into a new
+  `tools_extra_admin.TOOLS_EXTRA_ADMIN` list (admin / config-modifying
+  tools, cohesive thematic group). `tools.py` imports both lists and
+  extends `TOOLS` from each. After split: `tools_extra.py` 317 lines
+  (was 399), `tools_extra_admin.py` 97 lines. Tool count unchanged
+  (93 project + 7 brain = 100 total, sanity-checked: no duplicates, all
+  7 admin tools resolvable post-split). Cursor mirror byte-identical.
+  Bootstrap regenerates `.claude/mcp/project/tools_extra_admin.py`
+  alongside the existing copy. Full pytest 2889 passed (mirror-sync
+  tests `test_mcp_mirrors_in_sync` + `test_mirror_in_sync` initially
+  failed pre-bootstrap, expected — re-run green after `.claude/` resync).
+
 - **Source directory `agents/` renamed to `harness/` (`v14b-rename-harness`).**
   Eliminates the long-standing collision with Claude Code's native
   `.claude/agents/` namespace (sub-agent profiles). `git mv` preserves
