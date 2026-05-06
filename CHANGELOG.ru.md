@@ -32,6 +32,31 @@
   + полный прогон чисто регенерируют `.claude/`, `.cursor/`, `.qwen/` из
   `harness/`.
 
+### Изменено
+
+- **Дедуп пути `.tausik/config.json` (`v14b-review57-followups` M2).**
+  Новый helper `tausik_utils.tausik_config_path(project_dir)` — единый
+  источник истины, заменяет 8 inline-сайтов
+  `os.path.join(project_dir, ".tausik", "config.json")` в
+  `bootstrap/bootstrap.py`, `bootstrap/bootstrap_modes.py`,
+  `harness/{claude,cursor}/mcp/project/handlers.py` (cq-клиент),
+  `harness/{claude,cursor}/mcp/project/handlers_skill.py` (`_skill_paths`),
+  `scripts/project_cli_extra.py` и
+  `scripts/hooks/session_cleanup_check.py`. Регрессионный тест
+  (`tests/test_tausik_utils.py::test_no_inline_duplicates_in_production`)
+  сканирует `scripts/`, `harness/`, `bootstrap/` и падает на любых
+  будущих inline-дубликатах.
+
+- **`/start --brain` opt-in primer документирует `brain.ignored:` фильтр
+  (`v14b-review57-followups` M1).** `harness/skills/start/SKILL.md`
+  теперь говорит агенту фильтровать page id с префиксом
+  `brain.ignored:` в `tausik_memory_list type=convention` — та же
+  дисциплина, что в /task и /plan. Регрессия в
+  `tests/test_tausik_utils.py` гарантирует, что строка не отвалится.
+
+  /review session #57 L1 (preempt-split `scripts/project_cli_extra.py`
+  до 400-line gate) — no-op: файл оказался 353 строки, ниже порога.
+
 ### Добавлено
 
 - **Структурированный `--evidence-json` для `task done` (`v14b-token-t15-evidence-json`).**

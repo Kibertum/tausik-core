@@ -30,6 +30,31 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   `tausik doctor` clean, bootstrap dry-run + real run regenerate
   `.claude/`, `.cursor/`, `.qwen/` from `harness/` cleanly.
 
+### Changed
+
+- **Dedupe `.tausik/config.json` path construction (`v14b-review57-followups` M2).**
+  New helper `tausik_utils.tausik_config_path(project_dir)` is the single
+  source of truth, replacing 8 inline `os.path.join(project_dir, ".tausik", "config.json")`
+  call-sites across `bootstrap/bootstrap.py`, `bootstrap/bootstrap_modes.py`,
+  `harness/{claude,cursor}/mcp/project/handlers.py` (cq-client lookup),
+  `harness/{claude,cursor}/mcp/project/handlers_skill.py` (`_skill_paths`),
+  `scripts/project_cli_extra.py`, and `scripts/hooks/session_cleanup_check.py`.
+  A regression test (`tests/test_tausik_utils.py::test_no_inline_duplicates_in_production`)
+  scans `scripts/`, `harness/`, `bootstrap/` and fails on any future
+  inline rebuild.
+
+- **`/start --brain` opt-in primer documents the `brain.ignored:` filter
+  (`v14b-review57-followups` M1).** `harness/skills/start/SKILL.md` now
+  tells agents to skip page ids that appear in
+  `tausik_memory_list type=convention` with title prefix
+  `brain.ignored:` — the same dismissal mechanic /task and /plan already
+  honour. A regression test in `tests/test_tausik_utils.py` keeps this
+  pointer present.
+
+  /review session #57 L1 (preempt-split `scripts/project_cli_extra.py`
+  before it crosses the 400-line filesize gate) is a no-op: the file
+  measured 353 lines at follow-up time — well under threshold.
+
 ### Added
 
 - **Structured `--evidence-json` for `task done` (`v14b-token-t15-evidence-json`).**

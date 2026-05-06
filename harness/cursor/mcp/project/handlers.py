@@ -739,7 +739,9 @@ def _dispatch_tool(svc: Any, name: str, args: dict) -> str:
 def _get_cq_client() -> Any:
     """Get cq client from project config. Returns None if not configured."""
     try:
-        config_path = os.path.join(_project_dir(), ".tausik", "config.json")
+        from tausik_utils import tausik_config_path
+
+        config_path = tausik_config_path(_project_dir())
         if not os.path.exists(config_path):
             return None
         with open(config_path, "r", encoding="utf-8") as f:

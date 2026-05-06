@@ -16,6 +16,9 @@ import sys
 # Add bootstrap dir to path
 _bootstrap_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _bootstrap_dir)
+sys.path.insert(0, os.path.join(os.path.dirname(_bootstrap_dir), "scripts"))
+
+from tausik_utils import tausik_config_path  # noqa: E402
 
 from bootstrap_config import (
     ALL_EXTENSION_SKILLS,
@@ -192,7 +195,7 @@ def main() -> None:
     print(f"  Project: {project_dir}")
 
     config, full_cfg = load_bootstrap_config(project_dir, get_ide_target)
-    tausik_config_path = os.path.join(project_dir, ".tausik", "config.json")
+    config_path = tausik_config_path(project_dir)
 
     # v14b-skill-core-cleanup gating decisions (computed once, passed per IDE).
     include_official_stubs = bool(args.include_official or args.include_vendor)
@@ -286,9 +289,9 @@ def main() -> None:
     import json as _json_ct
 
     _cfg_for_tier: dict = {}
-    if os.path.isfile(tausik_config_path):
+    if os.path.isfile(config_path):
         try:
-            with open(tausik_config_path, encoding="utf-8") as _cf:
+            with open(config_path, encoding="utf-8") as _cf:
                 _cfg_for_tier = _json_ct.load(_cf)
         except (_json_ct.JSONDecodeError, OSError):
             _cfg_for_tier = {}
@@ -297,7 +300,7 @@ def main() -> None:
     try:
         context_tier = resolve_context_tier(_cfg_for_tier)
     except ValueError as exc:
-        print(f"Error: {exc} (file: {tausik_config_path})")
+        print(f"Error: {exc} (file: {config_path})")
         sys.exit(1)
 
     for ide in ides:
@@ -336,7 +339,7 @@ def main() -> None:
 
     try:
         save_tausik_config(
-            tausik_config_path,
+            config_path,
             config,
             get_lib_commit(lib_dir),
             stacks,

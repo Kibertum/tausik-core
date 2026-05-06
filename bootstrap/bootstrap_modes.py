@@ -18,6 +18,9 @@ from bootstrap_config import (
     save_tausik_config,
 )
 
+# scripts/ injected on sys.path by bootstrap.py top-level; safe to import here.
+from tausik_utils import tausik_config_path
+
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the bootstrap CLI argparse parser."""
@@ -128,13 +131,13 @@ def run_refresh_mode(
     """Rewrite .tausik/config.json from bootstrap state without copying skills/scripts."""
     tausik_dir = os.path.join(project_dir, ".tausik")
     os.makedirs(tausik_dir, exist_ok=True)
-    tausik_config_path = os.path.join(tausik_dir, "config.json")
+    config_path = tausik_config_path(project_dir)
     _scripts = os.path.join(lib_dir, "scripts")
     if _scripts not in sys.path:
         sys.path.insert(0, _scripts)
     try:
         save_tausik_config(
-            tausik_config_path,
+            config_path,
             config,
             get_lib_commit(lib_dir),
             stacks,
@@ -228,19 +231,19 @@ def load_bootstrap_config(
     """
     from bootstrap_config import DEFAULT_CONFIG, load_config
 
-    tausik_config_path = os.path.join(project_dir, ".tausik", "config.json")
+    config_path = tausik_config_path(project_dir)
     old_config_path = os.path.join(get_ide_target(project_dir, "claude"), ".tausik-bootstrap.json")
     full_cfg: dict[str, Any] = {}
-    if os.path.exists(old_config_path) and not os.path.exists(tausik_config_path):
+    if os.path.exists(old_config_path) and not os.path.exists(config_path):
         return load_config(old_config_path), full_cfg
-    if os.path.exists(tausik_config_path):
+    if os.path.exists(config_path):
         import json as _json
 
         try:
-            with open(tausik_config_path, encoding="utf-8") as _f:
+            with open(config_path, encoding="utf-8") as _f:
                 full_cfg = _json.load(_f)
         except (_json.JSONDecodeError, OSError) as e:
-            print(f"  Warning: config corrupted ({tausik_config_path}): {e} — using defaults")
+            print(f"  Warning: config corrupted ({config_path}): {e} — using defaults")
             full_cfg = {}
         config = full_cfg.get("bootstrap", {})
         if not config:

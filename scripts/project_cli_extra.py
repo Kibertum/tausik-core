@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 from project_service import ProjectService
+from tausik_utils import tausik_config_path
 
 
 def cmd_memory(svc: ProjectService, args: Any) -> None:
@@ -253,7 +254,7 @@ def cmd_skill(svc: ProjectService, args: Any) -> None:
         skills_dst = os.path.join(project_dir, ".claude", "skills")
         lib_skills_dir = os.path.join(project_dir, "harness", "claude", "skills")
 
-    config_path = os.path.join(project_dir, ".tausik", "config.json")
+    config_path = tausik_config_path(project_dir)
 
     if c == "activate":
         print(svc.skill_activate(args.name, vendor_dir, skills_dst, lib_skills_dir, config_path))

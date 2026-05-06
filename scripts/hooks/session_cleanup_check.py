@@ -17,15 +17,18 @@ import re
 import subprocess
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_HOOK_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _HOOK_DIR)
+sys.path.insert(0, os.path.dirname(_HOOK_DIR))  # scripts/ — for tausik_utils
 
 from _common import tausik_path as _tausik_path  # noqa: E402
+from tausik_utils import tausik_config_path  # noqa: E402
 
 
 def _session_warn_min(project_dir: str) -> int:
     import json
 
-    cfg_path = os.path.join(project_dir, ".tausik", "config.json")
+    cfg_path = tausik_config_path(project_dir)
     try:
         with open(cfg_path, encoding="utf-8") as f:
             data = json.load(f)

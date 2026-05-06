@@ -8,6 +8,8 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from tausik_utils import tausik_config_path
+
 
 def _project_dir() -> str:
     """Get project root directory."""
@@ -46,7 +48,7 @@ def _skill_paths() -> dict[str, str]:
         "project_dir": project_dir,
         "vendor_dir": os.path.join(project_dir, ".tausik", "vendor"),
         "tausik_dir": os.path.join(project_dir, ".tausik"),
-        "config_path": os.path.join(project_dir, ".tausik", "config.json"),
+        "config_path": tausik_config_path(project_dir),
         "skills_dst": _get_ide_skills_dir(project_dir),
         "lib_skills": _get_agents_skills_dir(project_dir),
     }

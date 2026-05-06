@@ -63,6 +63,8 @@ brain_search(query="<stack-tags-or-feature-words>", category="patterns", limit=3
 brain_search(query="<same-query>", category="gotchas", limit=3)
 ```
 
+Filter out any page id appearing in `tausik_memory_list type=convention` with title prefix `brain.ignored:` — same pattern as `/task` and `/plan`. The user already dismissed those suggestions; re-surfacing them costs tokens for no signal.
+
 `brain_search` already fails fast (5s timeout) and returns local-only results on Notion failure — never blocks.
 
 If `tausik-brain` MCP is not configured: skip silently, no warning, no fallback. The primer is opt-in by design.

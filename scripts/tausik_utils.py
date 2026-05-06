@@ -3,10 +3,21 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from datetime import datetime, timezone
 from typing import Any
+
+
+def tausik_config_path(project_dir: str) -> str:
+    """Return the canonical path to the project's `.tausik/config.json`.
+
+    Single source of truth used by bootstrap, MCP skill handlers, the CLI
+    extras subparser, and the session-cleanup hook. Pure stdlib — safe to
+    call before venv activation.
+    """
+    return os.path.join(project_dir, ".tausik", "config.json")
 
 
 def fix_stdio_encoding() -> None:
