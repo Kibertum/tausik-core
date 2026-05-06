@@ -18,6 +18,43 @@
 
 ### Изменено
 
+- **Filesize debt paydown: `scripts/service_gates.py` 653 → 368 на три
+  файла (`v14b-service-gates-debt-paydown`).**
+  Финальный filesize-debt кандидат в v1.4-tail треде (после
+  `tools_extra` / `project_backend` / `bootstrap_copy` / `brain_init`).
+  `service_gates.py` нёс 253 строки сверх 400-строчного gate'а. Сплит
+  по ответственности, не по количеству строк (Pattern #91): QG-0
+  Context Gate (`check_qg0_start` плюс кортежи ключевых слов
+  `SECURITY_KEYWORDS` и `SECURITY_AC_KEYWORDS`, к которым он
+  обращается) вынесен в новый `scripts/gate_qg0_check.py` (171
+  строка); QG-2 хелперы для acceptance criteria, завершения плана и
+  SENAR Rule 5 checklist (`verify_ac`, `verify_plan_complete`,
+  `determine_checklist_tier`, `check_verification_checklist`)
+  вынесены в новый `scripts/gate_ac_check.py` (223 строки) как
+  чистые функции, которые принимают task dict и возвращают
+  предупреждения либо поднимают `ServiceError`. Verify-pipeline и
+  методы Verify-First Contract остались в `service_gates.py`,
+  поскольку зависят от `self.be._conn` / `self.be.task_append_notes`.
+  `GatesMixin` сохраняет те же публичные имена методов
+  (`_check_qg0_start`, `_verify_ac`, `_verify_plan_complete`,
+  `_determine_checklist_tier`, `_check_verification_checklist`) —
+  они теперь делегаторы из 2-3 строк. `_check_qg0_start` пробрасывает
+  опциональные коллбэки `audit_check` / `session_check_duration`
+  через `getattr(self, ..., None)` вместо прежнего внутреннего
+  `try/except (AttributeError, ...)` — так чистая функция работает
+  за пределами `ProjectService` (например, на голых экземплярах
+  `GatesMixin` в юнит-тестах). Обратная совместимость сохранена:
+  `from service_gates import SECURITY_KEYWORDS`,
+  `SECURITY_AC_KEYWORDS`, `has_negative_scenario`,
+  `NEGATIVE_SCENARIO_KEYWORDS`, `qg0_dimensions_score` и
+  `check_qg0_start` продолжают работать через re-export с
+  `# noqa: F401`. Результат: полный pytest зелёный (2889 passed /
+  7 skipped / 120 deselected); 244 тестов на гейты прицельно
+  зелёные; ruff + mypy чистые на трёх файлах; filesize gate PASS
+  для `service_gates.py` (368 < 400) без exemption. Массив
+  `exempt_files` в filesize-gate остаётся пустым — весь debt-тред
+  структурно чист.
+
 - **Filesize debt paydown: `scripts/brain_init.py` 722 → 367 на четыре
   файла (`v14b-followup-brain-init-filesize-debt`).**
   У модуля brain init wizard висел липкий 322-строчный exempt в

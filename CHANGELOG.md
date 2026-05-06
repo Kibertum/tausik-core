@@ -16,6 +16,42 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Filesize debt paydown: `scripts/service_gates.py` 653 → 368 over
+  three files (`v14b-service-gates-debt-paydown`).**
+  Final filesize-debt candidate of the v1.4-tail thread (after
+  `tools_extra` / `project_backend` / `bootstrap_copy` / `brain_init`).
+  `service_gates.py` carried 253 lines over the 400-line gate. Split
+  by responsibility, not line count (Pattern #91): the QG-0 Context
+  Gate (`check_qg0_start` plus the `SECURITY_KEYWORDS` and
+  `SECURITY_AC_KEYWORDS` keyword tuples it consults) extracted to a
+  new `scripts/gate_qg0_check.py` (171 lines); the QG-2 acceptance-
+  criteria, plan-completion, and SENAR Rule 5 checklist helpers
+  (`verify_ac`, `verify_plan_complete`, `determine_checklist_tier`,
+  `check_verification_checklist`) extracted to a new
+  `scripts/gate_ac_check.py` (223 lines) as pure free functions that
+  take the task dict and return warnings or raise `ServiceError`.
+  Verify-pipeline + Verify-First Contract methods stayed in
+  `service_gates.py` because they depend on `self.be._conn` /
+  `self.be.task_append_notes`. `GatesMixin` keeps the same public
+  method names (`_check_qg0_start`, `_verify_ac`,
+  `_verify_plan_complete`, `_determine_checklist_tier`,
+  `_check_verification_checklist`) — they're now 2-3 line delegators.
+  `_check_qg0_start` threads optional `audit_check` /
+  `session_check_duration` callbacks via `getattr(self, ..., None)`
+  instead of the prior in-method `try/except (AttributeError, ...)`,
+  so the pure function works outside `ProjectService` (e.g. on
+  bare `GatesMixin` instances in unit tests). Backward compatibility
+  preserved: `from service_gates import SECURITY_KEYWORDS`,
+  `SECURITY_AC_KEYWORDS`, `has_negative_scenario`,
+  `NEGATIVE_SCENARIO_KEYWORDS`, `qg0_dimensions_score`, and
+  `check_qg0_start` all still work via `# noqa: F401` re-exports.
+  Result: full pytest suite green (2889 passed / 7 skipped /
+  120 deselected); 244 gate-related tests focused-pass; ruff + mypy
+  clean across the three files; filesize gate PASS for
+  `service_gates.py` (368 < 400) without exemption. The v1.4-tail
+  filesize-gate `exempt_files` array stays empty — the entire debt
+  thread is structurally clean.
+
 - **Filesize debt paydown: `scripts/brain_init.py` 722 → 367 over four
   files (`v14b-followup-brain-init-filesize-debt`).**
   The brain init wizard module had a sticky 322-line filesize-gate
