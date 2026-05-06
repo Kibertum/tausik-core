@@ -16,6 +16,32 @@
 - **Compound RPC `tausik_session_open` для Phase 1 `/start` (`v14b-session-open-compound-rpc-impl`).**
   Один MCP-вызов возвращает JSON-конверт `{session, status, handoff, tasks{active,blocked}, self_check}` — замещает 5 последовательных вызовов (session_start + status compact + last_handoff + task_list active+blocked + self_check) одним round-trip'ом. Каждая под-секция best-effort: при сбое sub-вызова в секцию вставляется inline `error`-ключ, но envelope не падает — `/start` рендерит degraded dashboard. Счёт MCP-инструментов: 99 → 100 (93 project + 7 brain). Phase 1 в SKILL.md схлопнут с "5 параллельных вызовов" до "1 compound call"; CLI fallback при `self_check.drift_detected=true` сохранён.
 
+- **Translation-drift audit: skip-маркер + учёт code-fence'ов (`v14b-audit-translation-skip-marker`).**
+  Два улучшения `scripts/audit_translation_drift.py`, закрывающие
+  оставшиеся 3 отложенные пары без принудительной structural parity
+  на намеренно сокращённых документах. (a) Audit теперь учитывает
+  HTML-комментарий `<!-- audit-translation-drift: skip -->`,
+  размещённый в любой стороне пары — такие пары перечисляются в
+  новой секции "Intentionally abbreviated" и исключаются из подсчёта
+  drift'а (и из --check exit-1 триггера). Маркер добавлен в три RU
+  саммари, которые уже явно ссылаются на полную EN-версию:
+  `docs/ru/claude-md-guide.md`, `docs/ru/brain-db-schema.md`,
+  `docs/ru/environment.md`. (b) Regex заголовков теперь вырезает
+  fenced-code-блоки перед подсчётом — строки `# BAD` / `# GOOD`
+  внутри ` ```markdown ... ``` ` примеров больше не считаются за
+  заголовки документа (false-positive, который раньше раздувал EN
+  heading count в tutorial-style документах). `audit_pairs()`
+  возвращает 4-кортеж `(drifts, en_only, ru_only, abbreviated)`;
+  рендереры принимают новый опциональный `abbreviated` арг и
+  добавляют секцию "Intentionally abbreviated". Тесты: +7 кейсов
+  (skip marker EN/RU стороны, исключение заголовков в code-fence'е,
+  fence-close sanity, рендеринг abbreviated, --check exit-0 при
+  только abbreviated парах, has_skip_marker форма) — pytest 2903 →
+  2910 passed; ruff + mypy чистые. Финальное состояние audit'а:
+  нулевой paired drift, 3 intentionally abbreviated, 4 EN-only + 1
+  RU-only unpaired (информационно). Полный v14b RU-mirror sweep
+  (8 изначально drift'нувших пар) теперь закрыт тремя коммитами.
+
 - **Подбивка RU-зеркал, batch 2: 2 из 5 отложенных пар закрыты bilaterally (`v14b-ru-mirror-sync-batch-2`).**
   Второй проход по drift-отчёту. Закрыто bilaterally:
   `architecture.md` (Δ-2 hd / +2 tbl) — удалена broken пустая 3-кол

@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 from audit_translation_drift import (  # noqa: E402
     audit_pairs,
     count_metrics,
+    has_skip_marker,
     main,
     render_json,
     render_markdown,
@@ -64,7 +65,7 @@ def test_perfect_match_no_drift(fake_repo: Path) -> None:
     body = "# T\n## S\n```py\nx=1\n```\n"
     _write(fake_repo, "en", "matched.md", body)
     _write(fake_repo, "ru", "matched.md", body)
-    drifts, en_only, ru_only = audit_pairs(fake_repo)
+    drifts, en_only, ru_only, _abbreviated = audit_pairs(fake_repo)
     assert drifts == []
     assert en_only == []
     assert ru_only == []
@@ -73,7 +74,7 @@ def test_perfect_match_no_drift(fake_repo: Path) -> None:
 def test_heading_mismatch_flags_drift(fake_repo: Path) -> None:
     _write(fake_repo, "en", "h.md", "# A\n## B\n### C\n")
     _write(fake_repo, "ru", "h.md", "# A\n")
-    drifts, _, _ = audit_pairs(fake_repo)
+    drifts, _, _, _ = audit_pairs(fake_repo)
     assert len(drifts) == 1
     assert drifts[0].basename == "h.md"
     assert drifts[0].deltas()["headings"] == 2  # EN has 2 more
@@ -84,7 +85,7 @@ def test_code_block_mismatch_flags_drift(fake_repo: Path) -> None:
     ru_body = "# T\n```py\nx=1\n```\n"
     _write(fake_repo, "en", "c.md", en_body)
     _write(fake_repo, "ru", "c.md", ru_body)
-    drifts, _, _ = audit_pairs(fake_repo)
+    drifts, _, _, _ = audit_pairs(fake_repo)
     assert len(drifts) == 1
     assert drifts[0].deltas()["code_blocks"] == 1  # one extra logical block on EN
 
@@ -94,7 +95,7 @@ def test_table_mismatch_flags_drift(fake_repo: Path) -> None:
     ru_body = "# T\n\n| a | b |\n|---|---|\n| 1 | 2 |\n"
     _write(fake_repo, "en", "t.md", en_body)
     _write(fake_repo, "ru", "t.md", ru_body)
-    drifts, _, _ = audit_pairs(fake_repo)
+    drifts, _, _, _ = audit_pairs(fake_repo)
     assert len(drifts) == 1
     assert drifts[0].deltas()["tables"] == 1
 
@@ -104,7 +105,7 @@ def test_unpaired_categorisation(fake_repo: Path) -> None:
     _write(fake_repo, "ru", "shared.md", "# T\n")
     _write(fake_repo, "en", "en-only.md", "# T\n")
     _write(fake_repo, "ru", "ru-only.md", "# T\n")
-    drifts, en_only, ru_only = audit_pairs(fake_repo)
+    drifts, en_only, ru_only, _abbreviated = audit_pairs(fake_repo)
     assert drifts == []
     assert en_only == ["en-only.md"]
     assert ru_only == ["ru-only.md"]
@@ -118,7 +119,7 @@ def test_render_markdown_no_drift_message(fake_repo: Path) -> None:
 def test_render_markdown_drift_table(fake_repo: Path) -> None:
     _write(fake_repo, "en", "x.md", "# A\n## B\n")
     _write(fake_repo, "ru", "x.md", "# A\n")
-    drifts, _, _ = audit_pairs(fake_repo)
+    drifts, _, _, _ = audit_pairs(fake_repo)
     out = render_markdown(drifts, [], [])
     assert "structural drift" in out
     assert "`x.md`" in out
@@ -128,7 +129,7 @@ def test_render_markdown_drift_table(fake_repo: Path) -> None:
 def test_render_json_shape(fake_repo: Path) -> None:
     _write(fake_repo, "en", "x.md", "# A\n## B\n")
     _write(fake_repo, "ru", "x.md", "# A\n")
-    drifts, en_only, ru_only = audit_pairs(fake_repo)
+    drifts, en_only, ru_only, _abbreviated = audit_pairs(fake_repo)
     out = render_json(drifts, en_only, ru_only)
     import json
 
@@ -182,3 +183,102 @@ def test_main_json_mode_emits_valid_json(
     import json
 
     json.loads(out)  # raises if invalid
+
+
+def test_has_skip_marker_detects_marker() -> None:
+    assert has_skip_marker("foo\n<!-- audit-translation-drift: skip -->\nbar")
+    assert has_skip_marker("<!--audit-translation-drift:skip-->")  # no spaces
+    assert not has_skip_marker("# Title\n\nNo marker here.")
+    assert not has_skip_marker("<!-- some other comment -->")
+
+
+def test_count_metrics_ignores_headings_inside_code_fence() -> None:
+    """Lines like '# BAD' inside ``` ... ``` markdown examples must not count."""
+    text = (
+        "# Real H1\n"
+        "## Real H2\n"
+        "\n"
+        "```markdown\n"
+        "# BAD\n"
+        "## fake heading inside fence\n"
+        "### another fake\n"
+        "```\n"
+        "\n"
+        "## Real H2 number two\n"
+    )
+    m = count_metrics(text)
+    assert m.headings == 3  # only the 3 real headings outside the fence
+    assert m.code_blocks == 2  # open + close fence
+
+
+def test_skip_marker_in_ru_excludes_pair_from_drift(fake_repo: Path) -> None:
+    """RU-side skip marker → pair NOT in drifts list, IS in abbreviated list."""
+    _write(fake_repo, "en", "abbr.md", "# A\n## B\n### C\n")
+    _write(
+        fake_repo,
+        "ru",
+        "abbr.md",
+        "<!-- audit-translation-drift: skip -->\n\n# Краткая версия\n",
+    )
+    drifts, en_only, ru_only, abbreviated = audit_pairs(fake_repo)
+    assert drifts == []
+    assert abbreviated == ["abbr.md"]
+    assert en_only == [] and ru_only == []
+
+
+def test_skip_marker_in_en_excludes_pair_from_drift(fake_repo: Path) -> None:
+    """EN-side skip marker also opts the pair out (symmetric behavior)."""
+    _write(
+        fake_repo,
+        "en",
+        "abbr.md",
+        "<!-- audit-translation-drift: skip -->\n\n# A\n",
+    )
+    _write(fake_repo, "ru", "abbr.md", "# A\n## B\n### C\n")
+    drifts, _en_only, _ru_only, abbreviated = audit_pairs(fake_repo)
+    assert drifts == []
+    assert abbreviated == ["abbr.md"]
+
+
+def test_main_check_exits_zero_with_only_abbreviated_pairs(fake_repo: Path) -> None:
+    """Abbreviated pairs alone must NOT trigger --check exit 1."""
+    _write(
+        fake_repo,
+        "en",
+        "abbr.md",
+        "# A\n## B\n### C\n",
+    )
+    _write(
+        fake_repo,
+        "ru",
+        "abbr.md",
+        "<!-- audit-translation-drift: skip -->\n\n# Краткая\n",
+    )
+    rc = main(["--check", "--repo-root", str(fake_repo)])
+    assert rc == 0
+
+
+def test_render_markdown_lists_abbreviated_section(fake_repo: Path) -> None:
+    _write(
+        fake_repo,
+        "en",
+        "abbr.md",
+        "# A\n## B\n",
+    )
+    _write(
+        fake_repo,
+        "ru",
+        "abbr.md",
+        "<!-- audit-translation-drift: skip -->\n\n# Краткая\n",
+    )
+    drifts, en_only, ru_only, abbreviated = audit_pairs(fake_repo)
+    out = render_markdown(drifts, en_only, ru_only, abbreviated)
+    assert "Intentionally abbreviated" in out
+    assert "`abbr.md`" in out
+
+
+def test_heading_after_closing_fence_still_counted(fake_repo: Path) -> None:
+    """Sanity: regex must close the fence properly, not eat the rest of the file."""
+    text = "# Before\n\n```py\nx = 1\n```\n\n## After\n"
+    m = count_metrics(text)
+    assert m.headings == 2  # both # Before and ## After

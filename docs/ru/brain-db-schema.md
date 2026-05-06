@@ -1,5 +1,7 @@
 [English](../en/brain-db-schema.md) | **Русский**
 
+<!-- audit-translation-drift: skip -->
+
 # Brain Notion Databases — Схема v1
 
 Design-doc подсистемы `shared-brain`. Фиксирует структуру 4 Notion databases, которые образуют кросс-проектную базу знаний TAUSIK: `decisions`, `web_cache`, `patterns`, `gotchas`. Все проекты пишут сюда обобщаемые знания; приватная «суть» проекта остаётся в локальной `.tausik/tausik.db`.

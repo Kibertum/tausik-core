@@ -1,5 +1,7 @@
 [English](../en/claude-md-guide.md) | **Русский**
 
+<!-- audit-translation-drift: skip -->
+
 # Как написать эффективный CLAUDE.md
 
 > Полный гайд на английском в [claude-md-guide.md](../en/claude-md-guide.md). Здесь приводится сокращённая версия.

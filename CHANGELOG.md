@@ -14,6 +14,33 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - **Compound RPC `tausik_session_open` for `/start` Phase 1 (`v14b-session-open-compound-rpc-impl`).**
   Single MCP call returns one JSON envelope with `{session, status, handoff, tasks{active,blocked}, self_check}` — replaces 5 sequential calls (session_start + status compact + last_handoff + task_list active+blocked + self_check) with one round-trip. Each sub-section is best-effort: a sub-call failure surfaces an inline `error` key without aborting the envelope, so `/start` still renders a degraded dashboard. MCP tool count: 99 → 100 (93 project + 7 brain). `/start` SKILL.md Phase 1 collapses from "5 parallel tools" to "single compound call"; drift fallback to CLI on `self_check.drift_detected=true` is preserved.
 
+- **Translation-drift audit: skip-marker + code-fence awareness (`v14b-audit-translation-skip-marker`).**
+  Two improvements to `scripts/audit_translation_drift.py` that close
+  the remaining 3 deferred pairs from the RU-mirror sweep without
+  forcing structural parity on intentionally-abbreviated docs. (a)
+  The audit now honors an HTML comment marker
+  `<!-- audit-translation-drift: skip -->` placed in either side of
+  a pair — those pairs are listed in a new "Intentionally abbreviated"
+  section and excluded from drift counting (and from `--check` exit-1
+  triggering). The marker is added to the three RU summaries that
+  already explicitly point to the long-form EN doc:
+  `docs/ru/claude-md-guide.md`, `docs/ru/brain-db-schema.md`,
+  `docs/ru/environment.md`. (b) The heading regex now strips fenced
+  code blocks before counting — `# BAD` / `# GOOD` lines inside
+  ` ```markdown ... ``` ` examples no longer count as document
+  headings (false positive that previously inflated EN heading counts
+  in tutorial-style docs). `audit_pairs()` now returns a 4-tuple
+  `(drifts, en_only, ru_only, abbreviated)`; renderers accept the
+  new optional `abbreviated` arg and add an "Intentionally
+  abbreviated" section. Tests: +7 cases (skip marker EN/RU side,
+  code-fence heading exclusion, fence-close sanity, abbreviated
+  list-rendering, --check exit-0 with only abbreviated pairs,
+  has_skip_marker shape) — pytest 2903 → 2910 passed; ruff + mypy
+  clean. Final audit state: zero paired drift, 3 intentionally
+  abbreviated, 4 EN-only + 1 RU-only unpaired (informational). The
+  full v14b RU-mirror sweep (8 originally drifted pairs) now closes
+  out across 3 commits.
+
 - **RU-mirror sweep batch 2: 2 of 5 deferred pairs cleared bilaterally (`v14b-ru-mirror-sync-batch-2`).**
   Second pass through the drift report. Resolved bilaterally:
   `architecture.md` (Δ-2 hd / +2 tbl) — removed a broken empty 3-col

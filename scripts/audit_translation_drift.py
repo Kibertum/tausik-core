@@ -3,9 +3,14 @@
 Reports structural drift between EN/RU mirror docs (``docs/en/foo.md`` ↔
 ``docs/ru/foo.md``). Compares three coarse metrics per pair:
 
-- ATX heading count (``#``..``######`` lines)
+- ATX heading count (``#``..``######`` lines, **outside fenced code blocks**)
 - Fenced code-block count (lines starting with three backticks)
 - Markdown-table count (separator rows like ``|---|---|``)
+
+Pairs whose EN or RU side carries
+``<!-- audit-translation-drift: skip -->`` are listed under
+"Intentionally abbreviated" rather than counted as drift — use this marker
+on RU summaries that explicitly point readers to the long-form EN doc.
 
 Not a semantic / NLP comparison — surfaces stale RU mirrors after EN edits
 without blocking commits. Pattern follows ``scripts/audit_stale_docs.py``
@@ -33,6 +38,8 @@ RU_DIR = "docs/ru"
 _HEADING_RE = re.compile(r"^#{1,6}\s", re.MULTILINE)
 _CODE_FENCE_RE = re.compile(r"^\s*```", re.MULTILINE)
 _TABLE_SEP_RE = re.compile(r"^\s*\|[\s\-:|]+\|\s*$", re.MULTILINE)
+_SKIP_MARKER_RE = re.compile(r"<!--\s*audit-translation-drift:\s*skip\s*-->")
+_FENCED_BLOCK_RE = re.compile(r"^```.*?^```", re.MULTILINE | re.DOTALL)
 
 
 class Metrics(NamedTuple):
@@ -64,18 +71,42 @@ class Drift(NamedTuple):
         return any(d != 0 for d in self.deltas().values())
 
 
+def _strip_fenced_blocks(text: str) -> str:
+    """Remove fenced code blocks (between triple backticks) before heading counting.
+
+    Headings *inside* code fences are markdown examples (e.g. ``# BAD`` lines
+    inside a `` ```markdown ... ``` `` block), not real document sections, so
+    they must not contribute to structural drift. Fences themselves and any
+    table separators inside them are still counted via the unmodified text.
+    """
+    return _FENCED_BLOCK_RE.sub("", text)
+
+
 def count_metrics(text: str) -> Metrics:
     """Count structural markers in markdown text.
 
-    Note: code_blocks counts raw fence-line occurrences; pairs (open+close)
-    are normalized to a logical block count via integer-divide-by-2 inside
-    :meth:`Drift.deltas` so an unmatched fence on one side still surfaces.
+    Headings are counted only OUTSIDE fenced code blocks. Code-block fences
+    and table separators are counted on the raw text. ``code_blocks`` is
+    raw fence-line occurrences; pairs (open+close) are normalized to a
+    logical block count via integer-divide-by-2 inside :meth:`Drift.deltas`
+    so an unmatched fence on one side still surfaces.
     """
+    text_no_fences = _strip_fenced_blocks(text)
     return Metrics(
-        headings=len(_HEADING_RE.findall(text)),
+        headings=len(_HEADING_RE.findall(text_no_fences)),
         code_blocks=len(_CODE_FENCE_RE.findall(text)),
         tables=len(_TABLE_SEP_RE.findall(text)),
     )
+
+
+def has_skip_marker(text: str) -> bool:
+    """True if the doc carries ``<!-- audit-translation-drift: skip -->``.
+
+    The marker opts a pair out of structural-drift checks. Use it on
+    intentionally-abbreviated mirrors that explicitly point readers to the
+    full version (e.g. RU summaries that link out to the long-form EN doc).
+    """
+    return bool(_SKIP_MARKER_RE.search(text))
 
 
 def _list_basenames(dir_path: Path) -> set[str]:
@@ -96,20 +127,37 @@ def _pair_files(
     return paired, en_only, ru_only
 
 
-def audit_pairs(repo_root: Path) -> tuple[list[Drift], list[str], list[str]]:
-    """Compare every paired basename and return drift list + unpaired sets."""
+def audit_pairs(
+    repo_root: Path,
+) -> tuple[list[Drift], list[str], list[str], list[str]]:
+    """Compare every paired basename. Returns ``(drifts, en_only, ru_only, abbreviated)``.
+
+    ``abbreviated`` lists basenames where either side carries the skip marker
+    — those pairs are NOT counted as drift even when their structural metrics
+    differ.
+    """
     paired, en_only, ru_only = _pair_files(repo_root)
     drifts: list[Drift] = []
+    abbreviated: list[str] = []
     for name in paired:
         en_text = (repo_root / EN_DIR / name).read_text(encoding="utf-8")
         ru_text = (repo_root / RU_DIR / name).read_text(encoding="utf-8")
+        if has_skip_marker(en_text) or has_skip_marker(ru_text):
+            abbreviated.append(name)
+            continue
         d = Drift(basename=name, en=count_metrics(en_text), ru=count_metrics(ru_text))
         if d.has_drift():
             drifts.append(d)
-    return drifts, en_only, ru_only
+    return drifts, en_only, ru_only, abbreviated
 
 
-def render_markdown(drifts: list[Drift], en_only: list[str], ru_only: list[str]) -> str:
+def render_markdown(
+    drifts: list[Drift],
+    en_only: list[str],
+    ru_only: list[str],
+    abbreviated: list[str] | None = None,
+) -> str:
+    abbreviated = abbreviated or []
     lines = ["# Translation-drift audit (`docs/en` ↔ `docs/ru`)\n"]
     if not drifts:
         lines.append("No structural drift detected on paired mirrors. (OK)\n")
@@ -132,6 +180,14 @@ def render_markdown(drifts: list[Drift], en_only: list[str], ru_only: list[str])
             "behind a recent EN edit); negative = RU has more."
         )
         lines.append("")
+    if abbreviated:
+        lines.append("## Intentionally abbreviated (skip marker present)\n")
+        lines.append(
+            f"{len(abbreviated)} pair(s) carry "
+            "`<!-- audit-translation-drift: skip -->` — not counted as drift:"
+        )
+        lines.append(", ".join("`" + n + "`" for n in abbreviated))
+        lines.append("")
     if en_only or ru_only:
         lines.append("## Unpaired files (informational, not drift)\n")
         if en_only:
@@ -144,6 +200,12 @@ def render_markdown(drifts: list[Drift], en_only: list[str], ru_only: list[str])
         "- Compares ATX heading count, fenced-code-block count, and markdown-table-separator count."
     )
     lines.append(
+        "- Headings inside fenced code blocks (`# BAD` / `# GOOD` examples in `````markdown` fences) are excluded."
+    )
+    lines.append(
+        "- Files carrying `<!-- audit-translation-drift: skip -->` are listed under 'Intentionally abbreviated' and excluded from drift counting."
+    )
+    lines.append(
         "- Structural only: no word-by-word translation check, no NLP, no semantic comparison."
     )
     lines.append(
@@ -152,7 +214,12 @@ def render_markdown(drifts: list[Drift], en_only: list[str], ru_only: list[str])
     return "\n".join(lines) + "\n"
 
 
-def render_json(drifts: list[Drift], en_only: list[str], ru_only: list[str]) -> str:
+def render_json(
+    drifts: list[Drift],
+    en_only: list[str],
+    ru_only: list[str],
+    abbreviated: list[str] | None = None,
+) -> str:
     payload = {
         "drifts": [
             {
@@ -165,6 +232,7 @@ def render_json(drifts: list[Drift], en_only: list[str], ru_only: list[str]) -> 
         ],
         "en_only": en_only,
         "ru_only": ru_only,
+        "abbreviated": abbreviated or [],
     }
     return json.dumps(payload, indent=2, ensure_ascii=False)
 
@@ -200,11 +268,11 @@ def main(argv: list[str] | None = None) -> int:
             here,
         )
 
-    drifts, en_only, ru_only = audit_pairs(root)
+    drifts, en_only, ru_only, abbreviated = audit_pairs(root)
     print(
-        render_json(drifts, en_only, ru_only)
+        render_json(drifts, en_only, ru_only, abbreviated)
         if args.json
-        else render_markdown(drifts, en_only, ru_only)
+        else render_markdown(drifts, en_only, ru_only, abbreviated)
     )
 
     if args.check and drifts:
