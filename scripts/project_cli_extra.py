@@ -14,7 +14,11 @@ def cmd_memory(svc: ProjectService, args: Any) -> None:
     if c == "add":
         print(svc.memory_add(args.mem_type, args.title, args.content, args.tags, args.task))
     elif c == "list":
-        rows = svc.memory_list(args.mem_type, args.limit)
+        rows = svc.memory_list(
+            args.mem_type,
+            args.limit,
+            include_archived=getattr(args, "include_archived", False),
+        )
         if not rows:
             print("  (no memories)")
             return
@@ -25,14 +29,19 @@ def cmd_memory(svc: ProjectService, args: Any) -> None:
                     tags = " " + ", ".join(json.loads(r["tags"]))
                 except (json.JSONDecodeError, TypeError):
                     pass
-            print(f"  #{r['id']} [{r['type']}] {r['title']}{tags}")
+            arch = " [archived]" if r.get("archived_at") else ""
+            print(f"  #{r['id']} [{r['type']}] {r['title']}{tags}{arch}")
     elif c == "search":
-        rows = svc.memory_search(args.query)
+        rows = svc.memory_search(
+            args.query,
+            include_archived=getattr(args, "include_archived", False),
+        )
         if not rows:
             print("  No results.")
             return
         for r in rows:
-            print(f"  #{r['id']} [{r['type']}] {r['title']}")
+            arch = " [archived]" if r.get("archived_at") else ""
+            print(f"  #{r['id']} [{r['type']}] {r['title']}{arch}")
     elif c == "show":
         r = svc.memory_show(args.id)
         print(f"#{r['id']} [{r['type']}] {r['title']}")
@@ -105,6 +114,49 @@ def cmd_memory(svc: ProjectService, args: Any) -> None:
     elif c == "compact":
         output = svc.memory_compact(last_n=args.last_n)
         print(output if output else "No task logs yet.")
+    elif c == "archive":
+        result = svc.memory_archive(args.before, confirm=bool(args.confirm))
+        days = result["before_days"]
+        if result["applied"]:
+            print(
+                f"Memory archive: archived {result['archived']} rows older than "
+                f"{days} days. Hidden from `memory list` by default; use "
+                f"`--include-archived` to see them."
+            )
+            return
+        cands = result.get("candidates", [])
+        if not cands:
+            print(f"Memory archive (dry-run): no unarchived rows older than {days} days.")
+            return
+        print(
+            f"Memory archive (dry-run): {len(cands)} rows older than {days} days "
+            f"would be archived. Re-run with `--confirm` to apply."
+        )
+        for r in cands[:50]:
+            title = r.get("title") or ""
+            if len(title) > 60:
+                title = title[:57] + "..."
+            print(f"  #{r['id']:<5} [{r['type']:<10}] {r['created_at']}  {title}")
+        if len(cands) > 50:
+            print(f"  ... and {len(cands) - 50} more")
+    elif c == "dedupe":
+        suggestions = svc.memory_dedupe(threshold=args.threshold, n=args.limit)
+        if not suggestions:
+            print(
+                f"Memory dedupe: no pairs above threshold {args.threshold:.2f} "
+                f"in the last {args.limit} unarchived rows."
+            )
+            return
+        print(
+            f"Memory dedupe: {len(suggestions)} pair(s) above {args.threshold:.2f} similarity. "
+            "Review then merge with `memory delete <id>` after consolidating."
+        )
+        for s in suggestions:
+            ta = s["title_a"][:40]
+            tb = s["title_b"][:40]
+            print(
+                f'  {s["ratio"]:.3f} [{s["type"]:<10}] #{s["id_a"]} "{ta}"  ↔  #{s["id_b"]} "{tb}"'
+            )
 
 
 def cmd_update_claudemd(svc: ProjectService, args: Any) -> None:
@@ -288,8 +340,34 @@ def cmd_skill(svc: ProjectService, args: Any) -> None:
         print(svc.skill_uninstall(args.name, skills_dst, config_path))
     elif c == "repo":
         _cmd_skill_repo(args, vendor_dir, config_path)
+    elif c == "catalog":
+        _cmd_skill_catalog(svc, args, vendor_dir, config_path)
     else:
-        print("Usage: tausik skill [activate|deactivate|list|install|uninstall|repo]")
+        print("Usage: tausik skill [activate|deactivate|list|install|uninstall|repo|catalog]")
+
+
+def _cmd_skill_catalog(svc: ProjectService, args: Any, vendor_dir: str, config_path: str) -> None:
+    """Print discovery catalog: name / category / repo / description."""
+    repo_name = getattr(args, "repo", None)
+    rows = svc.skill_catalog(vendor_dir, repo_name=repo_name, config_path=config_path)
+    if getattr(args, "as_json", False):
+        print(json.dumps(rows, ensure_ascii=False, indent=2))
+        return
+    if not rows:
+        if repo_name:
+            print(f"  (no skills found in repo '{repo_name}')")
+        else:
+            print("  (no skill repos cloned — try `tausik skill repo add <url>`)")
+        return
+    name_w = max(len("name"), max(len(r["name"]) for r in rows))
+    cat_w = max(len("category"), max(len(r.get("category") or "") for r in rows))
+    repo_w = max(len("repo"), max(len(r["repo"]) for r in rows))
+    print(f"  {'name':<{name_w}}  {'category':<{cat_w}}  {'repo':<{repo_w}}  description")
+    print(f"  {'-' * name_w}  {'-' * cat_w}  {'-' * repo_w}  -----------")
+    for r in rows:
+        cat = r.get("category") or ""
+        desc = (r.get("description") or "").splitlines()[0][:80]
+        print(f"  {r['name']:<{name_w}}  {cat:<{cat_w}}  {r['repo']:<{repo_w}}  {desc}")
 
 
 def _cmd_skill_repo(args: Any, vendor_dir: str, config_path: str) -> None:

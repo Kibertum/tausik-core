@@ -181,6 +181,23 @@ TOOLS_EXTRA = [
         "description": "List configured skill repositories and their available skills",
         "inputSchema": {"type": "object", "properties": {}},
     },
+    {
+        "name": "tausik_skill_catalog",
+        "description": "Discovery: list skills offered by configured/cloned skill repos. Optional repo filter; optional JSON output.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "repo": {
+                    "type": "string",
+                    "description": "Repo name (see tausik_skill_repo_list). Omit to list all repos.",
+                },
+                "as_json": {
+                    "type": "boolean",
+                    "description": "Return JSON instead of human-readable text. Default false.",
+                },
+            },
+        },
+    },
     # === Maintenance ===
     {
         "name": "tausik_update_claudemd",

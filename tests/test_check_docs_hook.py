@@ -27,11 +27,16 @@ def _run(cwd: Path, env_extra: dict[str, str] | None = None) -> subprocess.Compl
     env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
     if env_extra:
         env.update(env_extra)
+    # Match the child's PYTHONIOENCODING so non-ASCII drift output (em-dashes,
+    # arrows) doesn't crash decode on Windows where the parent's locale would
+    # otherwise default to cp1252.
     return subprocess.run(
         [str(PYTHON), str(HOOK)],
         cwd=str(cwd),
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         env=env,
     )
 
@@ -50,9 +55,15 @@ class TestDriftDetected:
         (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\nversion = "9.9.9"\n')
         scripts = tmp_path / "scripts"
         scripts.mkdir()
-        # Copy the real generator + helper so the hook can call them
+        # Copy the real generator + helper so the hook can call them.
+        # Both encoding= calls are required: the sources contain non-ASCII
+        # (em-dashes, arrows) and Path.write_text without encoding defaults
+        # to the locale codec on Windows (cp1252) and crashes.
         for name in ("gen_doc_constants.py", "mcp_tool_counts.py"):
-            (scripts / name).write_text((REPO / "scripts" / name).read_text(encoding="utf-8"))
+            (scripts / name).write_text(
+                (REPO / "scripts" / name).read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
         # Stale constants.json (different version)
         gen_dir = tmp_path / "docs" / "_generated"
         gen_dir.mkdir(parents=True)

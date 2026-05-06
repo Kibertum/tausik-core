@@ -85,6 +85,10 @@ TOOLS = [
                     "type": "integer",
                     "description": "Max tasks to return (default: all)",
                 },
+                "include_archived": {
+                    "type": "boolean",
+                    "description": "Include soft-archived tasks (archived_at IS NOT NULL). Default false.",
+                },
             },
         },
     },
@@ -551,7 +555,13 @@ TOOLS = [
         "description": "Search project memory via FTS5 full-text search. Returns matching memories with relevance ranking",
         "inputSchema": {
             "type": "object",
-            "properties": {"query": {"type": "string"}},
+            "properties": {
+                "query": {"type": "string"},
+                "include_archived": {
+                    "type": "boolean",
+                    "description": "Include soft-archived rows. Default false.",
+                },
+            },
             "required": ["query"],
         },
     },
@@ -566,6 +576,45 @@ TOOLS = [
                     "enum": ["pattern", "gotcha", "convention", "context", "dead_end"],
                 },
                 "limit": {"type": "integer"},
+                "include_archived": {
+                    "type": "boolean",
+                    "description": "Include soft-archived rows. Default false.",
+                },
+            },
+        },
+    },
+    {
+        "name": "tausik_memory_archive",
+        "description": "Soft-archive memory rows older than `before` (e.g. '90d', '12w', '2m', '1y'). Dry-run unless confirm=true. Idempotent.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "before": {
+                    "type": "string",
+                    "description": "Duration: <int><unit> with unit ∈ d/w/m/y (e.g. '90d').",
+                },
+                "confirm": {
+                    "type": "boolean",
+                    "description": "Apply: stamp archived_at on candidates. Without it: dry-run preview.",
+                },
+            },
+            "required": ["before"],
+        },
+    },
+    {
+        "name": "tausik_memory_dedupe",
+        "description": "Suggest memory pairs with similarity ≥ threshold. Read-only — does not delete or merge.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "threshold": {
+                    "type": "number",
+                    "description": "Similarity threshold in (0, 1]. Default 0.85.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max recent unarchived rows scanned. Default 200.",
+                },
             },
         },
     },

@@ -353,3 +353,51 @@ class TestFullMigrationPath:
             "SELECT tool_name, source FROM usage_events WHERE source='session_record'"
         ).fetchone()
         assert row == (None, "session_record")
+
+    def test_migration_v26_adds_archived_at_to_memory(self):
+        """v26 adds nullable archived_at to memory for soft-delete hygiene."""
+        conn = _create_v1_db()
+        run_migrations(conn, 1)
+
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(memory)").fetchall()]
+        assert "archived_at" in cols, "v26 must add archived_at column to memory"
+
+        conn.execute(
+            "INSERT INTO memory(type, title, content, created_at, updated_at) "
+            "VALUES('pattern', 'Old Pattern', 'demo', "
+            "'2020-01-01T00:00:00Z', '2020-01-01T00:00:00Z')"
+        )
+        conn.commit()
+        row = conn.execute("SELECT archived_at FROM memory WHERE title='Old Pattern'").fetchone()
+        assert row[0] is None
+
+        conn.execute(
+            "UPDATE memory SET archived_at='2026-05-07T00:00:00Z' WHERE title='Old Pattern'"
+        )
+        conn.commit()
+        row2 = conn.execute("SELECT archived_at FROM memory WHERE title='Old Pattern'").fetchone()
+        assert row2[0] == "2026-05-07T00:00:00Z"
+
+    def test_migration_v25_adds_archived_at_to_tasks(self):
+        """v25 adds nullable archived_at to tasks for soft-delete hygiene archive."""
+        conn = _create_v1_db()
+        run_migrations(conn, 1)
+
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(tasks)").fetchall()]
+        assert "archived_at" in cols, "v25 must add archived_at column to tasks"
+
+        # archived_at is nullable: existing rows without an explicit value default to NULL.
+        conn.execute(
+            "INSERT INTO tasks(slug, title, status, created_at, updated_at) "
+            "VALUES('arch-test', 'Archive test', 'done', "
+            "'2020-01-01T00:00:00Z', '2020-01-01T00:00:00Z')"
+        )
+        conn.commit()
+        row = conn.execute("SELECT archived_at FROM tasks WHERE slug='arch-test'").fetchone()
+        assert row[0] is None
+
+        # And it accepts a manual stamp without violating any CHECK.
+        conn.execute("UPDATE tasks SET archived_at='2026-05-07T00:00:00Z' WHERE slug='arch-test'")
+        conn.commit()
+        row2 = conn.execute("SELECT archived_at FROM tasks WHERE slug='arch-test'").fetchone()
+        assert row2[0] == "2026-05-07T00:00:00Z"

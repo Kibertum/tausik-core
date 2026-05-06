@@ -264,6 +264,7 @@ class SQLiteBackend(BackendQueriesMixin, BackendGraphMixin, BackendCrudMixin):
         role: str | None = None,
         stack: str | None = None,
         limit: int | None = None,
+        include_archived: bool = False,
     ) -> list[dict[str, Any]]:
         sql = (
             "SELECT t.*, s.slug AS story_slug, e.slug AS epic_slug "
@@ -271,6 +272,8 @@ class SQLiteBackend(BackendQueriesMixin, BackendGraphMixin, BackendCrudMixin):
             "LEFT JOIN epics e ON s.epic_id=e.id WHERE 1=1"
         )
         params: list[Any] = []
+        if not include_archived:
+            sql += " AND t.archived_at IS NULL"
         if status:
             placeholders = ",".join("?" for _ in status.split(","))
             sql += f" AND t.status IN ({placeholders})"

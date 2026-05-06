@@ -1,10 +1,10 @@
 {
   "mcp_brain_tools": 7,
-  "mcp_main_tools": 100,
-  "mcp_project_tools": 93,
+  "mcp_main_tools": 103,
+  "mcp_project_tools": 96,
   "mcp_rag_tools": 7,
-  "mcp_tools_with_optional_rag": 107,
+  "mcp_tools_with_optional_rag": 110,
   "schema_version": 1,
   "tausik_version": "1.4.0",
-  "test_count": 3056
+  "test_count": 3099
 }

@@ -2,13 +2,13 @@
 
 # TAUSIK MCP — Tool Reference (v1.4)
 
-**100 tools** for AI agents (93 project + 7 brain; v1.4 actual count, asserted via `len(TOOLS)` on both servers). The MCP surface mirrors the CLI 1:1 with zero CLI-only gaps. Prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
+**103 tools** for AI agents (96 project + 7 brain; v1.4 actual count, asserted via `len(TOOLS)` on both servers). The MCP surface mirrors the CLI 1:1 with zero CLI-only gaps. Prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
 
-> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 100 count — total with it is 107 tools.
+> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 103 count — total with it is 110 tools.
 
 Two MCP servers live in this project:
 
-- `tausik-project` — project-scoped tools (92): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging.
+- `tausik-project` — project-scoped tools (96): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging.
 - `tausik-brain` — cross-project Shared Brain tools (7).
 
 There is also an optional `codebase-rag` server documented at the bottom.
@@ -206,6 +206,7 @@ Role storage is hybrid: SQLite metadata + `harness/roles/{role}.md` profile mark
 | `tausik_skill_repo_add` | Add TAUSIK-compatible skill repo (third-party URLs need `force`) | `url`, optional `force` |
 | `tausik_skill_repo_remove` | Remove skill repo | `name` |
 | `tausik_skill_repo_list` | List repos and available skills | — |
+| `tausik_skill_catalog` | Discovery: list skills offered by configured/cloned repos (name, category, description) | optional `repo`, optional `as_json` |
 
 ## Cross-Project Queue (CQ)
 

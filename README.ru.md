@@ -7,7 +7,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)](https://python.org)
 [![Tests](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml/badge.svg)](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml)
-[![3056 tests](https://img.shields.io/badge/tests-3056%20passed-brightgreen.svg)](#dogfooding-tausik-создан-с-помощью-себя)
+[![3099 tests](https://img.shields.io/badge/tests-3099%20passed-brightgreen.svg)](#dogfooding-tausik-создан-с-помощью-себя)
 [![Zero deps](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#что-внутри)
 
 **TAUSIK — фреймворк контроля качества для AI-агентов разработки** —
@@ -138,7 +138,7 @@ Bootstrap автоматически определяет стек и включ
 ## Что внутри
 
 - **12 core навыков + `/brain` conditional** (auto-deployed) — `/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, `/review`, `/test`, `/debug`, `/explore`, `/interview` всегда; `/brain` только после `tausik brain init`. Плюс **25+ official/vendor навыков** (`/audit`, `/zero-defect`, `/markitdown`, `/docs`, `/security`, `/onboard`, …) opt-in через `bootstrap --include-official` или `tausik skill install <name>`.
-- **100 MCP-инструментов** (93 project + 7 brain) — полный программный доступ к базе проекта
+- **103 MCP-инструмента** (96 project + 7 brain) — полный программный доступ к базе проекта
 - **25 проверок качества** — pytest, ruff, tsc, eslint, cargo check, go vet и другие для вашего стека
 - **6 автоматических метрик** — производительность, FPSR, уровень дефектов, активное время сессий
 - **Проектная память** — SQLite + FTS5, граф связей, трекинг тупиков, Memory Block re-injection
@@ -155,11 +155,11 @@ Bootstrap автоматически определяет стек и включ
 
 | Среда | Инструменты | Навыки | Хуки | Правила | Статус валидации |
 |-------|-------------|--------|------|---------|------------------|
-| VSCode + Claude Extension | 100 инстр. | 12 core + brain conditional, 25+ on demand | 19 хуков (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md + .mcp.json | **Официально протестировано** |
-| Cursor | 100 инстр. | 12 core + brain conditional, 25+ on demand | — | .cursorrules + .cursor/mcp.json | **Официально протестировано** |
-| Claude Code (CLI) | 100 инстр. | 12 core + brain conditional, 25+ on demand | 19 хуков | CLAUDE.md + .mcp.json | Ожидается (частичная матрица) |
-| Qwen Code | 100 инстр. | 12 core + brain conditional, 25+ on demand | 19 хуков (как у Claude) | QWEN.md + .mcp.json | Ожидается (частичная матрица) |
-| Windsurf | 100 инстр. | 12 core + brain conditional, 25+ on demand | — | .windsurfrules + .mcp.json | Ожидается (частичная матрица) |
+| VSCode + Claude Extension | 103 инстр. | 12 core + brain conditional, 25+ on demand | 19 хуков (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md + .mcp.json | **Официально протестировано** |
+| Cursor | 103 инстр. | 12 core + brain conditional, 25+ on demand | — | .cursorrules + .cursor/mcp.json | **Официально протестировано** |
+| Claude Code (CLI) | 103 инстр. | 12 core + brain conditional, 25+ on demand | 19 хуков | CLAUDE.md + .mcp.json | Ожидается (частичная матрица) |
+| Qwen Code | 103 инстр. | 12 core + brain conditional, 25+ on demand | 19 хуков (как у Claude) | QWEN.md + .mcp.json | Ожидается (частичная матрица) |
+| Windsurf | 103 инстр. | 12 core + brain conditional, 25+ on demand | — | .windsurfrules + .mcp.json | Ожидается (частичная матрица) |
 | Codex / OpenCode-подобные агенты | MCP + rules-driven при поддержке хоста | Зависит от хоста | Специфично для хоста | AGENTS.md | Ожидается (ручная валидация) |
 
 **Хуки** блокируют редактирование кода без задачи, опасные shell-команды и прямой push в main — в реальном времени. Доступны в Claude Code и Qwen Code. Cursor и Windsurf получают те же MCP-инструменты и навыки, с quality gates на `task start` и `task done`.
@@ -194,7 +194,7 @@ TAUSIK реализует [SENAR](https://senar.tech) ([GitHub](https://github.c
 | **[Навыки](docs/ru/skills.md)** | 12 core + brain conditional, 25+ official skills opt-in (38 total) |
 | **[Хуки](docs/ru/hooks.md)** | Контроль в реальном времени |
 | **[CLI-команды](docs/ru/cli.md)** | Справочник команд терминала |
-| **[MCP-инструменты](docs/ru/mcp.md)** | 100 инструментов для ИИ-агента |
+| **[MCP-инструменты](docs/ru/mcp.md)** | 103 инструмента для ИИ-агента |
 | **[Архитектура](docs/ru/architecture.md)** | Как устроен фреймворк внутри |
 
 **[Полная документация ->](docs/README.md)**

@@ -283,6 +283,23 @@ def add_skill(sub: argparse._SubParsersAction) -> None:
     )
     sk_uninst.add_argument("name", help="Skill name to uninstall (see: tausik skill list)")
 
+    sk_cat = sk_sub.add_parser(
+        "catalog",
+        help="Discovery: list skills offered by configured/cloned skill repos",
+    )
+    sk_cat.add_argument(
+        "repo",
+        nargs="?",
+        default=None,
+        help="Optional repo name (see: tausik skill repo list). Omit to list all repos.",
+    )
+    sk_cat.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Emit JSON instead of a human-readable table.",
+    )
+
     sk_repo = sk_sub.add_parser("repo", help="Manage skill repositories")
     sk_repo_sub = sk_repo.add_subparsers(dest="repo_cmd")
     sk_repo_add = sk_repo_sub.add_parser(
@@ -367,11 +384,12 @@ def add_metrics(sub: argparse._SubParsersAction) -> None:
 
 
 def add_hygiene(sub: argparse._SubParsersAction) -> None:
-    """`tausik hygiene archive [--confirm]` — read-only project hygiene.
+    """`tausik hygiene archive [--confirm]` — list/soft-archive old done tasks.
 
-    v1 spec (docs/{en,ru}/task-archive-spec.md): list done tasks older than
-    N days, never mutates anything. `--confirm` is reserved for future
-    destructive operations and currently fails fast with an explanation.
+    Spec: docs/{en,ru}/task-archive-spec.md. Dry-run by default; `--confirm`
+    stamps `archived_at` on done tasks older than `task_archive.done_age_days`.
+    Archived rows still exist (status stays 'done') but are hidden from
+    `task list` unless `--include-archived` is passed.
     """
     h_p = sub.add_parser(
         "hygiene",
@@ -380,10 +398,10 @@ def add_hygiene(sub: argparse._SubParsersAction) -> None:
     h_sub = h_p.add_subparsers(dest="hygiene_cmd")
     h_arch = h_sub.add_parser(
         "archive",
-        help="List done tasks older than task_archive.done_age_days (read-only in v1)",
+        help="List or soft-archive done tasks older than task_archive.done_age_days",
     )
     h_arch.add_argument(
         "--confirm",
         action="store_true",
-        help="Reserved for future destructive ops; currently rejected (v1 is dry-run only).",
+        help="Stamp archived_at on matching rows (idempotent). Without it, dry-run lists candidates.",
     )

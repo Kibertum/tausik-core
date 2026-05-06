@@ -1,10 +1,12 @@
-"""Tests for `tausik hygiene` (v14-hygiene-cli-stub).
+"""Tests for `tausik hygiene` (v1 spec + B5 --confirm soft-delete).
 
-Covers v1 of `docs/{en,ru}/task-archive-spec.md`:
-- always dry-run
-- disabled when `task_archive.enabled` is missing/false
-- only `done` tasks older than `done_age_days` are listed
-- `--confirm` is rejected (no destructive op exists in v1)
+Covers `docs/{en,ru}/task-archive-spec.md`:
+- dry-run by default; lists candidates
+- disabled when `task_archive.enabled` is missing/false (config wins over --confirm)
+- only unarchived `done` tasks older than `done_age_days` are listed/applied
+- `--confirm` stamps `archived_at` and is idempotent on re-run
+- archived tasks are hidden from `task_list` by default; `include_archived=True` shows them
+- archived task remains accessible via `task_show`
 """
 
 from __future__ import annotations
@@ -124,7 +126,7 @@ class TestCmdHygieneArchive:
         out = self._run(svc, A(), capsys)
         assert "old-x" in out
         assert "dry-run" in out.lower()
-        assert "read-only" in out.lower()
+        assert "--confirm" in out
 
     def test_no_candidates_message(self, svc, tmp_path, capsys):
         _write_cfg(tmp_path, {"task_archive": {"enabled": True, "done_age_days": 90}})
@@ -134,21 +136,100 @@ class TestCmdHygieneArchive:
             confirm = False
 
         out = self._run(svc, A(), capsys)
-        assert "no done tasks" in out.lower()
+        assert "no unarchived done tasks" in out.lower()
 
 
-class TestNegativeConfirmRejected:
-    def test_confirm_fails_fast(self, svc, tmp_path):
+class TestConfirmAppliesSoftDelete:
+    """B5: --confirm stamps archived_at on done tasks past the cutoff."""
+
+    def _run(self, svc, tmp_path, capsys):
         from project_cli_hygiene import cmd_hygiene
-        from tausik_utils import ServiceError
-
-        _write_cfg(tmp_path, {"task_archive": {"enabled": True}})
-        _seed_done_task(svc, "old-y", "2020-01-01T00:00:00Z")
 
         class A:
             hygiene_cmd = "archive"
             confirm = True
 
-        with pytest.raises(ServiceError) as excinfo:
-            cmd_hygiene(svc, A())
-        assert "v1 is read-only" in str(excinfo.value)
+        cmd_hygiene(svc, A())
+        return capsys.readouterr().out
+
+    def test_confirm_stamps_archived_at(self, svc, tmp_path, capsys):
+        _write_cfg(tmp_path, {"task_archive": {"enabled": True, "done_age_days": 90}})
+        _seed_done_task(svc, "old-arch", "2020-01-01T00:00:00Z")
+
+        out = self._run(svc, tmp_path, capsys)
+        assert "archived 1 done tasks" in out.lower()
+
+        row = svc.be._conn.execute(
+            "SELECT archived_at FROM tasks WHERE slug = 'old-arch'"
+        ).fetchone()
+        assert row[0] is not None and row[0] != ""
+
+    def test_confirm_idempotent(self, svc, tmp_path, capsys):
+        _write_cfg(tmp_path, {"task_archive": {"enabled": True, "done_age_days": 90}})
+        _seed_done_task(svc, "old-i", "2020-01-01T00:00:00Z")
+
+        # First pass archives.
+        self._run(svc, tmp_path, capsys)
+        # Second pass must be a no-op.
+        out2 = self._run(svc, tmp_path, capsys)
+        assert "nothing to archive" in out2.lower()
+
+    def test_confirm_disabled_config_does_not_apply(self, svc, tmp_path, capsys):
+        """`--confirm` must NOT bypass `task_archive.enabled=false`."""
+        _write_cfg(tmp_path, {"task_archive": {"enabled": False}})
+        _seed_done_task(svc, "old-k", "2020-01-01T00:00:00Z")
+
+        out = self._run(svc, tmp_path, capsys)
+        assert "disabled" in out.lower()
+
+        row = svc.be._conn.execute("SELECT archived_at FROM tasks WHERE slug = 'old-k'").fetchone()
+        assert row[0] is None
+
+    def test_confirm_skips_recent_done(self, svc, tmp_path, capsys):
+        _write_cfg(tmp_path, {"task_archive": {"enabled": True, "done_age_days": 90}})
+        _seed_done_task(svc, "fresh-done", "2099-01-01T00:00:00Z")
+
+        out = self._run(svc, tmp_path, capsys)
+        assert "nothing to archive" in out.lower()
+
+        row = svc.be._conn.execute(
+            "SELECT archived_at FROM tasks WHERE slug = 'fresh-done'"
+        ).fetchone()
+        assert row[0] is None
+
+
+class TestTaskListFiltersArchived:
+    """`task_list` excludes archived rows by default; opt-in flag exposes them."""
+
+    def test_default_hides_archived(self, svc, tmp_path):
+        _seed_done_task(svc, "active-done", "2020-01-01T00:00:00Z")
+        _seed_done_task(svc, "soft-archived", "2020-01-01T00:00:00Z")
+        svc.be._conn.execute(
+            "UPDATE tasks SET archived_at = '2020-01-02T00:00:00Z' WHERE slug = 'soft-archived'"
+        )
+        svc.be._conn.commit()
+
+        slugs = [t["slug"] for t in svc.task_list(status="done")]
+        assert "active-done" in slugs
+        assert "soft-archived" not in slugs
+
+    def test_include_archived_shows_them(self, svc, tmp_path):
+        _seed_done_task(svc, "soft-archived-2", "2020-01-01T00:00:00Z")
+        svc.be._conn.execute(
+            "UPDATE tasks SET archived_at = '2020-01-02T00:00:00Z' WHERE slug = 'soft-archived-2'"
+        )
+        svc.be._conn.commit()
+
+        slugs = [t["slug"] for t in svc.task_list(status="done", include_archived=True)]
+        assert "soft-archived-2" in slugs
+
+    def test_archived_task_still_visible_via_task_show(self, svc, tmp_path):
+        _seed_done_task(svc, "show-arch", "2020-01-01T00:00:00Z")
+        svc.be._conn.execute(
+            "UPDATE tasks SET archived_at = '2020-01-02T00:00:00Z' WHERE slug = 'show-arch'"
+        )
+        svc.be._conn.commit()
+
+        task = svc.task_show("show-arch")
+        assert task["slug"] == "show-arch"
+        assert task["archived_at"] == "2020-01-02T00:00:00Z"

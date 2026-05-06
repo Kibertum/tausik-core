@@ -260,6 +260,22 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
         "CREATE INDEX IF NOT EXISTS idx_usage_events_task ON usage_events(task_slug, recorded_at)",
         "CREATE INDEX IF NOT EXISTS idx_usage_events_tool ON usage_events(tool_name, recorded_at)",
     ],
+    # --- v25: archived_at on tasks (soft-delete for hygiene archive --confirm) ---
+    # Done tasks older than task_archive.done_age_days get archived_at timestamp;
+    # task_list filters them out by default. Status remains 'done' (not 'archived')
+    # so historical metrics, FTS, and direct task_show by slug stay intact.
+    25: [
+        "ALTER TABLE tasks ADD COLUMN archived_at TEXT",
+        "CREATE INDEX IF NOT EXISTS idx_tasks_archived_at ON tasks(archived_at)",
+    ],
+    # --- v26: archived_at on memory (soft-delete for `memory archive --before <duration>`) ---
+    # Long-running projects accumulate noise; rather than DROP rows we mark them
+    # archived. memory_list/memory_search filter by default; --include-archived
+    # opts back in. Mirrors v25 design on tasks.
+    26: [
+        "ALTER TABLE memory ADD COLUMN archived_at TEXT",
+        "CREATE INDEX IF NOT EXISTS idx_memory_archived_at ON memory(archived_at)",
+    ],
 }
 
 

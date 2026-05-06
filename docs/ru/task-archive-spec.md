@@ -1,48 +1,64 @@
 **Русский** | [English](../en/task-archive-spec.md)
 
-# Спека: read-only архив старых **done**-задач (hygiene)
+# Soft-архив старых **done**-задач (hygiene)
 
-**Статус:** дизайн / будущая реализация — этот Markdown сам по себе не добавляет CLI или миграций БД.
+Скрыть устаревшие завершённые задачи из `task list`, не теряя их. Активная работа не затрагивается.
 
 ## Цель
 
-Дать **только чтение** по задачам со статусом **done**, у которых `completed_at` старше **N** дней (аудит, планирование хранения). **Активные задачи не затрагиваются.**
+Держать рабочий набор сфокусированным: проставить `archived_at` на **done**-задачах, у которых `completed_at` старше **N** дней. Они остаются в БД (аудит, FTS, `task show` продолжают работать), но исчезают из `task list` по умолчанию.
 
 ## Конфиг (`.tausik/config.json`)
-
-Предлагаемый блок (пока не обрабатывается кодом, пока не реализован epic):
 
 ```json
 {
   "task_archive": {
     "enabled": false,
     "done_age_days": 90,
-    "note": "read-only; never mutates non-done tasks"
+    "note": "soft-delete only; status остаётся 'done', archived_at — маркер"
   }
 }
 ```
 
 | Ключ | Тип | По умолчанию | Смысл |
-|------|-----|----------------|--------|
-| `task_archive` | object | (нет) | Функция выключена, если секции нет или `enabled: false`. |
-| `enabled` | bool | `false` | При `true` инструменты могут **листать/экспортировать кандидатов** (только done старше порога). |
-| `done_age_days` | int | `90` | В область попадают только `status = done` и `completed_at` ≤ *сейчас − N дней*. |
+|------|-----|---------------|-------|
+| `task_archive` | object | (нет) | Фича выключена при отсутствии блока или `enabled: false`. |
+| `enabled` | bool | `false` | Должен быть `true`, чтобы `hygiene archive --confirm` что-либо записал. |
+| `done_age_days` | int | `90` | В scope попадают только задачи `status = 'done'` и `completed_at ≤ сейчас − N дней`. Невалидное/0 клампится к `1`. |
 
-Кривые значения → в реализации: безопасный fallback или отключение фичи (зафиксировать в PR).
+`enabled: false` побеждает `--confirm` — команда печатает "disabled" и ничего не пишет.
 
-## Правила включения
+## Условия попадания (positive)
 
 - `task.status == 'done'`
-- `task.completed_at` задан и **старше** `done_age_days` (сравнение в UTC).
+- `task.completed_at` задан и **старше** `done_age_days` (UTC).
+- `task.archived_at IS NULL` (уже архивированные пропускаются — `--confirm` идемпотентен).
 
-## Негатив (жёстко)
+## Запреты (hard)
 
 - **Никогда** не включать `planning`, `active`, `blocked`, `review` — независимо от возраста и конфига.
-- В v1 спеки **нет** авто-удаления и авто-переноса без отдельного флага и подтверждения пользователя.
+- **Без удаления строк**: архив — soft-delete (`UPDATE ... SET archived_at = ?`). Сама строка `tasks`, FTS-индекс, логи, решения и участие в метриках сохраняются.
 
-## Возможный будущий CLI
+## CLI
 
-`tausik hygiene archive list --dry-run` — только после появления реализации и `task_archive.enabled`.
+```bash
+tausik hygiene archive             # dry-run: показать кандидатов
+tausik hygiene archive --confirm   # применить: проставить archived_at (идемпотентно)
+
+tausik task list                       # по умолчанию: скрывает архивированные
+tausik task list --include-archived    # opt-in: показать всё
+```
+
+MCP-инструмент `tausik_task_list` принимает тот же параметр `include_archived: bool`.
+
+## Схема
+
+Миграция v25 добавляет одну nullable-колонку:
+
+```sql
+ALTER TABLE tasks ADD COLUMN archived_at TEXT;  -- ISO8601 UTC timestamp
+CREATE INDEX idx_tasks_archived_at ON tasks(archived_at);
+```
 
 ## См. также
 

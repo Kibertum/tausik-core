@@ -1,23 +1,21 @@
 **English** | [Русский](../ru/task-archive-spec.md)
 
-# Specification: read-only archive of old **done** tasks (hygiene)
+# Soft-archive of old **done** tasks (hygiene)
 
-**Status:** design / future implementation — no CLI or DB migration ships with this document alone. Use this spec when implementing `hygiene` automation (see project hygiene epic).
+Hide stale completed tasks from `task list` without losing them. Active work is never affected.
 
 ## Goal
 
-Surface **read-only** visibility into **done** tasks whose `completed_at` is older than **N** days (audits, storage planning). **Active work must never be affected.**
+Keep the working set focused: stamp `archived_at` on **done** tasks whose `completed_at` is older than **N** days. They stay in the database (so audits, FTS, `task show` keep working) but disappear from `task list` by default.
 
 ## Config (`.tausik/config.json`)
-
-Proposed optional block (ignored by current releases until implemented):
 
 ```json
 {
   "task_archive": {
     "enabled": false,
     "done_age_days": 90,
-    "note": "read-only; never mutates non-done tasks"
+    "note": "soft-delete only; status stays 'done', archived_at is the marker"
   }
 }
 ```
@@ -25,24 +23,42 @@ Proposed optional block (ignored by current releases until implemented):
 | Key | Type | Default | Meaning |
 |-----|------|---------|---------|
 | `task_archive` | object | (absent) | Entire feature off when missing or `enabled: false`. |
-| `enabled` | bool | `false` | When `true`, tooling may list/export archived *candidates* (done + older than threshold). |
-| `done_age_days` | int | `90` | Only tasks with `status = done` and `completed_at` ≤ *now − N days* are in scope. |
+| `enabled` | bool | `false` | Required to be `true` for `hygiene archive --confirm` to do any writes. |
+| `done_age_days` | int | `90` | Only tasks with `status = 'done'` and `completed_at ≤ now − N days` are in scope. Invalid/0 clamps to `1`. |
 
-Invalid/missing `done_age_days` → implementation should treat as “feature off” or clamp to a safe minimum (e.g. ≥1), **documented in the implementation PR**.
+`enabled: false` overrides `--confirm` — the command prints a "disabled" notice and writes nothing.
 
 ## Inclusion rules (positive)
 
 - `task.status == 'done'`
 - `task.completed_at` present and **older** than `done_age_days` (UTC comparison).
+- `task.archived_at IS NULL` (already-archived rows are skipped — `--confirm` is idempotent).
 
 ## Negative rules (hard)
 
-- **Never** include `planning`, `active`, `blocked`, or `review` tasks — **no matter what** the age or config says.
-- **No destructive writes** in v1 of this spec: no auto-delete, no auto-move to another table, without a separate feature flag and user confirmation (out of scope here).
+- **Never** include `planning`, `active`, `blocked`, or `review` tasks — no matter what the age or config says.
+- **No row deletion**: archive is a soft-delete (`UPDATE ... SET archived_at = ?`). The `tasks` row, its FTS index, logs, decisions, and metrics participation all remain intact.
 
-## Suggested future CLI (non-normative)
+## CLI
 
-`tausik hygiene archive list --dry-run` — print slugs that *would* match; requires `task_archive.enabled` in a future release.
+```bash
+tausik hygiene archive             # dry-run: list candidates
+tausik hygiene archive --confirm   # apply: stamp archived_at on candidates (idempotent)
+
+tausik task list                       # default: hides archived rows
+tausik task list --include-archived    # opt-in: shows everything
+```
+
+`tausik_task_list` MCP tool accepts the same `include_archived: bool` parameter.
+
+## Schema
+
+Migration v25 adds a single nullable column:
+
+```sql
+ALTER TABLE tasks ADD COLUMN archived_at TEXT;  -- ISO8601 UTC timestamp
+CREATE INDEX idx_tasks_archived_at ON tasks(archived_at);
+```
 
 ## See also
 

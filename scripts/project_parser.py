@@ -4,19 +4,12 @@ from __future__ import annotations
 
 import argparse
 
+from project_parser_task import add_task
 from project_types import (
-    VALID_COMPLEXITIES,
     VALID_EDGE_RELATIONS,
     VALID_MEMORY_TYPES,
     VALID_NODE_TYPES,
-    VALID_TIERS,
 )
-
-
-def _add_unit_flags(parser: argparse.ArgumentParser) -> None:
-    """Attach --call-budget / --tier flags to a task add/update sub-parser."""
-    parser.add_argument("--call-budget", type=int, default=None, dest="call_budget")
-    parser.add_argument("--tier", default=None, choices=sorted(VALID_TIERS))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -80,159 +73,8 @@ def build_parser() -> argparse.ArgumentParser:
     sdel = story_sub.add_parser("delete")
     sdel.add_argument("slug")
 
-    # --- task ---
-    task_p = sub.add_parser("task", help="Task management")
-    task_sub = task_p.add_subparsers(dest="task_cmd")
-
-    ta = task_sub.add_parser(
-        "add",
-        epilog='Example: tausik task add "Task title" --story my-story --slug my-task --complexity medium',
-    )
-    ta.add_argument("title", help="Task title (in quotes)")
-    ta.add_argument(
-        "--story",
-        "--group",
-        default=None,
-        dest="story_slug",
-        help="Parent story slug (optional). --group is deprecated alias.",
-    )
-    ta.add_argument("--slug", default=None, help="Task slug (auto-generated from title if omitted)")
-    ta.add_argument("--stack", default=None)
-    ta.add_argument("--complexity", default=None, choices=sorted(VALID_COMPLEXITIES))
-    ta.add_argument("--goal", default=None)
-    ta.add_argument("--role", default=None)
-    ta.add_argument("--defect-of", default=None, help="Parent task slug (defect fix)")
-    _add_unit_flags(ta)
-
-    tl = task_sub.add_parser("list")
-    tl.add_argument("--status", default=None)
-    tl.add_argument("--story", default=None)
-    tl.add_argument("--epic", default=None)
-    tl.add_argument("--role", default=None)
-    tl.add_argument("--stack", default=None)
-    tl.add_argument("--limit", type=int, default=None, help="Max tasks to return")
-
-    ts = task_sub.add_parser("show")
-    ts.add_argument("slug")
-
-    tstart = task_sub.add_parser("start")
-    tstart.add_argument("slug")
-    tstart.add_argument(
-        "--force",
-        action="store_true",
-        help="Bypass session capacity gate (logs audit event + notes)",
-    )
-
-    tdone = task_sub.add_parser("done")
-    tdone.add_argument("slug")
-    tdone.add_argument(
-        "--ac-verified",
-        action="store_true",
-        help="Confirm all acceptance criteria verified",
-    )
-    tdone.add_argument(
-        "--no-knowledge",
-        action="store_true",
-        dest="no_knowledge",
-        help="Confirm no knowledge to capture",
-    )
-    tdone.add_argument("--relevant-files", nargs="*", default=None)
-    evidence_group = tdone.add_mutually_exclusive_group()
-    evidence_group.add_argument(
-        "--evidence",
-        default=None,
-        help='Inline AC verification log — e.g. "AC verified: 1. ✓ 2. ✓ ...". '
-        "Saves a separate task_log call.",
-    )
-    evidence_group.add_argument(
-        "--evidence-json",
-        default=None,
-        dest="evidence_json",
-        help='Structured AC evidence as JSON: \'{"ac_evidence":[{"n":1,'
-        '"status":"pass","evidence":"tests/foo.py::test_bar"}, ...]}\'. '
-        "Converted to canonical prose before logging. "
-        "Mutually exclusive with --evidence.",
-    )
-
-    tblock = task_sub.add_parser("block")
-    tblock.add_argument("slug")
-    tblock.add_argument("--reason", default=None)
-
-    tunblock = task_sub.add_parser("unblock")
-    tunblock.add_argument("slug")
-
-    treview = task_sub.add_parser("review")
-    treview.add_argument("slug")
-
-    tupdate = task_sub.add_parser("update")
-    tupdate.add_argument("slug")
-    tupdate.add_argument("--title", default=None)
-    tupdate.add_argument("--goal", default=None)
-    tupdate.add_argument("--notes", default=None)
-    tupdate.add_argument("--acceptance-criteria", default=None, dest="ac")
-    # --stack is validated in the service layer so config-defined custom
-    # stacks (cfg.custom_stacks) work alongside the built-in DEFAULT_STACKS.
-    tupdate.add_argument("--stack", default=None)
-    tupdate.add_argument("--complexity", default=None, choices=sorted(VALID_COMPLEXITIES))
-    tupdate.add_argument("--role", default=None)
-    tupdate.add_argument("--scope", default=None)
-    tupdate.add_argument("--scope-exclude", default=None, dest="scope_exclude")
-    tupdate.add_argument(
-        "--relevant-files",
-        nargs="*",
-        default=None,
-        dest="update_relevant_files",
-        help="JSON-list scope for scoped verify / pytest gate (overwrites prior)",
-    )
-    _add_unit_flags(tupdate)
-
-    tdel = task_sub.add_parser("delete")
-    tdel.add_argument("slug")
-
-    tplan = task_sub.add_parser("plan")
-    tplan.add_argument("slug")
-    tplan.add_argument("steps", nargs="+")
-
-    tstep = task_sub.add_parser("step")
-    tstep.add_argument("slug")
-    tstep.add_argument("step_num", type=int)
-
-    tquick = task_sub.add_parser("quick", help="Quick-create task (auto-slug)")
-    tquick.add_argument("title", help="Task title")
-    tquick.add_argument("--goal", default=None)
-    tquick.add_argument("--role", default=None)
-    tquick.add_argument("--stack", default=None)
-
-    tnext = task_sub.add_parser("next", help="Pick next available task")
-    tnext.add_argument("--agent", default=None, help="Agent ID to auto-claim")
-
-    tlog = task_sub.add_parser(
-        "log",
-        epilog='Example: tausik task log my-task "Implemented auth middleware"',
-    )
-    tlog.add_argument("slug", help="Task slug")
-    tlog.add_argument("message", help="Log message (appended to notes with timestamp)")
-
-    tlogs = task_sub.add_parser(
-        "logs",
-        epilog="Example: tausik task logs my-task --phase review",
-    )
-    tlogs.add_argument("slug", help="Task slug")
-    tlogs.add_argument(
-        "--phase",
-        help="Filter by phase (planning, implementation, review, testing, done)",
-    )
-
-    tmove = task_sub.add_parser("move")
-    tmove.add_argument("slug")
-    tmove.add_argument("new_story_slug")
-
-    tclaim = task_sub.add_parser("claim")
-    tclaim.add_argument("slug")
-    tclaim.add_argument("agent_id")
-
-    tunclaim = task_sub.add_parser("unclaim")
-    tunclaim.add_argument("slug")
+    # --- task --- (extracted to project_parser_task.add_task to keep filesize gate)
+    add_task(sub)
 
     # --- team ---
     sub.add_parser("team", help="Team status — tasks by agent")
@@ -271,12 +113,52 @@ def build_parser() -> argparse.ArgumentParser:
     ml = mem_sub.add_parser("list")
     ml.add_argument("--type", default=None, dest="mem_type")
     ml.add_argument("--limit", type=int, default=50)
+    ml.add_argument(
+        "--include-archived",
+        action="store_true",
+        help="Include soft-archived rows (archived_at IS NOT NULL).",
+    )
     ms = mem_sub.add_parser("search")
     ms.add_argument("query")
+    ms.add_argument(
+        "--include-archived",
+        action="store_true",
+        help="Include soft-archived rows in search results.",
+    )
     mshow = mem_sub.add_parser("show")
     mshow.add_argument("id", type=int)
     mdel = mem_sub.add_parser("delete")
     mdel.add_argument("id", type=int)
+    march = mem_sub.add_parser(
+        "archive",
+        help="Soft-archive memory rows older than --before. Dry-run unless --confirm.",
+    )
+    march.add_argument(
+        "--before",
+        required=True,
+        help="Duration: 90d / 12w / 2m / 1y (units d/w/m/y).",
+    )
+    march.add_argument(
+        "--confirm",
+        action="store_true",
+        help="Apply: stamp archived_at on candidates (idempotent). Without it: dry-run preview.",
+    )
+    mdedupe = mem_sub.add_parser(
+        "dedupe",
+        help="Suggest memory pairs with similarity >= threshold. Read-only.",
+    )
+    mdedupe.add_argument(
+        "--threshold",
+        type=float,
+        default=0.85,
+        help="Similarity threshold in (0, 1]. Default 0.85.",
+    )
+    mdedupe.add_argument(
+        "--limit",
+        type=int,
+        default=200,
+        help="Max recent rows scanned for pairs. Default 200.",
+    )
     # graph subcommands
     mlink = mem_sub.add_parser("link", help="Create edge between nodes")
     mlink.add_argument("source_type", choices=sorted(VALID_NODE_TYPES))

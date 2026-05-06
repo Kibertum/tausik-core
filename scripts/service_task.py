@@ -88,6 +88,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin):
         role: str | None = None,
         stack: str | None = None,
         limit: int | None = None,
+        include_archived: bool = False,
     ) -> list[dict[str, Any]]:
         if status:
             for s in status.split(","):
@@ -95,7 +96,9 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin):
                     raise ServiceError(
                         f"Invalid status '{s}'. Valid: {', '.join(sorted(VALID_TASK_STATUSES))}"
                     )
-        return self.be.task_list(status, story, epic, role, stack, limit=limit)
+        return self.be.task_list(
+            status, story, epic, role, stack, limit=limit, include_archived=include_archived
+        )
 
     def task_show(self, slug: str) -> dict[str, Any]:
         task = self.be.task_get_full(slug)

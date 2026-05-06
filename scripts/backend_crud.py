@@ -47,12 +47,8 @@ class BackendCrudMixin:
     # Type stubs for mixin
     if TYPE_CHECKING:
 
-        def _q(
-            self, sql: str, params: tuple[Any, ...] = ()
-        ) -> list[dict[str, Any]]: ...
-        def _q1(
-            self, sql: str, params: tuple[Any, ...] = ()
-        ) -> dict[str, Any] | None: ...
+        def _q(self, sql: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]: ...
+        def _q1(self, sql: str, params: tuple[Any, ...] = ()) -> dict[str, Any] | None: ...
         def _ex(self, sql: str, params: tuple[Any, ...] = ()) -> int: ...
         def _ins(self, sql: str, params: tuple[Any, ...] = ()) -> int: ...
         def task_get(self, slug: str) -> dict[str, Any] | None: ...
@@ -174,9 +170,7 @@ class BackendCrudMixin:
         )
 
     def session_current(self) -> dict[str, Any] | None:
-        return self._q1(
-            "SELECT * FROM sessions WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
-        )
+        return self._q1("SELECT * FROM sessions WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1")
 
     def session_list(self, n: int = 10) -> list[dict[str, Any]]:
         return self._q("SELECT * FROM sessions ORDER BY id DESC LIMIT ?", (n,))
@@ -185,9 +179,7 @@ class BackendCrudMixin:
         self._ex("UPDATE sessions SET handoff=? WHERE id=?", (json.dumps(handoff), sid))
 
     def session_last_handoff(self) -> dict[str, Any] | None:
-        return self._q1(
-            "SELECT * FROM sessions WHERE handoff IS NOT NULL ORDER BY id DESC LIMIT 1"
-        )
+        return self._q1("SELECT * FROM sessions WHERE handoff IS NOT NULL ORDER BY id DESC LIMIT 1")
 
     # --- Decisions ---
 
@@ -219,9 +211,7 @@ class BackendCrudMixin:
 
     def decision_count_for_task(self, slug: str) -> int:
         """Count decisions linked to a task."""
-        row = self._q1(
-            "SELECT COUNT(*) as cnt FROM decisions WHERE task_slug=?", (slug,)
-        )
+        row = self._q1("SELECT COUNT(*) as cnt FROM decisions WHERE task_slug=?", (slug,))
         return row["cnt"] if row else 0
 
     # --- Memory ---
@@ -250,14 +240,21 @@ class BackendCrudMixin:
         )
 
     def memory_list(
-        self, mem_type: str | None = None, n: int = 50
+        self,
+        mem_type: str | None = None,
+        n: int = 50,
+        include_archived: bool = False,
     ) -> list[dict[str, Any]]:
+        sql = "SELECT * FROM memory WHERE 1=1"
+        params: list[Any] = []
+        if not include_archived:
+            sql += " AND archived_at IS NULL"
         if mem_type:
-            return self._q(
-                "SELECT * FROM memory WHERE type=? ORDER BY id DESC LIMIT ?",
-                (mem_type, n),
-            )
-        return self._q("SELECT * FROM memory ORDER BY id DESC LIMIT ?", (n,))
+            sql += " AND type=?"
+            params.append(mem_type)
+        sql += " ORDER BY id DESC LIMIT ?"
+        params.append(n)
+        return self._q(sql, tuple(params))
 
     def memory_get(self, mid: int) -> dict[str, Any] | None:
         return self._q1("SELECT * FROM memory WHERE id=?", (mid,))
@@ -323,15 +320,11 @@ class BackendCrudMixin:
                 "SELECT * FROM task_logs WHERE task_slug=? AND phase=? ORDER BY id",
                 (task_slug, phase),
             )
-        return self._q(
-            "SELECT * FROM task_logs WHERE task_slug=? ORDER BY id", (task_slug,)
-        )
+        return self._q("SELECT * FROM task_logs WHERE task_slug=? ORDER BY id", (task_slug,))
 
     def task_log_recent(self, limit: int = 50) -> list[dict[str, Any]]:
         """Most recent task_logs across ALL tasks — feeds memory_compact aggregation."""
-        return self._q(
-            "SELECT * FROM task_logs ORDER BY id DESC LIMIT ?", (int(limit),)
-        )
+        return self._q("SELECT * FROM task_logs ORDER BY id DESC LIMIT ?", (int(limit),))
 
     # --- Agent-native planning units (call budget / actual / tier) ---
 

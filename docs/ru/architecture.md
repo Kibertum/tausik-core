@@ -101,7 +101,7 @@
 | `harness/claude/mcp/project/handlers.py` | Диспетчеризация: имя инструмента → метод сервиса |
 | `harness/claude/mcp/project/handlers_skill.py` | Обработчики навыков + обслуживания (split) |
 
-Полный MCP-surface: **93 project + 7 brain = 100 инструментов** (опциональный `codebase-rag` добавляет ещё 7; не в основном счёте).
+Полный MCP-surface: **96 project + 7 brain = 103 инструмента** (опциональный `codebase-rag` добавляет ещё 7; не в основном счёте).
 
 ### Поддержка разных сред разработки
 

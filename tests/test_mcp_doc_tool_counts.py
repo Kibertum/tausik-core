@@ -23,12 +23,14 @@ def _code_counts() -> tuple[int, int, int]:
 def _parse_doc_main_total(path: Path) -> tuple[int, int | None]:
     """Return (main_bold_count, optional_total_with_rag from blockquote)."""
     text = path.read_text(encoding="utf-8")
+    # Russian noun-number agreement: 1 инструмент, 2/3/4 инструмента, 5+/0 инструментов.
+    # Accept any form so doc grammar isn't constrained by the test fixture.
     main = re.search(
-        r"\*\*(\d+)\s*(?:tools?|инструментов)\*\*",
+        r"\*\*(\d+)\s*(?:tools?|инструмент\w*)\*\*",
         text,
         re.IGNORECASE,
     )
-    assert main, f"{path}: missing **N tools** / **N инструментов** in header"
+    assert main, f"{path}: missing **N tools** / **N инструмент(а|ов)** in header"
     total_m = re.search(
         r"(?:total with it is|итого с ним)\s+(\d+)\s*(?:tools?|инструмент\w*)",
         text,
@@ -48,8 +50,7 @@ def test_mcp_markdown_main_count_matches_code(rel):
     path = REPO / rel
     main_doc, total_doc = _parse_doc_main_total(path)
     assert main_doc == main_expected, (
-        f"{rel}: doc claims {main_doc} main tools, code has "
-        f"{n_project}+{n_brain}={main_expected}"
+        f"{rel}: doc claims {main_doc} main tools, code has {n_project}+{n_brain}={main_expected}"
     )
     if total_doc is not None:
         assert total_doc == main_expected + n_rag, (
@@ -110,9 +111,9 @@ def test_agents_md_mcp_counts_match_code():
     n_project, n_brain, n_rag = _code_counts()
     main_expected = n_project + n_brain
     text = (REPO / "AGENTS.md").read_text(encoding="utf-8")
-    assert (
-        f"{n_project} project + {n_brain} brain = {main_expected}" in text
-    ), "AGENTS.md: missing canonical N project + N brain = main"
+    assert f"{n_project} project + {n_brain} brain = {main_expected}" in text, (
+        "AGENTS.md: missing canonical N project + N brain = main"
+    )
     assert str(main_expected + n_rag) in text, (
         "AGENTS.md: missing total-with-RAG count (main + codebase-rag)"
     )

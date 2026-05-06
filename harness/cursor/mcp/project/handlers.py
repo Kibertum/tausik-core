@@ -229,9 +229,17 @@ def _do_memory_add(svc: Any, args: dict) -> str:
 
 
 def _do_memory_list(svc: Any, args: dict) -> str:
-    memories = svc.memory_list(args.get("type"), args.get("limit", 50))
+    memories = svc.memory_list(
+        args.get("type"),
+        args.get("limit", 50),
+        include_archived=bool(args.get("include_archived", False)),
+    )
     return _handle_list(
-        memories, lambda r: f"#{r['id']} [{r['type']}] {r['title']}", "No memories."
+        memories,
+        lambda r: (
+            f"#{r['id']} [{r['type']}]{' [archived]' if r.get('archived_at') else ''} {r['title']}"
+        ),
+        "No memories.",
     )
 
 
@@ -240,11 +248,48 @@ def _do_memory_show(svc: Any, args: dict) -> str:
     return f"#{m['id']} [{m['type']}] {m['title']}\n{m['content']}"
 
 
+def _do_memory_archive(svc: Any, args: dict) -> str:
+    result = svc.memory_archive(args["before"], confirm=bool(args.get("confirm", False)))
+    days = result["before_days"]
+    if result["applied"]:
+        return f"Archived {result['archived']} memory rows older than {days} days."
+    cands = result.get("candidates", [])
+    if not cands:
+        return f"No unarchived rows older than {days} days."
+    head = (
+        f"Dry-run: {len(cands)} rows older than {days} days. Re-run with confirm=true to apply.\n"
+    )
+    sample = "\n".join(f"  #{r['id']} [{r['type']}] {r['title']}" for r in cands[:20])
+    tail = f"\n  ... +{len(cands) - 20} more" if len(cands) > 20 else ""
+    return head + sample + tail
+
+
+def _do_memory_dedupe(svc: Any, args: dict) -> str:
+    threshold = float(args.get("threshold", 0.85))
+    n = int(args.get("limit", 200))
+    suggestions = svc.memory_dedupe(threshold=threshold, n=n)
+    if not suggestions:
+        return f"No pairs above threshold {threshold:.2f} in the last {n} unarchived rows."
+    lines = [f"{len(suggestions)} pair(s) above {threshold:.2f}:"]
+    for s in suggestions:
+        ta = s["title_a"][:40]
+        tb = s["title_b"][:40]
+        lines.append(
+            f'  {s["ratio"]:.3f} [{s["type"]}] #{s["id_a"]} "{ta}" <-> #{s["id_b"]} "{tb}"'
+        )
+    return "\n".join(lines)
+
+
 def _do_memory_search(svc: Any, args: dict) -> str:
-    results = svc.memory_search(args["query"])
+    results = svc.memory_search(
+        args["query"],
+        include_archived=bool(args.get("include_archived", False)),
+    )
     return _handle_list(
         results,
-        lambda r: f"#{r['id']} [{r['type']}] {r['title']}: {r['content'][:100]}",
+        lambda r: (
+            f"#{r['id']} [{r['type']}]{' [archived]' if r.get('archived_at') else ''} {r['title']}: {r['content'][:100]}"
+        ),
         "No memories found.",
     )
 
@@ -453,6 +498,8 @@ _DISPATCH: dict[str, _Handler] = {
     "tausik_memory_search": _do_memory_search,
     "tausik_memory_block": _do_memory_block,
     "tausik_memory_compact": _do_memory_compact,
+    "tausik_memory_archive": _do_memory_archive,
+    "tausik_memory_dedupe": _do_memory_dedupe,
     # --- Graph Memory ---
     "tausik_memory_link": _do_memory_link,
     "tausik_memory_unlink": lambda svc, args: svc.memory_unlink(
@@ -493,6 +540,10 @@ _DISPATCH: dict[str, _Handler] = {
     ),
     "tausik_skill_repo_remove": lambda svc, args: _skill.handle_skill_repo_remove(args["name"]),
     "tausik_skill_repo_list": lambda svc, args: _skill.handle_skill_repo_list(),
+    "tausik_skill_catalog": lambda svc, args: _skill.handle_skill_catalog(
+        repo_name=args.get("repo"),
+        as_json=bool(args.get("as_json", False)),
+    ),
     # --- Maintenance (handler in handlers_skill.py) ---
     "tausik_update_claudemd": lambda svc, args: _skill.handle_update_claudemd(svc),
     "tausik_fts_optimize": _do_fts_optimize,
@@ -979,6 +1030,7 @@ def _handle_task_list(svc: Any, args: dict) -> str:
         role=args.get("role"),
         stack=args.get("stack"),
         limit=args.get("limit"),
+        include_archived=bool(args.get("include_archived", False)),
     )
     return _handle_list(
         tasks, lambda t: f"[{t['status']}] {t['slug']}: {t['title']}", "No tasks found."

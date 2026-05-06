@@ -22,7 +22,7 @@ TAUSIK is an engineering governance framework for AI coding agents. It forces pl
 | **[Skills](en/skills.md)** | What the agent can do |
 | **[Hooks](en/hooks.md)** | Real-time enforcement: blockers, firewall, drift guards |
 | **[CLI Commands](en/cli.md)** | Full terminal command reference |
-| **[MCP Tools](en/mcp.md)** | 100 tools for the AI agent |
+| **[MCP Tools](en/mcp.md)** | 103 tools for the AI agent |
 | **[Architecture](en/architecture.md)** | How the framework works inside |
 | **[Roles](en/roles.md)** | Free-text roles (developer, qa, architect…) |
 | **[Stacks](en/stacks.md)** | Tech stacks and stack-scoped gates |
@@ -121,7 +121,7 @@ These are agent-facing specifications consumed by AI assistants — not user-fac
 | **[Навыки (Skills)](ru/skills.md)** | Что умеет AI-агент |
 | **[Хуки (Hooks)](ru/hooks.md)** | Real-time контроль: блокировки, firewall, drift guards |
 | **[CLI-команды](ru/cli.md)** | Справочник команд терминала |
-| **[MCP-инструменты](ru/mcp.md)** | 100 инструментов для AI-агента |
+| **[MCP-инструменты](ru/mcp.md)** | 103 инструмента для AI-агента |
 | **[Архитектура](ru/architecture.md)** | Как устроен фреймворк внутри |
 | **[Роли](ru/roles.md)** | Free-text роли (developer, qa, architect…) |
 | **[Стэки](ru/stacks.md)** | Технологические стэки и stack-scoped gates |

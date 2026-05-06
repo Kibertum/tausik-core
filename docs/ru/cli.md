@@ -265,6 +265,7 @@ skill deactivate <name>         # Деактивировать активный 
 skill repo add <url> [--force]  # Add TAUSIK skill repo; --force для URL кроме github.com/Kibertum/tausik-skills
 skill repo remove <name>        # Удалить configured skill repo
 skill repo list                 # Список configured repos и их skills
+skill catalog [<repo>] [--json] # Discovery: name/category/repo/description по cloned repos
 ```
 
 Negative-сценарии (unknown skill, untrusted repo URL, missing skill)

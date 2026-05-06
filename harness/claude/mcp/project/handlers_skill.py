@@ -84,6 +84,35 @@ def handle_skill_list() -> str:
     return "\n".join(lines) if lines else "(none)"
 
 
+def handle_skill_catalog(repo_name: str | None = None, as_json: bool = False) -> str:
+    """Discovery view: skills offered by configured/cloned skill repos."""
+    import json as _json
+
+    p = _skill_paths()
+    try:
+        from project_service import ProjectService
+
+        rows = ProjectService.skill_catalog(
+            p["vendor_dir"], repo_name=repo_name, config_path=p["config_path"]
+        )
+    except Exception as e:
+        return f"Error: {e}"
+    if as_json:
+        return _json.dumps(rows, ensure_ascii=False, indent=2)
+    if not rows:
+        return (
+            f"(no skills found in repo '{repo_name}')"
+            if repo_name
+            else "(no skill repos cloned — run `tausik_skill_repo_add`)"
+        )
+    lines = []
+    for r in rows:
+        cat = f" [{r['category']}]" if r.get("category") else ""
+        desc = (r.get("description") or "").splitlines()[0][:80]
+        lines.append(f"{r['name']}{cat} ({r['repo']}) — {desc}")
+    return "\n".join(lines)
+
+
 def handle_skill_activate(svc: Any, name: str) -> str:
     p = _skill_paths()
     try:

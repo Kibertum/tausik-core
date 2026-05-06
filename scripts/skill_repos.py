@@ -137,9 +137,7 @@ def repo_add(
     update_config_repo_add(config_path, repo_name, url)
 
     names = ", ".join(info["skill_names"][:10])
-    suffix = (
-        f" (+{info['skills_count'] - 10} more)" if info["skills_count"] > 10 else ""
-    )
+    suffix = f" (+{info['skills_count'] - 10} more)" if info["skills_count"] > 10 else ""
     return (
         f"Repository '{repo_name}' added ({info['skills_count']} skills).\n"
         f"Available: {names}{suffix}\n"
@@ -202,11 +200,29 @@ def repo_list(vendor_dir: str, config_path: str) -> list[dict[str, Any]]:
 
 def repo_list_all_skills(vendor_dir: str) -> list[dict[str, Any]]:
     """List all skills across all repos."""
+    return repo_catalog(vendor_dir, repo_name=None)
+
+
+def repo_catalog(vendor_dir: str, repo_name: str | None = None) -> list[dict[str, Any]]:
+    """Discovery view over cloned skill repos.
+
+    Returns one row per skill across all (or one) cloned repo, with
+    ``name``, ``repo``, ``description``, ``category``, ``triggers``,
+    ``requires``. ``category`` is a best-effort lookup on the manifest
+    skill entry (falls back to empty string when absent).
+
+    When ``repo_name`` is provided but the repo is not configured /
+    not cloned, returns ``[]`` — caller may raise a ServiceError.
+    """
     result: list[dict[str, Any]] = []
     if not os.path.isdir(vendor_dir):
         return result
-    for repo_name in sorted(os.listdir(vendor_dir)):
-        repo_dir = os.path.join(vendor_dir, repo_name)
+    if repo_name is not None:
+        candidates = [repo_name] if os.path.isdir(os.path.join(vendor_dir, repo_name)) else []
+    else:
+        candidates = sorted(os.listdir(vendor_dir))
+    for cand in candidates:
+        repo_dir = os.path.join(vendor_dir, cand)
         manifest_path = os.path.join(repo_dir, TAUSIK_MANIFEST)
         if not os.path.isfile(manifest_path):
             continue
@@ -217,8 +233,9 @@ def repo_list_all_skills(vendor_dir: str) -> list[dict[str, Any]]:
                 result.append(
                     {
                         "name": skill_name,
-                        "repo": repo_name,
+                        "repo": cand,
                         "description": info.get("description", ""),
+                        "category": info.get("category", ""),
                         "triggers": info.get("triggers", []),
                         "requires": info.get("requires", []),
                     }

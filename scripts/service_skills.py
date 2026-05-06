@@ -93,9 +93,7 @@ class SkillsMixin:
             if not os.path.isdir(vpath):
                 continue
             skill_path = os.path.join(vpath, name)
-            if os.path.isdir(skill_path) and os.path.exists(
-                os.path.join(skill_path, "SKILL.md")
-            ):
+            if os.path.isdir(skill_path) and os.path.exists(os.path.join(skill_path, "SKILL.md")):
                 return skill_path
         return None
 
@@ -155,9 +153,7 @@ class SkillsMixin:
             raise ServiceError(f"Skill '{name}' is not active.")
         # Cannot deactivate built-in skills
         if os.path.isdir(os.path.join(lib_skills_dir, name)):
-            raise ServiceError(
-                f"Skill '{name}' is a built-in skill, cannot deactivate."
-            )
+            raise ServiceError(f"Skill '{name}' is a built-in skill, cannot deactivate.")
         # If it's a stub already, nothing to deactivate
         if SkillsMixin._is_stub_skill(dst):
             return f"Skill '{name}' is already a stub (not loaded)."
@@ -180,9 +176,7 @@ class SkillsMixin:
         active_names: set[str] = set()
         if os.path.isdir(skills_dst):
             active_names = {
-                d
-                for d in os.listdir(skills_dst)
-                if os.path.isdir(os.path.join(skills_dst, d))
+                d for d in os.listdir(skills_dst) if os.path.isdir(os.path.join(skills_dst, d))
             }
         if os.path.isdir(vendor_dir):
             for vname in os.listdir(vendor_dir):
@@ -220,3 +214,30 @@ class SkillsMixin:
         from skill_manager import uninstall_skill
 
         return uninstall_skill(name, skills_dst, config_path)
+
+    @staticmethod
+    def skill_catalog(
+        vendor_dir: str,
+        repo_name: str | None = None,
+        config_path: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Discovery view: list skills offered by cloned skill repos.
+
+        With ``repo_name=None`` returns rows from every repo whose
+        ``tausik-skills.json`` manifest is readable. With an explicit
+        ``repo_name`` returns only that repo's skills; raises
+        ``ServiceError`` when the repo is neither configured nor cloned.
+        """
+        from skill_repos import load_config, repo_catalog
+
+        if repo_name is not None:
+            cfg_repos: dict[str, Any] = {}
+            if config_path:
+                cfg_repos = load_config(config_path).get("skill_repos", {})
+            cloned = os.path.isdir(os.path.join(vendor_dir, repo_name))
+            if not cloned and repo_name not in cfg_repos:
+                raise ServiceError(
+                    f"Skill repo '{repo_name}' is not configured and not cloned. "
+                    "Use `tausik skill repo list` to see options."
+                )
+        return repo_catalog(vendor_dir, repo_name)

@@ -34,6 +34,27 @@ You may merge two notes into one “clean” summary for the brain — but if th
 2. **New:** One note “flakey test” caused by async timing; another “flakey test” caused by shared global state — two gotchas, cross-link if helpful.
 3. **Scrubber:** Merging notes accidentally pulls in `D:\Work\…` — scrub blocks brain write until paths are removed or redacted.
 
+## Hygiene CLI (B9, v1.4 polish)
+
+When the project has been running long enough that memory FTS noise hides relevant rows, two read-safe hygiene commands help — both are scoped to the **local** `.tausik/tausik.db` and never touch the brain.
+
+```bash
+# Soft-archive: hide rows older than the given duration from `memory list/search`.
+# Dry-run by default; --confirm stamps `archived_at` (idempotent).
+tausik memory archive --before 90d            # preview
+tausik memory archive --before 90d --confirm  # apply
+
+# Find near-duplicate pairs above a similarity threshold (read-only).
+tausik memory dedupe                  # default threshold 0.85
+tausik memory dedupe --threshold 0.9 --limit 500
+```
+
+Duration grammar: `<int><unit>` with `unit ∈ d|w|m|y` (`m=30 days`, `y=365 days`). Anything else errors.
+
+`memory list` and `memory search` filter `archived_at IS NOT NULL` by default; pass `--include-archived` (CLI) or `include_archived: true` (MCP) to opt back in. Archived rows still answer `memory show <id>` so you can recover content before reusing it.
+
+Dedupe uses `SequenceMatcher.ratio()` over `title || content` and only considers rows of the **same type** — a `pattern` will never be suggested as a merge candidate for a `gotcha`. The command is suggest-only; consolidate manually with `memory show` + `memory delete`, or rewrite one row to subsume the other.
+
 ## See also
 
 - [Shared Brain](shared-brain.md) — setup, sync, privacy model.

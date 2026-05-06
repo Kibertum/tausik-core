@@ -46,15 +46,51 @@ class BackendQueriesMixin(BackendQueriesUsageMixin):
 
     # --- Search ---
 
-    def memory_search(self, query: str, n: int = 20) -> list[dict[str, Any]]:
+    def memory_search(
+        self,
+        query: str,
+        n: int = 20,
+        include_archived: bool = False,
+    ) -> list[dict[str, Any]]:
         q = _sanitize_fts5(query)
         if not q:
             return []
-        return self._q(
+        sql = (
             "SELECT m.*, snippet(fts_memory, 1, '>>>', '<<<', '...', 32) AS _snippet "
             "FROM memory m JOIN fts_memory f ON m.id=f.rowid "
-            "WHERE fts_memory MATCH ? ORDER BY bm25(fts_memory, 10.0, 1.0, 3.0) LIMIT ?",
-            (q, n),
+            "WHERE fts_memory MATCH ?"
+        )
+        params: list[Any] = [q]
+        if not include_archived:
+            sql += " AND m.archived_at IS NULL"
+        sql += " ORDER BY bm25(fts_memory, 10.0, 1.0, 3.0) LIMIT ?"
+        params.append(n)
+        return self._q(sql, tuple(params))
+
+    def memory_archive_apply(self, before_iso: str) -> int:
+        """Stamp ``archived_at`` on memory rows older than ``before_iso``.
+
+        Idempotent: rows with non-null ``archived_at`` are skipped. Returns
+        the number of newly archived rows.
+        """
+        from tausik_utils import utcnow_iso
+
+        now = utcnow_iso()
+        cur = self._conn.execute(
+            "UPDATE memory SET archived_at=?, updated_at=? "
+            "WHERE created_at < ? AND archived_at IS NULL",
+            (now, now, before_iso),
+        )
+        self._conn.commit()
+        return cur.rowcount or 0
+
+    def memory_archive_candidates(self, before_iso: str) -> list[dict[str, Any]]:
+        """Memory rows older than ``before_iso`` and not yet archived."""
+        return self._q(
+            "SELECT id, type, title, created_at FROM memory "
+            "WHERE created_at < ? AND archived_at IS NULL "
+            "ORDER BY created_at ASC",
+            (before_iso,),
         )
 
     def search_all(

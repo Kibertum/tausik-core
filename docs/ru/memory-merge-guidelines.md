@@ -34,6 +34,27 @@
 2. **Новая:** «флаки» из-за async vs из-за глобального состояния — две gotcha, при желании перекрёстная ссылка.
 3. **Scrubber:** при слиянии затесался `D:\Work\…` — запись в brain блокируется, пока пути не убраны.
 
+## CLI гигиены (B9, v1.4 polish)
+
+Когда long-running проект накопил шум и FTS перестаёт давать релевантные ответы — две read-safe команды для уборки. Обе работают **только** с локальной `.tausik/tausik.db`, brain не затрагивают.
+
+```bash
+# Soft-архив: спрятать записи старше N времени из `memory list/search`.
+# По умолчанию dry-run; --confirm проставляет `archived_at` (идемпотентно).
+tausik memory archive --before 90d            # preview
+tausik memory archive --before 90d --confirm  # применить
+
+# Найти пары почти-дублей по similarity порогу (read-only).
+tausik memory dedupe                  # порог по умолчанию 0.85
+tausik memory dedupe --threshold 0.9 --limit 500
+```
+
+Грамматика длительности: `<int><unit>` где `unit ∈ d|w|m|y` (`m=30 дней`, `y=365 дней`). Иначе — ошибка.
+
+`memory list` и `memory search` по умолчанию фильтруют `archived_at IS NOT NULL`; флаг `--include-archived` (CLI) или `include_archived: true` (MCP) возвращает их в выдачу. `memory show <id>` всё равно работает на архивированной записи — содержание не теряется.
+
+Dedupe считает `SequenceMatcher.ratio()` по `title || content` и сравнивает только записи **одного типа** — `pattern` никогда не предложит слить с `gotcha`. Команда suggest-only; консолидируй вручную через `memory show` + `memory delete`, или перепиши одну запись, чтобы поглотить другую.
+
 ## См. также
 
 - [Shared Brain](shared-brain.md) — модель, синк, приватность.

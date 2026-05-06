@@ -2,13 +2,13 @@
 
 # TAUSIK MCP — Справочник инструментов (v1.4)
 
-**100 инструментов** для ИИ-агентов (93 project + 7 brain; v1.4 актуальный счёт, проверено `len(TOOLS)` обоих серверов). MCP-surface зеркалит CLI 1:1 без CLI-only пробелов. Предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
+**103 инструмента** для ИИ-агентов (96 project + 7 brain; v1.4 актуальный счёт, проверено `len(TOOLS)` обоих серверов). MCP-surface зеркалит CLI 1:1 без CLI-only пробелов. Предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
 
-> **Опциональный сервер `codebase-rag`** добавляет 7 инструментов (search_code, find_symbol, etc.). Он включается отдельно через bootstrap и НЕ входит в основной счёт 100 — итого с ним 107 инструментов.
+> **Опциональный сервер `codebase-rag`** добавляет 7 инструментов (search_code, find_symbol, etc.). Он включается отдельно через bootstrap и НЕ входит в основной счёт 103 — итого с ним 110 инструментов.
 
 В проекте живут два MCP-сервера:
 
-- `tausik-project` — project-scoped инструменты (92): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging.
+- `tausik-project` — project-scoped инструменты (96): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging.
 - `tausik-brain` — cross-project Shared Brain инструменты (7).
 
 Опционально доступен `codebase-rag` сервер (документирован в конце).
@@ -206,6 +206,7 @@ DEFAULT_STACKS: 25 записей (python, fastapi, django, flask, react, next, 
 | `tausik_skill_repo_add` | Добавить TAUSIK-совместимый репо (сторонний URL — `force`) | `url`, опционально `force` |
 | `tausik_skill_repo_remove` | Удалить репо | `name` |
 | `tausik_skill_repo_list` | Список репозиториев и доступных skills | — |
+| `tausik_skill_catalog` | Discovery: список skills из настроенных/клонированных repos (name, category, description) | опц. `repo`, опц. `as_json` |
 
 ## Cross-Project Queue (CQ)
 

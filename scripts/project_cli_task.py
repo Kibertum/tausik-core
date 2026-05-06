@@ -47,6 +47,7 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
             args.role,
             args.stack,
             limit=getattr(args, "limit", None),
+            include_archived=getattr(args, "include_archived", False),
         )
         _print_table(tasks, ["slug", "title", "status", "story_slug", "role", "stack"])
     elif c == "show":

@@ -265,6 +265,7 @@ skill deactivate <name>         # Deactivate an active skill (remove from .claud
 skill repo add <url> [--force]  # Add TAUSIK skill repo; --force required for URLs other than github.com/Kibertum/tausik-skills
 skill repo remove <name>        # Remove a configured skill repo
 skill repo list                 # List configured repos and their skills
+skill catalog [<repo>] [--json] # Discovery: name/category/repo/description across cloned repos
 ```
 
 Negative scenarios (unknown skill, untrusted repo URL, missing skill) print
