@@ -18,6 +18,20 @@
 
 ### Изменено
 
+- **Filesize debt paydown: `scripts/project_backend.py` 403 → 327
+  (`v14b-project-backend-debt-paydown`).**
+  67-строчный метод `_init_schema` (DDL bootstrap + version-guard +
+  migration backup + FTS rebuild) вынесен в free function
+  `init_schema(conn)` в новый `scripts/backend_init.py` (96 строк).
+  `SQLiteBackend.__init__` вызывает её напрямую; метод удалён, других
+  caller'ов кроме `__init__` не было. Поведение байт-в-байт идентично:
+  тот же skip-DDL-если-current-version путь, тот же `RuntimeError` на
+  newer-than-code on-disk schema, тот же идемпотентный `.bak.v<old>`
+  backup перед `run_migrations`, тот же FTS rebuild для
+  `fts_{tasks,memory,decisions}`. Импорты `shutil` + `run_migrations`
+  переехали в новый модуль — `project_backend.py` их больше не ссылает.
+  Full pytest 2889 passed (0 регрессий). Ruff + mypy clean.
+
 - **Preempt-split `harness/{claude,cursor}/mcp/project/tools_extra.py`
   (`v14b-tools-extra-preempt-split`).**
   Файл был на 399/400 строк после приземления session-open compound RPC —

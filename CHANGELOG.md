@@ -16,6 +16,21 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Filesize debt paydown: `scripts/project_backend.py` 403 → 327
+  (`v14b-project-backend-debt-paydown`).**
+  The 67-line `_init_schema` method (DDL bootstrap + version-guard +
+  migration backup + FTS rebuild) extracted into a free function
+  `init_schema(conn)` in a new `scripts/backend_init.py` (96 lines).
+  `SQLiteBackend.__init__` calls it directly; the method is gone, no
+  caller other than `__init__` ever referenced it. Behaviour byte-for-byte
+  identical: same skip-DDL-on-current-version path, same `RuntimeError`
+  on a newer-than-code on-disk schema, same idempotent `.bak.v<old>`
+  backup before `run_migrations`, same FTS rebuild for
+  `fts_{tasks,memory,decisions}`. The `shutil` + `run_migrations`
+  imports moved to the new module — no longer referenced from
+  `project_backend.py`. Full pytest 2889 passed (0 regressions).
+  Ruff + mypy clean.
+
 - **Preempt-split `harness/{claude,cursor}/mcp/project/tools_extra.py`
   (`v14b-tools-extra-preempt-split`).**
   The file was at 399/400 lines after the session-open compound RPC
