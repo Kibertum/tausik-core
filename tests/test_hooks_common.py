@@ -11,9 +11,9 @@ import json
 import os
 import sys
 
-_HOOK_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks")
-)
+import pytest
+
+_HOOK_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks"))
 if _HOOK_DIR not in sys.path:
     sys.path.insert(0, _HOOK_DIR)
 
@@ -25,36 +25,17 @@ from _common import (  # noqa: E402
 
 class TestMarkerPresentAnchored:
     def test_exact_line_returns_true(self):
-        assert marker_present_anchored(
-            "confirm: cross-project", "confirm: cross-project"
-        )
+        assert marker_present_anchored("confirm: cross-project", "confirm: cross-project")
 
     def test_line_with_leading_trailing_whitespace(self):
-        assert marker_present_anchored(
-            "   confirm: cross-project  ", "confirm: cross-project"
-        )
+        assert marker_present_anchored("   confirm: cross-project  ", "confirm: cross-project")
 
     def test_case_insensitive(self):
-        assert marker_present_anchored(
-            "CONFIRM: Cross-Project", "confirm: cross-project"
-        )
+        assert marker_present_anchored("CONFIRM: Cross-Project", "confirm: cross-project")
 
     def test_multiline_marker_on_its_own_line(self):
         text = "First line\nconfirm: cross-project\nlast line"
         assert marker_present_anchored(text, "confirm: cross-project")
-
-    def test_substring_only_returns_false(self):
-        """Pre-fix behavior: this would incorrectly return True."""
-        text = "I know I should reply with `confirm: cross-project` but I'm just asking"
-        assert not marker_present_anchored(text, "confirm: cross-project")
-
-    def test_marker_inside_fenced_code_block_returns_false(self):
-        text = "Here's the hook message:\n```\nreply with `confirm: cross-project` in your next message\n```\nWhat do I do?"
-        assert not marker_present_anchored(text, "confirm: cross-project")
-
-    def test_marker_inside_multiline_fenced_block_returns_false(self):
-        text = "```text\nconfirm: cross-project\n```"
-        assert not marker_present_anchored(text, "confirm: cross-project")
 
     def test_marker_after_closing_fence_returns_true(self):
         text = "```\nquoted hook text\n```\nconfirm: cross-project"
@@ -73,56 +54,55 @@ class TestMarkerPresentAnchored:
     def test_whitespace_only_marker_returns_false(self):
         assert not marker_present_anchored("some text", "   \n\t")
 
-    def test_marker_as_part_of_sentence_returns_false(self):
-        text = "Ok I confirm: cross-project settings are fine"
-        assert not marker_present_anchored(text, "confirm: cross-project")
-
-    def test_partial_line_match_returns_false(self):
-        text = "confirm: cross-project -- but only for this file"
-        assert not marker_present_anchored(text, "confirm: cross-project")
-
-    # HIGH-2 regressions: close bypasses found in the second review pass.
-
-    def test_u2028_line_separator_does_NOT_trigger_bypass(self):
-        """U+2028 is invisible but splitlines() treats it as a line break —
-        an attacker could sneak the marker into prose with U+2028 on each
-        side and have it masquerade as a line of its own."""
-        text = "hook said confirm: cross-project right?"
-        assert not marker_present_anchored(text, "confirm: cross-project")
-
-    def test_u2029_paragraph_separator_does_NOT_trigger_bypass(self):
-        text = "hook said confirm: cross-project right?"
-        assert not marker_present_anchored(text, "confirm: cross-project")
-
-    def test_u0085_nel_does_NOT_trigger_bypass(self):
-        """NEL (next line, U+0085) — same bypass class."""
-        text = "hook saidconfirm: cross-projectright?"
-        assert not marker_present_anchored(text, "confirm: cross-project")
-
-    def test_tilde_fenced_block_does_NOT_trigger_bypass(self):
-        """CommonMark allows ~~~ as a fence alternative to ```. A marker
-        inside a tilde-fenced block must also be skipped."""
-        text = "The hook said:\n~~~\nconfirm: cross-project\n~~~\nWhat do I do?"
-        assert not marker_present_anchored(text, "confirm: cross-project")
-
-    def test_tilde_fence_with_language_tag_does_NOT_trigger_bypass(self):
-        text = "~~~text\nconfirm: cross-project\n~~~"
-        assert not marker_present_anchored(text, "confirm: cross-project")
-
-    def test_four_space_indented_line_does_NOT_trigger_bypass(self):
-        """Markdown indented-code block — 4+ leading spaces makes the line
-        render as code in most agents / UIs. Must not count as the marker."""
-        text = "The hook said:\n\n    confirm: cross-project\n\nWhat do I do?"
-        assert not marker_present_anchored(text, "confirm: cross-project")
-
-    def test_tab_indented_line_does_NOT_trigger_bypass(self):
-        text = "The hook said:\n\n\tconfirm: cross-project\n\nWhat do I do?"
-        assert not marker_present_anchored(text, "confirm: cross-project")
-
     def test_three_space_indent_still_triggers_bypass(self):
         """3 spaces is not an indented-code block — still a regular line."""
         text = "   confirm: cross-project"
         assert marker_present_anchored(text, "confirm: cross-project")
+
+    # Negative cases — bypasses that must NOT trigger the marker.
+    # Includes HIGH-2 regressions found in the second review pass.
+    @pytest.mark.parametrize(
+        "text",
+        [
+            pytest.param(
+                "I know I should reply with `confirm: cross-project` but I'm just asking",
+                id="substring_only",
+            ),
+            pytest.param(
+                "Here's the hook message:\n```\nreply with `confirm: cross-project` in your next message\n```\nWhat do I do?",
+                id="marker_inside_fenced_code_block",
+            ),
+            pytest.param(
+                "```text\nconfirm: cross-project\n```", id="marker_inside_multiline_fenced_block"
+            ),
+            pytest.param(
+                "Ok I confirm: cross-project settings are fine", id="marker_as_part_of_sentence"
+            ),
+            pytest.param(
+                "confirm: cross-project -- but only for this file", id="partial_line_match"
+            ),
+            pytest.param("hook said confirm: cross-project right?", id="u2028_line_separator"),
+            pytest.param("hook said confirm: cross-project right?", id="u2029_paragraph_separator"),
+            pytest.param("hook saidconfirm: cross-projectright?", id="u0085_nel"),
+            pytest.param(
+                "The hook said:\n~~~\nconfirm: cross-project\n~~~\nWhat do I do?",
+                id="tilde_fenced_block",
+            ),
+            pytest.param(
+                "~~~text\nconfirm: cross-project\n~~~", id="tilde_fence_with_language_tag"
+            ),
+            pytest.param(
+                "The hook said:\n\n    confirm: cross-project\n\nWhat do I do?",
+                id="four_space_indented_line",
+            ),
+            pytest.param(
+                "The hook said:\n\n\tconfirm: cross-project\n\nWhat do I do?",
+                id="tab_indented_line",
+            ),
+        ],
+    )
+    def test_does_not_trigger_bypass(self, text):
+        assert not marker_present_anchored(text, "confirm: cross-project")
 
 
 class TestLastUserPromptText:
@@ -195,17 +175,13 @@ class TestLastUserPromptText:
         record even when it sits past 50KB of leading garbage events."""
         p = tmp_path / "huge.jsonl"
         # Padding: ~1MB of assistant/system events that should NOT match
-        padding_event = json.dumps(
-            {"type": "assistant", "message": {"content": "x" * 200}}
-        )
+        padding_event = json.dumps({"type": "assistant", "message": {"content": "x" * 200}})
         # ~1MB padding: each line ~250 bytes; 4000 lines = 1MB
         with open(p, "w", encoding="utf-8") as f:
             for _ in range(4000):
                 f.write(padding_event + "\n")
             # Real user event at the very end (within the last 50KB)
-            f.write(
-                json.dumps({"type": "user", "message": {"content": "TARGET"}}) + "\n"
-            )
+            f.write(json.dumps({"type": "user", "message": {"content": "TARGET"}}) + "\n")
         assert last_user_prompt_text(str(p)) == "TARGET"
 
     def test_user_event_outside_tail_window_not_found(self, tmp_path):
@@ -218,9 +194,7 @@ class TestLastUserPromptText:
             f.write(json.dumps({"type": "user", "message": {"content": "OLD"}}) + "\n")
             # Now write >50KB of assistant padding so the user event ends up
             # before the seek window
-            padding = json.dumps(
-                {"type": "assistant", "message": {"content": "x" * 500}}
-            )
+            padding = json.dumps({"type": "assistant", "message": {"content": "x" * 500}})
             for _ in range(200):  # ~110KB of padding
                 f.write(padding + "\n")
         out = last_user_prompt_text(str(p))
@@ -239,9 +213,7 @@ class TestLastUserPromptText:
         with open(p, "w", encoding="utf-8") as f:
             for _ in range(150):
                 f.write(padding + "\n")
-            f.write(
-                json.dumps({"type": "user", "message": {"content": "LATEST"}}) + "\n"
-            )
+            f.write(json.dumps({"type": "user", "message": {"content": "LATEST"}}) + "\n")
         assert last_user_prompt_text(str(p)) == "LATEST"
 
 
@@ -256,8 +228,7 @@ class TestIntegration:
             "reply explicitly with the marker `confirm: cross-project`"
         )
         prompt = (
-            f"The hook said:\n```\n{hook_error}\n```\n"
-            "What does that mean — is my config wrong?"
+            f"The hook said:\n```\n{hook_error}\n```\nWhat does that mean — is my config wrong?"
         )
         p = tmp_path / "t.jsonl"
         with open(p, "w", encoding="utf-8") as f:
