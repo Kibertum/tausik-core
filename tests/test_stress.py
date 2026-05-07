@@ -20,9 +20,22 @@ from project_service import ProjectService  # noqa: E402
 
 
 @pytest.fixture
-def svc(tmp_path):
+def svc(tmp_path, monkeypatch):
+    """Stress fixture — local-only.
+
+    Force brain disabled so tests measure LOCAL SQLite bulk-insert performance,
+    not brain/Notion routing. With brain enabled (real project config) and a
+    valid token in env, `svc.decide(...)` writes to brain and skips local
+    `decision_add`, leaving local rows at 0 — defeating the stress assertion.
+    Same monkeypatch pattern as `tests/test_service_knowledge_decide.py::svc`.
+    """
     be = SQLiteBackend(str(tmp_path / "stress.db"))
     s = ProjectService(be)
+
+    import brain_config
+
+    monkeypatch.setattr(brain_config, "load_brain", lambda cfg=None: {"enabled": False})
+
     yield s
     be.close()
 

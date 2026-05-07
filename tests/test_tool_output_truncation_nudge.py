@@ -36,19 +36,17 @@ def _import_hook():
     return mod
 
 
-def test_count_lines_handles_empty():
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        pytest.param("", 0, id="count_lines_handles_empty"),
+        pytest.param("a\nb\nc", 3, id="count_lines_no_trailing_newline"),
+        pytest.param("a\nb\nc\n", 3, id="count_lines_trailing_newline"),
+    ],
+)
+def test_count_lines(text, expected):
     mod = _import_hook()
-    assert mod.count_lines("") == 0
-
-
-def test_count_lines_no_trailing_newline():
-    mod = _import_hook()
-    assert mod.count_lines("a\nb\nc") == 3
-
-
-def test_count_lines_trailing_newline():
-    mod = _import_hook()
-    assert mod.count_lines("a\nb\nc\n") == 3
+    assert mod.count_lines(text) == expected
 
 
 def test_resolve_threshold_default(tmp_path, monkeypatch):

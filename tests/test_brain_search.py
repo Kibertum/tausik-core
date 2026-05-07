@@ -366,36 +366,33 @@ def test_search_cyrillic_works(conn):
     assert out[0]["name"] == "Решение"
 
 
-def test_search_query_with_dash_does_not_crash(conn):
-    _insert_gotcha(
-        conn,
-        pid="g1",
-        name="Marker",
-        description="some-hyphenated-phrase appears here",
-    )
-    out = brain_search.search_local(conn, "some-hyphenated-phrase")
-    assert len(out) == 1
-
-
-def test_search_query_with_inner_quotes_does_not_crash(conn):
-    _insert_decision(
-        conn,
-        pid="d1",
-        name="Doc",
-        context='the "quoted" phrase inside',
-    )
-    out = brain_search.search_local(conn, 'the "quoted" phrase')
-    assert len(out) == 1
-
-
-def test_search_query_with_colon_does_not_crash(conn):
-    _insert_pattern(
-        conn,
-        pid="p1",
-        name="Env var",
-        description="use name: value syntax",
-    )
-    out = brain_search.search_local(conn, "name: value")
+@pytest.mark.parametrize(
+    "inserter_name,insert_kwargs,query",
+    [
+        pytest.param(
+            "_insert_gotcha",
+            {"pid": "g1", "name": "Marker", "description": "some-hyphenated-phrase appears here"},
+            "some-hyphenated-phrase",
+            id="search_query_with_dash_does_not_crash",
+        ),
+        pytest.param(
+            "_insert_decision",
+            {"pid": "d1", "name": "Doc", "context": 'the "quoted" phrase inside'},
+            'the "quoted" phrase',
+            id="search_query_with_inner_quotes_does_not_crash",
+        ),
+        pytest.param(
+            "_insert_pattern",
+            {"pid": "p1", "name": "Env var", "description": "use name: value syntax"},
+            "name: value",
+            id="search_query_with_colon_does_not_crash",
+        ),
+    ],
+)
+def test_search_query_special_chars_does_not_crash(conn, inserter_name, insert_kwargs, query):
+    inserter = globals()[inserter_name]
+    inserter(conn, **insert_kwargs)
+    out = brain_search.search_local(conn, query)
     assert len(out) == 1
 
 

@@ -68,25 +68,34 @@ def test_abs_path_marker_routes_local():
     assert d.blocklist_hit is None
 
 
-def test_src_file_marker_routes_local():
-    d = bc.classify("See scripts/brain_classifier.py for details", "decision")
+@pytest.mark.parametrize(
+    "content,category,marker_kind",
+    [
+        pytest.param(
+            "See scripts/brain_classifier.py for details",
+            "decision",
+            "src_file",
+            id="src_file_marker_routes_local",
+        ),
+        pytest.param(
+            "Use tausik_task_start to activate",
+            "gotcha",
+            "tausik_cmd",
+            id="tausik_cmd_marker_routes_local",
+        ),
+        pytest.param(
+            "Task brain-mcp-path-fix was closed",
+            "decision",
+            "slug",
+            id="slug_marker_routes_local_for_non_web_cache",
+        ),
+    ],
+)
+def test_marker_routes_local(content, category, marker_kind):
+    d = bc.classify(content, category)
     assert d.target == "local"
-    assert "src_file" in d.reason
-    assert any(m.kind == "src_file" for m in d.markers)
-
-
-def test_tausik_cmd_marker_routes_local():
-    d = bc.classify("Use tausik_task_start to activate", "gotcha")
-    assert d.target == "local"
-    assert "tausik_cmd" in d.reason
-    assert any(m.kind == "tausik_cmd" for m in d.markers)
-
-
-def test_slug_marker_routes_local_for_non_web_cache():
-    d = bc.classify("Task brain-mcp-path-fix was closed", "decision")
-    assert d.target == "local"
-    assert "slug" in d.reason
-    assert any(m.kind == "slug" for m in d.markers)
+    assert marker_kind in d.reason
+    assert any(m.kind == marker_kind for m in d.markers)
 
 
 def test_marker_reason_includes_exact_match():

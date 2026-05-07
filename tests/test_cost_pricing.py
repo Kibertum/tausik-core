@@ -22,16 +22,8 @@ class TestGetPricing:
         assert get_pricing("sonnet") == get_pricing("claude-sonnet-4-6")
         assert get_pricing("haiku") == get_pricing("claude-haiku-4-5")
 
-    def test_case_insensitive_lookup(self):
-        assert get_pricing("OPUS") == get_pricing("opus")
-        assert get_pricing("Claude-Opus-4-7") == get_pricing("claude-opus-4-7")
-
     def test_whitespace_tolerated(self):
         assert get_pricing("  haiku  ") == get_pricing("haiku")
-
-    def test_unknown_model_returns_none(self):
-        assert get_pricing("claude-mystery-9-9") is None
-        assert get_pricing("gpt-5") is None
 
     def test_empty_or_none_returns_none(self):
         assert get_pricing(None) is None
@@ -48,12 +40,6 @@ class TestCalculateCostUsd:
         same = (10_000, 5_000)
         assert calculate_cost_usd("haiku", *same) < calculate_cost_usd("opus", *same)
 
-    def test_unknown_model_returns_zero(self):
-        assert calculate_cost_usd("unknown", 1_000_000, 1_000_000) == 0.0
-
-    def test_zero_tokens_returns_zero(self):
-        assert calculate_cost_usd("opus", 0, 0) == 0.0
-
     def test_rounding_to_4_decimals(self):
         # Tiny amount → must not raise / lose precision
         cost = calculate_cost_usd("haiku", 1, 1)
@@ -66,34 +52,25 @@ class TestExtendedContextSuffix:
     call writes cost_usd=0.0, defeating B4 cost telemetry.
     """
 
-    def test_opus_1m_explicit_entry(self):
-        p = get_pricing("claude-opus-4-7[1m]")
+    @pytest.mark.parametrize(
+        "model_id,expected_input,expected_output",
+        [
+            # 1M-context premium is 2× base for documented Sonnet tier; opus
+            # follows the same multiplier in cost_pricing pending separate rates.
+            pytest.param("claude-opus-4-7[1m]", 30.0, 150.0, id="opus_1m_explicit_entry"),
+            pytest.param("claude-sonnet-4-6[1m]", 6.0, 22.50, id="sonnet_1m_explicit_entry"),
+            pytest.param("claude-haiku-4-5[1m]", 1.60, 8.0, id="haiku_1m_explicit_entry"),
+        ],
+    )
+    def test_1m_explicit_entry(self, model_id, expected_input, expected_output):
+        p = get_pricing(model_id)
         assert p is not None
-        # 1M-context premium is 2× base for documented Sonnet tier; opus
-        # follows the same multiplier in cost_pricing pending separate rates.
-        assert p["input"] == 30.0
-        assert p["output"] == 150.0
-
-    def test_sonnet_1m_explicit_entry(self):
-        p = get_pricing("claude-sonnet-4-6[1m]")
-        assert p is not None
-        assert p["input"] == 6.0
-        assert p["output"] == 22.50
-
-    def test_haiku_1m_explicit_entry(self):
-        p = get_pricing("claude-haiku-4-5[1m]")
-        assert p is not None
-        assert p["input"] == 1.60
-        assert p["output"] == 8.0
+        assert p["input"] == expected_input
+        assert p["output"] == expected_output
 
     def test_unknown_base_with_suffix_falls_back_to_none(self):
         # No canonical entry for this base; strip-suffix fallback also misses.
         assert get_pricing("claude-mystery-9-9[1m]") is None
-
-    def test_unknown_suffix_falls_back_to_canonical_base(self):
-        # Suffix the table doesn't list explicitly should fall back to base.
-        assert get_pricing("claude-opus-4-7[2m]") == get_pricing("claude-opus-4-7")
-        assert get_pricing("claude-sonnet-4-6[batch]") == get_pricing("claude-sonnet-4-6")
 
     def test_calculate_cost_nonzero_for_1m_opus(self):
         cost = calculate_cost_usd("claude-opus-4-7[1m]", 1_000_000, 100_000)
@@ -101,20 +78,73 @@ class TestExtendedContextSuffix:
         # 1M @ $30 + 100k @ $150 = $30 + $15 = $45
         assert cost == pytest.approx(45.0)
 
-    def test_bare_suffix_returns_none(self):
-        assert get_pricing("[1m]") is None
-        assert get_pricing("   [1m]   ") is None
-
     def test_calculate_cost_unknown_with_none_returns_zero(self):
         # Negative: explicit None model id
         assert calculate_cost_usd(None, 1000, 100) == 0.0
 
-    def test_calculate_cost_unknown_base_with_suffix_returns_zero(self):
-        assert calculate_cost_usd("claude-mystery-9-9[1m]", 1000, 100) == 0.0
 
-    def test_case_insensitive_with_suffix(self):
-        assert get_pricing("CLAUDE-OPUS-4-7[1m]") == get_pricing("claude-opus-4-7[1m]")
-        assert get_pricing("Claude-Opus-4-7[1M]") == get_pricing("claude-opus-4-7[1m]")
+# Module-level: G43 — None returned across two TestGetPricing/TestExtendedContextSuffix scenarios
+@pytest.mark.parametrize(
+    "model_id",
+    [
+        pytest.param("claude-mystery-9-9", id="unknown_model_returns_none"),
+        pytest.param("gpt-5", id="unknown_model_returns_none_gpt"),
+        pytest.param("[1m]", id="bare_suffix_returns_none"),
+        pytest.param("   [1m]   ", id="bare_suffix_returns_none_padded"),
+    ],
+)
+def test_get_pricing_returns_none(model_id):
+    assert get_pricing(model_id) is None
+
+
+# Module-level: G47 — case-insensitive / fallback equivalence across two classes
+@pytest.mark.parametrize(
+    "lhs,rhs",
+    [
+        pytest.param("OPUS", "opus", id="case_insensitive_lookup_alias"),
+        pytest.param("Claude-Opus-4-7", "claude-opus-4-7", id="case_insensitive_lookup_canonical"),
+        pytest.param(
+            "claude-opus-4-7[2m]",
+            "claude-opus-4-7",
+            id="unknown_suffix_falls_back_to_canonical_base_opus",
+        ),
+        pytest.param(
+            "claude-sonnet-4-6[batch]",
+            "claude-sonnet-4-6",
+            id="unknown_suffix_falls_back_to_canonical_base_sonnet",
+        ),
+        pytest.param(
+            "CLAUDE-OPUS-4-7[1m]",
+            "claude-opus-4-7[1m]",
+            id="case_insensitive_with_suffix_upper",
+        ),
+        pytest.param(
+            "Claude-Opus-4-7[1M]",
+            "claude-opus-4-7[1m]",
+            id="case_insensitive_with_suffix_mixed",
+        ),
+    ],
+)
+def test_pricing_lookup_equivalence(lhs, rhs):
+    assert get_pricing(lhs) == get_pricing(rhs)
+
+
+# Module-level: G48 — calculate_cost_usd returns 0.0 across multiple zero-cost scenarios
+@pytest.mark.parametrize(
+    "model_id,input_tokens,output_tokens",
+    [
+        pytest.param("unknown", 1_000_000, 1_000_000, id="unknown_model_returns_zero"),
+        pytest.param("opus", 0, 0, id="zero_tokens_returns_zero"),
+        pytest.param(
+            "claude-mystery-9-9[1m]",
+            1000,
+            100,
+            id="calculate_cost_unknown_base_with_suffix_returns_zero",
+        ),
+    ],
+)
+def test_calculate_cost_zero(model_id, input_tokens, output_tokens):
+    assert calculate_cost_usd(model_id, input_tokens, output_tokens) == 0.0
 
 
 class TestKnownModels:

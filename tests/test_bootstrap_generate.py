@@ -141,17 +141,6 @@ class TestGenerateAgentsMd:
         generate_agents_md(str(tmp_path), name, stacks if stacks is not None else ["python"])
         return (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
 
-    def test_contains_shared_hard_markers(self, tmp_path):
-        text = self._gen(tmp_path)
-        for marker in SHARED_HARD_MARKERS:
-            assert marker in text, f"AGENTS.md missing shared marker: {marker!r}"
-
-    def test_preserves_existing(self, tmp_path):
-        existing = "# Custom AGENTS.md\n"
-        (tmp_path / "AGENTS.md").write_text(existing, encoding="utf-8")
-        generate_agents_md(str(tmp_path), "proj", ["python"])
-        assert (tmp_path / "AGENTS.md").read_text(encoding="utf-8") == existing
-
     def test_empty_stacks(self, tmp_path):
         text = self._gen(tmp_path, stacks=[])
         assert "Stack: not detected" in text
@@ -164,17 +153,6 @@ class TestGenerateCursorrules:
         generate_cursorrules(str(tmp_path), name, stacks if stacks is not None else ["python"])
         return (tmp_path / ".cursorrules").read_text(encoding="utf-8")
 
-    def test_contains_shared_hard_markers(self, tmp_path):
-        text = self._gen(tmp_path)
-        for marker in SHARED_HARD_MARKERS:
-            assert marker in text, f".cursorrules missing shared marker: {marker!r}"
-
-    def test_preserves_existing(self, tmp_path):
-        existing = "# Custom .cursorrules\n"
-        (tmp_path / ".cursorrules").write_text(existing, encoding="utf-8")
-        generate_cursorrules(str(tmp_path), "proj", ["python"])
-        assert (tmp_path / ".cursorrules").read_text(encoding="utf-8") == existing
-
 
 class TestGenerateQwenMd:
     """QWEN.md must share the same hard constraints as CLAUDE.md."""
@@ -183,16 +161,39 @@ class TestGenerateQwenMd:
         generate_qwen_md(str(tmp_path), name, stacks if stacks is not None else ["python"])
         return (tmp_path / "QWEN.md").read_text(encoding="utf-8")
 
-    def test_contains_shared_hard_markers(self, tmp_path):
-        text = self._gen(tmp_path)
-        for marker in SHARED_HARD_MARKERS:
-            assert marker in text, f"QWEN.md missing shared marker: {marker!r}"
 
-    def test_preserves_existing(self, tmp_path):
-        existing = "# Custom QWEN.md\n"
-        (tmp_path / "QWEN.md").write_text(existing, encoding="utf-8")
-        generate_qwen_md(str(tmp_path), "proj", ["python"])
-        assert (tmp_path / "QWEN.md").read_text(encoding="utf-8") == existing
+# Module-level: G40 cross-class merge — shared hard markers across 3 generators
+@pytest.mark.parametrize(
+    "gen_func,filename",
+    [
+        pytest.param(generate_agents_md, "AGENTS.md", id="agents_md_contains_shared_hard_markers"),
+        pytest.param(
+            generate_cursorrules, ".cursorrules", id="cursorrules_contains_shared_hard_markers"
+        ),
+        pytest.param(generate_qwen_md, "QWEN.md", id="qwen_md_contains_shared_hard_markers"),
+    ],
+)
+def test_generator_contains_shared_hard_markers(tmp_path, gen_func, filename):
+    gen_func(str(tmp_path), "proj", ["python"])
+    text = (tmp_path / filename).read_text(encoding="utf-8")
+    for marker in SHARED_HARD_MARKERS:
+        assert marker in text, f"{filename} missing shared marker: {marker!r}"
+
+
+# Module-level: G41 cross-class merge — preserves-existing across 3 generators
+@pytest.mark.parametrize(
+    "gen_func,filename",
+    [
+        pytest.param(generate_agents_md, "AGENTS.md", id="agents_md_preserves_existing"),
+        pytest.param(generate_cursorrules, ".cursorrules", id="cursorrules_preserves_existing"),
+        pytest.param(generate_qwen_md, "QWEN.md", id="qwen_md_preserves_existing"),
+    ],
+)
+def test_generator_preserves_existing(tmp_path, gen_func, filename):
+    existing = f"# Custom {filename}\n"
+    (tmp_path / filename).write_text(existing, encoding="utf-8")
+    gen_func(str(tmp_path), "proj", ["python"])
+    assert (tmp_path / filename).read_text(encoding="utf-8") == existing
 
 
 # Module-level: G15 cross-class merge — 5 header/subdir markers across 3 generators

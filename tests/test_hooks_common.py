@@ -24,35 +24,47 @@ from _common import (  # noqa: E402
 
 
 class TestMarkerPresentAnchored:
-    def test_exact_line_returns_true(self):
-        assert marker_present_anchored("confirm: cross-project", "confirm: cross-project")
-
-    def test_line_with_leading_trailing_whitespace(self):
-        assert marker_present_anchored("   confirm: cross-project  ", "confirm: cross-project")
-
-    def test_case_insensitive(self):
-        assert marker_present_anchored("CONFIRM: Cross-Project", "confirm: cross-project")
-
-    def test_multiline_marker_on_its_own_line(self):
-        text = "First line\nconfirm: cross-project\nlast line"
+    @pytest.mark.parametrize(
+        "text",
+        [
+            pytest.param("confirm: cross-project", id="exact_line_returns_true"),
+            pytest.param("   confirm: cross-project  ", id="line_with_leading_trailing_whitespace"),
+            pytest.param("CONFIRM: Cross-Project", id="case_insensitive"),
+        ],
+    )
+    def test_anchored_marker_basic_positive(self, text):
         assert marker_present_anchored(text, "confirm: cross-project")
 
-    def test_marker_after_closing_fence_returns_true(self):
-        text = "```\nquoted hook text\n```\nconfirm: cross-project"
+    @pytest.mark.parametrize(
+        "text",
+        [
+            pytest.param(
+                "First line\nconfirm: cross-project\nlast line",
+                id="multiline_marker_on_its_own_line",
+            ),
+            pytest.param(
+                "```\nquoted hook text\n```\nconfirm: cross-project",
+                id="marker_after_closing_fence_returns_true",
+            ),
+            pytest.param(
+                "confirm: cross-project\n```\nthen some quoted hook text\n```",
+                id="marker_before_opening_fence_returns_true",
+            ),
+        ],
+    )
+    def test_anchored_marker_with_fence_or_multiline(self, text):
         assert marker_present_anchored(text, "confirm: cross-project")
 
-    def test_marker_before_opening_fence_returns_true(self):
-        text = "confirm: cross-project\n```\nthen some quoted hook text\n```"
-        assert marker_present_anchored(text, "confirm: cross-project")
-
-    def test_empty_text_returns_false(self):
-        assert not marker_present_anchored("", "confirm: cross-project")
-
-    def test_empty_marker_returns_false(self):
-        assert not marker_present_anchored("some text", "")
-
-    def test_whitespace_only_marker_returns_false(self):
-        assert not marker_present_anchored("some text", "   \n\t")
+    @pytest.mark.parametrize(
+        "text,marker",
+        [
+            pytest.param("", "confirm: cross-project", id="empty_text_returns_false"),
+            pytest.param("some text", "", id="empty_marker_returns_false"),
+            pytest.param("some text", "   \n\t", id="whitespace_only_marker_returns_false"),
+        ],
+    )
+    def test_anchored_marker_negative(self, text, marker):
+        assert not marker_present_anchored(text, marker)
 
     def test_three_space_indent_still_triggers_bypass(self):
         """3 spaces is not an indented-code block — still a regular line."""

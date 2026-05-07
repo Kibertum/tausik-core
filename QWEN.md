@@ -39,7 +39,7 @@ start → plan → task → [review | test] → commit → end
 - `commit` — standardized commit with SENAR metadata
 - `end` — close session with handoff for next agent
 
-**Cost-aware model selection:** `tausik suggest-model <complexity>` prints a recommended Claude model (Haiku for simple 1 SP tasks, Sonnet for medium 3 SP, Opus for complex 8 SP). Claude Code doesn't switch models programmatically — apply the suggestion via `/fast` or settings.
+**Cost-aware model selection:** `tausik suggest-model <complexity>` prints a recommended Claude model (Haiku for simple 1 SP tasks, Sonnet for medium 3 SP, Opus for complex 8 SP). Claude Code doesn't switch models programmatically — apply the suggestion manually via the IDE model picker, and persist your default for the next session with `tausik config set model_profile <slug>` (note: `/fast` only toggles fast-output on Opus, it does NOT downgrade to a smaller model).
 
 ## Tool Routing — when to use which
 

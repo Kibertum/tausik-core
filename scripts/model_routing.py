@@ -1,8 +1,11 @@
 """Model routing suggestions — match Claude model to task complexity.
 
 Claude Code does NOT accept programmatic model switches mid-session; the user
-picks the model via /fast or settings. This module produces a *recommendation*
-that TAUSIK surfaces in task output, so the user can apply it manually.
+picks the model via the IDE model picker. (Note: `/fast` toggles faster output
+on Opus 4.6 and does NOT downgrade to a smaller model — it is not a switch.)
+This module produces a *recommendation* that TAUSIK surfaces in task output,
+so the user can apply it manually, plus a persist hint via
+`tausik config set model_profile <slug>` for the next session.
 
 Principle (oh-my-claudecode cost optimisation): 30–50% token savings when
 simple work runs on Haiku instead of Opus.
@@ -138,14 +141,17 @@ def format_task_start_banner(
 ) -> str:
     """Multi-line banner shown by task_start.
 
-    Output shape (3 lines): recommended, active, verdict.
+    Output shape (3-5 lines): recommended, active, verdict, [+ mismatch hints].
     - When active_model is supplied (test path) it is used directly.
     - When transcript_path is supplied (or None — auto-discovery) the active
       model is read via read_active_model_from_transcript.
     - When the active model can't be determined the verdict line reads
       "ⓘ active model unknown — recommendation only".
     - When normalized active_model differs from the recommendation, verdict
-      is a loud "⚠ MODEL MISMATCH" line; otherwise "✓ model match".
+      is a loud "⚠ MODEL MISMATCH" line followed by two actionable hints:
+      manual switch via the IDE model picker, and persist via
+      `tausik config set model_profile <slug>`. Note: `/fast` is NOT a switch —
+      it only toggles fast-output on Opus 4.6.
     """
     s = suggest_model(complexity)
     rec_id = s["model"]
@@ -158,28 +164,26 @@ def format_task_start_banner(
     line_recommended = (
         f"  recommended: {rec_display} ({rec_id}) — {complexity or 'no complexity set'}"
     )
-    persist_hint: str | None = None
+    extra_lines: list[str] = []
     if active_norm:
         line_active = f"  active:      {active_model}"
         if rec_norm == active_norm:
             verdict = "  ✓ model match"
         else:
-            verdict = (
-                f"  ⚠ MODEL MISMATCH — switch to {rec_display} via /fast or model picker "
-                "for cost savings"
+            verdict = f"  ⚠ MODEL MISMATCH — recommended {rec_display} for cost savings"
+            extra_lines.append(
+                "  ⓘ Mid-session switch: use the IDE model picker "
+                "(Claude Code has no programmatic switch — `/fast` toggles fast-output on Opus only)"
             )
-            # Map model id back to a profile slug for `tausik config set`.
             slug = _model_id_to_profile_slug(rec_id)
             if slug:
-                persist_hint = (
+                extra_lines.append(
                     f"  ↪ Persist for next session: `tausik config set model_profile {slug}`"
                 )
     else:
         line_active = "  active:      unknown (no transcript readable)"
         verdict = "  ⓘ active model unknown — recommendation only"
-    lines = [line_recommended, line_active, verdict]
-    if persist_hint:
-        lines.append(persist_hint)
+    lines = [line_recommended, line_active, verdict, *extra_lines]
     return "Model recommendation:\n" + "\n".join(lines)
 
 

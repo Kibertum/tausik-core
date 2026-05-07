@@ -13,6 +13,8 @@ import sys
 _bootstrap_dir = os.path.join(os.path.dirname(__file__), "..", "bootstrap")
 sys.path.insert(0, _bootstrap_dir)
 
+import pytest
+
 from bootstrap_copy import parse_skill_frontmatter, validate_skill_frontmatter
 
 
@@ -61,33 +63,33 @@ class TestParseFrontmatter:
 class TestValidateFrontmatter:
     """Test frontmatter validation warnings."""
 
-    def test_valid_context_inline(self):
-        assert validate_skill_frontmatter("s", {"context": "inline"}) == []
+    @pytest.mark.parametrize(
+        "fields",
+        [
+            pytest.param({"context": "inline"}, id="valid_context_inline"),
+            pytest.param({"context": "fork"}, id="valid_context_fork"),
+            pytest.param({"paths": "src/**"}, id="valid_paths"),
+        ],
+    )
+    def test_valid_fields_no_warnings(self, fields):
+        assert validate_skill_frontmatter("s", fields) == []
 
-    def test_valid_context_fork(self):
-        assert validate_skill_frontmatter("s", {"context": "fork"}) == []
-
-    def test_invalid_context(self):
-        warnings = validate_skill_frontmatter("s", {"context": "parallel"})
+    @pytest.mark.parametrize(
+        "fields,expected_phrase",
+        [
+            pytest.param({"context": "parallel"}, "invalid context", id="invalid_context"),
+            pytest.param({"effort": "turbo"}, "invalid effort", id="invalid_effort"),
+            pytest.param({"paths": ""}, "empty", id="empty_paths_warning"),
+        ],
+    )
+    def test_invalid_fields_warn(self, fields, expected_phrase):
+        warnings = validate_skill_frontmatter("s", fields)
         assert len(warnings) == 1
-        assert "invalid context" in warnings[0]
+        assert expected_phrase in warnings[0]
 
     def test_valid_efforts(self):
         for effort in ("fast", "medium", "slow"):
             assert validate_skill_frontmatter("s", {"effort": effort}) == []
-
-    def test_invalid_effort(self):
-        warnings = validate_skill_frontmatter("s", {"effort": "turbo"})
-        assert len(warnings) == 1
-        assert "invalid effort" in warnings[0]
-
-    def test_empty_paths_warning(self):
-        warnings = validate_skill_frontmatter("s", {"paths": ""})
-        assert len(warnings) == 1
-        assert "empty" in warnings[0]
-
-    def test_valid_paths(self):
-        assert validate_skill_frontmatter("s", {"paths": "src/**"}) == []
 
     def test_no_new_fields_no_warnings(self):
         """Old-style frontmatter with only name/description produces no warnings."""

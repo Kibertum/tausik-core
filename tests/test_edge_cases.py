@@ -131,16 +131,16 @@ class TestFTS5EdgeCases:
         results = svc.search('test"quote')
         assert isinstance(results, dict)
 
-    def test_search_with_parens(self, svc):
-        results = svc.search("test()")
-        assert isinstance(results, dict)
-
-    def test_search_with_asterisk(self, svc):
-        results = svc.search("test*")
-        assert isinstance(results, dict)
-
-    def test_search_only_special_chars(self, svc):
-        results = svc.search('"*()^:')
+    @pytest.mark.parametrize(
+        "query",
+        [
+            pytest.param("test()", id="search_with_parens"),
+            pytest.param("test*", id="search_with_asterisk"),
+            pytest.param('"*()^:', id="search_only_special_chars"),
+        ],
+    )
+    def test_search_special_chars_returns_dict(self, svc, query):
+        results = svc.search(query)
         assert isinstance(results, dict)
 
     def test_search_phrase_in_quotes(self, svc):

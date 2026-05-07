@@ -124,22 +124,6 @@ class TestGitPushGate:
         r = run_hook("git_push_gate.py", {"tool_input": {"command": "git commit -m 'test'"}})
         assert r.returncode == 0
 
-    def test_skip_push_hook_env(self):
-        r = run_hook(
-            "git_push_gate.py",
-            {"tool_input": {"command": "git push origin main"}},
-            env_extra={"TAUSIK_SKIP_PUSH_HOOK": "1"},
-        )
-        assert r.returncode == 0
-
-    def test_skip_hooks_no_longer_bypasses_push(self):
-        r = run_hook(
-            "git_push_gate.py",
-            {"tool_input": {"command": "git push origin main"}},
-            env_extra={"TAUSIK_SKIP_HOOKS": "1"},
-        )
-        assert r.returncode == 2
-
     def test_chained_command_blocked(self):
         r = run_hook(
             "git_push_gate.py",
@@ -217,14 +201,6 @@ class TestAutoFormat:
         r = run_hook("auto_format.py")
         assert r.returncode == 0
 
-    def test_skip_hooks_env(self):
-        r = run_hook(
-            "auto_format.py",
-            {"tool_input": {"file_path": "test.py"}},
-            env_extra={"TAUSIK_SKIP_HOOKS": "1"},
-        )
-        assert r.returncode == 0
-
     def test_empty_file_path_allowed(self):
         r = run_hook("auto_format.py", {"tool_input": {"file_path": ""}})
         assert r.returncode == 0
@@ -241,3 +217,35 @@ class TestTaskGate:
     def test_skip_hooks_env(self):
         r = run_hook("task_gate.py", env_extra={"TAUSIK_SKIP_HOOKS": "1"})
         assert r.returncode == 0
+
+
+# Module-level: G54 — env-based skip/no-skip behavior across git_push_gate and auto_format
+@pytest.mark.parametrize(
+    "script,command_or_path,env_extra,expected_returncode",
+    [
+        pytest.param(
+            "git_push_gate.py",
+            {"command": "git push origin main"},
+            {"TAUSIK_SKIP_PUSH_HOOK": "1"},
+            0,
+            id="skip_push_hook_env",
+        ),
+        pytest.param(
+            "git_push_gate.py",
+            {"command": "git push origin main"},
+            {"TAUSIK_SKIP_HOOKS": "1"},
+            2,
+            id="skip_hooks_no_longer_bypasses_push",
+        ),
+        pytest.param(
+            "auto_format.py",
+            {"file_path": "test.py"},
+            {"TAUSIK_SKIP_HOOKS": "1"},
+            0,
+            id="auto_format_skip_hooks_env",
+        ),
+    ],
+)
+def test_hook_skip_env_returncode(script, command_or_path, env_extra, expected_returncode):
+    r = run_hook(script, {"tool_input": command_or_path}, env_extra=env_extra)
+    assert r.returncode == expected_returncode

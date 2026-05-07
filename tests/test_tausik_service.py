@@ -44,10 +44,6 @@ class TestHierarchy:
         with pytest.raises(ValueError, match="Invalid slug"):
             svc.epic_add("Bad Slug!", "Title")
 
-    def test_epic_not_found(self, svc):
-        with pytest.raises(ServiceError, match="not found"):
-            svc.epic_done("nope")
-
     def test_story_crud(self, svc):
         svc.epic_add("v1", "V1")
         msg = svc.story_add("v1", "setup", "Setup")
@@ -199,10 +195,6 @@ class TestTaskLifecycle:
         assert detail["slug"] == "t1"
         assert detail["story_slug"] == "setup"
         assert len(detail["decisions"]) == 1
-
-    def test_show_not_found(self, svc):
-        with pytest.raises(ServiceError, match="not found"):
-            svc.task_show("nope")
 
     def test_task_not_found(self, svc):
         with pytest.raises(ServiceError, match="not found"):
@@ -551,3 +543,16 @@ class TestTopLevel:
         svc.task_add("setup", "fix-auth", "Fix authentication")
         results = svc.search("authentication")
         assert "tasks" in results
+
+
+# Module-level: G64 cross-class merge — "not found" raises across hierarchy/lifecycle calls
+@pytest.mark.parametrize(
+    "method_name,arg",
+    [
+        pytest.param("epic_done", "nope", id="epic_not_found"),
+        pytest.param("task_show", "nope", id="show_not_found"),
+    ],
+)
+def test_service_not_found_raises(svc, method_name, arg):
+    with pytest.raises(ServiceError, match="not found"):
+        getattr(svc, method_name)(arg)

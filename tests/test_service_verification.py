@@ -273,16 +273,17 @@ class TestIsSecuritySensitive:
         assert sv.is_security_sensitive([]) is False
         assert sv.is_security_sensitive(None) is False  # type: ignore[arg-type]
 
-    def test_any_match_triggers(self):
-        files = ["scripts/brain_init.py", "src/auth/login.ts"]
-        assert sv.is_security_sensitive(files) is True
-
-    def test_any_basename_match_triggers(self):
-        files = ["scripts/brain_init.py", "src/auth.py"]
-        assert sv.is_security_sensitive(files) is True
-
-    def test_any_extension_match_triggers(self):
-        files = ["src/utils.py", "config/.env"]
+    @pytest.mark.parametrize(
+        "files",
+        [
+            pytest.param(["scripts/brain_init.py", "src/auth/login.ts"], id="any_match_triggers"),
+            pytest.param(
+                ["scripts/brain_init.py", "src/auth.py"], id="any_basename_match_triggers"
+            ),
+            pytest.param(["src/utils.py", "config/.env"], id="any_extension_match_triggers"),
+        ],
+    )
+    def test_any_security_sensitive_triggers(self, files):
         assert sv.is_security_sensitive(files) is True
 
 

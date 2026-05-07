@@ -115,19 +115,32 @@ def test_brain_get_disabled_returns_setup_hint(handlers, monkeypatch):
 # ---- Arg validation ------------------------------------------------------
 
 
-def test_brain_search_empty_query(handlers):
-    out = handlers.handle_brain_search({"query": "   "})
-    assert "query is empty" in out
-
-
-def test_brain_get_missing_id(handlers):
-    out = handlers.handle_brain_get({"category": "decisions"})
-    assert "required" in out
-
-
-def test_brain_get_missing_category(handlers):
-    out = handlers.handle_brain_get({"id": "abc"})
-    assert "required" in out
+@pytest.mark.parametrize(
+    "method,args,expected_substr",
+    [
+        pytest.param(
+            "handle_brain_search",
+            {"query": "   "},
+            "query is empty",
+            id="brain_search_empty_query",
+        ),
+        pytest.param(
+            "handle_brain_get",
+            {"category": "decisions"},
+            "required",
+            id="brain_get_missing_id",
+        ),
+        pytest.param(
+            "handle_brain_get",
+            {"id": "abc"},
+            "required",
+            id="brain_get_missing_category",
+        ),
+    ],
+)
+def test_handler_arg_validation(handlers, method, args, expected_substr):
+    out = getattr(handlers, method)(args)
+    assert expected_substr in out
 
 
 def test_dispatch_unknown_tool(handlers):

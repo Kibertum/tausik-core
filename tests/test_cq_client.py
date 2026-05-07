@@ -30,17 +30,17 @@ class TestEndpointValidation:
         client = CqClient(endpoint="https://cq.example.com/")
         assert client.endpoint == "https://cq.example.com"
 
-    def test_file_scheme_raises(self):
+    @pytest.mark.parametrize(
+        "endpoint",
+        [
+            pytest.param("file:///etc/passwd", id="file_scheme_raises"),
+            pytest.param("ftp://evil.com/data", id="ftp_scheme_raises"),
+            pytest.param("no-scheme-at-all", id="empty_scheme_raises"),
+        ],
+    )
+    def test_unsupported_scheme_raises(self, endpoint):
         with pytest.raises(ValueError, match="Unsupported URL scheme"):
-            CqClient(endpoint="file:///etc/passwd")
-
-    def test_ftp_scheme_raises(self):
-        with pytest.raises(ValueError, match="Unsupported URL scheme"):
-            CqClient(endpoint="ftp://evil.com/data")
-
-    def test_empty_scheme_raises(self):
-        with pytest.raises(ValueError, match="Unsupported URL scheme"):
-            CqClient(endpoint="no-scheme-at-all")
+            CqClient(endpoint=endpoint)
 
 
 # ---------------------------------------------------------------------------
@@ -162,9 +162,7 @@ class TestGetCqClient:
         assert get_cq_client({"cq": {"endpoint": ""}}) is None
 
     def test_returns_client_with_valid_config(self):
-        client = get_cq_client(
-            {"cq": {"endpoint": "http://localhost:8742", "api_key": "k"}}
-        )
+        client = get_cq_client({"cq": {"endpoint": "http://localhost:8742", "api_key": "k"}})
         assert isinstance(client, CqClient)
         assert client.api_key == "k"
 

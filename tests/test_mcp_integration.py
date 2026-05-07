@@ -247,6 +247,7 @@ class TestMCPHandlerDispatch:
             "tausik_memory_add",
             "tausik_memory_search",
             "tausik_memory_show",
+            "tausik_memory_archive",
             "tausik_memory_delete",
             "tausik_memory_link",
             "tausik_memory_unlink",

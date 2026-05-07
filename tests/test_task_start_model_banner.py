@@ -124,7 +124,14 @@ class TestFormatBanner:
         )
         assert "⚠ MODEL MISMATCH" in out
         assert "Haiku 4.5" in out
-        assert "/fast" in out  # actionable hint
+        # Actionable hints: manual switch path (IDE picker) + persist command.
+        # The wrong "/fast" advice has been removed (C7 banner fix).
+        assert "IDE model picker" in out
+        assert "tausik config set model_profile" in out
+        assert "haiku" in out
+        # Negative: must NOT advise switching via /fast — that does not
+        # downgrade models, it only toggles fast-output on Opus.
+        assert "switch to Haiku 4.5 via /fast" not in out
 
     def test_unknown_active_falls_back_to_recommendation_only(self):
         # NEGATIVE: no transcript_path, no active_model → unknown verdict.

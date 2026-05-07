@@ -9,6 +9,8 @@ import os
 import subprocess
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks"))
 
 from task_done_verify import _check_ac_checkmarks, evaluate_notes
@@ -69,20 +71,32 @@ class TestHeuristics:
 class TestBashTaskDoneDetection:
     """H1 regression: Bash command detection must not match prose mentions of 'task done'."""
 
-    def test_real_tausik_task_done_matches(self):
-        cmd = ".tausik/tausik task done my-slug --ac-verified"
-        assert extract_task_done_slug_from_bash(cmd) == "my-slug"
-        assert is_task_done_invocation("Bash", {"command": cmd}) is True
-
-    def test_echo_mentioning_task_done_does_not_match(self):
-        cmd = 'echo "task done today, finally!"'
-        assert extract_task_done_slug_from_bash(cmd) == ""
-        assert is_task_done_invocation("Bash", {"command": cmd}) is False
-
-    def test_grep_for_task_done_does_not_match(self):
-        cmd = 'git log --grep="task done"'
-        assert extract_task_done_slug_from_bash(cmd) == ""
-        assert is_task_done_invocation("Bash", {"command": cmd}) is False
+    @pytest.mark.parametrize(
+        "cmd,expected_slug,expected_invocation",
+        [
+            pytest.param(
+                ".tausik/tausik task done my-slug --ac-verified",
+                "my-slug",
+                True,
+                id="real_tausik_task_done_matches",
+            ),
+            pytest.param(
+                'echo "task done today, finally!"',
+                "",
+                False,
+                id="echo_mentioning_task_done_does_not_match",
+            ),
+            pytest.param(
+                'git log --grep="task done"',
+                "",
+                False,
+                id="grep_for_task_done_does_not_match",
+            ),
+        ],
+    )
+    def test_bash_command_detection(self, cmd, expected_slug, expected_invocation):
+        assert extract_task_done_slug_from_bash(cmd) == expected_slug
+        assert is_task_done_invocation("Bash", {"command": cmd}) is expected_invocation
 
     def test_tausik_cmd_variant_matches(self):
         cmd = ".tausik/tausik.cmd task done my-slug"
@@ -90,10 +104,7 @@ class TestBashTaskDoneDetection:
 
     def test_mcp_tool_call_matches(self):
         assert (
-            is_task_done_invocation(
-                "mcp__tausik-project__tausik_task_done", {"slug": "x"}
-            )
-            is True
+            is_task_done_invocation("mcp__tausik-project__tausik_task_done", {"slug": "x"}) is True
         )
 
 
@@ -116,9 +127,7 @@ class TestHookIntegration:
     def test_non_matching_tool_exits_silently(self, tmp_path):
         (tmp_path / ".tausik").mkdir()
         (tmp_path / ".tausik" / "tausik.db").write_text("")
-        result = self._run(
-            tmp_path, {"tool_name": "Read", "tool_input": {"file_path": "x"}}
-        )
+        result = self._run(tmp_path, {"tool_name": "Read", "tool_input": {"file_path": "x"}})
         assert result.returncode == 0
         assert result.stderr == ""
 
@@ -193,9 +202,7 @@ class TestHookIntegration:
         (tmp_path / ".tausik" / "tausik.db").write_text("")
         wrapper = "tausik.cmd" if sys.platform == "win32" else "tausik"
         (tmp_path / ".tausik" / wrapper).write_text(
-            "@echo off\r\necho done\r\n"
-            if sys.platform == "win32"
-            else "#!/bin/sh\necho done\n"
+            "@echo off\r\necho done\r\n" if sys.platform == "win32" else "#!/bin/sh\necho done\n"
         )
         if sys.platform != "win32":
             os.chmod(tmp_path / ".tausik" / wrapper, 0o755)

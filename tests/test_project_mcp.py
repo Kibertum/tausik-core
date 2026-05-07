@@ -34,12 +34,6 @@ def seeded(svc):
 
 
 class TestStatus:
-
-    def test_status_with_tasks(self, seeded):
-        result = _handle_tool(seeded, "tausik_status", {})
-        assert "Tasks: 0/1 done" in result
-        assert "1 planning" in result
-
     def test_status_compact_returns_json_with_expected_keys(self, seeded):
         result = _handle_tool(seeded, "tausik_status", {"compact": True})
         data = json.loads(result)
@@ -109,12 +103,6 @@ class TestTaskCRUD:
         )
         assert "created" in result
 
-    def test_task_list(self, seeded):
-        result = _handle_tool(seeded, "tausik_task_list", {})
-        assert "t1" in result
-        assert "Task 1" in result
-
-
     def test_task_show(self, seeded):
         result = _handle_tool(seeded, "tausik_task_show", {"slug": "t1"})
         assert "Task: t1" in result
@@ -149,7 +137,6 @@ class TestTaskCRUD:
         result = _handle_tool(seeded, "tausik_task_update", {"slug": "t1", "goal": "New goal"})
         assert "updated" in result
 
-
     def test_task_not_found(self, svc):
         from tausik_utils import ServiceError
 
@@ -179,7 +166,6 @@ class TestTaskPlan:
 
 
 class TestSession:
-
     def test_session_end(self, svc):
         svc.session_start()
         result = _handle_tool(svc, "tausik_session_end", {"summary": "Done"})
@@ -195,7 +181,6 @@ class TestSession:
             },
         )
         assert "Handoff saved" in result
-
 
     def test_last_handoff_with_data(self, svc):
         svc.session_start()
@@ -254,7 +239,6 @@ class TestKnowledge:
         result = _handle_tool(svc, "tausik_memory_search", {"query": "auth"})
         assert "Auth pattern" in result
 
-
     def test_decide(self, svc, monkeypatch):
         # Stub brain disabled so decide() doesn't read the real project's
         # half-configured brain (would surface the v14b BLOCKED warning
@@ -274,11 +258,6 @@ class TestKnowledge:
 
 
 class TestMetricsAndEvents:
-    def test_metrics(self, seeded):
-        result = _handle_tool(seeded, "tausik_metrics", {})
-        assert "Tasks:" in result
-        assert "Sessions:" in result
-
     def test_events(self, seeded):
         result = _handle_tool(seeded, "tausik_events", {})
         # Should have audit events from task creation
@@ -295,6 +274,7 @@ class TestMetricsAndEvents:
         )
         assert "t1" in result or "No events" in result
 
+
 # Cross-class merge of G19 + G20 (2026-05-07 audit) — empty/initial-state and
 # list/search no-result responses share an identical shape and are exercised
 # here as parametrized cases. Fixtures are looked up dynamically via
@@ -302,16 +282,32 @@ class TestMetricsAndEvents:
 @pytest.mark.parametrize(
     "fixture_name,tool_name,args,expected_substring",
     [
-    pytest.param("svc", "tausik_status", {}, "Tasks: 0/0 done", id="status_empty"),
-    pytest.param("svc", "tausik_session_start", {}, "started", id="session_start"),
-    pytest.param("svc", "tausik_session_last_handoff", {}, "No handoff", id="last_handoff_empty"),
-    pytest.param("svc", "tausik_roadmap", {}, "No epics", id="roadmap_empty"),
-    pytest.param("svc", "tausik_nonexistent", {}, "Unknown tool", id="unknown_tool"),
-    pytest.param("seeded", "tausik_task_list", {"status": "active"}, "No tasks found", id="task_list_filter_status"),
-    pytest.param("seeded", "tausik_task_update", {"slug": "t1"}, "No fields", id="task_update_no_fields"),
-    pytest.param("svc", "tausik_memory_search", {"query": "nothing"}, "No memories", id="memory_search_empty"),
-    pytest.param("seeded", "tausik_search", {"query": "Task"}, "tasks", id="search"),
-    pytest.param("svc", "tausik_search", {"query": "nothing"}, "No results", id="search_empty"),
+        pytest.param("svc", "tausik_status", {}, "Tasks: 0/0 done", id="status_empty"),
+        pytest.param("svc", "tausik_session_start", {}, "started", id="session_start"),
+        pytest.param(
+            "svc", "tausik_session_last_handoff", {}, "No handoff", id="last_handoff_empty"
+        ),
+        pytest.param("svc", "tausik_roadmap", {}, "No epics", id="roadmap_empty"),
+        pytest.param("svc", "tausik_nonexistent", {}, "Unknown tool", id="unknown_tool"),
+        pytest.param(
+            "seeded",
+            "tausik_task_list",
+            {"status": "active"},
+            "No tasks found",
+            id="task_list_filter_status",
+        ),
+        pytest.param(
+            "seeded", "tausik_task_update", {"slug": "t1"}, "No fields", id="task_update_no_fields"
+        ),
+        pytest.param(
+            "svc",
+            "tausik_memory_search",
+            {"query": "nothing"},
+            "No memories",
+            id="memory_search_empty",
+        ),
+        pytest.param("seeded", "tausik_search", {"query": "Task"}, "tasks", id="search"),
+        pytest.param("svc", "tausik_search", {"query": "nothing"}, "No results", id="search_empty"),
     ],
 )
 def test_handle_tool_returns_expected_substring(
@@ -320,3 +316,22 @@ def test_handle_tool_returns_expected_substring(
     fixture = request.getfixturevalue(fixture_name)
     result = _handle_tool(fixture, tool_name, args)
     assert expected_substring in result
+
+
+# Module-level: G60 cross-class merge — multi-substring assertions on seeded svc
+@pytest.mark.parametrize(
+    "tool_name,args,expected_substrings",
+    [
+        pytest.param(
+            "tausik_status", {}, ("Tasks: 0/1 done", "1 planning"), id="status_with_tasks"
+        ),
+        pytest.param("tausik_task_list", {}, ("t1", "Task 1"), id="task_list"),
+        pytest.param("tausik_metrics", {}, ("Tasks:", "Sessions:"), id="metrics"),
+    ],
+)
+def test_handle_tool_returns_expected_substrings_seeded(
+    seeded, tool_name, args, expected_substrings
+):
+    result = _handle_tool(seeded, tool_name, args)
+    for substr in expected_substrings:
+        assert substr in result

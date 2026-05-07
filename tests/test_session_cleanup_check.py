@@ -23,14 +23,18 @@ _HOOK_PATH = os.path.join(
 
 
 class TestPureHelpers:
-    def test_no_active_exploration_returns_false(self):
-        assert _has_open_exploration("No active exploration.") is False
+    @pytest.mark.parametrize(
+        "text",
+        [
+            pytest.param("No active exploration.", id="no_active_exploration_returns_false"),
+            pytest.param("", id="empty_explore_output_returns_false"),
+        ],
+    )
+    def test_open_exploration_negative(self, text):
+        assert _has_open_exploration(text) is False
 
     def test_active_exploration_returns_true(self):
         assert _has_open_exploration("Exploration #3 started (60 min limit): research topic")
-
-    def test_empty_explore_output_returns_false(self):
-        assert _has_open_exploration("") is False
 
     def test_review_count_three_rows(self):
         out = "slug     title      status\n---\nt-1    A\nt-2    B\nt-3    C\n"

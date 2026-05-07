@@ -20,22 +20,22 @@ class TestDetectIde:
     def test_default_is_claude(self):
         assert detect_ide() == "claude"
 
-    def test_explicit_tausik_ide_env(self, monkeypatch):
-        monkeypatch.setenv("TAUSIK_IDE", "cursor")
-        assert detect_ide() == "cursor"
-
-    def test_explicit_tausik_ide_windsurf(self, monkeypatch):
-        monkeypatch.setenv("TAUSIK_IDE", "windsurf")
-        assert detect_ide() == "windsurf"
+    @pytest.mark.parametrize(
+        "env_var,env_value,expected",
+        [
+            pytest.param("TAUSIK_IDE", "cursor", "cursor", id="explicit_tausik_ide_env"),
+            pytest.param("TAUSIK_IDE", "windsurf", "windsurf", id="explicit_tausik_ide_windsurf"),
+            pytest.param("CURSOR_DIR", "/some/path", "cursor", id="cursor_env_detected"),
+        ],
+    )
+    def test_env_triggered_detection(self, monkeypatch, env_var, env_value, expected):
+        monkeypatch.setenv(env_var, env_value)
+        assert detect_ide() == expected
 
     def test_invalid_tausik_ide_raises(self, monkeypatch):
         monkeypatch.setenv("TAUSIK_IDE", "vscode")
         with pytest.raises(ValueError, match="Invalid TAUSIK_IDE"):
             detect_ide()
-
-    def test_cursor_env_detected(self, monkeypatch):
-        monkeypatch.setenv("CURSOR_DIR", "/some/path")
-        assert detect_ide() == "cursor"
 
     def test_windsurf_env_detected(self, monkeypatch):
         monkeypatch.delenv("CURSOR_DIR", raising=False)
@@ -58,17 +58,17 @@ class TestDetectIde:
         monkeypatch.setenv("WINDSURF_DIR", "/b")
         assert detect_ide() == "cursor"
 
-    def test_project_dir_detection_cursor(self, tmp_path):
-        (tmp_path / ".cursor").mkdir()
-        assert detect_ide(str(tmp_path)) == "cursor"
-
-    def test_project_dir_detection_windsurf(self, tmp_path):
-        (tmp_path / ".windsurf").mkdir()
-        assert detect_ide(str(tmp_path)) == "windsurf"
-
-    def test_project_dir_detection_codex(self, tmp_path):
-        (tmp_path / ".codex").mkdir()
-        assert detect_ide(str(tmp_path)) == "codex"
+    @pytest.mark.parametrize(
+        "ide_dir,expected",
+        [
+            pytest.param(".cursor", "cursor", id="project_dir_detection_cursor"),
+            pytest.param(".windsurf", "windsurf", id="project_dir_detection_windsurf"),
+            pytest.param(".codex", "codex", id="project_dir_detection_codex"),
+        ],
+    )
+    def test_project_dir_detection(self, tmp_path, ide_dir, expected):
+        (tmp_path / ide_dir).mkdir()
+        assert detect_ide(str(tmp_path)) == expected
 
     def test_project_dir_priority_cursor_wins(self, tmp_path):
         (tmp_path / ".cursor").mkdir()

@@ -95,22 +95,21 @@ class TestCollectUnused:
         names = {r["name"] for r in rows}
         assert "ghost_func" in names
 
-    def test_referenced_kept_clean(self, fake_repo: Path):
+    @pytest.mark.parametrize(
+        "field,absent_value",
+        [
+            # AC-3 negative: referenced symbols stay clean
+            pytest.param("name", "used_func", id="referenced_kept_clean"),
+            # AC-3 negative: private helpers excluded from report regardless
+            pytest.param("name", "_quiet_helper", id="private_helper_skipped"),
+            # AC-1: SOURCE_EXCLUDES respected — hooks never appear
+            pytest.param("file", "scripts/hooks/any_hook.py", id="hooks_excluded_by_glob"),
+        ],
+    )
+    def test_value_absent_from_unused(self, fake_repo: Path, field, absent_value):
         rows = collect_unused(fake_repo)
-        names = {r["name"] for r in rows}
-        assert "used_func" not in names
-
-    def test_private_helper_skipped(self, fake_repo: Path):
-        # AC-3 negative: private helpers excluded from report regardless
-        rows = collect_unused(fake_repo)
-        names = {r["name"] for r in rows}
-        assert "_quiet_helper" not in names
-
-    def test_hooks_excluded_by_glob(self, fake_repo: Path):
-        # AC-1: SOURCE_EXCLUDES respected — hooks never appear
-        rows = collect_unused(fake_repo)
-        files = {r["file"] for r in rows}
-        assert "scripts/hooks/any_hook.py" not in files
+        values = {r[field] for r in rows}
+        assert absent_value not in values
 
 
 class TestCli:

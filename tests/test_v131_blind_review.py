@@ -37,25 +37,19 @@ def test_task_update_status_done_is_refused(svc):
         svc.task_update(slug, status="done")
 
 
-def test_task_update_status_active_is_refused(svc):
-    info = svc.task_quick("Bypass2", goal="g", role="developer")
-    slug = info.split("'")[1] if "'" in info else "bypass2"
+@pytest.mark.parametrize(
+    "title,fallback_slug,refused_status",
+    [
+        pytest.param("Bypass2", "bypass2", "active", id="task_update_status_active_is_refused"),
+        pytest.param("Bypass3", "bypass3", "blocked", id="task_update_status_blocked_is_refused"),
+        pytest.param("Bypass4", "bypass4", "review", id="task_update_status_review_is_refused"),
+    ],
+)
+def test_task_update_status_lifecycle_is_refused(svc, title, fallback_slug, refused_status):
+    info = svc.task_quick(title, goal="g", role="developer")
+    slug = info.split("'")[1] if "'" in info else fallback_slug
     with pytest.raises(ServiceError, match="lifecycle"):
-        svc.task_update(slug, status="active")
-
-
-def test_task_update_status_blocked_is_refused(svc):
-    info = svc.task_quick("Bypass3", goal="g", role="developer")
-    slug = info.split("'")[1] if "'" in info else "bypass3"
-    with pytest.raises(ServiceError, match="lifecycle"):
-        svc.task_update(slug, status="blocked")
-
-
-def test_task_update_status_review_is_refused(svc):
-    info = svc.task_quick("Bypass4", goal="g", role="developer")
-    slug = info.split("'")[1] if "'" in info else "bypass4"
-    with pytest.raises(ServiceError, match="lifecycle"):
-        svc.task_update(slug, status="review")
+        svc.task_update(slug, status=refused_status)
 
 
 def test_task_update_other_fields_still_works(svc):
@@ -131,24 +125,14 @@ def test_security_sensitive_recognises_extended_basenames():
 # ---------------------------------------------------------------------------
 def test_memory_block_detects_uppercase_memory_dir():
     """v1.3 blind-review: MEMORY/, Memory/, memory/ all blocked on every platform."""
-    sys.path.insert(
-        0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks")
-    )
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks"))
     from memory_pretool_block import is_in_claude_memory
 
     home = os.path.expanduser("~")
-    assert is_in_claude_memory(
-        os.path.join(home, ".claude", "projects", "foo", "memory", "x.md")
-    )
-    assert is_in_claude_memory(
-        os.path.join(home, ".claude", "projects", "foo", "MEMORY", "x.md")
-    )
-    assert is_in_claude_memory(
-        os.path.join(home, ".claude", "projects", "foo", "Memory", "x.md")
-    )
-    assert is_in_claude_memory(
-        os.path.join(home, ".claude", "harness", "test", "MeMoRy", "x.md")
-    )
+    assert is_in_claude_memory(os.path.join(home, ".claude", "projects", "foo", "memory", "x.md"))
+    assert is_in_claude_memory(os.path.join(home, ".claude", "projects", "foo", "MEMORY", "x.md"))
+    assert is_in_claude_memory(os.path.join(home, ".claude", "projects", "foo", "Memory", "x.md"))
+    assert is_in_claude_memory(os.path.join(home, ".claude", "harness", "test", "MeMoRy", "x.md"))
     # Non-memory paths still allowed
     assert not is_in_claude_memory(
         os.path.join(home, ".claude", "projects", "foo", "tasks", "x.md")
@@ -203,6 +187,7 @@ def test_default_gates_no_fallback_on_registry_failure(monkeypatch):
 
     # Force registry import error
     import builtins
+
     real_import = builtins.__import__
 
     def fake_import(name, *a, **kw):

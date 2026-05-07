@@ -7,7 +7,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)](https://python.org)
 [![Tests](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml/badge.svg)](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml)
-[![3355 tests](https://img.shields.io/badge/tests-3355%20passed-brightgreen.svg)](#dogfooding-tausik-создан-с-помощью-себя)
+[![3362 tests](https://img.shields.io/badge/tests-3362%20passed-brightgreen.svg)](#dogfooding-tausik-создан-с-помощью-себя)
 [![Zero deps](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#что-внутри)
 
 **TAUSIK — фреймворк контроля качества для AI-агентов разработки** —

@@ -73,55 +73,60 @@ class TestQG0NegativeScenario:
         with pytest.raises(ServiceError, match="negative scenario"):
             svc.task_start("t1")
 
-    def test_start_ac_with_negative_passes(self, svc):
+    @pytest.mark.parametrize(
+        "goal,acceptance_criteria",
+        [
+            pytest.param(
+                "Add button",
+                "1. Button displayed. 2. Returns error on empty input.",
+                id="start_ac_with_negative_passes",
+            ),
+            pytest.param(
+                "Add login",
+                "1. Returns 200 on valid creds. 2. Returns 401 on invalid.",
+                id="start_ac_with_401_passes",
+            ),
+            pytest.param(
+                "Форма",
+                "1. Форма работает. 2. Ошибка при пустом поле.",
+                id="start_ac_with_russian_negative_passes",
+            ),
+        ],
+    )
+    def test_start_ac_negative_passes(self, svc, goal, acceptance_criteria):
         svc.epic_add("e1", "E1")
         svc.story_add("e1", "s1", "S1")
-        svc.task_add("s1", "t1", "T1", goal="Add button")
-        svc.task_update(
-            "t1",
-            acceptance_criteria="1. Button displayed. 2. Returns error on empty input.",
-        )
-        msg = svc.task_start("t1")
-        assert "started" in msg
-
-    def test_start_ac_with_401_passes(self, svc):
-        svc.epic_add("e1", "E1")
-        svc.story_add("e1", "s1", "S1")
-        svc.task_add("s1", "t1", "T1", goal="Add login")
-        svc.task_update(
-            "t1",
-            acceptance_criteria="1. Returns 200 on valid creds. 2. Returns 401 on invalid.",
-        )
-        msg = svc.task_start("t1")
-        assert "started" in msg
-
-    def test_start_ac_with_russian_negative_passes(self, svc):
-        svc.epic_add("e1", "E1")
-        svc.story_add("e1", "s1", "S1")
-        svc.task_add("s1", "t1", "T1", goal="Форма")
-        svc.task_update("t1", acceptance_criteria="1. Форма работает. 2. Ошибка при пустом поле.")
+        svc.task_add("s1", "t1", "T1", goal=goal)
+        svc.task_update("t1", acceptance_criteria=acceptance_criteria)
         msg = svc.task_start("t1")
         assert "started" in msg
 
     # v1.3.4 (med-batch-2-qg #1): boundary-aware regex closes the
     # "without errors" / "no failures" negation bypass.
 
-    def test_start_ac_without_errors_phrase_fails(self, svc):
-        """Bypass case: 'works without errors' substring matches `error` but
-        is a NEGATION of the negative scenario, not an articulation of one."""
+    @pytest.mark.parametrize(
+        "acceptance_criteria",
+        [
+            # Bypass case: 'works without errors' substring matches `error` but
+            # is a NEGATION of the negative scenario, not an articulation of one.
+            pytest.param(
+                "1. Works correctly. 2. No errors expected.",
+                id="start_ac_without_errors_phrase_fails",
+            ),
+            # 'No failures' should NOT count — negation cancels the keyword.
+            pytest.param(
+                "1. Renders. 2. No failures during render.",
+                id="start_ac_no_failures_fails",
+            ),
+            # 'AC: 1.Works 2.No errors' — inline numbering, must split correctly.
+            pytest.param("1.Works 2.No errors", id="start_ac_inline_numbered_fails"),
+        ],
+    )
+    def test_start_ac_negation_fails(self, svc, acceptance_criteria):
         svc.epic_add("e1", "E1")
         svc.story_add("e1", "s1", "S1")
         svc.task_add("s1", "t1", "T1", goal="Add feature")
-        svc.task_update("t1", acceptance_criteria="1. Works correctly. 2. No errors expected.")
-        with pytest.raises(ServiceError, match="negative scenario"):
-            svc.task_start("t1")
-
-    def test_start_ac_no_failures_fails(self, svc):
-        """'No failures' should NOT count — negation cancels the keyword."""
-        svc.epic_add("e1", "E1")
-        svc.story_add("e1", "s1", "S1")
-        svc.task_add("s1", "t1", "T1", goal="Add feature")
-        svc.task_update("t1", acceptance_criteria="1. Renders. 2. No failures during render.")
+        svc.task_update("t1", acceptance_criteria=acceptance_criteria)
         with pytest.raises(ServiceError, match="negative scenario"):
             svc.task_start("t1")
 
@@ -132,16 +137,6 @@ class TestQG0NegativeScenario:
         # Direct unit test — easier than going through full svc machinery
         # for both EN and RU phrasings.
         assert has_negative_scenario("1. Работает. 2. Без ошибок.") is False
-
-    def test_start_ac_inline_numbered_fails(self, svc):
-        """'AC: 1.Works 2.No errors' — inline numbering, must split correctly."""
-        svc.epic_add("e1", "E1")
-        svc.story_add("e1", "s1", "S1")
-        svc.task_add("s1", "t1", "T1", goal="Add feature")
-        # No newlines, just "1. ... 2. ..." inline
-        svc.task_update("t1", acceptance_criteria="1.Works 2.No errors")
-        with pytest.raises(ServiceError, match="negative scenario"):
-            svc.task_start("t1")
 
     def test_start_ac_distinct_negative_line_passes(self, svc):
         """A clear distinct AC line articulating a negative scenario passes."""

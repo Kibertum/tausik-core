@@ -179,41 +179,11 @@ def test_scan_mcp_counts_clean_when_all_match(tmp_path: Path):
     assert scan_mcp_tool_counts(repo, _FAKE_MCP_PAYLOAD) == []
 
 
-def test_scan_mcp_counts_flags_brain_header_drift(tmp_path: Path):
-    repo = _seed_cross_file_repo(tmp_path)
-    (repo / "docs/en/mcp.md").write_text(
-        "## Shared Brain (`tausik-brain`, 6 tools)\n",
-        encoding="utf-8",
-    )
-    drifts = scan_mcp_tool_counts(repo, _FAKE_MCP_PAYLOAD)
-    assert any("docs/en/mcp.md:1" in d and "tausik-brain" in d and "found=6" in d for d in drifts)
-
-
-def test_scan_mcp_counts_flags_project_drift(tmp_path: Path):
-    repo = _seed_cross_file_repo(tmp_path)
-    (repo / "AGENTS.md").write_text(
-        "We expose 96 project tools today.\n",
-        encoding="utf-8",
-    )
-    drifts = scan_mcp_tool_counts(repo, _FAKE_MCP_PAYLOAD)
-    assert any("AGENTS.md:1" in d and "project count" in d and "found=96" in d for d in drifts)
-
-
 def test_scan_mcp_counts_flags_pair_drift(tmp_path: Path):
     repo = _seed_cross_file_repo(tmp_path)
     (repo / "README.md").write_text("Surface: (90 project + 10 brain)\n", encoding="utf-8")
     drifts = scan_mcp_tool_counts(repo, _FAKE_MCP_PAYLOAD)
     assert any("README.md:1" in d and "project+brain pair" in d for d in drifts)
-
-
-def test_scan_mcp_counts_skips_fenced_code_blocks(tmp_path: Path):
-    """Counts inside ``` ... ``` are doc examples, not authoritative refs."""
-    repo = _seed_cross_file_repo(tmp_path)
-    (repo / "README.md").write_text(
-        "Counts in code\n\n```\n90 project tools (legacy example)\n```\n",
-        encoding="utf-8",
-    )
-    assert scan_mcp_tool_counts(repo, _FAKE_MCP_PAYLOAD) == []
 
 
 def test_run_main_check_passes_with_skip_mcp_counts(
@@ -257,18 +227,6 @@ def test_scan_test_counts_clean_when_all_match(tmp_path: Path):
     assert scan_test_counts(repo, _FAKE_TEST_COUNT_PAYLOAD) == []
 
 
-def test_scan_test_counts_flags_pytest_suite_drift(tmp_path: Path):
-    repo = _seed_cross_file_repo(tmp_path)
-    (repo / "AGENTS.md").write_text(
-        "tests/             pytest suite (2590 tests)\n",
-        encoding="utf-8",
-    )
-    drifts = scan_test_counts(repo, _FAKE_TEST_COUNT_PAYLOAD)
-    assert any(
-        "AGENTS.md:1" in d and "pytest suite count" in d and "found=2590" in d for d in drifts
-    )
-
-
 def test_scan_test_counts_flags_badge_drift(tmp_path: Path):
     repo = _seed_cross_file_repo(tmp_path)
     (repo / "README.md").write_text(
@@ -279,26 +237,6 @@ def test_scan_test_counts_flags_badge_drift(tmp_path: Path):
     # Both badge URL and badge label patterns fire
     assert any("badge URL count" in d and "found=2590" in d for d in drifts)
     assert any("badge label count" in d and "found=2590" in d for d in drifts)
-
-
-def test_scan_test_counts_skips_fenced_code_blocks(tmp_path: Path):
-    """pytest suite (N tests) inside fenced repo-structure blocks is skipped."""
-    repo = _seed_cross_file_repo(tmp_path)
-    (repo / "AGENTS.md").write_text(
-        "Repo layout:\n\n```\ntests/   pytest suite (2590 tests)\n```\n",
-        encoding="utf-8",
-    )
-    assert scan_test_counts(repo, _FAKE_TEST_COUNT_PAYLOAD) == []
-
-
-def test_scan_test_counts_does_not_flag_illustrative_numbers(tmp_path: Path):
-    """Phrases like 'Never add 5 tests' must NOT be flagged — narrow patterns only."""
-    repo = _seed_cross_file_repo(tmp_path)
-    (repo / "AGENTS.md").write_text(
-        "Never add 5 tests where one parametrized test covers the same matrix.\n",
-        encoding="utf-8",
-    )
-    assert scan_test_counts(repo, _FAKE_TEST_COUNT_PAYLOAD) == []
 
 
 def test_run_main_check_passes_with_skip_test_count(
@@ -313,3 +251,77 @@ def test_run_main_check_passes_with_skip_test_count(
     assert run_main(repo, check=False) == 0
     assert run_main(repo, check=True) == 1
     assert run_main(repo, check=True, skip_test_count=True) == 0
+
+
+# Module-level: G52 — drift detection across MCP-counts and test-counts scanners
+@pytest.mark.parametrize(
+    "scan_func_name,payload_name,rel_path,content,phrases",
+    [
+        pytest.param(
+            "scan_mcp_tool_counts",
+            "_FAKE_MCP_PAYLOAD",
+            "docs/en/mcp.md",
+            "## Shared Brain (`tausik-brain`, 6 tools)\n",
+            ("docs/en/mcp.md:1", "tausik-brain", "found=6"),
+            id="scan_mcp_counts_flags_brain_header_drift",
+        ),
+        pytest.param(
+            "scan_mcp_tool_counts",
+            "_FAKE_MCP_PAYLOAD",
+            "AGENTS.md",
+            "We expose 96 project tools today.\n",
+            ("AGENTS.md:1", "project count", "found=96"),
+            id="scan_mcp_counts_flags_project_drift",
+        ),
+        pytest.param(
+            "scan_test_counts",
+            "_FAKE_TEST_COUNT_PAYLOAD",
+            "AGENTS.md",
+            "tests/             pytest suite (2590 tests)\n",
+            ("AGENTS.md:1", "pytest suite count", "found=2590"),
+            id="scan_test_counts_flags_pytest_suite_drift",
+        ),
+    ],
+)
+def test_scan_flags_drift(tmp_path: Path, scan_func_name, payload_name, rel_path, content, phrases):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / rel_path).write_text(content, encoding="utf-8")
+    scan_func = globals()[scan_func_name]
+    payload = globals()[payload_name]
+    drifts = scan_func(repo, payload)
+    assert any(all(p in d for p in phrases) for d in drifts)
+
+
+# Module-level: G53 — empty-list assertions across MCP/test scanners (fenced/illustrative)
+@pytest.mark.parametrize(
+    "scan_func_name,payload_name,rel_path,content",
+    [
+        pytest.param(
+            "scan_mcp_tool_counts",
+            "_FAKE_MCP_PAYLOAD",
+            "README.md",
+            "Counts in code\n\n```\n90 project tools (legacy example)\n```\n",
+            id="scan_mcp_counts_skips_fenced_code_blocks",
+        ),
+        pytest.param(
+            "scan_test_counts",
+            "_FAKE_TEST_COUNT_PAYLOAD",
+            "AGENTS.md",
+            "Repo layout:\n\n```\ntests/   pytest suite (2590 tests)\n```\n",
+            id="scan_test_counts_skips_fenced_code_blocks",
+        ),
+        pytest.param(
+            "scan_test_counts",
+            "_FAKE_TEST_COUNT_PAYLOAD",
+            "AGENTS.md",
+            "Never add 5 tests where one parametrized test covers the same matrix.\n",
+            id="scan_test_counts_does_not_flag_illustrative_numbers",
+        ),
+    ],
+)
+def test_scan_returns_empty(tmp_path: Path, scan_func_name, payload_name, rel_path, content):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / rel_path).write_text(content, encoding="utf-8")
+    scan_func = globals()[scan_func_name]
+    payload = globals()[payload_name]
+    assert scan_func(repo, payload) == []
