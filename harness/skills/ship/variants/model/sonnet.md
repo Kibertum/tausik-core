@@ -106,7 +106,7 @@ Show: slug + title, gate results (pass/warn), commit hash, push status. Suggest 
 - **No tests:** Warn, don't block.
 - **Multiple active tasks:** Compare `git diff --name-only` to each task's `scope` (from `tausik_task_show`). No scope → ask user.
 - **Nothing to commit:** Skip commit, just close.
-- **Push gate blocks:** Use `TAUSIK_ALLOW_PUSH=1` — this skill is authorized to push after confirmation.
+- **Push gate blocks:** Run `tausik push-ok && git push` — `push-ok` writes a single-use 60s ticket bound to HEAD SHA; this skill is authorized to do so after confirmation.
 
 ## Gotchas
 

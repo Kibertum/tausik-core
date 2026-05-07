@@ -302,3 +302,23 @@ def add_hygiene(sub: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Stamp archived_at on matching rows (idempotent). Without it, dry-run lists candidates.",
     )
+
+
+def add_push_ok(sub: argparse._SubParsersAction) -> None:
+    """`tausik push-ok [--ttl SECONDS]` — write a single-use push ticket.
+
+    Consumed by scripts/hooks/git_push_gate.py on the next `git push`.
+    Bound to current HEAD SHA + branch; expires after TTL (default 60s);
+    one-shot (hook deletes it). Skills /commit and /ship invoke this only
+    after the user has confirmed "y" to a push prompt.
+    """
+    pop = sub.add_parser(
+        "push-ok",
+        help="Authorize the next git push (writes single-use 60s ticket bound to HEAD)",
+    )
+    pop.add_argument(
+        "--ttl",
+        type=int,
+        default=60,
+        help="Ticket TTL in seconds (default: 60)",
+    )

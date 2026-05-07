@@ -164,5 +164,5 @@ Exit code 2 = API не возвращает cache-поля вовсе; exit code
 | Симптом | Диагноз | Фикс |
 |---|---|---|
 | Hook не срабатывает | TAUSIK_SKIP_HOOKS установлено | Проверь env, удали переменную |
-| `git push` blocked | Защитный gate сработал — это нормально | Используй `/ship` или `/commit` skills, либо `TAUSIK_ALLOW_PUSH=1` единоразово |
+| `git push` blocked | Защитный gate сработал — это нормально | Используй `/ship` или `/commit` skills (после твоего "y" они запускают `tausik push-ok && git push`). Ручная авторизация: `tausik push-ok && git push` — пишет одноразовый 60-секундный тикет, привязанный к SHA HEAD. Старый `TAUSIK_ALLOW_PUSH=1` удалён в v1.4 (был broken-by-design). Debug bypass: `TAUSIK_SKIP_PUSH_HOOK=1`. |
 | Memory write blocked | Попытка записи в `~/.claude/projects/*/memory/` | Если действительно нужен cross-project memory — добавь маркер `confirm: cross-project` |

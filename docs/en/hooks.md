@@ -14,7 +14,7 @@ Hooks are scripts that run automatically with every agent action. They decide wh
 |------|------|-------------|
 | `task_gate.py` | Before Write/Edit | Blocks file changes if no active task (SENAR Rule 9.1) |
 | `bash_firewall.py` | Before Bash | Blocks dangerous commands (rm -rf, DROP TABLE, force push, etc.) |
-| `git_push_gate.py` | Before git push | Blocks direct push — use `/ship` or `/commit` |
+| `git_push_gate.py` | Before git push | Blocks unless `.tausik/.push_ticket.json` is fresh, single-use, and bound to HEAD SHA. `/ship` and `/commit` run `tausik push-ok && git push` after your "y" — `push-ok` writes the 60-second ticket; the hook consumes it on the next push. |
 | `memory_pretool_block.py` | Before Write to auto-memory | Blocks cross-project writes unless prompt contains `confirm: cross-project` |
 | `secret_scan.py` (v1.4) | Before Write/Edit/MultiEdit | Scans `tool_input` for likely secrets (AWS/GitHub/Slack/Stripe/OpenAI/Anthropic tokens, JWT, private-key blocks, generic `password`/`api_key` literals). Warns by default; set `TAUSIK_SECRET_SCAN_STRICT=1` to block. (SENAR Rule 10.12) |
 

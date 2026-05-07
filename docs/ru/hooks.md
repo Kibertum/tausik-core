@@ -14,7 +14,7 @@ TAUSIK использует хуки Claude Code для автоматическ
 |------|-------|-----------|
 | `task_gate.py` | Перед Write/Edit | Блокирует изменения файлов, если нет активной задачи (SENAR Rule 9.1) |
 | `bash_firewall.py` | Перед Bash | Блокирует опасные команды (rm -rf, DROP TABLE, force push, и т.д.) |
-| `git_push_gate.py` | Перед git push | Блокирует прямой push — используйте `/ship` или `/commit` |
+| `git_push_gate.py` | Перед git push | Блокирует push без свежего, одноразового тикета `.tausik/.push_ticket.json`, привязанного к SHA HEAD. `/ship` и `/commit` запускают `tausik push-ok && git push` после вашего "y" — `push-ok` пишет 60-секундный тикет, хук съедает его на следующем push. |
 | `memory_pretool_block.py` | Перед Write в auto-memory | Блокирует cross-project записи без `confirm: cross-project` в промпте |
 | `secret_scan.py` (v1.4) | Перед Write/Edit/MultiEdit | Сканирует `tool_input` на типичные секреты (AWS/GitHub/Slack/Stripe/OpenAI/Anthropic токены, JWT, блоки приватного ключа, generic `password`/`api_key`). По умолчанию warning; `TAUSIK_SECRET_SCAN_STRICT=1` — блокировка. (SENAR Rule 10.12) |
 

@@ -82,22 +82,25 @@ git status
 After a successful commit, ask the user: **"Push to remote? (y/n)"**
 
 - If the user says yes (or originally asked to push):
-  1. Determine the remote and branch: `git rev-parse --abbrev-ref HEAD`
-  2. Check if branch tracks a remote: `git rev-parse --abbrev-ref @{u} 2>/dev/null`
-  3. Set the bypass env and push:
+  1. Determine the remote and branch: `git rev-parse --abbrev-ref HEAD`.
+  2. Check if branch tracks a remote: `git rev-parse --abbrev-ref @{u} 2>/dev/null`.
+  3. Authorize the push with a single-use ticket, then push:
   ```bash
-  TAUSIK_ALLOW_PUSH=1 git push
+  tausik push-ok && git push
   ```
   or if no upstream:
   ```bash
-  TAUSIK_ALLOW_PUSH=1 git push -u origin <branch>
+  tausik push-ok && git push -u origin <branch>
   ```
+  `tausik push-ok` writes a 60-second TTL ticket bound to the current
+  HEAD SHA; `git_push_gate` consumes it on the next push and re-blocks
+  any subsequent push until you authorize again.
 - If the user says no — done, do not push.
 - **NEVER force-push** unless the user explicitly asks.
 
 ## Rules
 - **ALWAYS ask before committing** — never auto-commit
-- **NEVER push** unless explicitly asked — when pushing, use `TAUSIK_ALLOW_PUSH=1` env to bypass the push gate hook
+- **NEVER push** unless explicitly asked — when pushing, run `tausik push-ok && git push` (the ticket is single-use, expires in 60s, and is bound to HEAD SHA)
 - **NEVER use --no-verify** or skip hooks
 - **NEVER amend** unless user explicitly requests it
 - If pre-commit hook fails: fix, re-stage, create NEW commit

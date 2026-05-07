@@ -139,7 +139,7 @@ Logs must contain: timestamp, actor, action, resource.
 ## TAUSIK-specific guards
 
 - `bash_firewall.py` blocks `rm -rf /`, `git reset --hard origin`, force-push
-- `git_push_gate.py` requires `TAUSIK_ALLOW_PUSH=1` (set by `/ship` after confirmation)
+- `git_push_gate.py` requires a fresh, single-use ticket at `.tausik/.push_ticket.json`, written by `tausik push-ok` (60s TTL, bound to HEAD SHA). `/ship` and `/commit` run `tausik push-ok && git push` after user "y". The historical `TAUSIK_ALLOW_PUSH=1` env path was broken-by-design (inline env never reached harness-level hooks) and was removed in v1.4. `TAUSIK_SKIP_PUSH_HOOK=1` remains as a debug-only bypass.
 - `memory_pretool_block.py` blocks Write/Edit to `~/.claude/**/memory/` (auto-memory leak prevention)
 - `brain_scrubbing.py` strips private URLs and project names before brain writes
 - Slug validation in role/stack scaffold blocks path traversal

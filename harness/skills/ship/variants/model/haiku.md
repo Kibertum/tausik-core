@@ -35,7 +35,7 @@ Review + test + verify + commit + close — one operation.
 
 10. **Update docs (auto).** `git diff --name-only HEAD~1`. Structural changes in `scripts/`, `harness/`, `bootstrap/`, core → suggest updating `references/`. Skip `CLAUDE.md`, `QWEN.md`, `.cursorrules`. No structural changes → skip silently.
 
-11. **Push (optional).** Ask: "Push to remote? (y/n)". If yes — follow `/commit` step 8. Use `TAUSIK_ALLOW_PUSH=1`.
+11. **Push (optional).** Ask: "Push to remote? (y/n)". If yes — follow `/commit` step 8: `tausik push-ok && git push` (single-use 60s ticket).
 
 12. **Summary.** Slug + title, gate results, commit hash, push status. Suggest `/task list` or `/end`.
 
@@ -45,7 +45,7 @@ Review + test + verify + commit + close — one operation.
 - **No tests exist** → warn but don't block (suggest writing tests).
 - **Multiple active tasks** → compare `git diff --name-only` against each task's `scope` from `tausik_task_show`. No scope set → ask user which task to ship.
 - **Nothing to commit** → skip commit step, just close task.
-- **Push gate blocks** → use `TAUSIK_ALLOW_PUSH=1` env. This skill is authorized to push after user confirmation.
+- **Push gate blocks** → run `tausik push-ok && git push`. `push-ok` writes single-use 60s ticket; skill authorized after user confirmation.
 
 ## Rules
 

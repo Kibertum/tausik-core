@@ -109,12 +109,45 @@ class TestBashFirewall:
 
 
 class TestGitPushGate:
-    """git_push_gate.py blocks direct git push."""
+    """git_push_gate.py blocks direct git push without a valid push ticket.
 
-    def test_git_push_blocked(self):
-        r = run_hook("git_push_gate.py", {"tool_input": {"command": "git push origin main"}})
+    v1.4 contract: bypass via single-use ticket file at .tausik/.push_ticket.json
+    (written by `tausik push-ok`). Hook validates schema, expiry, and
+    HEAD-SHA match; consumes (deletes) on success. Old TAUSIK_ALLOW_PUSH
+    env path was removed (it never worked — Bash inline env doesn't reach
+    PreToolUse hooks running in harness env).
+    """
+
+    @staticmethod
+    def _head_sha() -> str:
+        return subprocess.check_output(["git", "rev-parse", "HEAD"], encoding="utf-8").strip()
+
+    @staticmethod
+    def _write_ticket(path, *, sha, expires_iso, schema_version=1, branch="main"):
+        from datetime import datetime, timezone
+
+        payload = {
+            "schema_version": schema_version,
+            "commit_sha": sha,
+            "branch": branch,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "expires_at": expires_iso,
+        }
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+    def _push_with_ticket(self, ticket_path):
+        return run_hook(
+            "git_push_gate.py",
+            {"tool_input": {"command": "git push origin main"}},
+            env_extra={"TAUSIK_PUSH_TICKET_PATH": str(ticket_path)},
+        )
+
+    def test_git_push_blocked_without_ticket(self, tmp_path):
+        ticket = tmp_path / ".push_ticket.json"  # does not exist
+        r = self._push_with_ticket(ticket)
         assert r.returncode == 2
         assert "BLOCKED" in r.stderr
+        assert "no push ticket" in r.stderr
 
     def test_git_status_allowed(self):
         r = run_hook("git_push_gate.py", {"tool_input": {"command": "git status"}})
@@ -124,17 +157,110 @@ class TestGitPushGate:
         r = run_hook("git_push_gate.py", {"tool_input": {"command": "git commit -m 'test'"}})
         assert r.returncode == 0
 
-    def test_chained_command_blocked(self):
+    def test_chained_command_blocked_without_ticket(self, tmp_path):
+        ticket = tmp_path / ".push_ticket.json"
         r = run_hook(
             "git_push_gate.py",
             {"tool_input": {"command": "cd . && git push origin main"}},
+            env_extra={"TAUSIK_PUSH_TICKET_PATH": str(ticket)},
         )
         assert r.returncode == 2
 
-    def test_absolute_path_git_blocked(self):
+    def test_absolute_path_git_blocked_without_ticket(self, tmp_path):
+        ticket = tmp_path / ".push_ticket.json"
         r = run_hook(
             "git_push_gate.py",
             {"tool_input": {"command": "/usr/bin/git push origin main"}},
+            env_extra={"TAUSIK_PUSH_TICKET_PATH": str(ticket)},
+        )
+        assert r.returncode == 2
+
+    def test_valid_ticket_allows_push_and_consumes_it(self, tmp_path):
+        from datetime import datetime, timedelta, timezone
+
+        ticket = tmp_path / ".push_ticket.json"
+        future = (datetime.now(timezone.utc) + timedelta(seconds=60)).isoformat()
+        self._write_ticket(ticket, sha=self._head_sha(), expires_iso=future)
+        r = self._push_with_ticket(ticket)
+        assert r.returncode == 0, r.stderr
+        assert not ticket.exists(), "ticket must be consumed (deleted) on allow"
+
+    def test_expired_ticket_blocks_and_deletes(self, tmp_path):
+        from datetime import datetime, timedelta, timezone
+
+        ticket = tmp_path / ".push_ticket.json"
+        past = (datetime.now(timezone.utc) - timedelta(seconds=10)).isoformat()
+        self._write_ticket(ticket, sha=self._head_sha(), expires_iso=past)
+        r = self._push_with_ticket(ticket)
+        assert r.returncode == 2
+        assert "expired" in r.stderr
+        assert not ticket.exists(), "expired ticket should be cleaned up"
+
+    def test_sha_mismatch_blocks_and_keeps_ticket(self, tmp_path):
+        from datetime import datetime, timedelta, timezone
+
+        ticket = tmp_path / ".push_ticket.json"
+        future = (datetime.now(timezone.utc) + timedelta(seconds=60)).isoformat()
+        self._write_ticket(ticket, sha="0" * 40, expires_iso=future)
+        r = self._push_with_ticket(ticket)
+        assert r.returncode == 2
+        assert "SHA mismatch" in r.stderr
+        assert ticket.exists(), "SHA-mismatched ticket must NOT be consumed"
+
+    def test_malformed_ticket_blocks(self, tmp_path):
+        ticket = tmp_path / ".push_ticket.json"
+        ticket.write_text("not-json{", encoding="utf-8")
+        r = self._push_with_ticket(ticket)
+        assert r.returncode == 2
+        assert "malformed" in r.stderr
+
+    def test_wrong_schema_version_blocks(self, tmp_path):
+        from datetime import datetime, timedelta, timezone
+
+        ticket = tmp_path / ".push_ticket.json"
+        future = (datetime.now(timezone.utc) + timedelta(seconds=60)).isoformat()
+        self._write_ticket(ticket, sha=self._head_sha(), expires_iso=future, schema_version=99)
+        r = self._push_with_ticket(ticket)
+        assert r.returncode == 2
+        assert "schema_version" in r.stderr
+
+    def test_one_shot_second_push_blocked(self, tmp_path):
+        """Ticket is single-use: second push after consume must block."""
+        from datetime import datetime, timedelta, timezone
+
+        ticket = tmp_path / ".push_ticket.json"
+        future = (datetime.now(timezone.utc) + timedelta(seconds=60)).isoformat()
+        self._write_ticket(ticket, sha=self._head_sha(), expires_iso=future)
+        r1 = self._push_with_ticket(ticket)
+        assert r1.returncode == 0, r1.stderr
+        r2 = self._push_with_ticket(ticket)
+        assert r2.returncode == 2
+        assert "no push ticket" in r2.stderr
+
+    def test_skip_push_hook_env_still_bypasses(self, tmp_path):
+        """TAUSIK_SKIP_PUSH_HOOK=1 remains as debug-only bypass."""
+        ticket = tmp_path / ".push_ticket.json"  # does not exist
+        r = run_hook(
+            "git_push_gate.py",
+            {"tool_input": {"command": "git push origin main"}},
+            env_extra={
+                "TAUSIK_PUSH_TICKET_PATH": str(ticket),
+                "TAUSIK_SKIP_PUSH_HOOK": "1",
+            },
+        )
+        assert r.returncode == 0
+
+    def test_old_allow_push_env_no_longer_bypasses(self, tmp_path):
+        """The historical TAUSIK_ALLOW_PUSH=1 path was broken-by-design and
+        is now removed. Setting it must NOT bypass the gate."""
+        ticket = tmp_path / ".push_ticket.json"  # does not exist
+        r = run_hook(
+            "git_push_gate.py",
+            {"tool_input": {"command": "git push origin main"}},
+            env_extra={
+                "TAUSIK_PUSH_TICKET_PATH": str(ticket),
+                "TAUSIK_ALLOW_PUSH": "1",
+            },
         )
         assert r.returncode == 2
 
@@ -224,20 +350,6 @@ class TestTaskGate:
     "script,command_or_path,env_extra,expected_returncode",
     [
         pytest.param(
-            "git_push_gate.py",
-            {"command": "git push origin main"},
-            {"TAUSIK_SKIP_PUSH_HOOK": "1"},
-            0,
-            id="skip_push_hook_env",
-        ),
-        pytest.param(
-            "git_push_gate.py",
-            {"command": "git push origin main"},
-            {"TAUSIK_SKIP_HOOKS": "1"},
-            2,
-            id="skip_hooks_no_longer_bypasses_push",
-        ),
-        pytest.param(
             "auto_format.py",
             {"file_path": "test.py"},
             {"TAUSIK_SKIP_HOOKS": "1"},
@@ -247,5 +359,7 @@ class TestTaskGate:
     ],
 )
 def test_hook_skip_env_returncode(script, command_or_path, env_extra, expected_returncode):
+    """git_push_gate skip-env coverage moved into TestGitPushGate, where the
+    ticket path can be isolated via TAUSIK_PUSH_TICKET_PATH per-test."""
     r = run_hook(script, {"tool_input": command_or_path}, env_extra=env_extra)
     assert r.returncode == expected_returncode
