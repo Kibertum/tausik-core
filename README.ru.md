@@ -10,6 +10,15 @@
 [![3362 tests](https://img.shields.io/badge/tests-3362%20passed-brightgreen.svg)](#dogfooding-tausik-создан-с-помощью-себя)
 [![Zero deps](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#что-внутри)
 
+> ⚠️ **v1.4 — околостабильный pre-2.0 релиз.** Это последний минорный релиз
+> 1.x перед мажорным переходом к **2.0**. v1.4 несёт очень большой объём
+> изменений (B+C polish phases — verify-first контракт, brain artifact pipeline,
+> audit suite, skill bundles, two-axis variants, per-task cost/token бюджеты) —
+> возможен рассинхрон в документации и редкие нестабильности на edge-cases.
+> Ядро покрыто 3362 тестами и используется на dogfood'е каждый день; если
+> наткнётесь на расхождение docs ↔ behaviour — заведите issue, постараемся
+> доехать до 2.0 без regression'ов.
+
 **TAUSIK — фреймворк контроля качества для AI-агентов разработки** —
 Claude Code, Cursor, VSCode Claude Extension, Qwen Code, Windsurf.
 Он навязывает дисциплину senior-инженера: планировать перед кодом,

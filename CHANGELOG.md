@@ -7,7 +7,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 > Russian mirror: [`CHANGELOG.ru.md`](CHANGELOG.ru.md). Both files cover
 > the same releases — keep them in sync when adding a new entry.
 
-## [Unreleased] — v1.4.0 polish (Phases B + C)
+## [1.4.0] — 2026-05-07
 
 ### Added
 

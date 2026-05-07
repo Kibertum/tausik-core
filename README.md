@@ -10,6 +10,14 @@
 [![3362 tests](https://img.shields.io/badge/tests-3362%20passed-brightgreen.svg)](#dogfooding-tausik-built-tausik)
 [![Zero deps](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#what-you-get)
 
+> ⚠️ **v1.4 — near-stable pre-2.0 release.** This is the last 1.x minor before
+> the major bump to **2.0**. v1.4 ships a very large change set (B+C polish
+> phases — verify-first contract, brain artifact pipeline, audit suite, skill
+> bundles, two-axis variants, per-task cost/token budgets); expect occasional
+> doc-vs-behaviour drift and rough edges on uncommon paths. The core is covered
+> by 3362 tests and is dogfooded daily — if you hit a mismatch, file an issue
+> and we'll converge it before 2.0.
+
 **TAUSIK is a quality control framework for AI coding agents** — Claude Code,
 Cursor, VSCode Claude Extension, Qwen Code, Windsurf. It enforces the
 discipline of a senior engineer: plan before coding, verify before claiming
