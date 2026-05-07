@@ -271,6 +271,28 @@ def copy_mcp(lib_dir: str, target_dir: str, ide: str) -> int:
     return len(os.listdir(mcp_dst))
 
 
+def copy_subagents(lib_dir: str, target_dir: str, ide: str) -> int:
+    """Copy Claude-native named sub-agents (harness/claude/subagents/*.md → <target>/agents/*.md).
+
+    Currently Claude-only — Cursor/Qwen have no named-subagent concept.
+    Returns 0 silently for non-Claude IDEs or when the source dir is absent.
+    """
+    if ide != "claude":
+        return 0
+    src = os.path.join(lib_dir, "harness", "claude", "subagents")
+    if not os.path.isdir(src):
+        return 0
+    dst = os.path.join(target_dir, "agents")
+    os.makedirs(dst, exist_ok=True)
+    n = 0
+    for entry in os.listdir(src):
+        if not entry.endswith(".md"):
+            continue
+        _conditional_copy(os.path.join(src, entry), os.path.join(dst, entry))
+        n += 1
+    return n
+
+
 def copy_roles(lib_dir: str, target_dir: str, ide: str) -> int:
     """Copy role profiles from harness/roles/ (shared) to target."""
     roles_src = os.path.join(lib_dir, "harness", "roles")

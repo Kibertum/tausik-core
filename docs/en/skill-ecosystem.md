@@ -29,6 +29,17 @@ flowchart TD
 - External repos run **arbitrary instructions** in `SKILL.md` and may execute scripts during install. Treat unknown repos like untrusted code. Details: **[Vendor skills](vendor-skills.md)** (security & trust).
 - **Context budget:** each *active* skill consumes prompt space; keep only frequently used skills activated.
 
+## Claude-native sub-agents
+
+Beyond slash skills, TAUSIK ships **named sub-agents** that the Agent tool can invoke directly (`Agent(subagent_type="<name>", ...)`). They live under `harness/claude/subagents/` in the source tree and bootstrap deploys them to `.claude/agents/`. Cursor / Qwen do not have a named-subagent concept — these are Claude-only.
+
+| Sub-agent | Invoked by | What it does |
+|-----------|------------|--------------|
+| `tausik-reviewer` | `/review lite` | Single-pass code review with the SENAR 28-item checklist + security docs. Returns structured JSON `{critical[], high[], medium[], low[]}` so the main context never sees per-file reads or per-agent prose. ~2.9KB definition; rubric loaded at runtime. Token-economy alternative to the default 6-agent fork — pick it for low-stakes diffs and skip it for security-sensitive code. |
+| `tausik-gate-fixer` | `/debug` (auto-helper after a failed `tausik verify`) | Reads the gate's stderr + project troubleshooting docs, returns a 1-3 step JSON fix plan `{gate, family, plan: [{step, action, target, change, why}], meta}`. Read-only PLAN agent — never applies edits; the invoker applies the plan and re-runs `tausik verify`. Action vocabulary is fixed (`edit`, `extract_module`, `add_test`, `move_file`, `delete_dead_code`, `re_run_gate`). |
+
+Adding a sub-agent: drop `<name>.md` (with frontmatter `name`, `description`, `tools`, `model`) into `harness/claude/subagents/`, then `python bootstrap/bootstrap.py --ide claude` re-deploys it. Tools should be minimal — read-only sub-agents (`Read, Grep, Bash`) keep the trust surface small.
+
 ## Where to go next
 
 | Topic | Document |

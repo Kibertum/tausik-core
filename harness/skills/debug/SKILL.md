@@ -70,6 +70,19 @@ Work backwards from the symptom:
 - Run related tests
 - Check for regressions in adjacent code
 
+### 7. (Optional) Auto-helper for failed verify gates
+
+If your fix triggers a `tausik verify` failure (filesize / ruff / mypy / pytest), invoke the **`tausik-gate-fixer`** sub-agent instead of decoding stderr by hand:
+
+```
+Agent(
+  subagent_type="tausik-gate-fixer",
+  prompt="gate_name=<name>; stderr=<copied verify output>; relevant_files=<list>; task_slug=<slug>; goal=<task goal>",
+)
+```
+
+It returns a JSON `{gate, family, plan: [{step, action, target, change, why}], meta}` with a 1-3 step fix plan. Apply the plan, re-run `tausik verify`. The sub-agent is read-only — never applies edits itself. Fall back to the standard manual flow if `.claude/agents/tausik-gate-fixer.md` is missing on legacy installs.
+
 ## Output Format
 
 ```

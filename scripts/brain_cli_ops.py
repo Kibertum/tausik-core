@@ -90,7 +90,7 @@ def cmd_brain(svc: ProjectService, args: Any) -> None:
                     had_error = True
                     print(f"  {cat:>10}: ERROR — {payload['error']}")
                 else:
-                    pulled = payload.get("upserts") or payload.get("pulled") or 0
+                    pulled = payload.get("upserted", payload.get("fetched", 0))
                     print(f"  {cat:>10}: pulled {pulled}")
             if had_error:
                 sys.exit(1)
@@ -113,9 +113,7 @@ def cmd_brain(svc: ProjectService, args: Any) -> None:
                     file=sys.stderr,
                 )
                 sys.exit(2)
-            result = brain_move.move_to_brain(
-                svc, kind, src_id, keep_source=args.keep_source
-            )
+            result = brain_move.move_to_brain(svc, kind, src_id, keep_source=args.keep_source)
         else:
             cat = getattr(args, "category", None)
             if not cat:
@@ -183,9 +181,7 @@ def cmd_brain(svc: ProjectService, args: Any) -> None:
     }
 
     try:
-        result = brain_init.run_wizard(
-            wizard_args, brain_init.CliIO(), _factory, _ConfigOps()
-        )
+        result = brain_init.run_wizard(wizard_args, brain_init.CliIO(), _factory, _ConfigOps())
     except brain_init.WizardError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)

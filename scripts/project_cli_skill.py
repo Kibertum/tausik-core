@@ -49,10 +49,100 @@ def cmd_skill(svc: ProjectService, args: Any) -> None:
         from project_cli_config import cmd_skill_rebuild
 
         cmd_skill_rebuild(args, project_dir, skills_dst)
+    elif c == "bundle":
+        _cmd_skill_bundle(svc, args, vendor_dir, skills_dst, config_path, tausik_dir)
     else:
         print(
-            "Usage: tausik skill [activate|deactivate|list|install|uninstall|repo|catalog|rebuild]"
+            "Usage: tausik skill [activate|deactivate|list|install|uninstall|repo|catalog|rebuild|bundle]"
         )
+
+
+def _cmd_skill_bundle(
+    svc: ProjectService,
+    args: Any,
+    vendor_dir: str,
+    skills_dst: str,
+    config_path: str,
+    tausik_dir: str,
+) -> None:
+    """Dispatch `tausik skill bundle [list|show|install|uninstall]`."""
+    import skill_bundles
+
+    sub = getattr(args, "bundle_cmd", None)
+    skills_official = _resolve_skills_official_dir()
+
+    if sub == "list":
+        try:
+            entries = skill_bundles.bundle_list(skills_official)
+        except skill_bundles.BundleError as exc:
+            print(f"Error: {exc}")
+            return
+        if getattr(args, "as_json", False):
+            print(json.dumps(entries, ensure_ascii=False, indent=2))
+            return
+        print(skill_bundles.format_list_table(entries))
+        return
+
+    if sub == "show":
+        try:
+            entry = skill_bundles.bundle_show(args.name, skills_official)
+        except skill_bundles.BundleError as exc:
+            print(f"Error: {exc}")
+            return
+        if getattr(args, "as_json", False):
+            print(json.dumps(entry, ensure_ascii=False, indent=2))
+            return
+        print(skill_bundles.format_show(entry))
+        return
+
+    if sub == "install":
+
+        def _install_one(name: str) -> str:
+            return svc.skill_install(name, vendor_dir, skills_dst, config_path, tausik_dir)
+
+        try:
+            results = skill_bundles.bundle_install(args.name, skills_official, _install_one)
+        except skill_bundles.BundleError as exc:
+            print(f"Error: {exc}")
+            return
+        if getattr(args, "as_json", False):
+            print(json.dumps(results, ensure_ascii=False, indent=2))
+            return
+        print(f"Installing bundle '{args.name}':")
+        print(skill_bundles.format_install_results(results))
+        return
+
+    if sub == "uninstall":
+
+        def _uninstall_one(name: str) -> str:
+            return svc.skill_uninstall(name, skills_dst, config_path)
+
+        try:
+            results = skill_bundles.bundle_uninstall(args.name, skills_official, _uninstall_one)
+        except skill_bundles.BundleError as exc:
+            print(f"Error: {exc}")
+            return
+        if getattr(args, "as_json", False):
+            print(json.dumps(results, ensure_ascii=False, indent=2))
+            return
+        print(f"Uninstalling bundle '{args.name}':")
+        print(skill_bundles.format_install_results(results))
+        return
+
+    print("Usage: tausik skill bundle [list|show|install|uninstall] [--json]")
+
+
+def _resolve_skills_official_dir() -> str:
+    """Locate skills-official/ — repo root in dev, lib_dir in installed projects."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.path.join(os.path.dirname(here), "skills-official"),
+        os.path.join(here, "..", "..", "skills-official"),
+    ]
+    for path in candidates:
+        if os.path.isdir(path):
+            return os.path.abspath(path)
+    return candidates[0]
 
 
 def _print_skill_list(svc: ProjectService, vendor_dir: str, skills_dst: str) -> None:

@@ -7,7 +7,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)](https://python.org)
 [![Tests](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml/badge.svg)](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml)
-[![3099 tests](https://img.shields.io/badge/tests-3099%20passed-brightgreen.svg)](#dogfooding-tausik-built-tausik)
+[![3255 tests](https://img.shields.io/badge/tests-3255%20passed-brightgreen.svg)](#dogfooding-tausik-built-tausik)
 [![Zero deps](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#what-you-get)
 
 **TAUSIK is a quality control framework for AI coding agents** — Claude Code,

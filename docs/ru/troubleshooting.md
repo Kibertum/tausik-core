@@ -17,6 +17,24 @@
 
 Сопутствующие gotchas в `.tausik/tausik.db`: #77 (verify висит после правки `service_verification.py`/`gate_runner.py`), #79 (`task_done` виснет на большом evidence), #80 (root cause = stale-модули + параллельные MCP-серверы). Envelope timeout (60 с, `verify_pipeline_timeout_seconds`) Verify-First Contract'а ловит новые серверы; старые загрузили свой код ДО появления envelope и игнорируют его.
 
+## Failed verify-gate → tausik-gate-fixer (auto-helper)
+
+Когда `tausik verify` или `tausik task done` падает с blocking-failure (filesize / ruff / mypy / pytest), вместо ручного парсинга stderr вызови sub-agent **`tausik-gate-fixer`** — он читает stderr + `docs/en/troubleshooting.md` + `docs/en/architecture.md` и возвращает 1-3 шаговый JSON fix plan.
+
+```
+Agent(
+  subagent_type="tausik-gate-fixer",
+  prompt="gate_name=ruff; stderr=<copied>; relevant_files=[...]; task_slug=<slug>; goal=<task goal>",
+)
+```
+
+Ответ:
+```json
+{"gate":"ruff","family":"style","plan":[{"step":1,"action":"edit","target":"scripts/foo.py:42","change":"...","why":"..."}],"meta":{...}}
+```
+
+**Action vocabulary** (фиксированный, агент не выдумывает): `edit`, `extract_module`, `add_test`, `move_file`, `delete_dead_code`, `re_run_gate`. Применяешь plan — потом `.tausik/tausik verify --task <slug>` ещё раз. Sub-agent read-only: никогда не правит код сам.
+
 ## Bootstrap
 
 | Симптом | Диагноз | Фикс |

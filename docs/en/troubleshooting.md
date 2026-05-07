@@ -74,6 +74,24 @@ their code BEFORE that timer was added and ignore it.
 | `unrecognized arguments` | CLI syntax error | Read [`docs/en/cli.md`](cli.md) for correct syntax |
 | `ModuleNotFoundError` in project.py | Wrong Python or missing sys.path | Run with system Python, not venv: `.tausik/tausik` |
 
+## Failed verify-gate → tausik-gate-fixer (auto-helper)
+
+When `tausik verify` or `tausik task done` returns a blocking failure (filesize / ruff / mypy / pytest), invoke the **`tausik-gate-fixer`** sub-agent instead of decoding the stderr by hand. It reads the stderr + `docs/en/troubleshooting.md` + `docs/en/architecture.md`, then returns a 1-3 step JSON fix plan.
+
+```
+Agent(
+  subagent_type="tausik-gate-fixer",
+  prompt="gate_name=ruff; stderr=<copied>; relevant_files=[...]; task_slug=<slug>; goal=<task goal>",
+)
+```
+
+Response:
+```json
+{"gate":"ruff","family":"style","plan":[{"step":1,"action":"edit","target":"scripts/foo.py:42","change":"...","why":"..."}],"meta":{...}}
+```
+
+**Action vocabulary** (closed set — the agent picks from these, never invents): `edit`, `extract_module`, `add_test`, `move_file`, `delete_dead_code`, `re_run_gate`. Apply the plan, then `.tausik/tausik verify --task <slug>` again. The sub-agent is read-only — it never edits code itself.
+
 ## Bootstrap
 
 | Error Pattern | Diagnosis | Fix Command |

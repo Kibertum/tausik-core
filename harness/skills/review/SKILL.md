@@ -43,6 +43,7 @@ Before reviewing, load role and project context:
 - `$ARGUMENTS` = "diff" or empty — `git diff HEAD~1` (last commit)
 - `$ARGUMENTS` = "staged" — `git diff --cached`
 - `$ARGUMENTS` contains "iterate" — enable Iterative Mode (see below). Combine with scope: `/review iterate`, `/review src/ iterate`
+- `$ARGUMENTS` contains "lite" — enable Lite Mode (single `tausik-reviewer` sub-agent, structured JSON output, no 6-agent fork). See **Lite Mode** below. Combine with scope: `/review lite`, `/review src/ lite`
 
 ### 2. Read Code
 Read every file in scope. Do NOT skim. Check `CLAUDE.md` for project rules.
@@ -175,6 +176,38 @@ When `$ARGUMENTS` contains "adversarial" or "deep", run **two critic passes** se
 - Reviewing security-sensitive code (auth, payments, crypto, session handling)
 - Diff touches >5 files across multiple modules
 - User says "deep", "thorough", "hostile"
+
+## Lite Mode
+
+When `$ARGUMENTS` contains "lite", **skip the 6-agent fork** and invoke the single Claude-native sub-agent `tausik-reviewer` instead. Trade adversarial breadth for token cost: one consolidated review per file, structured JSON output, main context stays clean.
+
+### When to pick Lite over the default
+
+- Low-stakes diff (docs, comment-only changes, trivial refactor)
+- Fast preview before a full `/review`
+- Token budget concern (sub-agent main-context overhead is roughly 6× lower than the parallel-6 flow)
+
+Skip Lite for security-sensitive code (auth, payments, crypto), >5-file diffs, or anything you would otherwise route through Adversarial deep mode — those still want the 6-agent breadth + critic.
+
+### Algorithm
+
+1. Resolve scope (same as step 1 of standard `/review`).
+2. Read project context (CLAUDE.md, conventions, dead ends, active task) — same as Phase 0.
+3. Invoke the sub-agent in a single tool call:
+   ```
+   Agent(
+     subagent_type="tausik-reviewer",
+     prompt="Review files: {scope}. Task goal: {goal}. AC: {AC}. Stack: {stack}. Role: {role}. Conventions: {conventions}. Dead ends: {dead_ends}.",
+   )
+   ```
+4. Sub-agent reads `harness/skills/review/agents/quality.md` + `docs/en/security.md` + `docs/en/security-checklist.md` from disk at runtime, applies them, returns one JSON object: `{scope, critical[], high[], medium[], low[], meta}`.
+5. Render the JSON in the **standard Output Format** (re-use the template in step 6 of standard flow).
+6. Run quality gates (same as step 5).
+7. Record the run as `--type L3` if the sub-agent reports its independence (it runs in a separate context — same SENAR semantics as the parallel-6 flow).
+
+### Fallback
+
+If `tausik-reviewer` sub-agent is missing (`.claude/agents/tausik-reviewer.md` absent — bootstrap may not have copied it on legacy installs), fall back to standard 6-agent flow and emit a one-line warning.
 
 ## Iterative Mode
 

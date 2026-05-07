@@ -26,9 +26,7 @@ class _FakeNotionClient:
         self._queues.setdefault(database_id, []).append(list(pages))
 
     def iter_database_query(self, database_id, *, filter=None, sorts=None):
-        self.calls.append(
-            {"database_id": database_id, "filter": filter, "sorts": sorts}
-        )
+        self.calls.append({"database_id": database_id, "filter": filter, "sorts": sorts})
         if self.error is not None:
             raise self.error
         batches = self._queues.get(database_id, [])
@@ -317,9 +315,7 @@ def test_allowed_cols_matches_schema():
 
 def test_upsert_page_accepts_schema_exact_columns(conn):
     brain_sync.upsert_page(conn, "decisions", _minimal_decision_row())
-    out = conn.execute(
-        "SELECT notion_page_id, decision FROM brain_decisions"
-    ).fetchone()
+    out = conn.execute("SELECT notion_page_id, decision FROM brain_decisions").fetchone()
     assert out["notion_page_id"] == "page-1"
     assert out["decision"] == "x"
 
@@ -358,9 +354,7 @@ def test_sync_category_empty_db_pulls_without_filter(conn):
     }
     # No filter on initial pull
     assert client.calls[0]["filter"] is None
-    assert client.calls[0]["sorts"] == [
-        {"timestamp": "last_edited_time", "direction": "ascending"}
-    ]
+    assert client.calls[0]["sorts"] == [{"timestamp": "last_edited_time", "direction": "ascending"}]
 
     rows = conn.execute(
         "SELECT notion_page_id, name FROM brain_decisions ORDER BY notion_page_id"
@@ -406,9 +400,7 @@ def test_sync_category_upserts_same_page_id(conn):
     )
     brain_sync.sync_category(client, conn, "db-1", "decisions")
 
-    rows = conn.execute(
-        "SELECT name FROM brain_decisions WHERE notion_page_id='p-1'"
-    ).fetchall()
+    rows = conn.execute("SELECT name FROM brain_decisions WHERE notion_page_id='p-1'").fetchall()
     assert len(rows) == 1
     assert rows[0][0] == "Rewritten"
 
@@ -508,9 +500,7 @@ def test_sync_all_continues_after_one_category_fails(conn):
         def iter_database_query(self, database_id, *, filter=None, sorts=None):
             if database_id == "db-dec":
                 raise _Boom("decisions blew up")
-            yield from super().iter_database_query(
-                database_id, filter=filter, sorts=sorts
-            )
+            yield from super().iter_database_query(database_id, filter=filter, sorts=sorts)
 
     client = _SelectiveClient()
     client.queue("db-wc", [])
@@ -528,3 +518,45 @@ def test_sync_all_continues_after_one_category_fails(conn):
     assert results["web_cache"].get("fetched") == 0
     assert results["patterns"].get("fetched") == 0
     assert results["gotchas"].get("fetched") == 0
+
+
+# --- Regression: cmd_brain display key contract -----------------------------
+# Bug 2026-05 (v14b-followup-brain-sync-cursor-pulls-zero):
+# scripts/brain_cli_ops.py read payload.get("upserts") (typo, missing 'd')
+# instead of "upserted", so `tausik brain sync` always printed `pulled 0`
+# even when sync_category had successfully written rows. The data WAS in the
+# DB — only the CLI display was wrong. This test pins the dict-key contract
+# between sync_category/sync_all and cmd_brain so a future rename of the
+# "upserted" key cannot silently regress to the same misreport.
+
+
+def test_sync_all_result_uses_upserted_key_not_upserts(conn):
+    client = _FakeNotionClient()
+    client.queue(
+        "db-dec",
+        [_page_decision(pid="p-1", name="A", edited="2026-04-23T10:00:00Z")],
+    )
+    client.queue("db-wc", [])
+    client.queue("db-pat", [])
+    client.queue("db-got", [])
+
+    results = brain_sync.sync_all(
+        client,
+        conn,
+        {
+            "decisions": "db-dec",
+            "web_cache": "db-wc",
+            "patterns": "db-pat",
+            "gotchas": "db-got",
+        },
+    )
+    payload = results["decisions"]
+    assert "upserted" in payload, (
+        "sync_category success-path must expose 'upserted' — cmd_brain reads "
+        "this key in scripts/brain_cli_ops.py to print 'pulled N'"
+    )
+    assert payload["upserted"] == 1
+    # Mirror cmd_brain's display read verbatim. If this drops to 0, the CLI
+    # will silently misreport every successful sync as 'pulled 0'.
+    pulled = payload.get("upserted", payload.get("fetched", 0))
+    assert pulled == 1

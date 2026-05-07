@@ -135,21 +135,18 @@ class TestBuiltinSkills:
 
 @pytest.mark.skipif(not has_official, reason="skills-official/ not available")
 class TestOfficialSkills:
+    # v14b-skill-bundles-marketplace: 5 skills removed (go, next, diff, onboard, init)
+    # — each duplicated built-in functionality. See docs/{en,ru}/skill-bundles-migration.md.
     OFFICIAL_SKILLS = [
         "audit",
         "bitrix24",
         "confluence",
         "daily",
-        "diff",
         "dispatch",
         "docs",
         "excel",
-        "go",
-        "init",
         "jira",
         "loop-task",
-        "next",
-        "onboard",
         "optimize",
         "pdf",
         "presale",

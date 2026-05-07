@@ -42,6 +42,7 @@ from bootstrap_copy import (
     copy_scripts,
     copy_skills,
     copy_stacks,
+    copy_subagents,
 )
 from bootstrap_vendor import (
     copy_vendor_assets,
@@ -134,6 +135,10 @@ def bootstrap_ide(
 
     n_roles = copy_roles(lib_dir, target_dir, ide)
     print(f"  Roles: {n_roles} copied")
+
+    n_subagents = copy_subagents(lib_dir, target_dir, ide)
+    if n_subagents:
+        print(f"  Sub-agents: {n_subagents} copied")
 
     n_stacks = copy_stacks(lib_dir, target_dir, ide, stacks)
     print(f"  Stacks: {n_stacks} copied")

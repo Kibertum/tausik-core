@@ -200,6 +200,11 @@ def generate_settings_qwen(
                         "command": _hook_cmd("activity_event.py"),
                         "timeout": 5,
                     },
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("tool_output_truncation_nudge.py"),
+                        "timeout": 3,
+                    },
                 ],
             },
         ],

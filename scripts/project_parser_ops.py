@@ -199,6 +199,26 @@ def add_skill(sub: argparse._SubParsersAction) -> None:
     sk_repo_rm.add_argument("name", help="Repo name to remove (see: tausik skill repo list)")
     sk_repo_sub.add_parser("list", help="List configured skill repos")
 
+    sk_bundle = sk_sub.add_parser("bundle", help="Bulk install/uninstall skills via bundles.json")
+    sk_bundle_sub = sk_bundle.add_subparsers(dest="bundle_cmd")
+    sk_bundle_list = sk_bundle_sub.add_parser("list", help="List configured bundles + skill counts")
+    sk_bundle_list.add_argument(
+        "--json", action="store_true", dest="as_json", help="Emit JSON instead of a table."
+    )
+    sk_bundle_show = sk_bundle_sub.add_parser("show", help="Show a single bundle's skills")
+    sk_bundle_show.add_argument("name", help="Bundle name (see: tausik skill bundle list)")
+    sk_bundle_show.add_argument("--json", action="store_true", dest="as_json")
+    sk_bundle_install = sk_bundle_sub.add_parser(
+        "install", help="Install every skill in a bundle (skips deprecated)"
+    )
+    sk_bundle_install.add_argument("name", help="Bundle name (see: tausik skill bundle list)")
+    sk_bundle_install.add_argument("--json", action="store_true", dest="as_json")
+    sk_bundle_uninstall = sk_bundle_sub.add_parser(
+        "uninstall", help="Uninstall every skill in a bundle"
+    )
+    sk_bundle_uninstall.add_argument("name", help="Bundle name (see: tausik skill bundle list)")
+    sk_bundle_uninstall.add_argument("--json", action="store_true", dest="as_json")
+
 
 def add_metrics(sub: argparse._SubParsersAction) -> None:
     """`tausik metrics`, `hud`, `suggest-model` subparsers."""

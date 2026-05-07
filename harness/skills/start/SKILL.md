@@ -41,6 +41,8 @@ Call `tausik_update_claudemd`. This refreshes the dynamic section AND injects co
 
 ### Phase 3 — Present Dashboard (under 800 tokens)
 
+> **Lite mode (`/start --lite` or `/start lite`):** skip the full dashboard render. Output ≤ 50 lines: one line per signal — Session #N, counts (active/blocked/planning), MCP Health (only if drift/siblings), one-sentence Suggested Next. Skip handoff body, skip per-task title, skip warnings rendering. Default `/start` is unchanged. Use Lite when you already know the project state and only want the cheap "session is open, nothing new" confirmation.
+
 Render in this order, **omit empty sections silently**:
 
 1. **MCP Health** — only if `self_check` returned `drift_detected=true` or `sibling_mcp_count > 0`: list stale modules + sibling PIDs, recommend IDE restart + CLI fallback. If clean, omit entirely (don't write "OK").

@@ -108,7 +108,7 @@
 Навыки, роли, стеки — общие для всех сред. MCP-серверы — специфичны для среды:
 ```
 harness/
-├── skills/           # 12 core auto-deployed + brain условно + 25+ в skills-official/ (opt-in через --include-official)
+├── skills/           # 12 core auto-deployed + brain условно + 20 в skills-official/ (opt-in через --include-official)
 ├── roles/            # 5 ролей (developer, architect, qa, tech-writer, ui-ux)
 ├── stacks/           # Руководства по стекам
 ├── overrides/        # Переопределения для конкретных сред (claude/, cursor/, qwen/)
