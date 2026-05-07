@@ -6,7 +6,6 @@ import json
 from typing import Any
 
 from project_service import ProjectService
-from tausik_utils import tausik_config_path
 
 
 def cmd_memory(svc: ProjectService, args: Any) -> None:

@@ -127,7 +127,6 @@ class TestParseTranscriptModelHandling:
         except (FileNotFoundError, OSError):
             return  # acceptable
         # If it returned, cost must be 0.0
-        m = sm.parse_transcript.__defaults__  # type: ignore[attr-defined]  # touch attribute
         # Actually call again and assert
         try:
             result = sm.parse_transcript(bad)
