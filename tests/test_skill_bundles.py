@@ -22,19 +22,26 @@ SKILLS_OFFICIAL = os.path.join(REPO, "skills-official")
 BUNDLES_PATH = os.path.join(SKILLS_OFFICIAL, "bundles.json")
 REGISTRY_PATH = os.path.join(SKILLS_OFFICIAL, "registry.json")
 
-# skills-official/ lives in a separate repo (Kibertum/tausik-skills) and is in
-# .gitignore here. CI clones tausik-core without it; only local dev with the
-# vendored skills tree runs these checks. See docs/en/skill-bundles.md.
-if not os.path.isfile(BUNDLES_PATH):
-    pytest.skip(
-        "skills-official/bundles.json absent — skill_bundles tests are local-only "
-        "(skills-official/ is in .gitignore; clone github.com/Kibertum/tausik-skills "
-        "into skills-official/ to run these locally)",
-        allow_module_level=True,
-    )
-
 sys.path.insert(0, os.path.join(REPO, "scripts"))
 
+# skills-official/ lives in a separate repo (Kibertum/tausik-skills) and is in
+# .gitignore here. CI clones tausik-core without it; only local dev with the
+# vendored skills tree runs these checks. See docs/en/skill-bundles.md. Using
+# pytestmark (run-time skip) instead of module-level pytest.skip so collection
+# still counts these tests — keeps test_count stable across environments and
+# avoids doc-constants drift in CI.
+pytestmark = pytest.mark.skipif(
+    not os.path.isfile(BUNDLES_PATH),
+    reason=(
+        "skills-official/bundles.json absent — skill_bundles tests are local-only "
+        "(skills-official/ is in .gitignore; clone github.com/Kibertum/tausik-skills "
+        "into skills-official/ to run these locally)"
+    ),
+)
+
+# Import deferred until after pytestmark so collection works in CI without
+# the module on disk. skill_bundles itself lives in scripts/ and is always
+# available — but importing it here is fine in either environment.
 import skill_bundles  # noqa: E402
 
 DEPRECATED_NAMES = {"go", "next", "diff", "onboard", "init"}
