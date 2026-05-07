@@ -22,6 +22,17 @@ SKILLS_OFFICIAL = os.path.join(REPO, "skills-official")
 BUNDLES_PATH = os.path.join(SKILLS_OFFICIAL, "bundles.json")
 REGISTRY_PATH = os.path.join(SKILLS_OFFICIAL, "registry.json")
 
+# skills-official/ lives in a separate repo (Kibertum/tausik-skills) and is in
+# .gitignore here. CI clones tausik-core without it; only local dev with the
+# vendored skills tree runs these checks. See docs/en/skill-bundles.md.
+if not os.path.isfile(BUNDLES_PATH):
+    pytest.skip(
+        "skills-official/bundles.json absent — skill_bundles tests are local-only "
+        "(skills-official/ is in .gitignore; clone github.com/Kibertum/tausik-skills "
+        "into skills-official/ to run these locally)",
+        allow_module_level=True,
+    )
+
 sys.path.insert(0, os.path.join(REPO, "scripts"))
 
 import skill_bundles  # noqa: E402
