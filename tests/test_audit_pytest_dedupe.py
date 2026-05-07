@@ -86,10 +86,25 @@ class TestCollectDuplicates:
 
 
 class TestRenderMarkdown:
-    def test_empty_groups_clean_message(self):
-        out = render_markdown([])
-        assert "No duplicate test scenarios detected" in out
-        assert "Documented false positives" in out
+    def test_empty_groups_omits_per_test_rows(self):
+        # Behavior contrast: empty input produces no per-test enumerations,
+        # while populated input does. Asserts the rendering distinguishes
+        # the two states without locking on exact label strings.
+        out_empty = render_markdown([])
+        out_populated = render_markdown(
+            [
+                {
+                    "signature": "sig-x",
+                    "members": [
+                        {"name": "test_dup_a", "file": "x.py", "lineno": 1},
+                        {"name": "test_dup_b", "file": "y.py", "lineno": 1},
+                    ],
+                }
+            ]
+        )
+        assert "test_dup_a" not in out_empty
+        assert "test_dup_a" in out_populated
+        assert out_empty.strip()  # still produces some scaffolding
 
     def test_documents_false_positives(self):
         # AC-3 negative: false positives must be documented in the report
@@ -100,26 +115,42 @@ class TestRenderMarkdown:
 
 class TestArtifactExists:
     def test_research_artifact_committed(self):
-        # AC-2: report file lives under research/
-        path = REPO / "docs" / "ru" / "research" / "tausik-1.4-pytest-dedupe-2026-05-02.md"
-        assert path.is_file(), f"Missing research artifact at {path}"
-        text = path.read_text(encoding="utf-8")
+        # AC-2: report file lives under research/. Glob matches any dated
+        # sibling so the audit can re-run with a fresh date without breaking
+        # this test.
+        research_dir = REPO / "docs" / "ru" / "research"
+        hits = sorted(research_dir.glob("tausik-1.4-pytest-dedupe-*.md"))
+        assert hits, f"Missing pytest dedupe research artifact under {research_dir}"
+        text = hits[-1].read_text(encoding="utf-8")
         assert "pytest dedupe audit" in text
+
+
+def _venv_python(repo: Path) -> Path:
+    """Return the project's venv python — Windows or POSIX layout."""
+    win = repo / ".tausik" / "venv" / "Scripts" / "python.exe"
+    if win.is_file():
+        return win
+    return repo / ".tausik" / "venv" / "bin" / "python"
+
+
+def _run_audit_script(repo: Path, *args: str) -> "subprocess.CompletedProcess[str]":
+    """Invoke scripts/audit_pytest_dedupe.py via the project venv.
+
+    UTF-8 IO is forced so Windows consoles don't choke on the Markdown
+    output. Used by `test_real_repo_runs` and any future subprocess test
+    that needs to drive the audit CLI directly.
+    """
+    return subprocess.run(
+        [str(_venv_python(repo)), str(repo / "scripts" / "audit_pytest_dedupe.py"), *args],
+        cwd=str(repo),
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+    )
 
 
 class TestCli:
     def test_real_repo_runs(self):
-        py = (
-            REPO / ".tausik" / "venv" / "Scripts" / "python.exe"
-            if (REPO / ".tausik" / "venv" / "Scripts" / "python.exe").is_file()
-            else REPO / ".tausik" / "venv" / "bin" / "python"
-        )
-        r = subprocess.run(
-            [str(py), str(REPO / "scripts" / "audit_pytest_dedupe.py")],
-            cwd=str(REPO),
-            capture_output=True,
-            text=True,
-            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
-        )
+        r = _run_audit_script(REPO)
         assert r.returncode == 0
         assert "pytest dedupe audit" in r.stdout

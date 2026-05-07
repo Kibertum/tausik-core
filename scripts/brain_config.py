@@ -36,6 +36,10 @@ DEFAULT_BRAIN: dict = {
     "require_artifact_scope": False,
     # When true: only syntax-check external_repo_url (no outbound HTTP). For offline CI.
     "skip_external_repo_url_reachability_check": False,
+    # When true (default): emit_universality_hint also runs FTS5 nearest-neighbor
+    # over the local brain mirror to catch synonyms the regex layer misses.
+    # Set false to keep only the fast regex layer.
+    "semantic_universality_enabled": True,
 }
 
 _BRAIN_CATEGORIES = ("decisions", "web_cache", "patterns", "gotchas")
@@ -71,9 +75,7 @@ def validate_brain(cfg: dict | None = None) -> list[str]:
 
     for pat in brain.get("private_url_patterns") or []:
         if not isinstance(pat, str):
-            errors.append(
-                f"brain.private_url_patterns: expected string, got {type(pat).__name__}"
-            )
+            errors.append(f"brain.private_url_patterns: expected string, got {type(pat).__name__}")
             continue
         try:
             re.compile(pat)
@@ -86,9 +88,7 @@ def validate_brain(cfg: dict | None = None) -> list[str]:
     db_ids = brain.get("database_ids") or {}
     for category in _BRAIN_CATEGORIES:
         if not db_ids.get(category):
-            errors.append(
-                f"brain.database_ids.{category} is empty but brain is enabled"
-            )
+            errors.append(f"brain.database_ids.{category} is empty but brain is enabled")
 
     # Token resolution: env > .tausik/.env > config.json `notion_integration_token`
     # See brain_runtime.resolve_brain_token() for full cascade.

@@ -75,8 +75,35 @@ Topics covered (regex/keyword, case-insensitive, word-boundary aware):
 - `retry` — retry, retries, exponential backoff
 - `idempotency` — idempotent, idempotency-key
 - `webhook` — webhook(s)
+- `csrf` — CSRF, XSRF, Cross-Site Request Forgery
+- `graphql` — GraphQL, gql query/mutation/subscription/schema/resolver
+- `feature-flag` — feature flag, feature toggle
+- `circuit-breaker` — circuit breaker, bulkhead pattern
 
 Word-boundary guards prevent false positives (e.g. `aggregate` does not trigger `rate-limit`). To extend, edit `_TOPIC_PATTERNS` in [scripts/brain_universality.py](../../scripts/brain_universality.py).
+
+## Semantic universality layer (C2, v1.4 polish)
+
+The regex layer above is fast but blind to **synonyms** ("access control" → `rbac`, "token bucket" → `rate-limit`). The semantic layer fixes this without adding ML dependencies: it queries the local brain mirror via FTS5 and surfaces topics from existing brain entries whose tags match a known universal topic AND whose bm25 score is strong against your new content.
+
+```
+Semantic universality hint: rbac — new content resembles existing brain entries on these topics (consider promoting via `brain_draft_artifact`).
+```
+
+How it works:
+
+1. After the regex layer runs, the new content is tokenized (lowercase, stopwords dropped, length ≥ 4).
+2. Up to 8 distinctive tokens are searched against the local brain mirror (FTS5 over `brain_decisions` / `brain_patterns` / `brain_gotchas` / `brain_web_cache`).
+3. Each hit's `tags` are intersected with `KNOWN_UNIVERSAL_TOPICS`. Topics with bm25 score ≤ threshold (default 8.0; lower = stronger match) are emitted.
+4. Topics already caught by the regex layer are **deduped** so you only see new signal.
+
+Activation gate (`scripts/brain_config.py` defaults):
+
+- `brain.enabled` is `true`
+- `brain.semantic_universality_enabled` is `true` (default; set `false` to disable semantic layer)
+- The brain mirror file exists on disk
+
+Implementation: [scripts/brain_universality_semantic.py](../../scripts/brain_universality_semantic.py). Pure stdlib; reuses [scripts/brain_search.py](../../scripts/brain_search.py) FTS5 infrastructure. Never raises, never blocks. Empty mirror → silent no-op. Synonym discovery improves as you promote more entries to the brain.
 
 ## See also
 

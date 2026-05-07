@@ -158,6 +158,7 @@ def format_task_start_banner(
     line_recommended = (
         f"  recommended: {rec_display} ({rec_id}) — {complexity or 'no complexity set'}"
     )
+    persist_hint: str | None = None
     if active_norm:
         line_active = f"  active:      {active_model}"
         if rec_norm == active_norm:
@@ -167,7 +168,33 @@ def format_task_start_banner(
                 f"  ⚠ MODEL MISMATCH — switch to {rec_display} via /fast or model picker "
                 "for cost savings"
             )
+            # Map model id back to a profile slug for `tausik config set`.
+            slug = _model_id_to_profile_slug(rec_id)
+            if slug:
+                persist_hint = (
+                    f"  ↪ Persist for next session: `tausik config set model_profile {slug}`"
+                )
     else:
         line_active = "  active:      unknown (no transcript readable)"
         verdict = "  ⓘ active model unknown — recommendation only"
-    return "Model recommendation:\n" + "\n".join([line_recommended, line_active, verdict])
+    lines = [line_recommended, line_active, verdict]
+    if persist_hint:
+        lines.append(persist_hint)
+    return "Model recommendation:\n" + "\n".join(lines)
+
+
+_PROFILE_SLUG_BY_MODEL_ID: dict[str, str] = {
+    "claude-haiku-4-5": "haiku",
+    "claude-sonnet-4-6": "sonnet",
+    "claude-opus-4-7": "opus",
+}
+
+
+def _model_id_to_profile_slug(model_id: str) -> str | None:
+    """Return the model_profile slug `tausik config set` accepts, or None.
+
+    Only the three Claude tiers in the routing table are mapped — other
+    model ids (e.g. GPT/Qwen overlays) come from upstream profile work and
+    aren't reachable from suggest_model today.
+    """
+    return _PROFILE_SLUG_BY_MODEL_ID.get(_normalize_model_id(model_id))

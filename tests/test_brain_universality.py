@@ -53,6 +53,15 @@ def test_non_string_returns_empty_list():
         ("Send an Idempotency-Key header", "idempotency"),
         ("Receive a webhook callback", "webhook"),
         ("Webhooks must be signed", "webhook"),
+        ("Add a CSRF token to forms", "csrf"),
+        ("XSRF protection via double-submit cookie", "csrf"),
+        ("Cross-Site Request Forgery mitigation", "csrf"),
+        ("Migrate the API to GraphQL", "graphql"),
+        ("Write a gql query for the dashboard", "graphql"),
+        ("Wrap calls in a feature flag", "feature-flag"),
+        ("Feature-toggles for canary release", "feature-flag"),
+        ("Open the circuit breaker on 5xx", "circuit-breaker"),
+        ("Apply the bulkhead pattern", "circuit-breaker"),
     ],
 )
 def test_each_topic_detected(text: str, expected_topic: str):
@@ -96,6 +105,40 @@ def test_retry_substring_does_not_match():
     assert bu.detect_universal_patterns("retrying the request") == ["retry"]
     # 'untrying' does not contain 'retry' as a word
     assert "retry" not in bu.detect_universal_patterns("the untrying spirit")
+
+
+# --- New topic false-positive guards (csrf, graphql, feature-flag, circuit-breaker) -----
+
+
+def test_csrf_substring_in_other_word_does_not_match():
+    assert "csrf" not in bu.detect_universal_patterns("xcsrfx not a token")
+
+
+def test_graphql_does_not_match_inside_unrelated_word():
+    """'photographqlike' style — only standalone 'graphql' should match."""
+    assert "graphql" not in bu.detect_universal_patterns("photographqlike artifact")
+
+
+def test_gql_alone_without_query_keyword_does_not_match():
+    """Bare 'gql' without query/mutation/etc. context — not enough signal."""
+    assert "graphql" not in bu.detect_universal_patterns("the gql library version")
+
+
+def test_feature_without_flag_does_not_match():
+    """'feature' alone is too generic — must be 'feature flag/toggle'."""
+    assert "feature-flag" not in bu.detect_universal_patterns("Add a new feature")
+
+
+def test_circuit_without_breaker_does_not_match():
+    """'circuit' alone (e.g. electrical) — must be 'circuit breaker'."""
+    assert "circuit-breaker" not in bu.detect_universal_patterns("electrical circuit diagram")
+
+
+def test_new_topics_count_in_universe():
+    """Sanity: known topic universe contains the 4 new entries."""
+    universe = bu.KNOWN_UNIVERSAL_TOPICS
+    for topic in ("csrf", "graphql", "feature-flag", "circuit-breaker"):
+        assert topic in universe
 
 
 # --- Multi-topic + dedupe + sort ------------------------------------------

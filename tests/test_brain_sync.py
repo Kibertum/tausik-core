@@ -37,6 +37,68 @@ class _FakeNotionClient:
             yield page
 
 
+# --- Notion property builders ---------------------------------------------
+# Compact shorthand for Notion API property shapes. Each helper returns the
+# exact dict that map_page_to_row inspects, so test surface (assertions on
+# row[<field>]) keeps catching the same regressions — these helpers do not
+# erase the type-versus-shape distinction (title vs rich_text vs select).
+
+
+def _title(text: str) -> dict:
+    return {"type": "title", "title": [{"plain_text": text}]}
+
+
+def _rich_text(*chunks: str) -> dict:
+    return {"type": "rich_text", "rich_text": [{"plain_text": c} for c in chunks]}
+
+
+def _url(u: str) -> dict:
+    return {"type": "url", "url": u}
+
+
+def _date(start: str) -> dict:
+    return {"type": "date", "date": {"start": start}}
+
+
+def _number(n) -> dict:
+    return {"type": "number", "number": n}
+
+
+def _select(name: str) -> dict:
+    return {"type": "select", "select": {"name": name}}
+
+
+def _multi_select(*names: str) -> dict:
+    return {"type": "multi_select", "multi_select": [{"name": n} for n in names]}
+
+
+def _web_cache_page(**property_overrides) -> dict:
+    """Build a Notion 'web_cache' page with sensible defaults.
+
+    `property_overrides` are merged into the default properties block, so
+    individual tests only need to declare the fields they actually exercise.
+    """
+    page = {
+        "id": "wc-1",
+        "created_time": "2026-04-23T10:00:00Z",
+        "last_edited_time": "2026-04-23T10:00:00Z",
+        "properties": {
+            "Name": _title("Doc"),
+            "URL": _url("https://example.com/a"),
+            "Query": _rich_text(),
+            "Content": _rich_text("part1", "part2"),
+            "Fetched At": _date("2026-04-23T09:00:00Z"),
+            "TTL Days": _number(90),
+            "Domain": _select("example.com"),
+            "Tags": _multi_select("docs"),
+            "Source Project Hash": _rich_text("h1h1h1h1h1h1h1h1"),
+            "Content Hash": _rich_text("c0c0c0c0c0c0c0c0"),
+        },
+    }
+    page["properties"].update(property_overrides)
+    return page
+
+
 def _page_decision(
     *,
     pid: str,
@@ -116,38 +178,7 @@ def test_map_decision_generalizable_false_becomes_zero():
 
 
 def test_map_web_cache():
-    page = {
-        "id": "wc-1",
-        "created_time": "2026-04-23T10:00:00Z",
-        "last_edited_time": "2026-04-23T10:00:00Z",
-        "properties": {
-            "Name": {"type": "title", "title": [{"plain_text": "Doc"}]},
-            "URL": {"type": "url", "url": "https://example.com/a"},
-            "Query": {"type": "rich_text", "rich_text": []},
-            "Content": {
-                "type": "rich_text",
-                "rich_text": [{"plain_text": "part1"}, {"plain_text": "part2"}],
-            },
-            "Fetched At": {
-                "type": "date",
-                "date": {"start": "2026-04-23T09:00:00Z"},
-            },
-            "TTL Days": {"type": "number", "number": 90},
-            "Domain": {"type": "select", "select": {"name": "example.com"}},
-            "Tags": {
-                "type": "multi_select",
-                "multi_select": [{"name": "docs"}],
-            },
-            "Source Project Hash": {
-                "type": "rich_text",
-                "rich_text": [{"plain_text": "h1h1h1h1h1h1h1h1"}],
-            },
-            "Content Hash": {
-                "type": "rich_text",
-                "rich_text": [{"plain_text": "c0c0c0c0c0c0c0c0"}],
-            },
-        },
-    }
+    page = _web_cache_page()
     row = brain_sync.map_page_to_row("web_cache", page)
     assert row["url"] == "https://example.com/a"
     assert row["content"] == "part1part2"
@@ -159,21 +190,18 @@ def test_map_web_cache():
 
 
 def test_map_web_cache_default_ttl_when_missing():
+    # Sparse skeleton: no TTL Days / URL / Domain — exercises the default-30
+    # fallback path. Built directly from property helpers since
+    # _web_cache_page's defaults already populate all of these.
     page = {
         "id": "wc-2",
         "created_time": "x",
         "last_edited_time": "x",
         "properties": {
-            "Name": {"type": "title", "title": [{"plain_text": "n"}]},
-            "Source Project Hash": {
-                "type": "rich_text",
-                "rich_text": [{"plain_text": "h"}],
-            },
-            "Content Hash": {
-                "type": "rich_text",
-                "rich_text": [{"plain_text": "c"}],
-            },
-            "Fetched At": {"type": "date", "date": {"start": "x"}},
+            "Name": _title("n"),
+            "Source Project Hash": _rich_text("h"),
+            "Content Hash": _rich_text("c"),
+            "Fetched At": _date("x"),
         },
     }
     row = brain_sync.map_page_to_row("web_cache", page)
@@ -275,42 +303,42 @@ def test_allowed_cols_matches_schema():
     declared for each brain_<category> table in brain_schema.SCHEMA_SQL.
     If a future migration adds a column to the schema and the mapper starts
     emitting it, this test fails BEFORE upsert_page silently starts raising
-    ValueError at runtime."""
-    import re
+    ValueError at runtime.
+
+    Implementation note: parses the schema by executing it against an
+    in-memory SQLite database and reading column metadata via
+    `PRAGMA table_info`. This is more robust than regex parsing — it
+    handles CHECK constraints, FOREIGN KEY clauses, multi-line column
+    declarations, and quoted identifiers without bespoke logic.
+    """
+    import sqlite3
 
     import brain_schema
 
-    schema_sql = brain_schema.SCHEMA_SQL
-    # Match `CREATE TABLE IF NOT EXISTS <name> ( ... );` blocks.
-    table_re = re.compile(
-        r"CREATE TABLE IF NOT EXISTS\s+(brain_\w+)\s*\((.*?)\);",
-        re.DOTALL,
-    )
-    tables = {m.group(1): m.group(2) for m in table_re.finditer(schema_sql)}
-
-    for category, table_name in brain_sync._TABLE_OF.items():
-        assert table_name in tables, f"Missing schema for {table_name}"
-        body = tables[table_name]
-        cols: set[str] = set()
-        for line in body.splitlines():
-            s = line.strip().rstrip(",")
-            if not s:
-                continue
-            # Skip CHECK(...) continuation lines and mid-column constraints.
-            if s.startswith(("CHECK", ")", "FOREIGN KEY")):
-                continue
-            name = s.split()[0].strip()
-            # First token of a column decl is the column name.
-            if name.isidentifier():
-                cols.add(name)
-        # `id` is auto-increment PK, never inserted by upsert.
-        expected = cols - {"id"}
-        actual = brain_sync._ALLOWED_COLS_OF[category]
-        assert expected == actual, (
-            f"{category}: schema has {expected - actual or '-'} "
-            f"not in whitelist; whitelist has {actual - expected or '-'} "
-            f"not in schema"
-        )
+    conn = sqlite3.connect(":memory:")
+    try:
+        conn.executescript(brain_schema.SCHEMA_SQL)
+        existing_tables = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'brain_%'"
+            )
+        }
+        for category, table_name in brain_sync._TABLE_OF.items():
+            assert table_name in existing_tables, f"Missing schema for {table_name}"
+            # `PRAGMA table_info` doesn't accept parameters; identifier comes
+            # from a static map, not user input — safe to interpolate.
+            cols = {row[1] for row in conn.execute(f"PRAGMA table_info({table_name})")}
+            # `id` is auto-increment PK, never inserted by upsert.
+            expected = cols - {"id"}
+            actual = brain_sync._ALLOWED_COLS_OF[category]
+            assert expected == actual, (
+                f"{category}: schema has {expected - actual or '-'} "
+                f"not in whitelist; whitelist has {actual - expected or '-'} "
+                f"not in schema"
+            )
+    finally:
+        conn.close()
 
 
 def test_upsert_page_accepts_schema_exact_columns(conn):

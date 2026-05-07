@@ -185,23 +185,37 @@ class TestLookupExactUrl:
         assert hit is not None
         assert hit["notion_page_id"] == "new"
 
-    def test_multi_row_mixed_iso_formats_picks_freshest(self, mirror_conn):
-        """'.000Z' and 'Z' suffixes sort differently lexicographically vs chronologically.
+    @pytest.mark.parametrize(
+        "old_iso,new_iso",
+        [
+            # Original case: '.000Z' vs plain 'Z' — lexicographic sort
+            # disagrees with chronological order.
+            ("2020-01-01T00:00:00.000Z", "2026-04-01T00:00:00Z"),
+            # Tolerance: microsecond precision vs second-level.
+            ("2020-01-01T00:00:00.000000Z", "2026-04-01T00:00:00Z"),
+            # Tolerance: fractional-second variant.
+            ("2020-01-01T00:00:00.5Z", "2026-04-01T00:00:00Z"),
+        ],
+        ids=["millisecond_vs_plain", "microsecond_vs_plain", "fractional_vs_plain"],
+    )
+    def test_multi_row_mixed_iso_formats_picks_freshest(self, mirror_conn, old_iso, new_iso):
+        """ISO format variants sort differently lexicographically vs chronologically.
 
         Correctness gate: lookup_exact_url must pick by parsed epoch, not
-        by the raw TEXT.
+        by the raw TEXT — across millisecond, microsecond, and fractional-
+        second suffix variations.
         """
         _insert_row(
             mirror_conn,
             notion_page_id="ancient_padded",
             url="https://same.example",
-            fetched_at="2020-01-01T00:00:00.000Z",
+            fetched_at=old_iso,
         )
         _insert_row(
             mirror_conn,
             notion_page_id="new_terse",
             url="https://same.example",
-            fetched_at="2026-04-01T00:00:00Z",
+            fetched_at=new_iso,
         )
         hit = lookup_exact_url(mirror_conn, "https://same.example")
         assert hit is not None

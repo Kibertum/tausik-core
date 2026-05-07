@@ -150,6 +150,14 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin):
             # Banner is informational; never block task_start on transcript IO,
             # config parse, or import errors.
             pass
+        try:
+            from model_routing_session import record_active_task_recommendation
+            from project_config import find_tausik_dir
+
+            record_active_task_recommendation(find_tausik_dir(), slug, task.get("complexity"))
+        except Exception:
+            # Persistence is best-effort — never block task_start on it.
+            pass
         return "\n".join(msgs) if len(msgs) > 1 else msgs[0]
 
     def task_done(
@@ -173,6 +181,14 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin):
         )
         if not report.get("ok"):
             raise ServiceError(_format_task_done_failures(report))
+        try:
+            from model_routing_session import clear_active_task_recommendation
+            from project_config import find_tausik_dir
+
+            clear_active_task_recommendation(find_tausik_dir())
+        except Exception:
+            # Persistence cleanup is best-effort.
+            pass
         message = report.get("message")
         if isinstance(message, str) and message.strip():
             return message

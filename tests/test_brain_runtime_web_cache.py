@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import sys
+from contextlib import contextmanager
 from unittest.mock import patch
 
 import pytest
@@ -19,6 +20,25 @@ if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
 
 import brain_runtime  # noqa: E402
+
+
+@contextmanager
+def _patched_store(return_value):
+    """Patch NotionClient + store_record returning the given dict.
+
+    Yields the store_record mock so tests can inspect call args. Used by
+    tests that exercise the store_record success/error contract — tests
+    that need NotionClient to raise or that bypass the patch entirely
+    keep their inline patch blocks.
+    """
+    with (
+        patch("brain_notion_client.NotionClient", autospec=True),
+        patch(
+            "brain_mcp_write.store_record",
+            return_value=return_value,
+        ) as mock_store,
+    ):
+        yield mock_store
 
 
 @pytest.fixture
@@ -41,16 +61,7 @@ def cfg(tmp_path, monkeypatch):
 
 
 def test_ok_returns_true_and_page_id(cfg):
-    with (
-        patch(
-            "brain_notion_client.NotionClient",
-            autospec=True,
-        ),
-        patch(
-            "brain_mcp_write.store_record",
-            return_value={"status": "ok", "notion_page_id": "page-xyz"},
-        ) as mock_store,
-    ):
+    with _patched_store({"status": "ok", "notion_page_id": "page-xyz"}) as mock_store:
         ok, ret = brain_runtime.try_brain_write_web_cache(
             "https://example.com/a",
             "content body",
@@ -69,47 +80,37 @@ def test_ok_returns_true_and_page_id(cfg):
 
 
 def test_ok_not_mirrored_returns_true(cfg):
-    with (
-        patch("brain_notion_client.NotionClient", autospec=True),
-        patch(
-            "brain_mcp_write.store_record",
-            return_value={
-                "status": "ok_not_mirrored",
-                "notion_page_id": "page-partial",
-                "warning": "local disk full",
-            },
-        ),
+    with _patched_store(
+        {
+            "status": "ok_not_mirrored",
+            "notion_page_id": "page-partial",
+            "warning": "local disk full",
+        }
     ):
-        ok, ret = brain_runtime.try_brain_write_web_cache(
-            "https://example.com/a", "body", cfg
-        )
+        ok, ret = brain_runtime.try_brain_write_web_cache("https://example.com/a", "body", cfg)
     assert ok is True
     assert ret == "page-partial"
 
 
 def test_scrub_blocked_returns_false_with_detector_names(cfg):
-    with (
-        patch("brain_notion_client.NotionClient", autospec=True),
-        patch(
-            "brain_mcp_write.store_record",
-            return_value={
-                "status": "scrub_blocked",
-                "issues": [
-                    {
-                        "detector": "private_urls",
-                        "severity": "block",
-                        "match": "some-secret.internal",
-                        "hint": "",
-                    },
-                    {
-                        "detector": "project_names_blocklist",
-                        "severity": "block",
-                        "match": "competitor-x",
-                        "hint": "",
-                    },
-                ],
-            },
-        ),
+    with _patched_store(
+        {
+            "status": "scrub_blocked",
+            "issues": [
+                {
+                    "detector": "private_urls",
+                    "severity": "block",
+                    "match": "some-secret.internal",
+                    "hint": "",
+                },
+                {
+                    "detector": "project_names_blocklist",
+                    "severity": "block",
+                    "match": "competitor-x",
+                    "hint": "",
+                },
+            ],
+        }
     ):
         ok, reason = brain_runtime.try_brain_write_web_cache(
             "https://some-secret.internal/x", "body", cfg
@@ -126,35 +127,21 @@ def test_scrub_blocked_returns_false_with_detector_names(cfg):
 
 def test_scrub_blocked_without_issues(cfg):
     """Edge case: scrub_blocked with an empty issues list — shouldn't crash."""
-    with (
-        patch("brain_notion_client.NotionClient", autospec=True),
-        patch(
-            "brain_mcp_write.store_record",
-            return_value={"status": "scrub_blocked", "issues": []},
-        ),
-    ):
-        ok, reason = brain_runtime.try_brain_write_web_cache(
-            "https://x.example", "body", cfg
-        )
+    with _patched_store({"status": "scrub_blocked", "issues": []}):
+        ok, reason = brain_runtime.try_brain_write_web_cache("https://x.example", "body", cfg)
     assert ok is False
     assert "matched patterns" in reason
 
 
 def test_notion_error_returns_false(cfg):
-    with (
-        patch("brain_notion_client.NotionClient", autospec=True),
-        patch(
-            "brain_mcp_write.store_record",
-            return_value={
-                "status": "notion_error",
-                "error": "503 Service Unavailable",
-                "error_category": "transient",
-            },
-        ),
+    with _patched_store(
+        {
+            "status": "notion_error",
+            "error": "503 Service Unavailable",
+            "error_category": "transient",
+        }
     ):
-        ok, reason = brain_runtime.try_brain_write_web_cache(
-            "https://x.example", "body", cfg
-        )
+        ok, reason = brain_runtime.try_brain_write_web_cache("https://x.example", "body", cfg)
     assert ok is False
     assert "notion_error" in reason
     assert "503" in reason
@@ -173,9 +160,7 @@ def test_token_missing_returns_false(tmp_path, monkeypatch):
             "gotchas": "got",
         },
     }
-    ok, reason = brain_runtime.try_brain_write_web_cache(
-        "https://x.example", "body", cfg
-    )
+    ok, reason = brain_runtime.try_brain_write_web_cache("https://x.example", "body", cfg)
     assert ok is False
     assert "token" in reason
 
@@ -192,29 +177,15 @@ def test_empty_content_returns_false(cfg):
 
 
 def test_title_override_truncates_at_60(cfg):
-    with (
-        patch("brain_notion_client.NotionClient", autospec=True),
-        patch(
-            "brain_mcp_write.store_record",
-            return_value={"status": "ok", "notion_page_id": "p"},
-        ) as mock_store,
-    ):
+    with _patched_store({"status": "ok", "notion_page_id": "p"}) as mock_store:
         long_title = "A very long title " * 20  # > 60 chars
-        brain_runtime.try_brain_write_web_cache(
-            "https://x.example", "body", cfg, title=long_title
-        )
+        brain_runtime.try_brain_write_web_cache("https://x.example", "body", cfg, title=long_title)
     (_c, _db, _cat, fields, _cfg) = mock_store.call_args.args
     assert len(fields["name"]) == 60
 
 
 def test_falls_back_to_url_when_title_empty(cfg):
-    with (
-        patch("brain_notion_client.NotionClient", autospec=True),
-        patch(
-            "brain_mcp_write.store_record",
-            return_value={"status": "ok", "notion_page_id": "p"},
-        ) as mock_store,
-    ):
+    with _patched_store({"status": "ok", "notion_page_id": "p"}) as mock_store:
         brain_runtime.try_brain_write_web_cache(
             "https://example.com/longpath/x/y", "body", cfg, title=""
         )
@@ -228,8 +199,6 @@ def test_exception_inside_returns_false(cfg):
         "brain_notion_client.NotionClient",
         side_effect=RuntimeError("client init broke"),
     ):
-        ok, reason = brain_runtime.try_brain_write_web_cache(
-            "https://x.example", "body", cfg
-        )
+        ok, reason = brain_runtime.try_brain_write_web_cache("https://x.example", "body", cfg)
     assert ok is False
     assert "exception" in reason
