@@ -137,6 +137,54 @@ class BackendQueriesUsageMixin:
             recorded_at=now,
         )
 
+    def usage_events_cost_rollup_for_task(
+        self,
+        slug: str,
+        since: str | None = None,
+        until: str | None = None,
+    ) -> dict[str, Any]:
+        """Rollup tokens / cost / event-count for ONE task slug.
+
+        Mirrors the safety contract of :meth:`usage_events_cost_rollup_by_task`
+        — filters ``task_slug = ?`` (and the ``IS NOT NULL`` is implicit since
+        we match a literal slug), so session_record rows (NULL slug) are
+        excluded automatically. Used by:
+
+        - ``service_recording.record_cost_actual`` at task_done to write
+          ``cost_actual_usd`` / ``tokens_actual`` back onto the task row.
+        - ``scripts/hooks/task_cost_budget_check.py`` to compare accumulated
+          spend against ``cost_budget_usd`` after every tool call.
+
+        Returns ``{"task_slug": slug, "event_count": int, "tokens_total": int,
+        "cost_usd": float}``. Always returns a dict — zero-event case yields
+        zeros, never None.
+        """
+        clauses = ["task_slug = ?"]
+        params: list[Any] = [slug]
+        if since:
+            clauses.append("recorded_at >= ?")
+            params.append(since)
+        if until:
+            clauses.append("recorded_at <= ?")
+            params.append(until)
+        where_sql = " AND ".join(clauses)
+        row = (
+            self._q1(  # type: ignore[attr-defined]
+                "SELECT COUNT(*) AS event_count, "
+                "COALESCE(SUM(tokens_total), 0) AS tokens_total, "
+                "COALESCE(SUM(cost_usd), 0) AS cost_usd "
+                f"FROM usage_events WHERE {where_sql}",
+                tuple(params),
+            )
+            or {}
+        )
+        return {
+            "task_slug": slug,
+            "event_count": int(row.get("event_count") or 0),
+            "tokens_total": int(row.get("tokens_total") or 0),
+            "cost_usd": float(row.get("cost_usd") or 0.0),
+        }
+
     def usage_events_cost_rollup_by_task(
         self,
         since: str | None = None,

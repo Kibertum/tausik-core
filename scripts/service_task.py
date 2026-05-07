@@ -52,6 +52,9 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin):
         defect_of: str | None = None,
         call_budget: int | None = None,
         tier: str | None = None,
+        *,
+        cost_budget_usd: float | None = None,
+        token_budget: int | None = None,
     ) -> str:
         from tausik_utils import safe_single_line
 
@@ -62,7 +65,14 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin):
         title = safe_single_line(title) or title
         from service_validation import validate_task_add_inputs
 
-        validate_task_add_inputs(stack, complexity, call_budget, tier)
+        validate_task_add_inputs(
+            stack,
+            complexity,
+            call_budget,
+            tier,
+            cost_budget_usd=cost_budget_usd,
+            token_budget=token_budget,
+        )
         if defect_of:
             self._require_task(defect_of)
         validate_content("goal", goal)
@@ -75,6 +85,10 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin):
                 notice = f"\nNote: --tier '{tier}' overridden by --call-budget."
         elif tier is not None:
             self.be.task_update(slug, tier=tier)
+        if cost_budget_usd is not None:
+            self.be.task_set_cost_budget(slug, float(cost_budget_usd))
+        if token_budget is not None:
+            self.be.task_set_token_budget(slug, int(token_budget))
         msg = f"Task '{slug}' created."
         if not goal or not goal.strip():
             msg += "\n⚠ QG-0 warning: missing goal."
@@ -248,6 +262,32 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin):
             tier = fields.pop("tier", None)
             if tier is not None:
                 notice = f"\nNote: tier '{tier}' overridden by call_budget."
+            if not fields:
+                return f"Task '{slug}' updated.{notice}"
+        cost_b = fields.pop("cost_budget_usd", _MISSING)
+        if cost_b is not _MISSING and cost_b is not None:
+            try:
+                cost_val = float(cost_b)
+            except (TypeError, ValueError):
+                raise ServiceError(
+                    f"Invalid cost_budget_usd '{cost_b}'; must be a non-negative number"
+                ) from None
+            if cost_val < 0:
+                raise ServiceError(f"Invalid cost_budget_usd '{cost_b}'; must be >=0")
+            self.be.task_set_cost_budget(slug, cost_val)
+            if not fields:
+                return f"Task '{slug}' updated.{notice}"
+        tok_b = fields.pop("token_budget", _MISSING)
+        if tok_b is not _MISSING and tok_b is not None:
+            try:
+                tok_val = int(tok_b)
+            except (TypeError, ValueError):
+                raise ServiceError(
+                    f"Invalid token_budget '{tok_b}'; must be a non-negative integer"
+                ) from None
+            if tok_val < 0:
+                raise ServiceError(f"Invalid token_budget '{tok_b}'; must be >=0")
+            self.be.task_set_token_budget(slug, tok_val)
             if not fields:
                 return f"Task '{slug}' updated.{notice}"
         from tausik_utils import safe_single_line

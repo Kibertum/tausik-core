@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 26
+SCHEMA_VERSION = 27
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -51,6 +51,10 @@ CREATE TABLE IF NOT EXISTS tasks (
     defect_of TEXT REFERENCES tasks(slug) ON DELETE SET NULL,
     call_budget INTEGER,
     call_actual INTEGER,
+    cost_budget_usd REAL,
+    cost_actual_usd REAL,
+    token_budget INTEGER,
+    tokens_actual INTEGER,
     tier TEXT CHECK(tier IS NULL OR tier IN
         ('trivial','light','moderate','substantial','deep')),
     created_at TEXT NOT NULL, updated_at TEXT NOT NULL

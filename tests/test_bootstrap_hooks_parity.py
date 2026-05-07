@@ -109,6 +109,7 @@ def test_critical_hooks_present_in_both(claude_settings, qwen_settings):
         "keyword_detector.py",
         "session_cleanup_check.py",
         "session_metrics.py",
+        "task_cost_budget_check.py",
     }
     for label, settings in (("claude", claude_settings), ("qwen", qwen_settings)):
         scripts = _collect_hook_scripts(settings)

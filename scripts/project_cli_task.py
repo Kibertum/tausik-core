@@ -37,6 +37,8 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                 defect_of,
                 getattr(args, "call_budget", None),
                 getattr(args, "tier", None),
+                cost_budget_usd=getattr(args, "cost_budget_usd", None),
+                token_budget=getattr(args, "token_budget", None),
             )
         )
     elif c == "list":
@@ -119,6 +121,8 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
             "scope_exclude",
             "call_budget",
             "tier",
+            "cost_budget_usd",
+            "token_budget",
         ):
             v = getattr(args, k, None)
             if v is not None:
@@ -224,6 +228,18 @@ def _print_task_detail(task: dict[str, Any]) -> None:
         val = task.get(field)
         if val:
             print(f"{field}: {val}")
+    cost_budget = task.get("cost_budget_usd")
+    cost_actual = task.get("cost_actual_usd")
+    if cost_budget is not None or cost_actual is not None:
+        cb_str = f"${float(cost_budget):.4f}" if cost_budget is not None else "—"
+        ca_str = f"${float(cost_actual):.4f}" if cost_actual is not None else "—"
+        print(f"cost: actual={ca_str} / budget={cb_str}")
+    token_budget = task.get("token_budget")
+    tokens_actual = task.get("tokens_actual")
+    if token_budget is not None or tokens_actual is not None:
+        tb_str = str(int(token_budget)) if token_budget is not None else "—"
+        ta_str = str(int(tokens_actual)) if tokens_actual is not None else "—"
+        print(f"tokens: actual={ta_str} / budget={tb_str}")
     if task.get("plan"):
         try:
             steps = json.loads(task["plan"])

@@ -353,6 +353,30 @@ class BackendCrudMixin:
         )
         return rows > 0
 
+    def _task_set_numeric_field(self, slug: str, column: str, value: float | int | None) -> bool:
+        """Shared writer for cost/token budget+actual columns (v14c)."""
+        if value is not None and value < 0:
+            raise ValueError(f"{column} must be >=0 or None, got {value}")
+        rows = self._ex(
+            f"UPDATE tasks SET {column}=?, updated_at=? WHERE slug=?",
+            (value, utcnow_iso(), slug),
+        )
+        return rows > 0
+
+    def task_set_cost_budget(self, slug: str, budget_usd: float | None) -> bool:
+        v = float(budget_usd) if budget_usd is not None else None
+        return self._task_set_numeric_field(slug, "cost_budget_usd", v)
+
+    def task_set_cost_actual(self, slug: str, actual_usd: float | None) -> bool:
+        v = float(actual_usd) if actual_usd is not None else None
+        return self._task_set_numeric_field(slug, "cost_actual_usd", v)
+
+    def task_set_token_budget(self, slug: str, tokens: int | None) -> bool:
+        return self._task_set_numeric_field(slug, "token_budget", tokens)
+
+    def task_set_tokens_actual(self, slug: str, tokens: int | None) -> bool:
+        return self._task_set_numeric_field(slug, "tokens_actual", tokens)
+
     # --- Events ---
 
     def event_add(

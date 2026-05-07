@@ -192,6 +192,24 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                     }
                 ],
             },
+            {
+                # v14c-token-budget-task: cost/token budget runaway
+                # protection. Reads usage_events sum for the active task,
+                # emits stderr WARN at 1.5× / BLOCKER at 2.0× of
+                # cost_budget_usd or token_budget. Throttled per
+                # (slug, level) via .tausik/.cost_budget_throttle.json.
+                # Wide matcher (every tool call) since cost can spike on
+                # any single Bash/Read; silent no-op when no active task
+                # has a budget set.
+                "matcher": "",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": hook_cmd("task_cost_budget_check.py"),
+                        "timeout": 3,
+                    }
+                ],
+            },
         ],
         "SessionStart": [
             {

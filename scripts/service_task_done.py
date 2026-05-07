@@ -13,7 +13,7 @@ import json
 from typing import TYPE_CHECKING, Any
 
 from tausik_utils import ServiceError, utcnow_iso
-from service_recording import record_call_actual
+from service_recording import record_call_actual, record_cost_actual
 
 if TYPE_CHECKING:
     from project_backend import SQLiteBackend
@@ -237,6 +237,10 @@ class TaskDoneReportMixin:
             if budget_warning:
                 msgs.append(budget_warning)
                 report["warnings"].append(budget_warning)
+            cost_warning = record_cost_actual(self.be, slug, task)
+            if cost_warning:
+                msgs.append(cost_warning)
+                report["warnings"].append(cost_warning)
             msgs.extend(self._cascade_done(slug))  # type: ignore[attr-defined]
             self.be.commit_tx()
         except Exception:

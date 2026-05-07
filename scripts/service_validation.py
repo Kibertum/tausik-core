@@ -38,6 +38,8 @@ def validate_task_add_inputs(
     complexity: str | None,
     call_budget: int | None,
     tier: str | None,
+    cost_budget_usd: float | None = None,
+    token_budget: int | None = None,
 ) -> None:
     """Raise ServiceError if any task_add input is out of range."""
     from tausik_utils import ServiceError
@@ -50,8 +52,26 @@ def validate_task_add_inputs(
     if stack and stack not in valid_stacks:
         raise ServiceError(f"Invalid stack '{stack}'. Valid: {sorted(valid_stacks)}")
     if call_budget is not None and call_budget < 0:
-        raise ServiceError(
-            f"Invalid call_budget '{call_budget}'; must be >=0 or omitted"
-        )
+        raise ServiceError(f"Invalid call_budget '{call_budget}'; must be >=0 or omitted")
     if tier is not None and tier not in VALID_TIERS:
         raise ServiceError(f"Invalid tier '{tier}'. Valid: {sorted(VALID_TIERS)}")
+    if cost_budget_usd is not None:
+        try:
+            cb = float(cost_budget_usd)
+        except (TypeError, ValueError):
+            raise ServiceError(
+                f"Invalid cost_budget_usd '{cost_budget_usd}'; must be a non-negative number or omitted"
+            ) from None
+        if cb < 0:
+            raise ServiceError(
+                f"Invalid cost_budget_usd '{cost_budget_usd}'; must be >=0 or omitted"
+            )
+    if token_budget is not None:
+        try:
+            tb = int(token_budget)
+        except (TypeError, ValueError):
+            raise ServiceError(
+                f"Invalid token_budget '{token_budget}'; must be a non-negative integer or omitted"
+            ) from None
+        if tb < 0:
+            raise ServiceError(f"Invalid token_budget '{token_budget}'; must be >=0 or omitted")

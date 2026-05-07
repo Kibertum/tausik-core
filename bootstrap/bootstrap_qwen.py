@@ -205,6 +205,11 @@ def generate_settings_qwen(
                         "command": _hook_cmd("tool_output_truncation_nudge.py"),
                         "timeout": 3,
                     },
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("task_cost_budget_check.py"),
+                        "timeout": 3,
+                    },
                 ],
             },
         ],

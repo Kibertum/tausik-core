@@ -276,6 +276,13 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
         "ALTER TABLE memory ADD COLUMN archived_at TEXT",
         "CREATE INDEX IF NOT EXISTS idx_memory_archived_at ON memory(archived_at)",
     ],
+    # --- v27: per-task cost/token budgets (v14c-token-budget-task) ---
+    27: [
+        "ALTER TABLE tasks ADD COLUMN cost_budget_usd REAL",
+        "ALTER TABLE tasks ADD COLUMN cost_actual_usd REAL",
+        "ALTER TABLE tasks ADD COLUMN token_budget INTEGER",
+        "ALTER TABLE tasks ADD COLUMN tokens_actual INTEGER",
+    ],
 }
 
 

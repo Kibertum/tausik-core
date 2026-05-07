@@ -14,9 +14,7 @@ if TYPE_CHECKING:
     from project_backend import SQLiteBackend
 
 
-def apply_force_capacity_audit(
-    be: "SQLiteBackend", slug: str, task: dict[str, Any]
-) -> str:
+def apply_force_capacity_audit(be: "SQLiteBackend", slug: str, task: dict[str, Any]) -> str:
     """Compute + persist force-bypass audit; return user-facing line ('' = no-op)."""
     msg = force_audit_message(be, slug, task)
     if msg:
@@ -40,14 +38,11 @@ def force_audit_message(be: "SQLiteBackend", slug: str, task: dict[str, Any]) ->
     if summary["session"] is None or budget <= summary["remaining"]:
         return ""
     return (
-        f"FORCED start: budget={budget} exceeds remaining "
-        f"{summary['remaining']}/{cap} this session"
+        f"FORCED start: budget={budget} exceeds remaining {summary['remaining']}/{cap} this session"
     )
 
 
-def check_session_capacity(
-    be: "SQLiteBackend", slug: str, task: dict[str, Any]
-) -> None:
+def check_session_capacity(be: "SQLiteBackend", slug: str, task: dict[str, Any]) -> None:
     """Block task_start if its budget would overshoot the session's call budget."""
     budget = task.get("call_budget")
     if not budget or budget <= 0:
@@ -92,3 +87,52 @@ def record_call_actual(be: "SQLiteBackend", slug: str, task: dict[str, Any]) -> 
             f"for '{slug}'. Re-calibrate budget for similar tasks."
         )
     return ""
+
+
+def record_cost_actual(be: "SQLiteBackend", slug: str, task: dict[str, Any]) -> str:
+    """Roll up usage_events for the task window, persist cost/tokens actuals.
+
+    Returns a budget-overrun warning string when ``cost_budget_usd`` (or
+    ``token_budget``) is set and the rolled-up actual exceeds 1.5× of it;
+    empty string otherwise. Pairs with :func:`record_call_actual` — sister
+    function called once at task_done from service_task_done.
+
+    Window: ``[task.started_at, ∞)``. When ``started_at`` is None (task
+    closed without ever being started), uses created_at as a conservative
+    lower bound. Never raises — DB / type errors return empty warning so
+    task_done lifecycle never breaks.
+    """
+    try:
+        since = task.get("started_at") or task.get("created_at") or None
+        rollup = be.usage_events_cost_rollup_for_task(slug, since=since)
+    except Exception:
+        return ""
+    cost_actual = float(rollup.get("cost_usd") or 0.0)
+    tokens_actual = int(rollup.get("tokens_total") or 0)
+    try:
+        be.task_set_cost_actual(slug, cost_actual)
+        be.task_set_tokens_actual(slug, tokens_actual)
+    except Exception:
+        return ""
+    cost_budget = task.get("cost_budget_usd")
+    token_budget = task.get("token_budget")
+    warns: list[str] = []
+    if (
+        isinstance(cost_budget, (int, float))
+        and float(cost_budget) > 0
+        and cost_actual > float(cost_budget) * 1.5
+    ):
+        warns.append(
+            f"WARNING: cost_actual_usd=${cost_actual:.4f} exceeds 1.5× "
+            f"cost_budget_usd=${float(cost_budget):.4f} for '{slug}'."
+        )
+    if (
+        isinstance(token_budget, int)
+        and token_budget > 0
+        and tokens_actual > int(token_budget * 1.5)
+    ):
+        warns.append(
+            f"WARNING: tokens_actual={tokens_actual} exceeds 1.5× "
+            f"token_budget={token_budget} for '{slug}'."
+        )
+    return " ".join(warns)

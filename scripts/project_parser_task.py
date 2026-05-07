@@ -13,9 +13,23 @@ from project_types import VALID_COMPLEXITIES, VALID_TIERS
 
 
 def _add_unit_flags(parser: argparse.ArgumentParser) -> None:
-    """Attach --call-budget / --tier flags to a task add/update sub-parser."""
+    """Attach --call-budget / --tier / --cost-budget / --token-budget flags."""
     parser.add_argument("--call-budget", type=int, default=None, dest="call_budget")
     parser.add_argument("--tier", default=None, choices=sorted(VALID_TIERS))
+    parser.add_argument(
+        "--cost-budget",
+        type=float,
+        default=None,
+        dest="cost_budget_usd",
+        help="Planned USD cost budget for this task. Warn 1.5×, BLOCKER 2× (advisory).",
+    )
+    parser.add_argument(
+        "--token-budget",
+        type=int,
+        default=None,
+        dest="token_budget",
+        help="Planned token-total budget for this task.",
+    )
 
 
 def add_task(sub: argparse._SubParsersAction) -> None:
