@@ -9,6 +9,8 @@ from __future__ import annotations
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bootstrap"))
 
 from bootstrap_generate import (
@@ -91,9 +93,7 @@ class TestGenerateClaudeMd:
             "dogfooding",
         ]
         for phrase in forbidden:
-            assert phrase not in text, (
-                f"Dogfooding leakage: {phrase!r} should not be in template"
-            )
+            assert phrase not in text, f"Dogfooding leakage: {phrase!r} should not be in template"
 
     def test_preserves_existing_file(self, tmp_path):
         """Must NOT overwrite an existing CLAUDE.md."""
@@ -109,9 +109,7 @@ class TestGenerateClaudeMd:
         assert "Stack: not detected" in text
 
     def test_multiple_stacks_comma_separated(self, tmp_path):
-        text = self._generate_and_read(
-            tmp_path, "proj", ["python", "react", "typescript"]
-        )
+        text = self._generate_and_read(tmp_path, "proj", ["python", "react", "typescript"])
         assert "Stack: python, react, typescript" in text
 
     def test_special_chars_in_project_name(self, tmp_path):
@@ -140,20 +138,13 @@ class TestGenerateAgentsMd:
     """AGENTS.md must share the same hard constraints as CLAUDE.md (no weak-ruleset IDE)."""
 
     def _gen(self, tmp_path, name="proj", stacks=None):
-        generate_agents_md(
-            str(tmp_path), name, stacks if stacks is not None else ["python"]
-        )
+        generate_agents_md(str(tmp_path), name, stacks if stacks is not None else ["python"])
         return (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
 
     def test_contains_shared_hard_markers(self, tmp_path):
         text = self._gen(tmp_path)
         for marker in SHARED_HARD_MARKERS:
             assert marker in text, f"AGENTS.md missing shared marker: {marker!r}"
-
-    def test_header_mentions_agent(self, tmp_path):
-        text = self._gen(tmp_path)
-        assert "# AGENTS.md" in text
-        assert "You are an AI agent" in text
 
     def test_preserves_existing(self, tmp_path):
         existing = "# Custom AGENTS.md\n"
@@ -170,25 +161,13 @@ class TestGenerateCursorrules:
     """.cursorrules must share the same hard constraints as CLAUDE.md."""
 
     def _gen(self, tmp_path, name="proj", stacks=None):
-        generate_cursorrules(
-            str(tmp_path), name, stacks if stacks is not None else ["python"]
-        )
+        generate_cursorrules(str(tmp_path), name, stacks if stacks is not None else ["python"])
         return (tmp_path / ".cursorrules").read_text(encoding="utf-8")
 
     def test_contains_shared_hard_markers(self, tmp_path):
         text = self._gen(tmp_path)
         for marker in SHARED_HARD_MARKERS:
             assert marker in text, f".cursorrules missing shared marker: {marker!r}"
-
-    def test_header_mentions_cursor(self, tmp_path):
-        text = self._gen(tmp_path)
-        assert "# Cursor Rules" in text
-        assert "Cursor" in text
-
-    def test_points_to_cursor_subdir(self, tmp_path):
-        text = self._gen(tmp_path)
-        assert ".cursor/roles/" in text
-        assert ".cursor/references/" in text
 
     def test_preserves_existing(self, tmp_path):
         existing = "# Custom .cursorrules\n"
@@ -201,9 +180,7 @@ class TestGenerateQwenMd:
     """QWEN.md must share the same hard constraints as CLAUDE.md."""
 
     def _gen(self, tmp_path, name="proj", stacks=None):
-        generate_qwen_md(
-            str(tmp_path), name, stacks if stacks is not None else ["python"]
-        )
+        generate_qwen_md(str(tmp_path), name, stacks if stacks is not None else ["python"])
         return (tmp_path / "QWEN.md").read_text(encoding="utf-8")
 
     def test_contains_shared_hard_markers(self, tmp_path):
@@ -211,21 +188,64 @@ class TestGenerateQwenMd:
         for marker in SHARED_HARD_MARKERS:
             assert marker in text, f"QWEN.md missing shared marker: {marker!r}"
 
-    def test_header_mentions_qwen(self, tmp_path):
-        text = self._gen(tmp_path)
-        assert "# QWEN.md" in text
-        assert "Qwen Code" in text
-
-    def test_points_to_qwen_subdir(self, tmp_path):
-        text = self._gen(tmp_path)
-        assert ".qwen/roles/" in text
-        assert ".qwen/references/" in text
-
     def test_preserves_existing(self, tmp_path):
         existing = "# Custom QWEN.md\n"
         (tmp_path / "QWEN.md").write_text(existing, encoding="utf-8")
         generate_qwen_md(str(tmp_path), "proj", ["python"])
         assert (tmp_path / "QWEN.md").read_text(encoding="utf-8") == existing
+
+
+# Module-level: G15 cross-class merge — 5 header/subdir markers across 3 generators
+@pytest.fixture
+def _gen_to_text(tmp_path):
+    """Run a generator and return generated file content."""
+
+    def _run(gen_func, filename, stacks=None):
+        gen_func(str(tmp_path), "proj", stacks if stacks is not None else ["python"])
+        return (tmp_path / filename).read_text(encoding="utf-8")
+
+    return _run
+
+
+@pytest.mark.parametrize(
+    "gen_func,filename,markers",
+    [
+        pytest.param(
+            generate_agents_md,
+            "AGENTS.md",
+            ("# AGENTS.md", "You are an AI agent"),
+            id="header_mentions_agent",
+        ),
+        pytest.param(
+            generate_cursorrules,
+            ".cursorrules",
+            ("# Cursor Rules", "Cursor"),
+            id="header_mentions_cursor",
+        ),
+        pytest.param(
+            generate_cursorrules,
+            ".cursorrules",
+            (".cursor/roles/", ".cursor/references/"),
+            id="points_to_cursor_subdir",
+        ),
+        pytest.param(
+            generate_qwen_md,
+            "QWEN.md",
+            ("# QWEN.md", "Qwen Code"),
+            id="header_mentions_qwen",
+        ),
+        pytest.param(
+            generate_qwen_md,
+            "QWEN.md",
+            (".qwen/roles/", ".qwen/references/"),
+            id="points_to_qwen_subdir",
+        ),
+    ],
+)
+def test_generator_emits_required_markers(_gen_to_text, gen_func, filename, markers):
+    text = _gen_to_text(gen_func, filename)
+    for marker in markers:
+        assert marker in text
 
 
 class TestSyncAcrossIdes:

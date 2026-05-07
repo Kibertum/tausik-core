@@ -56,25 +56,31 @@ def fake_repo(tmp_path: Path) -> Path:
 
 
 class TestExclusion:
-    def test_research_excluded(self):
-        assert _is_excluded("docs/en/research/old.md", DEFAULT_EXCLUDES)
-
-    def test_generated_excluded(self):
-        assert _is_excluded("docs/_generated/x.md", DEFAULT_EXCLUDES)
-
-    def test_release_notes_excluded(self):
-        assert _is_excluded("docs/en/release-notes/v1.4.md", DEFAULT_EXCLUDES)
+    @pytest.mark.parametrize(
+        "path",
+        [
+            pytest.param("docs/en/research/old.md", id="research_excluded"),
+            pytest.param("docs/_generated/x.md", id="generated_excluded"),
+            pytest.param("docs/en/release-notes/v1.4.md", id="release_notes_excluded"),
+        ],
+    )
+    def test_excluded_paths(self, path):
+        assert _is_excluded(path, DEFAULT_EXCLUDES)
 
     def test_unrelated_path_not_excluded(self):
         assert not _is_excluded("docs/en/cli.md", DEFAULT_EXCLUDES)
 
 
 class TestMirrorPartner:
-    def test_en_partner(self):
-        assert _mirror_partner("docs/en/cli.md") == "docs/ru/cli.md"
-
-    def test_ru_partner(self):
-        assert _mirror_partner("docs/ru/cli.md") == "docs/en/cli.md"
+    @pytest.mark.parametrize(
+        "input_path,expected",
+        [
+            pytest.param("docs/en/cli.md", "docs/ru/cli.md", id="en_partner"),
+            pytest.param("docs/ru/cli.md", "docs/en/cli.md", id="ru_partner"),
+        ],
+    )
+    def test_partner_swap(self, input_path, expected):
+        assert _mirror_partner(input_path) == expected
 
     def test_no_partner_for_root(self):
         assert _mirror_partner("docs/README.md") is None
@@ -85,19 +91,19 @@ class TestCollectStale:
         stale = collect_stale(fake_repo)
         assert "docs/en/lonely-doc.md" in stale
 
-    def test_referenced_doc_not_reported(self, fake_repo: Path):
+    @pytest.mark.parametrize(
+        "path",
+        [
+            pytest.param("docs/en/intro.md", id="referenced_doc_not_reported"),
+            # AC-3 negative: README references EN intro; the RU mirror must NOT be stale
+            pytest.param("docs/ru/intro.md", id="mirror_partner_protected"),
+            # AC-2: research archive is excluded by glob, never reported
+            pytest.param("docs/ru/research/old-spike.md", id="research_excluded"),
+        ],
+    )
+    def test_path_not_in_stale(self, fake_repo: Path, path):
         stale = collect_stale(fake_repo)
-        assert "docs/en/intro.md" not in stale
-
-    def test_mirror_partner_protected(self, fake_repo: Path):
-        # AC-3 negative: README references EN intro; the RU mirror must NOT be stale
-        stale = collect_stale(fake_repo)
-        assert "docs/ru/intro.md" not in stale
-
-    def test_research_excluded(self, fake_repo: Path):
-        # AC-2: research archive is excluded by glob, never reported
-        stale = collect_stale(fake_repo)
-        assert "docs/ru/research/old-spike.md" not in stale
+        assert path not in stale
 
     def test_root_docs_always_safe(self, fake_repo: Path):
         # ROOT_DOCS list shouldn't be flagged even if unreferenced

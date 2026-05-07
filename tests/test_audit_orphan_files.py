@@ -54,14 +54,16 @@ def fake_repo(tmp_path: Path) -> Path:
 
 
 class TestExclusion:
-    def test_tests_excluded(self):
-        assert _is_excluded("tests/test_x.py", DEFAULT_EXCLUDES)
-
-    def test_pycache_excluded(self):
-        assert _is_excluded("scripts/__pycache__/foo.pyc", DEFAULT_EXCLUDES)
-
-    def test_hooks_excluded(self):
-        assert _is_excluded("scripts/hooks/any_hook.py", DEFAULT_EXCLUDES)
+    @pytest.mark.parametrize(
+        "path",
+        [
+            pytest.param("tests/test_x.py", id="tests_excluded"),
+            pytest.param("scripts/__pycache__/foo.pyc", id="pycache_excluded"),
+            pytest.param("scripts/hooks/any_hook.py", id="hooks_excluded"),
+        ],
+    )
+    def test_excluded_paths(self, path):
+        assert _is_excluded(path, DEFAULT_EXCLUDES)
 
     def test_unrelated_path_not_excluded(self):
         assert not _is_excluded("scripts/foo.py", DEFAULT_EXCLUDES)
@@ -72,18 +74,18 @@ class TestCollectOrphans:
         orphans = collect_orphans(fake_repo)
         assert "scripts/lonely_helper.py" in orphans
 
-    def test_imported_module_not_reported(self, fake_repo: Path):
+    @pytest.mark.parametrize(
+        "path",
+        [
+            pytest.param("scripts/imported_mod.py", id="imported_module_not_reported"),
+            # AC-3 negative: documented CLI scripts are NOT orphans
+            pytest.param("scripts/doc_only_cli.py", id="doc_referenced_standalone_not_reported"),
+            pytest.param("scripts/hooks/any_hook.py", id="hook_path_excluded_from_scan"),
+        ],
+    )
+    def test_path_not_in_orphans(self, fake_repo: Path, path):
         orphans = collect_orphans(fake_repo)
-        assert "scripts/imported_mod.py" not in orphans
-
-    def test_doc_referenced_standalone_not_reported(self, fake_repo: Path):
-        # AC-3 negative: documented CLI scripts are NOT orphans
-        orphans = collect_orphans(fake_repo)
-        assert "scripts/doc_only_cli.py" not in orphans
-
-    def test_hook_path_excluded_from_scan(self, fake_repo: Path):
-        orphans = collect_orphans(fake_repo)
-        assert "scripts/hooks/any_hook.py" not in orphans
+        assert path not in orphans
 
 
 class TestCli:

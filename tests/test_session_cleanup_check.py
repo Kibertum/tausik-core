@@ -7,6 +7,8 @@ import os
 import subprocess
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks"))
 
 from session_cleanup_check import (
@@ -25,31 +27,39 @@ class TestPureHelpers:
         assert _has_open_exploration("No active exploration.") is False
 
     def test_active_exploration_returns_true(self):
-        assert _has_open_exploration(
-            "Exploration #3 started (60 min limit): research topic"
-        )
+        assert _has_open_exploration("Exploration #3 started (60 min limit): research topic")
 
     def test_empty_explore_output_returns_false(self):
         assert _has_open_exploration("") is False
-
-    def test_review_count_header_only(self):
-        assert _review_task_count("slug   title\n---") == 0
 
     def test_review_count_three_rows(self):
         out = "slug     title      status\n---\nt-1    A\nt-2    B\nt-3    C\n"
         assert _review_task_count(out) == 3
 
-    def test_review_count_none(self):
-        assert _review_task_count("(none)") == 0
-
-    def test_session_overrun_below_threshold(self):
-        assert _session_overrun_minutes("Session running for 100 min") == 0
-
-    def test_session_overrun_at_threshold(self):
-        assert _session_overrun_minutes("Session has been running for 160 min") == 160
-
-    def test_session_overrun_no_match(self):
-        assert _session_overrun_minutes("status: all good") == 0
+    @pytest.mark.parametrize(
+        "func,text,expected",
+        [
+            pytest.param(_review_task_count, "slug   title\n---", 0, id="review_count_header_only"),
+            pytest.param(_review_task_count, "(none)", 0, id="review_count_none"),
+            pytest.param(
+                _session_overrun_minutes,
+                "Session running for 100 min",
+                0,
+                id="session_overrun_below_threshold",
+            ),
+            pytest.param(
+                _session_overrun_minutes,
+                "Session has been running for 160 min",
+                160,
+                id="session_overrun_at_threshold",
+            ),
+            pytest.param(
+                _session_overrun_minutes, "status: all good", 0, id="session_overrun_no_match"
+            ),
+        ],
+    )
+    def test_helper_int_return(self, func, text, expected):
+        assert func(text) == expected
 
 
 class TestHookIntegration:
@@ -116,9 +126,7 @@ class TestHookIntegration:
         wrapper_path = tausik / wrapper
         # Mock always returns exploration record regardless of subcommand; ok for smoke
         if sys.platform == "win32":
-            wrapper_path.write_text(
-                "@echo off\r\necho Exploration #1 started: mock\r\n"
-            )
+            wrapper_path.write_text("@echo off\r\necho Exploration #1 started: mock\r\n")
         else:
             wrapper_path.write_text("#!/bin/sh\necho 'Exploration #1 started: mock'\n")
             os.chmod(wrapper_path, 0o755)

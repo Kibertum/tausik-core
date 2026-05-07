@@ -38,25 +38,19 @@ class TestSlugValidation:
         with pytest.raises(ValueError, match="max 64"):
             validate_slug("a" * 65)
 
-    def test_slug_empty(self):
+    @pytest.mark.parametrize(
+        "bad_slug",
+        [
+            pytest.param("", id="slug_empty"),
+            pytest.param("-bad", id="slug_starts_with_dash"),
+            pytest.param("BadSlug", id="slug_uppercase"),
+            pytest.param("bad slug", id="slug_spaces"),
+            pytest.param("задача", id="slug_unicode"),
+        ],
+    )
+    def test_invalid_slug_raises(self, bad_slug):
         with pytest.raises(ValueError, match="Invalid slug"):
-            validate_slug("")
-
-    def test_slug_starts_with_dash(self):
-        with pytest.raises(ValueError, match="Invalid slug"):
-            validate_slug("-bad")
-
-    def test_slug_uppercase(self):
-        with pytest.raises(ValueError, match="Invalid slug"):
-            validate_slug("BadSlug")
-
-    def test_slug_spaces(self):
-        with pytest.raises(ValueError, match="Invalid slug"):
-            validate_slug("bad slug")
-
-    def test_slug_unicode(self):
-        with pytest.raises(ValueError, match="Invalid slug"):
-            validate_slug("задача")
+            validate_slug(bad_slug)
 
     def test_slug_single_char(self):
         validate_slug("a")  # minimal valid slug
@@ -155,15 +149,11 @@ class TestFTS5EdgeCases:
             "Connection pooling",
             "Always use connection pools for PostgreSQL databases",
         )
-        svc.memory_add(
-            "pattern", "Pool maintenance", "Clean the swimming pool regularly"
-        )
+        svc.memory_add("pattern", "Pool maintenance", "Clean the swimming pool regularly")
         results = svc.search('"connection pools"', "memory")
         assert len(results.get("memory", [])) >= 1
         # Phrase match should find "connection pools"
-        assert any(
-            "connection" in r["content"].lower() for r in results.get("memory", [])
-        )
+        assert any("connection" in r["content"].lower() for r in results.get("memory", []))
 
     def test_search_mixed_phrase_and_words(self, svc):
         svc.memory_add("pattern", "Auth patterns", "Use JWT tokens for authentication")

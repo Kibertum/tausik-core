@@ -73,12 +73,24 @@ class TestStackInfo:
 
 
 class TestStackFiltering:
-    def test_go_test_skipped_for_python_files(self):
+    @pytest.mark.parametrize(
+        "gate_name,files,expected",
+        [
+            pytest.param(
+                "go-test", ["scripts/main.py"], False, id="go_test_skipped_for_python_files"
+            ),
+            pytest.param(
+                "cargo-test", ["scripts/main.py"], False, id="cargo_test_skipped_for_python_files"
+            ),
+            pytest.param("cargo-test", ["src/lib.rs"], True, id="cargo_test_runs_for_rust_files"),
+        ],
+    )
+    def test_gate_applicability(self, gate_name, files, expected):
         from gate_runner import gate_applies_to
         from project_config import DEFAULT_GATES
 
-        gate = {**DEFAULT_GATES["go-test"], "name": "go-test"}
-        assert gate_applies_to(gate, ["scripts/main.py"]) is False
+        gate = {**DEFAULT_GATES[gate_name], "name": gate_name}
+        assert gate_applies_to(gate, files) is expected
 
     def test_go_test_runs_for_go_files(self):
         from gate_runner import gate_applies_to
@@ -86,20 +98,6 @@ class TestStackFiltering:
 
         gate = {**DEFAULT_GATES["go-test"], "name": "go-test"}
         assert gate_applies_to(gate, ["main.go", "lib_test.go"]) is True
-
-    def test_cargo_test_skipped_for_python_files(self):
-        from gate_runner import gate_applies_to
-        from project_config import DEFAULT_GATES
-
-        gate = {**DEFAULT_GATES["cargo-test"], "name": "cargo-test"}
-        assert gate_applies_to(gate, ["scripts/main.py"]) is False
-
-    def test_cargo_test_runs_for_rust_files(self):
-        from gate_runner import gate_applies_to
-        from project_config import DEFAULT_GATES
-
-        gate = {**DEFAULT_GATES["cargo-test"], "name": "cargo-test"}
-        assert gate_applies_to(gate, ["src/lib.rs"]) is True
 
     def test_pytest_unaffected_by_new_gates(self):
         from gate_runner import gate_applies_to

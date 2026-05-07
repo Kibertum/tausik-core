@@ -17,20 +17,17 @@ import skill_profile_detect as spd  # noqa: E402
 # --- normalize_model_profile_slug ---------------------------------------
 
 
-def test_normalize_basic_lowercase():
-    assert spd.normalize_model_profile_slug("GPT-5") == "gpt-5"
-
-
-def test_normalize_dot_to_hyphen():
-    assert spd.normalize_model_profile_slug("gpt-5.5") == "gpt-5-5"
-
-
-def test_normalize_collapses_runs():
-    assert spd.normalize_model_profile_slug("Claude  Sonnet  4.6") == "claude-sonnet-4-6"
-
-
-def test_normalize_strips_edge_hyphens():
-    assert spd.normalize_model_profile_slug("--gpt-5--") == "gpt-5"
+@pytest.mark.parametrize(
+    "input_str,expected",
+    [
+        pytest.param("GPT-5", "gpt-5", id="basic_lowercase"),
+        pytest.param("gpt-5.5", "gpt-5-5", id="dot_to_hyphen"),
+        pytest.param("Claude  Sonnet  4.6", "claude-sonnet-4-6", id="collapses_runs"),
+        pytest.param("--gpt-5--", "gpt-5", id="strips_edge_hyphens"),
+    ],
+)
+def test_normalize_model_profile_slug(input_str, expected):
+    assert spd.normalize_model_profile_slug(input_str) == expected
 
 
 def test_normalize_empty():
@@ -57,29 +54,19 @@ def clean_env(monkeypatch):
     monkeypatch.delenv("TAUSIK_MODEL_PROFILE", raising=False)
 
 
-def test_detect_ide_claude_via_sse_port(clean_env, monkeypatch):
-    monkeypatch.setenv("CLAUDE_CODE_SSE_PORT", "8765")
-    assert spd.detect_ide() == "claude"
-
-
-def test_detect_ide_claude_via_claudecode(clean_env, monkeypatch):
-    monkeypatch.setenv("CLAUDECODE", "1")
-    assert spd.detect_ide() == "claude"
-
-
-def test_detect_ide_cursor(clean_env, monkeypatch):
-    monkeypatch.setenv("CURSOR_TRACE_ID", "abc")
-    assert spd.detect_ide() == "cursor"
-
-
-def test_detect_ide_qwen(clean_env, monkeypatch):
-    monkeypatch.setenv("QWEN_CODE", "1")
-    assert spd.detect_ide() == "qwen"
-
-
-def test_detect_ide_codex(clean_env, monkeypatch):
-    monkeypatch.setenv("CODEX_SANDBOX_DIR", "/tmp/x")
-    assert spd.detect_ide() == "codex"
+@pytest.mark.parametrize(
+    "env_var,env_value,expected_ide",
+    [
+        pytest.param("CLAUDE_CODE_SSE_PORT", "8765", "claude", id="claude_via_sse_port"),
+        pytest.param("CLAUDECODE", "1", "claude", id="claude_via_claudecode"),
+        pytest.param("CURSOR_TRACE_ID", "abc", "cursor", id="cursor"),
+        pytest.param("QWEN_CODE", "1", "qwen", id="qwen"),
+        pytest.param("CODEX_SANDBOX_DIR", "/tmp/x", "codex", id="codex"),
+    ],
+)
+def test_detect_ide_via_env(clean_env, monkeypatch, env_var, env_value, expected_ide):
+    monkeypatch.setenv(env_var, env_value)
+    assert spd.detect_ide() == expected_ide
 
 
 def test_detect_ide_none_when_clean(clean_env):
@@ -89,29 +76,19 @@ def test_detect_ide_none_when_clean(clean_env):
 # --- detect_model --------------------------------------------------------
 
 
-def test_detect_model_anthropic_opus(clean_env, monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_MODEL", "claude-opus-4-7")
-    assert spd.detect_model() == "opus"
-
-
-def test_detect_model_anthropic_sonnet(clean_env, monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")
-    assert spd.detect_model() == "sonnet"
-
-
-def test_detect_model_openai_gpt5(clean_env, monkeypatch):
-    monkeypatch.setenv("OPENAI_MODEL", "gpt-5")
-    assert spd.detect_model() == "gpt-5"
-
-
-def test_detect_model_openai_gpt55(clean_env, monkeypatch):
-    monkeypatch.setenv("OPENAI_MODEL", "gpt-5.5")
-    assert spd.detect_model() == "gpt-5-5"
-
-
-def test_detect_model_qwen(clean_env, monkeypatch):
-    monkeypatch.setenv("QWEN_MODEL", "Qwen2.5-Max")
-    assert spd.detect_model() == "qwen"
+@pytest.mark.parametrize(
+    "env_var,env_value,expected_model",
+    [
+        pytest.param("ANTHROPIC_MODEL", "claude-opus-4-7", "opus", id="anthropic_opus"),
+        pytest.param("ANTHROPIC_MODEL", "claude-sonnet-4-6", "sonnet", id="anthropic_sonnet"),
+        pytest.param("OPENAI_MODEL", "gpt-5", "gpt-5", id="openai_gpt5"),
+        pytest.param("OPENAI_MODEL", "gpt-5.5", "gpt-5-5", id="openai_gpt55"),
+        pytest.param("QWEN_MODEL", "Qwen2.5-Max", "qwen", id="qwen"),
+    ],
+)
+def test_detect_model_via_env(clean_env, monkeypatch, env_var, env_value, expected_model):
+    monkeypatch.setenv(env_var, env_value)
+    assert spd.detect_model() == expected_model
 
 
 def test_detect_model_tausik_override_wins(clean_env, monkeypatch):

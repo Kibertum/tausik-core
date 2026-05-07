@@ -835,17 +835,51 @@ class TestChangedFilesSince:
 class TestIsDeclaredConsistentWithGitDiff:
     """v1.3.4 cache-bypass guard."""
 
-    def test_under_declared_returns_false(self, tmp_path, monkeypatch):
-        """Agent declares docs/x.md but actually changed scripts/auth.py → False."""
+    @pytest.mark.parametrize(
+        "stdout_log,declared,expected",
+        [
+            # Agent declares docs/x.md but actually changed scripts/auth.py → False
+            pytest.param(
+                "scripts/auth.py\n",
+                ["docs/x.md"],
+                False,
+                id="under_declared",
+            ),
+            # No git changes at all → no inconsistency possible
+            pytest.param(
+                "",
+                ["scripts/auth.py"],
+                True,
+                id="no_changes",
+            ),
+            # Declared = {a.py}, changed = {a.py, b.py} → b.py missed → False
+            pytest.param(
+                "scripts/a.py\nscripts/b.py\n",
+                ["scripts/a.py"],
+                False,
+                id="partial_overlap_with_extra_changed",
+            ),
+            # Windows-style declared paths still match git's forward-slash output
+            pytest.param(
+                "scripts/auth.py\n",
+                ["scripts\\auth.py"],
+                True,
+                id="backslash_declaration_normalizes",
+            ),
+        ],
+    )
+    def test_consistency_classification(
+        self, tmp_path, monkeypatch, stdout_log, declared, expected
+    ):
         monkeypatch.setattr("os.path.isdir", lambda p: True)
-        runner = _fake_run(stdout_log="scripts/auth.py\n", stdout_diff="")
+        runner = _fake_run(stdout_log=stdout_log, stdout_diff="")
         ok = sv.is_declared_consistent_with_git_diff(
-            ["docs/x.md"],
+            declared,
             "2026-04-28T12:00:00Z",
             root=str(tmp_path),
             runner=runner,
         )
-        assert ok is False
+        assert ok is expected
 
     def test_exact_match_returns_true(self, tmp_path, monkeypatch):
         monkeypatch.setattr("os.path.isdir", lambda p: True)
@@ -870,46 +904,10 @@ class TestIsDeclaredConsistentWithGitDiff:
         )
         assert ok is True
 
-    def test_no_changes_returns_true(self, tmp_path, monkeypatch):
-        """No git changes at all → no inconsistency possible."""
-        monkeypatch.setattr("os.path.isdir", lambda p: True)
-        runner = _fake_run(stdout_log="", stdout_diff="")
-        ok = sv.is_declared_consistent_with_git_diff(
-            ["scripts/auth.py"],
-            "2026-04-28T12:00:00Z",
-            root=str(tmp_path),
-            runner=runner,
-        )
-        assert ok is True
-
     def test_not_in_git_returns_true(self, tmp_path):
         """Defensive fallback per AC #5: non-git users keep working."""
         ok = sv.is_declared_consistent_with_git_diff(
             ["docs/x.md"], "2026-04-28T12:00:00Z", root=str(tmp_path)
-        )
-        assert ok is True
-
-    def test_partial_overlap_with_extra_changed_returns_false(self, tmp_path, monkeypatch):
-        """Declared = {a.py}, changed = {a.py, b.py} → b.py was missed → False."""
-        monkeypatch.setattr("os.path.isdir", lambda p: True)
-        runner = _fake_run(stdout_log="scripts/a.py\nscripts/b.py\n", stdout_diff="")
-        ok = sv.is_declared_consistent_with_git_diff(
-            ["scripts/a.py"],
-            "2026-04-28T12:00:00Z",
-            root=str(tmp_path),
-            runner=runner,
-        )
-        assert ok is False
-
-    def test_backslash_declaration_normalizes_to_match(self, tmp_path, monkeypatch):
-        """Windows-style declared paths still match git's forward-slash output."""
-        monkeypatch.setattr("os.path.isdir", lambda p: True)
-        runner = _fake_run(stdout_log="scripts/auth.py\n", stdout_diff="")
-        ok = sv.is_declared_consistent_with_git_diff(
-            ["scripts\\auth.py"],
-            "2026-04-28T12:00:00Z",
-            root=str(tmp_path),
-            runner=runner,
         )
         assert ok is True
 

@@ -26,35 +26,46 @@ from project_cli_doctor import (
 
 
 class TestIsTrimmedBaseline:
-    def test_short_with_ru_agent_contract_link(self) -> None:
-        text = (
-            "# CLAUDE.md\n\n"
-            "## Hard Constraints\n- foo\n\n"
-            "## Reference\n"
-            "Полный контракт: `docs/ru/agent-contract.md`. CLI: docs/ru/cli.md.\n"
-        )
-        assert _is_trimmed_baseline(text, len(text.encode())) is True
-
-    def test_short_with_en_agent_contract_link(self) -> None:
-        text = "# CLAUDE.md\n\n## Reference\nFull contract: docs/en/agent-contract.md.\n"
-        assert _is_trimmed_baseline(text, len(text.encode())) is True
+    @pytest.mark.parametrize(
+        "text,expected",
+        [
+            pytest.param(
+                "# CLAUDE.md\n\n"
+                "## Hard Constraints\n- foo\n\n"
+                "## Reference\n"
+                "Полный контракт: `docs/ru/agent-contract.md`. CLI: docs/ru/cli.md.\n",
+                True,
+                id="short_with_ru_agent_contract_link",
+            ),
+            pytest.param(
+                "# CLAUDE.md\n\n## Reference\nFull contract: docs/en/agent-contract.md.\n",
+                True,
+                id="short_with_en_agent_contract_link",
+            ),
+            pytest.param(
+                "# CLAUDE.md\n\n## Hard Constraints\n- nothing about agent-contract here\n",
+                False,
+                id="short_without_reference_section",
+            ),
+            pytest.param(
+                "# CLAUDE.md\n\n## Reference\nSee docs/ru/cli.md only.\n",
+                False,
+                id="short_reference_section_but_no_agent_contract",
+            ),
+            pytest.param(
+                "# CLAUDE.md\n\n## reference\nlink: docs/en/agent-contract.md\n",
+                True,
+                id="case_insensitive_heading",
+            ),
+        ],
+    )
+    def test_short_text_classification(self, text: str, expected: bool) -> None:
+        assert _is_trimmed_baseline(text, len(text.encode())) is expected
 
     def test_oversized_rejected_even_with_link(self) -> None:
         # 7KB+ — even with the Reference signature, treat as customised, not trim
         body = "# CLAUDE.md\n\n## Reference\ndocs/ru/agent-contract.md\n" + "x" * 7000
         assert _is_trimmed_baseline(body, len(body.encode())) is False
-
-    def test_short_without_reference_section(self) -> None:
-        text = "# CLAUDE.md\n\n## Hard Constraints\n- nothing about agent-contract here\n"
-        assert _is_trimmed_baseline(text, len(text.encode())) is False
-
-    def test_short_reference_section_but_no_agent_contract(self) -> None:
-        text = "# CLAUDE.md\n\n## Reference\nSee docs/ru/cli.md only.\n"
-        assert _is_trimmed_baseline(text, len(text.encode())) is False
-
-    def test_case_insensitive_heading(self) -> None:
-        text = "# CLAUDE.md\n\n## reference\nlink: docs/en/agent-contract.md\n"
-        assert _is_trimmed_baseline(text, len(text.encode())) is True
 
 
 # ---------- _check_claudemd_drift returns 0 for trimmed baseline ----------

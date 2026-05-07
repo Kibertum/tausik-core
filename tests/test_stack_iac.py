@@ -150,44 +150,29 @@ class TestStackInfo:
 
 
 class TestCrossStackFiltering:
-    def test_pytest_skipped_on_dockerfile(self):
+    @pytest.mark.parametrize(
+        "gate_name,files,expected",
+        [
+            pytest.param("pytest", ["Dockerfile"], False, id="pytest_skipped_on_dockerfile"),
+            pytest.param("pytest", ["main.tf"], False, id="pytest_skipped_on_terraform"),
+            pytest.param(
+                "ansible-lint", ["scripts/main.py"], False, id="ansible_lint_skipped_on_python"
+            ),
+            pytest.param("hadolint", ["Dockerfile"], True, id="hadolint_runs_for_dockerfile"),
+            pytest.param(
+                "terraform-validate",
+                ["modules/vpc/main.tf"],
+                True,
+                id="terraform_validate_runs_for_tf",
+            ),
+            pytest.param(
+                "kubeval", ["k8s/deployment.yaml"], True, id="kubeval_runs_for_k8s_manifest"
+            ),
+        ],
+    )
+    def test_cross_stack_applicability(self, gate_name, files, expected):
         from gate_runner import gate_applies_to
         from project_config import DEFAULT_GATES
 
-        gate = {**DEFAULT_GATES["pytest"], "name": "pytest"}
-        assert gate_applies_to(gate, ["Dockerfile"]) is False
-
-    def test_pytest_skipped_on_terraform(self):
-        from gate_runner import gate_applies_to
-        from project_config import DEFAULT_GATES
-
-        gate = {**DEFAULT_GATES["pytest"], "name": "pytest"}
-        assert gate_applies_to(gate, ["main.tf"]) is False
-
-    def test_ansible_lint_skipped_on_python(self):
-        from gate_runner import gate_applies_to
-        from project_config import DEFAULT_GATES
-
-        gate = {**DEFAULT_GATES["ansible-lint"], "name": "ansible-lint"}
-        assert gate_applies_to(gate, ["scripts/main.py"]) is False
-
-    def test_hadolint_runs_for_dockerfile(self):
-        from gate_runner import gate_applies_to
-        from project_config import DEFAULT_GATES
-
-        gate = {**DEFAULT_GATES["hadolint"], "name": "hadolint"}
-        assert gate_applies_to(gate, ["Dockerfile"]) is True
-
-    def test_terraform_validate_runs_for_tf(self):
-        from gate_runner import gate_applies_to
-        from project_config import DEFAULT_GATES
-
-        gate = {**DEFAULT_GATES["terraform-validate"], "name": "terraform-validate"}
-        assert gate_applies_to(gate, ["modules/vpc/main.tf"]) is True
-
-    def test_kubeval_runs_for_k8s_manifest(self):
-        from gate_runner import gate_applies_to
-        from project_config import DEFAULT_GATES
-
-        gate = {**DEFAULT_GATES["kubeval"], "name": "kubeval"}
-        assert gate_applies_to(gate, ["k8s/deployment.yaml"]) is True
+        gate = {**DEFAULT_GATES[gate_name], "name": gate_name}
+        assert gate_applies_to(gate, files) is expected

@@ -39,11 +39,15 @@ def _write_transcript(tmp_path: Path, model: str | None, name: str = "t.jsonl") 
 
 
 class TestNormalize:
-    def test_strips_1m_suffix(self):
-        assert _normalize_model_id("claude-opus-4-7[1m]") == "claude-opus-4-7"
-
-    def test_lowercases(self):
-        assert _normalize_model_id("Claude-Opus-4-7") == "claude-opus-4-7"
+    @pytest.mark.parametrize(
+        "input_id,expected",
+        [
+            pytest.param("claude-opus-4-7[1m]", "claude-opus-4-7", id="strips_1m_suffix"),
+            pytest.param("Claude-Opus-4-7", "claude-opus-4-7", id="lowercases"),
+        ],
+    )
+    def test_normalize(self, input_id, expected):
+        assert _normalize_model_id(input_id) == expected
 
     def test_none_or_empty(self):
         assert _normalize_model_id(None) == ""

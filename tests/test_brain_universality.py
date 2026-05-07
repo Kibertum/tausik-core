@@ -91,11 +91,6 @@ def test_rate_inside_aggregate_does_not_match_rate_limit():
     assert "rate-limit" not in bu.detect_universal_patterns("separately iterate")
 
 
-def test_jwt_substring_in_other_word_does_not_match():
-    """'ajwtb' is not a JWT mention."""
-    assert "jwt" not in bu.detect_universal_patterns("xjwtx pseudo-token mojwt")
-
-
 def test_oauth_substring_in_other_word_does_not_match():
     assert "oauth" not in bu.detect_universal_patterns("oauthorization-like word")
 
@@ -107,31 +102,35 @@ def test_retry_substring_does_not_match():
     assert "retry" not in bu.detect_universal_patterns("the untrying spirit")
 
 
-# --- New topic false-positive guards (csrf, graphql, feature-flag, circuit-breaker) -----
-
-
 def test_csrf_substring_in_other_word_does_not_match():
     assert "csrf" not in bu.detect_universal_patterns("xcsrfx not a token")
 
 
-def test_graphql_does_not_match_inside_unrelated_word():
-    """'photographqlike' style — only standalone 'graphql' should match."""
-    assert "graphql" not in bu.detect_universal_patterns("photographqlike artifact")
+# --- New topic false-positive guards (jwt, graphql, feature-flag, circuit-breaker) -----
 
 
-def test_gql_alone_without_query_keyword_does_not_match():
-    """Bare 'gql' without query/mutation/etc. context — not enough signal."""
-    assert "graphql" not in bu.detect_universal_patterns("the gql library version")
-
-
-def test_feature_without_flag_does_not_match():
-    """'feature' alone is too generic — must be 'feature flag/toggle'."""
-    assert "feature-flag" not in bu.detect_universal_patterns("Add a new feature")
-
-
-def test_circuit_without_breaker_does_not_match():
-    """'circuit' alone (e.g. electrical) — must be 'circuit breaker'."""
-    assert "circuit-breaker" not in bu.detect_universal_patterns("electrical circuit diagram")
+@pytest.mark.parametrize(
+    "topic,text",
+    [
+        # 'ajwtb' is not a JWT mention.
+        pytest.param("jwt", "xjwtx pseudo-token mojwt", id="jwt_substring"),
+        # 'photographqlike' style — only standalone 'graphql' should match.
+        pytest.param("graphql", "photographqlike artifact", id="graphql_inside_word"),
+        # Bare 'gql' without query/mutation/etc. context — not enough signal.
+        pytest.param("graphql", "the gql library version", id="gql_alone_without_query"),
+        # 'feature' alone is too generic — must be 'feature flag/toggle'.
+        pytest.param("feature-flag", "Add a new feature", id="feature_without_flag"),
+        # 'circuit' alone (e.g. electrical) — must be 'circuit breaker'.
+        pytest.param(
+            "circuit-breaker",
+            "electrical circuit diagram",
+            id="circuit_without_breaker",
+        ),
+    ],
+)
+def test_topic_false_positive_guard(topic, text):
+    """Word-boundary regex must reject substring occurrences."""
+    assert topic not in bu.detect_universal_patterns(text)
 
 
 def test_new_topics_count_in_universe():

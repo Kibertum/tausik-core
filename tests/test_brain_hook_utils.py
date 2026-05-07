@@ -81,18 +81,18 @@ class TestIsFresh:
         ancient = (_dt.datetime(2000, 1, 1, tzinfo=_dt.timezone.utc)).isoformat()
         assert is_fresh(ancient, None, self._now()) is True
 
-    def test_recent_within_ttl(self):
-        assert is_fresh(self._iso(1), 30, self._now()) is True
-
-    def test_stale_beyond_ttl(self):
-        assert is_fresh(self._iso(45), 30, self._now()) is False
-
-    def test_boundary_exactly_at_ttl(self):
-        # 30 days old, ttl 30 → still fresh (<=).
-        assert is_fresh(self._iso(29.99), 30, self._now()) is True
-
-    def test_zero_ttl_never_fresh(self):
-        assert is_fresh(self._iso(0.0), 0, self._now()) is False
+    @pytest.mark.parametrize(
+        "delta_days,ttl,expected",
+        [
+            pytest.param(1, 30, True, id="recent_within_ttl"),
+            pytest.param(45, 30, False, id="stale_beyond_ttl"),
+            # 30 days old, ttl 30 → still fresh (<=).
+            pytest.param(29.99, 30, True, id="boundary_exactly_at_ttl"),
+            pytest.param(0.0, 0, False, id="zero_ttl_never_fresh"),
+        ],
+    )
+    def test_ttl_classification(self, delta_days, ttl, expected):
+        assert is_fresh(self._iso(delta_days), ttl, self._now()) is expected
 
     def test_negative_ttl_never_fresh(self):
         assert is_fresh(self._iso(0.0), -1, self._now()) is False

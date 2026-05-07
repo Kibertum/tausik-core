@@ -90,71 +90,54 @@ def test_negative_flag_emits_marker():
 # ---- negative cases -------------------------------------------------------
 
 
-def test_malformed_json_raises():
-    with pytest.raises(ServiceError, match="invalid --evidence-json"):
-        evidence_json_to_prose('{"ac_evidence":[bogus')
-
-
-def test_empty_input_raises():
-    with pytest.raises(ServiceError, match="empty input"):
-        evidence_json_to_prose("")
-
-
-def test_top_level_not_object_raises():
-    with pytest.raises(ServiceError, match="top-level must be an object"):
-        evidence_json_to_prose("[]")
-
-
-def test_missing_ac_evidence_raises():
-    with pytest.raises(ServiceError, match="'ac_evidence' must be a list"):
-        evidence_json_to_prose('{"foo": "bar"}')
-
-
-def test_ac_evidence_empty_list_raises():
-    with pytest.raises(ServiceError, match="'ac_evidence' is empty"):
-        evidence_json_to_prose('{"ac_evidence": []}')
-
-
-def test_item_missing_n_raises():
-    raw = '{"ac_evidence":[{"status":"pass","evidence":"x"}]}'
-    with pytest.raises(ServiceError, match=r"\.n must be a positive integer"):
-        evidence_json_to_prose(raw)
-
-
-def test_item_n_zero_raises():
-    raw = '{"ac_evidence":[{"n":0,"status":"pass","evidence":"x"}]}'
-    with pytest.raises(ServiceError, match=r"\.n must be a positive integer"):
-        evidence_json_to_prose(raw)
-
-
-def test_item_n_bool_raises():
-    # bool is subclass of int — must be excluded.
-    raw = '{"ac_evidence":[{"n":true,"status":"pass","evidence":"x"}]}'
-    with pytest.raises(ServiceError, match=r"\.n must be a positive integer"):
-        evidence_json_to_prose(raw)
-
-
-def test_item_status_invalid_raises():
-    raw = '{"ac_evidence":[{"n":1,"status":"maybe","evidence":"x"}]}'
-    with pytest.raises(ServiceError, match=r"\.status must be 'pass' or 'fail'"):
-        evidence_json_to_prose(raw)
-
-
-def test_item_evidence_missing_raises():
-    raw = '{"ac_evidence":[{"n":1,"status":"pass"}]}'
-    with pytest.raises(ServiceError, match=r"\.evidence must be a non-empty string"):
-        evidence_json_to_prose(raw)
-
-
-def test_item_evidence_blank_raises():
-    raw = '{"ac_evidence":[{"n":1,"status":"pass","evidence":"   "}]}'
-    with pytest.raises(ServiceError, match=r"\.evidence must be a non-empty string"):
-        evidence_json_to_prose(raw)
-
-
-def test_item_not_object_raises():
-    raw = '{"ac_evidence":["just-a-string"]}'
-    with pytest.raises(ServiceError, match=r"ac_evidence\[0\] must be an object"):
+@pytest.mark.parametrize(
+    "raw,match_pattern",
+    [
+        pytest.param('{"ac_evidence":[bogus', "invalid --evidence-json", id="malformed_json"),
+        pytest.param("", "empty input", id="empty_input"),
+        pytest.param("[]", "top-level must be an object", id="top_level_not_object"),
+        pytest.param('{"foo": "bar"}', "'ac_evidence' must be a list", id="missing_ac_evidence"),
+        pytest.param('{"ac_evidence": []}', "'ac_evidence' is empty", id="ac_evidence_empty_list"),
+        pytest.param(
+            '{"ac_evidence":[{"status":"pass","evidence":"x"}]}',
+            r"\.n must be a positive integer",
+            id="item_missing_n",
+        ),
+        pytest.param(
+            '{"ac_evidence":[{"n":0,"status":"pass","evidence":"x"}]}',
+            r"\.n must be a positive integer",
+            id="item_n_zero",
+        ),
+        pytest.param(
+            # bool is subclass of int — must be excluded.
+            '{"ac_evidence":[{"n":true,"status":"pass","evidence":"x"}]}',
+            r"\.n must be a positive integer",
+            id="item_n_bool",
+        ),
+        pytest.param(
+            '{"ac_evidence":[{"n":1,"status":"maybe","evidence":"x"}]}',
+            r"\.status must be 'pass' or 'fail'",
+            id="item_status_invalid",
+        ),
+        pytest.param(
+            '{"ac_evidence":[{"n":1,"status":"pass"}]}',
+            r"\.evidence must be a non-empty string",
+            id="item_evidence_missing",
+        ),
+        pytest.param(
+            '{"ac_evidence":[{"n":1,"status":"pass","evidence":"   "}]}',
+            r"\.evidence must be a non-empty string",
+            id="item_evidence_blank",
+        ),
+        pytest.param(
+            '{"ac_evidence":["just-a-string"]}',
+            r"ac_evidence\[0\] must be an object",
+            id="item_not_object",
+        ),
+    ],
+)
+def test_validation_raises(raw, match_pattern):
+    with pytest.raises(ServiceError, match=match_pattern):
         evidence_json_to_prose(raw)
 
 

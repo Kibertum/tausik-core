@@ -7,9 +7,7 @@ import textwrap
 import pytest
 
 # Add MCP source to path
-_mcp_dir = os.path.join(
-    os.path.dirname(__file__), "..", "harness", "claude", "mcp", "codebase-rag"
-)
+_mcp_dir = os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "codebase-rag")
 sys.path.insert(0, os.path.abspath(_mcp_dir))
 
 from rag_detect import (
@@ -26,26 +24,22 @@ from rag_store import RAGStore
 
 
 class TestDetectLanguage:
-    def test_python(self):
-        assert detect_language("foo.py") == "python"
-
-    def test_typescript(self):
-        assert detect_language("bar.tsx") == "typescript"
-
-    def test_go(self):
-        assert detect_language("main.go") == "go"
-
-    def test_dockerfile(self):
-        assert detect_language("Dockerfile") == "docker"
-
-    def test_makefile(self):
-        assert detect_language("Makefile") == "make"
+    @pytest.mark.parametrize(
+        "filename,expected",
+        [
+            pytest.param("foo.py", "python", id="python"),
+            pytest.param("bar.tsx", "typescript", id="typescript"),
+            pytest.param("main.go", "go", id="go"),
+            pytest.param("Dockerfile", "docker", id="dockerfile"),
+            pytest.param("Makefile", "make", id="makefile"),
+            pytest.param("README.md", "markdown", id="markdown"),
+        ],
+    )
+    def test_detect_language(self, filename, expected):
+        assert detect_language(filename) == expected
 
     def test_unknown(self):
         assert detect_language("data.bin") is None
-
-    def test_markdown(self):
-        assert detect_language("README.md") == "markdown"
 
 
 class TestGitignore:
@@ -360,12 +354,8 @@ class TestRAGStore:
 class TestIndexerIntegration:
     def test_full_index(self, tmp_path):
         # Create a mini project
-        (tmp_path / "hello.py").write_text(
-            "def greet(name):\n    return f'Hello {name}'\n"
-        )
-        (tmp_path / "utils.py").write_text(
-            "MAX = 100\ndef clamp(x): return min(x, MAX)\n"
-        )
+        (tmp_path / "hello.py").write_text("def greet(name):\n    return f'Hello {name}'\n")
+        (tmp_path / "utils.py").write_text("MAX = 100\ndef clamp(x): return min(x, MAX)\n")
         (tmp_path / "readme.md").write_text("# My Project\n\nA simple project.\n")
         (tmp_path / ".gitignore").write_text("*.pyc\n__pycache__/\n")
         (tmp_path / "ignored.pyc").write_bytes(b"\x00")

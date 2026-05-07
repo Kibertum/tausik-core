@@ -96,9 +96,7 @@ def test_schema_is_idempotent(conn):
 
 
 def test_schema_version_recorded(conn):
-    row = conn.execute(
-        "SELECT value FROM brain_meta WHERE key='schema_version'"
-    ).fetchone()
+    row = conn.execute("SELECT value FROM brain_meta WHERE key='schema_version'").fetchone()
     assert row is not None
     assert row[0] == str(brain_schema.SCHEMA_VERSION)
 
@@ -114,9 +112,7 @@ def test_brain_migrations_dict_exists():
 def test_apply_schema_idempotent_when_migrations_empty(conn):
     """Re-applying on a current-version DB is a no-op when no migrations defined."""
     brain_schema.apply_schema(conn)
-    row = conn.execute(
-        "SELECT value FROM brain_meta WHERE key='schema_version'"
-    ).fetchone()
+    row = conn.execute("SELECT value FROM brain_meta WHERE key='schema_version'").fetchone()
     assert row[0] == str(brain_schema.SCHEMA_VERSION)
 
 
@@ -150,9 +146,7 @@ def test_migrate_applies_pending_versions(monkeypatch):
     cols = [r[1] for r in c.execute("PRAGMA table_info(brain_meta)").fetchall()]
     assert "extra_v2" in cols
     assert "extra_v3" in cols
-    row = c.execute(
-        "SELECT value FROM brain_meta WHERE key='schema_version'"
-    ).fetchone()
+    row = c.execute("SELECT value FROM brain_meta WHERE key='schema_version'").fetchone()
     assert row[0] == "3"
     c.close()
 
@@ -195,9 +189,7 @@ def test_migrate_rolls_back_on_failure(monkeypatch):
         brain_schema.apply_schema(c)
     cols = [r[1] for r in c.execute("PRAGMA table_info(brain_meta)").fetchall()]
     assert "good_col" not in cols  # rollback
-    row = c.execute(
-        "SELECT value FROM brain_meta WHERE key='schema_version'"
-    ).fetchone()
+    row = c.execute("SELECT value FROM brain_meta WHERE key='schema_version'").fetchone()
     assert row[0] == "1"  # not bumped
     c.close()
 
@@ -285,9 +277,7 @@ def test_update_reindexes_fts(conn):
                    '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')"""
     )
     conn.commit()
-    conn.execute(
-        "UPDATE brain_decisions SET name='BetaMarker' WHERE notion_page_id='pupd'"
-    )
+    conn.execute("UPDATE brain_decisions SET name='BetaMarker' WHERE notion_page_id='pupd'")
     conn.commit()
     old = conn.execute(
         "SELECT rowid FROM fts_brain_decisions WHERE fts_brain_decisions MATCH ?",
@@ -301,68 +291,59 @@ def test_update_reindexes_fts(conn):
     assert len(new) == 1
 
 
-def test_unique_notion_page_id(conn):
-    conn.execute(
-        """INSERT INTO brain_decisions
-           (notion_page_id, name, source_project_hash,
-            last_edited_time, created_time)
-           VALUES ('dup', 't', 'h', 'x', 'x')"""
-    )
-    with pytest.raises(sqlite3.IntegrityError):
-        conn.execute(
+@pytest.mark.parametrize(
+    "seed_sql,bad_sql",
+    [
+        pytest.param(
             """INSERT INTO brain_decisions
                (notion_page_id, name, source_project_hash,
                 last_edited_time, created_time)
-               VALUES ('dup', 't2', 'h', 'x', 'x')"""
-        )
-
-
-def test_generalizable_check_constraint(conn):
-    conn.execute(
-        """INSERT INTO brain_decisions
-           (notion_page_id, name, source_project_hash,
-            last_edited_time, created_time, generalizable)
-           VALUES ('p-ok', 't', 'h', 'x', 'x', 0)"""
-    )
-    with pytest.raises(sqlite3.IntegrityError):
-        conn.execute(
+               VALUES ('dup', 't', 'h', 'x', 'x')""",
+            """INSERT INTO brain_decisions
+               (notion_page_id, name, source_project_hash,
+                last_edited_time, created_time)
+               VALUES ('dup', 't2', 'h', 'x', 'x')""",
+            id="unique_notion_page_id",
+        ),
+        pytest.param(
             """INSERT INTO brain_decisions
                (notion_page_id, name, source_project_hash,
                 last_edited_time, created_time, generalizable)
-               VALUES ('p-bad', 't', 'h', 'x', 'x', 5)"""
-        )
-
-
-def test_confidence_check_constraint(conn):
-    conn.execute(
-        """INSERT INTO brain_patterns
-           (notion_page_id, name, source_project_hash,
-            last_edited_time, created_time, confidence)
-           VALUES ('pat-ok', 't', 'h', 'x', 'x', 'proven')"""
-    )
-    with pytest.raises(sqlite3.IntegrityError):
-        conn.execute(
+               VALUES ('p-ok', 't', 'h', 'x', 'x', 0)""",
+            """INSERT INTO brain_decisions
+               (notion_page_id, name, source_project_hash,
+                last_edited_time, created_time, generalizable)
+               VALUES ('p-bad', 't', 'h', 'x', 'x', 5)""",
+            id="generalizable_check_constraint",
+        ),
+        pytest.param(
             """INSERT INTO brain_patterns
                (notion_page_id, name, source_project_hash,
                 last_edited_time, created_time, confidence)
-               VALUES ('pat-bad', 't', 'h', 'x', 'x', 'maybe')"""
-        )
-
-
-def test_severity_check_constraint(conn):
-    conn.execute(
-        """INSERT INTO brain_gotchas
-           (notion_page_id, name, source_project_hash,
-            last_edited_time, created_time, severity)
-           VALUES ('g-ok', 't', 'h', 'x', 'x', 'high')"""
-    )
-    with pytest.raises(sqlite3.IntegrityError):
-        conn.execute(
+               VALUES ('pat-ok', 't', 'h', 'x', 'x', 'proven')""",
+            """INSERT INTO brain_patterns
+               (notion_page_id, name, source_project_hash,
+                last_edited_time, created_time, confidence)
+               VALUES ('pat-bad', 't', 'h', 'x', 'x', 'maybe')""",
+            id="confidence_check_constraint",
+        ),
+        pytest.param(
             """INSERT INTO brain_gotchas
                (notion_page_id, name, source_project_hash,
                 last_edited_time, created_time, severity)
-               VALUES ('g-bad', 't', 'h', 'x', 'x', 'critical')"""
-        )
+               VALUES ('g-ok', 't', 'h', 'x', 'x', 'high')""",
+            """INSERT INTO brain_gotchas
+               (notion_page_id, name, source_project_hash,
+                last_edited_time, created_time, severity)
+               VALUES ('g-bad', 't', 'h', 'x', 'x', 'critical')""",
+            id="severity_check_constraint",
+        ),
+    ],
+)
+def test_constraint_violation_raises(conn, seed_sql, bad_sql):
+    conn.execute(seed_sql)
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(bad_sql)
 
 
 def test_sync_state_check_constraint(conn):

@@ -35,39 +35,32 @@ from tausik_utils import ServiceError  # noqa: E402
 
 
 class TestParseDurationToDays:
-    def test_days(self):
-        assert parse_duration_to_days("90d") == 90
+    @pytest.mark.parametrize(
+        "input_str,expected",
+        [
+            pytest.param("90d", 90, id="days"),
+            pytest.param("12w", 84, id="weeks"),
+            pytest.param("2m", 60, id="months_30day"),
+            pytest.param("1y", 365, id="years_365day"),
+            pytest.param("3D", 3, id="case_insensitive"),
+            pytest.param("  7d  ", 7, id="whitespace"),
+        ],
+    )
+    def test_parse_valid(self, input_str, expected):
+        assert parse_duration_to_days(input_str) == expected
 
-    def test_weeks(self):
-        assert parse_duration_to_days("12w") == 84
-
-    def test_months_30day(self):
-        assert parse_duration_to_days("2m") == 60
-
-    def test_years_365day(self):
-        assert parse_duration_to_days("1y") == 365
-
-    def test_case_insensitive(self):
-        assert parse_duration_to_days("3D") == 3
-
-    def test_whitespace(self):
-        assert parse_duration_to_days("  7d  ") == 7
-
-    def test_invalid_unit(self):
+    @pytest.mark.parametrize(
+        "bad_input",
+        [
+            pytest.param("5h", id="invalid_unit"),
+            pytest.param("90", id="no_unit"),
+            pytest.param("0d", id="zero_rejected"),
+            pytest.param("", id="empty_rejected"),
+        ],
+    )
+    def test_parse_invalid_raises(self, bad_input):
         with pytest.raises(ValueError):
-            parse_duration_to_days("5h")
-
-    def test_no_unit(self):
-        with pytest.raises(ValueError):
-            parse_duration_to_days("90")
-
-    def test_zero_rejected(self):
-        with pytest.raises(ValueError):
-            parse_duration_to_days("0d")
-
-    def test_empty_rejected(self):
-        with pytest.raises(ValueError):
-            parse_duration_to_days("")
+            parse_duration_to_days(bad_input)
 
 
 # ---------------------------------------------------------------------------

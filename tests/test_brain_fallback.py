@@ -25,46 +25,26 @@ from brain_notion_client import (  # noqa: E402
 # --- classify_error -------------------------------------------------------
 
 
-def test_classify_auth():
-    assert brain_fallback.classify_error(NotionAuthError("bad token")) == "auth"
-
-
-def test_classify_not_found():
-    assert brain_fallback.classify_error(NotionNotFoundError("gone")) == "not_found"
-
-
-def test_classify_rate_limit():
-    assert (
-        brain_fallback.classify_error(NotionRateLimitError("slow down")) == "rate_limit"
-    )
-
-
-def test_classify_server():
-    assert brain_fallback.classify_error(NotionServerError("5xx")) == "server"
+@pytest.mark.parametrize(
+    "exc,expected",
+    [
+        pytest.param(NotionAuthError("bad token"), "auth", id="auth"),
+        pytest.param(NotionNotFoundError("gone"), "not_found", id="not_found"),
+        pytest.param(NotionRateLimitError("slow down"), "rate_limit", id="rate_limit"),
+        pytest.param(NotionServerError("5xx"), "server", id="server"),
+        pytest.param(NotionError("weird"), "unknown", id="unknown_notion_error"),
+        pytest.param(ValueError("boom"), "unknown", id="non_notion_error"),
+    ],
+)
+def test_classify_error(exc, expected):
+    assert brain_fallback.classify_error(exc) == expected
 
 
 def test_classify_network_by_type():
     """NotionNetworkError always classifies as 'network' regardless of message."""
-    assert (
-        brain_fallback.classify_error(NotionNetworkError("Connection refused"))
-        == "network"
-    )
-    assert (
-        brain_fallback.classify_error(NotionNetworkError("getaddrinfo failed"))
-        == "network"
-    )
-    assert (
-        brain_fallback.classify_error(NotionNetworkError("totally unfamiliar"))
-        == "network"
-    )
-
-
-def test_classify_unknown_notion_error():
-    assert brain_fallback.classify_error(NotionError("weird")) == "unknown"
-
-
-def test_classify_non_notion_error():
-    assert brain_fallback.classify_error(ValueError("boom")) == "unknown"
+    assert brain_fallback.classify_error(NotionNetworkError("Connection refused")) == "network"
+    assert brain_fallback.classify_error(NotionNetworkError("getaddrinfo failed")) == "network"
+    assert brain_fallback.classify_error(NotionNetworkError("totally unfamiliar")) == "network"
 
 
 # --- user_message --------------------------------------------------------

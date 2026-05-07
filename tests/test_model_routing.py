@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
 from model_routing import format_suggestion, suggest_model
@@ -16,14 +18,18 @@ def test_simple_maps_to_haiku():
     assert "Haiku" in r["display"]
 
 
-def test_medium_maps_to_sonnet():
-    r = suggest_model("medium")
-    assert "sonnet" in r["model"].lower()
-
-
-def test_complex_maps_to_opus():
-    r = suggest_model("complex")
-    assert "opus" in r["model"].lower()
+@pytest.mark.parametrize(
+    "complexity,expected_model",
+    [
+        pytest.param("medium", "sonnet", id="medium_maps_to_sonnet"),
+        pytest.param("complex", "opus", id="complex_maps_to_opus"),
+        pytest.param("SIMPLE", "haiku", id="case_insensitive"),
+        pytest.param("  medium  ", "sonnet", id="whitespace_tolerated"),
+    ],
+)
+def test_suggest_model_mapping(complexity, expected_model):
+    r = suggest_model(complexity)
+    assert expected_model in r["model"].lower()
 
 
 def test_none_defaults_to_sonnet_with_hint():
@@ -40,16 +46,6 @@ def test_unknown_falls_back_with_warning():
     r = suggest_model("gigantic")
     assert "sonnet" in r["model"].lower()
     assert "unknown" in r["rationale"].lower()
-
-
-def test_case_insensitive():
-    r = suggest_model("SIMPLE")
-    assert "haiku" in r["model"].lower()
-
-
-def test_whitespace_tolerated():
-    r = suggest_model("  medium  ")
-    assert "sonnet" in r["model"].lower()
 
 
 def test_format_suggestion_is_one_line():

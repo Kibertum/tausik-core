@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
 from service_gates import qg0_dimensions_score
@@ -31,25 +33,38 @@ class TestDimensionsScore:
         assert all(dims.values()), f"Some dims not filled: {dims}"
         assert sum(dims.values()) == 9
 
-    def test_epic_also_counts_as_story_link(self):
-        task = {"epic_slug": "e-1"}
+    @pytest.mark.parametrize(
+        "task,field,expected",
+        [
+            pytest.param(
+                {"epic_slug": "e-1"},
+                "story_link",
+                True,
+                id="epic_also_counts_as_story_link",
+            ),
+            pytest.param(
+                {"acceptance_criteria": "Update scripts/service_gates.py function"},
+                "evidence_plan",
+                True,
+                id="evidence_plan_via_file_reference",
+            ),
+            pytest.param(
+                {"acceptance_criteria": "Apply convention from memory #32"},
+                "evidence_plan",
+                True,
+                id="evidence_plan_via_memory_reference",
+            ),
+            pytest.param(
+                {"acceptance_criteria": "Make it good and fast"},
+                "evidence_plan",
+                False,
+                id="evidence_plan_vague_ac",
+            ),
+        ],
+    )
+    def test_field_classification(self, task, field, expected):
         dims = qg0_dimensions_score(task)
-        assert dims["story_link"] is True
-
-    def test_evidence_plan_via_file_reference(self):
-        task = {"acceptance_criteria": "Update scripts/service_gates.py function"}
-        dims = qg0_dimensions_score(task)
-        assert dims["evidence_plan"] is True
-
-    def test_evidence_plan_via_memory_reference(self):
-        task = {"acceptance_criteria": "Apply convention from memory #32"}
-        dims = qg0_dimensions_score(task)
-        assert dims["evidence_plan"] is True
-
-    def test_evidence_plan_vague_ac(self):
-        task = {"acceptance_criteria": "Make it good and fast"}
-        dims = qg0_dimensions_score(task)
-        assert dims["evidence_plan"] is False
+        assert dims[field] is expected
 
     def test_whitespace_only_fields_count_as_unfilled(self):
         task = {"goal": "   ", "scope": "\n\t"}

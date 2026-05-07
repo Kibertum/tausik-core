@@ -70,26 +70,17 @@ class TestStackInfo:
 
 
 class TestStackFiltering:
-    def test_phpunit_skipped_for_python(self):
+    @pytest.mark.parametrize(
+        "gate,files,expected",
+        [
+            pytest.param("phpunit", ["main.py"], False, id="phpunit_skipped_for_python"),
+            pytest.param("phpunit", ["src/User.php"], True, id="phpunit_runs_for_php"),
+            pytest.param("js-test", ["main.go"], False, id="js_test_skipped_for_go"),
+            pytest.param("js-test", ["app.tsx"], True, id="js_test_runs_for_tsx"),
+        ],
+    )
+    def test_gate_applicability(self, gate, files, expected):
         from gate_runner import gate_applies_to
         from project_config import DEFAULT_GATES
 
-        assert gate_applies_to(DEFAULT_GATES["phpunit"], ["main.py"]) is False
-
-    def test_phpunit_runs_for_php(self):
-        from gate_runner import gate_applies_to
-        from project_config import DEFAULT_GATES
-
-        assert gate_applies_to(DEFAULT_GATES["phpunit"], ["src/User.php"]) is True
-
-    def test_js_test_skipped_for_go(self):
-        from gate_runner import gate_applies_to
-        from project_config import DEFAULT_GATES
-
-        assert gate_applies_to(DEFAULT_GATES["js-test"], ["main.go"]) is False
-
-    def test_js_test_runs_for_tsx(self):
-        from gate_runner import gate_applies_to
-        from project_config import DEFAULT_GATES
-
-        assert gate_applies_to(DEFAULT_GATES["js-test"], ["app.tsx"]) is True
+        assert gate_applies_to(DEFAULT_GATES[gate], files) is expected

@@ -403,53 +403,50 @@ class TestSessionDuration:
 class TestChecklistTier:
     """SENAR Core Rule 5: Verification checklist with 4 tiers."""
 
-    def test_tier_simple_lightweight(self, svc):
+    @pytest.mark.parametrize(
+        "title,goal,ac,complexity,expected_tier",
+        [
+            pytest.param(
+                "Simple task",
+                "Fix typo",
+                "1. Typo fixed. 2. No error in display.",
+                "simple",
+                "lightweight",
+                id="tier_simple_lightweight",
+            ),
+            pytest.param(
+                "Feature",
+                "Add export",
+                "1. Export works. 2. Error on empty data.",
+                "medium",
+                "standard",
+                id="tier_medium_standard",
+            ),
+            pytest.param(
+                "Auth",
+                "Add JWT authentication",
+                "1. JWT works. 2. Returns 401 on invalid.",
+                "medium",
+                "high",
+                id="tier_auth_auto_high",
+            ),
+            pytest.param(
+                "Refactor",
+                "Rewrite DB layer",
+                "1. DB works. 2. Error on connection fail.",
+                "complex",
+                "critical",
+                id="tier_complex_critical",
+            ),
+        ],
+    )
+    def test_tier_classification(self, svc, title, goal, ac, complexity, expected_tier):
         svc.epic_add("e1", "E1")
         svc.story_add("e1", "s1", "S1")
-        svc.task_add("s1", "t1", "Simple task", goal="Fix typo", role="developer")
-        svc.task_update(
-            "t1",
-            acceptance_criteria="1. Typo fixed. 2. No error in display.",
-            complexity="simple",
-        )
+        svc.task_add("s1", "t1", title, goal=goal, role="developer")
+        svc.task_update("t1", acceptance_criteria=ac, complexity=complexity)
         task = svc.task_show("t1")
-        assert svc._determine_checklist_tier(task) == "lightweight"
-
-    def test_tier_medium_standard(self, svc):
-        svc.epic_add("e1", "E1")
-        svc.story_add("e1", "s1", "S1")
-        svc.task_add("s1", "t1", "Feature", goal="Add export", role="developer")
-        svc.task_update(
-            "t1",
-            acceptance_criteria="1. Export works. 2. Error on empty data.",
-            complexity="medium",
-        )
-        task = svc.task_show("t1")
-        assert svc._determine_checklist_tier(task) == "standard"
-
-    def test_tier_auth_auto_high(self, svc):
-        svc.epic_add("e1", "E1")
-        svc.story_add("e1", "s1", "S1")
-        svc.task_add("s1", "t1", "Auth", goal="Add JWT authentication", role="developer")
-        svc.task_update(
-            "t1",
-            acceptance_criteria="1. JWT works. 2. Returns 401 on invalid.",
-            complexity="medium",
-        )
-        task = svc.task_show("t1")
-        assert svc._determine_checklist_tier(task) == "high"
-
-    def test_tier_complex_critical(self, svc):
-        svc.epic_add("e1", "E1")
-        svc.story_add("e1", "s1", "S1")
-        svc.task_add("s1", "t1", "Refactor", goal="Rewrite DB layer", role="developer")
-        svc.task_update(
-            "t1",
-            acceptance_criteria="1. DB works. 2. Error on connection fail.",
-            complexity="complex",
-        )
-        task = svc.task_show("t1")
-        assert svc._determine_checklist_tier(task) == "critical"
+        assert svc._determine_checklist_tier(task) == expected_tier
 
     # v1.3.4 (med-batch-2-qg #2): tier promoted by relevant_files security.
 

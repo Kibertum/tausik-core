@@ -56,11 +56,15 @@ class TestExclusionHelpers:
         assert _module_name("scripts/foo.py") == "foo"
         assert _module_name("scripts/sub/bar.py") == "bar"
 
-    def test_hooks_glob_excluded(self):
-        assert _is_excluded("scripts/hooks/any.py", SOURCE_EXCLUDES)
-
-    def test_pycache_excluded(self):
-        assert _is_excluded("scripts/__pycache__/x.pyc", SOURCE_EXCLUDES)
+    @pytest.mark.parametrize(
+        "path",
+        [
+            pytest.param("scripts/hooks/any.py", id="hooks_glob_excluded"),
+            pytest.param("scripts/__pycache__/x.pyc", id="pycache_excluded"),
+        ],
+    )
+    def test_excluded_paths(self, path):
+        assert _is_excluded(path, SOURCE_EXCLUDES)
 
     def test_unrelated_path_kept(self):
         assert not _is_excluded("scripts/foo.py", SOURCE_EXCLUDES)

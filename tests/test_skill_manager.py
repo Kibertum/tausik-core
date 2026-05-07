@@ -68,14 +68,16 @@ def _make_skill(repo_dir: str, name: str, content: str = "# Skill") -> str:
 
 
 class TestRepoNameFromUrl:
-    def test_https_url(self):
-        assert _repo_name_from_url("https://github.com/Org/my-skills") == "my-skills"
-
-    def test_url_with_git_suffix(self):
-        assert _repo_name_from_url("https://github.com/Org/repo.git") == "repo"
-
-    def test_trailing_slash(self):
-        assert _repo_name_from_url("https://github.com/Org/repo/") == "repo"
+    @pytest.mark.parametrize(
+        "url,expected",
+        [
+            pytest.param("https://github.com/Org/my-skills", "my-skills", id="https_url"),
+            pytest.param("https://github.com/Org/repo.git", "repo", id="url_with_git_suffix"),
+            pytest.param("https://github.com/Org/repo/", "repo", id="trailing_slash"),
+        ],
+    )
+    def test_repo_name(self, url, expected):
+        assert _repo_name_from_url(url) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -255,9 +257,7 @@ class TestInstallUninstall:
         vendor = str(tmp_path / "vendor")
         os.makedirs(vendor)
         with pytest.raises(SkillManagerError, match="not found"):
-            install_skill(
-                "nope", vendor, str(tmp_path), str(tmp_path / "c.json"), str(tmp_path)
-            )
+            install_skill("nope", vendor, str(tmp_path), str(tmp_path / "c.json"), str(tmp_path))
 
     def test_uninstall(self, tmp_path):
         skills_dst = str(tmp_path / "skills")
@@ -324,19 +324,26 @@ class TestRepoManagement:
 
 
 class TestUrlValidation:
-    def test_https_allowed(self):
-        _validate_url("https://github.com/Org/repo")
+    @pytest.mark.parametrize(
+        "url",
+        [
+            pytest.param("https://github.com/Org/repo", id="https_allowed"),
+            pytest.param("git@github.com:Org/repo.git", id="ssh_allowed"),
+        ],
+    )
+    def test_allowed_urls(self, url):
+        _validate_url(url)
 
-    def test_ssh_allowed(self):
-        _validate_url("git@github.com:Org/repo.git")
-
-    def test_ext_rejected(self):
+    @pytest.mark.parametrize(
+        "url",
+        [
+            pytest.param("ext::sh -c evil", id="ext_rejected"),
+            pytest.param("file:///etc/passwd", id="file_rejected"),
+        ],
+    )
+    def test_rejected_urls(self, url):
         with pytest.raises(SkillManagerError, match="Unsupported URL"):
-            _validate_url("ext::sh -c evil")
-
-    def test_file_rejected(self):
-        with pytest.raises(SkillManagerError, match="Unsupported URL"):
-            _validate_url("file:///etc/passwd")
+            _validate_url(url)
 
 
 class TestPathValidation:
@@ -454,9 +461,7 @@ class TestRepoAdd:
             return repo_dir, "my-repo"
 
         monkeypatch.setattr("skill_repos.clone_repo", fake_clone)
-        result = repo_add(
-            "https://github.com/Org/my-repo", vendor, config, force=True
-        )
+        result = repo_add("https://github.com/Org/my-repo", vendor, config, force=True)
         assert "2 skills" in result
         assert "jira" in result
 
@@ -476,9 +481,7 @@ class TestRepoAdd:
     def test_many_skills_truncated(self, tmp_path, monkeypatch):
         vendor = str(tmp_path / "vendor")
         config = str(tmp_path / "config.json")
-        skills = {
-            f"skill-{i}": {"path": f"s{i}/", "description": f"S{i}"} for i in range(15)
-        }
+        skills = {f"skill-{i}": {"path": f"s{i}/", "description": f"S{i}"} for i in range(15)}
 
         def fake_clone(url, vdir):
             repo_dir = os.path.join(vdir, "big-repo")
@@ -486,9 +489,7 @@ class TestRepoAdd:
             return repo_dir, "big-repo"
 
         monkeypatch.setattr("skill_repos.clone_repo", fake_clone)
-        result = repo_add(
-            "https://github.com/Org/big-repo", vendor, config, force=True
-        )
+        result = repo_add("https://github.com/Org/big-repo", vendor, config, force=True)
         assert "15 skills" in result
         assert "+5 more" in result
 
@@ -511,9 +512,7 @@ class TestRepoAdd:
             return repo_dir, "tausik-skills"
 
         monkeypatch.setattr("skill_repos.clone_repo", fake_clone)
-        result = repo_add(
-            "https://github.com/Kibertum/tausik-skills", vendor, config
-        )
+        result = repo_add("https://github.com/Kibertum/tausik-skills", vendor, config)
         assert "1 skill" in result
 
 
@@ -580,30 +579,20 @@ class TestCopySkillFilters:
         os.makedirs(dst)
         return repo, dst
 
-    def test_skips_claude_plugin(self, tmp_path):
+    @pytest.mark.parametrize(
+        "skipped_path",
+        [
+            pytest.param(".claude-plugin", id="skips_claude_plugin"),
+            pytest.param("hooks", id="skips_hooks"),
+            pytest.param("__pycache__", id="skips_pycache"),
+            pytest.param("CLAUDE.md", id="skips_claude_md"),
+            pytest.param(".gitmodules", id="skips_gitmodules"),
+        ],
+    )
+    def test_skips_filtered_path(self, tmp_path, skipped_path):
         repo, dst = self._setup_skill(tmp_path)
         copy_skill(repo, {"path": "myskill/"}, "myskill", dst)
-        assert not os.path.exists(os.path.join(dst, "myskill", ".claude-plugin"))
-
-    def test_skips_hooks(self, tmp_path):
-        repo, dst = self._setup_skill(tmp_path)
-        copy_skill(repo, {"path": "myskill/"}, "myskill", dst)
-        assert not os.path.exists(os.path.join(dst, "myskill", "hooks"))
-
-    def test_skips_pycache(self, tmp_path):
-        repo, dst = self._setup_skill(tmp_path)
-        copy_skill(repo, {"path": "myskill/"}, "myskill", dst)
-        assert not os.path.exists(os.path.join(dst, "myskill", "__pycache__"))
-
-    def test_skips_claude_md(self, tmp_path):
-        repo, dst = self._setup_skill(tmp_path)
-        copy_skill(repo, {"path": "myskill/"}, "myskill", dst)
-        assert not os.path.exists(os.path.join(dst, "myskill", "CLAUDE.md"))
-
-    def test_skips_gitmodules(self, tmp_path):
-        repo, dst = self._setup_skill(tmp_path)
-        copy_skill(repo, {"path": "myskill/"}, "myskill", dst)
-        assert not os.path.exists(os.path.join(dst, "myskill", ".gitmodules"))
+        assert not os.path.exists(os.path.join(dst, "myskill", skipped_path))
 
     def test_keeps_scripts(self, tmp_path):
         repo, dst = self._setup_skill(tmp_path)
@@ -715,8 +704,8 @@ class TestInstallDepsEnvHardening:
             tausik_dir=str(tmp_path / ".tausik"),
         )
         env = captured["env"]
-        assert "PIP_INDEX_URL" not in env, (
-            "PIP_INDEX_URL must be stripped — found: " + repr(env.get("PIP_INDEX_URL"))
+        assert "PIP_INDEX_URL" not in env, "PIP_INDEX_URL must be stripped — found: " + repr(
+            env.get("PIP_INDEX_URL")
         )
         assert "PIP_EXTRA_INDEX_URL" not in env
         assert "PIP_TRUSTED_HOST" not in env

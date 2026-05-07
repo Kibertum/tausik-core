@@ -184,12 +184,15 @@ def test_sanitize_empty():
     assert brain_search.sanitize_fts_query("   ") == ""
 
 
-def test_sanitize_wraps_in_quotes():
-    assert brain_search.sanitize_fts_query("hello") == '"hello"'
-
-
-def test_sanitize_escapes_embedded_quotes():
-    assert brain_search.sanitize_fts_query('a "b" c') == '"a ""b"" c"'
+@pytest.mark.parametrize(
+    "query,expected",
+    [
+        pytest.param("hello", '"hello"', id="wraps_in_quotes"),
+        pytest.param('a "b" c', '"a ""b"" c"', id="escapes_embedded_quotes"),
+    ],
+)
+def test_sanitize_query(query, expected):
+    assert brain_search.sanitize_fts_query(query) == expected
 
 
 def test_sanitize_neutralizes_dash_and_colon():

@@ -9,9 +9,7 @@ import sys
 
 import pytest
 
-_mcp_dir = os.path.join(
-    os.path.dirname(__file__), "..", "harness", "claude", "mcp", "codebase-rag"
-)
+_mcp_dir = os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "codebase-rag")
 sys.path.insert(0, os.path.abspath(_mcp_dir))
 
 from rag_detect import detect_language, get_file_list, _matches_ignore
@@ -65,9 +63,7 @@ class TestFileEdgeCases:
 
     def test_utf8_with_bom(self, tmp_path):
         bom = b"\xef\xbb\xbf"
-        (tmp_path / "bom.py").write_bytes(
-            bom + b"# -*- coding: utf-8 -*-\nprint('hello')\n"
-        )
+        (tmp_path / "bom.py").write_bytes(bom + b"# -*- coding: utf-8 -*-\nprint('hello')\n")
         files = get_file_list(str(tmp_path))
         assert any(f["rel_path"] == "bom.py" for f in files)
 
@@ -313,11 +309,15 @@ class TestGitignoreEdge:
         # Simple negation not supported, but should not crash
         assert not _matches_ignore("important.log", ["!important.log"])
 
-    def test_double_star_pattern(self):
-        assert _matches_ignore("src/deep/nested/file.pyc", ["*.pyc"])
-
-    def test_trailing_slash_dir(self):
-        assert _matches_ignore("build/output.js", ["build"])
+    @pytest.mark.parametrize(
+        "path,patterns",
+        [
+            pytest.param("src/deep/nested/file.pyc", ["*.pyc"], id="double_star_pattern"),
+            pytest.param("build/output.js", ["build"], id="trailing_slash_dir"),
+        ],
+    )
+    def test_pattern_matches(self, path, patterns):
+        assert _matches_ignore(path, patterns)
 
     def test_dotfile_not_ignored_by_default(self, tmp_path):
         (tmp_path / ".env.example").write_text("EXAMPLE=true")
@@ -346,10 +346,14 @@ class TestDetectEdge:
         result = detect_language("Main.PY")
         assert result in (None, "python")
 
-    def test_no_extension(self):
-        assert detect_language("Makefile") == "make"
-        assert detect_language("Dockerfile") == "docker"
-
-    def test_compound_extension(self):
-        assert detect_language("component.test.tsx") == "typescript"
-        assert detect_language("styles.module.css") == "css"
+    @pytest.mark.parametrize(
+        "filename,expected",
+        [
+            pytest.param("Makefile", "make", id="no_extension_makefile"),
+            pytest.param("Dockerfile", "docker", id="no_extension_dockerfile"),
+            pytest.param("component.test.tsx", "typescript", id="compound_extension_tsx"),
+            pytest.param("styles.module.css", "css", id="compound_extension_css"),
+        ],
+    )
+    def test_filename_detection(self, filename, expected):
+        assert detect_language(filename) == expected
