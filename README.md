@@ -18,6 +18,16 @@
 > by 3378 tests and is dogfooded daily — if you hit a mismatch, file an issue
 > and we'll converge it before 2.0.
 
+### What's new in v1.4 (in plain language)
+
+- **Closing a task is fast again.** Heavy tests run on a separate `tausik verify` step and get cached, so `task done` finishes in milliseconds instead of waiting for the full pipeline.
+- **A budget for every task.** Set a dollar or token cap per task; the agent gets warned at 1.5× and a hard "stop and re-plan" signal at 2×.
+- **Skill bundles, opt-in.** Install groups of official skills with one command (`integrations`, `data-formats`, `quality-pro`, `automation`, `workflow-helpers`).
+- **Skills auto-tune to your IDE and model.** Same skill, different overlay — Claude / Cursor / Qwen × Opus / Sonnet / Haiku / GPT, picked up automatically.
+- **Cleaner shared brain.** Patterns and gotchas are scrubbed for secrets before they leave your project, and search ranks results by your stack.
+- **Audit toolkit.** New scripts find dead docs, orphan files, unused Python, and copy-pasted tests so long-running projects stay tidy.
+- **Single-use push tickets.** Pushing now requires `tausik push-ok` (60-second, single-use, bound to your commit) — works the same in Claude Code, Cursor, and Qwen Code.
+
 **TAUSIK is a quality control framework for AI coding agents** — Claude Code,
 Cursor, VSCode Claude Extension, Qwen Code, Windsurf. It enforces the
 discipline of a senior engineer: plan before coding, verify before claiming
