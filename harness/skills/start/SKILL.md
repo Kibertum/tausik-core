@@ -11,6 +11,10 @@ Load project context, start session. **Token-economy: minimum work, maximum sign
 
 ## Algorithm
 
+### Phase 0 — Skill profile auto-rebuild (silent, hook-driven)
+
+The `SessionStart` hook (`scripts/hooks/session_start.py::_auto_rebuild_skills`) detects current `(ide, model)` via env > `.tausik/config.json` > auto-detect, compares with `.tausik/.session.json`, and runs `rebuild_skills` (sha256 cache) if anything changed. **No agent action required — runs before Phase 1.** Manual override: `tausik skill rebuild [--force]` or `tausik config set {ide,model}_profile <slug>`. Inspect resolved tuple with `tausik config show`.
+
 ### Phase 1 — Open + gather (single compound RPC)
 
 Check `.tausik/tausik.db` exists. If not — tell user: `python .tausik-lib/bootstrap/bootstrap.py --init`. Stop.

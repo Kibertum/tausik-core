@@ -55,6 +55,29 @@ Duration grammar: `<int><unit>` with `unit ∈ d|w|m|y` (`m=30 days`, `y=365 day
 
 Dedupe uses `SequenceMatcher.ratio()` over `title || content` and only considers rows of the **same type** — a `pattern` will never be suggested as a merge candidate for a `gotcha`. The command is suggest-only; consolidate manually with `memory show` + `memory delete`, or rewrite one row to subsume the other.
 
+## Universality heuristic (B3, v1.4 polish)
+
+When you write a memory or decision whose body mentions a well-known cross-project topic, TAUSIK prints a one-line stderr hint:
+
+```
+Universal pattern(s) detected: jwt, retry — consider promoting via `brain_draft_artifact` (or skip with `confirm: cross-project`).
+```
+
+The hint is **advisory only** — it never blocks the write, never raises, and is silent when nothing matches. Detection runs after a successful write in `service_knowledge.memory_add` and in `brain_runtime.try_brain_write_decision` / `try_brain_write_web_cache` success paths.
+
+Topics covered (regex/keyword, case-insensitive, word-boundary aware):
+
+- `rbac` — RBAC, role-based access
+- `jwt` — JWT, JSON Web Tokens
+- `oauth` — OAuth / OAuth2
+- `rate-limit` — rate-limit(ed/ing/er), throttle
+- `pagination` — paginate, cursor pagination
+- `retry` — retry, retries, exponential backoff
+- `idempotency` — idempotent, idempotency-key
+- `webhook` — webhook(s)
+
+Word-boundary guards prevent false positives (e.g. `aggregate` does not trigger `rate-limit`). To extend, edit `_TOPIC_PATTERNS` in [scripts/brain_universality.py](../../scripts/brain_universality.py).
+
 ## See also
 
 - [Shared Brain](shared-brain.md) — setup, sync, privacy model.

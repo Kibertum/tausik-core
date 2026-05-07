@@ -1,0 +1,139 @@
+"""CLI dispatcher for `tausik skill ...` (lifecycle, catalog, repo, rebuild).
+
+Extracted from project_cli_extra.py to keep that file under the 400-line gate.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from typing import Any
+
+from project_service import ProjectService
+from tausik_utils import tausik_config_path
+
+
+def cmd_skill(svc: ProjectService, args: Any) -> None:
+    """Handle skill lifecycle: activate, deactivate, list, install, uninstall, repo."""
+    c = getattr(args, "skill_cmd", None)
+    project_dir = os.getcwd()
+    vendor_dir = os.path.join(project_dir, ".tausik", "vendor")
+    tausik_dir = os.path.join(project_dir, ".tausik")
+    try:
+        from ide_utils import detect_ide, get_agents_skills_dir, get_skills_dir
+
+        _ide = detect_ide(project_dir)
+        skills_dst = get_skills_dir(project_dir, _ide)
+        lib_skills_dir = get_agents_skills_dir(project_dir, _ide)
+    except ImportError:
+        skills_dst = os.path.join(project_dir, ".claude", "skills")
+        lib_skills_dir = os.path.join(project_dir, "harness", "claude", "skills")
+
+    config_path = tausik_config_path(project_dir)
+
+    if c == "activate":
+        print(svc.skill_activate(args.name, vendor_dir, skills_dst, lib_skills_dir, config_path))
+    elif c == "deactivate":
+        print(svc.skill_deactivate(args.name, skills_dst, lib_skills_dir, config_path))
+    elif c == "list":
+        _print_skill_list(svc, vendor_dir, skills_dst)
+    elif c == "install":
+        print(svc.skill_install(args.name, vendor_dir, skills_dst, config_path, tausik_dir))
+    elif c == "uninstall":
+        print(svc.skill_uninstall(args.name, skills_dst, config_path))
+    elif c == "repo":
+        _cmd_skill_repo(args, vendor_dir, config_path)
+    elif c == "catalog":
+        _cmd_skill_catalog(svc, args, vendor_dir, config_path)
+    elif c == "rebuild":
+        from project_cli_config import cmd_skill_rebuild
+
+        cmd_skill_rebuild(args, project_dir, skills_dst)
+    else:
+        print(
+            "Usage: tausik skill [activate|deactivate|list|install|uninstall|repo|catalog|rebuild]"
+        )
+
+
+def _print_skill_list(svc: ProjectService, vendor_dir: str, skills_dst: str) -> None:
+    data = svc.skill_list(vendor_dir, skills_dst)
+    print("Skills:")
+    for s in sorted(data["active"], key=lambda x: x["name"]):
+        print(f"  [ACTIVE  ] {s['name']}")
+    for s in sorted(data["vendored"], key=lambda x: x["name"]):
+        print(f"  [VENDORED] {s['name']}")
+    try:
+        from skill_repos import repo_list_all_skills
+
+        active_names = {s["name"] for s in data["active"]}
+        vendored_names = {s["name"] for s in data["vendored"]}
+        all_repo_skills = repo_list_all_skills(vendor_dir)
+        for s in all_repo_skills:
+            if s["name"] not in active_names and s["name"] not in vendored_names:
+                desc = f" — {s['description']}" if s.get("description") else ""
+                print(f"  [AVAILABLE] {s['name']} ({s['repo']}){desc}")
+    except ImportError:
+        all_repo_skills = []
+    if not data["active"] and not data["vendored"] and not all_repo_skills:
+        print("  (none)")
+
+
+def _cmd_skill_catalog(svc: ProjectService, args: Any, vendor_dir: str, config_path: str) -> None:
+    """Print discovery catalog: name / category / repo / description."""
+    repo_name = getattr(args, "repo", None)
+    rows = svc.skill_catalog(vendor_dir, repo_name=repo_name, config_path=config_path)
+    if getattr(args, "as_json", False):
+        print(json.dumps(rows, ensure_ascii=False, indent=2))
+        return
+    if not rows:
+        if repo_name:
+            print(f"  (no skills found in repo '{repo_name}')")
+        else:
+            print("  (no skill repos cloned — try `tausik skill repo add <url>`)")
+        return
+    name_w = max(len("name"), max(len(r["name"]) for r in rows))
+    cat_w = max(len("category"), max(len(r.get("category") or "") for r in rows))
+    repo_w = max(len("repo"), max(len(r["repo"]) for r in rows))
+    print(f"  {'name':<{name_w}}  {'category':<{cat_w}}  {'repo':<{repo_w}}  description")
+    print(f"  {'-' * name_w}  {'-' * cat_w}  {'-' * repo_w}  -----------")
+    for r in rows:
+        cat = r.get("category") or ""
+        desc = (r.get("description") or "").splitlines()[0][:80]
+        print(f"  {r['name']:<{name_w}}  {cat:<{cat_w}}  {r['repo']:<{repo_w}}  {desc}")
+
+
+def _cmd_skill_repo(args: Any, vendor_dir: str, config_path: str) -> None:
+    """Handle skill repo subcommands."""
+    try:
+        from skill_repos import repo_add, repo_list, repo_remove
+    except ImportError:
+        print("Error: skill_repos module not found. Run bootstrap first.")
+        return
+
+    rc = getattr(args, "repo_cmd", None)
+    if rc == "add":
+        print(
+            repo_add(
+                args.url,
+                vendor_dir,
+                config_path,
+                force=getattr(args, "force", False),
+            )
+        )
+    elif rc == "remove":
+        print(repo_remove(args.name, vendor_dir, config_path))
+    elif rc == "list":
+        repos = repo_list(vendor_dir, config_path)
+        if not repos:
+            print("No skill repos configured.")
+            print("  Add one: tausik skill repo add <git-url>")
+            return
+        print("Skill repos:")
+        for r in repos:
+            status = "cloned" if r["cloned"] else "not cloned"
+            default = " (default)" if r.get("default") else ""
+            print(f"  {r['name']}{default} [{status}] — {r['url']}")
+            if r["skills"]:
+                print(f"    Skills: {', '.join(r['skills'])}")
+    else:
+        print("Usage: tausik skill repo [add|remove|list]")

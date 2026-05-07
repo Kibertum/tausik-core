@@ -37,6 +37,9 @@ class KnowledgeMixin:
         validate_content("content", content)
         title = safe_single_line(title) or title
         mid = self.be.memory_add(mem_type, title, content, tags, task_slug)
+        from brain_universality import emit_universality_hint
+
+        emit_universality_hint(f"{title}\n{content}")
         return f"Memory #{mid} ({mem_type}) saved."
 
     def memory_list(
@@ -106,47 +109,16 @@ class KnowledgeMixin:
         return f"Memory #{mid} deleted."
 
     def memory_archive(self, before: str, confirm: bool = False) -> dict[str, Any]:
-        """Soft-archive memory rows whose ``created_at`` is older than ``before``.
+        """Thin delegator — real logic lives in service_knowledge_hygiene."""
+        from service_knowledge_hygiene import archive_memory
 
-        ``before`` is a duration string like ``"90d"`` / ``"12w"`` / ``"2m"`` /
-        ``"1y"``. Without ``confirm=True`` returns a dry-run preview; with
-        ``confirm=True`` the matching rows get a ``archived_at`` timestamp
-        (idempotent — already-archived rows are skipped).
-        """
-        from datetime import datetime, timedelta, timezone
-
-        from memory_cleanup import parse_duration_to_days
-
-        try:
-            days = parse_duration_to_days(before)
-        except ValueError as e:
-            raise ServiceError(str(e)) from e
-        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        if confirm:
-            archived = self.be.memory_archive_apply(cutoff)
-            return {"archived": archived, "before_days": days, "cutoff": cutoff, "applied": True}
-        candidates = self.be.memory_archive_candidates(cutoff)
-        return {
-            "archived": 0,
-            "candidates": candidates,
-            "before_days": days,
-            "cutoff": cutoff,
-            "applied": False,
-        }
+        return archive_memory(self.be, before, confirm)
 
     def memory_dedupe(self, threshold: float = 0.85, n: int = 200) -> list[dict[str, Any]]:
-        """Suggest memory pairs with similarity ≥ ``threshold`` (0 < t ≤ 1).
+        """Thin delegator — real logic lives in service_knowledge_hygiene."""
+        from service_knowledge_hygiene import dedupe_memory
 
-        Compares unarchived rows in pairs (same ``type`` only) using
-        SequenceMatcher over ``title || content``. Returns suggestions sorted
-        by descending ratio. Read-only — does not delete or merge.
-        """
-        from memory_cleanup import find_dedupe_candidates
-
-        if not (0.0 < threshold <= 1.0):
-            raise ServiceError(f"threshold must be in (0, 1], got {threshold!r}")
-        rows = self.be.memory_list(n=n, include_archived=False)
-        return find_dedupe_candidates(rows, threshold)
+        return dedupe_memory(self.be, threshold, n)
 
     # --- Decisions ---
 
@@ -367,58 +339,19 @@ class KnowledgeMixin:
     # --- Explorations (SENAR Section 5.1) ---
 
     def exploration_start(self, title: str, time_limit_min: int = 30) -> str:
-        current = self.be.exploration_current()
-        if current:
-            return f"Exploration #{current['id']} already active: {current['title']}"
-        validate_length("title", title)
-        time_limit_min = max(1, min(480, time_limit_min))  # clamp 1-480 min
-        eid = self.be.exploration_start(title, time_limit_min)
-        return f"Exploration #{eid} started ({time_limit_min} min limit): {title}"
+        from service_knowledge_exploration import exploration_start
+
+        return exploration_start(self.be, title, time_limit_min)
 
     def exploration_end(self, summary: str | None = None, create_task: bool = False) -> str:
-        current = self.be.exploration_current()
-        if not current:
-            raise ServiceError("No active exploration")
-        if create_task and not summary:
-            raise ServiceError("--create-task requires --summary")
-        task_slug = None
-        self.be.begin_tx()
-        try:
-            msgs = [f"Exploration #{current['id']} ended."]
-            if create_task and summary:
-                # Auto-create task from findings
-                import os
-                from tausik_utils import slugify
+        from service_knowledge_exploration import exploration_end
 
-                slug = slugify(current["title"]) or "explore"
-                if self.be.task_get(slug):
-                    slug = f"{slug[:44]}-{os.urandom(3).hex()}"
-                self.be.task_add(None, slug, current["title"], goal=summary)
-                task_slug = slug
-                msgs.append(f"Task '{slug}' created from exploration.")
-            self.be.exploration_end(current["id"], summary, task_slug)
-            self.be.commit_tx()
-        except Exception:
-            self.be.rollback_tx()
-            raise
-        if summary:
-            msgs.append(f"Summary: {summary}")
-        return " ".join(msgs)
+        return exploration_end(self.be, summary, create_task)
 
     def exploration_current(self) -> dict[str, Any] | None:
-        exp = self.be.exploration_current()
-        if exp:
-            # Add elapsed time info
-            from datetime import datetime, timezone
+        from service_knowledge_exploration import exploration_current
 
-            try:
-                started = datetime.fromisoformat(exp["started_at"].replace("Z", "+00:00"))
-                elapsed = (datetime.now(timezone.utc) - started).total_seconds() / 60
-                exp["elapsed_min"] = round(elapsed, 1)
-                exp["over_limit"] = elapsed > (exp.get("time_limit_min") or 30)
-            except (ValueError, TypeError):
-                pass
-        return exp
+        return exploration_current(self.be)
 
     # --- Events ---
 

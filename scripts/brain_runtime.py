@@ -136,9 +136,7 @@ def open_brain_deps() -> tuple[sqlite3.Connection | None, Any | None, dict]:
     return conn, client, cfg
 
 
-def try_brain_write_decision(
-    text: str, rationale: str | None, cfg: dict
-) -> tuple[bool, str]:
+def try_brain_write_decision(text: str, rationale: str | None, cfg: dict) -> tuple[bool, str]:
     """Attempt a brain write for a decision.
 
     Returns (True, notion_page_id) on success, (False, error_reason) on any
@@ -180,6 +178,9 @@ def try_brain_write_decision(
                 )
             except Exception:
                 pass
+            from brain_universality import emit_universality_hint
+
+            emit_universality_hint(text)
             return True, result.get("notion_page_id", "")
         if status == "scrub_blocked":
             return False, f"scrub_blocked: {_format_scrub_detectors(result)}"
@@ -251,6 +252,9 @@ def try_brain_write_web_cache(
                 log_brain_event("write", query=query or url, result_count=1)
             except Exception:
                 pass
+            from brain_universality import emit_universality_hint
+
+            emit_universality_hint(content)
             return True, result.get("notion_page_id", "")
         if status == "scrub_blocked":
             return False, f"scrub_blocked: {_format_scrub_detectors(result)}"

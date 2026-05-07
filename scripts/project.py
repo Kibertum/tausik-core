@@ -38,6 +38,7 @@ def main() -> None:
         cmd_stack,
         cmd_update_claudemd,
     )
+    from project_cli_config import cmd_config
     from project_cli_doctor import cmd_doctor
     from project_cli_hygiene import cmd_hygiene
     from project_cli_role import cmd_role
@@ -101,6 +102,7 @@ def main() -> None:
         "run": cmd_run,
         "review": cmd_review,
         "hygiene": cmd_hygiene,
+        "config": cmd_config,
         "db": cmd_db,
     }
 

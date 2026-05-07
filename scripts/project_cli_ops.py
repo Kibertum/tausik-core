@@ -267,6 +267,14 @@ def cmd_audit(svc: ProjectService, args: Any) -> None:
     c = getattr(args, "audit_cmd", None)
     if c == "mark":
         print(svc.audit_mark())
+    elif c == "vendors":
+        from project_cli_audit_extra import cmd_audit_vendors
+
+        cmd_audit_vendors(args)
+    elif c == "research":
+        from project_cli_audit_extra import cmd_audit_research
+
+        cmd_audit_research(args)
     else:
         # Default and "check" -- same behavior
         warning = svc.audit_check()

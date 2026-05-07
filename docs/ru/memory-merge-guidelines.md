@@ -55,6 +55,29 @@ tausik memory dedupe --threshold 0.9 --limit 500
 
 Dedupe считает `SequenceMatcher.ratio()` по `title || content` и сравнивает только записи **одного типа** — `pattern` никогда не предложит слить с `gotcha`. Команда suggest-only; консолидируй вручную через `memory show` + `memory delete`, или перепиши одну запись, чтобы поглотить другую.
 
+## Эвристика universality (B3, v1.4 polish)
+
+Когда тело memory или decision упоминает один из общеизвестных кросс-проектных топиков, TAUSIK печатает однострочный hint в stderr:
+
+```
+Universal pattern(s) detected: jwt, retry — consider promoting via `brain_draft_artifact` (or skip with `confirm: cross-project`).
+```
+
+Hint **только подсказка** — не блокирует запись, не выбрасывает исключений, молчит когда совпадений нет. Детект идёт после успешной записи в `service_knowledge.memory_add` и в success-путях `brain_runtime.try_brain_write_decision` / `try_brain_write_web_cache`.
+
+Покрытые топики (regex/keyword, case-insensitive, word-boundary aware):
+
+- `rbac` — RBAC, role-based access
+- `jwt` — JWT, JSON Web Tokens
+- `oauth` — OAuth / OAuth2
+- `rate-limit` — rate-limit(ed/ing/er), throttle
+- `pagination` — paginate, cursor pagination
+- `retry` — retry, retries, exponential backoff
+- `idempotency` — idempotent, idempotency-key
+- `webhook` — webhook(s)
+
+Word-boundary защита убирает false positives (например, `aggregate` НЕ триггерит `rate-limit`). Расширить — править `_TOPIC_PATTERNS` в [scripts/brain_universality.py](../../scripts/brain_universality.py).
+
 ## См. также
 
 - [Shared Brain](shared-brain.md) — модель, синк, приватность.

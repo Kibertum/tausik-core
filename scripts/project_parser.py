@@ -264,9 +264,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # --- SENAR ops subparsers (delegated) ---
+    from project_parser_brain import add_brain
+    from project_parser_config import add_config
     from project_parser_ops import (
         add_audit,
-        add_brain,
         add_dead_end,
         add_doc,
         add_explore,
@@ -287,5 +288,6 @@ def build_parser() -> argparse.ArgumentParser:
     add_run(sub)
     add_doc(sub)
     add_review(sub)
+    add_config(sub)
 
     return p

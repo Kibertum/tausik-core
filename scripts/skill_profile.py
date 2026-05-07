@@ -1,17 +1,42 @@
-"""Resolve TAUSIK skill markdown for optional host profiles (variants/)."""
+"""Resolve TAUSIK skill markdown for IDE + model profiles (variants/).
+
+Two independent axes (B8-pre axis decision):
+- IDE overlay:   <skill>/variants/ide/<ide>.md     (claude/cursor/qwen/codex)
+- Model overlay: <skill>/variants/model/<model>.md (opus/sonnet/gpt-5/...)
+
+Backward compat: legacy flat layout <skill>/variants/<slug>.md still works
+when the new ide/ + model/ subdirs are absent — caller passes a single
+``requested_profile`` and the resolver walks the flat path.
+"""
 
 from __future__ import annotations
 
 import os
 import re
-import sys
-from typing import Any
+from typing import Any, Final
 
-_BOOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bootstrap")
-if _BOOT not in sys.path:
-    sys.path.insert(0, _BOOT)
 
-from bootstrap_copy import parse_skill_frontmatter  # type: ignore[import-not-found]  # noqa: E402
+def parse_skill_frontmatter(skill_md_path: str) -> dict[str, str] | None:
+    """Local copy of bootstrap.bootstrap_skill_helpers.parse_skill_frontmatter.
+
+    Duplicated intentionally so scripts/ has no dependency on bootstrap/
+    (the latter is absent from .claude/scripts/ runtime). Simple parser —
+    handles `key: value`, `key: "value"`, `key: 'value'` only.
+    """
+    try:
+        with open(skill_md_path, encoding="utf-8") as f:
+            content = f.read()
+    except (OSError, UnicodeDecodeError):
+        return None
+    m = re.match(r"^---\s*\n(.*?)\n---", content, re.DOTALL)
+    if not m:
+        return None
+    fields: dict[str, str] = {}
+    for line in m.group(1).splitlines():
+        if ":" in line:
+            key, _, value = line.partition(":")
+            fields[key.strip()] = value.strip().strip('"').strip("'")
+    return fields
 
 
 def normalize_profile_slug(raw: str) -> str:
@@ -26,14 +51,43 @@ def read_text(path: str) -> str:
         return f.read()
 
 
+_PROFILE_MARKER: Final = "<!-- tausik-profile:"
+
+
+def _strip_existing_overlays(text: str) -> str:
+    """Return text with everything from the first profile marker onward removed.
+
+    Lets ``merge_skill_markdown`` re-merge an already-merged SKILL.md without
+    accumulating overlay sections across repeated rebuilds (idempotency).
+    """
+    idx = text.find(_PROFILE_MARKER)
+    if idx == -1:
+        return text
+    return text[:idx].rstrip() + "\n"
+
+
+def _read_overlay(skill_dir: str, axis: str, slug: str) -> str | None:
+    """Return overlay text from variants/<axis>/<slug>.md or None if missing."""
+    if not slug:
+        return None
+    path = os.path.join(skill_dir, "variants", axis, f"{slug}.md")
+    if os.path.isfile(path):
+        return read_text(path)
+    return None
+
+
 def resolve_variant_overlay(
     skill_dir: str, requested_profile: str | None
 ) -> tuple[str | None, str]:
-    """Return ``(overlay_text, resolved_slug)``.
+    """LEGACY flat-layout resolver. Returns (overlay_text, resolved_slug).
+
+    Used by callers passing a single ``requested_profile`` against the old
+    flat ``variants/<slug>.md`` layout. New callers should pass ide/model
+    explicitly to ``merge_skill_markdown``.
 
     If ``requested_profile`` is empty, no overlay. If the variant file is missing,
     try ``profile_fallback`` from ``SKILL.md`` frontmatter once. Unknown profile
-    with no fallback file → ``(None, \"\")`` — caller keeps base ``SKILL.md`` only
+    with no fallback file -> (None, "") -- caller keeps base SKILL.md only
     (no exception).
     """
     if not requested_profile or not str(requested_profile).strip():
@@ -43,10 +97,10 @@ def resolve_variant_overlay(
     if not slug:
         return None, ""
 
-    def _variant_path(name: str) -> str:
+    def _flat_variant_path(name: str) -> str:
         return os.path.join(skill_dir, "variants", f"{name}.md")
 
-    vp = _variant_path(slug)
+    vp = _flat_variant_path(slug)
     if os.path.isfile(vp):
         return read_text(vp), slug
 
@@ -55,17 +109,50 @@ def resolve_variant_overlay(
     if fb:
         fb_slug = normalize_profile_slug(fb)
         if fb_slug and fb_slug != slug:
-            vp2 = _variant_path(fb_slug)
+            vp2 = _flat_variant_path(fb_slug)
             if os.path.isfile(vp2):
                 return read_text(vp2), fb_slug
 
     return None, ""
 
 
-def merge_skill_markdown(skill_dir: str, requested_profile: str | None) -> str:
-    """Full ``SKILL.md`` plus optional ``variants/<profile>.md`` overlay."""
+def merge_skill_markdown(
+    skill_dir: str,
+    requested_profile: str | None = None,
+    *,
+    ide: str | None = None,
+    model: str | None = None,
+) -> str:
+    """Full SKILL.md plus optional IDE + model overlays.
+
+    Resolution priority:
+      1. If ``ide`` or ``model`` is set, use the two-axis layout
+         (variants/ide/<ide>.md, variants/model/<model>.md). Either or both
+         may be missing — silently skipped.
+      2. Else if ``requested_profile`` is set, use the legacy flat layout
+         (variants/<slug>.md) for backward compatibility with external
+         skill repos that haven't migrated.
+      3. Else return base SKILL.md unchanged.
+
+    Two-axis merge order: base + IDE overlay + model overlay. The order
+    is deliberate — IDE constraints should be set first (how the host
+    invokes tools), then model style overlays nudge tone/verbosity.
+    """
     base_path = os.path.join(skill_dir, "SKILL.md")
-    base = read_text(base_path)
+    base = _strip_existing_overlays(read_text(base_path))
+
+    if ide is not None or model is not None:
+        ide_slug = normalize_profile_slug(ide) if ide else ""
+        model_slug = normalize_profile_slug(model) if model else ""
+        ide_overlay = _read_overlay(skill_dir, "ide", ide_slug) if ide_slug else None
+        model_overlay = _read_overlay(skill_dir, "model", model_slug) if model_slug else None
+        out = base.rstrip()
+        if ide_overlay:
+            out += f"\n\n<!-- tausik-profile:ide={ide_slug} -->\n\n" + ide_overlay.strip()
+        if model_overlay:
+            out += f"\n\n<!-- tausik-profile:model={model_slug} -->\n\n" + model_overlay.strip()
+        return out + "\n"
+
     overlay, resolved = resolve_variant_overlay(skill_dir, requested_profile)
     if overlay is None:
         return base

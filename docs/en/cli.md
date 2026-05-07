@@ -233,6 +233,13 @@ explore current                                 # Show active exploration with e
 ```bash
 audit check                     # Show whether periodic audit is overdue
 audit mark                      # Mark audit as completed
+audit vendors [--json]          # Audit cloned vendor skill repos (read-only): classifies each as
+                                # 'installed' (in installed_skills config) or 'vendored_unused'
+                                # (candidate for `skill repo remove`). Never deletes.
+audit research [--min-age-days N] [--json]
+                                # Audit docs/{en,ru}/research/ for stale unreferenced files
+                                # (default >30 days, no refs in tests/scripts/CHANGELOG/README).
+                                # Read-only — surfaces candidates for docs/_archive/research/.
 ```
 
 ## Reviews (SENAR Rule 10.15) — v1.4

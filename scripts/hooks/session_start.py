@@ -84,6 +84,55 @@ def _spawn_background_reindex(project_dir: str, mode: str = "incremental") -> No
         pass  # never break the session start
 
 
+def _auto_rebuild_skills(project_dir: str) -> None:
+    """Best-effort skill profile pre-merge on session start.
+
+    Resolves (ide, model) via env > config.json > auto-detect, then writes
+    merged SKILL.md files when the sha256 differs from what's already on
+    disk. Cache hit = no-op (microseconds). Never raises, never blocks.
+    """
+    try:
+        scripts_dir = os.path.join(project_dir, ".claude", "scripts")
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        import json as _json
+
+        from skill_profile_rebuild import rebuild_skills  # type: ignore[import-not-found]
+        from skill_profile_session import (  # type: ignore[import-not-found]
+            load_session_state,
+            now_iso,
+            resolve_profile,
+            save_session_state,
+        )
+
+        from tausik_utils import tausik_config_path  # type: ignore[import-not-found]
+
+        cfg_path = tausik_config_path(project_dir)
+        cfg: dict = {}
+        if os.path.isfile(cfg_path):
+            try:
+                with open(cfg_path, encoding="utf-8") as f:
+                    cfg = _json.load(f) or {}
+            except Exception:
+                cfg = {}
+
+        ide, model, source = resolve_profile(cfg)
+
+        tausik_dir = os.path.join(project_dir, ".tausik")
+        state = load_session_state(tausik_dir)
+        if state.get("ide") == ide and state.get("model") == model:
+            return  # cache hit — disk already merged for this combination
+
+        skills_dst = os.path.join(project_dir, ".claude", "skills")
+        if not os.path.isdir(skills_dst):
+            return
+        rebuild_skills(skills_dst, ide=ide, model=model, force=False)
+        state.update({"ide": ide, "model": model, "source": source, "last_rebuild_at": now_iso()})
+        save_session_state(tausik_dir, state)
+    except Exception:
+        return  # SessionStart must never block
+
+
 def _rag_summary(project_dir: str) -> str:
     """Best-effort summary of RAG index health + auto-spawn incremental reindex."""
     rag_db = os.path.join(project_dir, ".tausik", "rag", "rag.db")
@@ -161,6 +210,7 @@ def main() -> int:
     if not os.path.exists(tausik_db):
         return 0
 
+    _auto_rebuild_skills(project_dir)
     context = build_context(project_dir)
     if not context.strip():
         return 0
