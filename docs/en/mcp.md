@@ -2,7 +2,7 @@
 
 # TAUSIK MCP — Tool Reference (v1.4)
 
-**103 tools** for AI agents (96 project + 7 brain; v1.4 actual count, asserted via `len(TOOLS)` on both servers). The MCP surface mirrors the CLI 1:1 with zero CLI-only gaps. Prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
+**103 tools** for AI agents (96 project + 7 brain; v1.4 actual count, asserted via `len(TOOLS)` on both servers). The MCP surface covers everything an agent does day-to-day. A few CLI-only commands have no MCP equivalent — they are operator / maintenance verbs that don't belong in an agent loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. For the agent's working set, prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
 
 > **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 103 count — total with it is 110 tools.
 
@@ -94,6 +94,7 @@ Pre-1.4 there was a parallel `tausik_task_done_v2` alias for the structured-JSON
 | `tausik_session_list` | List sessions | — |
 | `tausik_session_handoff` | Save handoff data | `handoff` (object) |
 | `tausik_session_last_handoff` | Get handoff from previous session | — |
+| `tausik_session_open` (v1.4) | Compound RPC: session start + status + handoff + active/blocked tasks + self_check in one envelope. Powers `/start` Phase 1. | — |
 
 Session limit is gap-based **active time** (paused after 10-min idle gap), not wall clock. See `session-active-time.md`.
 
@@ -122,6 +123,8 @@ Session limit is gap-based **active time** (paused after 10-min idle gap), not w
 | `tausik_memory_delete` | Delete entry | `id` |
 | `tausik_memory_block` | Compact markdown: recent decisions + conventions + dead ends (for /start re-injection) | — |
 | `tausik_memory_compact` | Aggregate recent task_logs (phases + top words + top files) | — |
+| `tausik_memory_archive` (v1.4) | Soft-archive memory rows older than a duration (90d / 12w / 2m / 1y). Dry-run unless `confirm: true`. | `before` (string), `confirm` (bool, optional) |
+| `tausik_memory_dedupe` (v1.4) | List near-duplicate memory pairs above a similarity threshold (read-only). | `threshold` (float, optional), `limit` (int, optional) |
 | `tausik_decide` | Record an architectural decision | `decision` |
 | `tausik_decisions_list` | List decisions | — |
 
@@ -259,7 +262,7 @@ When `brain.enabled=true` in `.tausik/config.json`, ALL of the following must be
 | `cache_web_result` | Cache web search result for reuse | `query`, `content` |
 | `search_web_cache` | Search cached web results | `query` |
 
-These are not part of the main 98 count — they belong to the optional `codebase-rag` server.
+These are not part of the main 103 count — they belong to the optional `codebase-rag` server.
 
 ## Launching the Tausik MCP Server
 

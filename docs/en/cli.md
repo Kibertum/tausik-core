@@ -19,6 +19,7 @@ metrics [--cost]               # With --cost: rollup usage_events by task_slug (
 metrics record-session         # Persist LLM usage (tokens/cost/tool/model) for current or explicit session
 metrics log-usage              # Append one manual usage_events row (--task-slug optional; no session_usage_metrics overwrite)
 metrics cost [--since ISO] [--until ISO]   # SUM tokens/cost + COUNT rows grouped by task (NULL slug excluded)
+metrics tokens [--since ISO] [--until ISO] [--task SLUG]    # Token rollup per task (sum input/output/cache tokens)
                                 # Source: PostToolUse hook scripts/hooks/posttool_usage.py writes one
                                 #   usage_events row per tool call (source='posttool', tool_name=<tool>)
                                 #   attributed to the currently active task.
@@ -207,6 +208,14 @@ memory graph [--type {memory,decision}] [--id N]
 # Aggregators
 memory block [--max-decisions N] [--max-conventions N] [--max-deadends N] [--max-lines N]
 memory compact [--last N]
+
+# Hygiene (v1.4)
+memory archive --before <duration> [--confirm]    # Soft-archive memory older than duration
+                                                   # (90d / 12w / 2m / 1y). Dry-run by default;
+                                                   # --confirm stamps archived_at, idempotent.
+memory dedupe [--threshold 0.85] [--limit 200]     # List near-duplicate pairs above similarity
+                                                   # threshold (difflib.SequenceMatcher.ratio()
+                                                   # over title || content). Read-only.
 ```
 
 **Memory types:** pattern, gotcha, convention, context, dead_end
@@ -273,6 +282,16 @@ skill repo add <url> [--force]  # Add TAUSIK skill repo; --force required for UR
 skill repo remove <name>        # Remove a configured skill repo
 skill repo list                 # List configured repos and their skills
 skill catalog [<repo>] [--json] # Discovery: name/category/repo/description across cloned repos
+
+# Profile + bundle helpers (v1.4)
+skill rebuild [--force]         # Re-merge SKILL.md variants for the active (ide, model) profile;
+                                # idempotent (sha256 cache skips unchanged files).
+skill bundle list               # List the 6 logical bundles defined in skills-official/bundles.json
+                                # (integrations, data-formats, quality-pro, automation, workflow-helpers,
+                                # ru-locale) + their skill counts.
+skill bundle show <name>        # Show one bundle's contents (skill names + descriptions).
+skill bundle install <name>     # Install every skill in the bundle (per-skill error continues).
+skill bundle uninstall <name>   # Uninstall every skill in the bundle.
 ```
 
 Negative scenarios (unknown skill, untrusted repo URL, missing skill) print
@@ -299,15 +318,18 @@ search <query> [--scope {all,tasks,memory,decisions}]
 
 ## Hygiene (v1.4)
 
-Read-only project-hygiene helpers. Always dry-run; `--confirm` is reserved
-for future destructive operations and is rejected today.
+Project-hygiene helpers. The default `archive` call lists candidates; `--confirm`
+stamps `archived_at` on matching rows (idempotent — re-running is safe). Archived
+rows stay queryable (`task_show`, FTS, metrics see them) and `task list` filters
+them out unless `--include-archived` is passed.
 
 ```bash
-hygiene archive                 # List done tasks older than task_archive.done_age_days
+hygiene archive                 # Dry-run: list done tasks older than task_archive.done_age_days
                                 # (no-op when task_archive.enabled is false / missing).
                                 # Active / blocked / planning / review tasks are
                                 # NEVER included regardless of config.
-hygiene archive --confirm       # Currently rejected: v1 has no destructive op.
+hygiene archive --confirm       # Write: stamps archived_at (UTC ISO8601) on each candidate.
+                                # Does NOT bypass task_archive.enabled=false.
 ```
 
 Spec: `docs/en/task-archive-spec.md`. Exclusion rules and developer-side
