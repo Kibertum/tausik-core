@@ -249,8 +249,8 @@ Telemetry never blocks the actual operation: if `brain_events.INSERT` fails (loc
 ## Privacy
 
 1. **No plaintext project names leave the machine.** The only per-project identifier in the brain is `SHA256(canonical_name)[:16]`. Canonical name comes from `project_names[0]` in your local `.tausik/config.json` and is not itself pushed anywhere.
-2. **Scrubbing linter** (task `brain-scrubbing`, pending) will intercept every write before it hits the client. Rejects: absolute Windows/POSIX paths, internal domain URLs, any text matched by `brain.private_url_patterns` regex list, kebab-slugs that look like internal identifiers.
-3. **Classifier** (task `brain-classifier`, pending) picks `local` vs `brain` per-record. Only `brain`-class records are pushed. Conservative-default: ambiguous → `local`.
+2. **Scrubbing linter** (`scripts/brain_scrubbing.py`, shipped) intercepts every write before it hits the client. Rejects: absolute Windows/POSIX paths, internal domain URLs, any text matched by `brain.private_url_patterns` regex list, kebab-slugs that look like internal identifiers.
+3. **Classifier** (`scripts/brain_classifier.py`, shipped) picks `local` vs `brain` per-record. Only `brain`-class records are pushed. Conservative-default: ambiguous → `local`.
 4. **You can revoke at any time.** Revoke the Notion integration or unset `NOTION_TAUSIK_TOKEN`; the next sync/write fails cleanly with `NotionAuthError`, and the local mirror continues working for read-only searches.
 
 ## Edge cases / failure modes
@@ -276,16 +276,6 @@ Telemetry never blocks the actual operation: if `brain_events.INSERT` fails (loc
 | Privacy-preserving hash, no plaintext project names | Accidental leaks possible before `brain-scrubbing` ships |
 | FTS5 supports Cyrillic / diacritics | No shared-team mode (single-user v1) |
 
-## Alternative: Outline (TODO)
+## What ships in v1.4
 
-Outline (https://www.getoutline.com/) is a self-hostable markdown-first alternative. Potential advantages: no rate limits you don't control, simpler data model, open-source. Tradeoffs: no native "databases" construct — everything is markdown pages, so filters/views are less rich. Not implemented yet; tracked separately.
-
-## What ships in this release
-
-- Full read-path (Notion → pull → mirror → bm25 search) — **tested offline end-to-end** via mocked `urlopen`
-- Typed error hierarchy (`NotionAuthError`, `NotionNotFoundError`, `NotionRateLimitError`, `NotionServerError`)
-- 102/102 new tests green; 0 external dependencies
-
-## Still TODO (planning)
-
-`brain-mcp-tools-write`, `brain-mcp-tools-read`, `brain-mcp-server-wiring`, `brain-webfetch-hook`, `brain-classifier`, `brain-scrubbing`, `brain-decide-auto-route`, `brain-search-proactive`, `brain-skill-ui`, `brain-project-registry`, `brain-init-wizard`, `brain-fallback-offline`, `brain-notion-space` (manual), `brain-integration-token` (manual).
+The full brain stack lands in v1.4 — read AND write paths, MCP tools on both sides, hook-driven WebFetch capture, classifier + scrubbing, init wizard, offline fallback, search-proactive hook. Modules: `brain_mcp_read.py`, `brain_mcp_write.py`, `brain_classifier.py`, `brain_scrubbing.py`, `brain_search.py` (bm25 ranking with stack boost), `brain_init.py` (init wizard), `brain_project_registry.py`, `brain_fallback.py`, `brain_universality.py` + `brain_universality_semantic.py` (cross-project promotion heuristics). Typed error hierarchy: `NotionAuthError`, `NotionNotFoundError`, `NotionRateLimitError`, `NotionServerError`. Manual one-time steps (`brain-notion-space`, `brain-integration-token`) are documented in `tausik brain init` wizard output.

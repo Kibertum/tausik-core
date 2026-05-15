@@ -1,8 +1,8 @@
 **English** | [Русский](/ru/docs/senar-compliance-matrix)
 
-# SENAR v1.3 Core — Compliance Matrix
+# SENAR v1.4 Core — Compliance Matrix
 
-**Date:** 2026-04-26 | **Auditors:** 6+ independent review cycles | **Framework:** TAUSIK v1.3.0
+**Date:** 2026-05-15 | **Auditors:** 6+ independent review cycles | **Framework:** TAUSIK v1.4.0
 
 ## Quality Gates
 

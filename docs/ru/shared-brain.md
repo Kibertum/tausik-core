@@ -273,19 +273,9 @@ All-time: 142 searches, 87 hits, 18 writes (hit rate: 61.3%)
 | Notion UI для просмотра/правки | Rate limits (3 req/s) на bulk writes |
 | bm25 local search работает offline | Надо управлять integration-токеном |
 | Ноль внешних Python-зависимостей (stdlib urllib) | Нужно активно фильтровать что "обобщаемое" |
-| Privacy-preserving hash, ноль plaintext имён | До выхода `brain-scrubbing` возможны случайные утечки |
+| Privacy-preserving hash, ноль plaintext имён | Scrubbing-линтер фильтрует утечки (`scripts/brain_scrubbing.py`) |
 | FTS5 поддерживает кириллицу / диакритику | Нет shared-team режима (single-user в v1) |
 
-## Альтернатива: Outline (TODO)
+## Что входит в v1.4
 
-Outline (https://www.getoutline.com/) — self-hosted markdown-first альтернатива. Потенциальные плюсы: нет rate-limit-а, на который нельзя повлиять; проще data-модель; open-source. Минусы: нет native-понятия "databases" — всё markdown-страницы, фильтры/views беднее. Не реализовано; трекается отдельно.
-
-## Что вошло в этот релиз
-
-- Полный read-path (Notion → pull → mirror → bm25 search) — **end-to-end offline-тестирован** через mocked `urlopen`
-- Типизированная иерархия ошибок (`NotionAuthError`, `NotionNotFoundError`, `NotionRateLimitError`, `NotionServerError`)
-- 102/102 новых тестов зелёные; 0 внешних зависимостей
-
-## Ещё в плане
-
-`brain-mcp-tools-write`, `brain-mcp-tools-read`, `brain-mcp-server-wiring`, `brain-webfetch-hook`, `brain-classifier`, `brain-scrubbing`, `brain-decide-auto-route`, `brain-search-proactive`, `brain-skill-ui`, `brain-project-registry`, `brain-init-wizard`, `brain-fallback-offline`, `brain-notion-space` (ручное), `brain-integration-token` (ручное).
+Полный brain-стек ушёл в v1.4 — read И write пути, MCP-инструменты с обеих сторон, hook-driven захват WebFetch, classifier + scrubbing, init-wizard, offline fallback, search-proactive хук. Модули: `brain_mcp_read.py`, `brain_mcp_write.py`, `brain_classifier.py`, `brain_scrubbing.py`, `brain_search.py` (bm25 ранжирование со stack boost), `brain_init.py` (init wizard), `brain_project_registry.py`, `brain_fallback.py`, `brain_universality.py` + `brain_universality_semantic.py` (эвристики кросс-проектной универсализации). Типизированная иерархия ошибок: `NotionAuthError`, `NotionNotFoundError`, `NotionRateLimitError`, `NotionServerError`. Ручные one-time шаги (`brain-notion-space`, `brain-integration-token`) задокументированы в выводе `tausik brain init`.

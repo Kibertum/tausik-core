@@ -1,6 +1,6 @@
 **English** | [Русский](/ru/docs/skills)
 
-# Skills (v1.3)
+# Skills (v1.4)
 
 Skills are intent-based instructions that define agent behaviour. You don't memorize names or syntax — you write what you want, and the agent picks the right skill. Slash-prefix (`/plan`, `/ship`) explicitly invokes one.
 

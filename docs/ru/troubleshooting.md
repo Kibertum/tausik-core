@@ -50,7 +50,7 @@ Agent(
 |---|---|---|
 | `tausik_task_done` зависает / таймаут в VS Code Claude Extension | Тяжёлые гейты (pytest, tsc) шли inline, хост убил вызов на per-tool таймауте | v1.4 Verify-First Contract: сначала `tausik_verify` (стримит прогресс, можно прервать), затем `tausik_task_done` читает кеш и закрывает за миллисекунды. См. [Лимиты хоста](#лимиты-хоста-task_done-ux). |
 | `tausik_task_done` возвращает generic timeout без traceback | Старый MCP-сервер (до 1.4) проглатывал исключения в одну строку | Обнови MCP-сервер: `python bootstrap/bootstrap.py` (1.4 пишет traceback в stderr). |
-| Агент игнорирует `tausik_task_done`, всегда зовёт v1 | MCP-сервер в проекте старее 1.3.7 | Перебутстрапь; v2 публикуется рядом с v1 с 1.3.7 и предпочтительный для QG-2. |
+| Агент запускает тяжёлые гейты inline при закрытии задачи | MCP-сервер в проекте предшествует 1.4 (Verify-First Contract) | Обнови bootstrap: `python bootstrap/bootstrap.py`. В 1.4 verify отделён от close — `tausik_verify` стримит прогресс, `tausik_task_done` читает кеш. |
 | MCP tool returns stale data | MCP server cached старые scripts/* модули | Restart IDE session (re-bootstrap не помогает) |
 | `tausik doctor` reports drift | Source `scripts/` отличается от `.claude/scripts/` | Re-run `python bootstrap/bootstrap.py --ide claude` |
 | `Memory #N not found` | Не указано в какой DB | Сейчас всегда project DB; brain — отдельная команда `tausik brain show` |
@@ -65,7 +65,7 @@ MCP-серверы TAUSIK работают внутри IDE-хоста (VS Code 
 
 **Opt-out (CI / batch):** добавь `{ "task_done": { "auto_verify": true } }` в `.tausik/config.json`. `task_done` будет запускать тяжёлые гейты inline как в 1.3 — это нормально вне интерактивного хоста, где нет per-tool таймаута.
 
-**`task_done` vs `task_done`:** когда MCP-сервер публикует оба, скиллы (`/ship`, `/task`) зовут `tausik_task_done` ради структурированного ответа. Старые сборки откатываются на legacy `tausik_task_done` (одна агрегированная строка ошибки в 1.4). Оба соблюдают Verify-First Contract и читают один и тот же кеш.
+**`tausik_task_done` — единая QG-2 entrypoint.** В предыдущих доках упоминалась миграция `task_done_v2 vs task_done`; v1.4 публикует только один `tausik_task_done` (structured JSON: `stage`, `gate_results`, `blocking_failures`). Соблюдает Verify-First Contract — тяжёлые гейты должны быть уже прогнаны через `tausik_verify`, результат кешируется на 10 минут, `task_done` читает этот кеш.
 
 **Streaming-прогресс (v1.4):** когда `task done` запускает гейты inline (`auto_verify=true` или интерактивный `tausik task done`), `gate_runner` шлёт событие `run_start` ДО первого гейта с `total` (количество гейтов) и `max_seconds` (сумма таймаутов), чтобы MCP-хост показал ETA до того, как pytest заблокирует канал. CLI-обработчик мапит каждое событие в одну stderr-строку:
 
@@ -100,8 +100,7 @@ VS Code Claude Extension — самый строгий MCP-хост для TAUSI
 
 | Tool | До 1.4 | Mitigation в 1.4 |
 |---|---|---|
-| `tausik_task_done` | Запускал pytest/tsc/cargo inline → 60с+ на большом repo → kill → generic timeout | **Verify-First Contract**: отказывается закрывать пока не отработал `tausik_verify`. Verify пишет stderr прогресс, юзер может прервать, результат кешируется на 10 мин. Затем `task done` читает кеш и закрывает за <100мс. |
-| `tausik_task_done` | (не существовал) | Тот же Verify-First Contract, возвращает структурированный JSON вместо одной строки. Скиллы (`/ship`, `/task`) предпочитают его. |
+| `tausik_task_done` | Запускал pytest/tsc/cargo inline → 60с+ на большом repo → kill → generic timeout | **Verify-First Contract**: отказывается закрывать пока не отработал `tausik_verify`. Verify пишет stderr прогресс, юзер может прервать, результат кешируется на 10 мин. Затем `task done` читает кеш и закрывает за <100мс. Возвращает structured JSON (`stage`, `gate_results`, `blocking_failures`) вместо одной строки ошибки. |
 | `codebase-rag.reindex` (full) | Молча обходил все файлы → kill на 60с | Принимает `max_seconds` soft-limit; пишет `[rag] indexed X/Y files...` в stderr каждые 100 файлов. По умолчанию `incremental` — только файлы изменённые с `last_commit`. |
 | `tausik_verify` | (введён в 1.4) | Намеренная foreground-точка для тяжёлой работы. Стримит прогресс; юзер видит что происходит; хост не таймаутит пока мы пишем байты в свой idle-порог. |
 
@@ -122,7 +121,7 @@ VS Code Claude Extension — самый строгий MCP-хост для TAUSI
 
 | Симптом | Что проверить |
 |---|---|
-| Скилл зовёт `tausik_task_done` вместо v2 | `tausik_health_check` показывает оба — если только v1, перебутстрапь чтобы проект подхватил MCP-сервер 1.3.7+. |
+| Скилл зовёт legacy-форму `task_done` | v1.4 публикует единственный `tausik_task_done`. Если SKILL.md в проекте всё ещё пишет "call v2", перезапусти `python bootstrap/bootstrap.py` — `.claude/skills/` (и аналоги) обновятся под текущий контракт. |
 | Verify никогда не возвращает | Запусти ту же verify-команду из обычного терминала (`.tausik/tausik verify --task <slug>`) — если работает там, но висит через extension, проблема на стороне хоста, не TAUSIK. |
 | Хуки не срабатывают на `Write` | Ожидаемо — у VS Code extension нет hooks API. Агент обязан соблюдать правила без enforcement; для критичных по соблюдению задач переключайся на Claude Code CLI или Qwen Code, если важны hard-blocks. |
 

@@ -43,17 +43,17 @@ The Verify-First Contract's 60 s envelope timeout
 (`verify_pipeline_timeout_seconds`) catches new servers; stale ones loaded
 their code BEFORE that timer was added and ignore it.
 
-## Docker & Brain
+## Shared Brain (Notion)
 
-| Error Pattern | Diagnosis | Fix Command |
+Brain in v1.4 is Notion-backed (no Docker / CouchDB / Meilisearch / Raven anymore — those were the v1.2 architecture and have been removed). The local mirror is a single SQLite file at `~/.tausik-brain/brain.db`.
+
+| Error Pattern | Diagnosis | Fix |
 |---|---|---|
-| `Connection refused :16042` | CouchDB container not running | `.tausik/tausik brain start` |
-| `Connection refused :17758` | Meilisearch container not running | `.tausik/tausik brain start` |
-| `Connection refused :11221` | Raven gateway not running | `.tausik/tausik brain start` |
-| `401 Unauthorized` (CouchDB) | Wrong CouchDB credentials | Check `.claude-project/config.json` → `brain.couchdb_user/couchdb_password` |
-| `database_not_found` / `404` on DB | Project DB not created | `.tausik/tausik brain init` |
-| `docker: command not found` | Docker not installed | Install Docker Desktop, restart terminal |
-| `docker compose` version error | Old Docker Compose v1 | Upgrade to Docker Compose v2 (`docker compose` without hyphen) |
+| `notion API: unauthorized` / `401` | Missing or wrong Notion integration token | Export `NOTION_TAUSIK_TOKEN=<your token>` (the var name is configurable via `brain.notion_integration_token_env` in `.tausik/config.json`) and re-run `.tausik/tausik brain status` |
+| `brain not initialised` | Project never ran the wizard | `.tausik/tausik brain init` — creates Notion databases and writes `.tausik/config.json` entries |
+| `404 page_not_found` | Wrong `brain.notion_parent_page_id` or the integration was not invited to that page | Open the parent page in Notion → Connections → invite your integration |
+| `sync stalled / cursor stuck` | Local mirror corrupt or stale | `rm ~/.tausik-brain/brain.db` and re-run `.tausik/tausik brain sync --full` |
+| Mirror file missing | Never synced | `.tausik/tausik brain sync` (pull from Notion into mirror) |
 
 ## RAG (FTS5)
 
@@ -68,7 +68,7 @@ their code BEFORE that timer was added and ignore it.
 | Error Pattern | Diagnosis | Fix Command |
 |---|---|---|
 | `No config found` / `config.json missing` | Project not initialized | `.tausik/tausik init --name "Project"` |
-| `Task 'X' blocked by unfinished dependencies` | Task has unresolved deps | `.tausik/tausik dep list X` → complete deps first |
+| `Task 'X' blocked by unfinished dependencies` | Task has unresolved deps | `.tausik/tausik task show X` → finish the blockers it lists, then `.tausik/tausik task unblock X` |
 | `No active session` | Session not started | `.tausik/tausik session start` |
 | `Task 'X' already claimed by agent Y` | Multi-agent conflict | `.tausik/tausik team status` → wait or override |
 | `unrecognized arguments` | CLI syntax error | Read [`docs/en/cli.md`](cli.md) for correct syntax |
@@ -97,7 +97,7 @@ Response:
 | Error Pattern | Diagnosis | Fix Command |
 |---|---|---|
 | `.claude/` is stale / skills missing | Bootstrap not run after update | `python bootstrap/bootstrap.py` |
-| `FileNotFoundError` on skill | Skill not in core/extension list | Edit `.claude/.claude-bootstrap.json` → add to `core_skills` or `extension_skills`, re-bootstrap |
+| `FileNotFoundError` on skill | Skill not in core/extension list | Edit `.tausik/config.json` → add the skill name under `bootstrap.core_skills` or `bootstrap.extension_skills`, then re-run `python bootstrap/bootstrap.py` |
 | `charmap codec can't encode` (Windows) | Unicode in output on non-UTF8 terminal | Set `PYTHONIOENCODING=utf-8` or use `chcp 65001` |
 
 ## MCP Servers
@@ -105,11 +105,10 @@ Response:
 | Error Pattern | Diagnosis | Fix Command |
 |---|---|---|
 | MCP tool not found / unavailable | `.mcp.json` missing or wrong paths | Re-run `python bootstrap/bootstrap.py` to regenerate `.mcp.json` |
-| `raven_briefing` returns error | Raven not running or wrong project | Check `.tausik/tausik brain health` |
 | MCP server crashes on start | Wrong Python path in `.mcp.json` | Re-run `python bootstrap/bootstrap.py` to regenerate `.mcp.json` with correct paths |
 | `task_done` hangs / times out in VS Code Claude Extension | Heavy gates (pytest, tsc) ran inline, host killed call at the per-tool timeout | v1.4 Verify-First Contract: call `tausik_verify` first (streams progress, host can interrupt), then `tausik_task_done` reads cache and closes in milliseconds. See [Host limits](#host-limits-task_done-ux). |
 | `task_done` returns generic timeout error, no traceback | Old MCP server (pre 1.4) swallowed exceptions to single-line text | Update MCP server: `python bootstrap/bootstrap.py` (1.4 prints traceback to stderr). |
-| Agent ignores `tausik_task_done`, calls v1 every time | MCP server bundled in project predates 1.3.7 | Update bootstrap; v2 is published next to v1 since 1.3.7 and is the preferred QG-2 entrypoint. |
+| Agent runs heavy gates inline on task close | MCP server bundled in project predates 1.4 (the Verify-First Contract) | Update bootstrap: `python bootstrap/bootstrap.py`. v1.4 splits verify from close — `tausik_verify` streams progress, `tausik_task_done` reads cache. |
 
 ## Host limits & `task_done` UX
 
@@ -121,7 +120,7 @@ The TAUSIK MCP servers run inside an IDE host (VS Code Claude Extension, JetBrai
 
 **Opt-out (CI / batch runs):** add `{ "task_done": { "auto_verify": true } }` to `.tausik/config.json`. `task_done` will run the heavy gates inline like in 1.3 — fine outside an interactive host where there is no per-tool timeout.
 
-**`task_done` vs `task_done`:** when the bundled MCP server publishes both, skills (`/ship`, `/task`) call `tausik_task_done` for the structured response. Older bundles fall back to legacy `tausik_task_done` (single aggregated error string in 1.4). Both honour the Verify-First Contract and read the same cache.
+**`tausik_task_done` is the single QG-2 entrypoint.** Earlier docs referenced a `task_done_v2 vs task_done` migration; v1.4 ships only `tausik_task_done` (structured JSON response with `stage`, `gate_results`, `blocking_failures`). It honours the Verify-First Contract — the heavy gates must already have run via `tausik_verify`, the result is cached for 10 minutes, and `task_done` reads that cache.
 
 **Streaming progress (v1.4):** when `task done` runs gates inline (`auto_verify=true` or interactive `tausik task done`), `gate_runner` emits a `run_start` progress event up-front with `total` (gate count) and `max_seconds` (sum of per-gate timeouts) so MCP hosts can render an ETA before pytest blocks the channel. The CLI handler maps this to one stderr line per event:
 
@@ -156,8 +155,7 @@ The current extension build kills any single MCP tool call that runs longer than
 
 | Tool | Pre-1.4 behavior | v1.4 mitigation |
 |---|---|---|
-| `tausik_task_done` | Ran pytest/tsc/cargo inline → 60s+ on big repos → killed → generic timeout error | **Verify-First Contract**: refuses to close until `tausik_verify` ran. Verify streams stderr progress, the user can stop it, and its result is cached for 10 min. Then `task done` reads cache and finishes in <100ms. |
-| `tausik_task_done` | (didn't exist) | Same Verify-First Contract, returns structured JSON instead of single error string. Skills (`/ship`, `/task`) prefer it. |
+| `tausik_task_done` | Ran pytest/tsc/cargo inline → 60s+ on big repos → killed → generic timeout error | **Verify-First Contract**: refuses to close until `tausik_verify` ran. Verify streams stderr progress, the user can stop it, and its result is cached for 10 min. Then `task done` reads cache and finishes in <100ms. Returns structured JSON (`stage`, `gate_results`, `blocking_failures`) instead of a single error string. |
 | `codebase-rag.reindex` (full) | Walked every file silently → host killed at 60s | Accepts `max_seconds` soft limit; emits `[rag] indexed X/Y files...` to stderr every 100 files. Default mode is `incremental` — only files changed since `last_commit`. |
 | `tausik_verify` | (introduced 1.4) | The intended foreground heavy-work entrypoint. Streams progress; the user sees what's happening; the host doesn't time out as long as we keep emitting bytes within its idle threshold. |
 
@@ -180,6 +178,6 @@ Use these to confirm the extension is configured correctly:
 
 | Symptom | Check |
 |---|---|
-| Skill calls `tausik_task_done` instead of v2 | `tausik_health_check` lists both — if only v1, re-bootstrap so the project picks up the 1.3.7+ MCP server. |
+| Skill calls a legacy `task_done` shape | v1.4 ships a single `tausik_task_done`. If the agent's bundled SKILL.md still says "call v2", re-run `python bootstrap/bootstrap.py` so the `.claude/skills/` (and equivalents) reflect the current contract. |
 | Verify never returns | Run the same verify command from a regular terminal (`.tausik/tausik verify --task <slug>`) — if it works there but hangs through the extension, the issue is host-side, not TAUSIK. |
 | Hooks not firing on `Write` | Expected — VS Code extension has no hooks API. The agent must obey rules without enforcement; consider running task-critical work through Claude Code CLI or Qwen Code if hard blocks matter. |

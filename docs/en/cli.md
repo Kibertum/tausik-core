@@ -1,6 +1,6 @@
 **English** | [Русский](/ru/docs/cli)
 
-# TAUSIK CLI — Command Reference (v1.3)
+# TAUSIK CLI — Command Reference (v1.4)
 
 All commands are invoked via the wrapper: `.tausik/tausik <command> [subcommand] [arguments]`.
 On Windows the wrapper is `.tausik/tausik.cmd`. The same surface is also available via MCP (`tausik_*` tools); see `mcp.md`.
