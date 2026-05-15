@@ -87,6 +87,16 @@ export default defineConfig({
                 { text: "Troubleshooting", link: "/docs/troubleshooting" },
               ],
             },
+            {
+              text: "Internals",
+              collapsed: true,
+              items: [
+                { text: "Plan review protocol", link: "/docs/plan-review" },
+                { text: "Plan stacks tables", link: "/docs/plan-stacks" },
+                { text: "Skill spec", link: "/docs/skill-spec" },
+                { text: "Skill patterns", link: "/docs/skill-patterns" },
+              ],
+            },
           ],
         },
         socialLinks: [{ icon: "github", link: GITHUB_URL }],
