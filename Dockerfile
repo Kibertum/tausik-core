@@ -20,11 +20,14 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     corepack enable && \
     pnpm install --frozen-lockfile
 
-# Pull in source content (docs/{en,ru}) and site/ — this layer changes often
-# but no longer triggers a reinstall.
+# Pull in source content (docs/{en,ru}, docs/_generated, site/) — this layer
+# changes often but no longer triggers a reinstall. docs/_generated/constants.json
+# is required: HomeLanding.vue imports it for live numbers (review_agents_count,
+# hooks_count, skills_core_count, mcp_main_tools, test_count, stacks_count).
 WORKDIR /repo
 COPY docs/en docs/en
 COPY docs/ru docs/ru
+COPY docs/_generated docs/_generated
 COPY site/ site/
 
 # VitePress build (prebuild hook syncs docs/{en,ru} → site/{docs,ru/docs} via sync-docs.mjs).
