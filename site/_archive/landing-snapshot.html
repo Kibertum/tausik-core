@@ -1,0 +1,1064 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>TAUSIK — Git for AI workflow</title>
+<meta name="description" content="AI development framework that adds enforced quality gates to coding agents. Sessions, tasks, decisions, and dead-ends tracked locally; the agent physically cannot skip plan or test steps." />
+<style>
+  /* ---------- Reset / tokens ---------- */
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  :root {
+    --bg:        #0A0A0A;
+    --bg-1:      #0E0E0E;
+    --bg-2:      #131313;
+    --bg-3:      #181818;
+    --line:      #1F1F1F;
+    --line-2:    #2A2A2A;
+    --fg:        #FAFAFA;
+    --fg-1:      #D6D6D6;
+    --fg-2:      #9A9A9A;
+    --fg-3:      #6B6B6B;
+    --fg-4:      #4A4A4A;
+    --accent:    #5E6AD2;
+    --accent-2:  #7C86E0;
+    --accent-3:  #3C46A2;
+    --good:      #4CCB8E;
+    --warn:      #E8B964;
+    --bad:       #E26B6B;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Liberation Sans", sans-serif;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    --maxw: 1180px;
+    --pad-x: clamp(20px, 4vw, 56px);
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body {
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--fg-1);
+    background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "ss01", "cv11", "cv02";
+  }
+  a { color: inherit; text-decoration: none; }
+  ::selection { background: var(--accent); color: #fff; }
+
+  /* ---------- Layout shells ---------- */
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 var(--pad-x); }
+  section { padding: clamp(72px, 10vw, 128px) 0; border-top: 1px solid var(--line); position: relative; }
+  section:first-of-type { border-top: 0; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+    margin: 0 0 18px;
+    display: inline-flex; align-items: center; gap: 10px;
+  }
+  .eyebrow::before {
+    content: ""; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 12px rgba(94,106,210,0.7);
+  }
+  h1, h2, h3, h4 { color: var(--fg); font-weight: 600; letter-spacing: -0.02em; margin: 0; }
+  h2 {
+    font-size: clamp(28px, 3.6vw, 44px);
+    line-height: 1.1;
+    margin-bottom: 14px;
+    text-wrap: balance;
+  }
+  .section-sub {
+    color: var(--fg-2);
+    font-size: clamp(15px, 1.4vw, 17px);
+    max-width: 62ch;
+    margin: 0 0 56px;
+    text-wrap: pretty;
+  }
+  code, pre, kbd { font-family: var(--mono); }
+  code { font-size: 0.92em; }
+
+  /* ---------- Top bar ---------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: saturate(140%) blur(10px);
+    -webkit-backdrop-filter: saturate(140%) blur(10px);
+    background: rgba(10,10,10,0.72);
+    border-bottom: 1px solid var(--line);
+  }
+  .topbar-inner {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 56px;
+  }
+  .brand {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-family: var(--mono); font-size: 14px; letter-spacing: 0.02em;
+    color: var(--fg);
+  }
+  .brand-mark {
+    width: 18px; height: 18px; border-radius: 4px;
+    background:
+      linear-gradient(135deg, var(--accent) 0%, var(--accent-3) 100%);
+    position: relative;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.06) inset;
+  }
+  .brand-mark::after {
+    content: ""; position: absolute; inset: 4px;
+    border-radius: 2px;
+    background: var(--bg);
+    clip-path: polygon(0 0, 100% 0, 100% 30%, 30% 30%, 30% 100%, 0 100%);
+  }
+  .brand b { font-weight: 600; letter-spacing: 0.04em; }
+  .brand span.ver {
+    font-size: 11px; color: var(--fg-3);
+    padding: 2px 6px; border: 1px solid var(--line-2); border-radius: 999px;
+    margin-left: 4px;
+  }
+  .nav { display: flex; align-items: center; gap: 28px; }
+  .nav a { color: var(--fg-2); font-size: 14px; }
+  .nav a:hover { color: var(--fg); }
+  .nav .cta {
+    color: var(--fg); background: var(--bg-3);
+    border: 1px solid var(--line-2);
+    padding: 7px 12px; border-radius: 8px; font-size: 13px;
+  }
+  .nav .cta:hover { border-color: var(--fg-3); }
+  @media (max-width: 640px) {
+    .nav a.hide-sm { display: none; }
+  }
+
+  /* ---------- Hero ---------- */
+  .hero { padding-top: clamp(80px, 11vw, 140px); padding-bottom: clamp(80px, 11vw, 140px); border-top: 0; }
+  .hero-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    gap: clamp(32px, 5vw, 72px);
+    align-items: center;
+  }
+  @media (max-width: 920px) { .hero-grid { grid-template-columns: 1fr; gap: 48px; } }
+  .hero h1 {
+    font-size: clamp(40px, 6.6vw, 80px);
+    line-height: 0.98;
+    letter-spacing: -0.035em;
+    font-weight: 600;
+    color: var(--fg);
+    margin: 0 0 22px;
+  }
+  .hero h1 .accent { color: var(--accent); }
+  .hero p.lede {
+    font-size: clamp(16px, 1.6vw, 19px);
+    color: var(--fg-2);
+    margin: 0 0 36px;
+    max-width: 38ch;
+    text-wrap: pretty;
+    line-height: 1.5;
+  }
+  .hero .cta-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 28px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 11px 16px; border-radius: 8px;
+    font-size: 14px; font-weight: 500;
+    border: 1px solid transparent;
+    transition: background .15s ease, border-color .15s ease, transform .15s ease;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-2); }
+  .btn-secondary { background: transparent; color: var(--fg); border-color: var(--line-2); }
+  .btn-secondary:hover { border-color: var(--fg-3); background: var(--bg-2); }
+  .btn .arrow { transition: transform .15s ease; }
+  .btn:hover .arrow { transform: translateX(2px); }
+  .badges {
+    display: flex; flex-wrap: wrap; gap: 6px 0;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 12px; color: var(--fg-3);
+  }
+  .badges .sep { color: var(--fg-4); margin: 0 10px; }
+  .badges .b { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .badges .b::before {
+    content: ""; width: 4px; height: 4px; border-radius: 50%; background: var(--fg-4);
+  }
+  .badges .b.ok::before { background: var(--good); }
+
+  /* ---------- Terminal card (reused) ---------- */
+  .term {
+    background: var(--bg-1);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset, 0 30px 60px -30px rgba(0,0,0,0.6);
+  }
+  .term-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, #131313 0%, #101010 100%);
+  }
+  .dots { display: inline-flex; gap: 6px; }
+  .dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--line-2); display: block; }
+  .term-title {
+    font-family: var(--mono); font-size: 12px; color: var(--fg-3);
+    margin-left: 6px;
+  }
+  .term-body {
+    padding: 18px 20px;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--fg-1);
+    overflow-x: auto;
+  }
+  .term-body .line { display: block; white-space: pre; }
+  .prompt { color: var(--accent); }
+  .muted { color: var(--fg-3); }
+  .dim { color: var(--fg-4); }
+  .ok { color: var(--good); }
+  .warn { color: var(--warn); }
+  .bad { color: var(--bad); }
+  .kw { color: #C0C8FF; }
+  .str { color: #B8E0B8; }
+  .num { color: #E0C088; }
+  .comment { color: var(--fg-4); font-style: normal; }
+
+  /* Hero terminal w/ annotations */
+  .hero-term-wrap { position: relative; }
+  .annos { position: relative; margin-top: 14px; display: grid; gap: 8px; }
+  .anno {
+    display: grid; grid-template-columns: 18px 1fr; gap: 10px;
+    font-family: var(--mono); font-size: 12px; color: var(--fg-2);
+  }
+  .anno .tick {
+    color: var(--accent); font-weight: 600; text-align: right; line-height: 1.6;
+  }
+
+  /* ---------- Comparison table ---------- */
+  .compare {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--bg-1);
+  }
+  .compare-head, .compare-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .compare-head > div {
+    padding: 14px 22px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--line);
+  }
+  .compare-head .col-r { color: var(--accent-2); }
+  .compare-row > div {
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--line);
+    font-size: 15px;
+    color: var(--fg-1);
+    display: flex; gap: 12px; align-items: flex-start;
+  }
+  .compare-row:last-child > div { border-bottom: 0; }
+  .compare-row .col-l { color: var(--fg-2); border-right: 1px solid var(--line); }
+  .compare-row .col-r { color: var(--fg); }
+  .compare-row .icon {
+    flex: 0 0 16px; margin-top: 4px;
+    display: inline-block;
+  }
+  .icon-x, .icon-check {
+    width: 16px; height: 16px; border-radius: 50%;
+    display: inline-block; position: relative;
+  }
+  .icon-x { background: rgba(226,107,107,0.12); }
+  .icon-x::before, .icon-x::after {
+    content:""; position: absolute; left: 4px; top: 7.5px; width: 8px; height: 1.5px;
+    background: var(--bad); transform-origin: center;
+  }
+  .icon-x::before { transform: rotate(45deg); }
+  .icon-x::after  { transform: rotate(-45deg); }
+  .icon-check { background: rgba(94,106,210,0.15); }
+  .icon-check::after {
+    content:""; position: absolute; left: 4px; top: 4px;
+    width: 5px; height: 8px;
+    border: solid var(--accent-2); border-width: 0 1.5px 1.5px 0;
+    transform: rotate(45deg);
+  }
+  .qg-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(94,106,210,0.1);
+    color: var(--accent-2);
+    border: 1px solid rgba(94,106,210,0.25);
+    margin-left: 6px;
+    white-space: nowrap;
+  }
+  @media (max-width: 760px) {
+    .compare-head { display: none; }
+    .compare-row { grid-template-columns: 1fr; }
+    .compare-row .col-l { border-right: 0; padding-bottom: 10px; }
+    .compare-row .col-r { padding-top: 10px; background: var(--bg-2); }
+  }
+
+  /* ---------- Three messages cycle ---------- */
+  .cycle {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+  }
+  @media (max-width: 980px) { .cycle { grid-template-columns: 1fr; } }
+  .cycle .step-num {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--fg-3);
+    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .cycle .step-num b { color: var(--accent); font-weight: 600; }
+  .cycle .step-num .bar { flex: 1; height: 1px; background: var(--line); }
+  .cycle .term-body { min-height: 220px; }
+  .cycle .step-caption {
+    font-size: 14px;
+    color: var(--fg-2);
+    margin-top: 14px;
+    line-height: 1.55;
+  }
+  .cycle .step-caption b { color: var(--fg); font-weight: 500; }
+  .cycle-footer {
+    margin-top: 40px;
+    font-size: 17px;
+    color: var(--fg-2);
+    text-align: center;
+    text-wrap: balance;
+  }
+  .cycle-footer em { color: var(--fg); font-style: normal; }
+
+  /* ---------- Feature grid ---------- */
+  .features {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  @media (max-width: 900px) { .features { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .features { grid-template-columns: 1fr; } }
+  .feat {
+    background: var(--bg-1);
+    padding: 28px 26px 30px;
+    display: flex; flex-direction: column; gap: 12px;
+    min-height: 200px;
+  }
+  .feat .ico {
+    width: 32px; height: 32px;
+    border-radius: 7px;
+    background: var(--bg-3);
+    border: 1px solid var(--line-2);
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--accent-2);
+  }
+  .feat h3 { font-size: 16px; color: var(--fg); margin: 6px 0 0; }
+  .feat p { margin: 0; color: var(--fg-2); font-size: 14px; line-height: 1.55; }
+  .feat .optional {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--fg-3); margin-left: 8px;
+  }
+
+  /* ---------- Quick start ---------- */
+  .qs {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: clamp(28px, 4vw, 56px);
+    align-items: start;
+  }
+  @media (max-width: 900px) { .qs { grid-template-columns: 1fr; } }
+  .codeblock {
+    background: var(--bg-1);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .codeblock-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px 10px 16px;
+    border-bottom: 1px solid var(--line);
+    font-family: var(--mono); font-size: 12px; color: var(--fg-3);
+    background: var(--bg-2);
+  }
+  .codeblock-head .label::before {
+    content: "$"; color: var(--accent); margin-right: 8px;
+  }
+  .copy {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--fg-3); background: transparent;
+    border: 1px solid var(--line-2); border-radius: 6px;
+    padding: 4px 8px; cursor: pointer;
+    transition: color .15s, border-color .15s;
+  }
+  .copy:hover { color: var(--fg); border-color: var(--fg-3); }
+  .codeblock pre {
+    margin: 0; padding: 20px 22px;
+    font-family: var(--mono); font-size: 13.5px;
+    line-height: 1.75; color: var(--fg-1);
+    overflow-x: auto; white-space: pre;
+  }
+  .codeblock pre .p { color: var(--accent); user-select: none; }
+  .codeblock pre .c { color: var(--fg-4); }
+  .qs .note {
+    color: var(--fg-2); font-size: 14px; margin-top: 16px; line-height: 1.55;
+  }
+  .qs .note em { color: var(--fg); font-style: normal; }
+  .qs-side ul {
+    list-style: none; padding: 0; margin: 0 0 24px;
+    border-top: 1px solid var(--line);
+  }
+  .qs-side ul li {
+    display: grid; grid-template-columns: 28px 1fr; gap: 12px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--line);
+    color: var(--fg-1); font-size: 14px;
+  }
+  .qs-side ul li .n {
+    font-family: var(--mono); color: var(--accent); font-size: 12px;
+    padding-top: 2px;
+  }
+  .qs-side .link {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--accent-2); font-size: 14px;
+    border-bottom: 1px solid transparent;
+  }
+  .qs-side .link:hover { border-bottom-color: var(--accent-2); }
+
+  /* ---------- Dogfooding stats ---------- */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  @media (max-width: 760px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+  .stat {
+    background: var(--bg-1);
+    padding: 32px 28px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .stat .num {
+    font-family: var(--mono);
+    font-size: clamp(40px, 5vw, 56px);
+    color: var(--fg);
+    letter-spacing: -0.03em;
+    line-height: 1;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat .num .accent { color: var(--accent); }
+  .stat .lbl {
+    font-size: 13px; color: var(--fg-2);
+    margin-top: 8px;
+  }
+  .stats-foot {
+    margin-top: 28px;
+    color: var(--fg-2);
+    text-align: center;
+    font-size: 15px;
+    max-width: 64ch; margin-left: auto; margin-right: auto;
+  }
+
+  /* ---------- IDE list ---------- */
+  .ides {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  @media (max-width: 760px) { .ides { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 480px) { .ides { grid-template-columns: 1fr; } }
+  .ide {
+    background: var(--bg-1);
+    padding: 22px 22px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .ide .logo {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    background: var(--bg-3);
+    border: 1px solid var(--line-2);
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--fg-2);
+    font-family: var(--mono); font-size: 14px; font-weight: 600;
+    flex-shrink: 0;
+  }
+  .ide .name { font-size: 14px; color: var(--fg); font-weight: 500; line-height: 1.2; }
+  .ide .status {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--fg-3); margin-top: 4px;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .ide .status::before {
+    content: ""; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--fg-4);
+  }
+  .ide.tested .status::before { background: var(--good); }
+  .ide.tested .status { color: var(--good); }
+  .ides-foot {
+    margin-top: 24px;
+    color: var(--fg-2);
+    font-size: 14px;
+    max-width: 80ch;
+    line-height: 1.6;
+  }
+
+  /* ---------- SENAR ---------- */
+  .senar {
+    border: 1px solid var(--line);
+    background:
+      radial-gradient(800px 200px at 0% 0%, rgba(94,106,210,0.07), transparent 60%),
+      var(--bg-1);
+    border-radius: 12px;
+    padding: clamp(28px, 4vw, 48px);
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 32px;
+    align-items: center;
+  }
+  @media (max-width: 700px) { .senar { grid-template-columns: 1fr; gap: 20px; } }
+  .senar-mark {
+    width: 96px; height: 96px;
+    border-radius: 18px;
+    border: 1px solid var(--line-2);
+    background:
+      conic-gradient(from 140deg at 50% 50%, rgba(94,106,210,0.25), transparent 60%),
+      var(--bg-2);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 18px; letter-spacing: 0.1em;
+    color: var(--fg);
+  }
+  .senar p {
+    margin: 0; font-size: 16px; color: var(--fg-2); line-height: 1.65;
+    max-width: 70ch;
+  }
+  .senar p b { color: var(--fg); font-weight: 600; }
+  .senar p a { color: var(--accent-2); border-bottom: 1px solid rgba(124,134,224,0.4); }
+  .senar p a:hover { color: var(--fg); border-bottom-color: var(--fg); }
+
+  /* ---------- Footer ---------- */
+  footer {
+    border-top: 1px solid var(--line);
+    padding: 48px 0 56px;
+  }
+  .foot-grid {
+    display: grid; grid-template-columns: 2fr 1fr 1fr 1fr;
+    gap: 32px;
+  }
+  @media (max-width: 760px) { .foot-grid { grid-template-columns: 1fr 1fr; gap: 28px; } }
+  .foot-col h4 {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--fg-3);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 500;
+    margin: 0 0 12px;
+  }
+  .foot-col a, .foot-col p {
+    display: block; color: var(--fg-1); font-size: 14px; margin: 0 0 8px;
+  }
+  .foot-col a:hover { color: var(--fg); }
+  .foot-col .lic { color: var(--fg-2); }
+  .foot-bottom {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid var(--line);
+    display: flex; justify-content: space-between; align-items: center;
+    color: var(--fg-3); font-size: 13px;
+    font-family: var(--mono);
+  }
+  @media (max-width: 520px) {
+    .foot-bottom { flex-direction: column; gap: 12px; align-items: flex-start; }
+  }
+  .foot-bottom .pill {
+    border: 1px solid var(--line-2);
+    border-radius: 999px;
+    padding: 3px 10px;
+    color: var(--fg-2);
+  }
+
+  /* Subtle grid lines on hero only */
+  .hero-grid-bg {
+    position: absolute; inset: 0; pointer-events: none;
+    background:
+      linear-gradient(to bottom, transparent 60%, var(--bg) 100%),
+      radial-gradient(1000px 400px at 50% 0%, rgba(94,106,210,0.08), transparent 60%);
+    z-index: 0;
+  }
+  .hero > .wrap { position: relative; z-index: 1; }
+
+  /* Anchor offset for sticky bar */
+  :target { scroll-margin-top: 72px; }
+</style>
+</head>
+<body>
+
+<!-- ===================== TOP BAR ===================== -->
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <a class="brand" href="#top" aria-label="Tausik home">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <b>TAUSIK</b>
+      <span class="ver">v1.4.0</span>
+    </a>
+    <nav class="nav">
+      <a href="#what-you-get" class="hide-sm">Features</a>
+      <a href="#quick-start" class="hide-sm">Quick start</a>
+      <a href="https://github.com/Kibertum/tausik-core">GitHub</a>
+      <a class="cta" href="#quick-start">Get started</a>
+    </nav>
+  </div>
+</header>
+
+<a id="top"></a>
+
+<!-- ===================== HERO ===================== -->
+<section class="hero" data-screen-label="01 Hero">
+  <div class="hero-grid-bg"></div>
+  <div class="wrap">
+    <div class="hero-grid">
+      <div>
+        <p class="eyebrow">AI development framework</p>
+        <h1>Git for AI<br/>workflow<span class="accent">.</span></h1>
+        <p class="lede">
+          Plan, build, ship with quality control. Three messages.
+          Full engineering cycle. Quality gates that the agent can't skip.
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="#quick-start">Get started <span class="arrow">→</span></a>
+          <a class="btn btn-secondary" href="https://github.com/Kibertum/tausik-core">View on GitHub</a>
+        </div>
+        <div class="badges" aria-label="Project facts">
+          <span class="b">Apache 2.0</span><span class="sep">·</span>
+          <span class="b">Python 3.11+</span><span class="sep">·</span>
+          <span class="b ok">3,378 tests passing</span><span class="sep">·</span>
+          <span class="b">0 dependencies</span><span class="sep">·</span>
+          <span class="b">MCP-native</span>
+        </div>
+      </div>
+
+      <div class="hero-term-wrap">
+        <div class="term" role="img" aria-label="Terminal demo of the three-message cycle">
+          <div class="term-head">
+            <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="term-title">~/your-project — claude code</span>
+          </div>
+          <div class="term-body">
+<span class="line"><span class="muted">you ›</span> <span class="prompt">start working</span></span>
+<span class="line"><span class="dim">tausik ›</span> session <span class="num">#74</span> opened · handoff loaded · memory tail refreshed</span>
+<span class="line">        <span class="muted">↳ resume from: <span class="kw">fix(auth): retry on 401</span></span></span>
+<span class="line"> </span>
+<span class="line"><span class="muted">you ›</span> <span class="prompt">fix the bug — button doesn't work on mobile</span></span>
+<span class="line"><span class="dim">tausik ›</span> 4 edge cases collected → task <span class="num">T-219</span> · <span class="num">3</span> AC drafted</span>
+<span class="line">        <span class="kw">QG-0</span> <span class="ok">passed</span> · goal + AC locked</span>
+<span class="line">        running: pytest ruff tsc · <span class="num">5</span> review agents · cached</span>
+<span class="line">        <span class="kw">QG-2</span> <span class="ok">passed</span> · every AC has evidence</span>
+<span class="line"> </span>
+<span class="line"><span class="muted">you ›</span> <span class="prompt">ship it</span></span>
+<span class="line"><span class="dim">tausik ›</span> tausik verify · cached <span class="num">10</span>m · committed <span class="kw">a91f3e2</span></span>
+<span class="line">        push? <span class="ok">[y/N]</span> _</span>
+          </div>
+        </div>
+        <div class="annos" aria-hidden="true">
+          <div class="anno"><span class="tick">/</span><span><b style="color:var(--fg)">/start</b> &nbsp; opens session, reloads context</span></div>
+          <div class="anno"><span class="tick">/</span><span><b style="color:var(--fg)">/task</b> &nbsp;&nbsp; creates AC · runs tests · 5-agent review</span></div>
+          <div class="anno"><span class="tick">/</span><span><b style="color:var(--fg)">/ship</b> &nbsp;&nbsp; runs gates → commits → asks before pushing</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== WITHOUT VS WITH ===================== -->
+<section data-screen-label="02 Without vs With">
+  <div class="wrap">
+    <p class="eyebrow">The problem · The mechanism</p>
+    <h2>Without TAUSIK<span style="color:var(--fg-3); font-weight:500"> &nbsp;vs&nbsp; </span>With TAUSIK</h2>
+    <p class="section-sub">Enforcement, not suggestion. The agent physically can't skip steps.</p>
+
+    <div class="compare" role="table">
+      <div class="compare-head" role="row">
+        <div role="columnheader">Without TAUSIK</div>
+        <div role="columnheader" class="col-r">With TAUSIK</div>
+      </div>
+
+      <div class="compare-row" role="row">
+        <div class="col-l"><span class="icon icon-x" aria-hidden="true"></span>Agent starts coding immediately</div>
+        <div class="col-r"><span class="icon icon-check" aria-hidden="true"></span><span>Must define goal + acceptance criteria first<span class="qg-tag">QG-0</span></span></div>
+      </div>
+      <div class="compare-row" role="row">
+        <div class="col-l"><span class="icon icon-x" aria-hidden="true"></span>Claims "done" without proof</div>
+        <div class="col-r"><span class="icon icon-check" aria-hidden="true"></span><span>Completion blocked until every criterion has evidence<span class="qg-tag">QG-2</span></span></div>
+      </div>
+      <div class="compare-row" role="row">
+        <div class="col-l"><span class="icon icon-x" aria-hidden="true"></span>Context lost between sessions</div>
+        <div class="col-r"><span class="icon icon-check" aria-hidden="true"></span>Decisions, patterns, dead ends persist in local SQLite</div>
+      </div>
+      <div class="compare-row" role="row">
+        <div class="col-l"><span class="icon icon-x" aria-hidden="true"></span>Same mistake repeated 3 times</div>
+        <div class="col-r"><span class="icon icon-check" aria-hidden="true"></span>Failed approaches recorded — agent sees what didn't work</div>
+      </div>
+      <div class="compare-row" role="row">
+        <div class="col-l"><span class="icon icon-x" aria-hidden="true"></span>No tests, no linting</div>
+        <div class="col-r"><span class="icon icon-check" aria-hidden="true"></span>25 stack-aware checks auto-run (pytest, ruff, tsc, eslint, cargo, go vet…)</div>
+      </div>
+      <div class="compare-row" role="row">
+        <div class="col-l"><span class="icon icon-x" aria-hidden="true"></span>No visibility into process</div>
+        <div class="col-r"><span class="icon icon-check" aria-hidden="true"></span>6 metrics tracked automatically — throughput, defect rate, lead time</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== THREE MESSAGES ===================== -->
+<section data-screen-label="03 Three messages">
+  <div class="wrap">
+    <p class="eyebrow">The cycle</p>
+    <h2>Three messages. Full engineering cycle.</h2>
+    <p class="section-sub">You describe what you want. The framework enforces how it gets done.</p>
+
+    <div class="cycle">
+      <!-- Step 1 -->
+      <div>
+        <div class="step-num"><b>01</b> <span>session start</span><span class="bar"></span></div>
+        <div class="term">
+          <div class="term-head">
+            <span class="dots"><i></i><i></i><i></i></span>
+            <span class="term-title">message 1 of 3</span>
+          </div>
+          <div class="term-body">
+<span class="line"><span class="muted">you ›</span> <span class="prompt">start working</span></span>
+<span class="line"> </span>
+<span class="line"><span class="dim">tausik ›</span> session <span class="num">#74</span> opened</span>
+<span class="line">        handoff: <span class="kw">fix(auth): retry on 401</span></span>
+<span class="line">        memory tail: <span class="num">14</span> patterns · <span class="num">3</span> gotchas</span>
+<span class="line">        CLAUDE.md refreshed</span>
+<span class="line">        last commit: <span class="kw">a14c2bf</span> · <span class="num">2</span>h ago</span>
+<span class="line"> </span>
+<span class="line"><span class="ok">ready.</span></span>
+          </div>
+        </div>
+        <p class="step-caption"><b>Opens session</b>, loads handoff from last session, refreshes CLAUDE.md memory tail.</p>
+      </div>
+
+      <!-- Step 2 -->
+      <div>
+        <div class="step-num"><b>02</b> <span>task lifecycle</span><span class="bar"></span></div>
+        <div class="term">
+          <div class="term-head">
+            <span class="dots"><i></i><i></i><i></i></span>
+            <span class="term-title">message 2 of 3</span>
+          </div>
+          <div class="term-body">
+<span class="line"><span class="muted">you ›</span> <span class="prompt">fix the bug — button</span></span>
+<span class="line"><span class="muted">    ›</span> <span class="prompt">doesn't work on mobile</span></span>
+<span class="line"> </span>
+<span class="line"><span class="dim">tausik ›</span> interviewing on edge cases…</span>
+<span class="line">        <span class="num">4</span> edge cases collected</span>
+<span class="line">        task <span class="num">T-219</span> · <span class="num">3</span> AC drafted</span>
+<span class="line">        <span class="kw">QG-0</span> <span class="ok">passed</span></span>
+<span class="line">        writing code → pytest · ruff · tsc</span>
+<span class="line">        <span class="num">5</span> review agents · parallel</span>
+<span class="line">        AC evidence: <span class="ok">3 / 3</span></span>
+<span class="line">        <span class="kw">QG-2</span> <span class="ok">passed</span></span>
+          </div>
+        </div>
+        <p class="step-caption">Interviews you on edge cases, creates a task with acceptance criteria, writes the code, runs <b>tests + lint + 5 parallel review agents</b>, verifies each AC has evidence.</p>
+      </div>
+
+      <!-- Step 3 -->
+      <div>
+        <div class="step-num"><b>03</b> <span>ship</span><span class="bar"></span></div>
+        <div class="term">
+          <div class="term-head">
+            <span class="dots"><i></i><i></i><i></i></span>
+            <span class="term-title">message 3 of 3</span>
+          </div>
+          <div class="term-body">
+<span class="line"><span class="muted">you ›</span> <span class="prompt">ship it</span></span>
+<span class="line"> </span>
+<span class="line"><span class="dim">tausik ›</span> $ tausik verify</span>
+<span class="line">        cache hit · <span class="num">10</span>m TTL</span>
+<span class="line">        <span class="kw">QG-2</span> <span class="ok">passed</span></span>
+<span class="line">        staging <span class="num">7</span> files</span>
+<span class="line">        commit <span class="kw">a91f3e2</span> <span class="muted">"fix(ui): mobile button"</span></span>
+<span class="line"> </span>
+<span class="line">        push to <span class="kw">origin/main</span>?</span>
+<span class="line">        <span class="ok">[y/N]</span> _</span>
+          </div>
+        </div>
+        <p class="step-caption">Runs <code>tausik verify</code> (cached 10 min), passes <b>QG-2</b>, commits, asks before pushing.</p>
+      </div>
+    </div>
+
+    <p class="cycle-footer">That's it. You describe what you want. <em>The framework enforces how it gets done.</em></p>
+  </div>
+</section>
+
+<!-- ===================== WHAT YOU GET ===================== -->
+<section id="what-you-get" data-screen-label="04 What you get">
+  <div class="wrap">
+    <p class="eyebrow">What you get</p>
+    <h2>Six things, none of them optional.</h2>
+    <p class="section-sub">The framework is small on purpose. Every piece exists to enforce one specific behavior.</p>
+
+    <div class="features">
+
+      <div class="feat">
+        <span class="ico" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2.5" y="2.5" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.2"/><path d="M5.5 8L7.2 9.7L10.5 6.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+        <h3>Quality gates</h3>
+        <p>QG-0 blocks <code>task start</code> without goal + AC. QG-2 blocks <code>task done</code> without verify evidence.</p>
+      </div>
+
+      <div class="feat">
+        <span class="ico" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><ellipse cx="8" cy="4" rx="5.5" ry="2" stroke="currentColor" stroke-width="1.2"/><path d="M2.5 4V8C2.5 9.1 4.96 10 8 10C11.04 10 13.5 9.1 13.5 8V4" stroke="currentColor" stroke-width="1.2"/><path d="M2.5 8V12C2.5 13.1 4.96 14 8 14C11.04 14 13.5 13.1 13.5 12V8" stroke="currentColor" stroke-width="1.2"/></svg>
+        </span>
+        <h3>Project memory</h3>
+        <p>SQLite + FTS5 for patterns, gotchas, decisions, dead-ends. Re-injected at session start.</p>
+      </div>
+
+      <div class="feat">
+        <span class="ico" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1.5L9.7 6.2L14.5 6.4L10.7 9.2L12.1 14L8 11.2L3.9 14L5.3 9.2L1.5 6.4L6.3 6.2L8 1.5Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+        </span>
+        <h3>Verify-First</h3>
+        <p>Heavy tests on a separate <code>verify</code> step, cached for 10 minutes; closing a task is millisecond.</p>
+      </div>
+
+      <div class="feat">
+        <span class="ico" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 5L8 2L13 5V11L8 14L3 11V5Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.2"/></svg>
+        </span>
+        <h3>19 real-time hooks</h3>
+        <p>Task gate, bash firewall, push gate, auto-format, memory audits — block bad actions before they happen.</p>
+      </div>
+
+      <div class="feat">
+        <span class="ico" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8H6L7.5 4.5L10 11.5L11.5 8H14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+        <h3>103 MCP tools</h3>
+        <p>Full programmatic access to the project DB. Works the same in Claude Code, Cursor, Qwen Code, Windsurf.</p>
+      </div>
+
+      <div class="feat">
+        <span class="ico" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M2.5 8H13.5M8 2.5C9.6 4.4 10.5 6.1 10.5 8C10.5 9.9 9.6 11.6 8 13.5C6.4 11.6 5.5 9.9 5.5 8C5.5 6.1 6.4 4.4 8 2.5Z" stroke="currentColor" stroke-width="1.2"/></svg>
+        </span>
+        <h3>Cross-project brain <span class="optional">optional</span></h3>
+        <p>Notion-mirrored decisions, patterns, gotchas with privacy-preserving project hashes.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ===================== QUICK START ===================== -->
+<section id="quick-start" data-screen-label="05 Quick start">
+  <div class="wrap">
+    <p class="eyebrow">Quick start — 10 minutes</p>
+    <h2>Four commands, then restart your IDE.</h2>
+    <p class="section-sub">Bootstrap auto-detects your stack (Python, TS, Rust, Go) and enables matching quality gates.</p>
+
+    <div class="qs">
+      <div>
+        <div class="codeblock">
+          <div class="codeblock-head">
+            <span class="label">bash</span>
+            <button class="copy" type="button" data-copy>copy</button>
+          </div>
+<pre><code><span class="c"># 1 · go to your project</span>
+<span class="p">$</span> cd your-project
+
+<span class="c"># 2 · add tausik-core as a submodule</span>
+<span class="p">$</span> git submodule add https://github.com/Kibertum/tausik-core .tausik-lib
+
+<span class="c"># 3 · bootstrap (detects stack, wires hooks)</span>
+<span class="p">$</span> python .tausik-lib/bootstrap/bootstrap.py --init
+
+<span class="c"># 4 · ignore local state</span>
+<span class="p">$</span> echo ".tausik/" &gt;&gt; .gitignore</code></pre>
+        </div>
+        <p class="note"><em>Restart your IDE — done.</em> Bootstrap auto-detects your stack and enables matching quality gates.</p>
+      </div>
+
+      <aside class="qs-side">
+        <ul>
+          <li><span class="n">01</span><span>Submodule pins the framework version per-project. Update with one git command.</span></li>
+          <li><span class="n">02</span><span>Hooks register with Claude Code and Qwen Code automatically. Cursor + Windsurf wire up via MCP.</span></li>
+          <li><span class="n">03</span><span>Local SQLite DB lives in <code>.tausik/</code>. Never committed. Mirrored to Notion only if you opt in.</span></li>
+          <li><span class="n">04</span><span>First <code>start working</code> creates session <code>#1</code> and writes the initial CLAUDE.md tail.</span></li>
+        </ul>
+        <a class="link" href="https://github.com/Kibertum/tausik-core/blob/main/docs/en/quickstart.md">Read the full quick-start <span aria-hidden="true">→</span></a>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== DOGFOODING ===================== -->
+<section data-screen-label="06 Dogfooding">
+  <div class="wrap">
+    <p class="eyebrow">Dogfooding</p>
+    <h2>TAUSIK built TAUSIK.</h2>
+    <p class="section-sub">Every feature, every refactor, every bug fix went through the same quality gates that ship with the framework.</p>
+
+    <div class="stats">
+      <div class="stat"><div class="num">732</div><div class="lbl">tasks completed</div></div>
+      <div class="stat"><div class="num">73</div><div class="lbl">sessions</div></div>
+      <div class="stat"><div class="num"><span class="accent">3,378</span></div><div class="lbl">tests passing</div></div>
+      <div class="stat"><div class="num">0</div><div class="lbl">core dependencies</div></div>
+    </div>
+
+    <p class="stats-foot">Exact numbers, not rounded approximations. Reported by <code>tausik metrics</code> at <code>v1.4.0</code>.</p>
+  </div>
+</section>
+
+<!-- ===================== SUPPORTED IDES ===================== -->
+<section data-screen-label="07 IDEs">
+  <div class="wrap">
+    <p class="eyebrow">Supported IDEs &amp; agents</p>
+    <h2>Six runtimes. One enforcement layer.</h2>
+
+    <div class="ides">
+      <div class="ide tested">
+        <div class="logo">VS</div>
+        <div>
+          <div class="name">VSCode + Claude Extension</div>
+          <div class="status">Officially tested</div>
+        </div>
+      </div>
+      <div class="ide tested">
+        <div class="logo">CR</div>
+        <div>
+          <div class="name">Cursor</div>
+          <div class="status">Officially tested</div>
+        </div>
+      </div>
+      <div class="ide">
+        <div class="logo">CC</div>
+        <div>
+          <div class="name">Claude Code (CLI)</div>
+          <div class="status">Expected · partial matrix</div>
+        </div>
+      </div>
+      <div class="ide">
+        <div class="logo">QC</div>
+        <div>
+          <div class="name">Qwen Code</div>
+          <div class="status">Expected · partial matrix</div>
+        </div>
+      </div>
+      <div class="ide">
+        <div class="logo">WS</div>
+        <div>
+          <div class="name">Windsurf</div>
+          <div class="status">Expected · partial matrix</div>
+        </div>
+      </div>
+      <div class="ide">
+        <div class="logo">OC</div>
+        <div>
+          <div class="name">Codex / OpenCode-style agents</div>
+          <div class="status">Expected · manual validation</div>
+        </div>
+      </div>
+    </div>
+
+    <p class="ides-foot">103 MCP tools and the 12 core skills work everywhere. Real-time hooks live in Claude Code and Qwen Code today; Cursor and Windsurf get the same enforcement at <code>QG-0</code> and <code>QG-2</code> task transitions.</p>
+  </div>
+</section>
+
+<!-- ===================== SENAR ===================== -->
+<section data-screen-label="08 SENAR">
+  <div class="wrap">
+    <p class="eyebrow">Foundation</p>
+    <h2>Built on SENAR.</h2>
+
+    <div class="senar">
+      <div class="senar-mark" aria-hidden="true">SENAR</div>
+      <p>
+        TAUSIK implements <b>SENAR</b> — an open engineering standard for AI-assisted development.
+        Quality gates, session management, metrics, verification checklists — all defined in SENAR.
+        See <a href="https://senar.tech">senar.tech</a> for the spec.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== FOOTER ===================== -->
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-col">
+        <a class="brand" href="#top" style="margin-bottom:14px">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <b>TAUSIK</b>
+          <span class="ver">v1.4.0</span>
+        </a>
+        <p class="lic">AI development framework with enforced quality gates for coding agents.</p>
+      </div>
+      <div class="foot-col">
+        <h4>Source</h4>
+        <a href="https://github.com/Kibertum/tausik-core">github.com/Kibertum/tausik-core</a>
+        <a href="https://gitlab.yumash.ru/tausik/core">gitlab.yumash.ru/tausik/core</a>
+      </div>
+      <div class="foot-col">
+        <h4>Spec</h4>
+        <a href="https://senar.tech">senar.tech</a>
+        <a href="https://github.com/Kibertum/tausik-core/tree/main/docs">Documentation</a>
+      </div>
+      <div class="foot-col">
+        <h4>License</h4>
+        <p class="lic">Apache 2.0</p>
+        <p class="lic">Free &amp; open source</p>
+      </div>
+    </div>
+
+    <div class="foot-bottom">
+      <span>© 2026 · tausik.tech</span>
+      <span class="pill">v1.4.0 — near-stable pre-2.0</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Tiny copy-to-clipboard for the install snippet
+  document.querySelectorAll('[data-copy]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var pre = btn.closest('.codeblock').querySelector('pre');
+      var text = pre.innerText.replace(/^\$\s?/gm, '').trim();
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(function () {
+          var old = btn.textContent;
+          btn.textContent = 'copied';
+          setTimeout(function () { btn.textContent = old; }, 1400);
+        });
+      }
+    });
+  });
+</script>
+
+</body>
+</html>
