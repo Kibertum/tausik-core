@@ -20,8 +20,27 @@ def _session_hours(stats: dict | None) -> float:
     return round(stats["hours"], 1) if stats and stats.get("hours") else 0
 
 
+_FTS5_TOKEN_SPECIAL_RE = re.compile(r"[\.\-/@#]")
+
+
 def _sanitize_fts5(query: str) -> str:
-    """Sanitize query for FTS5 MATCH -- preserve phrases in quotes, escape the rest."""
+    """Sanitize ``query`` for FTS5 MATCH.
+
+    Three things happen:
+    1. Quoted phrases (``"foo bar"``) are extracted and re-emitted as
+       phrase tokens.
+    2. Operator characters (``"``, ``(``, ``)``, ``*``, ``:``, ``^``) and
+       the FTS5 boolean/proximity keywords (``AND``, ``OR``, ``NOT``,
+       ``NEAR``) are stripped from the unquoted remainder.
+    3. Each leftover bare token is inspected. Tokens that contain a
+       column-separator (``.``), hyphen (``-``), slash, ``@`` or ``#``
+       — anything that would make FTS5 raise ``syntax error near "..."``
+       — are wrapped in their own phrase quotes. The default
+       ``unicode61`` / ``simple`` tokenizer then splits the inner string
+       on those same characters so the practical effect is a phrase
+       search across the resulting word sequence (``tausik.tech`` →
+       phrase ``"tausik tech"``).
+    """
     phrases: list[str] = []
 
     def _extract_phrase(m: re.Match) -> str:
@@ -36,8 +55,17 @@ def _sanitize_fts5(query: str) -> str:
     remaining = re.sub(r'["\(\)\*\:\^]', " ", remaining)
     # Remove FTS5 boolean/proximity operators as whole words
     remaining = re.sub(r"\b(AND|OR|NOT|NEAR)\b", " ", remaining)
-    remaining = re.sub(r"\s+", " ", remaining).strip()
-    parts = ([remaining] if remaining else []) + phrases
+    # Per-token: wrap any token with column-separator-like chars in quotes
+    # so FTS5 treats it as a phrase instead of trying to parse syntax.
+    wrapped: list[str] = []
+    for tok in remaining.split():
+        if _FTS5_TOKEN_SPECIAL_RE.search(tok):
+            clean = _FTS5_TOKEN_SPECIAL_RE.sub(" ", tok).strip()
+            if clean:
+                wrapped.append(f'"{clean}"')
+        else:
+            wrapped.append(tok)
+    parts = wrapped + phrases
     return " ".join(parts) if parts else ""
 
 

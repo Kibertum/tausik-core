@@ -13,6 +13,7 @@ const SKILLS_CORE = constants.skills_core_count;
 const MCP_TOOLS = constants.mcp_main_tools;
 const TESTS = constants.test_count;
 const STACKS = constants.stacks_count;
+const VERSION = constants.tausik_version;
 
 const copy = {
   en: {
@@ -198,7 +199,7 @@ const copy = {
         { h: "License", text: ["Apache 2.0", "Free & open source"] },
       ],
       copyright: "© 2026 · tausik.tech",
-      pill: "v1.4.0 — near-stable pre-2.0",
+      pill: `v${VERSION} — near-stable pre-2.0`,
     },
   },
   ru: {
@@ -383,7 +384,7 @@ const copy = {
         { h: "Лицензия", text: ["Apache 2.0", "Свободный & open source"] },
       ],
       copyright: "© 2026 · tausik.tech",
-      pill: "v1.4.0 — near-stable pre-2.0",
+      pill: `v${VERSION} — near-stable pre-2.0`,
     },
   },
 };
@@ -731,7 +732,7 @@ function copyInstall(e: MouseEvent) {
             <p class="brand-line">
               <span class="brand-mark"></span>
               <b>TAUSIK</b>
-              <span class="ver">v1.4.0</span>
+              <span class="ver">v{{ VERSION }}</span>
             </p>
             <p class="lic">{{ t.footer.tagline }}</p>
           </div>
