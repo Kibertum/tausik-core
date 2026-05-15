@@ -42,6 +42,7 @@ def test_qwen_registers_brain_when_server_present(qwen_layout):
     cfg = _load_settings(qwen_layout["target_dir"])
     assert "tausik-brain" in cfg["mcpServers"]
     entry = cfg["mcpServers"]["tausik-brain"]
+    assert entry["type"] == "stdio"
     assert entry["command"] == "C:/py/python.exe"
     assert entry["args"][0].endswith("mcp/brain/server.py")
     assert entry["args"][1] == "--project"

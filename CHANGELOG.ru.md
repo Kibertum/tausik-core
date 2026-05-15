@@ -9,6 +9,12 @@
 > начиная с v1.3.2; для более ранних релизов смотри английскую версию.
 > При добавлении новой записи держи оба файла синхронизированными.
 
+## [Unreleased]
+
+### Запланировано (v1.5)
+
+- **Переработка интеграции MCP для Cursor.** Зеркало MCP в workspace (`mcps/`, цепочка `cursor_mcp_lease_snapshot_store`) в Cursor 3.2.x **не публикует проектные stdio-серверы** (`tausik-project`, `codebase-rag`, `tausik-brain`) в тот же снимок, что и встроенный браузерный MCP — в `lease_server_status` они есть, но в **`cursor_mcp_lease_snapshot_store` остаётся только `cursor-ide-browser`** (исследование: [`docs/ru/research/tausik-1.5-mcp-cursor-rework-2026-05-08.md`](docs/ru/research/tausik-1.5-mcp-cursor-rework-2026-05-08.md), EN: [`docs/en/research/tausik-1.5-mcp-cursor-rework-2026-05-08.md`](docs/en/research/tausik-1.5-mcp-cursor-rework-2026-05-08.md)). Бэклог v1.5: матрица контракта хоста, опциональный HTTP/SSE-мост или регистрация через Extension API, диагностический скрипт, upstream-отчёт — **без** отказа от поддерживаемого fallback **`.tausik/tausik`**.
+
 ## [1.4.0] — 2026-05-07
 
 ### Добавлено

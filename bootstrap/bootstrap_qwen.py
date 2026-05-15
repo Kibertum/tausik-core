@@ -11,6 +11,8 @@ import os
 import sys
 from typing import Any
 
+from bootstrap_generate import _stdio_mcp_server
+
 
 def generate_settings_qwen(
     target_dir: str,
@@ -55,22 +57,22 @@ def generate_settings_qwen(
     servers = existing.get("mcpServers", {})
     rag_server = os.path.join(target_dir, "mcp", "codebase-rag", "server.py")
     if os.path.exists(rag_server):
-        servers["codebase-rag"] = {
-            "command": _p(python_exe),
-            "args": [_p(rag_server), "--project", _p(project_dir)],
-        }
+        servers["codebase-rag"] = _stdio_mcp_server(
+            _p(python_exe),
+            [_p(rag_server), "--project", _p(project_dir)],
+        )
     project_server = os.path.join(target_dir, "mcp", "project", "server.py")
     if os.path.exists(project_server):
-        servers["tausik-project"] = {
-            "command": _p(python_exe),
-            "args": [_p(project_server), "--project", _p(project_dir)],
-        }
+        servers["tausik-project"] = _stdio_mcp_server(
+            _p(python_exe),
+            [_p(project_server), "--project", _p(project_dir)],
+        )
     brain_server = os.path.join(target_dir, "mcp", "brain", "server.py")
     if os.path.exists(brain_server):
-        servers["tausik-brain"] = {
-            "command": _p(python_exe),
-            "args": [_p(brain_server), "--project", _p(project_dir)],
-        }
+        servers["tausik-brain"] = _stdio_mcp_server(
+            _p(python_exe),
+            [_p(brain_server), "--project", _p(project_dir)],
+        )
 
     # Hooks — same SENAR enforcement as Claude Code
     hooks = {

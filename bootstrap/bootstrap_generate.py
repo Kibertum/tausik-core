@@ -10,6 +10,11 @@ from typing import Any
 from bootstrap_hooks import build_hooks_dict
 
 
+def _stdio_mcp_server(command: str, args: list[str]) -> dict[str, Any]:
+    """Cursor / VS Code MCP stdio transport — ``type`` required per host docs."""
+    return {"type": "stdio", "command": command, "args": args}
+
+
 def generate_settings_claude(target_dir: str, project_dir: str, lib_dir: str | None = None) -> None:
     """Generate .claude/settings.json for Claude Code.
 
@@ -76,22 +81,22 @@ def generate_mcp_json(project_dir: str, ide_dir: str, venv_python: str | None = 
     # Core MCP servers (always managed)
     rag_server = os.path.join(ide_dir, "mcp", "codebase-rag", "server.py")
     if os.path.exists(rag_server):
-        servers["codebase-rag"] = {
-            "command": _p(python_exe),
-            "args": [_p(rag_server), "--project", _p(project_dir)],
-        }
+        servers["codebase-rag"] = _stdio_mcp_server(
+            _p(python_exe),
+            [_p(rag_server), "--project", _p(project_dir)],
+        )
     project_server = os.path.join(ide_dir, "mcp", "project", "server.py")
     if os.path.exists(project_server):
-        servers["tausik-project"] = {
-            "command": _p(python_exe),
-            "args": [_p(project_server), "--project", _p(project_dir)],
-        }
+        servers["tausik-project"] = _stdio_mcp_server(
+            _p(python_exe),
+            [_p(project_server), "--project", _p(project_dir)],
+        )
     brain_server = os.path.join(ide_dir, "mcp", "brain", "server.py")
     if os.path.exists(brain_server):
-        servers["tausik-brain"] = {
-            "command": _p(python_exe),
-            "args": [_p(brain_server), "--project", _p(project_dir)],
-        }
+        servers["tausik-brain"] = _stdio_mcp_server(
+            _p(python_exe),
+            [_p(brain_server), "--project", _p(project_dir)],
+        )
 
     mcp_config = {**existing, "mcpServers": servers}
     with open(path, "w", encoding="utf-8") as f:
@@ -125,22 +130,22 @@ def generate_cursor_mcp_json(
 
     rag_server = os.path.join(ide_dir, "mcp", "codebase-rag", "server.py")
     if os.path.exists(rag_server):
-        servers["codebase-rag"] = {
-            "command": _p(python_exe),
-            "args": [_p(rag_server), "--project", _p(project_dir)],
-        }
+        servers["codebase-rag"] = _stdio_mcp_server(
+            _p(python_exe),
+            [_p(rag_server), "--project", _p(project_dir)],
+        )
     project_server = os.path.join(ide_dir, "mcp", "project", "server.py")
     if os.path.exists(project_server):
-        servers["tausik-project"] = {
-            "command": _p(python_exe),
-            "args": [_p(project_server), "--project", _p(project_dir)],
-        }
+        servers["tausik-project"] = _stdio_mcp_server(
+            _p(python_exe),
+            [_p(project_server), "--project", _p(project_dir)],
+        )
     brain_server = os.path.join(ide_dir, "mcp", "brain", "server.py")
     if os.path.exists(brain_server):
-        servers["tausik-brain"] = {
-            "command": _p(python_exe),
-            "args": [_p(brain_server), "--project", _p(project_dir)],
-        }
+        servers["tausik-brain"] = _stdio_mcp_server(
+            _p(python_exe),
+            [_p(brain_server), "--project", _p(project_dir)],
+        )
 
     mcp_config = {**existing, "mcpServers": servers}
     with open(path, "w", encoding="utf-8") as f:

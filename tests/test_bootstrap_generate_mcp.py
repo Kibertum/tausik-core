@@ -49,6 +49,7 @@ def test_registers_brain_when_server_present(ide_layout):
     cfg = _load_config(ide_layout["project_dir"])
     assert "tausik-brain" in cfg["mcpServers"]
     entry = cfg["mcpServers"]["tausik-brain"]
+    assert entry["type"] == "stdio"
     assert entry["command"] == "C:/py/python.exe"
     assert entry["args"][0].endswith("mcp/brain/server.py")
     assert entry["args"][1] == "--project"
@@ -104,6 +105,7 @@ def test_updates_managed_server_entries(ide_layout):
     )
     cfg = _load_config(ide_layout["project_dir"])
     assert cfg["mcpServers"]["tausik-project"]["command"] == "fresh-py"
+    assert cfg["mcpServers"]["tausik-project"]["type"] == "stdio"
 
 
 def test_uses_forward_slashes_in_paths(tmp_path):
@@ -131,6 +133,7 @@ def test_generates_cursor_project_mcp_json(ide_layout):
     cfg = _load_cursor_config(ide_layout["project_dir"])
     assert "tausik-project" in cfg["mcpServers"]
     assert "tausik-brain" in cfg["mcpServers"]
+    assert cfg["mcpServers"]["tausik-project"]["type"] == "stdio"
     assert cfg["mcpServers"]["tausik-project"]["command"] == "C:/py/python.exe"
 
 

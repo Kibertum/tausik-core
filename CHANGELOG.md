@@ -7,6 +7,12 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 > Russian mirror: [`CHANGELOG.ru.md`](CHANGELOG.ru.md). Both files cover
 > the same releases — keep them in sync when adding a new entry.
 
+## [Unreleased]
+
+### Planned (v1.5)
+
+- **Cursor MCP integration rework.** Composer / workspace MCP filesystem mirror (`mcps/` lease snapshot) in Cursor 3.2.x **does not currently publish project stdio servers** (`tausik-project`, `codebase-rag`, `tausik-brain`) into the same snapshot path as the built-in browser MCP — they appear in `lease_server_status` but **`cursor_mcp_lease_snapshot_store` lists only `cursor-ide-browser`** (see investigation: [`docs/en/research/tausik-1.5-mcp-cursor-rework-2026-05-08.md`](docs/en/research/tausik-1.5-mcp-cursor-rework-2026-05-08.md), RU: [`docs/ru/research/tausik-1.5-mcp-cursor-rework-2026-05-08.md`](docs/ru/research/tausik-1.5-mcp-cursor-rework-2026-05-08.md)). v1.5 backlog: host contract matrix, optional HTTP/SSE bridge or extension registration, diagnostic script, upstream report — **without** dropping the supported **`.tausik/tausik` CLI** fallback.
+
 ## [1.4.0] — 2026-05-07
 
 ### Added
