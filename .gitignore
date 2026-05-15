@@ -58,10 +58,12 @@ nul
 # Archives
 *.tar.gz
 
-# Coverage / pytest
+# Coverage / pytest / linter caches (all regenerable)
 .coverage
 .coverage.*
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # Review reports
 REVIEW-REPORT-*.md
