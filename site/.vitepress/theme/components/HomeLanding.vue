@@ -131,7 +131,7 @@ const copy = {
     footer: {
       tagline: "AI development framework with enforced quality gates for coding agents.",
       cols: [
-        { h: "Source", links: [["github.com/Kibertum/tausik-core", "https://github.com/Kibertum/tausik-core"], ["gitlab.yumash.ru/tausik/core", "https://gitlab.yumash.ru/tausik/core"]] },
+        { h: "Source", links: [["github.com/Kibertum/tausik-core", "https://github.com/Kibertum/tausik-core"]] },
         { h: "Spec", links: [["senar.tech", "https://senar.tech"], ["Documentation", "/docs/quickstart"]] },
         { h: "License", text: ["Apache 2.0", "Free & open source"] },
       ],
@@ -263,7 +263,7 @@ const copy = {
     footer: {
       tagline: "Фреймворк AI-разработки с принудительными quality gates для coding-агентов.",
       cols: [
-        { h: "Исходники", links: [["github.com/Kibertum/tausik-core", "https://github.com/Kibertum/tausik-core"], ["gitlab.yumash.ru/tausik/core", "https://gitlab.yumash.ru/tausik/core"]] },
+        { h: "Исходники", links: [["github.com/Kibertum/tausik-core", "https://github.com/Kibertum/tausik-core"]] },
         { h: "Спецификация", links: [["senar.tech", "https://senar.tech"], ["Документация", "/ru/docs/quickstart"]] },
         { h: "Лицензия", text: ["Apache 2.0", "Свободный & open source"] },
       ],

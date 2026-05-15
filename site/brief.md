@@ -119,7 +119,6 @@ One-paragraph attribution: *"TAUSIK implements **SENAR** — an open engineering
 
 - License: Apache 2.0
 - GitHub: github.com/Kibertum/tausik-core
-- Mirrors: gitlab.yumash.ru/tausik/core
 - Methodology: senar.tech
 - Year-stamp: © 2026
 

@@ -7,7 +7,7 @@
 - **VitePress 1.6** — Markdown → static HTML, bilingual (EN at `/`, RU at `/ru/`)
 - **Node 22 + pnpm 10.33** (managed by Corepack; pinned via `package.json#packageManager`)
 - **nginx:alpine** in production (`Dockerfile` multi-stage build → `site/nginx.conf`)
-- **Deploy**: GitLab CI on `gitlab.yumash.ru/tausik/core` (same pattern as SENAR), container `tausik-site` on port `8900:80`
+- **Deploy**: internal CI pipeline (Docker build + nginx container), `tausik-site` on port `8900:80`
 
 ## Source of truth
 
@@ -50,12 +50,12 @@ docker stop tausik-site-test && docker rm tausik-site-test
 
 ## CI/CD
 
-`.gitlab-ci.yml` (repo root) — two-stage pipeline on `main` only:
+The repo's CI config (root, intentionally not detailed here) defines a two-stage pipeline on `main` only:
 
-1. **build** (tags `[common]`) — `docker login` → `docker build --cache-from $IMAGE_LATEST` → push `:short-sha` and `:latest` to `$CI_REGISTRY_IMAGE`.
-2. **deploy** (tags `[docker-services]`) — pull image, `docker stop tausik-site && docker rm tausik-site || true`, `docker run -d --name tausik-site --restart unless-stopped -p 8900:80 $IMAGE`, sleep 3, `docker ps | grep`, `curl -sf http://localhost:8900/` for a smoke check.
+1. **build** — `docker build --cache-from $IMAGE_LATEST` → push `:short-sha` and `:latest` to the container registry.
+2. **deploy** — pull image, recreate `tausik-site` container on host port `8900:80`, smoke `curl http://localhost:8900/`.
 
-DNS: `tausik.tech` should point at the reverse proxy on the deploy host (currently the same docker-services runner as SENAR). The container exposes port 80; the proxy terminates TLS and forwards to host port 8900.
+DNS: `tausik.tech` points at the reverse proxy on the deploy host. The container exposes port 80; the proxy terminates TLS and forwards to host port 8900.
 
 ## Known limitations (intentional, tracked as TAUSIK memory)
 
@@ -66,4 +66,4 @@ Both are eligible for a follow-up cleanup pass; neither blocks deploy.
 
 ## GitHub mirror
 
-The site is **not** deployed via GitHub Actions or Pages. The mirror at `github.com/Kibertum/tausik-core` ships the source files (`site/`, `Dockerfile`, `.gitlab-ci.yml`) as part of the codebase but no build/deploy automation is registered there. Canonical deploy is GitLab only.
+The site is **not** deployed via GitHub Actions or Pages. The mirror at `github.com/Kibertum/tausik-core` ships the source files as part of the codebase but no build/deploy automation is registered there. Canonical deploy is handled by the internal CI pipeline.
