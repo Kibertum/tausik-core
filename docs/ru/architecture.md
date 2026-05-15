@@ -40,7 +40,7 @@
               ↓
   ┌─────────────────────────┐
   │ SQLite (WAL mode)       │  ← .tausik/tausik.db
-  │ 18 таблиц + FTS5        │
+  │ 17 таблиц + 4 FTS5      │
   └─────────────────────────┘
 ```
 
@@ -48,7 +48,7 @@
 
 ### Скрипты (бизнес-логика)
 
-117 source-файлов в `scripts/` (v1.4). Хайлайты:
+138 source-файлов в `scripts/` (v1.4). Хайлайты:
 
 | Файл | Назначение |
 |------|------------|
@@ -60,10 +60,10 @@
 | `service_verification.py` | Scoped pytest gate + verify cache (10 min TTL) |
 | `service_roles.py` | Гибридное хранение ролей (DB-метаданные + harness/roles/*.md) |
 | `service_stack_ops.py` | Stack scaffold, lint, diff, reset |
-| `project_backend.py` + `backend_*.py` | SQLite + FTS5 backend (WAL mode, 18 таблиц) |
+| `project_backend.py` + `backend_*.py` | SQLite + FTS5 backend (WAL mode, 17 таблиц + 4 FTS5-индекса) |
 | `backend_session_metrics.py` | Gap-based active-time computation |
 | `backend_tier_metrics.py` | call_budget vs call_actual tier-метрики |
-| `backend_migrations.py` / `_legacy.py` | Миграции схемы до v18 |
+| `backend_migrations.py` / `_legacy.py` | Миграции схемы до v27 |
 | `project_config.py` + `default_gates.py` | Загрузчик конфигурации, настройка шлюзов, автовключение |
 | `gate_runner.py` + `gate_stack_dispatch.py` + `gate_test_resolver.py` | Scoped pytest mapping + dispatch |
 | `skill_manager.py` + `skill_repos.py` | Установка/удаление навыков из репозиториев |
@@ -117,7 +117,7 @@ harness/
 └── qwen/ → claude/   # Qwen Code (fallback на Claude MCP)
 ```
 
-## БД: Таблицы (Schema v18)
+## БД: Таблицы (Schema v27)
 
 | Таблица | Назначение |
 |---------|------------|
@@ -143,16 +143,19 @@ harness/
 ## Шлюзы качества
 
 ```
-project_config.py       → DEFAULT_GATES (16 шлюзов)
-                        → STACK_GATE_MAP (автовключение по стеку)
-                        → auto_enable_gates_for_stacks()
+default_gates.py        → DEFAULT_GATES (25 гейтов: 5 универсальных + 20 stack-scoped)
+                        → UNIVERSAL_GATES (filesize, tdd_order, ruff, mypy, bandit)
+                        → stack-scoped gates pulled from stack_registry
 gate_runner.py          → run_gates(trigger, files)
                         → run_command_gate() / run_filesize_gate() / run_tdd_order_gate()
 service_task.py         → _run_quality_gates() (вызывается из task_done)
 ```
 
-Gates: `pytest`, `ruff`, `mypy`, `bandit`, `filesize`, `tdd_order`, `tsc`, `eslint`,
-`go-vet`, `golangci-lint`, `cargo-check`, `clippy`, `phpstan`, `phpcs`, `javac`, `ktlint`.
+Универсальные гейты (всегда включены): `filesize`, `tdd_order`, `ruff`, `mypy`, `bandit`.
+
+Stack-scoped гейты: `pytest`, `tsc`, `eslint`, `js-test`, `go-vet`, `go-test`, `golangci-lint`,
+`cargo-check`, `cargo-test`, `clippy`, `phpstan`, `phpcs`, `phpunit`, `javac`, `ktlint`,
+`ansible-lint`, `terraform-validate`, `helm-lint`, `kubeval`, `hadolint`.
 
 ## Hooks (anti-drift, см. [hooks.md](hooks.md))
 
@@ -212,7 +215,7 @@ Exit code `0` = caching активен (`cache_read_input_tokens > 0`);
 ## Тестирование
 
 ```bash
-pytest tests/ -v                    # все тесты (2590)
+pytest tests/ -v                    # все тесты (3378)
 pytest tests/test_tausik_backend.py   # backend CRUD
 pytest tests/test_tausik_service.py   # service logic
 pytest tests/test_tausik_cli.py       # CLI smoke

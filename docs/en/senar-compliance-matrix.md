@@ -77,12 +77,12 @@
 | Feature | Status | Evidence |
 |---------|--------|----------|
 | Multi-language gates | ✅ Implemented | `project_config.py` — 25 default stacks + custom_stacks override |
-| MCP coverage 100 tools | ✅ Implemented | `handlers.py` — 93 project + 7 brain |
+| MCP coverage 103 tools | ✅ Implemented | `tools.py` + `tools_extra.py` — 96 project + 7 brain |
 | Batch execution (`/run`) | ✅ Implemented | `plan_parser.py` + `/run` skill |
 | Structured logs (task_logs + FTS5) | ✅ Implemented | `backend_schema.py` + `service_task.py:task_log` |
 | Fake test detection | ✅ Implemented | `/review` skill — 10 patterns |
 | Skills system | ✅ Implemented | 13 core skills + 20 official/vendor on demand (bundles via `tausik skill bundle`) — `service_skills.py` + `tausik-skills` repo |
-| Hooks system | ✅ Implemented | 19 hooks across PreToolUse / PostToolUse / SessionStart / Stop / pre-commit |
+| Hooks system | ✅ Implemented | 20 Python hooks + 1 shell pre-commit across PreToolUse / PostToolUse / SessionStart / SessionEnd / Stop / UserPromptSubmit |
 | Roles registry | ✅ Implemented | Hybrid: SQLite metadata + `harness/roles/{role}.md` profile; CRUD CLI + 6 MCP tools |
 | Doctor health check | ✅ Implemented | `tausik doctor` + `tausik_doctor` MCP — 4 groups (venv/DB/MCP/skills) + drift |
 | Zero-defect skill | ✅ Implemented | `/zero-defect` (Maestro-inspired): read-before-write, verify-before-claim, never-hallucinate-APIs |

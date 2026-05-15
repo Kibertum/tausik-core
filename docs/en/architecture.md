@@ -40,7 +40,7 @@ the Backend handles only CRUD and SQL. CLI and MCP are two equal entry points.
               |
   +---------------------------+
   | SQLite (WAL mode)         |  <- .tausik/tausik.db
-  | 18 tables + FTS5 indexes  |
+  | 17 tables + 4 FTS5 indexes|
   +---------------------------+
 ```
 
@@ -48,7 +48,7 @@ the Backend handles only CRUD and SQL. CLI and MCP are two equal entry points.
 
 ### Scripts (Business Logic)
 
-117 source files in `scripts/` (v1.4). Highlights:
+138 source files in `scripts/` (v1.4). Highlights:
 
 | File | Purpose |
 |------|---------|
@@ -60,10 +60,10 @@ the Backend handles only CRUD and SQL. CLI and MCP are two equal entry points.
 | `service_verification.py` | Scoped pytest gate + verify cache (10 min TTL) |
 | `service_roles.py` | Hybrid role storage (DB metadata + harness/roles/*.md) |
 | `service_stack_ops.py` | Stack scaffold, lint, diff, reset |
-| `project_backend.py` + `backend_*.py` | SQLite + FTS5 backend (WAL mode, 18 tables) |
+| `project_backend.py` + `backend_*.py` | SQLite + FTS5 backend (WAL mode, 17 tables + 4 FTS5 indexes) |
 | `backend_session_metrics.py` | Gap-based active-time computation |
 | `backend_tier_metrics.py` | call_budget vs call_actual tier metrics |
-| `backend_migrations.py` / `_legacy.py` | Schema migrations through v18 |
+| `backend_migrations.py` / `_legacy.py` | Schema migrations through v27 |
 | `project_config.py` + `default_gates.py` | Config loader, gates config, auto-enable |
 | `gate_runner.py` + `gate_stack_dispatch.py` + `gate_test_resolver.py` | Scoped pytest mapping + dispatch |
 | `skill_manager.py` + `skill_repos.py` | Skill install/uninstall from repositories |
@@ -117,7 +117,7 @@ harness/
 +-- qwen/ → claude/   # Qwen Code (falls back to Claude MCP)
 ```
 
-## DB: Tables (Schema v18)
+## DB: Tables (Schema v27)
 
 | Table | Purpose |
 |-------|---------|
@@ -143,16 +143,19 @@ harness/
 ## Quality Gates
 
 ```
-project_config.py       -> DEFAULT_GATES (16 gates)
-                        -> STACK_GATE_MAP (auto-enable by stack)
-                        -> auto_enable_gates_for_stacks()
+default_gates.py        -> DEFAULT_GATES (25 gates: 5 universal + 20 stack-scoped)
+                        -> UNIVERSAL_GATES (filesize, tdd_order, ruff, mypy, bandit)
+                        -> stack-scoped gates pulled from stack_registry
 gate_runner.py          -> run_gates(trigger, files)
                         -> run_command_gate() / run_filesize_gate() / run_tdd_order_gate()
 service_task.py         -> _run_quality_gates() (called from task_done)
 ```
 
-Gates: `pytest`, `ruff`, `mypy`, `bandit`, `filesize`, `tdd_order`, `tsc`, `eslint`,
-`go-vet`, `golangci-lint`, `cargo-check`, `clippy`, `phpstan`, `phpcs`, `javac`, `ktlint`.
+Universal gates (always on): `filesize`, `tdd_order`, `ruff`, `mypy`, `bandit`.
+
+Stack-scoped gates: `pytest`, `tsc`, `eslint`, `js-test`, `go-vet`, `go-test`, `golangci-lint`,
+`cargo-check`, `cargo-test`, `clippy`, `phpstan`, `phpcs`, `phpunit`, `javac`, `ktlint`,
+`ansible-lint`, `terraform-validate`, `helm-lint`, `kubeval`, `hadolint`.
 
 ## Hooks (anti-drift, see [hooks.md](hooks.md))
 
@@ -211,7 +214,7 @@ Exit code `0` = caching active (`cache_read_input_tokens > 0`);
 ## Testing
 
 ```bash
-pytest tests/ -v                    # all tests (2590)
+pytest tests/ -v                    # all tests (3378)
 pytest tests/test_tausik_backend.py   # backend CRUD
 pytest tests/test_tausik_service.py   # service logic
 pytest tests/test_tausik_cli.py       # CLI smoke

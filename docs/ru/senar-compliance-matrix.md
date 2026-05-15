@@ -77,12 +77,12 @@
 | Функция | Статус | Evidence |
 |---------|--------|----------|
 | Multi-language gates | ✅ Реализовано | `project_config.py` — 25 default стеков + custom_stacks override |
-| MCP coverage (100 инструментов) | ✅ Реализовано | `handlers.py` — 93 project + 7 brain |
+| MCP coverage (103 инструмента) | ✅ Реализовано | `tools.py` + `tools_extra.py` — 96 project + 7 brain |
 | Batch execution (`/run`) | ✅ Реализовано | `plan_parser.py` + скилл `/run` |
 | Structured logs (task_logs + FTS5) | ✅ Реализовано | `backend_schema.py` + `service_task.py:task_log` |
 | Fake test detection | ✅ Реализовано | `/review` — 10 паттернов |
 | Skills система | ✅ Реализовано | 13 core + 20 vendor (markitdown, zero-defect, skill-test и др. — opt-in; bundles via `tausik skill bundle`) — `service_skills.py` + `tausik-skills` репо |
-| Hooks система | ✅ Реализовано | 19 хуков на PreToolUse / PostToolUse / SessionStart / Stop / pre-commit |
+| Hooks система | ✅ Реализовано | 20 Python-хуков + 1 shell pre-commit на PreToolUse / PostToolUse / SessionStart / SessionEnd / Stop / UserPromptSubmit |
 | Реестр ролей | ✅ Реализовано | Гибрид: SQLite-метаданные + `harness/roles/{role}.md` профиль; CRUD CLI + 6 MCP инструментов |
 | Doctor health check | ✅ Реализовано | `tausik doctor` + `tausik_doctor` MCP — 4 группы (venv/DB/MCP/skills) + drift |
 | Zero-defect skill | ✅ Реализовано | `/zero-defect` (Maestro-inspired): read-before-write, verify-before-claim, never-hallucinate-APIs |
