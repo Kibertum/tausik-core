@@ -21,7 +21,7 @@ const copy = {
       titleA: "Git for AI",
       titleB: "workflow",
       lede:
-        "Plan, build, ship with quality control. Three messages. Full engineering cycle. Quality gates that the agent can't skip.",
+        "A local Python framework that adds enforced quality gates to Claude Code, Cursor, Qwen, and Windsurf — so the agent can't skip plan, test, or verify steps. Three messages cover the full engineering cycle.",
       ctaPrimary: "Get started",
       ctaSecondary: "View on GitHub",
       badges: ["Apache 2.0", "Python 3.11+", `${TESTS.toLocaleString("en-US")} tests passing`, "0 core dependencies", "MCP-native"],
@@ -90,7 +90,7 @@ const copy = {
       ],
     },
     quickstart: {
-      eyebrow: "Quick start — 10 minutes",
+      eyebrow: "Quick start — 10 minutes (after your AI IDE is set up)",
       title: "Four commands, then restart your IDE.",
       sub: "Bootstrap auto-detects your stack (Python, TS, Rust, Go) and enables matching quality gates.",
       copyBtn: "copy",
@@ -101,6 +101,7 @@ const copy = {
         "Hooks register with Claude Code and Qwen Code automatically. Cursor + Windsurf wire up via MCP.",
         "Local SQLite DB lives in .tausik/. Never committed. Mirrored to Notion only if you opt in.",
         "First start working creates session #1 and writes the initial CLAUDE.md tail.",
+        "Windows: the .tausik/tausik wrapper is bash-only; use .tausik/tausik.cmd from PowerShell or cmd.exe.",
       ],
       fullLink: "Read the full quick-start",
       fullHref: "/docs/quickstart",
@@ -130,6 +131,59 @@ const copy = {
       ],
       foot: `${MCP_TOOLS} MCP tools and the ${SKILLS_CORE} core skills work everywhere. Real-time hooks live in Claude Code and Qwen Code today; Cursor and Windsurf get the same enforcement at QG-0 and QG-2 task transitions.`,
     },
+    notSection: {
+      eyebrow: "Clarity",
+      title: "TAUSIK is not.",
+      sub: "Setting expectations before you install.",
+      items: [
+        ["Not a SaaS.", "Everything runs locally. Your task DB lives in .tausik/ next to your code. No phone-home, no usage telemetry, no required account."],
+        ["Not a model.", "TAUSIK does not generate code. It guards an existing coding agent (Claude Code, Cursor, Qwen, Windsurf) and tracks its work."],
+        ["Not a replacement for Cursor / Claude Code.", "It runs inside them as MCP tools, hooks, and skills. You keep your existing IDE workflow."],
+        ["Not a junior-onboarding tool.", "It enforces practice for engineers who already know what good looks like — it does not teach you what an AC is."],
+        ["Not auto-merging.", "QG-0 and QG-2 ask the agent for proof; the agent still asks you to confirm before push."],
+      ],
+    },
+    comparison: {
+      eyebrow: "Landscape",
+      title: "How TAUSIK differs.",
+      sub: "Same row → same capability. Empty cell → the tool does not address it natively.",
+      heads: ["Capability", "TAUSIK", "Aider", "Cursor Rules", "Continue", "Claude Skills"],
+      rows: [
+        ["Enforced task model (goal + AC)", "✓ QG-0 hook blocks edits", "—", "—", "—", "—"],
+        ["Verify cache decoupled from close", "✓ 10-min TTL", "—", "—", "—", "—"],
+        ["Tracked decisions / dead-ends", "✓ SQLite + FTS5", "—", "—", "—", "—"],
+        ["Cross-project memory (opt-in)", "✓ Notion-backed brain", "—", "—", "—", "—"],
+        ["Stack-aware verify suites", `✓ ${STACKS} stacks`, "single-language", "—", "—", "—"],
+        ["Multi-IDE same surface", "✓ MCP + skills", "CLI only", "Cursor only", "Continue only", "Claude only"],
+        ["Editor-agnostic install", "✓ Python script", "✓", "—", "—", "—"],
+      ],
+    },
+    faq: {
+      eyebrow: "Answers",
+      title: "Common questions.",
+      items: [
+        [
+          "Do I need an extra API key on top of my AI IDE?",
+          "No. TAUSIK never calls any LLM directly. The agent (Claude Code / Cursor / Qwen / Windsurf) uses the API key you already configured for that IDE.",
+        ],
+        [
+          "Does it phone home?",
+          "No. Everything is local: SQLite under .tausik/, hooks under .claude/. The optional Shared Brain only writes to your own Notion workspace if you wire it up.",
+        ],
+        [
+          "Can my team share decisions and patterns?",
+          "Yes, via the optional Shared Brain. Per-project hashes keep names private; the cross-project content goes through a scrubbing linter before it lands in Notion.",
+        ],
+        [
+          "Does it work on Windows?",
+          "Yes. The CLI ships .tausik/tausik.cmd for PowerShell/cmd. A few hooks (pre-commit shell, push gate) prefer Git Bash or WSL; the rest of the pipeline runs natively.",
+        ],
+        [
+          "What about my existing AGENTS.md / CLAUDE.md?",
+          "TAUSIK manages a small dynamic block inside CLAUDE.md (session + counts). Your existing instructions in CLAUDE.md or AGENTS.md stay intact; TAUSIK reads them, doesn't overwrite them.",
+        ],
+      ],
+    },
     senar: {
       eyebrow: "Foundation",
       title: "Built on SENAR.",
@@ -153,7 +207,7 @@ const copy = {
       titleA: "Git для AI",
       titleB: "разработки",
       lede:
-        "Планируй, кодируй, релизь с контролем качества. Три сообщения. Полный инженерный цикл. Quality gates, которые агент не может обойти.",
+        "Локальный Python-фреймворк, добавляющий принудительные quality gates в Claude Code, Cursor, Qwen и Windsurf — чтобы агент не мог пропустить план, тесты или верификацию. Три сообщения покрывают полный инженерный цикл.",
       ctaPrimary: "Начать",
       ctaSecondary: "Открыть GitHub",
       badges: ["Apache 2.0", "Python 3.11+", `${TESTS.toLocaleString("ru-RU").replace(",", " ")} тестов проходит`, "0 core-зависимостей", "MCP-native"],
@@ -221,7 +275,7 @@ const copy = {
       ],
     },
     quickstart: {
-      eyebrow: "Быстрый старт — 10 минут",
+      eyebrow: "Быстрый старт — 10 минут (после установки AI IDE)",
       title: "Четыре команды, потом перезапусти IDE.",
       sub: "Bootstrap сам определяет твой стек (Python, TS, Rust, Go) и включает подходящие quality gates.",
       copyBtn: "копировать",
@@ -232,6 +286,7 @@ const copy = {
         "Хуки автоматически регистрируются в Claude Code и Qwen Code. Cursor + Windsurf подключаются через MCP.",
         "Локальная SQLite БД лежит в .tausik/. Никогда не коммитится. Зеркалится в Notion только если ты сам подключишь.",
         "Первое «start working» создаёт сессию #1 и пишет начальный CLAUDE.md tail.",
+        "Windows: обёртка .tausik/tausik только под bash; из PowerShell/cmd.exe используй .tausik/tausik.cmd.",
       ],
       fullLink: "Полный быстрый старт",
       fullHref: "/ru/docs/quickstart",
@@ -260,6 +315,59 @@ const copy = {
         ["OC", "Codex / OpenCode-style агенты", "Ожидается · ручная валидация", false],
       ],
       foot: `${MCP_TOOLS} MCP-инструментов и ${SKILLS_CORE} core-скиллов работают везде. Real-time хуки сегодня живут в Claude Code и Qwen Code; Cursor и Windsurf получают то же принуждение на переходах QG-0 и QG-2.`,
+    },
+    notSection: {
+      eyebrow: "Ясность",
+      title: "TAUSIK — это не…",
+      sub: "Расставляем ожидания до установки.",
+      items: [
+        ["Не SaaS.", "Всё работает локально. БД задач лежит в .tausik/ рядом с твоим кодом. Никакой phone-home, телеметрии, обязательного аккаунта."],
+        ["Не модель.", "TAUSIK не генерирует код. Он сторожит существующего coding-агента (Claude Code, Cursor, Qwen, Windsurf) и трекает его работу."],
+        ["Не замена Cursor / Claude Code.", "Работает внутри них как MCP-инструменты, хуки и скиллы. Твой IDE-workflow сохраняется."],
+        ["Не tool для онбординга джунов.", "Принуждает к практике инженеров, которые уже знают как выглядит good — он не объясняет что такое AC."],
+        ["Не авто-merge.", "QG-0 и QG-2 требуют у агента доказательств; финальное push агент всё равно подтверждает у тебя."],
+      ],
+    },
+    comparison: {
+      eyebrow: "Ландшафт",
+      title: "Чем TAUSIK отличается.",
+      sub: "Одна строка — одна возможность. Пустая ячейка — инструмент не закрывает её нативно.",
+      heads: ["Capability", "TAUSIK", "Aider", "Cursor Rules", "Continue", "Claude Skills"],
+      rows: [
+        ["Enforced task-модель (goal + AC)", "✓ QG-0 хук блокирует правки", "—", "—", "—", "—"],
+        ["Verify-кеш отделён от close", "✓ 10-мин TTL", "—", "—", "—", "—"],
+        ["Tracked decisions / dead-ends", "✓ SQLite + FTS5", "—", "—", "—", "—"],
+        ["Cross-project memory (опционально)", "✓ Notion-backed brain", "—", "—", "—", "—"],
+        ["Stack-aware verify-сьюты", `✓ ${STACKS} стеков`, "single-language", "—", "—", "—"],
+        ["Multi-IDE один surface", "✓ MCP + skills", "только CLI", "только Cursor", "только Continue", "только Claude"],
+        ["Editor-agnostic install", "✓ Python-скрипт", "✓", "—", "—", "—"],
+      ],
+    },
+    faq: {
+      eyebrow: "Ответы",
+      title: "Частые вопросы.",
+      items: [
+        [
+          "Нужен ли отдельный API-ключ помимо AI-IDE?",
+          "Нет. TAUSIK никогда не зовёт LLM напрямую. Агент (Claude Code / Cursor / Qwen / Windsurf) использует тот API-ключ, который ты уже настроил для своего IDE.",
+        ],
+        [
+          "Phone home есть?",
+          "Нет. Всё локально: SQLite в .tausik/, хуки в .claude/. Опциональный Shared Brain пишет только в твой Notion-workspace, если ты сам его подключишь.",
+        ],
+        [
+          "Можно ли шарить decisions/patterns в команде?",
+          "Да, через опциональный Shared Brain. Per-project хеши прячут имена; cross-project контент проходит scrubbing-линтер перед записью в Notion.",
+        ],
+        [
+          "Windows работает?",
+          "Да. CLI ставит .tausik/tausik.cmd для PowerShell/cmd. Несколько хуков (pre-commit shell, push gate) предпочитают Git Bash или WSL; остальной pipeline идёт нативно.",
+        ],
+        [
+          "А мой текущий AGENTS.md / CLAUDE.md?",
+          "TAUSIK управляет маленьким dynamic-блоком внутри CLAUDE.md (сессия + счётчики). Твои инструкции в CLAUDE.md или AGENTS.md остаются нетронутыми — TAUSIK их читает, но не перезаписывает.",
+        ],
+      ],
     },
     senar: {
       eyebrow: "Фундамент",
@@ -544,6 +652,61 @@ function copyInstall(e: MouseEvent) {
           </div>
         </div>
         <p class="ides-foot">{{ t.ides.foot }}</p>
+      </div>
+    </section>
+
+    <!-- NOT-SECTION -->
+    <section>
+      <div class="wrap">
+        <p class="eyebrow">{{ t.notSection.eyebrow }}</p>
+        <h2>{{ t.notSection.title }}</h2>
+        <p class="section-sub">{{ t.notSection.sub }}</p>
+
+        <div class="not-grid">
+          <div v-for="(it, i) in t.notSection.items" :key="i" class="not-card">
+            <div class="not-head">{{ it[0] }}</div>
+            <div class="not-body">{{ it[1] }}</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- COMPARISON -->
+    <section>
+      <div class="wrap">
+        <p class="eyebrow">{{ t.comparison.eyebrow }}</p>
+        <h2>{{ t.comparison.title }}</h2>
+        <p class="section-sub">{{ t.comparison.sub }}</p>
+
+        <div class="comp-table-wrap">
+          <table class="comp-table">
+            <thead>
+              <tr>
+                <th v-for="(h, i) in t.comparison.heads" :key="i" :class="{ ours: i === 1 }">{{ h }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(row, i) in t.comparison.rows" :key="i">
+                <td v-for="(cell, j) in row" :key="j" :class="{ feat: j === 0, ours: j === 1 }">{{ cell }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section>
+      <div class="wrap">
+        <p class="eyebrow">{{ t.faq.eyebrow }}</p>
+        <h2>{{ t.faq.title }}</h2>
+
+        <div class="faq-grid">
+          <details v-for="(it, i) in t.faq.items" :key="i" class="faq-item">
+            <summary>{{ it[0] }}</summary>
+            <p>{{ it[1] }}</p>
+          </details>
+        </div>
       </div>
     </section>
 
@@ -1525,5 +1688,139 @@ h2 {
 
 :target {
   scroll-margin-top: 72px;
+}
+
+/* NOT-section */
+.not-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1px;
+  background: var(--lt-line);
+  border: 1px solid var(--lt-line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.not-card {
+  background: var(--lt-bg-1);
+  padding: 26px 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.not-head {
+  font-size: 16px;
+  color: var(--lt-fg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.not-head::before {
+  content: "✕  ";
+  color: var(--lt-bad);
+  font-weight: 500;
+}
+.not-body {
+  color: var(--lt-fg-2);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+/* COMPARISON table */
+.comp-table-wrap {
+  border: 1px solid var(--lt-line);
+  border-radius: 12px;
+  overflow-x: auto;
+  background: var(--lt-bg-1);
+}
+.comp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.comp-table thead th {
+  text-align: left;
+  padding: 14px 18px;
+  font-family: var(--lt-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--lt-fg-3);
+  background: var(--lt-bg-2);
+  border-bottom: 1px solid var(--lt-line);
+  white-space: nowrap;
+}
+.comp-table thead th.ours {
+  color: var(--lt-accent-2);
+}
+.comp-table tbody tr {
+  border-bottom: 1px solid var(--lt-line);
+}
+.comp-table tbody tr:last-child {
+  border-bottom: 0;
+}
+.comp-table tbody td {
+  padding: 14px 18px;
+  color: var(--lt-fg-2);
+  vertical-align: top;
+}
+.comp-table tbody td.feat {
+  color: var(--lt-fg-1);
+  font-weight: 500;
+}
+.comp-table tbody td.ours {
+  color: var(--lt-fg);
+  background: rgba(94, 106, 210, 0.05);
+}
+
+/* FAQ */
+.faq-grid {
+  border: 1px solid var(--lt-line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--lt-bg-1);
+}
+.faq-item {
+  border-bottom: 1px solid var(--lt-line);
+}
+.faq-item:last-child {
+  border-bottom: 0;
+}
+.faq-item summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 18px 22px;
+  font-size: 16px;
+  color: var(--lt-fg);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+}
+.faq-item summary::-webkit-details-marker {
+  display: none;
+}
+.faq-item summary::before {
+  content: "+";
+  font-family: var(--lt-mono);
+  color: var(--lt-accent-2);
+  font-size: 18px;
+  width: 16px;
+  display: inline-flex;
+  justify-content: center;
+  transition: transform 0.2s ease;
+}
+.faq-item[open] summary::before {
+  content: "−";
+}
+.faq-item summary:hover {
+  background: var(--lt-bg-2);
+}
+.faq-item p {
+  margin: 0;
+  padding: 0 22px 22px 50px;
+  color: var(--lt-fg-2);
+  font-size: 14px;
+  line-height: 1.6;
+  max-width: 80ch;
 }
 </style>
