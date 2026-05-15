@@ -29,6 +29,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from code_counts import code_counts_flat
 from mcp_tool_counts import mcp_counts_flat
 from pytest_test_count import count_tests
 
@@ -146,6 +147,7 @@ def build_constants_doc(repo_root: Path) -> dict[str, object]:
     }
     counts = mcp_counts_flat(repo_root)
     payload.update(counts)
+    payload.update(code_counts_flat(repo_root))
     try:
         payload["test_count"] = count_tests(repo_root)
     except (ValueError, FileNotFoundError, subprocess.TimeoutExpired) as e:

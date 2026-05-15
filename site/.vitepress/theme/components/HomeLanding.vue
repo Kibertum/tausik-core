@@ -1,10 +1,18 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import constants from "../../../../docs/_generated/constants.json";
 
 interface Props {
   lang?: "en" | "ru";
 }
 const props = withDefaults(defineProps<Props>(), { lang: "en" });
+
+const HOOKS = constants.hooks_count;
+const REVIEW_AGENTS = constants.review_agents_count;
+const SKILLS_CORE = constants.skills_core_count;
+const MCP_TOOLS = constants.mcp_main_tools;
+const TESTS = constants.test_count;
+const STACKS = constants.stacks_count;
 
 const copy = {
   en: {
@@ -16,11 +24,11 @@ const copy = {
         "Plan, build, ship with quality control. Three messages. Full engineering cycle. Quality gates that the agent can't skip.",
       ctaPrimary: "Get started",
       ctaSecondary: "View on GitHub",
-      badges: ["Apache 2.0", "Python 3.11+", "3,378 tests passing", "0 dependencies", "MCP-native"],
+      badges: ["Apache 2.0", "Python 3.11+", `${TESTS.toLocaleString("en-US")} tests passing`, "0 core dependencies", "MCP-native"],
       termTitle: "~/your-project — claude code",
       annos: [
         { k: "/start", v: "opens session, reloads context" },
-        { k: "/task", v: "creates AC · runs tests · 5-agent review" },
+        { k: "/task", v: `creates AC · runs tests · ${REVIEW_AGENTS}-agent review` },
         { k: "/ship", v: "runs gates → commits → asks before pushing" },
       ],
     },
@@ -37,7 +45,7 @@ const copy = {
         ['Claims "done" without proof', "Completion blocked until every criterion has evidence", "QG-2"],
         ["Context lost between sessions", "Decisions, patterns, dead ends persist in local SQLite", ""],
         ["Same mistake repeated 3 times", "Failed approaches recorded — agent sees what didn't work", ""],
-        ["No tests, no linting", "25 stack-aware checks auto-run (pytest, ruff, tsc, eslint, cargo, go vet…)", ""],
+        ["No tests, no linting", `${STACKS} stack-aware verify suites auto-run (pytest, ruff, tsc, eslint, cargo, go vet…)`, ""],
         ["No visibility into process", "6 metrics tracked automatically — throughput, defect rate, lead time", ""],
       ],
     },
@@ -76,8 +84,8 @@ const copy = {
         ["Quality gates", "QG-0 blocks task start without goal + AC. QG-2 blocks task done without verify evidence."],
         ["Project memory", "SQLite + FTS5 for patterns, gotchas, decisions, dead-ends. Re-injected at session start."],
         ["Verify-First", "Heavy tests on a separate verify step, cached for 10 minutes; closing a task is millisecond."],
-        ["19 real-time hooks", "Task gate, bash firewall, push gate, auto-format, memory audits — block bad actions before they happen."],
-        ["103 MCP tools", "Full programmatic access to the project DB. Works the same in Claude Code, Cursor, Qwen Code, Windsurf."],
+        [`${HOOKS} real-time hooks`, "Task gate, bash firewall, push gate, auto-format, memory audits — block bad actions before they happen."],
+        [`${MCP_TOOLS} MCP tools`, "Full programmatic access to the project DB. Works the same in Claude Code, Cursor, Qwen Code, Windsurf."],
         ["Cross-project brain", "Notion-mirrored decisions, patterns, gotchas with privacy-preserving project hashes.", "optional"],
       ],
     },
@@ -107,7 +115,7 @@ const copy = {
         ["3,378", "tests passing", true],
         ["0", "core dependencies"],
       ],
-      foot: "Exact numbers, not rounded approximations. Reported by tausik metrics at v1.4.0.",
+      foot: "Snapshot at v1.4.0 release. Live numbers via tausik metrics.",
     },
     ides: {
       eyebrow: "Supported IDEs & agents",
@@ -120,7 +128,7 @@ const copy = {
         ["WS", "Windsurf", "Expected · partial matrix", false],
         ["OC", "Codex / OpenCode-style agents", "Expected · manual validation", false],
       ],
-      foot: "103 MCP tools and the 12 core skills work everywhere. Real-time hooks live in Claude Code and Qwen Code today; Cursor and Windsurf get the same enforcement at QG-0 and QG-2 task transitions.",
+      foot: `${MCP_TOOLS} MCP tools and the ${SKILLS_CORE} core skills work everywhere. Real-time hooks live in Claude Code and Qwen Code today; Cursor and Windsurf get the same enforcement at QG-0 and QG-2 task transitions.`,
     },
     senar: {
       eyebrow: "Foundation",
@@ -148,11 +156,11 @@ const copy = {
         "Планируй, кодируй, релизь с контролем качества. Три сообщения. Полный инженерный цикл. Quality gates, которые агент не может обойти.",
       ctaPrimary: "Начать",
       ctaSecondary: "Открыть GitHub",
-      badges: ["Apache 2.0", "Python 3.11+", "3 378 тестов проходит", "0 зависимостей", "MCP-native"],
+      badges: ["Apache 2.0", "Python 3.11+", `${TESTS.toLocaleString("ru-RU").replace(",", " ")} тестов проходит`, "0 core-зависимостей", "MCP-native"],
       termTitle: "~/your-project — claude code",
       annos: [
         { k: "/start", v: "открывает сессию, перезагружает контекст" },
-        { k: "/task", v: "создаёт AC · запускает тесты · 5-агентное ревью" },
+        { k: "/task", v: `создаёт AC · запускает тесты · ${REVIEW_AGENTS}-агентное ревью` },
         { k: "/ship", v: "проходит гейты → коммит → спрашивает перед push" },
       ],
     },
@@ -169,7 +177,7 @@ const copy = {
         ['Заявляет «готово» без доказательств', "Закрытие блокируется, пока у каждого критерия нет evidence", "QG-2"],
         ["Контекст теряется между сессиями", "Решения, паттерны, тупики хранятся в локальном SQLite", ""],
         ["Та же ошибка повторяется 3 раза", "Провальные подходы записаны — агент видит что не сработало", ""],
-        ["Нет тестов, нет линтеров", "25 stack-aware проверок запускаются сами (pytest, ruff, tsc, eslint, cargo, go vet…)", ""],
+        ["Нет тестов, нет линтеров", `${STACKS} stack-aware verify-сьютов запускаются сами (pytest, ruff, tsc, eslint, cargo, go vet…)`, ""],
         ["Процесс непрозрачен", "6 метрик отслеживаются автоматически — throughput, defect rate, lead time", ""],
       ],
     },
@@ -188,8 +196,7 @@ const copy = {
           n: "02",
           label: "жизненный цикл задачи",
           msg: "сообщение 2 из 3",
-          caption:
-            "Опрашивает тебя про edge cases, создаёт задачу с acceptance criteria, пишет код, гоняет тесты + линтеры + 5 review-агентов параллельно, проверяет evidence для каждого AC.",
+          caption: `Опрашивает тебя про edge cases, создаёт задачу с acceptance criteria, пишет код, гоняет тесты + линтеры + ${REVIEW_AGENTS} review-агентов параллельно, проверяет evidence для каждого AC.`,
         },
         {
           n: "03",
@@ -208,8 +215,8 @@ const copy = {
         ["Quality gates", "QG-0 блокирует task start без цели и AC. QG-2 блокирует task done без verify-evidence."],
         ["Память проекта", "SQLite + FTS5 для паттернов, gotchas, решений, тупиков. Перезагружается в начале сессии."],
         ["Verify-First", "Тяжёлые тесты на отдельном verify-шаге, кэшируются 10 минут; закрытие задачи — миллисекунды."],
-        ["19 real-time хуков", "Task-гейт, bash-firewall, push-гейт, авто-формат, memory-аудиты — блокируют плохие действия до того, как они случатся."],
-        ["103 MCP-инструмента", "Полный программный доступ к БД проекта. Одинаково работает в Claude Code, Cursor, Qwen Code, Windsurf."],
+        [`${HOOKS} real-time хуков`, "Task-гейт, bash-firewall, push-гейт, авто-формат, memory-аудиты — блокируют плохие действия до того, как они случатся."],
+        [`${MCP_TOOLS} MCP-инструментов`, "Полный программный доступ к БД проекта. Одинаково работает в Claude Code, Cursor, Qwen Code, Windsurf."],
         ["Cross-project brain", "Зеркалирование решений, паттернов, gotchas в Notion с приватными project-хешами.", "опционально"],
       ],
     },
@@ -239,7 +246,7 @@ const copy = {
         ["3 378", "тестов проходит", true],
         ["0", "core-зависимостей"],
       ],
-      foot: "Точные числа, не округлённые. Возвращает tausik metrics на v1.4.0.",
+      foot: "Снимок на момент релиза v1.4.0. Живые числа — через tausik metrics.",
     },
     ides: {
       eyebrow: "Поддерживаемые IDE и агенты",
@@ -252,7 +259,7 @@ const copy = {
         ["WS", "Windsurf", "Ожидается · частичная матрица", false],
         ["OC", "Codex / OpenCode-style агенты", "Ожидается · ручная валидация", false],
       ],
-      foot: "103 MCP-инструмента и 12 core-скиллов работают везде. Real-time хуки сегодня живут в Claude Code и Qwen Code; Cursor и Windsurf получают то же принуждение на переходах QG-0 и QG-2.",
+      foot: `${MCP_TOOLS} MCP-инструментов и ${SKILLS_CORE} core-скиллов работают везде. Real-time хуки сегодня живут в Claude Code и Qwen Code; Cursor и Windsurf получают то же принуждение на переходах QG-0 и QG-2.`,
     },
     senar: {
       eyebrow: "Фундамент",
@@ -271,7 +278,7 @@ const copy = {
       pill: "v1.4.0 — near-stable pre-2.0",
     },
   },
-} as const;
+};
 
 const t = computed(() => copy[props.lang]);
 
