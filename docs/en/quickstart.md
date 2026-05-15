@@ -110,7 +110,7 @@ Regardless of which option you chose — the result is the same:
 - **`.tausik-lib/`** — the framework source code (git submodule, tracked in version control). This is TAUSIK itself.
 - **`.tausik/`** — runtime data: database, config, virtual environment. Added to `.gitignore` — this is local working data, never committed.
 
-Team members who clone the repo just need to run `git submodule update --init` to get the framework, then `python .tausik-lib/bootstrap/bootstrap.py --smart` to set up their local `.tausik/`.
+Team members who clone the repo just need to run `git submodule update --init` to get the framework, then `python .tausik-lib/bootstrap/bootstrap.py --init` to set up their local `.tausik/`.
 
 `.claude/` and `CLAUDE.md` — keep these under version control. These are instructions
 for the agent, they should be in the repository.

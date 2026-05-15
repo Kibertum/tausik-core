@@ -17,13 +17,16 @@ README.md          ← English (main)
 README.ru.md       ← Russian
 
 docs/
-├── en/            ← English docs (13 files)
-│   ├── quickstart.md, workflow.md, skills.md, hooks.md
-│   ├── cli.md, mcp.md, architecture.md, adding-new-ide.md
-│   ├── vendor-skills.md, senar-compliance-matrix.md, i18n-strategy.md
-├── ru/            ← Russian docs (mirrors en/)
-│   └── ...
-├── research/      ← Technical notes (not localized)
+├── en/            ← English docs (~45 files: quickstart, workflow, skills,
+│                    hooks, cli, mcp, architecture, adding-new-ide,
+│                    vendor-skills, senar-compliance-matrix, i18n-strategy,
+│                    brain-*, skill-*, plan-*, cost-telemetry, environment,
+│                    permissions, security, etc.)
+├── ru/            ← Russian docs (~44 files; mirrors en/ minus a few EN-only
+│                    docs like plan-review/plan-stacks/skill-spec/skill-patterns,
+│                    plus RU-only agent-contract.md)
+├── en/research/   ← Technical research notes (localized — paired with ru/research/)
+├── ru/research/
 └── README.md      ← Navigation hub (bilingual)
 ```
 

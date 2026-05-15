@@ -28,7 +28,7 @@ def generate_myiderules(project_dir, project_name, stacks):
     ...
 ```
 
-And register it in `generate_ide_rules()`.
+And wire it into the dispatch block in `bootstrap/bootstrap.py` (search for the `if ide == "claude"` / `elif ide == "cursor"` chain, around line 170 — add an `elif ide == "myide"` branch that calls your generator).
 
 ### 3. (Optional) Add Override Files
 

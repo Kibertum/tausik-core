@@ -2,6 +2,8 @@
 
 # /zero-defect — Precision Mode
 
+> **Vendor skill — not shipped with bootstrap by default.** `/zero-defect` lives in the public `tausik-skills` repo as part of the `quality-pro` bundle. Install it with `.tausik/tausik skill install zero-defect` (single skill) or `.tausik/tausik skill bundle install quality-pro` (zero-defect + audit + security + optimize + ultra). See [Skill Bundles](skill-bundles.md).
+
 `/zero-defect` is a session-scoped operating mode that tightens agent discipline for high-stakes work. It does not promise bug-free output — it lowers the rate at which careless mistakes slip through.
 
 The skill is inspired by [Maestro's `/zero-defect`](https://github.com/sharpdeveye/maestro), adapted to TAUSIK's QG-0 / QG-2 model.

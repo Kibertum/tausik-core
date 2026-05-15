@@ -161,8 +161,9 @@ overshoot is intentional (audit event + notes line trace it).
 сессии — 400K токенов налога только с CLAUDE.md.
 
 Trim до ≤4KB убирает не-enforceable справку (этот файл) из горячего пути.
-Регрессионный тест `tests/test_claude_md_size.py` фиксит границу — будущий
-рост CLAUDE.md выше 4096 байт сломает CI.
+Регрессионный тест `tests/test_claude_md_size.py` фиксит границу — текущий
+предел вынесен в константу теста и сейчас составляет ~4500 байт после v1.4
+правок CLAUDE.md; если файл вырастает выше неё, CI блокируется.
 
 См. также: `docs/ru/architecture.md` (3-слойная архитектура), `docs/ru/cli.md`
 (полная CLI-справка), `docs/ru/quickstart.md` (быстрый старт).
