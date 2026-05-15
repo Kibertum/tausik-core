@@ -79,11 +79,11 @@ Nothing that identifies the project should ever reach the brain. Enforcement:
 
 | File | Purpose |
 |---|---|
-| [scripts/brain_config.py](../../scripts/brain_config.py) | Config parsing + validation; `compute_project_hash`, `get_brain_mirror_path` |
-| [scripts/brain_schema.py](../../scripts/brain_schema.py) | Local SQLite DDL (4 tables + FTS5 + triggers, `unicode61` tokenizer) |
-| [scripts/brain_notion_client.py](../../scripts/brain_notion_client.py) | Stdlib Notion REST client (throttle + retry + pagination iterator) |
-| [scripts/brain_sync.py](../../scripts/brain_sync.py) | Delta-pull Notion → local; maps Notion page JSON → SQLite rows |
-| [scripts/brain_search.py](../../scripts/brain_search.py) | Local FTS5 search with bm25 ranking and SQL `snippet()` |
+| [scripts/brain_config.py](https://github.com/Kibertum/tausik-core/blob/main/scripts/brain_config.py) | Config parsing + validation; `compute_project_hash`, `get_brain_mirror_path` |
+| [scripts/brain_schema.py](https://github.com/Kibertum/tausik-core/blob/main/scripts/brain_schema.py) | Local SQLite DDL (4 tables + FTS5 + triggers, `unicode61` tokenizer) |
+| [scripts/brain_notion_client.py](https://github.com/Kibertum/tausik-core/blob/main/scripts/brain_notion_client.py) | Stdlib Notion REST client (throttle + retry + pagination iterator) |
+| [scripts/brain_sync.py](https://github.com/Kibertum/tausik-core/blob/main/scripts/brain_sync.py) | Delta-pull Notion → local; maps Notion page JSON → SQLite rows |
+| [scripts/brain_search.py](https://github.com/Kibertum/tausik-core/blob/main/scripts/brain_search.py) | Local FTS5 search with bm25 ranking and SQL `snippet()` |
 | [brain-db-schema.md](brain-db-schema.md) | Design doc — database properties, JSON payload examples, trade-offs |
 
 ## Setup

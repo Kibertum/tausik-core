@@ -1,4 +1,4 @@
-**Русский** | [English](../en/skill-bundles-migration.md)
+**Русский** | [English](/docs/skill-bundles-migration)
 
 # Миграция на Skill Bundles (v1.4)
 

@@ -1,4 +1,4 @@
-**Русский** | [English](../en/task-archive-spec.md)
+**Русский** | [English](/docs/task-archive-spec)
 
 # Soft-архив старых **done**-задач (hygiene)
 

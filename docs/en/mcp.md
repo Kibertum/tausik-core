@@ -1,4 +1,4 @@
-**English** | [Русский](../ru/mcp.md)
+**English** | [Русский](/ru/docs/mcp)
 
 # TAUSIK MCP — Tool Reference (v1.4)
 

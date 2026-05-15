@@ -1,10 +1,10 @@
-[English](../en/configuration.md) | **Русский**
+[English](/docs/configuration) | **Русский**
 
 # Справочник конфигурации TAUSIK
 
 Все настройки в `.tausik/config.json` в корне проекта. Что не указано — берёт документированный дефолт. Override — добавь ключ в top-level объект (НЕ под `bootstrap` — там bootstrap управляет).
 
-См. также: [environment.md](environment.md) — env-переменные, [permissions.md](../en/permissions.md) — режимы permissions.
+См. также: [environment.md](environment.md) — env-переменные, [permissions.md](/docs/permissions) — режимы permissions.
 
 ## Лимиты сессии (SENAR Rule 9.2)
 

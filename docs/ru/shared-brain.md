@@ -79,11 +79,11 @@
 
 | Файл | Назначение |
 |---|---|
-| [scripts/brain_config.py](../../scripts/brain_config.py) | Парсинг конфига + валидация; `compute_project_hash`, `get_brain_mirror_path` |
-| [scripts/brain_schema.py](../../scripts/brain_schema.py) | Local SQLite DDL (4 таблицы + FTS5 + триггеры, `unicode61` токенизатор) |
-| [scripts/brain_notion_client.py](../../scripts/brain_notion_client.py) | Stdlib Notion REST клиент (throttle + retry + pagination iterator) |
-| [scripts/brain_sync.py](../../scripts/brain_sync.py) | Delta-pull Notion → local; маппинг Notion page JSON → SQLite rows |
-| [scripts/brain_search.py](../../scripts/brain_search.py) | Локальный FTS5 поиск с bm25 и SQL `snippet()` |
+| [scripts/brain_config.py](https://github.com/Kibertum/tausik-core/blob/main/scripts/brain_config.py) | Парсинг конфига + валидация; `compute_project_hash`, `get_brain_mirror_path` |
+| [scripts/brain_schema.py](https://github.com/Kibertum/tausik-core/blob/main/scripts/brain_schema.py) | Local SQLite DDL (4 таблицы + FTS5 + триггеры, `unicode61` токенизатор) |
+| [scripts/brain_notion_client.py](https://github.com/Kibertum/tausik-core/blob/main/scripts/brain_notion_client.py) | Stdlib Notion REST клиент (throttle + retry + pagination iterator) |
+| [scripts/brain_sync.py](https://github.com/Kibertum/tausik-core/blob/main/scripts/brain_sync.py) | Delta-pull Notion → local; маппинг Notion page JSON → SQLite rows |
+| [scripts/brain_search.py](https://github.com/Kibertum/tausik-core/blob/main/scripts/brain_search.py) | Локальный FTS5 поиск с bm25 и SQL `snippet()` |
 | [brain-db-schema.md](brain-db-schema.md) | Design-doc — properties, JSON payload примеры, trade-offs |
 
 ## Настройка

@@ -1,4 +1,4 @@
-**English** | [Русский](../ru/roles.md)
+**English** | [Русский](/ru/docs/roles)
 
 # Roles
 

@@ -1,4 +1,4 @@
-**Русский** | [English](../en/skill-ecosystem.md)
+**Русский** | [English](/docs/skill-ecosystem)
 
 # Экосистема скиллов — карта на одной странице
 

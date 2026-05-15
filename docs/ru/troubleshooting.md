@@ -1,4 +1,4 @@
-[English](../en/troubleshooting.md) | **Русский**
+[English](/docs/troubleshooting) | **Русский**
 
 # Troubleshooting
 

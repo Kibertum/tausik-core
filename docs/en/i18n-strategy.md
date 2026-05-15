@@ -1,4 +1,4 @@
-**English** | [Русский](../ru/i18n-strategy.md)
+**English** | [Русский](/ru/docs/i18n-strategy)
 
 # Localization Strategy
 

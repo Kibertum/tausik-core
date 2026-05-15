@@ -1,4 +1,4 @@
-[English](../en/customization.md) | **Русский**
+[English](/docs/customization) | **Русский**
 
 # Кастомизация
 

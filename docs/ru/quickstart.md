@@ -1,4 +1,4 @@
-[English](../en/quickstart.md) | **Русский**
+[English](/docs/quickstart) | **Русский**
 
 # Быстрый старт
 

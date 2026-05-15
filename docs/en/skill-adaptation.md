@@ -1,4 +1,4 @@
-**English** | [Русский](../ru/skill-adaptation.md)
+**English** | [Русский](/ru/docs/skill-adaptation)
 
 # Adapting Skills for TAUSIK
 

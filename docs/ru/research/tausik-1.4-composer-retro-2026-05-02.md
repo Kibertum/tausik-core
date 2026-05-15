@@ -133,8 +133,8 @@ preceded_by: "tausik-1.4 master plan (removed pre-release)"
 ## 6. Связанные документы
 
 - Master plan v1.4 — research артефакт удалён перед релизом (см. историю коммитов)
-- [Verify glossary EN](../../en/verify-glossary.md) / [RU](../verify-glossary.md)
-- [Testing principles EN](../../en/testing-principles.md) / [RU](../testing-principles.md)
+- [Verify glossary EN](/docs/verify-glossary) / [RU](../verify-glossary.md)
+- [Testing principles EN](/docs/testing-principles) / [RU](../testing-principles.md)
 - Dead end #66 — Закрытие task_done с полным списком relevant_files (исток правила B-A)
 
 ## Версионирование

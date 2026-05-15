@@ -1,8 +1,8 @@
-[English](../en/security.md) | **Русский**
+[English](/docs/security) | **Русский**
 
 # Правила безопасности
 
-См. также: [security-checklist.md](../en/security-checklist.md) — OWASP Top 10 чек-лист.
+См. также: [security-checklist.md](/docs/security-checklist) — OWASP Top 10 чек-лист.
 
 ## Основные принципы
 

@@ -1,4 +1,4 @@
-**English** | [Русский](../ru/testing-principles.md)
+**English** | [Русский](/ru/docs/testing-principles)
 
 # Testing principles
 

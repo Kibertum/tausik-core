@@ -1,4 +1,4 @@
-**English** | [Русский](../ru/skill-ecosystem.md)
+**English** | [Русский](/ru/docs/skill-ecosystem)
 
 # Skill ecosystem — one-page map
 

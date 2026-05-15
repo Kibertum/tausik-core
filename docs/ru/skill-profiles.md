@@ -1,4 +1,4 @@
-[English](../en/skill-profiles.md) | **Русский**
+[English](/docs/skill-profiles) | **Русский**
 
 # Skill profiles и `variants/` (v1.4 polish — B8-pre)
 

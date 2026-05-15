@@ -45,4 +45,4 @@ Global **`user-*`** servers, when healthy, **did** appear in `cursor_mcp_lease_s
 - `.tausik/tausik` CLI remains the **supported** full workflow if MCP is unavailable.
 - No bootstrap test regressions; no secrets committed.
 
-RU mirror: [`docs/ru/research/tausik-1.5-mcp-cursor-rework-2026-05-08.md`](../../ru/research/tausik-1.5-mcp-cursor-rework-2026-05-08.md).
+RU mirror: [`docs/ru/research/tausik-1.5-mcp-cursor-rework-2026-05-08.md`](/ru/docs/research/tausik-1.5-mcp-cursor-rework-2026-05-08).

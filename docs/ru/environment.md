@@ -1,10 +1,10 @@
-[English](../en/environment.md) | **Русский**
+[English](/docs/environment) | **Русский**
 
 <!-- audit-translation-drift: skip -->
 
 # Правила окружения
 
-> Полный гайд по shell, virtualenv и Docker — на английском в [environment.md](../en/environment.md).
+> Полный гайд по shell, virtualenv и Docker — на английском в [environment.md](/docs/environment).
 
 ## Ключевые принципы
 

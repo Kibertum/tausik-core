@@ -1,4 +1,4 @@
-**English** | [Русский](../ru/zero-defect.md)
+**English** | [Русский](/ru/docs/zero-defect)
 
 # /zero-defect — Precision Mode
 

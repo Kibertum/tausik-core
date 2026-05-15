@@ -1,4 +1,4 @@
-**English** | [Русский](../ru/security.md)
+**English** | [Русский](/ru/docs/security)
 
 # Security Rules
 

@@ -1,4 +1,4 @@
-**English** | [Русский](../ru/claude-md-guide.md)
+**English** | [Русский](/ru/docs/claude-md-guide)
 
 # How to Write an Effective CLAUDE.md
 

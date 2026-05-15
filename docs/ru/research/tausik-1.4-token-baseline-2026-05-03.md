@@ -112,8 +112,8 @@ status: baseline-v1
 
 ## Связанные документы
 
-- [docs/en/skill-profiles.md](../../en/skill-profiles.md) — multi-model variants для ужать prompts на Haiku/Sonnet
-- [docs/en/dev-doc-checks.md](../../en/dev-doc-checks.md) — drift checks
+- [docs/en/skill-profiles.md](/docs/skill-profiles) — multi-model variants для ужать prompts на Haiku/Sonnet
+- [docs/en/dev-doc-checks.md](/docs/dev-doc-checks) — drift checks
 - Phase B follow-up: `v14b-usage-events-auto-write`, `v14b-tool-grouping-context-tier`
 
 ## Версионирование

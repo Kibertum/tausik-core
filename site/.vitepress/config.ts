@@ -10,10 +10,11 @@ export default defineConfig({
   // lastUpdated disabled: relies on `git log` which isn't available in the Docker build stage.
   // Can be enabled later by either copying .git into the build context or running git inside the image.
   lastUpdated: false,
-  // MVP: исходные docs/{en,ru}/*.md содержат относительные ссылки на код (../../scripts/*.py)
-  // и cross-language (../en/stacks). После sync в site/docs/ они ломаются. Чистка ссылок —
-  // отдельный follow-up; пока не блокируем сборку.
-  ignoreDeadLinks: true,
+  // Dead links are a build error. After sync to site/{docs,ru/docs}, any cross-language
+  // link (../en/X) or source-code link (../../scripts/Y.py) must resolve. Source-code
+  // refs go to github.com/Kibertum/tausik-core/blob/main/*; cross-file refs stay within
+  // the locale. See site-dead-links-cleanup task for the original 103-link sweep.
+  ignoreDeadLinks: false,
   // Working docs that live inside site/ but should not be rendered as public pages.
   srcExclude: ["README.md", "brief.md"],
   locales: {

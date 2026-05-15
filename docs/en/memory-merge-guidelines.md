@@ -1,4 +1,4 @@
-**English** | [Русский](../ru/memory-merge-guidelines.md)
+**English** | [Русский](/ru/docs/memory-merge-guidelines)
 
 # Memory: merge vs new entry
 
@@ -80,7 +80,7 @@ Topics covered (regex/keyword, case-insensitive, word-boundary aware):
 - `feature-flag` — feature flag, feature toggle
 - `circuit-breaker` — circuit breaker, bulkhead pattern
 
-Word-boundary guards prevent false positives (e.g. `aggregate` does not trigger `rate-limit`). To extend, edit `_TOPIC_PATTERNS` in [scripts/brain_universality.py](../../scripts/brain_universality.py).
+Word-boundary guards prevent false positives (e.g. `aggregate` does not trigger `rate-limit`). To extend, edit `_TOPIC_PATTERNS` in [scripts/brain_universality.py](https://github.com/Kibertum/tausik-core/blob/main/scripts/brain_universality.py).
 
 ## Semantic universality layer (C2, v1.4 polish)
 
@@ -103,7 +103,7 @@ Activation gate (`scripts/brain_config.py` defaults):
 - `brain.semantic_universality_enabled` is `true` (default; set `false` to disable semantic layer)
 - The brain mirror file exists on disk
 
-Implementation: [scripts/brain_universality_semantic.py](../../scripts/brain_universality_semantic.py). Pure stdlib; reuses [scripts/brain_search.py](../../scripts/brain_search.py) FTS5 infrastructure. Never raises, never blocks. Empty mirror → silent no-op. Synonym discovery improves as you promote more entries to the brain.
+Implementation: [scripts/brain_universality_semantic.py](https://github.com/Kibertum/tausik-core/blob/main/scripts/brain_universality_semantic.py). Pure stdlib; reuses [scripts/brain_search.py](https://github.com/Kibertum/tausik-core/blob/main/scripts/brain_search.py) FTS5 infrastructure. Never raises, never blocks. Empty mirror → silent no-op. Synonym discovery improves as you promote more entries to the brain.
 
 ## See also
 

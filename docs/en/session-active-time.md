@@ -1,4 +1,4 @@
-**English** | [Русский](../ru/session-active-time.md)
+**English** | [Русский](/ru/docs/session-active-time)
 
 # Session Active Time (v1.4)
 

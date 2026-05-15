@@ -1,4 +1,4 @@
-[English](../en/dev-doc-checks.md) | **Русский**
+[English](/docs/dev-doc-checks) | **Русский**
 
 # Doc-проверки для разработчика (v14-doc-automation)
 

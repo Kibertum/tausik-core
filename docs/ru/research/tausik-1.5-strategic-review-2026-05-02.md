@@ -32,15 +32,15 @@ status: review-decided
 `verify --task <slug>` → запись в `verification_runs` (TTL 600s) → `task done` читает cache. Hang возможен только в намеренных случаях:
 
 1. `task done` без предварительного `verify` — intentional block, не hang;
-2. `auto_verify=true` в config — legacy CI-only path, документирован в [`scripts/service_gates.py`](../../../scripts/service_gates.py) lines 425-620;
+2. `auto_verify=true` в config — legacy CI-only path, документирован в [`scripts/service_gates.py`](https://github.com/Kibertum/tausik-core/blob/main/scripts/service_gates.py) lines 425-620;
 3. Security-sensitive файлы + cache miss — re-verify по дизайну.
 
-Регрессия покрыта 9 тестами в [`tests/test_verify_first_contract.py`](../../../tests/test_verify_first_contract.py) + 61 в [`tests/test_service_verification.py`](../../../tests/test_service_verification.py). **Gap:** нет timeout-теста, который проверяет, что `verify` с симулированным виснущим pytest даст явную ошибку «aborted, run separately», а не молча висит.
+Регрессия покрыта 9 тестами в [`tests/test_verify_first_contract.py`](https://github.com/Kibertum/tausik-core/blob/main/tests/test_verify_first_contract.py) + 61 в [`tests/test_service_verification.py`](https://github.com/Kibertum/tausik-core/blob/main/tests/test_service_verification.py). **Gap:** нет timeout-теста, который проверяет, что `verify` с симулированным виснущим pytest даст явную ошибку «aborted, run separately», а не молча висит.
 
 ## Auto_verify bypass — статус и политика
 
 * `.tausik/config.json` сейчас чистый (gates pytest+mypy enabled, никакого `auto_verify` в коммитах HEAD).
-* `auto_verify` в коде — **легитимная legacy опция** для CI ([`service_gates.py:425-620`](../../../scripts/service_gates.py)), задокументирована.
+* `auto_verify` в коде — **легитимная legacy опция** для CI ([`service_gates.py:425-620`](https://github.com/Kibertum/tausik-core/blob/main/scripts/service_gates.py)), задокументирована.
 * «Обход» = **локально включить `auto_verify=true`, чтобы `task done` не падал** — таких следов в текущем checkpoint нет.
 
 **Convention** (TAUSIK memory #71, ru): никогда не правим `auto_verify`/`gates_disable` в `config.json` ради скорости локальной разработки фреймворка. Если task_done медленный — заводим defect-задачу на `service_verification.py` / `gate_runner.py` / verify cache.
@@ -61,7 +61,7 @@ status: review-decided
 
 ### 3. Целостность Verify-First
 
-**Видение:** усилить doctor — если в `.tausik/config.json` найден `auto_verify=true` И не CI environment, doctor должен предупреждать жёлтым и логировать в `events`. Сейчас warning есть в коде ([`project_cli_doctor.py:45`](../../../scripts/project_cli_doctor.py)), но не показывается в реальном выводе.
+**Видение:** усилить doctor — если в `.tausik/config.json` найден `auto_verify=true` И не CI environment, doctor должен предупреждать жёлтым и логировать в `events`. Сейчас warning есть в коде ([`project_cli_doctor.py:45`](https://github.com/Kibertum/tausik-core/blob/main/scripts/project_cli_doctor.py)), но не показывается в реальном выводе.
 
 **Рекомендация:** P0 — surface auto_verify warning в doctor + audit event в events. Tradeoff: жёсткий запрет auto_verify сломает CI-пайплайны где это нужно, поэтому warning + audit, не block.
 
@@ -79,7 +79,7 @@ status: review-decided
 
 ### 6. Философия тестов
 
-**Видение:** проблема не в количестве тестов, а в отсутствии правил подачи. У TAUSIK сейчас 2300+ тестов — реальная польза от ~60% (boundary, security, contract), 40% — повторы того же сценария на разных входах. Вместо удаления — параметризация: 12 одинаковых тестов на bash firewall в [`tests/test_hooks.py`](../../../tests/test_hooks.py) → 1 параметризованный с 12 кейсами.
+**Видение:** проблема не в количестве тестов, а в отсутствии правил подачи. У TAUSIK сейчас 2300+ тестов — реальная польза от ~60% (boundary, security, contract), 40% — повторы того же сценария на разных входах. Вместо удаления — параметризация: 12 одинаковых тестов на bash firewall в [`tests/test_hooks.py`](https://github.com/Kibertum/tausik-core/blob/main/tests/test_hooks.py) → 1 параметризованный с 12 кейсами.
 
 **Рекомендация:** P0 — расширить AGENTS test-discipline до 30-40 строк с конкретными правилами. P1 — пройтись по top-10 групп из dedupe report и сконсолидировать руками (~60 тестов уйдёт в ~6 параметризованных). Tradeoff: агрессивный dedupe скрывает регрессии — поэтому только структурные дубли, не семантические.
 
@@ -126,8 +126,8 @@ status: review-decided
 
 ## Связь с предыдущими документами
 
-* Мастер-план v1.4 — [`tausik-1.4-epics-master-plan-2026-05-01.md`](tausik-1.4-epics-master-plan-2026-05-01.md)
-* Readiness audit — [`tausik-1.4-readiness-audit-v2-2026-05-01.md`](tausik-1.4-readiness-audit-v2-2026-05-01.md)
+* Мастер-план v1.4 — `tausik-1.4-epics-master-plan-2026-05-01.md` (не вошёл в репозиторий)
+* Readiness audit — `tausik-1.4-readiness-audit-v2-2026-05-01.md` (не вошёл в репозиторий)
 * Composer retro — [`tausik-1.4-composer-retro-2026-05-02.md`](tausik-1.4-composer-retro-2026-05-02.md)
 * Pytest dedupe — [`tausik-1.4-pytest-dedupe-2026-05-02.md`](tausik-1.4-pytest-dedupe-2026-05-02.md)
 

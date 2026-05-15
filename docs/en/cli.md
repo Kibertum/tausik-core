@@ -1,4 +1,4 @@
-**English** | [Русский](../ru/cli.md)
+**English** | [Русский](/ru/docs/cli)
 
 # TAUSIK CLI — Command Reference (v1.3)
 

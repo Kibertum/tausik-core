@@ -1,4 +1,4 @@
-**English** | [Русский](../ru/skill-bundles.md)
+**English** | [Русский](/ru/docs/skill-bundles)
 
 # Skill Bundles
 

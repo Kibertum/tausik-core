@@ -1,4 +1,4 @@
-**English** | [Русский](../ru/vendor-skills.md)
+**English** | [Русский](/ru/docs/vendor-skills)
 
 # Custom Skills
 

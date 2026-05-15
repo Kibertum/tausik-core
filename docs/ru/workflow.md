@@ -1,4 +1,4 @@
-[English](../en/workflow.md) | **Русский**
+[English](/docs/workflow) | **Русский**
 
 # Рабочий процесс
 

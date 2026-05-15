@@ -1,4 +1,4 @@
-[English](../en/doctor.md) | **Русский**
+[English](/docs/doctor) | **Русский**
 
 # Doctor — Health Check
 
