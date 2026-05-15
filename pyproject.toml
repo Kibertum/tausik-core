@@ -1,6 +1,6 @@
 [project]
 name = "tausik"
-version = "1.4.1"
+version = "1.4.2"
 description = "Cross-IDE AI agent framework with task lifecycle, quality gates, and project memory"
 readme = "README.md"
 license = "Apache-2.0"

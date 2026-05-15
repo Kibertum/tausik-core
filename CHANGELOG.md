@@ -13,6 +13,22 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 - *(see below — Cursor MCP rework moved up from the previous Unreleased block; no other v1.5 items have promoted yet)*
 
+## [1.4.2] — 2026-05-15
+
+### Site
+
+- **Landing rework — honest slogan + concrete Without/With + enforcement-in-hero.** The v1.4.0 slogan ("Git for AI workflow") was clever but misleading — Git is version control for source files; TAUSIK is a discipline layer over coding agents. Replaced with a direct, pain-point slogan: **"AI agents that can't fake 'done'."** (EN) / **"AI-агенты, которые не врут «готово»"** (RU). Eyebrow shifted from the generic "AI development framework" / "Фреймворк AI-разработки" to **"Discipline layer for AI coding agents"** / **"Discipline-слой для AI-кодинг-агентов"** — first-time visitors now read what TAUSIK *is* in the first six words. Hero lede tightened to name the two failure modes the framework intercepts: "starting a task without a goal, and claiming completion without proof." Hero terminal demo now opens on a **BLOCKED — no active task** line (red, weight 600) showing enforcement before showing the happy path; the previous version led with the happy path and never demonstrated a block.
+
+- **Without/With rows rewritten with concrete agent phrases.** Each of the six rows was abstract ("Agent starts coding immediately"). Now each is a concrete agent-quote + the matching hook output — e.g. `'Agent says "I'll quickly refactor this" and edits 30 files.'` → `'task_gate.py hook returns: BLOCKED — no active task (SENAR Rule 9.1).'`. Six rows, six concrete failure modes, six named code paths (task_gate.py, task_done_verify, SessionStart hook, tausik dead-end, tausik verify, tausik metrics + events log). EN + RU.
+
+- **Three-message cycle: section name → "Task lifecycle".** Eyebrow + title (EN: "Task lifecycle / Three messages. Full lifecycle." | RU: "Жизненный цикл задачи / Три сообщения. Полный цикл.") so the section reads as "what TAUSIK organises" rather than "the pitch line". Cycle.sub rewritten to: "You describe what you want. The framework forces the steps you skip when you trust the agent too much." — names the actual problem the framework solves (skipping under trust) rather than the abstract "you describe what you want; framework enforces how it gets done".
+
+- **Stats reframed — main framework promise made visible.** Old stats tiles: `732 tasks completed / 73 sessions / 3,378 tests / 0 core dependencies`. The 73-sessions and bare 732-tasks numbers are dogfood trivia, not framework-trust signals. New tiles surface the gate-truth headline: `732 tasks closed — every one with a goal + AC / 0 closed without verify evidence (accent) / 3,400 tests passing / 0 core dependencies / phone-home calls`. Same numbers, different framing: visitor now reads how the framework was actually used. EN + RU.
+
+### Internal
+
+- pyproject.toml: 1.4.1 → 1.4.2. docs/_generated/constants.json regenerated. README badges unchanged (test_count stable at 3400).
+
 ## [1.4.1] — 2026-05-15
 
 ### Fixed

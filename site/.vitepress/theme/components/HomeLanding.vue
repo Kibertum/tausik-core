@@ -17,12 +17,12 @@ const VERSION = constants.tausik_version;
 
 const copy = {
   en: {
-    eyebrow: "AI development framework",
+    eyebrow: "Discipline layer for AI coding agents",
     hero: {
-      titleA: "Git for AI",
-      titleB: "workflow",
+      titleA: "AI agents that can't",
+      titleB: "fake 'done'",
       lede:
-        "A local Python framework that adds enforced quality gates to Claude Code, Cursor, Qwen, and Windsurf — so the agent can't skip plan, test, or verify steps. Three messages cover the full engineering cycle.",
+        "A local Python framework that gates Claude Code, Cursor, Qwen, and Windsurf at the two points where AI agents lie most: starting a task without a goal, and claiming completion without proof. Three messages cover the full cycle.",
       ctaPrimary: "Get started",
       ctaSecondary: "View on GitHub",
       badges: ["Apache 2.0", "Python 3.11+", `${TESTS.toLocaleString("en-US")} tests passing`, "0 core dependencies", "MCP-native"],
@@ -38,35 +38,58 @@ const copy = {
       title: "Without TAUSIK",
       titleSep: " vs ",
       titleAlt: "With TAUSIK",
-      sub: "Enforcement, not suggestion. The agent physically can't skip steps.",
+      sub: "Enforcement, not suggestion. The agent literally cannot bypass the gate — the hook process blocks Write/Edit before the tool call lands.",
       headL: "Without TAUSIK",
       headR: "With TAUSIK",
       rows: [
-        ["Agent starts coding immediately", "Must define goal + acceptance criteria first", "QG-0"],
-        ['Claims "done" without proof', "Completion blocked until every criterion has evidence", "QG-2"],
-        ["Context lost between sessions", "Decisions, patterns, dead ends persist in local SQLite", ""],
-        ["Same mistake repeated 3 times", "Failed approaches recorded — agent sees what didn't work", ""],
-        ["No tests, no linting", `${STACKS} stack-aware verify suites auto-run (pytest, ruff, tsc, eslint, cargo, go vet…)`, ""],
-        ["No visibility into process", "6 metrics tracked automatically — throughput, defect rate, lead time", ""],
+        [
+          'Agent says "I\'ll quickly refactor this" and edits 30 files.',
+          'task_gate.py hook returns: BLOCKED — no active task (SENAR Rule 9.1).',
+          "QG-0",
+        ],
+        [
+          'Agent reports "Done — all green" without running tests.',
+          'task_done_verify rejects close: AC #2 has no evidence row in verification_runs.',
+          "QG-2",
+        ],
+        [
+          "Next session starts blank. The agent re-asks the same questions.",
+          "SessionStart hook injects handoff + memory tail. Last decision and dead-end load with CLAUDE.md.",
+          "",
+        ],
+        [
+          "Agent re-tries the same broken approach two days later.",
+          "tausik dead-end records the failed approach. Search surfaces it before the agent burns more tokens.",
+          "",
+        ],
+        [
+          'Agent runs "the obvious tests" — usually none.',
+          `tausik verify runs the ${STACKS}-stack matrix (pytest, ruff, tsc, eslint, cargo, go vet, hadolint…) and caches the result.`,
+          "",
+        ],
+        [
+          'You ask "what changed?" and read 200 lines of chat.',
+          "tausik metrics prints throughput, defect rate, lead time, cost-per-task. Every gate exit is logged in events.",
+          "",
+        ],
       ],
     },
     cycle: {
-      eyebrow: "The cycle",
-      title: "Three messages. Full engineering cycle.",
-      sub: "You describe what you want. The framework enforces how it gets done.",
+      eyebrow: "Task lifecycle",
+      title: "Three messages. Full lifecycle.",
+      sub: "You describe what you want. The framework forces the steps you skip when you trust the agent too much.",
       steps: [
         {
           n: "01",
           label: "session start",
           msg: "message 1 of 3",
-          caption: "Opens session, loads handoff from last session, refreshes CLAUDE.md memory tail.",
+          caption: "Opens session, loads handoff from the last one, refreshes the CLAUDE.md memory tail.",
         },
         {
           n: "02",
           label: "task lifecycle",
           msg: "message 2 of 3",
-          caption:
-            "Interviews you on edge cases, creates a task with acceptance criteria, writes the code, runs tests + lint + 5 parallel review agents, verifies each AC has evidence.",
+          caption: `Interviews you on edge cases, creates a task with acceptance criteria, writes the code, runs tests + lint + ${REVIEW_AGENTS} parallel review agents, verifies each AC has evidence in the DB.`,
         },
         {
           n: "03",
@@ -75,7 +98,7 @@ const copy = {
           caption: "Runs tausik verify (cached 10 min), passes QG-2, commits, asks before pushing.",
         },
       ],
-      footer: "That's it. You describe what you want. The framework enforces how it gets done.",
+      footer: "That's it. You describe what you want. The framework forces the steps you skip when you trust the agent too much.",
     },
     features: {
       eyebrow: "What you get",
@@ -110,12 +133,12 @@ const copy = {
     stats: {
       eyebrow: "Dogfooding",
       title: "TAUSIK built TAUSIK.",
-      sub: "Every feature, every refactor, every bug fix went through the same quality gates that ship with the framework.",
+      sub: "Every feature, every refactor, every bug fix went through the same gates that ship with the framework. The numbers below are the dogfood project's own state.",
       items: [
-        ["732", "tasks completed"],
-        ["73", "sessions"],
-        ["3,378", "tests passing", true],
-        ["0", "core dependencies"],
+        ["732", "tasks closed — every one with a goal + AC"],
+        ["0", "tasks closed without verify evidence", true],
+        [`${TESTS.toLocaleString("en-US")}`, "tests passing"],
+        ["0", "core dependencies / phone-home calls"],
       ],
       foot: "Snapshot at v1.4.0 release. Live numbers via tausik metrics.",
     },
@@ -203,12 +226,12 @@ const copy = {
     },
   },
   ru: {
-    eyebrow: "Фреймворк AI-разработки",
+    eyebrow: "Discipline-слой для AI-кодинг-агентов",
     hero: {
-      titleA: "Git для AI",
-      titleB: "разработки",
+      titleA: "AI-агенты, которые",
+      titleB: "не врут «готово»",
       lede:
-        "Локальный Python-фреймворк, добавляющий принудительные quality gates в Claude Code, Cursor, Qwen и Windsurf — чтобы агент не мог пропустить план, тесты или верификацию. Три сообщения покрывают полный инженерный цикл.",
+        "Локальный Python-фреймворк, который перехватывает Claude Code, Cursor, Qwen и Windsurf в двух точках, где AI-агенты врут чаще всего: старт задачи без цели и заявление «готово» без доказательств. Три сообщения покрывают весь цикл.",
       ctaPrimary: "Начать",
       ctaSecondary: "Открыть GitHub",
       badges: ["Apache 2.0", "Python 3.11+", `${TESTS.toLocaleString("ru-RU").replace(",", " ")} тестов проходит`, "0 core-зависимостей", "MCP-native"],
@@ -224,22 +247,46 @@ const copy = {
       title: "Без TAUSIK",
       titleSep: " vs ",
       titleAlt: "С TAUSIK",
-      sub: "Принуждение, а не подсказка. Агент физически не может пропустить шаги.",
+      sub: "Принуждение, а не подсказка. Агент физически не может пропустить шаг — хук блокирует Write/Edit до того, как tool call долетит до runtime.",
       headL: "Без TAUSIK",
       headR: "С TAUSIK",
       rows: [
-        ["Агент сразу начинает кодить", "Должен сначала определить цель и acceptance criteria", "QG-0"],
-        ['Заявляет «готово» без доказательств', "Закрытие блокируется, пока у каждого критерия нет evidence", "QG-2"],
-        ["Контекст теряется между сессиями", "Решения, паттерны, тупики хранятся в локальном SQLite", ""],
-        ["Та же ошибка повторяется 3 раза", "Провальные подходы записаны — агент видит что не сработало", ""],
-        ["Нет тестов, нет линтеров", `${STACKS} stack-aware verify-сьютов запускаются сами (pytest, ruff, tsc, eslint, cargo, go vet…)`, ""],
-        ["Процесс непрозрачен", "6 метрик отслеживаются автоматически — throughput, defect rate, lead time", ""],
+        [
+          'Агент говорит "сейчас быстро отрефакторю" и правит 30 файлов.',
+          'task_gate.py хук возвращает: BLOCKED — нет активной задачи (SENAR Rule 9.1).',
+          "QG-0",
+        ],
+        [
+          'Агент рапортует "Готово, всё зелёное" — без запуска тестов.',
+          'task_done_verify блокирует закрытие: у AC #2 нет evidence-строки в verification_runs.',
+          "QG-2",
+        ],
+        [
+          "Новая сессия стартует чистой. Агент задаёт те же вопросы заново.",
+          "SessionStart хук инжектит handoff + memory tail. Последнее решение и dead-end грузятся вместе с CLAUDE.md.",
+          "",
+        ],
+        [
+          "Через два дня агент пытается тот же неработающий подход.",
+          "tausik dead-end сохраняет провальные подходы. Search всплывает их до того, как агент сожжёт ещё токены.",
+          "",
+        ],
+        [
+          'Агент гоняет "очевидные тесты" — обычно никаких.',
+          `tausik verify запускает матрицу из ${STACKS} стеков (pytest, ruff, tsc, eslint, cargo, go vet, hadolint…) и кэширует результат.`,
+          "",
+        ],
+        [
+          'Спрашиваешь "что изменилось?" — читаешь 200 строк чата.',
+          "tausik metrics печатает throughput, defect rate, lead time, cost-per-task. Каждый gate-exit лежит в events.",
+          "",
+        ],
       ],
     },
     cycle: {
-      eyebrow: "Цикл",
-      title: "Три сообщения. Полный инженерный цикл.",
-      sub: "Ты описываешь что хочешь. Фреймворк принуждает к тому, как это делается.",
+      eyebrow: "Жизненный цикл задачи",
+      title: "Три сообщения. Полный цикл.",
+      sub: "Ты описываешь что хочешь. Фреймворк принуждает к шагам, которые ты пропускаешь, когда слишком доверяешь агенту.",
       steps: [
         {
           n: "01",
@@ -251,7 +298,7 @@ const copy = {
           n: "02",
           label: "жизненный цикл задачи",
           msg: "сообщение 2 из 3",
-          caption: `Опрашивает тебя про edge cases, создаёт задачу с acceptance criteria, пишет код, гоняет тесты + линтеры + ${REVIEW_AGENTS} review-агентов параллельно, проверяет evidence для каждого AC.`,
+          caption: `Опрашивает тебя про edge cases, создаёт задачу с acceptance criteria, пишет код, гоняет тесты + линтеры + ${REVIEW_AGENTS} review-агентов параллельно, проверяет evidence в БД для каждого AC.`,
         },
         {
           n: "03",
@@ -260,7 +307,7 @@ const copy = {
           caption: "Запускает tausik verify (кэш 10 мин), проходит QG-2, коммитит, спрашивает перед push.",
         },
       ],
-      footer: "Вот и всё. Ты описываешь что хочешь. Фреймворк принуждает к тому, как это делается.",
+      footer: "Вот и всё. Ты описываешь что хочешь. Фреймворк принуждает к шагам, которые ты пропускаешь, когда слишком доверяешь агенту.",
     },
     features: {
       eyebrow: "Что внутри",
@@ -295,12 +342,12 @@ const copy = {
     stats: {
       eyebrow: "Dogfooding",
       title: "TAUSIK построил TAUSIK.",
-      sub: "Каждая фича, каждый рефакторинг, каждый багфикс прошли через те же quality gates, которые поставляются с фреймворком.",
+      sub: "Каждая фича, каждый рефакторинг, каждый багфикс прошли через те же gates, которые поставляются с фреймворком. Числа ниже — состояние самого dogfood-проекта.",
       items: [
-        ["732", "задач закрыто"],
-        ["73", "сессий"],
-        ["3 378", "тестов проходит", true],
-        ["0", "core-зависимостей"],
+        ["732", "задач закрыто — каждая с целью + AC"],
+        ["0", "задач закрыто без verify-evidence", true],
+        [`${TESTS.toLocaleString("ru-RU").replace(",", " ")}`, "тестов проходит"],
+        ["0", "core-зависимостей / phone-home вызовов"],
       ],
       foot: "Снимок на момент релиза v1.4.0. Живые числа — через tausik metrics.",
     },
@@ -445,14 +492,16 @@ function copyInstall(e: MouseEvent) {
                 <span class="term-title">{{ t.hero.termTitle }}</span>
               </div>
               <div class="term-body">
+                <span class="line"><span class="muted">agent ›</span> <span class="prompt">Edit("src/auth.py", "...")</span></span>
+                <span class="line"><span class="dim">tausik ›</span> <span class="bad">BLOCKED</span> — no active task (SENAR Rule 9.1)</span>
+                <span class="line">&nbsp;</span>
                 <span class="line"><span class="muted">you ›</span> <span class="prompt">start working</span></span>
                 <span class="line"><span class="dim">tausik ›</span> session <span class="num">#74</span> opened · handoff loaded · memory tail refreshed</span>
-                <span class="line">        <span class="muted">↳ resume: <span class="kw">fix(auth): retry on 401</span></span></span>
                 <span class="line">&nbsp;</span>
                 <span class="line"><span class="muted">you ›</span> <span class="prompt">fix the mobile button bug</span></span>
                 <span class="line"><span class="dim">tausik ›</span> 4 edge cases collected → task <span class="num">T-219</span> · <span class="num">3</span> AC drafted</span>
                 <span class="line">        <span class="kw">QG-0</span> <span class="ok">passed</span> · goal + AC locked</span>
-                <span class="line">        pytest · ruff · tsc · <span class="num">5</span> review agents · cached</span>
+                <span class="line">        pytest · ruff · tsc · <span class="num">6</span> review agents · cached</span>
                 <span class="line">        <span class="kw">QG-2</span> <span class="ok">passed</span> · every AC has evidence</span>
                 <span class="line">&nbsp;</span>
                 <span class="line"><span class="muted">you ›</span> <span class="prompt">ship it</span></span>
@@ -1026,6 +1075,10 @@ h2 {
 }
 .ok {
   color: var(--lt-good);
+}
+.bad {
+  color: var(--lt-bad);
+  font-weight: 600;
 }
 .kw {
   color: #c0c8ff;
