@@ -48,12 +48,19 @@ Include trigger phrases: "Use when user says 'X', 'Y', 'Z'."
 
 ## Skill Categories
 
+The canonical list lives in `.tausik/config.json` under `bootstrap.core_skills`
+and `bootstrap.extension_skills`. As of v1.4:
+
 | Category | Skills | Bootstrap Handling |
 |----------|--------|--------------------|
-| Core | start, plan, task, end, checkpoint | Always copied, not selectable |
-| Service | init | Always copied, excluded from interactive |
-| Extension | review, test, security, docs, etc. | Selected via --smart or --interactive |
-| Plugin | ui-ux-pro-max | Large skills, manual selection |
+| Core (11) | start, end, task, plan, checkpoint, commit, explore, review, test, ship, debug | Always copied, not selectable |
+| Core (conditional) | brain | Copied when Notion is configured (`brain.enabled = true`) |
+| Extension | docs (and any names added under `bootstrap.extension_skills`) | Selected via `--include-official` or `tausik skill install <name>` |
+| Vendor / bundle | 20 skills under `skills-official/registry.json`, grouped into 6 bundles | Pulled per-skill or per-bundle via `tausik skill bundle install <name>` |
+
+`init` was removed in v1.4 (replaced by `python bootstrap/bootstrap.py --init`).
+The five legacy skills `/go`, `/next`, `/diff`, `/onboard`, `/init` were removed
+in the same release — see `skill-bundles-migration.md`.
 
 ## Conventions
 
@@ -66,10 +73,9 @@ Include trigger phrases: "Use when user says 'X', 'Y', 'Z'."
 
 ## Creating a New Skill
 
-1. Create `skills/my-skill/SKILL.md` following the format above
-2. Add to `.claude-bootstrap.json` under appropriate category:
-   - `extension_skills` for standard extensions
-   - `plugin_skills` for large/specialized skills
+1. Create `harness/skills/my-skill/SKILL.md` following the format above
+2. Add the slug to `.tausik/config.json` under `bootstrap.extension_skills`
+   (or `bootstrap.core_skills` for always-deployed)
 3. Run `python bootstrap/bootstrap.py` to copy to `.claude/skills/`
 4. Claude Code discovers it automatically by SKILL.md presence
 

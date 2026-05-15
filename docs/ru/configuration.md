@@ -38,8 +38,8 @@
 | Ключ | Дефолт | Назначение |
 |---|---|---|
 | `brain.enabled` | `false` | Master switch для cross-project Notion brain. |
-| `brain.local_mirror_path` | `~/.tausik-brain/mirror.db` | Локальный SQLite mirror Notion-баз. Тильда + `$ENV` раскрываются. |
-| `brain.notion_integration_token_env` | `TAUSIK_BRAIN_TOKEN` | Имя env-переменной с Notion integration token. |
+| `brain.local_mirror_path` | `~/.tausik-brain/brain.db` | Локальный SQLite mirror Notion-баз. Тильда + `$ENV` раскрываются. |
+| `brain.notion_integration_token_env` | `NOTION_TAUSIK_TOKEN` | Имя env-переменной с Notion integration token. |
 | `brain.database_ids` | `{}` | Notion DB ID'ы. Заполняются wizard'ом `tausik brain init`. |
 | `brain.private_url_patterns` | `[]` | Regex-паттерны URL для scrub'инга перед записью в brain. |
 | `brain.project_names_blocklist` | `[]` | Подстроки имён проектов для scrub'инга. |
@@ -58,7 +58,7 @@
   },
   "brain": {
     "enabled": true,
-    "notion_integration_token_env": "TAUSIK_BRAIN_TOKEN"
+    "notion_integration_token_env": "NOTION_TAUSIK_TOKEN"
   }
 }
 ```

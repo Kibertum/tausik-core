@@ -38,8 +38,8 @@ See also: [environment.md](environment.md) — env vars, [permissions.md](permis
 | Key | Default | Purpose |
 |---|---|---|
 | `brain.enabled` | `false` | Master switch for cross-project Notion brain. |
-| `brain.local_mirror_path` | `~/.tausik-brain/mirror.db` | Local SQLite mirror of Notion DBs. Tilde + `$ENV` expanded. |
-| `brain.notion_integration_token_env` | `TAUSIK_BRAIN_TOKEN` | Env var name holding Notion integration token. |
+| `brain.local_mirror_path` | `~/.tausik-brain/brain.db` | Local SQLite mirror of Notion DBs. Tilde + `$ENV` expanded. |
+| `brain.notion_integration_token_env` | `NOTION_TAUSIK_TOKEN` | Env var name holding Notion integration token. |
 | `brain.database_ids` | `{}` | Notion DB IDs (`decisions`, `web_cache`, `patterns`, `gotchas`). Wizard-populated by `tausik brain init`. |
 | `brain.private_url_patterns` | `[]` | URL patterns scrubbed before brain writes (regex strings). |
 | `brain.project_names_blocklist` | `[]` | Project-name substrings scrubbed before brain writes. |
@@ -58,7 +58,7 @@ See also: [environment.md](environment.md) — env vars, [permissions.md](permis
   },
   "brain": {
     "enabled": true,
-    "notion_integration_token_env": "TAUSIK_BRAIN_TOKEN"
+    "notion_integration_token_env": "NOTION_TAUSIK_TOKEN"
   }
 }
 ```

@@ -25,9 +25,9 @@
 | **MCP** | Brain server | `.claude/mcp/brain/server.py` существует |
 | **MCP** | Server can start | `python server.py --probe` возвращает success |
 | **Skills** | Deployment | Skills присутствуют в `.claude/skills/` (количество) |
-| **Skills** | Critical skills | core skills `start`, `end`, `task`, `plan`, `review`, `brain`, `ship`, `checkpoint` все на месте |
+| **Skills** | Critical skills | core skills `start`, `end`, `task`, `plan`, `checkpoint`, `commit`, `explore`, `review`, `test`, `ship`, `debug` все на месте (плюс `/brain` опционально, если настроен Notion) |
 | **Drift** | Bootstrap freshness | Файлы в `.claude/` соответствуют генераторам в `harness/`/`bootstrap/`. Drift = устаревшая сгенерированная копия. |
-| **Config** | Knobs | `session_max_minutes`, `session_warn_threshold_minutes`, `session_idle_threshold_minutes`, `session_capacity_minutes`, `verify_cache_ttl_seconds` |
+| **Config** | Knobs | `session_max_minutes`, `session_warn_threshold_minutes`, `session_idle_threshold_minutes`, `session_capacity_calls`, `verify_cache_ttl_seconds` |
 | **Gates** | Registered gates | Stack-detected + universal gates count |
 | **Session** | Active vs wall | Если сессия открыта: `Xm active / Ym wall` (gap-based) |
 

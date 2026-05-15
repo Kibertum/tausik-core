@@ -1,41 +1,40 @@
 # Stack Detection Tables
 
-Used by /plan skill to auto-detect project stacks.
+Used by /plan skill to auto-detect project stacks. Each row maps a detection
+hint to a stack profile under `stacks/<name>/` (which ships `stack.json`
+plus `guide.md`). Roles (`security`, `sre`, `lead`, `ux`, `game-designer`,
+`narrative`, `pixel-artist`, `sound-designer`) live under `harness/roles/`
+instead of `stacks/` — see `roles.md` for that taxonomy.
 
 ## File Detection
 
 | Detect Files | Stack Name | Reference |
 |-------------|------------|-----------|
-| requirements.txt, pyproject.toml + fastapi | fastapi | harness/stacks/fastapi.md |
-| manage.py, django in requirements | django | harness/stacks/django.md |
-| composer.json + laravel | laravel | harness/stacks/laravel.md |
-| composer.json + symfony | symfony | harness/stacks/symfony.md |
-| package.json + express/fastify | node | harness/stacks/node.md |
-| go.mod | go | harness/stacks/go.md |
-| mix.exs | elixir | harness/stacks/elixir.md |
-| nuxt.config.ts | nuxt | harness/stacks/nuxt.md |
-| next.config.* | next | harness/stacks/next.md |
-| svelte.config.js + @sveltejs/kit | sveltekit | harness/stacks/sveltekit.md |
-| svelte.config.js (no kit) | svelte | harness/stacks/svelte.md |
-| package.json + react (no next) | react | harness/stacks/react.md |
-| pubspec.yaml + flutter | flutter | harness/stacks/flutter.md |
-| *.xcodeproj, Package.swift | ios | harness/stacks/ios.md |
-| *.csproj + Unity | unity | harness/stacks/unity.md |
-| build.gradle + android | android | harness/stacks/android.md |
-| package.json + react-native | react-native | harness/stacks/react-native.md |
-| Cargo.toml | rust | harness/stacks/rust.md |
-| pyproject.toml (no fastapi) | python | harness/stacks/python.md |
-| composer.json (no framework) | php | harness/stacks/php.md |
-| docker-compose.yml, Dockerfile, k8s/ | devops | harness/stacks/devops.md |
-| SQL files, migrations/ | db | harness/stacks/db.md |
-| OWASP, security configs | security | harness/stacks/security.md |
-| SLO, monitoring configs | sre | harness/stacks/sre.md |
-| CSS, design tokens, a11y | ux | harness/stacks/ux.md |
-| architecture, ADR | lead | harness/stacks/lead.md |
-| Unity + game design docs | game-designer | harness/stacks/game-designer.md |
-| narrative docs, lore | narrative | harness/stacks/narrative.md |
-| pixel art, sprites, ComfyUI | pixel-artist | harness/stacks/pixel-artist.md |
-| audio, FMOD, sound assets | sound-designer | harness/stacks/sound-designer.md |
+| pyproject.toml + fastapi import / dependency | fastapi | stacks/fastapi/guide.md |
+| manage.py, django in requirements | django | stacks/django/guide.md |
+| pyproject.toml / requirements.txt + flask | flask | stacks/flask/guide.md |
+| pyproject.toml / requirements.txt (no fastapi/flask/django) | python | stacks/python/guide.md |
+| composer.json + laravel | laravel | stacks/laravel/guide.md |
+| composer.json (no framework) | php | stacks/php/guide.md |
+| `.blade.php` templates | blade | stacks/blade/guide.md |
+| go.mod | go | stacks/go/guide.md |
+| Cargo.toml | rust | stacks/rust/guide.md |
+| build.gradle / *.kt | kotlin | stacks/kotlin/guide.md |
+| pom.xml / build.gradle + *.java | java | stacks/java/guide.md |
+| *.swift, Package.swift | swift | stacks/swift/guide.md |
+| pubspec.yaml + flutter | flutter | stacks/flutter/guide.md |
+| tsconfig.json | typescript | stacks/typescript/guide.md |
+| package.json (no ts/framework) | javascript | stacks/javascript/guide.md |
+| next.config.* | next | stacks/next/guide.md |
+| nuxt.config.ts | nuxt | stacks/nuxt/guide.md |
+| svelte.config.js | svelte | stacks/svelte/guide.md |
+| package.json + react (no next) | react | stacks/react/guide.md |
+| package.json + vue (no nuxt) | vue | stacks/vue/guide.md |
+| Dockerfile, docker-compose.yml | docker | stacks/docker/guide.md |
+| ansible.cfg, playbooks/ | ansible | stacks/ansible/guide.md |
+| *.tf, terraform.tfstate | terraform | stacks/terraform/guide.md |
+| Chart.yaml, templates/ (Helm) | helm | stacks/helm/guide.md |
+| *.yaml under k8s/ or manifests/ | kubernetes | stacks/kubernetes/guide.md |
 
 ## Keyword Mapping
 
@@ -43,44 +42,48 @@ Used by /plan skill to auto-detect project stacks.
 |----------|-------|
 | API, endpoint, FastAPI, async | fastapi |
 | Django, ORM, admin | django |
-| Laravel, Eloquent, Blade | laravel |
-| Express, Node, middleware | node |
-| Go, Chi, Gin | go |
-| Phoenix, Elixir, OTP | elixir |
-| page, component, Vue, Nuxt | nuxt |
-| React, Next, hooks | next / react |
-| Svelte, SvelteKit | sveltekit / svelte |
-| Flutter, Dart, GetX | flutter |
-| iOS, Swift, SwiftUI | ios |
-| Android, Kotlin, Compose | android |
-| React Native, Expo | react-native |
-| database, SQL, query, index | db |
-| security, auth, OWASP, JWT | security |
-| docker, CI/CD, deploy, k8s | devops |
-| SLO, monitoring, incident | sre |
-| UI/UX, design, accessibility | ux |
-| architecture, planning | lead |
+| Flask, blueprint, jinja | flask |
 | CLI, daemon, systemd | python |
-| Rust, tokio, async | rust |
-| Symfony, Doctrine | symfony |
+| Laravel, Eloquent | laravel |
+| Blade template, `@yield`, `@section` | blade |
 | PHP, vanilla php | php |
-| Unity, C#, MonoBehaviour | unity |
-| game design, balance, systems | game-designer |
-| narrative, lore, story | narrative |
-| pixel art, sprites | pixel-artist |
-| sound, audio, music | sound-designer |
+| Go, Chi, Gin, goroutine | go |
+| Rust, tokio, async, cargo | rust |
+| Kotlin, coroutines, Compose | kotlin |
+| Java, Spring, Maven | java |
+| Swift, SwiftUI, Combine | swift |
+| Flutter, Dart, GetX | flutter |
+| TypeScript, type, interface, generic | typescript |
+| JavaScript, vanilla js, web API | javascript |
+| Next, app router, server actions | next |
+| Nuxt, page, layout, useFetch | nuxt |
+| Svelte, store, runes | svelte |
+| React, hooks, JSX | react |
+| Vue, composition API, ref/reactive | vue |
+| Docker, container, image | docker |
+| Ansible, playbook, role | ansible |
+| Terraform, plan, apply, state | terraform |
+| Helm, chart, values.yaml | helm |
+| Kubernetes, pod, deployment, service | kubernetes |
 
 ## Coordination for Complex Tasks
 
-| Concern | Stack |
+For tasks that span multiple stacks, `/plan` picks one primary stack and
+lists supporting stacks for completion-time review. Roles (security,
+sre, lead, ux, design-leaning ones) layer on top of the chosen stack —
+they aren't stack profiles themselves.
+
+| Concern | Layer |
 |---------|-------|
-| User-facing changes | ux |
-| Auth/sensitive data | security |
-| API changes | backend stack |
-| UI changes | frontend stack |
-| Deploy affected | devops |
+| User-facing changes | role: ux |
+| Auth / sensitive data | role: security |
+| API changes | primary stack |
+| UI changes | primary stack |
+| Deploy affected | docker / kubernetes / terraform / helm |
+| Architecture / ADR | role: lead |
 
 ```
 Primary Stack:    Does the implementation
 Supporting Stacks: Review specific aspects on completion
+Role (optional):  Cross-cutting concern (security audit, ux review, …)
 ```

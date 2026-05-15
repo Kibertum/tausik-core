@@ -10,20 +10,20 @@ TAUSIK skills ship a single **`SKILL.md`** plus optional **two-axis overlays**: 
 harness/skills/<skill-name>/
   SKILL.md                  # Shared instructions + YAML frontmatter
   variants/
-    ide/
-      claude.md             # Appended when active IDE = claude
-      cursor.md             # ...cursor
-      qwen.md               # ...qwen
-      codex.md              # ...codex
-    model/
-      opus.md               # Appended when active model = opus
-      sonnet.md
-      haiku.md
-      gpt-4.md              # Added in v14b-gpt-model-profile (B8)
-      gpt-5.md              # ditto
-      gpt-5-5.md            # ditto (note: dot-form `gpt-5.5` normalizes to this)
-      qwen.md
+    ide/                    # Currently shipped only on the _profile-demo skill;
+      claude.md             # the production /plan, /task, /ship skills carry the
+      cursor.md             # model axis only. Adding ide/ overlays to a workflow
+      qwen.md               # skill is supported by the merge logic but not yet wired.
+      codex.md
+    model/                  # Shipped on /plan, /task, /ship.
+      sonnet.md             # Appended when active model = sonnet
+      haiku.md              # ...haiku
+      gpt-4.md              # GPT family (added in v14b-gpt-model-profile)
+      gpt-5.md
+      gpt-5-5.md            # Dot-form `gpt-5.5` normalizes to this slug
 ```
+
+`opus` and `qwen` slugs are **resolved by the detector** but currently fall back to the base SKILL.md — no `opus.md` / `qwen.md` ship for the workflow skills. Add them under `variants/model/` if you want a dedicated overlay; the merge picks them up on the next `tausik skill rebuild`.
 
 GPT overlays for `/plan`, `/task`, `/ship` are intentionally **telegraphic** (≤25 lines each, imperative voice, delta-only — no base SKILL.md restatement). They nudge: aggressive parallel tool calls (esp. gpt-5/gpt-5-5), zero narrative reasoning, single-turn task completion. See `harness/skills/{plan,task,ship}/variants/model/gpt-*.md`.
 

@@ -36,16 +36,16 @@ wall       = t5 − t1
   "session_idle_threshold_minutes": 10,
   "session_max_minutes": 180,
   "session_warn_threshold_minutes": 150,
-  "session_capacity_minutes": 200
+  "session_capacity_calls": 200
 }
 ```
 
 | Knob | Default | Значение |
 |------|---------|----------|
-| `session_idle_threshold_minutes` | 10 | Gap выше этого — AFK, выбрасывается из active time |
+| `session_idle_threshold_minutes` | 10 | Gap'ы выше этого клипуются до threshold'а (длинная AFK добавляет ровно столько в active time, не ноль) |
 | `session_max_minutes` | 180 | Hard limit — `task_start` блокируется выше (`session extend` для override) |
 | `session_warn_threshold_minutes` | 150 | Soft warning стартует здесь |
-| `session_capacity_minutes` | 200 | Capacity gate, который QG-0 проверяет на `task_start` |
+| `session_capacity_calls` | 200 | Capacity gate (в **tool calls**, не minutes), который QG-0 проверяет на `task_start` |
 
 ## Где это видно
 
