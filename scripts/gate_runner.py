@@ -373,6 +373,9 @@ def check_file_conflicts(tasks: list[dict]) -> list[tuple[str, str, list[str]]]:
 
 
 def main() -> None:
+    for stream in (sys.stdout, sys.stderr):  # Win console cp1252 → utf-8
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(description="Run TAUSIK quality gates")
     parser.add_argument("trigger", choices=["task-done", "commit", "review"])
     parser.add_argument("--files", nargs="*", default=[])

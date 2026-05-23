@@ -259,6 +259,7 @@ def _validate_custom_gate(name: str, gate: dict) -> str | None:
     first_token = command.split()[0] if command.strip() else ""
     # Strip path prefixes (e.g. "vendor/bin/phpstan" -> "phpstan")
     exe = first_token.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+    exe = exe[:-4] if os.name == "nt" and exe.lower().endswith(".exe") else exe
 
     if exe not in ALLOWED_GATE_EXECUTABLES:
         return (

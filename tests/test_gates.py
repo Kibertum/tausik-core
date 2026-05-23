@@ -313,6 +313,53 @@ class TestGateRunner:
         run_command_gate(gate, [])
         assert "--override-ini" not in captured["cmd"]
 
+    def test_pytest_via_python_m_gets_override(self, monkeypatch):
+        """Windows fix: pytest is detected as a TOKEN, so `python.exe -m pytest`
+        (not just a leading `pytest`) gets the full-lane override injected. The
+        pre-fix startswith() check missed this form entirely."""
+        monkeypatch.setenv("TAUSIK_VERIFY_FULL", "1")
+        gate = {"command": "python -m pytest -q"}
+        import gate_runner
+
+        captured: dict = {}
+
+        def fake_run(cmd, **kwargs):
+            captured["cmd"] = cmd
+            from types import SimpleNamespace
+
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(gate_runner.subprocess, "run", fake_run)
+        passed, _ = run_command_gate(gate, [])
+        assert passed is True
+        # argv form (no shell operators) — cmd is the argv list; join to inspect
+        joined = " ".join(captured["cmd"])
+        assert "pytest --override-ini=addopts= -q" in joined, (
+            "override must be injected right after the pytest token, not at the leading executable"
+        )
+
+    def test_command_gate_normalizes_argv0_separator(self, monkeypatch):
+        """Windows fix: argv[0] is normpath'd so a configured forward-slash venv
+        path (backend/.venv/Scripts/python.exe) resolves; bare executables are
+        unaffected because normpath is a no-op on a name without a directory."""
+        import gate_runner
+
+        captured: dict = {}
+
+        def fake_run(cmd, **kwargs):
+            captured["cmd"] = cmd
+            from types import SimpleNamespace
+
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(gate_runner.subprocess, "run", fake_run)
+
+        run_command_gate({"command": "backend/.venv/Scripts/python.exe -c pass"}, [])
+        assert captured["cmd"][0] == os.path.normpath("backend/.venv/Scripts/python.exe")
+
+        run_command_gate({"command": "ruff check ."}, [])
+        assert captured["cmd"][0] == "ruff", "bare executable must be untouched"
+
     def test_format_results_empty(self):
         assert "No gates" in format_results([])
 
@@ -483,6 +530,25 @@ class TestCustomGateValidation:
         """vendor/bin/phpstan should extract 'phpstan' as executable."""
         gate = {"command": "vendor/bin/phpstan analyse src/"}
         assert _validate_custom_gate("php-check", gate) is None
+
+    def test_exe_suffix_stripped_on_windows(self, monkeypatch):
+        """Windows fix: a configured python.exe path validates as 'python'."""
+        import project_config
+
+        monkeypatch.setattr(project_config.os, "name", "nt")
+        gate = {"command": "backend/.venv/Scripts/python.exe -m pytest"}
+        assert _validate_custom_gate("py-win", gate) is None
+
+    def test_exe_suffix_not_stripped_on_posix(self, monkeypatch):
+        """Negative scenario: on POSIX the .exe suffix is NOT stripped, so a
+        bogus 'python.exe' executable is correctly rejected (no Windows leniency
+        leaking onto other platforms)."""
+        import project_config
+
+        monkeypatch.setattr(project_config.os, "name", "posix")
+        gate = {"command": "python.exe -m pytest"}
+        err = _validate_custom_gate("py-posix", gate)
+        assert err is not None and "python.exe" in err
 
     def test_load_gates_skips_malicious_custom(self):
         cfg = {

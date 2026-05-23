@@ -14,6 +14,7 @@ re-exports both names for backwards compatibility with existing callers
 from __future__ import annotations
 
 import os
+import re
 import shlex
 import subprocess
 
@@ -60,13 +61,11 @@ def run_command_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
     files_str = " ".join(shlex.quote(f) for f in files) if files else "."
     cmd = cmd.replace("{files}", files_str)
     # v14b-pytest-fast-lane: TAUSIK_VERIFY_FULL=1 reverts the default fast lane
-    # (pyproject.toml addopts="-m 'not slow'") and runs the full battery —
-    # subprocess/integration/e2e/stress tests included. Only applies to pytest.
-    if os.environ.get("TAUSIK_VERIFY_FULL") and cmd.lstrip().startswith("pytest"):
-        head, _, tail = cmd.partition(" ")
-        cmd = (
-            f"{head} --override-ini=addopts= {tail}" if tail else f"{head} --override-ini=addopts="
-        )
+    # (pyproject.toml addopts="-m 'not slow'") and runs the full battery. Detect
+    # pytest as a TOKEN (works for `pytest …` AND `python.exe -m pytest …`) and
+    # inject the override right after it; count=0 leaves non-pytest gates untouched.
+    if os.environ.get("TAUSIK_VERIFY_FULL"):
+        cmd = re.subn(r"(^|\s)pytest(\s|$)", r"\1pytest --override-ini=addopts=\2", cmd, count=1)[0]
     # Detect shell operators -- need shell=True for pipes and redirects
     needs_shell = any(op in cmd for op in ("|", "&&", ">>", "2>&1"))
     timeout = gate.get("timeout", 120)
@@ -83,8 +82,16 @@ def run_command_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
                 stdin=subprocess.DEVNULL,
             )
         else:
+            argv = shlex.split(cmd)
+            # Windows: shlex (posix) strips backslashes from paths, and subprocess
+            # cannot launch a relative forward-slash executable (WinError 2).
+            # Normalize argv[0] to the OS-native separator so a configured path like
+            # backend/.venv/Scripts/python.exe resolves. Bare executables (ruff,
+            # mypy) are unaffected — normpath is a no-op on a name without a dir.
+            if argv:
+                argv[0] = os.path.normpath(argv[0])
             result = subprocess.run(
-                shlex.split(cmd),
+                argv,
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
