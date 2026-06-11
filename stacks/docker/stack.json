@@ -12,6 +12,7 @@
       "severity": "warn",
       "trigger": ["verify", "commit"],
       "command": "hadolint {files} 2>&1 | head -30",
+      "file_patterns": ["Dockerfile", "Containerfile", "*.dockerfile"],
       "description": "Dockerfile linter — lint/best-practice only, NOT vulnerability scanning (Trivy/Grype NOT included).",
       "stacks": ["docker"],
       "timeout": 60
