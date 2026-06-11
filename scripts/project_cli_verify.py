@@ -45,7 +45,11 @@ def cmd_verify(svc: ProjectService, args: Any) -> None:
             relevant_files = _json.loads(rf_raw) if rf_raw else []
         except (TypeError, ValueError):
             relevant_files = []
-        task_created_at = task.get("created_at")
+        # v1.5: cross-check window starts at started_at (when work actually
+        # began), not created_at — backlog tasks created sessions earlier
+        # would otherwise sweep in every intervening commit and produce a
+        # permanent git-mismatch false positive.
+        task_created_at = task.get("started_at") or task.get("created_at")
 
     # v1.4 Verify-First Contract: this CLI now runs the "verify" trigger
     # gates (pytest, tsc, cargo, phpstan, ...) and records the result in the
@@ -55,9 +59,7 @@ def cmd_verify(svc: ProjectService, args: Any) -> None:
     scope = getattr(args, "scope", "manual")
     files_hash = compute_files_hash(relevant_files)
     gate_sig = resolve_gate_signature("verify")
-    cache_command = (
-        f"trigger=verify|sig={gate_sig}|files={','.join(sorted(relevant_files))}"
-    )
+    cache_command = f"trigger=verify|sig={gate_sig}|files={','.join(sorted(relevant_files))}"
 
     cache_consistent = not (
         task_created_at and relevant_files
@@ -101,9 +103,7 @@ def cmd_verify(svc: ProjectService, args: Any) -> None:
     print(f"Duration: {duration_ms} ms")
 
     summary = (
-        ", ".join(
-            r["name"] + "=" + ("PASS" if r["passed"] else "FAIL") for r in results
-        )
+        ", ".join(r["name"] + "=" + ("PASS" if r["passed"] else "FAIL") for r in results)
         or "(no gates configured)"
     )
     record_run(
@@ -117,8 +117,7 @@ def cmd_verify(svc: ProjectService, args: Any) -> None:
         duration_ms=duration_ms,
     )
     print(
-        f"Recorded verification_run "
-        f"(task_slug={task_slug or '-'}, exit={'0' if passed else '1'})."
+        f"Recorded verification_run (task_slug={task_slug or '-'}, exit={'0' if passed else '1'})."
     )
     if not passed:
         raise SystemExit(1)

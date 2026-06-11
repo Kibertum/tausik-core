@@ -82,7 +82,10 @@ class GatesMixin:
                     files = _json.loads(raw) if raw else []
                 except (TypeError, ValueError):
                     files = []
-            task_created_at = task.get("created_at")
+            # v1.5: prefer started_at — see verify_git_diff docstring; the
+            # cross-check window is "since work started", not "since the
+            # backlog entry was created" (permanent false mismatch otherwise).
+            task_created_at = task.get("started_at") or task.get("created_at")
         passed, results, status = run_gates_with_cache(
             self.be._conn,
             task_slug or "",
@@ -191,7 +194,7 @@ class GatesMixin:
             relevant_files,
             scope=scope,
             append_notes_fn=self.be.task_append_notes,
-            task_created_at=task.get("created_at"),
+            task_created_at=task.get("started_at") or task.get("created_at"),
             progress_fn=progress_fn,
             trigger=trigger,
         )
