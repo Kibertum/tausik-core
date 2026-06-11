@@ -26,6 +26,12 @@ def _safe_path(project_dir: str, rel_path: str) -> str | None:
     return full
 
 
+# Hard ceiling for any git subprocess (seconds)
+GIT_TIMEOUT_SEC = 5
+# Default soft budget for a full reindex (seconds) — v1.5 hang fix:
+# reindex must finish or truncate within a bounded time, never hang.
+DEFAULT_MAX_SECONDS = 300
+
 # Max chunk size in chars (fits embedding context windows)
 MAX_CHUNK_CHARS = 4000
 # Overlap lines between chunks for context continuity
@@ -42,12 +48,8 @@ _BOUNDARY_PATTERNS: dict[str, re.Pattern[str]] = {
     ),
     "go": re.compile(r"^(func |type )", re.MULTILINE),
     "rust": re.compile(r"^(pub |fn |impl |struct |enum |trait |mod )", re.MULTILINE),
-    "java": re.compile(
-        r"^(public |private |protected |class |interface )", re.MULTILINE
-    ),
-    "kotlin": re.compile(
-        r"^(fun |class |interface |object |data class )", re.MULTILINE
-    ),
+    "java": re.compile(r"^(public |private |protected |class |interface )", re.MULTILINE),
+    "kotlin": re.compile(r"^(fun |class |interface |object |data class )", re.MULTILINE),
     "ruby": re.compile(r"^(def |class |module )", re.MULTILINE),
     "php": re.compile(r"^(function |class |interface |trait )", re.MULTILINE),
     "csharp": re.compile(
@@ -80,9 +82,7 @@ def chunk_file(content: str, language: str | None) -> list[dict[str, Any]]:
     return _normalize_chunks(chunks)
 
 
-def _chunk_by_boundaries(
-    lines: list[str], pattern: re.Pattern[str]
-) -> list[dict[str, Any]]:
+def _chunk_by_boundaries(lines: list[str], pattern: re.Pattern[str]) -> list[dict[str, Any]]:
     """Split at top-level code boundaries (functions, classes, etc.)."""
     boundaries: list[int] = []
     for i, line in enumerate(lines):
@@ -211,25 +211,60 @@ def _get_current_commit(project_dir: str) -> str | None:
         return None
 
 
-def _get_changed_files(
-    project_dir: str, since_commit: str
-) -> tuple[list[str], list[str]]:
-    """Get files changed since commit. Returns (modified, deleted)."""
+def _run_git(argv: list[str], cwd: str, timeout_sec: float = GIT_TIMEOUT_SEC) -> str | None:
+    """Run a git command with a timeout that actually holds on Windows.
+
+    subprocess.run(timeout=N) is NOT safe here: when git spawns a long-lived
+    grandchild that inherits the stdout pipe (fsmonitor--daemon, credential
+    helper, git.exe shim), EOF never arrives, TimeoutExpired fires — and then
+    CPython calls communicate() a second time WITHOUT a timeout, blocking
+    forever (reproduced on win32, v15p-fix-rag-reindex-hang). We manage the
+    Popen lifecycle ourselves and never issue that second blocking read; the
+    abandoned reader threads are daemonic and exit when the grandchild dies.
+
+    Returns stdout on success, None on any failure/timeout.
+    """
     try:
-        r = subprocess.run(
-            ["git", "diff", "--name-status", since_commit, "HEAD"],
-            cwd=project_dir,
-            capture_output=True,
+        proc = subprocess.Popen(
+            argv,
+            cwd=cwd,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
             text=True,
-            timeout=3,
         )
-        if r.returncode != 0:
-            return [], []
-    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+    except (FileNotFoundError, OSError):
+        return None
+    try:
+        out, _ = proc.communicate(timeout=timeout_sec)
+    except subprocess.TimeoutExpired:
+        try:
+            proc.kill()
+        except OSError:
+            pass
+        try:
+            proc.wait(timeout=1)  # reap the direct child; pipes stay abandoned
+        except (subprocess.TimeoutExpired, OSError):
+            pass
+        return None
+    except OSError:
+        return None
+    if proc.returncode != 0:
+        return None
+    return out
+
+
+def _get_changed_files(project_dir: str, since_commit: str) -> tuple[list[str], list[str]]:
+    """Get files changed since commit. Returns (modified, deleted)."""
+    out = _run_git(
+        ["git", "diff", "--name-status", since_commit, "HEAD"],
+        cwd=project_dir,
+    )
+    if not out:
         return [], []
 
     modified, deleted = [], []
-    for line in r.stdout.strip().split("\n"):
+    for line in out.strip().split("\n"):
         if not line:
             continue
         parts = line.split("\t", 1)
@@ -247,7 +282,7 @@ def index_full(
     project_dir: str,
     store: Any,
     *,
-    max_seconds: int | None = None,
+    max_seconds: int | None = DEFAULT_MAX_SECONDS,
     progress_every: int = 100,
 ) -> dict[str, Any]:
     """Full reindex: discover all files, chunk, store.
@@ -255,17 +290,18 @@ def index_full(
     v1.4 r14-rag-reindex-timeout: emits a periodic stderr progress line
     (`indexed X/Y files, N chunks, ZZs elapsed`) every `progress_every`
     files so MCP hosts (VS Code Claude Extension, Cursor, …) don't see
-    the call as silently hung. Also accepts an optional `max_seconds`
-    soft limit — when exceeded, indexing stops cleanly and the partial
-    result is returned with `truncated=True`. Caller decides whether to
-    treat that as a failure or as "good enough for now".
+    the call as silently hung. `max_seconds` is a soft limit — when
+    exceeded, indexing stops cleanly and the partial result is returned
+    with `truncated=True`. v1.5 hang fix: the limit now defaults to
+    DEFAULT_MAX_SECONDS (was None = unbounded) and also covers the file
+    discovery walk; pass max_seconds=None explicitly to disable.
     """
     import sys as _sys
 
     t0 = time.time()
     store.clear()
 
-    files = get_file_list(project_dir)
+    files = get_file_list(project_dir, max_seconds=max_seconds)
     total_chunks = 0
     errors = 0
     truncated = False

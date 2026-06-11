@@ -38,16 +38,12 @@ def fake_files(monkeypatch, tmp_path):
     for i in range(250):
         p = tmp_path / f"file_{i}.py"
         p.write_text("def x():\n    return 1\n")
-        files.append(
-            {"path": str(p), "rel_path": f"file_{i}.py", "language": "python"}
-        )
+        files.append({"path": str(p), "rel_path": f"file_{i}.py", "language": "python"})
 
     import rag_indexer
 
-    monkeypatch.setattr(rag_indexer, "get_file_list", lambda d: files)
-    monkeypatch.setattr(
-        rag_indexer, "chunk_file", lambda content, lang: [{"text": content}]
-    )
+    monkeypatch.setattr(rag_indexer, "get_file_list", lambda d, max_seconds=None: files)
+    monkeypatch.setattr(rag_indexer, "chunk_file", lambda content, lang: [{"text": content}])
     monkeypatch.setattr(rag_indexer, "_get_current_commit", lambda d: "abc1234")
     yield files
 

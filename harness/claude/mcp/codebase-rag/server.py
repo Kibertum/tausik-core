@@ -19,6 +19,23 @@ from datetime import datetime, timezone
 from typing import Any
 
 
+# Hard per-call envelope (seconds). The soft budget lives inside the indexer
+# (rag_indexer.DEFAULT_MAX_SECONDS); this is the last line of defense so an
+# unexpected block (subprocess, fs walk, db lock) surfaces as an explicit
+# error instead of an infinite MCP hang (v15p-fix-rag-reindex-hang).
+TOOL_TIMEOUT_DEFAULT_SEC = 120
+REINDEX_TIMEOUT_MARGIN_SEC = 60
+_REINDEX_SOFT_DEFAULT_SEC = 300  # mirrors rag_indexer.DEFAULT_MAX_SECONDS
+
+
+def _tool_timeout_sec(name: str, arguments: dict) -> float:
+    """Hard timeout for a tool call: soft budget + margin for reindex."""
+    if name == "reindex":
+        soft = arguments.get("max_seconds") or _REINDEX_SOFT_DEFAULT_SEC
+        return float(soft) + REINDEX_TIMEOUT_MARGIN_SEC
+    return float(TOOL_TIMEOUT_DEFAULT_SEC)
+
+
 def _setup_paths(project_dir: str) -> None:
     """Add MCP package and scripts dirs to sys.path."""
     mcp_dir = os.path.dirname(os.path.abspath(__file__))
@@ -96,9 +113,7 @@ def _format_knowledge_results(results: dict[str, list]) -> str:
             elif "query" in item:
                 lines.append(f"  [{item.get('created_at', '')}] {item['query'][:100]}")
             elif "title" in item:
-                lines.append(
-                    f"  {item.get('title', '')}: {item.get('content', '')[:120]}"
-                )
+                lines.append(f"  {item.get('title', '')}: {item.get('content', '')[:120]}")
             else:
                 lines.append(f"  {str(item)[:150]}")
     return "\n".join(lines)
@@ -237,8 +252,10 @@ def main():
                 name="reindex",
                 description=(
                     "Reindex project source code. Run after significant code "
-                    "changes. v1.4: emits stderr progress every 100 files; "
-                    "set max_seconds for a soft time limit on large monorepos."
+                    "changes. Emits stderr progress every 100 files. "
+                    "v1.5: soft time budget defaults to 300s (truncated=true "
+                    "in result when exceeded); a hard timeout envelope "
+                    "(budget + 60s) guarantees the call never hangs."
                 ),
                 inputSchema={
                     "type": "object",
@@ -252,9 +269,9 @@ def main():
                         "max_seconds": {
                             "type": "integer",
                             "description": (
-                                "Soft time limit (full mode only). Indexing "
-                                "stops cleanly when exceeded; result includes "
-                                "truncated=true."
+                                "Soft time limit for full indexing (default "
+                                "300s). Indexing stops cleanly when exceeded; "
+                                "result includes truncated=true."
                             ),
                             "minimum": 1,
                         },
@@ -374,9 +391,12 @@ def main():
                 mode = arguments.get("mode", "incremental")
                 max_seconds = arguments.get("max_seconds")
                 if mode == "full":
-                    stats = index_full(
-                        project_dir, store, max_seconds=max_seconds
-                    )
+                    # Omit kwarg when unset so index_full's bounded default
+                    # applies (None would disable the budget entirely).
+                    if max_seconds is None:
+                        stats = index_full(project_dir, store)
+                    else:
+                        stats = index_full(project_dir, store, max_seconds=max_seconds)
                 else:
                     stats = index_incremental(project_dir, store)
                 return json.dumps(stats, indent=2)
@@ -441,9 +461,7 @@ def main():
                 lines = [f"Found {len(results)} cached result(s):\n"]
                 for r in results:
                     url = f" ({r['url']})" if r.get("url") else ""
-                    lines.append(
-                        f"--- {r['query']}{url} [fetched: {r['fetched_at']}] ---"
-                    )
+                    lines.append(f"--- {r['query']}{url} [fetched: {r['fetched_at']}] ---")
                     content = r["content"]
                     if len(content) > 2000:
                         content = content[:2000] + "\n... (truncated)"
@@ -457,17 +475,32 @@ def main():
 
     @server.call_tool()
     async def call_tool(name: str, arguments: dict):
+        timeout_sec = _tool_timeout_sec(name, arguments)
         try:
-            result = await asyncio.to_thread(_sync_call_tool, name, arguments)
+            result = await asyncio.wait_for(
+                asyncio.to_thread(_sync_call_tool, name, arguments),
+                timeout=timeout_sec,
+            )
             return [TextContent(type="text", text=result)]
+        except (asyncio.TimeoutError, TimeoutError):
+            return [
+                TextContent(
+                    type="text",
+                    text=(
+                        f"Error: tool '{name}' timed out after "
+                        f"{int(timeout_sec)}s (hard envelope). Worker thread "
+                        "abandoned — likely a blocked subprocess or filesystem "
+                        "walk. For reindex: retry with a smaller max_seconds, "
+                        "or check for stuck git processes."
+                    ),
+                )
+            ]
         except Exception as e:
             return [TextContent(type="text", text=f"Error: {e}")]
 
     async def _run():
         async with stdio_server() as (read_stream, write_stream):
-            await server.run(
-                read_stream, write_stream, server.create_initialization_options()
-            )
+            await server.run(read_stream, write_stream, server.create_initialization_options())
 
     asyncio.run(_run())
 
@@ -498,9 +531,7 @@ def _archive_old_tasks(be, older_than_days: int) -> str:
 
     if not archived:
         return f"No tasks older than {older_than_days} days to archive."
-    return f"Archived {len(archived)} tasks:\n" + "\n".join(
-        f"  - {a}" for a in archived
-    )
+    return f"Archived {len(archived)} tasks:\n" + "\n".join(f"  - {a}" for a in archived)
 
 
 if __name__ == "__main__":

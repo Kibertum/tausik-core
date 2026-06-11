@@ -7,50 +7,103 @@ import os
 from pathlib import PurePosixPath
 
 # Always ignored directories (never indexed)
-ALWAYS_IGNORE_DIRS = frozenset({
-    ".git", "node_modules", "__pycache__", ".tausik", ".claude", ".cursor",
-    "venv", ".venv", "env", ".env", "dist", "build", ".next", ".nuxt",
-    ".cache", ".pytest_cache", ".mypy_cache", ".ruff_cache", "coverage",
-    ".tox", "target", "vendor", "bower_components", ".gradle", ".idea",
-    ".vscode", ".DS_Store", "egg-info", ".eggs",
-})
+ALWAYS_IGNORE_DIRS = frozenset(
+    {
+        ".git",
+        "node_modules",
+        "__pycache__",
+        ".tausik",
+        ".claude",
+        ".cursor",
+        "venv",
+        ".venv",
+        "env",
+        ".env",
+        "dist",
+        "build",
+        ".next",
+        ".nuxt",
+        ".cache",
+        ".pytest_cache",
+        ".mypy_cache",
+        ".ruff_cache",
+        "coverage",
+        ".tox",
+        "target",
+        "vendor",
+        "bower_components",
+        ".gradle",
+        ".idea",
+        ".vscode",
+        ".DS_Store",
+        "egg-info",
+        ".eggs",
+    }
+)
 
 # Indexable file extensions -> language name
 EXT_TO_LANG: dict[str, str] = {
-    ".py": "python", ".pyw": "python",
-    ".js": "javascript", ".mjs": "javascript", ".cjs": "javascript",
-    ".ts": "typescript", ".tsx": "typescript", ".jsx": "javascript",
+    ".py": "python",
+    ".pyw": "python",
+    ".js": "javascript",
+    ".mjs": "javascript",
+    ".cjs": "javascript",
+    ".ts": "typescript",
+    ".tsx": "typescript",
+    ".jsx": "javascript",
     ".go": "go",
     ".rs": "rust",
-    ".java": "java", ".kt": "kotlin", ".scala": "scala",
+    ".java": "java",
+    ".kt": "kotlin",
+    ".scala": "scala",
     ".rb": "ruby",
     ".php": "php",
-    ".c": "c", ".h": "c", ".cpp": "cpp", ".hpp": "cpp", ".cc": "cpp",
+    ".c": "c",
+    ".h": "c",
+    ".cpp": "cpp",
+    ".hpp": "cpp",
+    ".cc": "cpp",
     ".cs": "csharp",
     ".swift": "swift",
-    ".ex": "elixir", ".exs": "elixir",
+    ".ex": "elixir",
+    ".exs": "elixir",
     ".lua": "lua",
-    ".sh": "shell", ".bash": "shell", ".zsh": "shell",
+    ".sh": "shell",
+    ".bash": "shell",
+    ".zsh": "shell",
     ".sql": "sql",
-    ".r": "r", ".R": "r",
+    ".r": "r",
+    ".R": "r",
     ".dart": "dart",
-    ".vue": "vue", ".svelte": "svelte",
-    ".md": "markdown", ".mdx": "markdown",
-    ".yaml": "yaml", ".yml": "yaml",
+    ".vue": "vue",
+    ".svelte": "svelte",
+    ".md": "markdown",
+    ".mdx": "markdown",
+    ".yaml": "yaml",
+    ".yml": "yaml",
     ".toml": "toml",
     ".json": "json",
     ".xml": "xml",
-    ".html": "html", ".htm": "html",
-    ".css": "css", ".scss": "scss", ".less": "less",
-    ".tf": "terraform", ".hcl": "terraform",
+    ".html": "html",
+    ".htm": "html",
+    ".css": "css",
+    ".scss": "scss",
+    ".less": "less",
+    ".tf": "terraform",
+    ".hcl": "terraform",
     ".dockerfile": "docker",
 }
 
 # Special filenames (no extension) -> language
 SPECIAL_FILES: dict[str, str] = {
-    "Dockerfile": "docker", "Makefile": "make", "Jenkinsfile": "groovy",
-    "Vagrantfile": "ruby", "Rakefile": "ruby", "Gemfile": "ruby",
-    ".gitignore": "gitignore", ".dockerignore": "gitignore",
+    "Dockerfile": "docker",
+    "Makefile": "make",
+    "Jenkinsfile": "groovy",
+    "Vagrantfile": "ruby",
+    "Rakefile": "ruby",
+    "Gemfile": "ruby",
+    ".gitignore": "gitignore",
+    ".dockerignore": "gitignore",
     "CMakeLists.txt": "cmake",
 }
 
@@ -109,29 +162,54 @@ def detect_language(file_path: str) -> str | None:
     return EXT_TO_LANG.get(ext.lower())
 
 
-def get_file_list(project_dir: str) -> list[dict[str, str]]:
+def _is_reparse_or_symlink(path: str) -> bool:
+    """True for symlinks and Windows junctions (reparse points).
+
+    os.walk does NOT treat junctions as links, so a junction cycle multiplies
+    the walk (64x amplification measured) — prune them explicitly.
+    """
+    if os.path.islink(path):
+        return True
+    if os.name == "nt":
+        try:
+            st = os.stat(path, follow_symlinks=False)
+            return bool(
+                getattr(st, "st_file_attributes", 0) & 0x400
+            )  # FILE_ATTRIBUTE_REPARSE_POINT
+        except OSError:
+            return True  # unreadable — safer to skip
+    return False
+
+
+def get_file_list(project_dir: str, max_seconds: float | None = None) -> list[dict[str, str]]:
     """Return indexable files: [{path, rel_path, language}].
 
-    Respects .gitignore, skips binaries, caps at MAX_FILES.
+    Respects .gitignore, skips binaries, caps at MAX_FILES. Skips symlinked/
+    junction directories (cycle protection). `max_seconds` bounds the walk —
+    on deadline the partial list is returned (v1.5 reindex hang fix).
     """
+    import time
+
+    deadline = (time.monotonic() + max_seconds) if max_seconds is not None else None
     patterns = parse_gitignore(project_dir)
     files: list[dict[str, str]] = []
 
     for root, dirs, filenames in os.walk(project_dir):
+        if deadline is not None and time.monotonic() >= deadline:
+            break
         # Prune ignored directories
         dirs[:] = [
-            d for d in dirs
-            if d not in ALWAYS_IGNORE_DIRS
-            and not d.startswith(".")
-            or d in (".github",)  # allow .github
+            d
+            for d in dirs
+            if (
+                d not in ALWAYS_IGNORE_DIRS and not d.startswith(".") or d in (".github",)
+            )  # allow .github
+            and not _is_reparse_or_symlink(os.path.join(root, d))
         ]
         # Also prune dirs matching gitignore
         rel_root = os.path.relpath(root, project_dir).replace("\\", "/")
         if rel_root != ".":
-            dirs[:] = [
-                d for d in dirs
-                if not _matches_ignore(f"{rel_root}/{d}", patterns)
-            ]
+            dirs[:] = [d for d in dirs if not _matches_ignore(f"{rel_root}/{d}", patterns)]
 
         for fname in filenames:
             full_path = os.path.join(root, fname)
@@ -153,11 +231,13 @@ def get_file_list(project_dir: str) -> list[dict[str, str]]:
             except OSError:
                 continue
 
-            files.append({
-                "path": full_path,
-                "rel_path": rel_path,
-                "language": lang,
-            })
+            files.append(
+                {
+                    "path": full_path,
+                    "rel_path": rel_path,
+                    "language": lang,
+                }
+            )
 
             if len(files) >= MAX_FILES:
                 return files
