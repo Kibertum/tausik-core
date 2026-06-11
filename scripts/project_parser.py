@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 
+from project_parser_errors import SelfCorrectingParser
 from project_parser_task import add_task
 from project_types import (
     VALID_EDGE_RELATIONS,
@@ -13,7 +14,9 @@ from project_types import (
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="tausik", description="TAUSIK")
+    # v1.5 self-correcting CLI: arg errors print usage + known-good examples.
+    # Subparsers inherit the class, so the whole tree is covered.
+    p = SelfCorrectingParser(prog="tausik", description="TAUSIK")
     sub = p.add_subparsers(dest="command")
 
     # --- init ---

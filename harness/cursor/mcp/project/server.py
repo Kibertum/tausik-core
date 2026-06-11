@@ -26,6 +26,27 @@ def _get_service(project_dir: str):
     return ProjectService(be)
 
 
+def _usage_hint(tools: list[dict], name: str) -> str:
+    """Compact usage line generated from the tool's inputSchema.
+
+    v15p-self-correcting-cli: appended to error replies so the agent can
+    correct the call in one retry instead of guessing argument names.
+    """
+    tool = next((t for t in tools if t.get("name") == name), None)
+    if not tool:
+        return ""
+    schema = tool.get("inputSchema") or {}
+    props = schema.get("properties") or {}
+    required = set(schema.get("required") or [])
+    if not props:
+        return ""
+    parts = [
+        f"{key}{'*' if key in required else ''}:{spec.get('type', 'any')}"
+        for key, spec in props.items()
+    ]
+    return f"usage: {name}({', '.join(parts)}) — * = required"
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--project", required=True, help="Project root directory")
@@ -91,7 +112,11 @@ def main():
                 f"[tausik-project] tool {name!r} failed:\n{traceback.format_exc()}",
                 file=sys.stderr,
             )
-            return [TextContent(type="text", text=f"Error: {e}")]
+            reply = f"Error: {e}"
+            hint = _usage_hint(TOOLS, name)
+            if hint:
+                reply += "\n" + hint
+            return [TextContent(type="text", text=reply)]
 
     async def _run():
         async with stdio_server() as (read_stream, write_stream):
