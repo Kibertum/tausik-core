@@ -213,6 +213,21 @@ def build_parser() -> argparse.ArgumentParser:
     gd = gates_sub.add_parser("disable")
     gd.add_argument("name", help="Gate name to disable")
 
+    # --- key (v15-crypto-keymgmt) ---
+    key_p = sub.add_parser("key", help="Project signing key (ed25519)")
+    key_sub = key_p.add_subparsers(dest="key_cmd")
+    ki = key_sub.add_parser(
+        "init",
+        help="Generate project keypair in .tausik/keys/",
+        epilog="Example: tausik key init",
+    )
+    ki.add_argument(
+        "--force",
+        action="store_true",
+        help="Replace an existing key (old signatures stop verifying)",
+    )
+    key_sub.add_parser("show", help="Print public key + fingerprint (never the seed)")
+
     vp = sub.add_parser("verify", help="Run scoped quality gates")
     vp.add_argument("--task")
     _scopes = ["lightweight", "standard", "high", "critical", "manual"]

@@ -57,6 +57,7 @@ def main() -> None:
         cmd_suggest_model,
     )
     from cli_push_ok import cmd_push_ok
+    from project_cli_key import cmd_key
     from cmd_db import cmd_db
     from project_cli_review import cmd_review
     from project_config import get_service
@@ -106,6 +107,7 @@ def main() -> None:
         "config": cmd_config,
         "db": cmd_db,
         "push-ok": cmd_push_ok,
+        "key": cmd_key,
     }
 
     if args.command == "doctor":
