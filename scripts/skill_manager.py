@@ -345,6 +345,19 @@ def install_skill(
         )
     repo_dir, repo_name, skill_info = found
 
+    # v15-supplychain-verify-install: check the publisher signature BEFORE
+    # any file lands in the IDE skills tree. block = refuse; warn = proceed
+    # (adoption path — unsigned repos / no pinned key yet).
+    from skill_repos import get_repo_pinned_pubkey
+    from supply_verify_install import LEVEL_BLOCK, check_skill_signature
+
+    src = os.path.join(repo_dir, skill_info.get("path", f"{skill_name}/").rstrip("/"))
+    sig_level, sig_msg = check_skill_signature(
+        src, repo_name, get_repo_pinned_pubkey(config_path, repo_name)
+    )
+    if sig_level == LEVEL_BLOCK:
+        raise SkillManagerError(sig_msg)
+
     # Copy skill files
     copy_skill(repo_dir, skill_info, skill_name, skills_dst)
 
@@ -364,7 +377,11 @@ def install_skill(
     update_config_install(config_path, skill_name, repo_name)
 
     deps_msg = f" Dependencies: {', '.join(requires)}" if requires else ""
-    return f"Skill '{skill_name}' installed from {repo_name}.{deps_msg}"
+    if sig_level == "ok":
+        sig_note = " Supply-chain: signature verified."
+    else:
+        sig_note = f" WARNING: {sig_msg}"
+    return f"Skill '{skill_name}' installed from {repo_name}.{deps_msg}{sig_note}"
 
 
 def uninstall_skill(

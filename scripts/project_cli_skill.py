@@ -234,7 +234,24 @@ def _cmd_skill_repo(args: Any, vendor_dir: str, config_path: str) -> None:
         )
     elif rc == "remove":
         print(repo_remove(args.name, vendor_dir, config_path))
+    elif rc == "trust":
+        import sys
+
+        from skill_manager import SkillManagerError
+        from skill_repos import update_config_repo_trust
+
+        try:
+            update_config_repo_trust(config_path, args.name, args.pubkey)
+        except SkillManagerError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(2)
+        print(
+            f"Pinned publisher key for repo '{args.name}'. Signed skills from "
+            "it are now verified on install; mismatches are refused."
+        )
     elif rc == "list":
+        from skill_repos import get_repo_pinned_pubkey
+
         repos = repo_list(vendor_dir, config_path)
         if not repos:
             print("No skill repos configured.")
@@ -244,8 +261,11 @@ def _cmd_skill_repo(args: Any, vendor_dir: str, config_path: str) -> None:
         for r in repos:
             status = "cloned" if r["cloned"] else "not cloned"
             default = " (default)" if r.get("default") else ""
-            print(f"  {r['name']}{default} [{status}] — {r['url']}")
+            trusted = (
+                " [trusted key pinned]" if get_repo_pinned_pubkey(config_path, r["name"]) else ""
+            )
+            print(f"  {r['name']}{default} [{status}]{trusted} — {r['url']}")
             if r["skills"]:
                 print(f"    Skills: {', '.join(r['skills'])}")
     else:
-        print("Usage: tausik skill repo [add|remove|list]")
+        print("Usage: tausik skill repo [add|remove|list|trust]")

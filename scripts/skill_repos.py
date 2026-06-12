@@ -67,6 +67,35 @@ def update_config_repo_add(config_path: str, name: str, url: str) -> None:
     save_config(config_path, cfg)
 
 
+def update_config_repo_trust(config_path: str, name: str, pubkey: str) -> None:
+    """Pin a publisher public key for a repo (v15-supplychain-verify-install).
+
+    The key must come from an out-of-band channel (publisher's
+    `tausik key show`, release notes) — never from the repo itself.
+    Raises SkillManagerError for an unknown repo or unusable key.
+    """
+    from supply_verify_install import decode_pubkey
+
+    try:
+        decode_pubkey(pubkey)
+    except ValueError as e:
+        raise SkillManagerError(f"unusable public key: {e}") from e
+    cfg = load_config(config_path)
+    repos = cfg.get("skill_repos", {})
+    if name not in repos:
+        known = ", ".join(sorted(repos)) or "(none)"
+        raise SkillManagerError(f"repo '{name}' is not configured. Known: {known}")
+    repos[name]["pubkey"] = pubkey.strip()
+    save_config(config_path, cfg)
+
+
+def get_repo_pinned_pubkey(config_path: str, name: str) -> str | None:
+    """Pinned publisher key for a repo, or None."""
+    repo = load_config(config_path).get("skill_repos", {}).get(name) or {}
+    key = repo.get("pubkey")
+    return key if isinstance(key, str) and key.strip() else None
+
+
 def update_config_repo_remove(config_path: str, name: str) -> None:
     """Remove repo from config."""
     cfg = load_config(config_path)

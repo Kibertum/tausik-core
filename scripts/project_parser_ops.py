@@ -206,6 +206,17 @@ def add_skill(sub: argparse._SubParsersAction) -> None:
     sk_repo_rm = sk_repo_sub.add_parser("remove", help="Remove a configured skill repo")
     sk_repo_rm.add_argument("name", help="Repo name to remove (see: tausik skill repo list)")
     sk_repo_sub.add_parser("list", help="List configured skill repos")
+    sk_repo_trust = sk_repo_sub.add_parser(
+        "trust",
+        help="Pin a publisher public key for a repo (verified installs)",
+        epilog="Example: tausik skill repo trust my-repo ed25519:<64 hex>",
+    )
+    sk_repo_trust.add_argument("name", help="Repo name (see: tausik skill repo list)")
+    sk_repo_trust.add_argument(
+        "pubkey",
+        help="Publisher key from an OUT-OF-BAND channel ('ed25519:<64 hex>', "
+        "never copied from the repo itself)",
+    )
 
     sk_bundle = sk_sub.add_parser("bundle", help="Bulk install/uninstall skills via bundles.json")
     sk_bundle_sub = sk_bundle.add_subparsers(dest="bundle_cmd")
