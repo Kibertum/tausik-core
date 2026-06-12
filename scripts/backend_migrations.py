@@ -5,64 +5,15 @@ Each migration is a list of SQL statements applied in order.
 SQLite cannot ALTER TABLE to add CASCADE/CHECK -- must rebuild via
 create temp -> copy -> drop -> rename. Migrations are irreversible.
 
-Legacy migrations (v2-v9) are in backend_migrations_legacy.py.
+Legacy migrations (v2-v11) are in backend_migrations_legacy.py.
 """
 
 from __future__ import annotations
 
 from backend_migrations_legacy import LEGACY_MIGRATIONS
 
-# Current migrations (v10+)
+# Current migrations (v12+; v10-v11 live in backend_migrations_legacy.py)
 _CURRENT_MIGRATIONS: dict[int, list[str]] = {
-    # --- v10: SENAR alignment -- defect_of, dead_end memory type, explorations ---
-    10: [
-        # Add defect_of column to tasks
-        "ALTER TABLE tasks ADD COLUMN defect_of TEXT REFERENCES tasks(slug) ON DELETE SET NULL",
-        # Rebuild memory with dead_end type
-        """CREATE TABLE IF NOT EXISTS memory_new (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            type TEXT NOT NULL CHECK(type IN ('pattern', 'gotcha', 'convention', 'context', 'dead_end')),
-            title TEXT NOT NULL,
-            content TEXT NOT NULL, tags TEXT,
-            task_slug TEXT REFERENCES tasks(slug) ON DELETE SET NULL,
-            created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-        )""",
-        "INSERT OR IGNORE INTO memory_new SELECT * FROM memory",
-        "DROP TABLE IF EXISTS memory",
-        "ALTER TABLE memory_new RENAME TO memory",
-        # Explorations table
-        """CREATE TABLE IF NOT EXISTS explorations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            summary TEXT,
-            time_limit_min INTEGER DEFAULT 30,
-            task_slug TEXT REFERENCES tasks(slug) ON DELETE SET NULL,
-            started_at TEXT NOT NULL,
-            ended_at TEXT,
-            created_at TEXT NOT NULL
-        )""",
-    ],
-    # --- v11: Graph memory -- memory_edges table ---
-    11: [
-        """CREATE TABLE IF NOT EXISTS memory_edges (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            source_type TEXT NOT NULL CHECK(source_type IN ('memory', 'decision')),
-            source_id INTEGER NOT NULL,
-            target_type TEXT NOT NULL CHECK(target_type IN ('memory', 'decision')),
-            target_id INTEGER NOT NULL,
-            relation TEXT NOT NULL CHECK(relation IN ('supersedes', 'caused_by', 'relates_to', 'contradicts')),
-            confidence REAL NOT NULL DEFAULT 1.0,
-            created_by TEXT,
-            valid_from TEXT NOT NULL,
-            valid_to TEXT,
-            invalidated_by INTEGER REFERENCES memory_edges(id) ON DELETE SET NULL,
-            created_at TEXT NOT NULL
-        )""",
-        "CREATE INDEX IF NOT EXISTS idx_edges_source ON memory_edges(source_type, source_id)",
-        "CREATE INDEX IF NOT EXISTS idx_edges_target ON memory_edges(target_type, target_id)",
-        "CREATE INDEX IF NOT EXISTS idx_edges_relation ON memory_edges(relation)",
-        "CREATE INDEX IF NOT EXISTS idx_edges_valid ON memory_edges(valid_to)",
-    ],
     # --- v12: Scope field on tasks (SENAR Core Rule 2) ---
     12: [
         "ALTER TABLE tasks ADD COLUMN scope TEXT",
@@ -287,6 +238,13 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     # QG-0 blocks start of medium/complex tasks without it; task_done warns.
     28: [
         "ALTER TABLE tasks ADD COLUMN rollback_plan TEXT",
+    ],
+    # --- v29: signed receipt on verify runs (v15-receipt-emit-on-verify) ---
+    # tausik-signed/v1 envelope (ed25519 over canonical tausik-receipt/v1)
+    # emitted by record_run when the project key exists. NULL = unsigned run
+    # (pre-v29 row or keyless project).
+    29: [
+        "ALTER TABLE verification_runs ADD COLUMN receipt_json TEXT",
     ],
 }
 

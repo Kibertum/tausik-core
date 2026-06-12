@@ -233,6 +233,18 @@ def build_parser() -> argparse.ArgumentParser:
     _scopes = ["lightweight", "standard", "high", "critical", "manual"]
     vp.add_argument("--scope", choices=_scopes, default="manual")
 
+    # --- receipt (v15-receipt-emit-on-verify) ---
+    rcpt_p = sub.add_parser("receipt", help="Signed verify receipts (ed25519)")
+    rcpt_sub = rcpt_p.add_subparsers(dest="receipt_cmd")
+    rs = rcpt_sub.add_parser(
+        "show",
+        help="Print + re-verify the latest signed receipt",
+        epilog="Example: tausik receipt show --task my-task",
+    )
+    rs.add_argument("--task", help="Latest receipt for this task slug")
+    rs.add_argument("--run", type=int, help="Receipt of a specific verification_run id")
+    rs.add_argument("--json", action="store_true", help="Print the raw signed envelope")
+
     rm_p = sub.add_parser("roadmap", help="Project roadmap")
     rm_p.add_argument("--include-done", action="store_true")
 

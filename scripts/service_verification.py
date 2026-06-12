@@ -101,8 +101,17 @@ def record_run(
     summary: str | None,
     files_hash: str,
     duration_ms: int | None = None,
+    gate_results: list[dict[str, Any]] | None = None,
+    project_dir: str | None = None,
 ) -> int:
-    """Insert a verify run. Returns the new row id."""
+    """Insert a verify run. Returns the new row id.
+
+    With `gate_results` and a `task_slug`, also emits a signed receipt into
+    the row's receipt_json (v15-receipt-emit-on-verify). Emission is
+    best-effort: no project key / signing failure never breaks the run
+    record. `project_dir` defaults to the current working directory (the
+    CLI/MCP convention for key lookup).
+    """
     cur = conn.execute(
         """
         INSERT INTO verification_runs
@@ -122,7 +131,21 @@ def record_run(
         ),
     )
     conn.commit()
-    return int(cur.lastrowid or 0)
+    run_id = int(cur.lastrowid or 0)
+    if task_slug and gate_results is not None:
+        from verify_receipt_emit import emit_signed_receipt
+
+        emit_signed_receipt(
+            conn,
+            run_id,
+            task_slug=task_slug,
+            scope=scope,
+            gate_results=gate_results,
+            passed=exit_code == 0,
+            files_hash=files_hash,
+            project_dir=project_dir or ".",
+        )
+    return run_id
 
 
 # v14b-filesize-debt-paydown: cache helpers (is_cache_allowed,
@@ -329,6 +352,7 @@ def run_gates_with_cache(
                 summary=summary,
                 files_hash=files_hash,
                 duration_ms=duration_ms,
+                gate_results=results,
             )
         except Exception:
             import logging

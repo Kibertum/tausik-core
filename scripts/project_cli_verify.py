@@ -106,7 +106,7 @@ def cmd_verify(svc: ProjectService, args: Any) -> None:
         ", ".join(r["name"] + "=" + ("PASS" if r["passed"] else "FAIL") for r in results)
         or "(no gates configured)"
     )
-    record_run(
+    run_id = record_run(
         svc.be._conn,
         task_slug=task_slug or None,
         scope=scope,
@@ -115,9 +115,22 @@ def cmd_verify(svc: ProjectService, args: Any) -> None:
         summary=summary,
         files_hash=files_hash,
         duration_ms=duration_ms,
+        gate_results=results,
     )
     print(
         f"Recorded verification_run (task_slug={task_slug or '-'}, exit={'0' if passed else '1'})."
     )
+    if task_slug:
+        from verify_receipt_emit import load_receipt
+
+        stored = load_receipt(svc.be._conn, run_id=run_id)
+        if stored is not None:
+            sig = stored["envelope"].get("signature") or {}
+            print(f"Receipt: signed (run #{run_id}, key {sig.get('key_fingerprint', '?')}).")
+        else:
+            print(
+                "Receipt: not emitted — no project key "
+                "(`tausik key init` to enable signed receipts)."
+            )
     if not passed:
         raise SystemExit(1)

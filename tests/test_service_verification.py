@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS verification_runs (
     summary TEXT,
     files_hash TEXT NOT NULL,
     ran_at TEXT NOT NULL,
-    duration_ms INTEGER
+    duration_ms INTEGER,
+    receipt_json TEXT
 );
 """
 

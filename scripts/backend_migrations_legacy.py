@@ -1,8 +1,9 @@
-"""TAUSIK legacy schema migrations v2-v9.
+"""TAUSIK legacy schema migrations v2-v11.
 
 Separated from backend_migrations.py to keep files under 400 lines.
 These migrations are historical -- they ran once per database during upgrades
-from early schema versions to v2.0 (migration v9).
+from early schema versions. v10-v11 moved here in v1.5 when the current
+module hit the filesize cap (v15-receipt-emit-on-verify).
 """
 
 from __future__ import annotations
@@ -276,5 +277,54 @@ LEGACY_MIGRATIONS: dict[int, list[str]] = {
         "DROP INDEX IF EXISTS idx_web_cache_task_slug",
         "DROP INDEX IF EXISTS idx_plans_task_slug",
         "DROP INDEX IF EXISTS idx_plans_status",
+    ],
+    # --- v10: SENAR alignment -- defect_of, dead_end memory type, explorations ---
+    10: [
+        # Add defect_of column to tasks
+        "ALTER TABLE tasks ADD COLUMN defect_of TEXT REFERENCES tasks(slug) ON DELETE SET NULL",
+        # Rebuild memory with dead_end type
+        """CREATE TABLE IF NOT EXISTS memory_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type TEXT NOT NULL CHECK(type IN ('pattern', 'gotcha', 'convention', 'context', 'dead_end')),
+            title TEXT NOT NULL,
+            content TEXT NOT NULL, tags TEXT,
+            task_slug TEXT REFERENCES tasks(slug) ON DELETE SET NULL,
+            created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+        )""",
+        "INSERT OR IGNORE INTO memory_new SELECT * FROM memory",
+        "DROP TABLE IF EXISTS memory",
+        "ALTER TABLE memory_new RENAME TO memory",
+        # Explorations table
+        """CREATE TABLE IF NOT EXISTS explorations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            summary TEXT,
+            time_limit_min INTEGER DEFAULT 30,
+            task_slug TEXT REFERENCES tasks(slug) ON DELETE SET NULL,
+            started_at TEXT NOT NULL,
+            ended_at TEXT,
+            created_at TEXT NOT NULL
+        )""",
+    ],
+    # --- v11: Graph memory -- memory_edges table ---
+    11: [
+        """CREATE TABLE IF NOT EXISTS memory_edges (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_type TEXT NOT NULL CHECK(source_type IN ('memory', 'decision')),
+            source_id INTEGER NOT NULL,
+            target_type TEXT NOT NULL CHECK(target_type IN ('memory', 'decision')),
+            target_id INTEGER NOT NULL,
+            relation TEXT NOT NULL CHECK(relation IN ('supersedes', 'caused_by', 'relates_to', 'contradicts')),
+            confidence REAL NOT NULL DEFAULT 1.0,
+            created_by TEXT,
+            valid_from TEXT NOT NULL,
+            valid_to TEXT,
+            invalidated_by INTEGER REFERENCES memory_edges(id) ON DELETE SET NULL,
+            created_at TEXT NOT NULL
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_edges_source ON memory_edges(source_type, source_id)",
+        "CREATE INDEX IF NOT EXISTS idx_edges_target ON memory_edges(target_type, target_id)",
+        "CREATE INDEX IF NOT EXISTS idx_edges_relation ON memory_edges(relation)",
+        "CREATE INDEX IF NOT EXISTS idx_edges_valid ON memory_edges(valid_to)",
     ],
 }

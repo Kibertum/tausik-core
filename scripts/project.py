@@ -58,6 +58,7 @@ def main() -> None:
     )
     from cli_push_ok import cmd_push_ok
     from project_cli_key import cmd_key
+    from project_cli_receipt import cmd_receipt
     from cmd_db import cmd_db
     from project_cli_review import cmd_review
     from project_config import get_service
@@ -108,6 +109,7 @@ def main() -> None:
         "db": cmd_db,
         "push-ok": cmd_push_ok,
         "key": cmd_key,
+        "receipt": cmd_receipt,
     }
 
     if args.command == "doctor":

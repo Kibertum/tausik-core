@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 28
+SCHEMA_VERSION = 29
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -170,7 +170,8 @@ CREATE TABLE IF NOT EXISTS verification_runs (
     summary TEXT,
     files_hash TEXT NOT NULL,
     ran_at TEXT NOT NULL,
-    duration_ms INTEGER
+    duration_ms INTEGER,
+    receipt_json TEXT
 );
 
 CREATE TABLE IF NOT EXISTS session_usage_metrics (
