@@ -19,6 +19,20 @@ if TYPE_CHECKING:
     from project_backend import SQLiteBackend
 
 
+def _root_cause_hard_enabled() -> bool:
+    """config task_done.root_cause_hard, default True (fail-closed policy —
+    see docs/ru/research/failclosed-gates-audit.md)."""
+    try:
+        from project_config import load_config
+
+        td = load_config().get("task_done", {})
+        if isinstance(td, dict):
+            return bool(td.get("root_cause_hard", True))
+    except Exception:
+        pass
+    return True
+
+
 def _format_task_done_failures(report: dict[str, Any]) -> str:
     """v1.4: aggregate ALL blocking failures into the v1 ServiceError message.
 
@@ -159,7 +173,11 @@ class TaskDoneReportMixin:
             return report
 
         checklist_warning = self._check_verification_checklist(slug, task)  # type: ignore[attr-defined]
-        # SENAR Core Rule 7: defect tasks must document root cause
+        # SENAR Core Rule 7: defect tasks must document root cause.
+        # v15-failclosed-gate-audit: hard gate by default — a defect closed
+        # without its root cause is the exact fail-open the audit targets;
+        # remediation is one `task log` line. FP escape (keyword phrasing
+        # mismatch): config task_done.root_cause_hard=false.
         root_cause_warning = ""
         if task.get("defect_of"):
             notes_lower = (task.get("notes") or "").lower()
@@ -173,11 +191,16 @@ class TaskDoneReportMixin:
                 "because",
             )
             if not any(kw in notes_lower for kw in _rc_kw):
-                root_cause_warning = (
-                    f"WARNING: Defect task '{slug}' (defect_of={task['defect_of']}) "
-                    f"has no root cause documented. Log it: .tausik/tausik task log {slug} "
-                    f'"Root cause: ..."'
+                rc_msg = (
+                    f"Defect task '{slug}' (defect_of={task['defect_of']}) "
+                    f"has no root cause documented (SENAR Rule 7). Log it: "
+                    f'.tausik/tausik task log {slug} "Root cause: ..." '
+                    f"Opt out: config task_done.root_cause_hard=false."
                 )
+                if _root_cause_hard_enabled():
+                    report["blocking_failures"].append({"stage": "root-cause", "message": rc_msg})
+                    return report
+                root_cause_warning = f"WARNING: {rc_msg}"
 
         # Knowledge capture warning (SENAR Rule 8).
         # v1.3.4 (med-batch-2-qg #5): --no-knowledge refused for complex

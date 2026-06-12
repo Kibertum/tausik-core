@@ -564,8 +564,11 @@ class TestNoKnowledgeRefusal:
         # Parent task to attach defect to
         self._ready_task(svc, "parent")
         svc.task_done("parent", ac_verified=True, no_knowledge=True)
-        # Defect task
+        # Defect task; root cause logged so the Rule 7 hard gate
+        # (v15-failclosed-gate-audit) doesn't fire first — this test pins
+        # the Rule 8 refusal.
         self._ready_task(svc, "fix1", complexity="medium", defect_of="parent")
+        svc.task_log("fix1", "Root cause: stub")
         with pytest.raises(ServiceError, match="--no-knowledge refused"):
             svc.task_done("fix1", ac_verified=True, no_knowledge=True)
 
