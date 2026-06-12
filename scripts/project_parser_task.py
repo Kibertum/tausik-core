@@ -55,6 +55,13 @@ def add_task(sub: argparse._SubParsersAction) -> None:
     ta.add_argument("--goal", default=None)
     ta.add_argument("--role", default=None)
     ta.add_argument("--defect-of", default=None, help="Parent task slug (defect fix)")
+    ta.add_argument(
+        "--rollback-plan",
+        default=None,
+        dest="rollback_plan",
+        help="SENAR Rule 6: how to undo this change (git revert / migration "
+        "down / feature flag off).",
+    )
     _add_unit_flags(ta)
 
     tl = task_sub.add_parser("list")
@@ -135,6 +142,13 @@ def add_task(sub: argparse._SubParsersAction) -> None:
     tupdate.add_argument("--role", default=None)
     tupdate.add_argument("--scope", default=None)
     tupdate.add_argument("--scope-exclude", default=None, dest="scope_exclude")
+    tupdate.add_argument(
+        "--rollback-plan",
+        default=None,
+        dest="rollback_plan",
+        help="SENAR Rule 6: how to undo this change (git revert / migration "
+        "down / feature flag off). Required by QG-0 for medium/complex.",
+    )
     tupdate.add_argument(
         "--relevant-files",
         nargs="*",

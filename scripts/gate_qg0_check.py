@@ -115,6 +115,26 @@ def check_qg0_start(
                 f"WARNING: Task '{slug}' ({complexity}) has no scope_exclude. "
                 f"SENAR recommends defining what NOT to touch for medium/complex tasks."
             )
+    # QG-0: rollback plan required for medium/complex (SENAR Rule 6,
+    # v15s-rule6-rollback-plan). Hard gate ONLY for explicitly-set
+    # medium/complex — unset complexity gets a warning, otherwise the
+    # default-to-medium fallback would hard-block every legacy/lightweight
+    # flow that never declared complexity.
+    no_rollback = not (task.get("rollback_plan") or "").strip()
+    if task.get("complexity") in ("medium", "complex") and no_rollback:
+        raise ServiceError(
+            f"QG-0 Start Gate (SENAR Rule 6): '{slug}' ({task['complexity']}) "
+            f"has no rollback_plan. Define how to undo the change before "
+            f"starting. Templates: 'git revert <commit>' (code), "
+            f"'migration down / restore backup' (schema/data), "
+            f"'feature flag off' (behavior). "
+            f"Fix: .tausik/tausik task update {slug} --rollback-plan 'git revert'"
+        )
+    if not task.get("complexity") and no_rollback:
+        warnings.append(
+            f"WARNING: Task '{slug}' has no rollback_plan (SENAR Rule 6). "
+            f"Recommended: task update {slug} --rollback-plan 'git revert'"
+        )
     # QG-0: negative scenario required in AC (SENAR Core Start Gate #3).
     # v1.3.4 (med-batch-2-qg #1): use boundary-aware detection instead of
     # substring match. "Works without errors" no longer satisfies the gate.

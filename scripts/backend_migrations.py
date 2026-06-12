@@ -283,6 +283,11 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
         "ALTER TABLE tasks ADD COLUMN token_budget INTEGER",
         "ALTER TABLE tasks ADD COLUMN tokens_actual INTEGER",
     ],
+    # --- v28: rollback_plan on tasks (SENAR Rule 6, v15s-rule6-rollback-plan) ---
+    # QG-0 blocks start of medium/complex tasks without it; task_done warns.
+    28: [
+        "ALTER TABLE tasks ADD COLUMN rollback_plan TEXT",
+    ],
 }
 
 

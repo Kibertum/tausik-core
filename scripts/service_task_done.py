@@ -215,6 +215,18 @@ class TaskDoneReportMixin:
                 "knowledge_confirmed_none",
                 "Explicitly confirmed: no knowledge to capture",
             )
+        # SENAR Rule 6 (v15s-rule6-rollback-plan): QG-0 blocks new
+        # medium/complex tasks without a rollback_plan; here we only WARN so
+        # tasks started before the field existed remain closable.
+        rollback_warning = ""
+        if (
+            task.get("complexity") in ("medium", "complex")
+            and not (task.get("rollback_plan") or "").strip()
+        ):
+            rollback_warning = (
+                "WARNING: no rollback_plan (SENAR Rule 6). Document how to "
+                "undo this change: task update --rollback-plan '...'"
+            )
         updates: dict[str, Any] = {"status": "done", "completed_at": utcnow_iso()}
         if relevant_files:
             updates["relevant_files"] = json.dumps(relevant_files)
@@ -233,6 +245,9 @@ class TaskDoneReportMixin:
             if root_cause_warning:
                 msgs.append(root_cause_warning)
                 report["warnings"].append(root_cause_warning)
+            if rollback_warning:
+                msgs.append(rollback_warning)
+                report["warnings"].append(rollback_warning)
             budget_warning = record_call_actual(self.be, slug, task)
             if budget_warning:
                 msgs.append(budget_warning)

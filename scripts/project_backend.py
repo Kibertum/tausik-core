@@ -44,6 +44,7 @@ _TASK_FIELDS = frozenset(
         "call_budget",
         "call_actual",
         "tier",
+        "rollback_plan",
     }
 )
 

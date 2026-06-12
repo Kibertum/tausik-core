@@ -189,7 +189,11 @@ class TestTaskStartIntegration:
         # task_quick uses slugify on title — we passed slug-as-title above
         # to keep titles distinct; resolve actual created slug below if needed.
         svc.be.task_update(
-            slug, goal="g", acceptance_criteria="ac1. negative: x", complexity=complexity
+            slug,
+            goal="g",
+            acceptance_criteria="ac1. negative: x",
+            complexity=complexity,
+            rollback_plan="git revert",
         )
 
     def test_banner_appears_in_task_start_output(self, tmp_path):

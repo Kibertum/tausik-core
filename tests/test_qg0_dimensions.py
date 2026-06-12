@@ -125,6 +125,7 @@ class TestIntegrationWithQg0Start:
             acceptance_criteria="Update scripts/foo.py; error on empty input.",
             scope="scripts/",
             scope_exclude="tests/",
+            rollback_plan="git revert",
         )
         warnings = svc._check_qg0_start("t2", svc.task_show("t2"))
         context_warnings = [w for w in warnings if w.startswith("CONTEXT:")]

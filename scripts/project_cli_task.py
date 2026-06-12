@@ -41,6 +41,9 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                 token_budget=getattr(args, "token_budget", None),
             )
         )
+        rb = getattr(args, "rollback_plan", None)
+        if rb:
+            svc.task_update(slug, rollback_plan=rb)
     elif c == "list":
         tasks = svc.task_list(
             args.status,
@@ -119,6 +122,7 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
             "role",
             "scope",
             "scope_exclude",
+            "rollback_plan",
             "call_budget",
             "tier",
             "cost_budget_usd",
@@ -216,6 +220,7 @@ def _print_task_detail(task: dict[str, Any]) -> None:
         "acceptance_criteria",
         "scope",
         "scope_exclude",
+        "rollback_plan",
         "notes",
         "started_at",
         "completed_at",

@@ -170,10 +170,23 @@ def test_get_file_list_skips_junction_cycle(tmp_path):
 # --- server: hard timeout envelope ------------------------------------------
 
 
+def _load_rag_server():
+    """Load codebase-rag server.py under a unique module name — a bare
+    `import server` collides with the project MCP server module imported by
+    other test files in the same pytest session."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("tausik_rag_server", RAG_DIR / "server.py")
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def test_tool_timeout_envelope_exceeds_soft_budget():
-    import server
     from rag_indexer import DEFAULT_MAX_SECONDS
 
+    server = _load_rag_server()
     assert server._REINDEX_SOFT_DEFAULT_SEC == DEFAULT_MAX_SECONDS
     assert server._tool_timeout_sec("reindex", {}) > DEFAULT_MAX_SECONDS
     assert server._tool_timeout_sec("reindex", {"max_seconds": 30}) == 90.0
@@ -182,7 +195,7 @@ def test_tool_timeout_envelope_exceeds_soft_budget():
 
 def test_call_tool_wrapped_in_wait_for():
     """server.call_tool must keep the asyncio.wait_for hard envelope."""
-    import server
+    server = _load_rag_server()
 
     src = inspect.getsource(server.main)
     assert "asyncio.wait_for" in src

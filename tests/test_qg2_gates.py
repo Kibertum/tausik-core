@@ -80,9 +80,7 @@ class TestRunQualityGates:
 
         fake_cfg = {"task_done": {"auto_verify": auto_verify}}
         monkeypatch.setattr("project_config.load_config", lambda: fake_cfg)
-        monkeypatch.setattr(
-            "project_config.get_gates_for_trigger", fake_get_for_trigger
-        )
+        monkeypatch.setattr("project_config.get_gates_for_trigger", fake_get_for_trigger)
         import service_verification
 
         return service_verification
@@ -368,6 +366,7 @@ class TestQG0ScopeWarnings:
             acceptance_criteria="1. Export works\n2. Returns error on empty data",
             complexity="medium",
             scope="scripts/export.py",
+            rollback_plan="git revert",
         )
         result = svc.task_start("t1")
         assert "WARNING" in result

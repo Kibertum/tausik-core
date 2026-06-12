@@ -96,11 +96,17 @@ def test_cli_e2e_subprocess_error_contains_example(tmp_path):
 class TestMcpUsageHint:
     @pytest.fixture()
     def usage_hint(self):
-        if str(MCP_PROJECT) not in sys.path:
-            sys.path.insert(0, str(MCP_PROJECT))
-        import server
+        # unique module name — bare `import server` collides with the
+        # codebase-rag server module in other test files
+        import importlib.util
 
-        return server._usage_hint
+        spec = importlib.util.spec_from_file_location(
+            "tausik_project_server", MCP_PROJECT / "server.py"
+        )
+        assert spec is not None and spec.loader is not None
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod._usage_hint
 
     TOOLS = [
         {

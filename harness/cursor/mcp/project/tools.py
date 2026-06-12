@@ -212,7 +212,7 @@ TOOLS = [
     },
     {
         "name": "tausik_task_update",
-        "description": "Update task fields. Specify slug and any fields to change. Valid fields: title, status, goal, acceptance_criteria, scope, scope_exclude, complexity, stack, role, notes, defect_of",
+        "description": "Update task fields. Specify slug and any fields to change. Valid fields: title, status, goal, acceptance_criteria, scope, scope_exclude, rollback_plan, complexity, stack, role, notes, defect_of",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -235,6 +235,10 @@ TOOLS = [
                 "scope_exclude": {
                     "type": "string",
                     "description": "What files/modules NOT to touch (SENAR Rule 2)",
+                },
+                "rollback_plan": {
+                    "type": "string",
+                    "description": "How to undo this change (SENAR Rule 6): git revert / migration down / feature flag off. REQUIRED by QG-0 for medium/complex.",
                 },
                 "notes": {
                     "type": "string",

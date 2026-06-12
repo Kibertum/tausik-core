@@ -7,7 +7,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)](https://python.org)
 [![Tests](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml/badge.svg)](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml)
-[![3400 tests](https://img.shields.io/badge/tests-3400%20passed-brightgreen.svg)](#dogfooding-tausik-built-tausik)
+[![3498 tests](https://img.shields.io/badge/tests-3498%20passed-brightgreen.svg)](#dogfooding-tausik-built-tausik)
 [![Zero deps](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#what-you-get)
 
 > ⚠️ **v1.4 — near-stable pre-2.0 release.** This is the last 1.x minor before
@@ -15,7 +15,7 @@
 > phases — verify-first contract, brain artifact pipeline, audit suite, skill
 > bundles, two-axis variants, per-task cost/token budgets); expect occasional
 > doc-vs-behaviour drift and rough edges on uncommon paths. The core is covered
-> by 3400 tests and is dogfooded daily — if you hit a mismatch, file an issue
+> by 3498 tests and is dogfooded daily — if you hit a mismatch, file an issue
 > and we'll converge it before 2.0.
 
 ### What's new in v1.4 (in plain language)
