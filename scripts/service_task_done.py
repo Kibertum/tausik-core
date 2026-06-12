@@ -247,6 +247,17 @@ class TaskDoneReportMixin:
             risk_note = f"Risk: {risk['score']} ({risk['level']})"
             if risk.get("defaulted"):
                 risk_note += f" — unmeasured: {', '.join(risk['defaulted'])}"
+            # v15-l3-risk-trigger: measured-high closures need an L3 review.
+            from risk_l3_trigger import check_l3_required
+
+            l3_block, l3_note = check_l3_required(self.be._conn, slug, risk)
+            if l3_block:
+                report["blocking_failures"].append(
+                    {"stage": "risk", "gate": "l3-review", "message": l3_note}
+                )
+                return report
+            if l3_note:
+                risk_note += f" | {l3_note}"
         # Atomic: task update + cascade + audit in one transaction
         self.be.begin_tx()
         try:
