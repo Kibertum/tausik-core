@@ -254,6 +254,14 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
         "ALTER TABLE tasks ADD COLUMN scope_paths TEXT",
         "ALTER TABLE tasks ADD COLUMN scope_tools TEXT",
     ],
+    # --- v31: closure risk score (v15-risk-compute-on-done) ---
+    # risk_score 0.0-1.0 + full risk_json ({score, level, factors,
+    # defaulted}) computed by risk_model at task_done. NULL = closed
+    # before v31 or collection failed (best-effort, never blocks close).
+    31: [
+        "ALTER TABLE tasks ADD COLUMN risk_score REAL",
+        "ALTER TABLE tasks ADD COLUMN risk_json TEXT",
+    ],
 }
 
 

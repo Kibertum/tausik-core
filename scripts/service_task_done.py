@@ -230,11 +230,31 @@ class TaskDoneReportMixin:
         updates: dict[str, Any] = {"status": "done", "completed_at": utcnow_iso()}
         if relevant_files:
             updates["relevant_files"] = json.dumps(relevant_files)
+        # v15-risk-compute-on-done: closure risk score — best-effort, never
+        # blocks the close. None (total collection failure) just skips the
+        # columns; downstream (metrics, L3 trigger) treats NULL as "unknown".
+        risk_note = ""
+        try:
+            from risk_compute import compute_task_risk
+
+            risk = compute_task_risk(self.be._conn, task, relevant_files)
+        except Exception:
+            risk = None
+        if risk is not None:
+            updates["risk_score"] = risk["score"]
+            updates["risk_json"] = json.dumps(risk, ensure_ascii=False)
+            report["risk"] = risk
+            risk_note = f"Risk: {risk['score']} ({risk['level']})"
+            if risk.get("defaulted"):
+                risk_note += f" — unmeasured: {', '.join(risk['defaulted'])}"
         # Atomic: task update + cascade + audit in one transaction
         self.be.begin_tx()
         try:
             self.be.task_update(slug, **updates)
             msgs = [f"Task '{slug}' completed."]
+            if risk_note:
+                self.be.task_append_notes(slug, risk_note)
+                msgs.append(risk_note)
             msgs.extend(ac_warnings)
             if knowledge_warning:
                 msgs.append(knowledge_warning)

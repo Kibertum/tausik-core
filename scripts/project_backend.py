@@ -47,6 +47,8 @@ _TASK_FIELDS = frozenset(
         "rollback_plan",
         "scope_paths",
         "scope_tools",
+        "risk_score",
+        "risk_json",
     }
 )
 
