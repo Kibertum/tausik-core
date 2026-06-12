@@ -272,10 +272,30 @@ class GatesMixin:
 
         fresh, hit = has_fresh_verify_run(self.be._conn, slug, relevant_files, max_age_s=ttl)
         if fresh and hit is not None:
+            # v15-receipt-check-on-done: a cached green only counts if its
+            # signed receipt still verifies — tamper-evidence for QG-2.
+            from verify_receipt_check import check_receipt_for_hit
+
+            ok, note = check_receipt_for_hit(self.be._conn, hit["id"], slug)
             self.be.task_append_notes(
                 slug,
-                f"Verify-First: cache hit (verify run #{hit['id']} at {hit['ran_at']})",
+                f"Verify-First: cache hit (verify run #{hit['id']} at {hit['ran_at']}) | {note}",
             )
+            if not ok:
+                report["passed"] = False
+                report["blocking_failures"].append(
+                    {
+                        "gate": "receipt-signature",
+                        "files": [],
+                        "output": note,
+                        "remediation": (
+                            f"Re-run `tausik verify --task {slug}` to record a "
+                            f"freshly signed receipt; inspect `tausik receipt "
+                            f"show --run {hit['id']}` and `tausik key show` if "
+                            "it persists."
+                        ),
+                    }
+                )
             return
 
         if auto_verify:
