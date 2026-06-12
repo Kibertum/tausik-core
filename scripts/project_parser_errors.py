@@ -50,6 +50,7 @@ EXAMPLES: dict[str, list[str]] = {
         "tausik receipt export --task <slug>",
         "tausik receipt verify <file.json>",
     ],
+    "tausik serve": ["tausik serve --port 8765"],
 }
 
 

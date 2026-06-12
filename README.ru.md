@@ -7,7 +7,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)](https://python.org)
 [![Tests](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml/badge.svg)](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml)
-[![3656 tests](https://img.shields.io/badge/tests-3656%20passed-brightgreen.svg)](#dogfooding-tausik-создан-с-помощью-себя)
+[![3671 tests](https://img.shields.io/badge/tests-3671%20passed-brightgreen.svg)](#dogfooding-tausik-создан-с-помощью-себя)
 [![Zero deps](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#что-внутри)
 
 > ⚠️ **v1.4 — околостабильный pre-2.0 релиз.** Это последний минорный релиз
@@ -15,7 +15,7 @@
 > изменений (B+C polish phases — verify-first контракт, brain artifact pipeline,
 > audit suite, skill bundles, two-axis variants, per-task cost/token бюджеты) —
 > возможен рассинхрон в документации и редкие нестабильности на edge-cases.
-> Ядро покрыто 3656 тестами и используется на dogfood'е каждый день; если
+> Ядро покрыто 3671 тестами и используется на dogfood'е каждый день; если
 > наткнётесь на расхождение docs ↔ behaviour — заведите issue, постараемся
 > доехать до 2.0 без regression'ов.
 

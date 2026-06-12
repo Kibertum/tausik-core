@@ -261,6 +261,21 @@ def build_parser() -> argparse.ArgumentParser:
     rv.add_argument("file", help="Path to a tausik-receipt-export/v1 JSON file")
     rv.add_argument("--pub", help="Override key: 'ed25519:<64 hex>' from `tausik key show`")
 
+    # --- serve (v15-nosdk-verify-endpoint) ---
+    srv = sub.add_parser(
+        "serve",
+        help="Stateless HTTP verify endpoint (no MCP/SDK needed)",
+        epilog="Example: tausik serve --port 8765",
+    )
+    srv.add_argument("--host", default="127.0.0.1", help="Bind address (default 127.0.0.1)")
+    srv.add_argument("--port", type=int, default=8765)
+    srv.add_argument(
+        "--yes-expose",
+        action="store_true",
+        dest="yes_expose",
+        help="Confirm a non-localhost bind (endpoint has no auth layer)",
+    )
+
     rm_p = sub.add_parser("roadmap", help="Project roadmap")
     rm_p.add_argument("--include-done", action="store_true")
 
