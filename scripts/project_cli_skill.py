@@ -51,10 +51,32 @@ def cmd_skill(svc: ProjectService, args: Any) -> None:
         cmd_skill_rebuild(args, project_dir, skills_dst)
     elif c == "bundle":
         _cmd_skill_bundle(svc, args, vendor_dir, skills_dst, config_path, tausik_dir)
+    elif c == "sign":
+        _cmd_skill_sign(args, project_dir)
     else:
         print(
-            "Usage: tausik skill [activate|deactivate|list|install|uninstall|repo|catalog|rebuild|bundle]"
+            "Usage: tausik skill [activate|deactivate|list|install|uninstall|repo|catalog|rebuild|bundle|sign]"
         )
+
+
+def _cmd_skill_sign(args: Any, project_dir: str) -> None:
+    """`tausik skill sign <dir>` — supply-chain signature for a release dir."""
+    import sys
+
+    from supply_sign import SupplySignError, sign_artifact
+
+    try:
+        info = sign_artifact(project_dir, args.path, name=getattr(args, "name", None))
+    except SupplySignError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(2)
+    print(
+        f"Signed '{info['name']}' ({info['files']} files).\n"
+        f"  signature:   {info['path']}\n"
+        f"  fingerprint: {info['key_fingerprint']}\n"
+        "Ship the directory as-is; installers verify it against your "
+        "public key (tausik key show)."
+    )
 
 
 def _cmd_skill_bundle(

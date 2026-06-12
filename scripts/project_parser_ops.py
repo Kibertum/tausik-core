@@ -167,6 +167,14 @@ def add_skill(sub: argparse._SubParsersAction) -> None:
         help="Emit JSON instead of a human-readable table.",
     )
 
+    sk_sign = sk_sub.add_parser(
+        "sign",
+        help="Sign a skill/stack release directory (ed25519 supply-chain signature)",
+        epilog="Example: tausik skill sign skills-official/pdf",
+    )
+    sk_sign.add_argument("path", help="Release directory to sign")
+    sk_sign.add_argument("--name", default=None, help="Artifact name (default: dir name)")
+
     sk_rebuild = sk_sub.add_parser(
         "rebuild",
         help="Pre-merge skill SKILL.md files with current ide+model overlays",
