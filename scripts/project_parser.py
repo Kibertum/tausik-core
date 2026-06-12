@@ -244,6 +244,22 @@ def build_parser() -> argparse.ArgumentParser:
     rs.add_argument("--task", help="Latest receipt for this task slug")
     rs.add_argument("--run", type=int, help="Receipt of a specific verification_run id")
     rs.add_argument("--json", action="store_true", help="Print the raw signed envelope")
+    re_ = rcpt_sub.add_parser(
+        "export",
+        help="Export a portable, self-verifiable receipt artifact",
+        epilog="Example: tausik receipt export --task my-task",
+    )
+    re_.add_argument("--task", help="Latest receipt for this task slug")
+    re_.add_argument("--run", type=int, help="Receipt of a specific verification_run id")
+    re_.add_argument("--out", help="Output path (default .tausik/receipts/<task>-<sha8>.json)")
+    re_.add_argument("--stdout", action="store_true", help="Print artifact instead of writing")
+    rv = rcpt_sub.add_parser(
+        "verify",
+        help="Verify an exported receipt file offline (no DB/keystore)",
+        epilog="Example: tausik receipt verify .tausik/receipts/my-task-abc12345.json",
+    )
+    rv.add_argument("file", help="Path to a tausik-receipt-export/v1 JSON file")
+    rv.add_argument("--pub", help="Override key: 'ed25519:<64 hex>' from `tausik key show`")
 
     rm_p = sub.add_parser("roadmap", help="Project roadmap")
     rm_p.add_argument("--include-done", action="store_true")

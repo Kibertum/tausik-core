@@ -45,7 +45,11 @@ EXAMPLES: dict[str, list[str]] = {
     "tausik search": ['tausik search "query" --scope tasks --limit 10'],
     "tausik session": ["tausik session start", "tausik session end"],
     "tausik key": ["tausik key init", "tausik key show"],
-    "tausik receipt": ["tausik receipt show --task <slug>", "tausik receipt show --run <id>"],
+    "tausik receipt": [
+        "tausik receipt show --task <slug>",
+        "tausik receipt export --task <slug>",
+        "tausik receipt verify <file.json>",
+    ],
 }
 
 
