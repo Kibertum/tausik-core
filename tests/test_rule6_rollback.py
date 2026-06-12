@@ -87,6 +87,9 @@ class TestSchemaAndPersistence:
             "t1",
             goal="g",
             acceptance_criteria="1. ok. 2. fails with error on bad input",
+            # scope declared so the Rule 2 hard gate (v15-scope-rule2-hardgate)
+            # doesn't fire first — this test pins the Rule 6 failure.
+            scope="x.py",
         )
         with pytest.raises(ServiceError, match="Rule 6"):
             svc.task_start("t1")
@@ -104,6 +107,7 @@ class TestTaskDoneWarns:
             goal="g",
             acceptance_criteria="1. ok. 2. fails with error on bad input",
             rollback_plan="git revert",
+            scope="x.py",  # satisfy the Rule 2 hard gate (v15-scope-rule2-hardgate)
         )
         svc.task_start("t1")
 

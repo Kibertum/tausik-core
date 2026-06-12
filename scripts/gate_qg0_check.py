@@ -10,9 +10,12 @@ Hard QG-0 gates raised via `ServiceError`:
   - missing goal / acceptance_criteria
   - AC has no negative scenario (boundary-aware via gate_negative_scenario)
   - SENAR Rule 9.2 session-duration overrun (when session_check_duration_fn supplied)
+  - SENAR Rule 2: explicit medium/complex without scope declaration
+    (scope_paths or legacy free-text scope; opt-out qg0.scope_hard_gate=false)
+  - SENAR Rule 6: explicit medium/complex without rollback_plan
 
 Soft warnings returned in the list:
-  - missing scope / scope_exclude (medium/complex)
+  - missing scope (simple/unset complexity) / scope_exclude (medium/complex)
   - audit overdue (when audit_check_fn supplied)
   - security surface mentioned in title/goal but no security AC
   - <5/9 intent dimensions filled (prompt-master diagnostic)
@@ -72,6 +75,20 @@ SECURITY_AC_KEYWORDS = (
 )
 
 
+def _scope_hard_gate_enabled() -> bool:
+    """config qg0.scope_hard_gate, default True; unreadable config = enabled
+    (the opt-out must be explicit, mirroring the Rule 6 gate's posture)."""
+    try:
+        from project_config import load_config
+
+        qg0 = load_config().get("qg0", {})
+        if isinstance(qg0, dict):
+            return bool(qg0.get("scope_hard_gate", True))
+    except Exception:
+        pass
+    return True
+
+
 def check_qg0_start(
     slug: str,
     task: dict[str, Any],
@@ -101,8 +118,25 @@ def check_qg0_start(
             f"QG-0 Context Gate: '{slug}' cannot start — missing {', '.join(missing)}. "
             f"Fix: .tausik/tausik task update {slug} --goal '...' --acceptance-criteria '...'"
         )
-    # QG-0: warn if scope not defined (SENAR Core Rule 2)
-    if not task.get("scope") or not task["scope"].strip():
+    # QG-0: SENAR Core Rule 2 scope. v15-scope-rule2-hardgate: explicit
+    # medium/complex tasks must DECLARE scope — either structured
+    # scope_paths (v30 ACL, enforced by scope_write_gate) or legacy
+    # free-text scope (backward compat). Hard gate is keyword-free (no FP
+    # heuristics); opt out via config qg0.scope_hard_gate=false. Unset
+    # complexity / simple keeps the historical warning-only behavior.
+    has_scope_decl = bool((task.get("scope") or "").strip()) or (
+        task.get("scope_paths") is not None
+    )
+    if not has_scope_decl:
+        if task.get("complexity") in ("medium", "complex") and _scope_hard_gate_enabled():
+            raise ServiceError(
+                f"QG-0 Start Gate (SENAR Rule 2): '{slug}' ({task['complexity']}) "
+                f"declares no scope. Define what this task may touch before "
+                f"starting: .tausik/tausik task update {slug} "
+                f"--scope-paths 'src/feature/*' 'tests/*' (structured ACL, "
+                f"write-enforced) or --scope 'what to change' (free text). "
+                f"Opt out: config qg0.scope_hard_gate=false."
+            )
         warnings.append(
             f"WARNING: Task '{slug}' has no scope defined. "
             f"SENAR recommends defining what to change and what NOT to touch."

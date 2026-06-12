@@ -194,6 +194,7 @@ class TestTaskStartIntegration:
             acceptance_criteria="ac1. negative: x",
             complexity=complexity,
             rollback_plan="git revert",
+            scope="x.py",  # satisfy the Rule 2 hard gate (v15-scope-rule2-hardgate)
         )
 
     def test_banner_appears_in_task_start_output(self, tmp_path):
