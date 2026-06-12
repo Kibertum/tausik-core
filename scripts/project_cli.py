@@ -73,6 +73,15 @@ def cmd_status(svc: ProjectService, args: Any) -> None:
         if counts.get(st):
             print(f", {counts[st]} {st}", end="")
     print()
+    # v15-risk-surface-metrics: one-line closure risk, only when scored rows exist.
+    try:
+        from risk_metrics import format_risk_status_line, risk_summary
+
+        _risk = risk_summary(svc.be._conn)
+        if _risk:
+            print(format_risk_status_line(_risk))
+    except Exception:
+        pass
     if data["session"]:
         active = svc.session_active_minutes()
         wall = svc.session_wall_minutes()

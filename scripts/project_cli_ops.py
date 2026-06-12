@@ -79,6 +79,15 @@ def cmd_metrics(svc: ProjectService, args: Any) -> None:
             f"\nCalibration drift: {drift['label']} "
             f"(avg actual/budget = {drift['avg_ratio']}, n={drift['samples']})"
         )
+    # v15-risk-surface-metrics: closure risk next to DER/FPSR for trends.
+    try:
+        from risk_metrics import format_risk_section, risk_summary
+
+        risk = risk_summary(svc.be._conn)
+    except Exception:
+        risk = None
+    if risk:
+        print(f"\n{format_risk_section(risk)}")
     try:
         rm = svc.be.review_metrics()  # type: ignore[attr-defined]
     except Exception:
