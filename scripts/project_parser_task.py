@@ -12,6 +12,25 @@ import argparse
 from project_types import VALID_COMPLEXITIES, VALID_TIERS
 
 
+def _add_scope_acl_flags(parser: argparse.ArgumentParser) -> None:
+    """Attach --scope-paths / --scope-tools (SENAR Rule 2 declared ACL)."""
+    parser.add_argument(
+        "--scope-paths",
+        nargs="*",
+        default=None,
+        dest="scope_paths",
+        help="Allowed write paths/globs for this task (JSON list stored; "
+        "basis for scope enforcement). Empty = explicit 'nothing allowed'.",
+    )
+    parser.add_argument(
+        "--scope-tools",
+        nargs="*",
+        default=None,
+        dest="scope_tools",
+        help="Allowed tool names for this task (optional ACL complement).",
+    )
+
+
 def _add_unit_flags(parser: argparse.ArgumentParser) -> None:
     """Attach --call-budget / --tier / --cost-budget / --token-budget flags."""
     parser.add_argument("--call-budget", type=int, default=None, dest="call_budget")
@@ -62,6 +81,7 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         help="SENAR Rule 6: how to undo this change (git revert / migration "
         "down / feature flag off).",
     )
+    _add_scope_acl_flags(ta)
     _add_unit_flags(ta)
 
     tl = task_sub.add_parser("list")
@@ -156,6 +176,7 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         dest="update_relevant_files",
         help="JSON-list scope for scoped verify / pytest gate (overwrites prior)",
     )
+    _add_scope_acl_flags(tupdate)
     _add_unit_flags(tupdate)
 
     tdel = task_sub.add_parser("delete")

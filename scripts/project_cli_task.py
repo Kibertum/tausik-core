@@ -44,6 +44,13 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
         rb = getattr(args, "rollback_plan", None)
         if rb:
             svc.task_update(slug, rollback_plan=rb)
+        acl = {
+            f: getattr(args, f, None)
+            for f in ("scope_paths", "scope_tools")
+            if getattr(args, f, None) is not None
+        }
+        if acl:
+            svc.task_update(slug, **acl)
     elif c == "list":
         tasks = svc.task_list(
             args.status,
@@ -122,6 +129,8 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
             "role",
             "scope",
             "scope_exclude",
+            "scope_paths",
+            "scope_tools",
             "rollback_plan",
             "call_budget",
             "tier",
@@ -220,6 +229,8 @@ def _print_task_detail(task: dict[str, Any]) -> None:
         "acceptance_criteria",
         "scope",
         "scope_exclude",
+        "scope_paths",
+        "scope_tools",
         "rollback_plan",
         "notes",
         "started_at",

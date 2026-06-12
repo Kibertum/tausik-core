@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 29
+SCHEMA_VERSION = 30
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     score INTEGER,
     goal TEXT, plan TEXT, notes TEXT,
     acceptance_criteria TEXT, scope TEXT, scope_exclude TEXT, rollback_plan TEXT,
+    scope_paths TEXT, scope_tools TEXT,
     relevant_files TEXT,
     started_at TEXT, completed_at TEXT, blocked_at TEXT,
     archived_at TEXT,

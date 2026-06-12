@@ -45,6 +45,8 @@ _TASK_FIELDS = frozenset(
         "call_actual",
         "tier",
         "rollback_plan",
+        "scope_paths",
+        "scope_tools",
     }
 )
 

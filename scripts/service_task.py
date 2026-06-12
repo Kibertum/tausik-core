@@ -290,6 +290,14 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin):
             self.be.task_set_token_budget(slug, tok_val)
             if not fields:
                 return f"Task '{slug}' updated.{notice}"
+        from scope_acl import ACL_FIELDS, normalize_acl_json
+
+        for f in ACL_FIELDS:
+            if fields.get(f) is not None:
+                try:
+                    fields[f] = normalize_acl_json(fields[f], f)
+                except ValueError as e:
+                    raise ServiceError(str(e)) from None
         from tausik_utils import safe_single_line
 
         for f in ("title", "goal"):

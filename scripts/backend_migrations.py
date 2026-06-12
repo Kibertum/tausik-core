@@ -246,6 +246,14 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     29: [
         "ALTER TABLE verification_runs ADD COLUMN receipt_json TEXT",
     ],
+    # --- v30: declared scope ACL on tasks (SENAR Rule 2, v15-scope-declare) ---
+    # JSON lists: scope_paths = allowed write globs, scope_tools = allowed
+    # tools. NULL = no ACL declared (legacy behavior). Enforcement lands in
+    # v15-scope-enforce-write; canonical (de)serialization in scope_acl.py.
+    30: [
+        "ALTER TABLE tasks ADD COLUMN scope_paths TEXT",
+        "ALTER TABLE tasks ADD COLUMN scope_tools TEXT",
+    ],
 }
 
 
