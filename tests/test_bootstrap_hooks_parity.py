@@ -93,6 +93,7 @@ def test_critical_hooks_present_in_both(claude_settings, qwen_settings):
     """Pin the hooks the audit specifically called out."""
     required = {
         "task_gate.py",
+        "scope_write_gate.py",
         "memory_pretool_block.py",
         "secret_scan.py",
         "bash_firewall.py",

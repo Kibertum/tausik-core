@@ -69,3 +69,38 @@ def parse_task_acl(task: dict[str, Any]) -> dict[str, list[str]]:
         "paths": _parse_list(task.get("scope_paths"), "scope_paths"),
         "tools": _parse_list(task.get("scope_tools"), "scope_tools"),
     }
+
+
+def match_path(rel_path: str, patterns: list[str]) -> bool:
+    """True iff `rel_path` (project-relative) is allowed by any pattern.
+
+    Matching is '/'-normalized and case-insensitive (Windows paths):
+      - "docs/"            -> directory prefix (anything under docs/)
+      - "scripts/*.py"     -> fnmatch glob; NOTE: '*' crosses '/' (fnmatch
+                              semantics), so this also matches subdirs
+      - "scripts/file.py"  -> exact file, or directory prefix when the
+                              entry names a directory without trailing '/'
+    Empty pattern entries are ignored; empty list matches nothing.
+    """
+    import fnmatch
+
+    def _norm(p: str) -> str:
+        p = p.replace("\\", "/").strip().lower()
+        return p[2:] if p.startswith("./") else p
+
+    rp = _norm(rel_path)
+    if not rp:
+        return False
+    for raw in patterns:
+        p = _norm(raw)
+        if not p:
+            continue
+        if p.endswith("/"):
+            if rp.startswith(p):
+                return True
+        elif any(ch in p for ch in "*?["):
+            if fnmatch.fnmatchcase(rp, p):
+                return True
+        elif rp == p or rp.startswith(p + "/"):
+            return True
+    return False

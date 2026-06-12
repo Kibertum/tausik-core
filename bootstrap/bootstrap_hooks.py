@@ -35,6 +35,19 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 ],
             },
             {
+                # v15-scope-enforce-write (SENAR Rule 2): when every active
+                # task declares scope_paths, writes outside the ACL union
+                # are blocked. Tasks without an ACL keep legacy freedom.
+                "matcher": "Write|Edit|MultiEdit",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": hook_cmd("scope_write_gate.py"),
+                        "timeout": 5,
+                    }
+                ],
+            },
+            {
                 "matcher": "Write|Edit|MultiEdit",
                 "hooks": [
                     {

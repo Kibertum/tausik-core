@@ -88,6 +88,17 @@ def generate_settings_qwen(
                 ],
             },
             {
+                # v15-scope-enforce-write parity with bootstrap_hooks.py
+                "matcher": "Write|Edit|MultiEdit",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("scope_write_gate.py"),
+                        "timeout": 5,
+                    }
+                ],
+            },
+            {
                 "matcher": "Write|Edit|MultiEdit",
                 "hooks": [
                     {
