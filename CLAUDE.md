@@ -66,23 +66,5 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 <!-- DYNAMIC:START -->
 ## Current State
 Session: none | Branch: main | Version: 1.5.0
-Tasks: 812/849 done, 0 active, 0 blocked
-
-### Memory tail
-Decisions (5):
-- #103 v16r-adapt-lite resolved path A: реализовать полный ADAPT строго по renar.tech v1.0-draft §7.4-7.6, дроп «lite». Премиса
-- #102 v16r-adapt-lite premise CONFLICTS with renar.tech v1.0-draft §7.12.3: 'промежуточных light-форм не существует' — RENAR A
-- #101 Audit hash-chain: lazy monotonic sealing + ed25519 head-anchor вместо per-event подписи
-- #100 RENAR reasoning-trace read surface is split: tausik task show prints the raw trace; tausik task replay merges it with lo
-- #99 Re-scope post-1.5.0: всё кроме global-MCP-крупняка (эпик v2-global-mcp / gmcp-* / v2-*) тянем на 1.x-линию (1.5.x/1.6) к
-Conventions (5):
-- #146 Adding an MCP tool requires syncing 3 mirrors + bumping 6 doc-count sites
-- #131 Токен-экономия: лаконичный вывод агента
-- #122 filesize gate exempt: docs/{en,ru}/research/*
-- #101 After editing scripts/* — bootstrap before dogfood via .tausik/tausik CLI
-- #94 Cross-IDE hook parity test: bootstrap_qwen mirrors bootstrap_hooks
-Dead ends (3):
-- #145 Hash-chain events на insert-time (event_add вычисляет prev_hash/entry_hash при вставке)
-- #128 Real-screenshot + asciinema-cast in HomeLanding
-- #119 Edit tool с string-match для слияния тестов содержащих невидимые Unicode separators (U+2028, U+2029,
+Tasks: 814/849 done, 0 active, 0 blocked
 <!-- DYNAMIC:END -->
