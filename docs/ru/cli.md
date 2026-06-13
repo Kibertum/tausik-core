@@ -403,6 +403,18 @@ Opt-in: требует `markitdown` и Python ≥3.11.
 events [--entity {task,epic,story}] [--id SLUG] [--limit N]
 ```
 
+## Сниппеты / детекция клонов (v15-snippet)
+
+```bash
+snippet detect [--path X] [--threshold N]  # AST-детекция клонов кода: нормализует
+                                           #   идентификаторы/литералы → placeholder,
+                                           #   хэширует поддеревья def/class, кластеризует
+                                           #   ≥2 совпадения и пишет в таблицу snippets
+                                           #   (taxonomy_kind='clone'). --threshold = мин.
+                                           #   число строк кандидата (по умолч. 10).
+                                           #   Идемпотентно (dedup по hash).
+```
+
 ## Обслуживание
 
 ```bash

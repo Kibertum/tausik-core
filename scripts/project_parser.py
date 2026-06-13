@@ -335,6 +335,24 @@ def build_parser() -> argparse.ArgumentParser:
     fts_sub = fts_p.add_subparsers(dest="fts_cmd")
     fts_sub.add_parser("optimize", help="Optimize all FTS5 indexes")
 
+    # --- snippet (v15-snippet-ast-detect) ---
+    snip_p = sub.add_parser("snippet", help="Code snippet / clone detection")
+    snip_sub = snip_p.add_subparsers(dest="snippet_cmd")
+    snip_detect = snip_sub.add_parser(
+        "detect",
+        help="Detect AST clone clusters and store them in the snippets table",
+        epilog="Example: tausik snippet detect --path scripts --threshold 12",
+    )
+    snip_detect.add_argument(
+        "--path", default=None, help="File or directory to scan (default: current dir)"
+    )
+    snip_detect.add_argument(
+        "--threshold",
+        type=int,
+        default=10,
+        help="Minimum source-line span for a clone candidate (default: 10)",
+    )
+
     # --- events ---
     ev_p = sub.add_parser("events", help="Audit event log")
     ev_p.add_argument("--entity", default=None, help="Filter by entity type (task, epic, story)")

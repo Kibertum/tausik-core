@@ -64,6 +64,7 @@ def main() -> None:
     from project_cli_key import cmd_key
     from project_cli_receipt import cmd_receipt
     from project_cli_serve import cmd_serve
+    from project_cli_snippet import cmd_snippet
     from cmd_db import cmd_db
     from project_cli_review import cmd_review
     from project_config import get_service
@@ -120,6 +121,7 @@ def main() -> None:
         "key": cmd_key,
         "receipt": cmd_receipt,
         "serve": cmd_serve,
+        "snippet": cmd_snippet,
     }
 
     if args.command == "doctor":
