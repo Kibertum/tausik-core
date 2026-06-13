@@ -56,6 +56,7 @@ def main() -> None:
         cmd_suggest_model,
     )
     from project_cli_events import cmd_events
+    from project_cli_specs import cmd_spec
     from cli_push_ok import cmd_push_ok
     from project_cli_key import cmd_key
     from project_cli_receipt import cmd_receipt
@@ -93,6 +94,7 @@ def main() -> None:
         "team": cmd_team,
         "update-claudemd": cmd_update_claudemd,
         "events": cmd_events,
+        "spec": cmd_spec,
         "fts": cmd_fts,
         "skill": cmd_skill,
         "stack": cmd_stack,

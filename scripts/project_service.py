@@ -12,6 +12,7 @@ from tausik_utils import ServiceError, validate_length, validate_slug
 from service_knowledge import KnowledgeMixin
 from service_session import SessionMixin
 from service_skills import SkillsMixin
+from service_specs import SpecsMixin
 from service_task import TaskMixin
 from service_task_team import TaskTeamMixin
 
@@ -80,6 +81,7 @@ class ProjectService(
     SessionMixin,
     KnowledgeMixin,
     SkillsMixin,
+    SpecsMixin,
 ):
     """TAUSIK project service -- composes all domain mixins."""
 

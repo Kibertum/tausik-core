@@ -599,6 +599,11 @@ _DISPATCH: dict[str, _Handler] = {
     "tausik_role_seed": lambda svc, args: _handle_role_seed(svc),
 }
 
+# --- SPEC artifacts (handlers in handlers_spec.py) ---
+import handlers_spec as _spec  # noqa: E402
+
+_DISPATCH.update(_spec.SPEC_HANDLERS)
+
 
 def _handle_role_list(svc: Any) -> str:
     import json as _json

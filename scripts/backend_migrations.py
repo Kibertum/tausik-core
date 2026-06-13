@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from backend_migrations_legacy import LEGACY_MIGRATIONS, seed_v18_roles
 from backend_migrations_v34 import maybe_backfill_v34
+from backend_migrations_v35 import MIGRATION_V35
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -296,9 +297,8 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
             VALUES ('delete', old.id, old.content);
         END""",
     ],
-    # --- v33: per-task model pinning (v16r-model-pinning) ---
-    # RENAR blocker #2: pin the agent model at task start/done and flag
-    # mid-task model changes. Purely additive ALTERs on tasks.
+    # v33: per-task model pinning (v16r-model-pinning) — pin model at start/done +
+    # flag mid-task model changes (RENAR blocker #2). Purely additive ALTERs on tasks.
     33: [
         "ALTER TABLE tasks ADD COLUMN started_model_id TEXT",
         "ALTER TABLE tasks ADD COLUMN started_model_version TEXT",
@@ -311,9 +311,8 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
         "CREATE INDEX IF NOT EXISTS idx_tasks_started_model ON tasks(started_model_id)",
         "CREATE INDEX IF NOT EXISTS idx_tasks_model_mismatch ON tasks(model_mismatch)",
     ],
-    # --- v34: audit event hash-chain (v16r-audit-hashchain) ---
-    # Additive: nullable chain columns + anchor table. Historical rows sealed
-    # by Python backfill maybe_backfill_v34 (SQLite lacks sha256/JCS).
+    # v34: audit event hash-chain — nullable chain cols + anchor table; historical
+    # rows sealed by Python backfill maybe_backfill_v34 (SQLite lacks sha256/JCS).
     34: [
         "ALTER TABLE events ADD COLUMN prev_hash TEXT",
         "ALTER TABLE events ADD COLUMN entry_hash TEXT",
@@ -322,6 +321,8 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
         "head_hash TEXT NOT NULL, event_count INTEGER NOT NULL, "
         "envelope_json TEXT NOT NULL, created_at TEXT NOT NULL)",
     ],
+    # v35: RENAR SPEC artifacts (v16r-spec-types) — SQL in backend_migrations_v35.py
+    35: MIGRATION_V35,
 }
 
 

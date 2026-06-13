@@ -285,3 +285,9 @@ def _print_task_detail(task: dict[str, Any]) -> None:
         print(f"Reasoning trace ({len(steps)}):")
         for s in steps:
             print(f"  {s['seq']}. ({s['kind']}) {s['content']}")
+    specs = task.get("specs", [])
+    if specs:
+        print(f"SPECs ({len(specs)}):")
+        for sp in specs:
+            ref = f" -> {sp['content_ref']}" if sp.get("content_ref") else ""
+            print(f"  [{sp['type']}] {sp['slug']} {sp['version']} ({sp['relation']}){ref}")

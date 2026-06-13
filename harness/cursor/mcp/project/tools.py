@@ -948,6 +948,8 @@ TOOLS = [
 # Merge extra tools (dead end, explore, audit, gates, skills, maintenance)
 from tools_extra import TOOLS_EXTRA  # noqa: E402
 from tools_extra_admin import TOOLS_EXTRA_ADMIN  # noqa: E402
+from tools_spec import TOOLS_SPEC  # noqa: E402
 
 TOOLS.extend(TOOLS_EXTRA)
 TOOLS.extend(TOOLS_EXTRA_ADMIN)
+TOOLS.extend(TOOLS_SPEC)

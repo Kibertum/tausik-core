@@ -123,6 +123,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             raise ServiceError(f"Task '{slug}' not found")
         task["decisions"] = self.be.decisions_for_task(slug)
         task["reasoning_steps"] = self.be.reasoning_step_list(slug)
+        task["specs"] = self.be.specs_for_task(slug)
         return task
 
     def task_start(self, slug: str, _internal_force: bool = False, force: bool = False) -> str:
