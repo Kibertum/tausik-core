@@ -6,8 +6,8 @@ A **reasoning trace** is an ordered, append-only chain of typed steps attached t
 a task. It records *why* the agent did something — the rationale a fresh agent
 could not reconstruct from the diff alone. It is the reasoning half of RENAR
 reproducibility (the other halves are events, verification runs, and receipts).
-Today the trace is read via `tausik task show`; a fuller `tausik task replay`
-timeline that interleaves all sources is planned (the `v16r-task-replay` work).
+The trace is read on its own via `tausik task show`; `tausik task replay <slug>`
+produces a fuller chronological timeline that interleaves all four sources.
 
 The `/reason` skill is the agent-facing surface; this page is the reference.
 
@@ -108,5 +108,5 @@ three jobs:
 
 - **[Skills](skills.md)** — `/reason` and the rest of the skill surface
 - **[Workflow](workflow.md)** — how reasoning fits the task lifecycle
-- **[CLI Commands](cli.md)** — `task reason-step`
-- **[MCP Tools](mcp.md)** — `tausik_reason_step`
+- **[CLI Commands](cli.md)** — `task reason-step`, `task replay`
+- **[MCP Tools](mcp.md)** — `tausik_reason_step`, `tausik_task_replay`

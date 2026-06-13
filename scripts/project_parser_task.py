@@ -229,6 +229,19 @@ def add_task(sub: argparse._SubParsersAction) -> None:
     )
     treason.add_argument("content", help="Reasoning step content")
 
+    treplay = task_sub.add_parser(
+        "replay",
+        help="Reconstruct a task's chronological timeline (logs + reasoning + events + verification)",
+        epilog="Example: tausik task replay my-task --output replay.md",
+    )
+    treplay.add_argument("slug", help="Task slug")
+    treplay.add_argument(
+        "--output",
+        "-o",
+        default=None,
+        help="Write the markdown timeline to a file instead of stdout",
+    )
+
     tmove = task_sub.add_parser("move")
     tmove.add_argument("slug")
     tmove.add_argument("new_story_slug")

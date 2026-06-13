@@ -20,6 +20,7 @@ from service_cascade import CascadeMixin
 from service_gates import GatesMixin
 from model_pinning import model_start_updates
 from service_reasoning import ReasoningMixin
+from service_replay import ReplayMixin
 from service_recording import check_session_capacity
 from service_task_done import TaskDoneReportMixin, _format_task_done_failures  # noqa: F401
 
@@ -37,7 +38,7 @@ from service_validation import update_enums as _update_enums  # noqa: E402,F401
 from service_recording import apply_force_capacity_audit as _apply_force_audit  # noqa: E402,F401
 
 
-class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin):
+class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, ReplayMixin):
     """Task lifecycle with strict workflow enforcement."""
 
     be: SQLiteBackend

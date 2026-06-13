@@ -175,6 +175,8 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
             print("No available tasks.")
     elif c == "reason-step":
         print(svc.reasoning_step_add(args.slug, args.kind, args.content))
+    elif c == "replay":
+        print(svc.task_replay(args.slug, getattr(args, "output", None)))
     elif c == "log":
         print(svc.task_log(args.slug, args.message))
     elif c == "logs":
@@ -186,7 +188,7 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                 phase_tag = f" [{entry['phase']}]" if entry.get("phase") else ""
                 print(f"[{entry['created_at']}]{phase_tag} {entry['message']}")
     else:
-        subcmds = "add, list, show, start, done, block, unblock, review, update, delete, plan, step, quick, next, move, claim, unclaim, reason-step, log, logs"
+        subcmds = "add, list, show, start, done, block, unblock, review, update, delete, plan, step, quick, next, move, claim, unclaim, reason-step, replay, log, logs"
         if c:
             from difflib import get_close_matches
 

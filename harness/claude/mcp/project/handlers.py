@@ -491,6 +491,7 @@ _DISPATCH: dict[str, _Handler] = {
     "tausik_reason_step": lambda svc, args: svc.reasoning_step_add(
         args["slug"], args["kind"], args["content"]
     ),
+    "tausik_task_replay": lambda svc, args: svc.task_replay(args["slug"], args.get("output")),
     # --- Sessions ---
     "tausik_session_current": _do_session_current,
     "tausik_session_list": _do_session_list,

@@ -2,13 +2,13 @@
 
 # TAUSIK MCP — Tool Reference (v1.5)
 
-**105 tools** for AI agents (98 project + 7 brain; v1.5 actual count, asserted via `len(TOOLS)` on both servers). The MCP surface covers everything an agent does day-to-day. A few CLI-only commands have no MCP equivalent — they are operator / maintenance verbs that don't belong in an agent loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. For the agent's working set, prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
+**106 tools** for AI agents (99 project + 7 brain; v1.5 actual count, asserted via `len(TOOLS)` on both servers). The MCP surface covers everything an agent does day-to-day. A few CLI-only commands have no MCP equivalent — they are operator / maintenance verbs that don't belong in an agent loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. For the agent's working set, prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
 
-> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 105 count — total with it is 112 tools.
+> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 106 count — total with it is 113 tools.
 
 Two MCP servers live in this project:
 
-- `tausik-project` — project-scoped tools (98): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging.
+- `tausik-project` — project-scoped tools (99): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging.
 - `tausik-brain` — cross-project Shared Brain tools (7).
 
 There is also an optional `codebase-rag` server documented at the bottom.
@@ -56,6 +56,7 @@ tausik_task_done(slug=…, ac_verified=True)   # lightweight: cache lookup
 | `tausik_task_log` | Append journal entry | `slug`, `message` |
 | `tausik_task_logs` | Read structured logs (filter by phase) | `slug` |
 | `tausik_reason_step` | RENAR reasoning step (intent\|premise\|action\|verification) | `slug`, `kind`, `content` |
+| `tausik_task_replay` | Chronological task timeline (logs + reasoning + events + verification) | `slug` |
 | `tausik_task_block` | Block task | `slug` |
 | `tausik_task_unblock` | Unblock | `slug` |
 | `tausik_task_review` | Move to review | `slug` |

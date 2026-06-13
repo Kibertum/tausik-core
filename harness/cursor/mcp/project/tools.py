@@ -399,6 +399,21 @@ TOOLS = [
         },
     },
     {
+        "name": "tausik_task_replay",
+        "description": "Reconstruct a task's chronological timeline (task_logs + reasoning_steps + events + verification_runs with receipt) as markdown. Works on historical tasks without reasoning steps. With output, writes to a file instead of returning the markdown.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string"},
+                "output": {
+                    "type": "string",
+                    "description": "Optional file path; writes the timeline there instead of returning it",
+                },
+            },
+            "required": ["slug"],
+        },
+    },
+    {
         "name": "tausik_session_current",
         "description": "Get current active session info (ID, start time). Returns null if no active session",
         "inputSchema": {"type": "object", "properties": {}},

@@ -1,15 +1,15 @@
 {
   "hooks_count": 21,
   "mcp_brain_tools": 7,
-  "mcp_descriptions_hash": "6bbc99302ee39f40",
-  "mcp_main_tools": 105,
-  "mcp_project_tools": 98,
+  "mcp_descriptions_hash": "c55f6cde0294879b",
+  "mcp_main_tools": 106,
+  "mcp_project_tools": 99,
   "mcp_rag_tools": 7,
-  "mcp_tools_with_optional_rag": 112,
+  "mcp_tools_with_optional_rag": 113,
   "review_agents_count": 6,
   "schema_version": 1,
   "skills_core_count": 13,
   "stacks_count": 25,
   "tausik_version": "1.5.0",
-  "test_count": 3846
+  "test_count": 3854
 }

@@ -54,3 +54,17 @@ class ReasoningCrudMixin:
             "SELECT * FROM reasoning_steps WHERE task_slug=? ORDER BY seq, id",
             (task_slug,),
         )
+
+    def verification_runs_for_task(self, task_slug: str) -> list[dict[str, Any]]:
+        """All verification runs for a task, oldest first (for replay timeline).
+
+        Includes ``receipt_json`` so the caller can surface receipt signature
+        metadata. Unlike :mod:`verify_recent_lookup`, this is not filtered by
+        ``exit_code`` or ``files_hash`` — a replay shows failures too.
+        """
+        return self._q(
+            "SELECT id, scope, command, exit_code, summary, files_hash, "
+            "ran_at, duration_ms, receipt_json "
+            "FROM verification_runs WHERE task_slug=? ORDER BY datetime(ran_at), id",
+            (task_slug,),
+        )

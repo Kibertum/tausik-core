@@ -41,7 +41,7 @@ Same governance everywhere; only the **wrapper** (hooks vs self-serve) changes. 
 
 | Model / host | Primary TAUSIK surface | Main `tausik_*` tools (two servers) | Notes |
 |----------------|------------------------|-------------------------------------|------|
-| Claude (Code, VS Code Extension) | MCP `tausik-project` + `tausik-brain` | **105** (98 project + 7 brain) | Hooks + MCP |
+| Claude (Code, VS Code Extension) | MCP `tausik-project` + `tausik-brain` | **106** (99 project + 7 brain) | Hooks + MCP |
 | Cursor / Composer / GPT-5.5+ / OpenCode | Same MCP (project MCP config); CLI fallback `.tausik/tausik` | **100** (93+7) | Rule 1 self-serve if no hooks |
 | Qwen Code | MCP + skills under `.qwen/skills/` | **100** (93+7) | Subset of hooks |
 | Codex CLI / headless agents | Prefer MCP if exposed; else mirror CLI | **100** (93+7) | [docs/en/cli.md](docs/en/cli.md) |
@@ -96,7 +96,7 @@ Canonical narrative + branching detail: **[docs/en/workflow.md](docs/en/workflow
 | **CLI command reference** | [docs/en/cli.md](docs/en/cli.md) (EN) / [docs/ru/cli.md](docs/ru/cli.md) (RU) |
 | **Architecture & internals** | [docs/en/architecture.md](docs/en/architecture.md) (EN) / [docs/ru/architecture.md](docs/ru/architecture.md) (RU) |
 | **Testing principles (scoped pytest, when to add tests)** | [docs/en/testing-principles.md](docs/en/testing-principles.md) (EN) / [docs/ru/testing-principles.md](docs/ru/testing-principles.md) (RU) |
-| **MCP tools (98 project + 7 brain = 105; verify-first contract)** | [docs/en/mcp.md](docs/en/mcp.md) |
+| **MCP tools (99 project + 7 brain = 106; verify-first contract)** | [docs/en/mcp.md](docs/en/mcp.md) |
 | **Skills reference (12 core + brain conditional, 25+ official opt-in)** | [docs/en/skills.md](docs/en/skills.md) |
 | **Quality gates** | [docs/en/hooks.md](docs/en/hooks.md) |
 | **User-facing docs index** | [docs/README.md](docs/README.md) |
@@ -112,7 +112,7 @@ harness/           Shared resources for all IDEs (renamed from agents/ in v1.4 t
   roles/           5 role profiles (developer, architect, qa, tech-writer, ui-ux)
   stacks/          25 stack guides (python, react, go, rust, ansible, terraform, ...)
   overrides/       IDE-specific overrides (claude/, cursor/, qwen/)
-  claude/mcp/      tausik-project (98) + tausik-brain (7) = 105 main; optional codebase-rag +7 → 112 total — see docs/en/mcp.md
+  claude/mcp/      tausik-project (99) + tausik-brain (7) = 106 main; optional codebase-rag +7 → 113 total — see docs/en/mcp.md
 bootstrap/         One-command project setup
 tests/             pytest suite (3355 tests)
 .tausik/           Runtime data (DB, config) — gitignored

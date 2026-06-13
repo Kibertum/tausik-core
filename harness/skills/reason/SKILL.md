@@ -91,7 +91,6 @@ summarise the cycle so far (which kinds are present, what fork is open).
   want `task log`. Reason-steps mark *forks*, not activity.
 - **`reason-step` needs an existing task** — the slug must resolve. Reasoning
   outside a task belongs in `/explore` findings or a `tausik_decide`.
-- **Replayable later.** A task-timeline replay (planned — the `v16r-task-replay`
-  work) will interleave reasoning steps with logs, events, and verification
-  runs. Until then, `tausik task show <slug>` is the read surface. Either way,
-  write steps that read well out of context.
+- **Replayable.** `tausik task replay <slug>` interleaves reasoning steps with
+  logs, events, and verification runs into one chronological timeline (and
+  `--output FILE` exports it). Write steps that read well out of context.
