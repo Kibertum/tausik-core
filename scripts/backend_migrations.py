@@ -13,6 +13,7 @@ from __future__ import annotations
 from backend_migrations_legacy import LEGACY_MIGRATIONS, seed_v18_roles
 from backend_migrations_v34 import maybe_backfill_v34
 from backend_migrations_v35 import MIGRATION_V35
+from backend_migrations_v36 import MIGRATION_V36
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -323,6 +324,8 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     ],
     # v35: RENAR SPEC artifacts (v16r-spec-types) — SQL in backend_migrations_v35.py
     35: MIGRATION_V35,
+    # v36: RENAR ADAPT artifacts (v16r-adapt) — SQL in backend_migrations_v36.py
+    36: MIGRATION_V36,
 }
 
 

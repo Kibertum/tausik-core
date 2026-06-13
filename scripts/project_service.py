@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from tausik_utils import ServiceError, validate_length, validate_slug
+from service_adapts import AdaptsMixin
 from service_knowledge import KnowledgeMixin
 from service_session import SessionMixin
 from service_skills import SkillsMixin
@@ -82,6 +83,7 @@ class ProjectService(
     KnowledgeMixin,
     SkillsMixin,
     SpecsMixin,
+    AdaptsMixin,
 ):
     """TAUSIK project service -- composes all domain mixins."""
 

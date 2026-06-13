@@ -604,6 +604,11 @@ import handlers_spec as _spec  # noqa: E402
 
 _DISPATCH.update(_spec.SPEC_HANDLERS)
 
+# --- ADAPT artifacts (handlers in handlers_adapt.py) ---
+import handlers_adapt as _adapt  # noqa: E402
+
+_DISPATCH.update(_adapt.ADAPT_HANDLERS)
+
 
 def _handle_role_list(svc: Any) -> str:
     import json as _json

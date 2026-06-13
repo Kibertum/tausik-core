@@ -87,6 +87,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     build_session_subparsers(sub)
 
+    from project_parser_adapts import build_adapt_subparsers
     from project_parser_role import build_role_subparsers
     from project_parser_specs import build_spec_subparsers
     from project_parser_stack import build_stack_subparsers
@@ -94,6 +95,7 @@ def build_parser() -> argparse.ArgumentParser:
     build_stack_subparsers(sub)
     build_role_subparsers(sub)
     build_spec_subparsers(sub)
+    build_adapt_subparsers(sub)
     sub.add_parser("doctor", help="Health check: venv + DB + MCP + skills + drift")
 
     # --- decide ---

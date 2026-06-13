@@ -124,6 +124,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         task["decisions"] = self.be.decisions_for_task(slug)
         task["reasoning_steps"] = self.be.reasoning_step_list(slug)
         task["specs"] = self.be.specs_for_task(slug)
+        task["adapts"] = self.be.adapts_for_target("task", slug)
         return task
 
     def task_start(self, slug: str, _internal_force: bool = False, force: bool = False) -> str:

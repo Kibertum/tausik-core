@@ -8,6 +8,7 @@ import sqlite3
 from typing import Any
 
 from backend_crud import BackendCrudMixin
+from backend_crud_adapts import AdaptsCrudMixin
 from backend_crud_reasoning import ReasoningCrudMixin
 from backend_crud_specs import SpecsCrudMixin
 from backend_events_chain import BackendEventsChainMixin
@@ -71,6 +72,7 @@ class SQLiteBackend(
     BackendCrudMixin,
     ReasoningCrudMixin,
     SpecsCrudMixin,
+    AdaptsCrudMixin,
     BackendEventsChainMixin,
 ):
     """All DB operations for TAUSIK. Single SQLite file, FTS5 search."""

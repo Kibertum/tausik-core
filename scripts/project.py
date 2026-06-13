@@ -57,6 +57,7 @@ def main() -> None:
     )
     from project_cli_events import cmd_events
     from project_cli_specs import cmd_spec
+    from project_cli_adapts import cmd_adapt
     from cli_push_ok import cmd_push_ok
     from project_cli_key import cmd_key
     from project_cli_receipt import cmd_receipt
@@ -95,6 +96,7 @@ def main() -> None:
         "update-claudemd": cmd_update_claudemd,
         "events": cmd_events,
         "spec": cmd_spec,
+        "adapt": cmd_adapt,
         "fts": cmd_fts,
         "skill": cmd_skill,
         "stack": cmd_stack,
