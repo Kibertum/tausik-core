@@ -162,11 +162,11 @@ def run_tdd_order_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
     )
 
 
+from gate_renar_drift import run_renar_drift_gate  # noqa: F401, E402
 from gate_test_resolver import resolve_test_files_for_relevant  # noqa: F401, E402
 
 # v14b-filesize-debt-paydown: run_command_gate + _SCOPED_SKIP_SENTINEL extracted
-# to gate_command_runner.py (filesize compliance). Re-exported here so existing
-# callers (e.g. tests/test_gates.py) continue importing them from gate_runner.
+# to gate_command_runner.py; re-exported so tests/test_gates.py import path holds.
 from gate_command_runner import _SCOPED_SKIP_SENTINEL, run_command_gate  # noqa: F401, E402
 
 
@@ -250,6 +250,8 @@ def run_gates(
             passed, output = run_filesize_gate(gate, files or [])
         elif name == "tdd_order":
             passed, output = run_tdd_order_gate(gate, files or [])
+        elif name in ("renar_drift_schema", "renar_drift_provenance"):
+            passed, output = run_renar_drift_gate(name)
         else:
             passed, output = run_command_gate(gate, files or [])
 

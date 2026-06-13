@@ -56,6 +56,22 @@ UNIVERSAL_GATES: dict[str, dict] = {
         "command": None,
         "description": "Verify test files were modified (TDD enforcement)",
     },
+    # RENAR §3.11 drift detectors (warning-mode). Read-only scans of the RENAR
+    # artifact store; ignore `files`. Warn-only by design — see renar_drift.py.
+    "renar_drift_schema": {
+        "enabled": True,
+        "severity": "warn",
+        "trigger": ["task-done"],
+        "command": None,
+        "description": "RENAR drift-1: schema validation of SPEC/ADAPT artifacts",
+    },
+    "renar_drift_provenance": {
+        "enabled": True,
+        "severity": "warn",
+        "trigger": ["task-done"],
+        "command": None,
+        "description": "RENAR drift-7: stale TC↔requirement (task↔SPEC) provenance",
+    },
 }
 
 

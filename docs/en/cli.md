@@ -145,6 +145,33 @@ gates enable <name>             # Enable gate
 gates disable <name>            # Disable gate
 ```
 
+## RENAR drift detectors (§3.11)
+
+RENAR §3.11 defines 8 drift classes. 2 are implemented (audit recommendation R4),
+both in **warning mode** — findings never block; the agent reads the listing and
+reacts.
+
+```bash
+drift                          # Run every implemented detector
+drift --detector schema        # drift-1 only (artifact schema)
+drift --detector provenance    # drift-7 only (TC↔requirement provenance)
+```
+
+- **drift-1 (schema)** — re-validates SPEC/ADAPT against the closed lists +
+  cross-field invariants a DB CHECK cannot express: `delta_n ↔ parent_adapt`
+  (delta_n>0 without a parent_adapt / delta_n=0 with a parent_adapt),
+  `signed ↔ dual signature` (§7.5),
+  blank version. Catches direct-DB tampering and migration gaps.
+- **drift-7 (TC↔requirement provenance)** — TAUSIK has no first-class TC; the
+  verification unit is a task (its acceptance_criteria == the "TC") linked to a
+  SPEC (the requirement) via `task_specs`. Two signals: `stale-verification`
+  (done task whose SPEC was edited after the link → verification predates the
+  current requirement version) and `deprecated-requirement` (in-flight task
+  linked to a deprecated SPEC).
+
+Also wired as gates `renar_drift_schema` / `renar_drift_provenance`
+(severity=warn, trigger=task-done). The other 6 classes are out of scope.
+
 ## Stacks
 
 ```bash

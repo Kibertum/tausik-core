@@ -145,6 +145,31 @@ gates enable <name>             # Включить gate
 gates disable <name>            # Выключить gate
 ```
 
+## RENAR drift-детекторы (§3.11)
+
+RENAR §3.11 определяет 8 классов дрифта. Реализованы 2 (рекомендация R4 аудита),
+оба в **warning-режиме** — находки не блокируют, агент читает листинг и реагирует.
+
+```bash
+drift                          # Запустить все реализованные детекторы
+drift --detector schema        # Только drift-1 (схема артефактов)
+drift --detector provenance    # Только drift-7 (провенанс TC↔требование)
+```
+
+- **drift-1 (schema)** — ре-валидация SPEC/ADAPT против closed-lists + cross-field
+  инвариантов, которые DB CHECK выразить не может: `delta_n ↔ parent_adapt`
+  (delta_n>0 без parent_adapt / delta_n=0 с parent_adapt), `signed ↔ двойная
+  подпись` (§7.5),
+  пустая version. Ловит прямые правки БД и пробелы миграций.
+- **drift-7 (TC↔requirement provenance)** — у TAUSIK нет first-class TC; единица
+  верификации — задача (её acceptance_criteria = «TC»), связанная со SPEC
+  (требование) через `task_specs`. Два сигнала: `stale-verification` (done-задача,
+  но SPEC отредактирован после связывания → верификация устарела) и
+  `deprecated-requirement` (незавершённая задача на deprecated-SPEC).
+
+Также подключены как gates `renar_drift_schema` / `renar_drift_provenance`
+(severity=warn, trigger=task-done). Остальные 6 классов — вне scope.
+
 ## Стеки
 
 ```bash

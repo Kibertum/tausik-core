@@ -98,6 +98,14 @@ def build_parser() -> argparse.ArgumentParser:
     build_adapt_subparsers(sub)
     sub.add_parser("doctor", help="Health check: venv + DB + MCP + skills + drift")
 
+    drift_p = sub.add_parser("drift", help="RENAR drift detectors (schema + TC↔req provenance)")
+    drift_p.add_argument(
+        "--detector",
+        choices=["schema", "provenance", "all"],
+        default="all",
+        help="Which RENAR drift detector to run (default: all)",
+    )
+
     # --- decide ---
     dec_p = sub.add_parser("decide", help="Record a decision")
     dec_p.add_argument("text")

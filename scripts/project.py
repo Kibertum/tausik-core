@@ -58,6 +58,7 @@ def main() -> None:
     from project_cli_events import cmd_events
     from project_cli_specs import cmd_spec
     from project_cli_adapts import cmd_adapt
+    from project_cli_drift import cmd_drift
     from cli_push_ok import cmd_push_ok
     from project_cli_key import cmd_key
     from project_cli_receipt import cmd_receipt
@@ -97,6 +98,7 @@ def main() -> None:
         "events": cmd_events,
         "spec": cmd_spec,
         "adapt": cmd_adapt,
+        "drift": cmd_drift,
         "fts": cmd_fts,
         "skill": cmd_skill,
         "stack": cmd_stack,
