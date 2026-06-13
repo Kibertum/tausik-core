@@ -230,6 +230,10 @@ export default defineConfig({
               text: "Internals",
               collapsed: true,
               items: [
+                { text: "Plan review protocol", link: "/ru/docs/plan-review" },
+                { text: "Plan stacks tables", link: "/ru/docs/plan-stacks" },
+                { text: "Skill spec", link: "/ru/docs/skill-spec" },
+                { text: "Skill patterns", link: "/ru/docs/skill-patterns" },
                 { text: "Dev doc checks", link: "/ru/docs/dev-doc-checks" },
                 { text: "i18n strategy", link: "/ru/docs/i18n-strategy" },
               ],
