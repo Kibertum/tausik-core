@@ -33,6 +33,20 @@ def _root_cause_hard_enabled() -> bool:
     return True
 
 
+def _checklist_hard_enabled() -> bool:
+    """config task_done.checklist_hard, default True (SENAR Rule 5 hard gate
+    for substantial/deep planning tiers — v15s-rule5-checklist-hardgate)."""
+    try:
+        from project_config import load_config
+
+        td = load_config().get("task_done", {})
+        if isinstance(td, dict):
+            return bool(td.get("checklist_hard", True))
+    except Exception:
+        pass
+    return True
+
+
 def _format_task_done_failures(report: dict[str, Any]) -> str:
     """v1.4: aggregate ALL blocking failures into the v1 ServiceError message.
 
@@ -173,6 +187,35 @@ class TaskDoneReportMixin:
             return report
 
         checklist_warning = self._check_verification_checklist(slug, task)  # type: ignore[attr-defined]
+        # SENAR Rule 5 (v15s-rule5-checklist-hardgate): a missing checklist is a
+        # HARD block for substantial/deep planning tiers; lower tiers escalate
+        # through the nudge framework (silent→hint→warning→strong) and reset on
+        # compliance. Opt out of the hard block: config task_done.checklist_hard.
+        checklist_nudge = ""
+        from gate_ac_check import checklist_hard_block, checklist_missing
+
+        _cl_block, _cl_msg = checklist_hard_block(task)
+        if _cl_msg:
+            if _checklist_hard_enabled():
+                report["blocking_failures"].append(
+                    {"stage": "checklist", "gate": "rule5-checklist", "message": _cl_msg}
+                )
+                return report
+            checklist_nudge = f"WARNING (checklist_hard=false): {_cl_msg}"
+        else:
+            try:
+                from nudge_escalation import escalate, reset
+
+                if checklist_missing(task):
+                    checklist_nudge = escalate(
+                        self.be._conn,
+                        "checklist",
+                        "verification checklist missing in notes (SENAR Rule 5)",
+                    )
+                else:
+                    reset(self.be._conn, "checklist")
+            except Exception:
+                checklist_nudge = ""
         # SENAR Core Rule 7: defect tasks must document root cause.
         # v15-failclosed-gate-audit: hard gate by default — a defect closed
         # without its root cause is the exact fail-open the audit targets;
@@ -296,6 +339,9 @@ class TaskDoneReportMixin:
             if checklist_warning:
                 msgs.append(checklist_warning)
                 report["warnings"].append(checklist_warning)
+            if checklist_nudge:
+                msgs.append(checklist_nudge)
+                report["warnings"].append(checklist_nudge)
             if root_cause_warning:
                 msgs.append(root_cause_warning)
                 report["warnings"].append(root_cause_warning)

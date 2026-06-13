@@ -123,6 +123,90 @@ def determine_checklist_tier(
     return "standard"
 
 
+# Checklist keyword tables, shared by the advisory warning and the hard gate.
+# Each tier is a superset of the previous one (more items = stricter review).
+_LIGHTWEIGHT_KW = ["scope", "phantom", "test tamper", "secret", "hardcoded secret"]
+_STANDARD_KW = _LIGHTWEIGHT_KW + [
+    "delet",
+    "test quality",
+    "input valid",
+    "deprecat",
+    "cross-file",
+    "code quality",
+]
+_HIGH_KW = _STANDARD_KW + [
+    "null guard",
+    "empty config",
+    "header trust",
+    "idor",
+    "return true",
+    "auth coverage",
+    "deserializ",
+    "ssrf",
+]
+_CRITICAL_KW = _HIGH_KW + [
+    "dependency version",
+    "magic number",
+    "over-engineer",
+    "duplicat",
+    "edge case",
+    "naming",
+    "commit scope",
+    "string format",
+    "unreachable",
+    "swallow",
+]
+_TIER_KEYWORDS = {
+    "lightweight": _LIGHTWEIGHT_KW,
+    "standard": _STANDARD_KW,
+    "high": _HIGH_KW,
+    "critical": _CRITICAL_KW,
+}
+_TIER_COUNT = {"lightweight": 4, "standard": 10, "high": 18, "critical": 28}
+
+# Planning tiers (call-budget derived) for which a missing checklist is a HARD
+# block, not a warning — SENAR Rule 5 escalation (v15s-rule5-checklist-hardgate).
+_HARD_CHECKLIST_TIERS = frozenset({"substantial", "deep"})
+
+
+def _checklist_keyword_scan(task: dict[str, Any]) -> tuple[str, int]:
+    """Return (checklist_tier, kw_hits) for a task's notes. Shared helper."""
+    notes_lower = (task.get("notes") or "").lower()
+    try:
+        rf_raw = task.get("relevant_files") or "[]"
+        rf = json.loads(rf_raw) if isinstance(rf_raw, str) else (rf_raw or [])
+    except (TypeError, ValueError, json.JSONDecodeError):
+        rf = []
+    tier = determine_checklist_tier(task, relevant_files=rf)
+    checks = _TIER_KEYWORDS.get(tier, _STANDARD_KW)
+    return tier, sum(1 for kw in checks if kw in notes_lower)
+
+
+def checklist_missing(task: dict[str, Any]) -> bool:
+    """True when no verification-checklist keyword is present in task notes."""
+    _, kw_hits = _checklist_keyword_scan(task)
+    return kw_hits == 0
+
+
+def checklist_hard_block(task: dict[str, Any]) -> tuple[bool, str]:
+    """(blocking, message) for the Rule 5 hard gate.
+
+    Blocks only when the task's PLANNING tier is substantial/deep AND no
+    checklist keyword is found in notes. Lower tiers return (False, "") — the
+    caller downgrades those to an escalating nudge.
+    """
+    tier = (task.get("tier") or "").strip().lower()
+    if tier not in _HARD_CHECKLIST_TIERS or not checklist_missing(task):
+        return False, ""
+    return True, (
+        f"QG-2 SENAR Rule 5: planning tier '{tier}' requires a verification "
+        f"checklist in notes before closing — none found. Run /review, then log "
+        f"checklist evidence (scope / tests / security / edge-cases) via "
+        f"`task log`, and re-run task done. Opt out: config "
+        f"task_done.checklist_hard=false."
+    )
+
+
 def check_verification_checklist(task: dict[str, Any]) -> str:
     """SENAR Core Rule 5: Verification checklist (28 items, 4 tiers).
 
@@ -142,58 +226,12 @@ def check_verification_checklist(task: dict[str, Any]) -> str:
     from service_ac_evidence import build_report
 
     notes_text = task.get("notes") or ""
-    notes_lower = notes_text.lower()
-    try:
-        rf_raw = task.get("relevant_files") or "[]"
-        rf = json.loads(rf_raw) if isinstance(rf_raw, str) else (rf_raw or [])
-    except (TypeError, ValueError, json.JSONDecodeError):
-        rf = []
-    tier = determine_checklist_tier(task, relevant_files=rf)
-    lightweight_kw = ["scope", "phantom", "test tamper", "secret", "hardcoded secret"]
-    standard_kw = lightweight_kw + [
-        "delet",
-        "test quality",
-        "input valid",
-        "deprecat",
-        "cross-file",
-        "code quality",
-    ]
-    high_kw = standard_kw + [
-        "null guard",
-        "empty config",
-        "header trust",
-        "idor",
-        "return true",
-        "auth coverage",
-        "deserializ",
-        "ssrf",
-    ]
-    critical_kw = high_kw + [
-        "dependency version",
-        "magic number",
-        "over-engineer",
-        "duplicat",
-        "edge case",
-        "naming",
-        "commit scope",
-        "string format",
-        "unreachable",
-        "swallow",
-    ]
-    tier_kw = {
-        "lightweight": lightweight_kw,
-        "standard": standard_kw,
-        "high": high_kw,
-        "critical": critical_kw,
-    }
-    tier_count = {"lightweight": 4, "standard": 10, "high": 18, "critical": 28}
-    checks = tier_kw.get(tier, standard_kw)
-    kw_hits = sum(1 for kw in checks if kw in notes_lower)
+    tier, kw_hits = _checklist_keyword_scan(task)
 
     warnings: list[str] = []
     if kw_hits == 0:
         warnings.append(
-            f"NOTE: Verification checklist ({tier}, {tier_count[tier]} items) — "
+            f"NOTE: Verification checklist ({tier}, {_TIER_COUNT[tier]} items) — "
             "no checklist items found in notes. Run /review before closing."
         )
 
