@@ -32,6 +32,13 @@ TEST_REF_RE = re.compile(
 NEGATIVE_RE = re.compile(r"\bnegative\b", re.IGNORECASE)
 MANUAL_RE = re.compile(r"\bmanual(?:ly)?\b", re.IGNORECASE)
 REVIEW_RE = re.compile(r"/review|review\s*record|adversarial", re.IGNORECASE)
+# SENAR Rule 4 domain challenge (v15s-rule4-domain-challenge): does the result
+# make sense OUTSIDE the tests? arXiv 2605.30353 — agents pass tests with
+# physically meaningless outputs. An evidence line answering the domain question.
+DOMAIN_RE = re.compile(
+    r"\bdomain\b|\bsanity\b|makes?\s+sense|имеет\s+смысл|доменн|real[\s\-]?world",
+    re.IGNORECASE,
+)
 
 
 @dataclass
@@ -43,6 +50,7 @@ class EvidenceLine:
     is_manual: bool = False
     is_negative: bool = False
     is_review: bool = False
+    is_domain: bool = False
 
     @property
     def evidence_type(self) -> str:
@@ -82,6 +90,7 @@ class AcCoverageReport:
     items: list[AcCoverageItem]
     unmatched_evidence: list[EvidenceLine]
     has_negative_evidence: bool
+    has_domain_evidence: bool = False
 
     @property
     def covered(self) -> int:
@@ -142,6 +151,7 @@ def parse_evidence_lines(notes_text: str) -> list[EvidenceLine]:
         line_manual = bool(MANUAL_RE.search(line))
         line_negative = bool(NEGATIVE_RE.search(line))
         line_review = bool(REVIEW_RE.search(line))
+        line_domain = bool(DOMAIN_RE.search(line))
 
         ac_indices: list[int] = []
         m = AC_NUMBER_PREFIX_RE.match(line)
@@ -166,6 +176,7 @@ def parse_evidence_lines(notes_text: str) -> list[EvidenceLine]:
                 is_manual=line_manual,
                 is_negative=line_negative,
                 is_review=line_review,
+                is_domain=line_domain,
             )
             if (
                 ev.ac_index is not None
@@ -174,6 +185,7 @@ def parse_evidence_lines(notes_text: str) -> list[EvidenceLine]:
                 or ev.is_manual
                 or ev.is_negative
                 or ev.is_review
+                or ev.is_domain
             ):
                 out.append(ev)
     return out
@@ -192,11 +204,13 @@ def match_evidence_to_ac(
         else:
             unmatched.append(ev)
     has_neg = any(ev.is_negative for ev in evidence_lines)
+    has_domain = any(ev.is_domain for ev in evidence_lines)
     return AcCoverageReport(
         total_ac=len(items),
         items=items,
         unmatched_evidence=unmatched,
         has_negative_evidence=has_neg,
+        has_domain_evidence=has_domain,
     )
 
 
@@ -266,6 +280,8 @@ def evidence_json_to_prose(raw: str) -> str:
             tags.append("manual")
         if item.get("negative"):
             tags.append("negative")
+        if item.get("domain"):
+            tags.append("domain")
         prefix = f"{n}. {marker}"
         if tags:
             prefix += " " + " ".join(tags) + ":"

@@ -210,7 +210,8 @@ class TestCheckVerificationChecklist:
         svc.task_log(
             "t1",
             "Checked scope — only README changed. "
-            "AC-1: ✓ verified manually. AC-2: ✓ verified manually.",
+            "AC-1: ✓ verified manually. AC-2: ✓ verified manually. "
+            "Domain: the corrected text reads correctly to real users.",
         )
         task = svc.task_show("t1")
         result = svc._check_verification_checklist("t1", task)

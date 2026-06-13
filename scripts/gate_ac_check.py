@@ -257,5 +257,16 @@ def check_verification_checklist(task: dict[str, Any]) -> str:
                     "NOTE: high/critical task should exercise the AC's "
                     "negative scenario — no `Negative:` evidence found in notes."
                 )
+            # SENAR Rule 4 domain challenge (v15s-rule4-domain-challenge): all
+            # tiers except planning-tier 'trivial' must answer "does the result
+            # make sense OUTSIDE the tests?" — guards against test-passing but
+            # domain-meaningless outputs (arXiv 2605.30353).
+            planning_tier = (task.get("tier") or "").strip().lower()
+            if planning_tier != "trivial" and not report.has_domain_evidence:
+                warnings.append(
+                    "NOTE: domain challenge — does the result make sense OUTSIDE "
+                    "the tests? Add a `Domain:` evidence line (e.g. 'Domain: output "
+                    "is physically/semantically valid for real inputs')."
+                )
 
     return "\n".join(warnings)

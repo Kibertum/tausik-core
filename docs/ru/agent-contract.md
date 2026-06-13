@@ -39,16 +39,25 @@ prose-форму внутри сервиса:
   "ac_evidence": [
     {"n": 1, "status": "pass", "evidence": "tests/test_foo.py::test_bar"},
     {"n": 2, "status": "pass", "evidence": "smoke run", "manual": true},
-    {"n": 3, "status": "pass", "evidence": "401 на bad creds", "negative": true}
+    {"n": 3, "status": "pass", "evidence": "401 на bad creds", "negative": true},
+    {"n": 4, "status": "pass", "evidence": "сумма заказа неотрицательна для реальных входов", "domain": true}
   ]
 }'
 ```
 
-Опциональные per-item флаги `manual` / `negative` пробрасываются как маркеры
-в prose, чтобы `service_ac_evidence` парсер корректно проставил
-`has_manual` / `has_negative_evidence` в отчёте. `--evidence` и `--evidence-json`
-взаимоисключающие (argparse + сервис). Та же семантика у MCP-tool
-`tausik_task_done` через аргумент `evidence_json`.
+Опциональные per-item флаги `manual` / `negative` / `domain` пробрасываются как
+маркеры в prose, чтобы `service_ac_evidence` парсер проставил
+`has_manual` / `has_negative_evidence` / `has_domain_evidence` в отчёте.
+`--evidence` и `--evidence-json` взаимоисключающие (argparse + сервис). Та же
+семантика у MCP-tool `tausik_task_done` через аргумент `evidence_json`.
+
+**SENAR Rule 4 — domain challenge (v15s-rule4-domain-challenge).** QG-2 checklist
+для всех тиров кроме planning-tier `trivial` требует ответа на доменный вопрос:
+*имеет ли результат смысл ВНЕ тестов?* (arXiv 2605.30353 — агент проходит тесты
+с физически бессмысленным выводом). Достаточно строки `Domain:` в notes/evidence,
+например `Domain: выход семантически валиден для реальных входов`. Парсер
+распознаёт `domain` / `sanity` / `makes sense` / `имеет смысл` / `доменн` /
+`real-world`. Пропускается только для `trivial`.
 
 ---
 
