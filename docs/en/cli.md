@@ -1,6 +1,6 @@
 **English** | [Русский](/ru/docs/cli)
 
-# TAUSIK CLI — Command Reference (v1.4)
+# TAUSIK CLI — Command Reference (v1.5)
 
 All commands are invoked via the wrapper: `.tausik/tausik <command> [subcommand] [arguments]`.
 On Windows the wrapper is `.tausik/tausik.cmd`. The same surface is also available via MCP (`tausik_*` tools); see `mcp.md`.
@@ -57,7 +57,7 @@ task start <slug> [--force]     # planning -> active (QG-0: requires goal + AC +
                                 # --force bypasses session capacity gate (audit event + note)
 task done <slug> --ac-verified [--no-knowledge] [--relevant-files FILE1 FILE2 ...] [--evidence "..."]
                                 # QG-2: --ac-verified confirms AC verification (requires evidence in notes
-                                #       OR --evidence inline). v1.4 Verify-First Contract: heavy gates
+                                #       OR --evidence inline). v1.5 Verify-First Contract: heavy gates
                                 #       (pytest, tsc, cargo, ...) NO LONGER fire here — they live on the
                                 #       separate `verify` command. task done checks the verify cache for
                                 #       a fresh green (10 min TTL, same files_hash) and closes in
@@ -88,7 +88,7 @@ task unclaim <slug>             # Release a task
 
 ## Verification
 
-**v1.4 Verify-First Contract.** Heavy gates (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeval, hadolint, ansible-lint) live on the `verify` trigger, not `task-done`. This decouples "task closure" (milliseconds) from "full verification" (potentially minutes on large projects). The `verify` result is cached in the `verification_runs` table for 10 minutes (TTL is configurable via `verify_cache_ttl_seconds` in config.json), and `task done` uses the cache for instant closure.
+**v1.5 Verify-First Contract.** Heavy gates (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeval, hadolint, ansible-lint) live on the `verify` trigger, not `task-done`. This decouples "task closure" (milliseconds) from "full verification" (potentially minutes on large projects). The `verify` result is cached in the `verification_runs` table for 10 minutes (TTL is configurable via `verify_cache_ttl_seconds` in config.json), and `task done` uses the cache for instant closure.
 
 ```bash
 verify [--task SLUG] [--scope {lightweight,standard,high,critical,manual}]
@@ -116,7 +116,7 @@ verify [--task SLUG] [--scope {lightweight,standard,high,critical,manual}]
 
 Now `task done` runs the verify gates inline within its transaction — the v1.3 behavior. Useful for CI where a single long step is preferable to two.
 
-**Pytest fast lane (v1.4.x).** The default pytest configuration (`pyproject.toml` → `[tool.pytest.ini_options]` → `addopts = "-m 'not slow'"`) skips tests marked `@pytest.mark.slow` (subprocess-heavy bootstrap, MCP integration, e2e, stress). This drops a clean `tausik verify` run from ~12 minutes to ~1.5 minutes on the TAUSIK repo. Three escape hatches when you need the full battery:
+**Pytest fast lane (v1.5.x).** The default pytest configuration (`pyproject.toml` → `[tool.pytest.ini_options]` → `addopts = "-m 'not slow'"`) skips tests marked `@pytest.mark.slow` (subprocess-heavy bootstrap, MCP integration, e2e, stress). This drops a clean `tausik verify` run from ~12 minutes to ~1.5 minutes on the TAUSIK repo. Three escape hatches when you need the full battery:
 
 ```bash
 # 1. Direct pytest, override the addopts
@@ -209,7 +209,7 @@ memory graph [--type {memory,decision}] [--id N]
 memory block [--max-decisions N] [--max-conventions N] [--max-deadends N] [--max-lines N]
 memory compact [--last N]
 
-# Hygiene (v1.4)
+# Hygiene (v1.5)
 memory archive --before <duration> [--confirm]    # Soft-archive memory older than duration
                                                    # (90d / 12w / 2m / 1y). Dry-run by default;
                                                    # --confirm stamps archived_at, idempotent.
@@ -251,7 +251,7 @@ audit research [--min-age-days N] [--json]
                                 # Read-only — surfaces candidates for docs/_archive/research/.
 ```
 
-## Reviews (SENAR Rule 10.15) — v1.4
+## Reviews (SENAR Rule 10.15) — v1.5
 
 Track L1/L2/L3 review runs and surface the **ADR** (Adversarial Defect Rate) metric.
 
@@ -283,7 +283,7 @@ skill repo remove <name>        # Remove a configured skill repo
 skill repo list                 # List configured repos and their skills
 skill catalog [<repo>] [--json] # Discovery: name/category/repo/description across cloned repos
 
-# Profile + bundle helpers (v1.4)
+# Profile + bundle helpers (v1.5)
 skill rebuild [--force]         # Re-merge SKILL.md variants for the active (ide, model) profile;
                                 # idempotent (sha256 cache skips unchanged files).
 skill bundle list               # List the 6 logical bundles defined in skills-official/bundles.json
@@ -296,15 +296,15 @@ skill bundle uninstall <name>   # Uninstall every skill in the bundle.
 
 Negative scenarios (unknown skill, untrusted repo URL, missing skill) print
 a friendly `Error: ...` line on stderr and exit `1`. They never produce
-a Python traceback (v1.4: `SkillManagerError` is caught alongside
+a Python traceback (v1.5: `SkillManagerError` is caught alongside
 `ServiceError` in `main()`).
 
 ## Shared Brain (cross-project)
 
 ```bash
 brain init                      # Initialize brain: 4 Notion DBs + config
-brain status                    # Mirror freshness, sync state, registered projects (v1.4: also `stale: N min`)
-brain sync [--category C] [--json]  # Pull updates from Notion into the local mirror (v1.4)
+brain status                    # Mirror freshness, sync state, registered projects (v1.5: also `stale: N min`)
+brain sync [--category C] [--json]  # Pull updates from Notion into the local mirror (v1.5)
 brain move <source_id> --to-brain --kind {decision,pattern,gotcha} [--keep-source]
 brain move <notion_page_id> --to-local --category {decisions,patterns,gotchas,web_cache} [--force]
 ```
@@ -316,7 +316,7 @@ roadmap [--include-done]        # Full tree epic -> story -> task
 search <query> [--scope {all,tasks,memory,decisions}]
 ```
 
-## Hygiene (v1.4)
+## Hygiene (v1.5)
 
 Project-hygiene helpers. The default `archive` call lists candidates; `--confirm`
 stamps `archived_at` on matching rows (idempotent — re-running is safe). Archived
@@ -361,7 +361,7 @@ events [--entity {task,epic,story}] [--id SLUG] [--limit N]
 ## Maintenance
 
 ```bash
-update-claudemd [--claudemd PATH] [--dry-run]  # Update <!-- DYNAMIC --> section in CLAUDE.md (v1.4: --dry-run prints diff and exits 1 if drift)
+update-claudemd [--claudemd PATH] [--dry-run]  # Update <!-- DYNAMIC --> section in CLAUDE.md (v1.5: --dry-run prints diff and exits 1 if drift)
 fts optimize                          # Optimize FTS5 indexes
 hud                                   # Live one-screen dashboard: task + session + gates + logs
 suggest-model [complexity]            # Recommend Claude model: simple→Haiku, medium→Sonnet, complex→Opus

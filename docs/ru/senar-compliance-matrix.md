@@ -1,8 +1,8 @@
 [English](/docs/senar-compliance-matrix) | **Русский**
 
-# SENAR v1.4 Core — Матрица соответствия
+# SENAR v1.5 Core — Матрица соответствия
 
-**Дата:** 2026-05-15 | **Аудиторы:** 6+ независимых review-циклов | **Фреймворк:** TAUSIK v1.4.0
+**Дата:** 2026-06-13 | **Аудиторы:** 6+ независимых review-циклов | **Фреймворк:** TAUSIK v1.5.0
 
 ## Quality Gates
 
@@ -18,7 +18,7 @@
 | QG-2 | Scoped pytest gate | ✅ Реализовано | Hard block | `service_verification.py` — basename match `tests/test_<file>.py` per `relevant_files` (нет fallback на full suite, когда files supplied) |
 | QG-2 | Verify cache (10 min TTL) | ✅ Реализовано | Skip-on-hit | таблица `verification_runs` — same `files_hash` + green = skip; security paths байпасят cache |
 | QG-2 | Quality gates (pytest/ruff) | ✅ Реализовано | Hard block | `gate_runner.py` + `service_gates.py` `_run_quality_gates()` |
-| QG-2 | Checklist верификации (4 тира) | ✅ Реализовано | Warning | `gate_ac_check.py` `check_verification_checklist()` + `determine_checklist_tier()` авто-тир — v1.4 дополнительно прогоняет `service_ac_evidence.build_report()` и сообщает о per-AC покрытии, отсутствующих test-ref и негативных сценариях (через делегатор `service_gates.GatesMixin._check_verification_checklist`) |
+| QG-2 | Checklist верификации (4 тира) | ✅ Реализовано | Warning | `gate_ac_check.py` `check_verification_checklist()` + `determine_checklist_tier()` авто-тир — v1.5 дополнительно прогоняет `service_ac_evidence.build_report()` и сообщает о per-AC покрытии, отсутствующих test-ref и негативных сценариях (через делегатор `service_gates.GatesMixin._check_verification_checklist`) |
 | QG-2 | Root cause для дефектов | ✅ Реализовано | Warning | `service_task.py` `task_done()` — проверка ключевых слов |
 | QG-2 | Захват знаний | ✅ Реализовано | Warning | `service_task.py` `task_done()` — подсчёт memory/decision |
 
@@ -77,7 +77,7 @@
 | Функция | Статус | Evidence |
 |---------|--------|----------|
 | Multi-language gates | ✅ Реализовано | `project_config.py` — 25 default стеков + custom_stacks override |
-| MCP coverage (103 инструмента) | ✅ Реализовано | `tools.py` + `tools_extra.py` — 96 project + 7 brain |
+| MCP coverage (104 инструмента) | ✅ Реализовано | `tools.py` + `tools_extra.py` — 97 project + 7 brain |
 | Batch execution (`/run`) | ✅ Реализовано | `plan_parser.py` + скилл `/run` |
 | Structured logs (task_logs + FTS5) | ✅ Реализовано | `backend_schema.py` + `service_task.py:task_log` |
 | Fake test detection | ✅ Реализовано | `/review` — 10 паттернов |

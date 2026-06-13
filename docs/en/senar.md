@@ -94,7 +94,7 @@ When using TAUSIK, SENAR manifests as:
 | Rule 9.4 | Document dead ends | Dedicated tool + reminders in skills |
 | Rule 9.5 | Periodic audit | Auto-check at session start |
 
-> **Why do rule numbers skip 4-6?** SENAR covers more than TAUSIK implements. Rules 4 (external review), 5 (verification checklist — partially implemented), and 6 (rollback planning) exist in the spec but are not yet enforced as hard gates. TAUSIK focuses on the rules that have the highest impact on AI agent reliability.
+> **A note on Rules 4–6.** As of **v1.5** these are enforced: **Rule 4** (external adversarial review — a separate-model, read-only subagent gates high-risk closures), **Rule 5** (verification checklist — a hard gate for substantial/deep planning tiers, advisory below), and **Rule 6** (rollback planning — QG-0 blocks new medium/complex tasks without a documented rollback plan). See the [SENAR Compliance Matrix](senar-compliance-matrix.md) for the full enforcement table.
 
 **Full compliance matrix:** [SENAR Compliance Matrix](senar-compliance-matrix.md)
 

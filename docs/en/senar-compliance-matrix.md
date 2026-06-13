@@ -1,8 +1,8 @@
 **English** | [Русский](/ru/docs/senar-compliance-matrix)
 
-# SENAR v1.4 Core — Compliance Matrix
+# SENAR v1.5 Core — Compliance Matrix
 
-**Date:** 2026-05-15 | **Auditors:** 6+ independent review cycles | **Framework:** TAUSIK v1.4.0
+**Date:** 2026-06-13 | **Auditors:** 6+ independent review cycles | **Framework:** TAUSIK v1.5.0
 
 ## Quality Gates
 
@@ -18,7 +18,7 @@
 | QG-2 | Scoped pytest gate | ✅ Implemented | Hard block | `service_verification.py` — basename match `tests/test_<file>.py` per `relevant_files` (no fallback to full suite when files supplied) |
 | QG-2 | Verify cache (10 min TTL) | ✅ Implemented | Skip-on-hit | `verification_runs` table — same `files_hash` + green = skip; security paths bypass cache |
 | QG-2 | Quality gates (pytest/ruff) | ✅ Implemented | Hard block | `gate_runner.py` + `service_gates.py` `_run_quality_gates()` |
-| QG-2 | Verification checklist (4 tiers) | ✅ Implemented | Warning | `gate_ac_check.py` `check_verification_checklist()` + `determine_checklist_tier()` auto-tier — v1.4 also runs `service_ac_evidence.build_report()` to surface per-AC coverage gaps and missing test refs (via `service_gates.GatesMixin._check_verification_checklist` delegator) |
+| QG-2 | Verification checklist (4 tiers) | ✅ Implemented | Warning | `gate_ac_check.py` `check_verification_checklist()` + `determine_checklist_tier()` auto-tier — v1.5 also runs `service_ac_evidence.build_report()` to surface per-AC coverage gaps and missing test refs (via `service_gates.GatesMixin._check_verification_checklist` delegator) |
 | QG-2 | Root cause for defects | ✅ Implemented | Warning | `service_task.py` `task_done()` — keyword check |
 | QG-2 | Knowledge capture | ✅ Implemented | Warning | `service_task.py` `task_done()` — memory/decision count |
 
