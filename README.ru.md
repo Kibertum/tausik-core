@@ -7,7 +7,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)](https://python.org)
 [![Tests](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml/badge.svg)](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml)
-[![3705 tests](https://img.shields.io/badge/tests-3705%20passed-brightgreen.svg)](#dogfooding-tausik-создан-с-помощью-себя)
+[![3752 tests](https://img.shields.io/badge/tests-3752%20passed-brightgreen.svg)](#dogfooding-tausik-создан-с-помощью-себя)
 [![Zero deps](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#что-внутри)
 
 > ⚠️ **v1.4 — околостабильный pre-2.0 релиз.** Это последний минорный релиз
@@ -15,7 +15,7 @@
 > изменений (B+C polish phases — verify-first контракт, brain artifact pipeline,
 > audit suite, skill bundles, two-axis variants, per-task cost/token бюджеты) —
 > возможен рассинхрон в документации и редкие нестабильности на edge-cases.
-> Ядро покрыто 3705 тестами и используется на dogfood'е каждый день; если
+> Ядро покрыто 3752 тестами и используется на dogfood'е каждый день; если
 > наткнётесь на расхождение docs ↔ behaviour — заведите issue, постараемся
 > доехать до 2.0 без regression'ов.
 
@@ -95,7 +95,7 @@ Claude Code, Cursor, VSCode Claude Extension, Qwen Code, Windsurf.
 | **Verify-First Contract** *(v1.4)* | Тяжёлые gates (pytest, tsc, cargo, phpstan…) на trigger `verify`, отдельно от `task done`. Закрытие задачи — миллисекунды. Envelope timeout 60s — нет молчаливых зависаний | `tausik verify --task X` затем `task done X` |
 | **Память проекта** | Паттерны, gotchas, конвенции, dead ends, решения в SQLite+FTS5. Re-инжектятся при старте сессии | `/brain`, `tausik memory add`, авто на `/start` |
 | **Verification Engine** | 25 stack-aware проверок (pytest, ruff, mypy, tsc, eslint, cargo, go-vet, phpstan, helm-lint, hadolint…). Scoped по relevant_files. Cache на 10 мин | Стек авто-определяется bootstrap |
-| **Real-time хуки** | 19 хуков: task gate (нет кода без задачи), bash firewall, push gate, auto-format, drift detection (SessionStart/UserPromptSubmit/Stop), memory pre/post audit | Авто в Claude Code и Qwen Code |
+| **Real-time хуки** | 21 хуков: task gate (нет кода без задачи), bash firewall, push gate, auto-format, drift detection (SessionStart/UserPromptSubmit/Stop), memory pre/post audit | Авто в Claude Code и Qwen Code |
 | **Метрики** | Throughput, First-Pass Success Rate, Defect Escape Rate, Lead Time, Dead End Rate, Cost-per-task | `tausik metrics`, `tausik metrics --cost` |
 | **Multi-IDE** | Те же MCP-инструменты (100) + skills во всех хостах | VSCode/Claude, Cursor, Qwen Code, Windsurf, Codex, CLI |
 | **Skill Ecosystem** | 12 core skills auto-deployed (+ `/brain` если настроен Notion) — см. [Token Efficiency](#token-efficiency). 25+ official/vendor skills opt-in через `--include-official` или `tausik skill install`. Multi-model профили через `variants/<model>.md` *(v1.4)* | `tausik skill install <name>` |
@@ -174,10 +174,10 @@ Bootstrap автоматически определяет стек и включ
 
 | Среда | Инструменты | Навыки | Хуки | Правила | Статус валидации |
 |-------|-------------|--------|------|---------|------------------|
-| VSCode + Claude Extension | 103 инстр. | 12 core + brain conditional, 25+ on demand | 19 хуков (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md + .mcp.json | **Официально протестировано** |
+| VSCode + Claude Extension | 103 инстр. | 12 core + brain conditional, 25+ on demand | 21 хуков (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md + .mcp.json | **Официально протестировано** |
 | Cursor | 103 инстр. | 12 core + brain conditional, 25+ on demand | — | .cursorrules + .cursor/mcp.json | **Официально протестировано** |
-| Claude Code (CLI) | 103 инстр. | 12 core + brain conditional, 25+ on demand | 19 хуков | CLAUDE.md + .mcp.json | Ожидается (частичная матрица) |
-| Qwen Code | 103 инстр. | 12 core + brain conditional, 25+ on demand | 19 хуков (как у Claude) | QWEN.md + .mcp.json | Ожидается (частичная матрица) |
+| Claude Code (CLI) | 103 инстр. | 12 core + brain conditional, 25+ on demand | 21 хуков | CLAUDE.md + .mcp.json | Ожидается (частичная матрица) |
+| Qwen Code | 103 инстр. | 12 core + brain conditional, 25+ on demand | 21 хуков (как у Claude) | QWEN.md + .mcp.json | Ожидается (частичная матрица) |
 | Windsurf | 103 инстр. | 12 core + brain conditional, 25+ on demand | — | .windsurfrules + .mcp.json | Ожидается (частичная матрица) |
 | Codex / OpenCode-подобные агенты | MCP + rules-driven при поддержке хоста | Зависит от хоста | Специфично для хоста | AGENTS.md | Ожидается (ручная валидация) |
 

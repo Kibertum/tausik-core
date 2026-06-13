@@ -7,7 +7,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)](https://python.org)
 [![Tests](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml/badge.svg)](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml)
-[![3705 tests](https://img.shields.io/badge/tests-3705%20passed-brightgreen.svg)](#dogfooding-tausik-built-tausik)
+[![3752 tests](https://img.shields.io/badge/tests-3752%20passed-brightgreen.svg)](#dogfooding-tausik-built-tausik)
 [![Zero deps](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#what-you-get)
 
 > ⚠️ **v1.4 — near-stable pre-2.0 release.** This is the last 1.x minor before
@@ -15,7 +15,7 @@
 > phases — verify-first contract, brain artifact pipeline, audit suite, skill
 > bundles, two-axis variants, per-task cost/token budgets); expect occasional
 > doc-vs-behaviour drift and rough edges on uncommon paths. The core is covered
-> by 3705 tests and is dogfooded daily — if you hit a mismatch, file an issue
+> by 3752 tests and is dogfooded daily — if you hit a mismatch, file an issue
 > and we'll converge it before 2.0.
 
 ### What's new in v1.4 (in plain language)
@@ -93,7 +93,7 @@ How it works:
 | **Verify-First Contract** *(v1.4)* | Heavy gates (pytest, tsc, cargo, phpstan…) on a `verify` trigger separate from `task done`. Closing a task is millisecond. Pipeline envelope timeout 60s — no silent hangs | `tausik verify --task X` then `task done X` |
 | **Project Memory** | Patterns, gotchas, conventions, dead-ends, decisions stored in SQLite+FTS5. Re-injected at session start | `/brain`, `tausik memory add`, auto on `/start` |
 | **Verification Engine** | 25 stack-aware checks (pytest, ruff, mypy, tsc, eslint, cargo, go-vet, phpstan, helm-lint, hadolint…). Scoped to relevant_files. Cached for 10 min | Stack auto-detected by bootstrap |
-| **Real-time Hooks** | 19 hooks: task gate (no code without task), bash firewall, push gate, auto-format, drift detection (SessionStart/UserPromptSubmit/Stop), memory pre/post audit | Auto in Claude Code & Qwen Code |
+| **Real-time Hooks** | 21 hooks: task gate (no code without task), bash firewall, push gate, auto-format, drift detection (SessionStart/UserPromptSubmit/Stop), memory pre/post audit | Auto in Claude Code & Qwen Code |
 | **Metrics** | Throughput, First-Pass Success Rate, Defect Escape Rate, Lead Time, Dead End Rate, Cost-per-task | `tausik metrics`, `tausik metrics --cost` |
 | **Multi-IDE** | Same MCP tools (100) + skills across hosts | VSCode/Claude, Cursor, Qwen Code, Windsurf, Codex, CLI |
 | **Skill Ecosystem** | 12 core skills auto-deployed (+ `/brain` when configured) — see [Token Efficiency](#token-efficiency). 25+ official/vendor skills opt-in via `--include-official` flag or `tausik skill install`. Multi-model profiles via `variants/<model>.md` *(v1.4)* | `tausik skill install <name>` |
@@ -171,10 +171,10 @@ Other integrations are supported by design, but are marked as expected/partial u
 
 | IDE | MCP Tools | Skills | Hooks | Rules | Validation status |
 |-----|-----------|--------|-------|-------|-------------------|
-| VSCode + Claude Extension | 103 tools | 12 core + brain conditional, 25+ on demand | 19 hooks (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md + .mcp.json | **Officially tested** |
+| VSCode + Claude Extension | 103 tools | 12 core + brain conditional, 25+ on demand | 21 hooks (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md + .mcp.json | **Officially tested** |
 | Cursor | 103 tools | 12 core + brain conditional, 25+ on demand | — | .cursorrules + .cursor/mcp.json | **Officially tested** |
-| Claude Code (CLI) | 103 tools | 12 core + brain conditional, 25+ on demand | 19 hooks | CLAUDE.md + .mcp.json | Expected (partial matrix) |
-| Qwen Code | 103 tools | 12 core + brain conditional, 25+ on demand | 19 hooks (same as Claude) | QWEN.md + .mcp.json | Expected (partial matrix) |
+| Claude Code (CLI) | 103 tools | 12 core + brain conditional, 25+ on demand | 21 hooks | CLAUDE.md + .mcp.json | Expected (partial matrix) |
+| Qwen Code | 103 tools | 12 core + brain conditional, 25+ on demand | 21 hooks (same as Claude) | QWEN.md + .mcp.json | Expected (partial matrix) |
 | Windsurf | 103 tools | 12 core + brain conditional, 25+ on demand | — | .windsurfrules + .mcp.json | Expected (partial matrix) |
 | Codex / OpenCode-style agents | MCP + rules-driven where supported | Depends on host | Host-specific | AGENTS.md | Expected (manual validation) |
 

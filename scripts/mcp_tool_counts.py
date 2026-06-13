@@ -5,6 +5,7 @@ Shared by doc generators and tests — single source for numeric drift checks.
 
 from __future__ import annotations
 
+import hashlib
 import re
 import sys
 from pathlib import Path
@@ -38,6 +39,34 @@ def count_mcp_tool_totals(repo_root: Path) -> tuple[int, int, int]:
 
     n_r = count_rag_tool_defs(repo_root)
     return n_p, n_b, n_r
+
+
+def mcp_descriptions_digest(repo_root: Path) -> str:
+    """Stable 16-hex digest over all project+brain MCP tool name+description.
+
+    A tool description is part of the client-visible contract: editing one
+    busts every cached copy on connected clients. Folding the descriptions
+    into ``constants.json`` makes such an edit fail ``gen_doc_constants
+    --check`` until the file is regenerated — turning a silent cache-busting
+    change into an explicit, reviewed acknowledgement (techdebt #11).
+    """
+    items: list[str] = []
+    for sub in ("project", "brain"):
+        path = str(repo_root / "harness" / "claude" / "mcp" / sub)
+        sys.path.insert(0, path)
+        try:
+            import tools as mod  # type: ignore[import-not-found]  # noqa: PLC0415
+
+            for tool in mod.TOOLS:
+                name = str(getattr(tool, "name", ""))
+                desc = str(getattr(tool, "description", ""))
+                items.append(f"{name}\x1f{desc}")
+        finally:
+            sys.path.remove(path)
+            sys.modules.pop("tools", None)
+    items.sort()
+    joined = "\x1e".join(items)
+    return hashlib.sha256(joined.encode("utf-8")).hexdigest()[:16]
 
 
 def mcp_counts_flat(repo_root: Path) -> dict[str, int]:

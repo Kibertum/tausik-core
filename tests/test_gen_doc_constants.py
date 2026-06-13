@@ -17,11 +17,12 @@ from gen_doc_constants import (  # noqa: E402
     build_constants_doc,
     output_json_path,
     run_main,
+    scan_code_counts,
     scan_mcp_tool_counts,
     scan_test_counts,
     scan_version_refs,
 )
-from mcp_tool_counts import count_mcp_tool_totals  # noqa: E402
+from mcp_tool_counts import count_mcp_tool_totals, mcp_descriptions_digest  # noqa: E402
 
 
 def test_build_constants_matches_tool_totals():
@@ -325,3 +326,102 @@ def test_scan_returns_empty(tmp_path: Path, scan_func_name, payload_name, rel_pa
     scan_func = globals()[scan_func_name]
     payload = globals()[payload_name]
     assert scan_func(repo, payload) == []
+
+
+# Cross-file code-count scanner (v15p-doc-drift-gate) ----------------------
+
+
+_FAKE_CODE_PAYLOAD: dict[str, object] = {
+    "schema_version": 1,
+    "tausik_version": "1.4.0",
+    "stacks_count": 25,
+    "hooks_count": 21,
+    "review_agents_count": 6,
+}
+
+
+def test_scan_code_counts_clean_when_all_match(tmp_path: Path):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text(
+        "Ships 25 stacks, 21 hooks, and 6 review agents out of the box.\n",
+        encoding="utf-8",
+    )
+    (repo / "README.ru.md").write_text("21 хуков и 25 стеков.\n", encoding="utf-8")
+    assert scan_code_counts(repo, _FAKE_CODE_PAYLOAD) == []
+
+
+def test_scan_code_counts_flags_stacks_drift(tmp_path: Path):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "AGENTS.md").write_text("We bundle 99 stacks today.\n", encoding="utf-8")
+    drifts = scan_code_counts(repo, _FAKE_CODE_PAYLOAD)
+    assert any("AGENTS.md:1" in d and "stacks count" in d and "found=99" in d for d in drifts)
+
+
+def test_scan_code_counts_flags_hooks_drift(tmp_path: Path):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text("19 hooks guard the workflow.\n", encoding="utf-8")
+    drifts = scan_code_counts(repo, _FAKE_CODE_PAYLOAD)
+    assert any("hooks count" in d and "found=19" in d for d in drifts)
+
+
+def test_scan_code_counts_ignores_singular_stack_phrases(tmp_path: Path):
+    """NEGATIVE: '25 stack-aware checks' / '25 stack guides' count gates/docs,
+    not stacks — the singular 'stack' must never be flagged as a stacks drift."""
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text(
+        "30 stack-aware checks, 30 stack guides, 30 stack-scoped gates.\n",
+        encoding="utf-8",
+    )
+    assert scan_code_counts(repo, _FAKE_CODE_PAYLOAD) == []
+
+
+def test_scan_code_counts_ignores_skills_vendor_count(tmp_path: Path):
+    """NEGATIVE: '38 skills' (full vendor set) must not be checked against the
+    core-skill count — skills is intentionally excluded from the scanner."""
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text("Full set: 38 skills.\n", encoding="utf-8")
+    assert scan_code_counts(repo, _FAKE_CODE_PAYLOAD) == []
+
+
+def test_run_main_check_passes_with_skip_code_counts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """--skip-code-counts disables only the code-count scan."""
+    import gen_doc_constants as g
+
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text("99 hooks\n", encoding="utf-8")
+    monkeypatch.setattr(g, "build_constants_doc", lambda _root: dict(_FAKE_CODE_PAYLOAD))
+    assert run_main(repo, check=False) == 0
+    assert run_main(repo, check=True) == 1
+    assert run_main(repo, check=True, skip_code_counts=True) == 0
+
+
+# MCP descriptions cache-bust digest (techdebt #11) ------------------------
+
+
+def test_descriptions_digest_is_stable_16_hex():
+    d1 = mcp_descriptions_digest(REPO)
+    d2 = mcp_descriptions_digest(REPO)
+    assert d1 == d2
+    assert len(d1) == 16
+    assert all(c in "0123456789abcdef" for c in d1)
+
+
+def test_descriptions_hash_in_constants_payload():
+    payload = build_constants_doc(REPO)
+    assert payload["mcp_descriptions_hash"] == mcp_descriptions_digest(REPO)
+
+
+def test_description_edit_busts_check(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Editing a tool description changes the hash -> payload != on-disk -> --check fails."""
+    import gen_doc_constants as g
+
+    path = output_json_path(REPO)
+    if not path.is_file():
+        pytest.skip("constants.json not generated yet")
+    live = build_constants_doc(REPO)
+    bumped = dict(live)
+    bumped["mcp_descriptions_hash"] = "deadbeefdeadbeef"  # simulate a description edit
+    monkeypatch.setattr(g, "build_constants_doc", lambda _root: bumped)
+    assert run_main(REPO, check=True) == 1
