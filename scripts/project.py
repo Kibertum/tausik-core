@@ -59,6 +59,7 @@ def main() -> None:
     from project_cli_specs import cmd_spec
     from project_cli_adapts import cmd_adapt
     from project_cli_drift import cmd_drift
+    from project_cli_renar import cmd_renar
     from cli_push_ok import cmd_push_ok
     from project_cli_key import cmd_key
     from project_cli_receipt import cmd_receipt
@@ -99,6 +100,7 @@ def main() -> None:
         "spec": cmd_spec,
         "adapt": cmd_adapt,
         "drift": cmd_drift,
+        "renar": cmd_renar,
         "fts": cmd_fts,
         "skill": cmd_skill,
         "stack": cmd_stack,

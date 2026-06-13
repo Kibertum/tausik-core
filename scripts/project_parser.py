@@ -106,6 +106,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Which RENAR drift detector to run (default: all)",
     )
 
+    renar_p = sub.add_parser("renar", help="RENAR conformance self-assessment")
+    renar_sub = renar_p.add_subparsers(dest="renar_cmd")
+    rc = renar_sub.add_parser(
+        "conformance", help="Generate RENAR-CONFORMANCE.yaml from live DB state"
+    )
+    rc.add_argument("--assessor", default=None, help="Assessor id (default: architect-andrey-y)")
+    rc.add_argument(
+        "--write", action="store_true", help="Write RENAR-CONFORMANCE.yaml to project root"
+    )
+
     # --- decide ---
     dec_p = sub.add_parser("decide", help="Record a decision")
     dec_p.add_argument("text")
