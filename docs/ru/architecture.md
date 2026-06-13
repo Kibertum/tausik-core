@@ -101,7 +101,7 @@
 | `harness/claude/mcp/project/handlers.py` | Диспетчеризация: имя инструмента → метод сервиса |
 | `harness/claude/mcp/project/handlers_skill.py` | Обработчики навыков + обслуживания (split) |
 
-Полный MCP-surface: **97 project + 7 brain = 104 инструмента** (опциональный `codebase-rag` добавляет ещё 7; не в основном счёте).
+Полный MCP-surface: **98 project + 7 brain = 105 инструмента** (опциональный `codebase-rag` добавляет ещё 7; не в основном счёте).
 
 ### Поддержка разных сред разработки
 
@@ -215,7 +215,7 @@ Exit code `0` = caching активен (`cache_read_input_tokens > 0`);
 ## Тестирование
 
 ```bash
-pytest tests/ -v                    # все тесты (3823)
+pytest tests/ -v                    # все тесты (3835)
 pytest tests/test_tausik_backend.py   # backend CRUD
 pytest tests/test_tausik_service.py   # service logic
 pytest tests/test_tausik_cli.py       # CLI smoke

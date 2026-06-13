@@ -18,6 +18,7 @@ from project_types import (
 )
 from service_cascade import CascadeMixin
 from service_gates import GatesMixin
+from service_reasoning import ReasoningMixin
 from service_recording import check_session_capacity
 from service_task_done import TaskDoneReportMixin, _format_task_done_failures  # noqa: F401
 
@@ -35,7 +36,7 @@ from service_validation import update_enums as _update_enums  # noqa: E402,F401
 from service_recording import apply_force_capacity_audit as _apply_force_audit  # noqa: E402,F401
 
 
-class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin):
+class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin):
     """Task lifecycle with strict workflow enforcement."""
 
     be: SQLiteBackend
@@ -119,6 +120,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin):
         if not task:
             raise ServiceError(f"Task '{slug}' not found")
         task["decisions"] = self.be.decisions_for_task(slug)
+        task["reasoning_steps"] = self.be.reasoning_step_list(slug)
         return task
 
     def task_start(self, slug: str, _internal_force: bool = False, force: bool = False) -> str:

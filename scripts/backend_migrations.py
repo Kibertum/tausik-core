@@ -10,7 +10,9 @@ Legacy migrations (v2-v11) are in backend_migrations_legacy.py.
 
 from __future__ import annotations
 
-from backend_migrations_legacy import LEGACY_MIGRATIONS
+from backend_migrations_legacy import LEGACY_MIGRATIONS, seed_v18_roles
+
+__all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
 # Current migrations (v12+; v10-v11 live in backend_migrations_legacy.py)
 _CURRENT_MIGRATIONS: dict[int, list[str]] = {
@@ -262,48 +264,38 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
         "ALTER TABLE tasks ADD COLUMN risk_score REAL",
         "ALTER TABLE tasks ADD COLUMN risk_json TEXT",
     ],
+    # --- v32: RENAR reasoning trace (v16r-reasoning-steps-table) ---
+    # Structured per-task reasoning steps (RENAR audit §4.4, blocker #1).
+    # Append-only, FTS5-indexed. kind is a CLOSED list (intent|premise|
+    # action|verification). Purely additive — no existing table touched.
+    32: [
+        """CREATE TABLE IF NOT EXISTS reasoning_steps (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_slug TEXT NOT NULL REFERENCES tasks(slug) ON DELETE CASCADE,
+            seq INTEGER NOT NULL,
+            kind TEXT NOT NULL CHECK(kind IN
+                ('intent', 'premise', 'action', 'verification')),
+            content TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_reasoning_steps_slug ON reasoning_steps(task_slug, seq)",
+        "CREATE INDEX IF NOT EXISTS idx_reasoning_steps_created ON reasoning_steps(created_at)",
+        """CREATE VIRTUAL TABLE IF NOT EXISTS fts_reasoning_steps USING fts5(
+            content,
+            content='reasoning_steps', content_rowid='id'
+        )""",
+        """CREATE TRIGGER IF NOT EXISTS reasoning_steps_ai
+            AFTER INSERT ON reasoning_steps BEGIN
+            INSERT INTO fts_reasoning_steps(rowid, content)
+            VALUES (new.id, new.content);
+        END""",
+        """CREATE TRIGGER IF NOT EXISTS reasoning_steps_ad
+            AFTER DELETE ON reasoning_steps BEGIN
+            INSERT INTO fts_reasoning_steps(fts_reasoning_steps, rowid, content)
+            VALUES ('delete', old.id, old.content);
+        END""",
+    ],
 }
-
-
-def seed_v18_roles(conn) -> dict:
-    """Post-migration seed for v18 roles table."""
-    import re
-    import sqlite3 as _sqlite3
-
-    try:
-        rows = conn.execute(
-            "SELECT DISTINCT role FROM tasks WHERE role IS NOT NULL AND role != ''"
-        ).fetchall()
-    except _sqlite3.OperationalError:
-        return {"seeded": 0, "tasks_rewritten": 0, "dropped_legacy_values": []}
-    legacy = {r[0] for r in rows if r[0]}
-    seeded = 0
-    rewritten = 0
-    dropped: list[str] = []
-    for original in legacy:
-        norm = re.sub(r"[^a-z0-9-]+", "-", original.strip().lower()).strip("-")
-        if not norm or not re.match(r"^[a-z0-9][a-z0-9-]*$", norm):
-            dropped.append(original)
-            continue
-        if len(norm) > 64:
-            norm = norm[:64].rstrip("-")
-        title = norm.replace("-", " ").title()
-        conn.execute(
-            "INSERT OR IGNORE INTO roles(slug, title, description, created_at, updated_at) "
-            "VALUES (?, ?, NULL, "
-            "strftime('%Y-%m-%dT%H:%M:%SZ','now'), "
-            "strftime('%Y-%m-%dT%H:%M:%SZ','now'))",
-            (norm, title),
-        )
-        seeded += 1
-        if original != norm:
-            cur = conn.execute("UPDATE tasks SET role = ? WHERE role = ?", (norm, original))
-            rewritten += cur.rowcount
-    return {
-        "seeded": seeded,
-        "tasks_rewritten": rewritten,
-        "dropped_legacy_values": dropped,
-    }
 
 
 # Merged: legacy + current

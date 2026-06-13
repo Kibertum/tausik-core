@@ -8,6 +8,7 @@ import sqlite3
 from typing import Any
 
 from backend_crud import BackendCrudMixin
+from backend_crud_reasoning import ReasoningCrudMixin
 from backend_graph import BackendGraphMixin
 from backend_init import init_schema
 from backend_queries import BackendQueriesMixin
@@ -57,7 +58,7 @@ def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
     return dict(row)
 
 
-class SQLiteBackend(BackendQueriesMixin, BackendGraphMixin, BackendCrudMixin):
+class SQLiteBackend(BackendQueriesMixin, BackendGraphMixin, BackendCrudMixin, ReasoningCrudMixin):
     """All DB operations for TAUSIK. Single SQLite file, FTS5 search."""
 
     def __init__(self, db_path: str) -> None:

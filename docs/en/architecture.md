@@ -101,7 +101,7 @@ the Backend handles only CRUD and SQL. CLI and MCP are two equal entry points.
 | `harness/claude/mcp/project/handlers.py` | Dispatch: tool name -> service method |
 | `harness/claude/mcp/project/handlers_skill.py` | Skill + maintenance handlers (split) |
 
-Total MCP surface: **97 project tools + 7 brain tools = 104** (optional `codebase-rag` adds 7 more; not part of the main count).
+Total MCP surface: **98 project tools + 7 brain tools = 105** (optional `codebase-rag` adds 7 more; not part of the main count).
 
 ### Cross-IDE Support
 
@@ -214,7 +214,7 @@ Exit code `0` = caching active (`cache_read_input_tokens > 0`);
 ## Testing
 
 ```bash
-pytest tests/ -v                    # all tests (3823)
+pytest tests/ -v                    # all tests (3835)
 pytest tests/test_tausik_backend.py   # backend CRUD
 pytest tests/test_tausik_service.py   # service logic
 pytest tests/test_tausik_cli.py       # CLI smoke

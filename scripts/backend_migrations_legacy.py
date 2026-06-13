@@ -328,3 +328,48 @@ LEGACY_MIGRATIONS: dict[int, list[str]] = {
         "CREATE INDEX IF NOT EXISTS idx_edges_valid ON memory_edges(valid_to)",
     ],
 }
+
+
+def seed_v18_roles(conn) -> dict:
+    """Post-migration seed for v18 roles table.
+
+    Lives here (with the legacy migrations) to keep backend_migrations.py under
+    the 400-line filesize cap; re-exported from backend_migrations for callers.
+    """
+    import re
+    import sqlite3 as _sqlite3
+
+    try:
+        rows = conn.execute(
+            "SELECT DISTINCT role FROM tasks WHERE role IS NOT NULL AND role != ''"
+        ).fetchall()
+    except _sqlite3.OperationalError:
+        return {"seeded": 0, "tasks_rewritten": 0, "dropped_legacy_values": []}
+    legacy = {r[0] for r in rows if r[0]}
+    seeded = 0
+    rewritten = 0
+    dropped: list[str] = []
+    for original in legacy:
+        norm = re.sub(r"[^a-z0-9-]+", "-", original.strip().lower()).strip("-")
+        if not norm or not re.match(r"^[a-z0-9][a-z0-9-]*$", norm):
+            dropped.append(original)
+            continue
+        if len(norm) > 64:
+            norm = norm[:64].rstrip("-")
+        title = norm.replace("-", " ").title()
+        conn.execute(
+            "INSERT OR IGNORE INTO roles(slug, title, description, created_at, updated_at) "
+            "VALUES (?, ?, NULL, "
+            "strftime('%Y-%m-%dT%H:%M:%SZ','now'), "
+            "strftime('%Y-%m-%dT%H:%M:%SZ','now'))",
+            (norm, title),
+        )
+        seeded += 1
+        if original != norm:
+            cur = conn.execute("UPDATE tasks SET role = ? WHERE role = ?", (norm, original))
+            rewritten += cur.rowcount
+    return {
+        "seeded": seeded,
+        "tasks_rewritten": rewritten,
+        "dropped_legacy_values": dropped,
+    }

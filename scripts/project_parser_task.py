@@ -216,6 +216,19 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         help="Filter by phase (planning, implementation, review, testing, done)",
     )
 
+    treason = task_sub.add_parser(
+        "reason-step",
+        help="Record a RENAR reasoning step (intent|premise|action|verification)",
+        epilog='Example: tausik task reason-step my-task premise "FTS5 keeps trace searchable"',
+    )
+    treason.add_argument("slug", help="Task slug")
+    treason.add_argument(
+        "kind",
+        choices=["intent", "premise", "action", "verification"],
+        help="Reasoning step kind (closed list)",
+    )
+    treason.add_argument("content", help="Reasoning step content")
+
     tmove = task_sub.add_parser("move")
     tmove.add_argument("slug")
     tmove.add_argument("new_story_slug")

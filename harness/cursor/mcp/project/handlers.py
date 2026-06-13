@@ -488,6 +488,9 @@ _DISPATCH: dict[str, _Handler] = {
     "tausik_task_logs": lambda svc, args: _handle_task_logs(svc, args),
     "tausik_task_claim": lambda svc, args: svc.task_claim(args["slug"], args["agent_id"]),
     "tausik_task_unclaim": lambda svc, args: svc.task_unclaim(args["slug"]),
+    "tausik_reason_step": lambda svc, args: svc.reasoning_step_add(
+        args["slug"], args["kind"], args["content"]
+    ),
     # --- Sessions ---
     "tausik_session_current": _do_session_current,
     "tausik_session_list": _do_session_list,

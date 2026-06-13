@@ -382,6 +382,23 @@ TOOLS = [
         },
     },
     {
+        "name": "tausik_reason_step",
+        "description": "Record a RENAR reasoning step for a task — structured reasoning trace. kind is a closed list; seq auto-increments. Read the trace back via tausik_task_show.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string"},
+                "kind": {
+                    "type": "string",
+                    "enum": ["intent", "premise", "action", "verification"],
+                    "description": "Reasoning step kind (closed list)",
+                },
+                "content": {"type": "string", "description": "Reasoning step content"},
+            },
+            "required": ["slug", "kind", "content"],
+        },
+    },
+    {
         "name": "tausik_session_current",
         "description": "Get current active session info (ID, start time). Returns null if no active session",
         "inputSchema": {"type": "object", "properties": {}},

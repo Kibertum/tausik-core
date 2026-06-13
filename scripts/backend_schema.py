@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 31
+SCHEMA_VERSION = 32
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -144,6 +144,16 @@ CREATE TABLE IF NOT EXISTS task_logs (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS reasoning_steps (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_slug TEXT NOT NULL REFERENCES tasks(slug) ON DELETE CASCADE,
+    seq INTEGER NOT NULL,
+    kind TEXT NOT NULL CHECK(kind IN
+        ('intent', 'premise', 'action', 'verification')),
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     entity_type TEXT NOT NULL,
@@ -222,6 +232,10 @@ CREATE VIRTUAL TABLE IF NOT EXISTS fts_task_logs USING fts5(
     message,
     content='task_logs', content_rowid='id'
 );
+CREATE VIRTUAL TABLE IF NOT EXISTS fts_reasoning_steps USING fts5(
+    content,
+    content='reasoning_steps', content_rowid='id'
+);
 """
 
 FTS_TRIGGERS_SQL = """
@@ -279,6 +293,15 @@ CREATE TRIGGER IF NOT EXISTS task_logs_ad AFTER DELETE ON task_logs BEGIN
     VALUES ('delete', old.id, old.message);
 END;
 
+CREATE TRIGGER IF NOT EXISTS reasoning_steps_ai AFTER INSERT ON reasoning_steps BEGIN
+    INSERT INTO fts_reasoning_steps(rowid, content)
+    VALUES (new.id, new.content);
+END;
+CREATE TRIGGER IF NOT EXISTS reasoning_steps_ad AFTER DELETE ON reasoning_steps BEGIN
+    INSERT INTO fts_reasoning_steps(fts_reasoning_steps, rowid, content)
+    VALUES ('delete', old.id, old.content);
+END;
+
 -- Audit triggers: track task lifecycle changes (json_object for safe escaping)
 CREATE TRIGGER IF NOT EXISTS tasks_audit_insert AFTER INSERT ON tasks BEGIN
     INSERT INTO events(entity_type, entity_id, action, details)
@@ -317,6 +340,8 @@ CREATE INDEX IF NOT EXISTS idx_events_created ON events(created_at);
 CREATE INDEX IF NOT EXISTS idx_task_logs_slug ON task_logs(task_slug);
 CREATE INDEX IF NOT EXISTS idx_task_logs_phase ON task_logs(phase);
 CREATE INDEX IF NOT EXISTS idx_task_logs_created ON task_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_reasoning_steps_slug ON reasoning_steps(task_slug, seq);
+CREATE INDEX IF NOT EXISTS idx_reasoning_steps_created ON reasoning_steps(created_at);
 CREATE INDEX IF NOT EXISTS idx_edges_source ON memory_edges(source_type, source_id);
 CREATE INDEX IF NOT EXISTS idx_edges_target ON memory_edges(target_type, target_id);
 CREATE INDEX IF NOT EXISTS idx_edges_relation ON memory_edges(relation);
