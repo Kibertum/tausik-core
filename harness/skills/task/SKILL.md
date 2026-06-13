@@ -65,6 +65,16 @@ Work on tasks from project DB.
 
 6. **Begin working** through the plan steps sequentially.
    - After each step: `.tausik/tausik task log {slug} "Step N done: description"` + `.tausik/tausik task step {slug} N`
+   - **At decision forks — record a reasoning step (RENAR, advisory).** When you
+     pick between approaches, adopt a non-obvious premise, or verify a claim,
+     capture *why* via `tausik_reason_step` (kind = `intent` | `premise` |
+     `action` | `verification`). See `/reason` for the full cycle. This is a
+     **soft nudge with escalation, never a gate**:
+     - First fork passes with no reasoning step → mention `/reason` once, lightly.
+     - A second/third fork still untraced → restate more firmly ("two forks
+       untraced — a `reason-step` chain makes this task replayable").
+     - The agent may decline; the task **still closes normally with zero
+       reasoning steps**. Do not block, do not re-prompt every step.
    - **On failure/dead end:** Document it immediately:
      ```bash
      .tausik/tausik dead-end "What was tried" "Why it failed" --task {slug}
@@ -147,6 +157,7 @@ Prefer MCP tools over CLI bash calls. Exact parameter names:
 | `tausik_task_show` | `slug` | — |
 | `tausik_task_list` | — | `status="active"`, `epic`, `story`, `stack`, `role`, `limit` |
 | `tausik_task_update` | `slug` | `goal`, `acceptance_criteria`, `scope`, `scope_exclude`, `complexity`, `stack`, `role`, `notes` |
+| `tausik_reason_step` | `slug`, `kind`, `content` | — (kind: intent\|premise\|action\|verification — advisory RENAR trace) |
 | `tausik_dead_end` | `approach`, `reason` | `task_slug`, `tags=["tag"]` |
 | `tausik_memory_search` | `query` | — |
 | `tausik_memory_list` | — | `type="dead_end"`, `limit` |

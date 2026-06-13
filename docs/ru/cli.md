@@ -75,6 +75,7 @@ task plan <slug> <шаг1> <шаг2> ...   # Задать шаги плана
 task step <slug> <номер_шага>  # Отметить шаг N выполненным (нумерация с 1)
 task log <slug> <сообщение>    # Таймстемп-заметка (crash-safe журнал)
 task logs <slug> [--phase PHASE] # Чтение структурированных логов (planning/implementation/review/testing/done)
+task reason-step <slug> <kind> <content>  # RENAR шаг рассуждения (kind: intent|premise|action|verification)
 task move <slug> <new_story>   # Переместить задачу в другую стори
 task claim <slug> <agent_id>   # Мульти-агент: занять задачу
 task unclaim <slug>            # Освободить задачу

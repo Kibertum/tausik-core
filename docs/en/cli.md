@@ -75,6 +75,7 @@ task plan <slug> <step1> <step2> ...   # Set plan steps
 task step <slug> <step_number>  # Mark step N as completed (1-indexed)
 task log <slug> <message>       # Append timestamped note (crash-safe journal)
 task logs <slug> [--phase PHASE] # Read structured log entries (planning/implementation/review/testing/done)
+task reason-step <slug> <kind> <content>  # RENAR reasoning step (kind: intent|premise|action|verification)
 task move <slug> <new_story>    # Move task to another story
 task claim <slug> <agent_id>    # Multi-agent: claim a task
 task unclaim <slug>             # Release a task

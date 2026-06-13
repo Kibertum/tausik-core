@@ -55,6 +55,7 @@ tausik_task_done(slug=…, ac_verified=True)   # lightweight: cache lookup
 | `tausik_task_step` | Mark step as completed | `slug`, `step_num` |
 | `tausik_task_log` | Append journal entry | `slug`, `message` |
 | `tausik_task_logs` | Read structured logs (filter by phase) | `slug` |
+| `tausik_reason_step` | RENAR reasoning step (intent\|premise\|action\|verification) | `slug`, `kind`, `content` |
 | `tausik_task_block` | Block task | `slug` |
 | `tausik_task_unblock` | Unblock | `slug` |
 | `tausik_task_review` | Move to review | `slug` |
