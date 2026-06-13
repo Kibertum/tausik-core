@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 32
+SCHEMA_VERSION = 33
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -46,6 +46,9 @@ CREATE TABLE IF NOT EXISTS tasks (
     acceptance_criteria TEXT, scope TEXT, scope_exclude TEXT, rollback_plan TEXT,
     scope_paths TEXT, scope_tools TEXT,
     risk_score REAL, risk_json TEXT,
+    started_model_id TEXT, started_model_version TEXT,
+    done_model_id TEXT, done_model_version TEXT,
+    model_mismatch INTEGER NOT NULL DEFAULT 0,
     relevant_files TEXT,
     started_at TEXT, completed_at TEXT, blocked_at TEXT,
     archived_at TEXT,
@@ -332,6 +335,10 @@ CREATE INDEX IF NOT EXISTS idx_stories_status ON stories(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_story_id ON tasks(story_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_slug ON tasks(slug);
+-- NOTE: indexes on migration-added tasks columns (e.g. started_model_id,
+-- model_mismatch — v33) live ONLY in their migration, NOT here. INDEXES_SQL
+-- runs before migrations on an existing DB, where those columns don't yet
+-- exist; indexing them here would crash init_schema (mirrors idx_tasks_archived_at).
 CREATE INDEX IF NOT EXISTS idx_decisions_task_slug ON decisions(task_slug);
 CREATE INDEX IF NOT EXISTS idx_memory_type ON memory(type);
 CREATE INDEX IF NOT EXISTS idx_memory_task_slug ON memory(task_slug);

@@ -7,6 +7,7 @@ import sys
 from typing import Any
 
 from brain_cli_ops import cmd_brain  # noqa: F401  re-exported for project.py
+from model_pinning import format_model_usage_section
 from project_service import ProjectService
 
 
@@ -150,6 +151,8 @@ def cmd_metrics(svc: ProjectService, args: Any) -> None:
                 f"${float(last.get('cost_usd') or 0):.4f}, "
                 f"model={last.get('model') or '-'}"
             )
+    for line in format_model_usage_section(svc.be.usage_events_cost_rollup_by_model()):
+        print(line)
 
 
 def cmd_hud(svc: ProjectService, args: Any) -> None:

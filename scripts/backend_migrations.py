@@ -295,6 +295,21 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
             VALUES ('delete', old.id, old.content);
         END""",
     ],
+    # --- v33: per-task model pinning (v16r-model-pinning) ---
+    # RENAR blocker #2: pin the agent model at task start/done and flag
+    # mid-task model changes. Purely additive ALTERs on tasks.
+    33: [
+        "ALTER TABLE tasks ADD COLUMN started_model_id TEXT",
+        "ALTER TABLE tasks ADD COLUMN started_model_version TEXT",
+        "ALTER TABLE tasks ADD COLUMN done_model_id TEXT",
+        "ALTER TABLE tasks ADD COLUMN done_model_version TEXT",
+        # NOT NULL omitted on the ALTER (SQLite < 3.32 rejects NOT NULL ADD
+        # COLUMN); DEFAULT 0 + code always writing 0/1 keeps it effectively
+        # non-null. The CREATE TABLE baseline keeps NOT NULL for fresh DBs.
+        "ALTER TABLE tasks ADD COLUMN model_mismatch INTEGER DEFAULT 0",
+        "CREATE INDEX IF NOT EXISTS idx_tasks_started_model ON tasks(started_model_id)",
+        "CREATE INDEX IF NOT EXISTS idx_tasks_model_mismatch ON tasks(model_mismatch)",
+    ],
 }
 
 

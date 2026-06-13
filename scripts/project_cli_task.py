@@ -242,6 +242,11 @@ def _print_task_detail(task: dict[str, Any]) -> None:
         "defect_of",
         "claimed_by",
         "attempts",
+        "started_model_id",
+        "started_model_version",
+        "done_model_id",
+        "done_model_version",
+        "model_mismatch",
     ):
         val = task.get(field)
         if val:

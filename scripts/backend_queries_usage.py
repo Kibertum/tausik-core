@@ -218,6 +218,48 @@ class BackendQueriesUsageMixin:
             tuple(params),
         )
 
+    def task_model_ids(self, task_slug: str) -> list[str]:
+        """Distinct non-null model_id values that did work on a task.
+
+        The usage_events↔task link (model pinning): which models actually
+        produced tool calls for this task. Used for mid-task mismatch detection.
+        """
+        rows = self._q(  # type: ignore[attr-defined]
+            "SELECT DISTINCT model_id FROM usage_events "
+            "WHERE task_slug=? AND model_id IS NOT NULL ORDER BY model_id",
+            (task_slug,),
+        )
+        return [r["model_id"] for r in rows]
+
+    def usage_events_cost_rollup_by_model(
+        self,
+        since: str | None = None,
+        until: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Aggregate tokens/cost/count by model_id.
+
+        Excludes ``source='session_record'`` rows (session-level aggregates)
+        to avoid double-counting against the per-tool ``posttool`` rows — same
+        contract as ``usage_events_cost_rollup_by_task``.
+        """
+        clauses = ["source <> 'session_record'", "model_id IS NOT NULL"]
+        params: list[Any] = []
+        if since:
+            clauses.append("recorded_at >= ?")
+            params.append(since)
+        if until:
+            clauses.append("recorded_at <= ?")
+            params.append(until)
+        where_sql = " AND ".join(clauses)
+        return self._q(  # type: ignore[attr-defined,no-any-return]
+            "SELECT model_id, COUNT(*) AS event_count, "
+            "COALESCE(SUM(tokens_total), 0) AS tokens_total, "
+            "COALESCE(SUM(cost_usd), 0) AS cost_usd "
+            f"FROM usage_events WHERE {where_sql} "
+            "GROUP BY model_id ORDER BY cost_usd DESC, model_id",
+            tuple(params),
+        )
+
     def session_usage_summary(self) -> dict[str, Any]:
         agg = (
             self._q1(  # type: ignore[attr-defined]

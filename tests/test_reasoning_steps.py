@@ -43,12 +43,13 @@ def _seed_task(svc, slug: str = "rt1") -> None:
 # === AC1: migration v32 applies cleanly on a v31 DB ===
 
 
-def test_schema_version_is_32():
-    assert SCHEMA_VERSION == 32
+def test_schema_version_at_least_32():
+    # reasoning_steps was introduced at v32; later migrations only add to it.
+    assert SCHEMA_VERSION >= 32
 
 
 def test_migration_v32_creates_table_triggers_clean(tmp_path):
-    """A v31-shaped DB migrates to 32 with reasoning_steps + FTS + triggers
+    """A v31-shaped DB migrates forward with reasoning_steps + FTS + triggers
     and no FK violations."""
     path = str(tmp_path / "v31.db")
     conn = sqlite3.connect(path)
@@ -58,7 +59,7 @@ def test_migration_v32_creates_table_triggers_clean(tmp_path):
     conn.execute("CREATE TABLE tasks(slug TEXT PRIMARY KEY)")  # FK target
 
     new_ver = run_migrations(conn, 31)
-    assert new_ver == 32
+    assert new_ver >= 32
 
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert "reasoning_steps" in tables

@@ -18,6 +18,7 @@ from project_types import (
 )
 from service_cascade import CascadeMixin
 from service_gates import GatesMixin
+from model_pinning import model_start_updates
 from service_reasoning import ReasoningMixin
 from service_recording import check_session_capacity
 from service_task_done import TaskDoneReportMixin, _format_task_done_failures  # noqa: F401
@@ -143,6 +144,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin):
         }
         if not task.get("started_at"):
             updates["started_at"] = utcnow_iso()
+            updates.update(model_start_updates(self.be))  # pin model at first activation
         self.be.begin_tx()
         try:
             self.be.task_update(slug, **updates)

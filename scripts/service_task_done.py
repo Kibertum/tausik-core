@@ -13,6 +13,7 @@ import json
 from typing import TYPE_CHECKING, Any
 
 from tausik_utils import ServiceError, utcnow_iso
+from model_pinning import model_done_updates
 from service_recording import record_call_actual, record_cost_actual
 
 if TYPE_CHECKING:
@@ -351,11 +352,17 @@ class TaskDoneReportMixin:
         # Atomic: task update + cascade + audit in one transaction
         self.be.begin_tx()
         try:
+            # v16r: pin done-model + flag mismatch (inside tx: lock-covered read).
+            model_updates, model_mismatch_msg = model_done_updates(self.be, task)
+            updates.update(model_updates)
             self.be.task_update(slug, **updates)
             msgs = [f"Task '{slug}' completed."]
             if risk_note:
                 self.be.task_append_notes(slug, risk_note)
                 msgs.append(risk_note)
+            if model_mismatch_msg:
+                self.be.task_append_notes(slug, model_mismatch_msg)
+                msgs.append(model_mismatch_msg)
             msgs.extend(ac_warnings)
             if knowledge_warning:
                 msgs.append(knowledge_warning)
