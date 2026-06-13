@@ -100,6 +100,19 @@ def cmd_metrics(svc: ProjectService, args: Any) -> None:
             f"ADR: {rm['adr_pct']}% (critical/L3-task)"
         )
     try:
+        from root_cause import root_cause_metrics
+
+        rcm = root_cause_metrics(svc.be._q)  # type: ignore[attr-defined]
+    except Exception:
+        rcm = None
+    if rcm and rcm.get("defect_done"):
+        print("\n--- Root Cause Coverage (SENAR Rule 7) ---")
+        print(
+            f"Defect tasks done: {rcm['defect_done']}, "
+            f"structured: {rcm['structured']}, "
+            f"coverage: {rcm['coverage_pct']}%"
+        )
+    try:
         bm = svc.be.brain_event_metrics()  # type: ignore[attr-defined]
     except Exception:
         bm = None

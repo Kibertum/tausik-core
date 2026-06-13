@@ -222,8 +222,10 @@ class TaskDoneReportMixin:
         # remediation is one `task log` line. FP escape (keyword phrasing
         # mismatch): config task_done.root_cause_hard=false.
         root_cause_warning = ""
+        root_cause_nudge = ""
         if task.get("defect_of"):
-            notes_lower = (task.get("notes") or "").lower()
+            notes_raw = task.get("notes") or ""
+            notes_lower = notes_raw.lower()
             _rc_kw = (
                 "root cause",
                 "причина",
@@ -244,6 +246,28 @@ class TaskDoneReportMixin:
                     report["blocking_failures"].append({"stage": "root-cause", "message": rc_msg})
                     return report
                 root_cause_warning = f"WARNING: {rc_msg}"
+            else:
+                # Keyword floor satisfied. Decision #96: nudge — never block —
+                # toward the structured form (category + description +
+                # prevention). Compliance resets the escalation counter.
+                try:
+                    from nudge_escalation import escalate, reset
+                    from root_cause import has_structured_root_cause
+
+                    if has_structured_root_cause(notes_raw):
+                        reset(self.be._conn, "root_cause")
+                    else:
+                        root_cause_nudge = escalate(
+                            self.be._conn,
+                            "root_cause",
+                            (
+                                f"Defect '{slug}' documents a root cause but not in "
+                                f"structured form (category + description + prevention). "
+                                f"Format: see docs/ru/agent-contract.md (SENAR Rule 7)."
+                            ),
+                        )
+                except Exception:
+                    root_cause_nudge = ""
 
         # Knowledge capture warning (SENAR Rule 8).
         # v1.3.4 (med-batch-2-qg #5): --no-knowledge refused for complex
@@ -345,6 +369,9 @@ class TaskDoneReportMixin:
             if root_cause_warning:
                 msgs.append(root_cause_warning)
                 report["warnings"].append(root_cause_warning)
+            if root_cause_nudge:
+                msgs.append(root_cause_nudge)
+                report["warnings"].append(root_cause_nudge)
             if rollback_warning:
                 msgs.append(rollback_warning)
                 report["warnings"].append(rollback_warning)

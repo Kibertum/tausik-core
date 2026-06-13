@@ -101,7 +101,7 @@ overshoot is intentional (audit event + notes line trace it).
 | Rule 3 Verify Against Criteria | Per-criterion AC evidence парсинг | Hard + Warning |
 | Rule 4 External Validation | Субагент `tausik-external-reviewer` на ДРУГОЙ модели (separation of duties, read-only); требуется при measured-high closure через L3-триггер | Hard (при high-risk) |
 | Rule 5 Verification Checklist | 28-item checklist, 4 тира; **pytest gate scoped по relevant_files**, verify cache reuse в окне 10 мин; v1.4 — структурированный AC-evidence parser (`service_ac_evidence`) сообщает про gaps и отсутствующие test-refs/негативные сценарии | Warning + Hard scope |
-| Rule 7 Root Cause | Defect-задачи предупреждают если нет root cause | Warning |
+| Rule 7 Root Cause | Defect-задачи: keyword floor **блокирует** done без root cause; structured-форма (category+description+prevention) — advisory escalating nudge + coverage в `metrics` | Hard (floor) + Warning (structured) |
 | Rule 8 Knowledge Capture | Warning при task_done + `--no-knowledge` для confirm-none | Warning |
 | Rule 9.2 Лимит сессии | `task start` блокируется при >180 мин **active time** (bounded sum: каждый gap = `min(Δ, 10 мин)`, длинный AFK клипуется). `session extend` продлевает; `session recompute` retro. | Hard (CLI + MCP блокирует) |
 | Rule 9.3 Checkpoint | `/checkpoint` + auto-reminder в `/task` | Instruction |
@@ -142,6 +142,40 @@ overshoot is intentional (audit event + notes line trace it).
   снимает блок. Opt-out: `config risk.l3_block_on_high=false` (→ warning).
 - **Evidence.** Вердикт ревьюера фиксируется в таблице `reviews` (run_type=L3) и
   попадает в метрики ADR (`tausik review metrics`).
+
+---
+
+## Rule 7 — Structured Root Cause (defect-задачи)
+
+Два уровня (decision #96):
+
+- **Keyword floor (Hard).** `task done` для defect-задачи (`defect_of` задан) блокируется,
+  если в notes нет упоминания причины (`root cause` / `причина` / `caused by` / `из-за` / …).
+  Opt-out: `config task_done.root_cause_hard=false` → warning.
+- **Structured layer (Advisory).** Поверх floor: если причина есть, но не в канонической
+  форме — escalating nudge (silent→hint→warning→strong), НЕ блокирует. Compliance сбрасывает счётчик.
+
+**Канонический формат** (одна строка `task log`):
+
+```
+Root cause (<category>): <описание>. Prevention: <как не допустить>.
+```
+
+Bilingual: `Причина (<category>): <описание>. Профилактика: <…>.`
+
+**Closed-list категорий** (`scripts/root_cause.py::ROOT_CAUSE_CATEGORIES`):
+`logic-error`, `missing-validation`, `race-condition`, `config-error`,
+`integration-mismatch`, `regression`, `edge-case`, `performance`,
+`dependency`, `documentation`, `other`.
+
+Неизвестная категория или отсутствие `Prevention:` → форма не структурная (без исключения).
+Coverage (% done defect-задач со структурой) выводится в `tausik metrics` (секция *Root Cause Coverage*).
+
+Пример:
+
+```
+.tausik/tausik task log fix-pager "Root cause (logic-error): off-by-one в пагинаторе при пустой странице. Prevention: добавить bounds-тест на last page."
+```
 
 ---
 
