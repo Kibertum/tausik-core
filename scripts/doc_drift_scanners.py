@@ -21,6 +21,17 @@ from pathlib import Path
 _VERSION_RE = re.compile(r"\bv(\d+)\.(\d+)(?:\.(\d+))?(?:\.x)?\b")
 _FENCED_BLOCK_RE = re.compile(r"^```.*?^```", re.MULTILINE | re.DOTALL)
 
+# Python source files that hardcode a `__version__ = "X.Y.Z"` literal which
+# must track pyproject's project.version. gen_doc_constants treats pyproject as
+# the single source of truth; these modules duplicate it for runtime use (the
+# CLI 'Current State' line via project_cli_extra._get_version and the MCP
+# version handler). The literal stays a literal — the running copy under
+# `.claude/scripts/` has no pyproject to read — but it silently drifted once
+# (tausik_version.py stuck at 1.4.0 across the 1.4.1/1.4.2 releases), so the
+# scanner below makes that drift visible at `--check` time.
+PY_VERSION_SCAN_TARGETS: tuple[str, ...] = ("scripts/tausik_version.py",)
+_PY_VERSION_RE = re.compile(r"""^__version__\s*=\s*["']([^"']+)["']""", re.MULTILINE)
+
 CROSS_FILE_SCAN_TARGETS: tuple[str, ...] = (
     "README.md",
     "README.ru.md",
@@ -180,6 +191,35 @@ def scan_version_refs(repo_root: Path, expected_version: str) -> list[str]:
                 f"{rel}:{line_no}: version ref '{m.group(0)}' "
                 f"(major.minor={major}.{minor}) does not match "
                 f"constants.json tausik_version={expected_version!r}"
+            )
+    return messages
+
+
+def scan_py_version_constants(repo_root: Path, expected_version: str) -> list[str]:
+    """Return drift messages for hardcoded ``__version__`` literals in .py source.
+
+    pyproject's ``project.version`` is the single source of truth, but a few
+    runtime modules duplicate it as a ``__version__ = "X.Y.Z"`` literal
+    (consumed by the CLI 'Current State' line and the MCP version handler).
+    Those literals are invisible to the markdown cross-file scanners and have
+    drifted before, so flag any in :data:`PY_VERSION_SCAN_TARGETS` whose value
+    no longer matches ``expected_version``.
+    """
+    messages: list[str] = []
+    for rel in PY_VERSION_SCAN_TARGETS:
+        path = repo_root / rel
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        for m in _PY_VERSION_RE.finditer(text):
+            found = m.group(1)
+            if found == expected_version:
+                continue
+            line_no = text[: m.start()].count("\n") + 1
+            messages.append(
+                f"{rel}:{line_no}: __version__ '{found}' does not match "
+                f"pyproject version {expected_version!r} — bump it (or "
+                f"single-source from pyproject)"
             )
     return messages
 

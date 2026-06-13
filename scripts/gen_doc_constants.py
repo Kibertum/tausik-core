@@ -30,6 +30,7 @@ from doc_drift_scanners import (
     CROSS_FILE_SCAN_TARGETS,
     scan_code_counts,
     scan_mcp_tool_counts,
+    scan_py_version_constants,
     scan_test_counts,
     scan_version_refs,
 )
@@ -44,6 +45,7 @@ __all__ = [
     "run_main",
     "scan_code_counts",
     "scan_mcp_tool_counts",
+    "scan_py_version_constants",
     "scan_test_counts",
     "scan_version_refs",
 ]
@@ -160,6 +162,10 @@ def run_main(
             cross_drift = scan_version_refs(repo_root, str(payload["tausik_version"]))
             if cross_drift:
                 _report_drift("Cross-file version-ref drift:", cross_drift)
+                return 1
+            py_ver_drift = scan_py_version_constants(repo_root, str(payload["tausik_version"]))
+            if py_ver_drift:
+                _report_drift("Python __version__ drift:", py_ver_drift)
                 return 1
         if not skip_cross_files and not skip_mcp_counts:
             mcp_drift = scan_mcp_tool_counts(repo_root, payload)

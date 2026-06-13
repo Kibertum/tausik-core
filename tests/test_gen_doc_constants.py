@@ -19,6 +19,7 @@ from gen_doc_constants import (  # noqa: E402
     run_main,
     scan_code_counts,
     scan_mcp_tool_counts,
+    scan_py_version_constants,
     scan_test_counts,
     scan_version_refs,
 )
@@ -93,6 +94,30 @@ def test_scan_version_refs_flags_patch_drift(tmp_path: Path):
     (repo / "README.md").write_text("\n\nv1.4.5 doc note.\n", encoding="utf-8")
     drifts = scan_version_refs(repo, "1.4.0")
     assert any("v1.4.5" in d for d in drifts)
+
+
+def test_scan_py_version_clean_when_match(tmp_path: Path):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "scripts").mkdir(parents=True, exist_ok=True)
+    (repo / "scripts" / "tausik_version.py").write_text('__version__ = "1.4.0"\n', encoding="utf-8")
+    assert scan_py_version_constants(repo, "1.4.0") == []
+
+
+def test_scan_py_version_flags_drift(tmp_path: Path):
+    """Regression for the historical drift: tausik_version.py stuck at 1.4.0
+    while pyproject moved to 1.5.0 — previously invisible to --check."""
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "scripts").mkdir(parents=True, exist_ok=True)
+    (repo / "scripts" / "tausik_version.py").write_text(
+        '"""TAUSIK framework version."""\n__version__ = "1.4.0"\n', encoding="utf-8"
+    )
+    drifts = scan_py_version_constants(repo, "1.5.0")
+    assert any("tausik_version.py:2" in d and "1.4.0" in d for d in drifts)
+
+
+def test_scan_py_version_skips_missing_target(tmp_path: Path):
+    repo = _seed_cross_file_repo(tmp_path)
+    assert scan_py_version_constants(repo, "1.5.0") == []
 
 
 def test_scan_version_refs_skips_foreign_versions(tmp_path: Path):
