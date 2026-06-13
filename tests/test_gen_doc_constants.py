@@ -132,6 +132,37 @@ def test_scan_version_refs_skips_foreign_versions(tmp_path: Path):
     assert scan_version_refs(repo, "1.4.0") == []
 
 
+def test_scan_version_refs_skips_renar_foreign(tmp_path: Path):
+    """RENAR/renar refs are a sibling spec on its own timeline — not TAUSIK drift.
+
+    Regression: the auto-generated CLAUDE.md memory-tail cites
+    'renar.tech v1.0-draft', which previously tripped the version-ref scanner
+    and blocked all commits. Both the lowercase 'renar.tech' form and the
+    uppercase prose 'RENAR v1.0' form must be skipped.
+    """
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "CLAUDE.md").write_text(
+        "# CLAUDE\n\n- #103 implement ADAPT per renar.tech v1.0-draft §7.4-7.6\n"
+        "- conformance against RENAR v1.0 mandatory clauses\n",
+        encoding="utf-8",
+    )
+    assert scan_version_refs(repo, "1.5.0") == []
+
+
+def test_scan_version_refs_still_flags_native_drift_near_renar(tmp_path: Path):
+    """NEGATIVE guard: a real TAUSIK vX.Y drift is STILL flagged.
+
+    The foreign-prefix skip must not become a blanket escape hatch — a bare
+    'v1.0' with no foreign prefix in its 24-char lookbehind must still drift.
+    """
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text(
+        "# Project\n\nThis release is v1.0 of the tool.\n", encoding="utf-8"
+    )
+    drifts = scan_version_refs(repo, "1.5.0")
+    assert any("v1.0" in d for d in drifts)
+
+
 def test_scan_version_refs_skips_fenced_code_blocks(tmp_path: Path):
     """Refs inside ``` ... ``` are documentation examples, not real version refs."""
     repo = _seed_cross_file_repo(tmp_path)

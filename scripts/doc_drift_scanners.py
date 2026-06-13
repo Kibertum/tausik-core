@@ -125,7 +125,11 @@ _CODE_COUNT_PATTERNS: tuple[tuple[re.Pattern[str], str, str], ...] = (
     ),
 )
 
-_FOREIGN_VERSION_PREFIXES: tuple[str, ...] = ("SENAR", "Python", "OWASP")
+# RENAR/renar: the sibling spec at renar.tech versions on its own timeline (the
+# auto-generated CLAUDE.md memory-tail cites "renar.tech v1.0-draft"), so its
+# refs must not be checked against TAUSIK's version — same as SENAR. Both cases
+# (lowercase "renar.tech", uppercase "RENAR v1.0" prose) are covered.
+_FOREIGN_VERSION_PREFIXES: tuple[str, ...] = ("SENAR", "Python", "OWASP", "RENAR", "renar")
 
 
 def _strip_fenced_blocks(text: str) -> str:
