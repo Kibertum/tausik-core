@@ -17,6 +17,7 @@ import os
 import re
 import shlex
 import subprocess
+from typing import IO
 
 from gate_test_resolver import resolve_test_files_for_relevant
 
@@ -57,6 +58,124 @@ def _apply_line_filter(output: str, line_filter: tuple[str, int]) -> str:
     if mode == "head":
         return "\n".join(lines[:n] + [marker])
     return "\n".join([marker] + lines[-n:])
+
+
+# --- shell-less execution -------------------------------------------------
+# Historically the runner fell back to `shell=True` whenever a command held a
+# pipe / `&&` / redirect. For custom stacks (whose command templates are
+# attacker-controllable) that is a command-injection vector: a stack gate
+# `ruff {files}; rm -rf ~` would run the `rm` via the shell. We never spawn a
+# shell now — commands are tokenized with shlex (quoting honoured) and the only
+# operators we act on are `&&` (sequential AND) and `|` (pipe). Every other
+# shell metacharacter shlex surfaces (`;`, `||`, `&`, `(`, `)`, `<`, `>`, `>>`)
+# is refused, so the gate fails safely instead of executing an unknown tail.
+_SEQ_OP = "&&"
+_PIPE_OP = "|"
+_KNOWN_OPS = frozenset({_SEQ_OP, _PIPE_OP})
+_SHELL_PUNCT = "();<>|&"
+
+
+class _GateCommandError(ValueError):
+    """Raised for a gate command the shell-less runner refuses to execute."""
+
+
+def _tokenize_command(cmd: str) -> list[str]:
+    """shlex-tokenize, surfacing shell operators (&&, |, ;, ...) as own tokens.
+
+    posix=True so quoting works; punctuation_chars=True makes runs of the
+    shell metacharacters their own tokens, letting us detect — and reject —
+    anything beyond the `&&`/`|` we support instead of handing it to a shell.
+    """
+    lex = shlex.shlex(cmd, posix=True, punctuation_chars=True)
+    lex.whitespace_split = True
+    return list(lex)
+
+
+def _split_tokens(tokens: list[str], op: str) -> list[list[str]]:
+    """Split a token list on a separator operator into groups."""
+    groups: list[list[str]] = [[]]
+    for tok in tokens:
+        if tok == op:
+            groups.append([])
+        else:
+            groups[-1].append(tok)
+    return groups
+
+
+def _exec_pipeline(stages: list[list[str]], timeout: int) -> tuple[int, str]:
+    """Run one `|`-connected pipeline (argv stages). Returns (rc, output)."""
+    if len(stages) == 1:
+        argv = list(stages[0])
+        argv[0] = os.path.normpath(argv[0])
+        r = subprocess.run(
+            argv,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            stdin=subprocess.DEVNULL,
+        )
+        return r.returncode, r.stdout + r.stderr
+    # Multi-stage: chain stdout->stdin. We capture only the final stage's
+    # stdout+stderr (gate semantics); intermediate stderr is discarded to
+    # avoid pipe-buffer deadlocks. Pipelines are rare once truncation pipes
+    # (`| head/tail`) are stripped upstream.
+    procs: list[subprocess.Popen[str]] = []
+    prev_stdout: IO[str] | None = None
+    for i, raw in enumerate(stages):
+        argv = list(raw)
+        argv[0] = os.path.normpath(argv[0])
+        is_last = i == len(stages) - 1
+        proc = subprocess.Popen(
+            argv,
+            stdin=prev_stdout if prev_stdout is not None else subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE if is_last else subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        if prev_stdout is not None:
+            prev_stdout.close()  # let upstream see SIGPIPE when downstream exits
+        prev_stdout = proc.stdout
+        procs.append(proc)
+    last = procs[-1]
+    try:
+        out, err = last.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        for proc in procs:
+            proc.kill()
+        for proc in procs:
+            proc.wait()
+        raise
+    for proc in procs[:-1]:
+        proc.wait()
+    return last.returncode, out + err
+
+
+def _run_shellless(cmd: str, timeout: int) -> tuple[int, str]:
+    """Execute a gate command without a shell. Honours `&&` and `|` only."""
+    cmd = re.sub(r"\s*2>&1", "", cmd)  # stderr is always merged by the caller
+    tokens = _tokenize_command(cmd)
+    for tok in tokens:
+        if tok in _KNOWN_OPS:
+            continue
+        if tok and all(ch in _SHELL_PUNCT for ch in tok):
+            raise _GateCommandError(
+                f"unsupported shell operator '{tok}' in gate command — "
+                "shell-less runner refuses to chain on it"
+            )
+    returncode, output = 0, ""
+    for seq in _split_tokens(tokens, _SEQ_OP):
+        stages = _split_tokens(seq, _PIPE_OP)
+        if any(not stage for stage in stages):
+            raise _GateCommandError("empty command segment in gate pipeline")
+        returncode, seg_out = _exec_pipeline(stages, timeout)
+        output += seg_out
+        if returncode != 0:  # `&&` short-circuits on first failure
+            break
+    return returncode, output
 
 
 def run_command_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
@@ -117,46 +236,20 @@ def run_command_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
     if os.environ.get("TAUSIK_VERIFY_FULL"):
         cmd = re.subn(r"(^|\s)pytest(\s|$)", r"\1pytest --override-ini=addopts=\2", cmd, count=1)[0]
     # Cross-platform truncation: strip `[2>&1] | head/tail -N`, filter later.
+    # Windows note: shlex (posix) strips backslashes from paths and subprocess
+    # cannot launch a relative forward-slash executable (WinError 2); the
+    # shell-less runner normalizes each stage's argv[0] to the OS separator so a
+    # configured path like backend/.venv/Scripts/python.exe resolves.
     cmd, line_filter = _extract_truncation_filter(cmd)
-    # Detect shell operators -- need shell=True for pipes and redirects
-    needs_shell = any(op in cmd for op in ("|", "&&", ">>", "2>&1"))
     timeout = gate.get("timeout", 120)
     try:
-        if needs_shell:
-            result = subprocess.run(
-                cmd,
-                shell=True,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=timeout,
-                stdin=subprocess.DEVNULL,
-            )
-        else:
-            argv = shlex.split(cmd)
-            # Windows: shlex (posix) strips backslashes from paths, and subprocess
-            # cannot launch a relative forward-slash executable (WinError 2).
-            # Normalize argv[0] to the OS-native separator so a configured path like
-            # backend/.venv/Scripts/python.exe resolves. Bare executables (ruff,
-            # mypy) are unaffected — normpath is a no-op on a name without a dir.
-            if argv:
-                argv[0] = os.path.normpath(argv[0])
-            result = subprocess.run(
-                argv,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=timeout,
-                stdin=subprocess.DEVNULL,
-            )
-        output = (result.stdout + result.stderr).strip()
+        returncode, raw_output = _run_shellless(cmd, timeout)
+        output = raw_output.strip()
         if line_filter:
             output = _apply_line_filter(output, line_filter)
-        if result.returncode == 0:
+        if returncode == 0:
             return True, output or "Passed."
-        return False, output or f"Failed with exit code {result.returncode}."
+        return False, output or f"Failed with exit code {returncode}."
     except subprocess.TimeoutExpired:
         return False, f"Gate timed out ({timeout}s)."
     except Exception as e:
