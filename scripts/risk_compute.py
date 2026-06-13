@@ -43,8 +43,18 @@ def _factor_gate_coverage(conn: sqlite3.Connection, slug: str) -> float | None:
 
 
 def _git_numstat_lines(args: list[str], relevant: set[str], cwd: str) -> int:
+    # stdin=DEVNULL is critical: inside the MCP server, sys.stdin is the
+    # JSON-RPC pipe to the IDE. On Windows git probes stdin (paginator /
+    # credential prompt) and blocks reading it, hanging task_done — the same
+    # defect verify_git_diff.py guards against (v14b-defect-mcp-task-done-stdin-hang).
+    # risk_compute, added later (v15-risk-compute-on-done), reintroduced the
+    # unguarded call; this restores the guard.
     out = subprocess.check_output(
-        ["git"] + args, stderr=subprocess.DEVNULL, timeout=10, cwd=cwd
+        ["git"] + args,
+        stderr=subprocess.DEVNULL,
+        stdin=subprocess.DEVNULL,
+        timeout=10,
+        cwd=cwd,
     ).decode("utf-8", "replace")
     total = 0
     for line in out.splitlines():

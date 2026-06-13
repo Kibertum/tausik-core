@@ -39,6 +39,7 @@ def _git(args: list[str]) -> str | None:
         out = subprocess.check_output(
             ["git"] + args,
             stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,  # defense-in-depth: never read an inherited (MCP) stdin pipe
             timeout=3,
         )
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):

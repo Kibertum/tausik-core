@@ -30,6 +30,7 @@ def current_git_sha(cwd: str | None = None) -> str | None:
         out = subprocess.check_output(
             ["git", "rev-parse", "HEAD"],
             stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,  # MCP-reachable (verify): never read the JSON-RPC stdin pipe
             timeout=5,
             cwd=cwd,
         )
