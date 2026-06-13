@@ -248,22 +248,6 @@ def cmd_search(svc: ProjectService, args: Any) -> None:
                     print(f"    {snippet}")
 
 
-def cmd_events(svc: ProjectService, args: Any) -> None:
-    events = svc.events_list(
-        entity_type=args.entity,
-        entity_id=args.entity_id,
-        n=args.limit,
-    )
-    if not events:
-        print("No events found.")
-        return
-    for ev in events:
-        actor = f" by {ev['actor']}" if ev.get("actor") else ""
-        print(f"[{ev['created_at']}] {ev['entity_type']}/{ev['entity_id']}: {ev['action']}{actor}")
-        if ev.get("details"):
-            print(f"  {ev['details']}")
-
-
 def cmd_dead_end(svc: ProjectService, args: Any) -> None:
     print(svc.dead_end(args.approach, args.reason, args.tags, args.task))
 

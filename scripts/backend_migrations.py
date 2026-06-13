@@ -11,6 +11,7 @@ Legacy migrations (v2-v11) are in backend_migrations_legacy.py.
 from __future__ import annotations
 
 from backend_migrations_legacy import LEGACY_MIGRATIONS, seed_v18_roles
+from backend_migrations_v34 import maybe_backfill_v34
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -310,6 +311,17 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
         "CREATE INDEX IF NOT EXISTS idx_tasks_started_model ON tasks(started_model_id)",
         "CREATE INDEX IF NOT EXISTS idx_tasks_model_mismatch ON tasks(model_mismatch)",
     ],
+    # --- v34: audit event hash-chain (v16r-audit-hashchain) ---
+    # Additive: nullable chain columns + anchor table. Historical rows sealed
+    # by Python backfill maybe_backfill_v34 (SQLite lacks sha256/JCS).
+    34: [
+        "ALTER TABLE events ADD COLUMN prev_hash TEXT",
+        "ALTER TABLE events ADD COLUMN entry_hash TEXT",
+        "CREATE TABLE IF NOT EXISTS events_anchor ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, head_id INTEGER NOT NULL, "
+        "head_hash TEXT NOT NULL, event_count INTEGER NOT NULL, "
+        "envelope_json TEXT NOT NULL, created_at TEXT NOT NULL)",
+    ],
 }
 
 
@@ -382,4 +394,6 @@ def run_migrations(conn: "sqlite3.Connection", current_version: int) -> int:  # 
                     f"{report['dropped_legacy_values']}",
                     file=sys.stderr,
                 )
+    if current_version >= 34:  # seal historical events into the hash-chain
+        maybe_backfill_v34(conn)
     return current_version

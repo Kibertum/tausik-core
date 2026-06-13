@@ -57,6 +57,12 @@ def test_migration_v32_creates_table_triggers_clean(tmp_path):
     conn.execute("CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     conn.execute("INSERT INTO meta VALUES('schema_version', '31')")
     conn.execute("CREATE TABLE tasks(slug TEXT PRIMARY KEY)")  # FK target
+    # events exists in the v1 baseline on every real DB; v34 ALTERs it.
+    conn.execute(
+        "CREATE TABLE events(id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, action TEXT NOT NULL, "
+        "actor TEXT, details TEXT, created_at TEXT NOT NULL DEFAULT '2020-01-01T00:00:00Z')"
+    )
 
     new_ver = run_migrations(conn, 31)
     assert new_ver >= 32

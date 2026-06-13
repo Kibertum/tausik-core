@@ -318,6 +318,10 @@ def build_parser() -> argparse.ArgumentParser:
     ev_p.add_argument("--entity", default=None, help="Filter by entity type (task, epic, story)")
     ev_p.add_argument("--id", default=None, dest="entity_id", help="Filter by entity ID/slug")
     ev_p.add_argument("--limit", type=int, default=50)
+    ev_sub = ev_p.add_subparsers(dest="events_cmd")
+    ev_sub.add_parser("seal", help="Seal pending events into the hash-chain")
+    ev_sub.add_parser("verify", help="Verify the audit hash-chain (+ ed25519 anchor)")
+    ev_sub.add_parser("anchor", help="Sign the current chain head with the project key")
 
     # --- db (v14b-junk-audit-pass: backup hygiene) ---
     db_p = sub.add_parser("db", help="Database hygiene helpers")

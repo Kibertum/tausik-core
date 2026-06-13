@@ -48,7 +48,6 @@ def main() -> None:
         cmd_brain,
         cmd_dead_end,
         cmd_doc,
-        cmd_events,
         cmd_explore,
         cmd_hud,
         cmd_metrics,
@@ -56,6 +55,7 @@ def main() -> None:
         cmd_search,
         cmd_suggest_model,
     )
+    from project_cli_events import cmd_events
     from cli_push_ok import cmd_push_ok
     from project_cli_key import cmd_key
     from project_cli_receipt import cmd_receipt

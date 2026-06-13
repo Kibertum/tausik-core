@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 33
+SCHEMA_VERSION = 34
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -164,7 +164,23 @@ CREATE TABLE IF NOT EXISTS events (
     action TEXT NOT NULL,
     actor TEXT,
     details TEXT,
-    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    -- Hash-chain (v16r-audit-hashchain): NULL until sealed by `events verify`
+    -- /`events seal`. prev_hash links to the predecessor's entry_hash;
+    -- entry_hash = sha256(prev_hash || canonical_event_bytes(self)).
+    prev_hash TEXT,
+    entry_hash TEXT
+);
+
+-- ed25519 anchor over the chain head (v16r-audit-hashchain). A signed head
+-- makes pre-anchor tampering detectable even after a full chain recompute.
+CREATE TABLE IF NOT EXISTS events_anchor (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    head_id INTEGER NOT NULL,
+    head_hash TEXT NOT NULL,
+    event_count INTEGER NOT NULL,
+    envelope_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS roles (
