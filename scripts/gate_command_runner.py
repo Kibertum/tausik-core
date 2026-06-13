@@ -150,7 +150,14 @@ def _exec_pipeline(stages: list[list[str]], timeout: int) -> tuple[int, str]:
             proc.wait()
         raise
     for proc in procs[:-1]:
-        proc.wait()
+        # Last stage already finished; upstream stages should have seen EOF/
+        # SIGPIPE and be exiting. Bound the reap so a stage that ignores the
+        # signal (or otherwise hangs) cannot wedge the gate forever.
+        try:
+            proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
     return last.returncode, out + err
 
 

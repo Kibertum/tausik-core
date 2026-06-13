@@ -214,7 +214,7 @@ Exit code `0` = caching active (`cache_read_input_tokens > 0`);
 ## Testing
 
 ```bash
-pytest tests/ -v                    # all tests (3818)
+pytest tests/ -v                    # all tests (3820)
 pytest tests/test_tausik_backend.py   # backend CRUD
 pytest tests/test_tausik_service.py   # service logic
 pytest tests/test_tausik_cli.py       # CLI smoke
