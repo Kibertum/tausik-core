@@ -17,6 +17,8 @@ from project_backend import SQLiteBackend
 from project_service import ProjectService
 
 from model_routing import (
+    _model_family,
+    _model_tier,
     _normalize_model_id,
     format_task_start_banner,
     read_active_model_from_transcript,
@@ -116,22 +118,65 @@ class TestFormatBanner:
         )
         assert "✓ model match" in out
 
-    def test_mismatch_loud_warning(self):
-        # simple → recommends Haiku 4.5; active Opus → loud mismatch.
+    def test_surplus_is_info_not_warning(self):
+        # v15mr-fable-tier-fix: simple → recommends Haiku; active Opus is a
+        # HIGHER tier (quality surplus), so this is a cost nudge, NOT a loud
+        # mismatch. The old behaviour (⚠ MODEL MISMATCH here) was the false
+        # positive this task removes.
         out = format_task_start_banner(
             complexity="simple",
-            active_model="claude-opus-4-7",
+            active_model="claude-opus-4-8",
+        )
+        assert "⚠ MODEL MISMATCH" not in out
+        assert "quality surplus" in out
+        assert "switch down to save cost" in out
+        assert "Haiku 4.5" in out
+        # Still actionable: IDE picker + persist the cheaper tier.
+        assert "IDE model picker" in out
+        assert "tausik config set model_profile haiku" in out
+
+    def test_under_powered_is_loud_warning(self):
+        # AC2: active tier BELOW recommended (Haiku on a complex task) is the
+        # genuine mismatch — quality at risk, loud warning stays.
+        out = format_task_start_banner(
+            complexity="complex",
+            active_model="claude-haiku-4-5",
         )
         assert "⚠ MODEL MISMATCH" in out
-        assert "Haiku 4.5" in out
-        # Actionable hints: manual switch path (IDE picker) + persist command.
-        # The wrong "/fast" advice has been removed (C7 banner fix).
+        assert "under-powered" in out
+        assert "Opus 4.7" in out
         assert "IDE model picker" in out
-        assert "tausik config set model_profile" in out
-        assert "haiku" in out
-        # Negative: must NOT advise switching via /fast — that does not
-        # downgrade models, it only toggles fast-output on Opus.
-        assert "switch to Haiku 4.5 via /fast" not in out
+        assert "tausik config set model_profile opus" in out
+
+    def test_fable_active_against_sonnet_is_surplus(self):
+        # AC1: fable (top tier) active while a medium task recommends Sonnet →
+        # surplus info, never a warning.
+        out = format_task_start_banner(
+            complexity="medium",
+            active_model="claude-fable-5",
+        )
+        assert "⚠ MODEL MISMATCH" not in out
+        assert "quality surplus" in out
+
+    def test_unrecognized_active_is_info(self):
+        # AC3: an unknown model id must not crash or warn — info verdict.
+        out = format_task_start_banner(
+            complexity="medium",
+            active_model="gpt-9-turbo",
+        )
+        assert "unrecognized" in out
+        assert "⚠ MODEL MISMATCH" not in out
+        assert "gpt-9-turbo" in out
+
+    def test_opus_point_release_matches_complex(self):
+        # The session bug: complex recommends Opus 4.7, active is Opus 4.8 —
+        # same family, must read as match, not mismatch.
+        out = format_task_start_banner(
+            complexity="complex",
+            active_model="claude-opus-4-8",
+        )
+        assert "✓ model match" in out
+        assert "MISMATCH" not in out
 
     def test_unknown_active_falls_back_to_recommendation_only(self):
         # NEGATIVE: no transcript_path, no active_model → unknown verdict.
@@ -258,3 +303,33 @@ class TestSuggestModelStillWorks:
     )
     def test_known_complexities(self, complexity, expected):
         assert suggest_model(complexity)["model"] == expected
+
+
+class TestTierOrdering:
+    """AC4: tier rank haiku < sonnet < opus < fable, version-agnostic."""
+
+    @pytest.mark.parametrize(
+        "model_id,family",
+        [
+            ("claude-haiku-4-5-20251001", "haiku"),
+            ("claude-sonnet-4-6", "sonnet"),
+            ("claude-opus-4-7", "opus"),
+            ("claude-opus-4-8[1m]", "opus"),
+            ("claude-fable-5", "fable"),
+        ],
+    )
+    def test_family_detection(self, model_id, family):
+        assert _model_family(model_id) == family
+
+    def test_full_order(self):
+        tiers = [
+            _model_tier(m)
+            for m in ("claude-haiku-4-5", "claude-sonnet-4-6", "claude-opus-4-8", "claude-fable-5")
+        ]
+        assert tiers == sorted(tiers)
+        assert tiers == [0, 1, 2, 3]
+
+    def test_unknown_family_is_none(self):
+        assert _model_family("gpt-9") is None
+        assert _model_tier("gpt-9") is None
+        assert _model_tier(None) is None

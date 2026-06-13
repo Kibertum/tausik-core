@@ -69,6 +69,13 @@ def format_suggestion(complexity: str | None) -> str:
 
 _BRACKET_SUFFIX = re.compile(r"\[[^\[\]]+\]\s*$")
 
+# Tier ordering for the mismatch verdict. Higher = more capable (and costly).
+# Verdicts compare by FAMILY token (haiku/sonnet/opus/fable), never the exact
+# version — so a point-release bump (claude-opus-4-7 -> claude-opus-4-8) never
+# reads as a mismatch, and a brand-new top tier (fable) is recognised rather
+# than triggering a false "MODEL MISMATCH" against every recommendation.
+_TIER_ORDER: dict[str, int] = {"haiku": 0, "sonnet": 1, "opus": 2, "fable": 3}
+
 
 def _normalize_model_id(raw: str | None) -> str:
     """Strip 1M-context [Nm] (and similar) suffixes for comparison."""
@@ -76,6 +83,27 @@ def _normalize_model_id(raw: str | None) -> str:
         return ""
     s = str(raw).strip().lower()
     return _BRACKET_SUFFIX.sub("", s).strip()
+
+
+def _model_family(model_id: str | None) -> str | None:
+    """Return the tier family (haiku/sonnet/opus/fable) in a model id, or None.
+
+    None means the id is unrecognised — callers must treat that as an
+    info-class verdict, never a mismatch warning.
+    """
+    norm = _normalize_model_id(model_id)
+    if not norm:
+        return None
+    for family in _TIER_ORDER:
+        if family in norm:
+            return family
+    return None
+
+
+def _model_tier(model_id: str | None) -> int | None:
+    """Return the tier rank for a model id, or None when unrecognised."""
+    family = _model_family(model_id)
+    return _TIER_ORDER[family] if family is not None else None
 
 
 def read_active_model_from_transcript(transcript_path: str | None) -> str | None:
@@ -159,30 +187,48 @@ def format_task_start_banner(
     if active_model is None:
         path = transcript_path if transcript_path is not None else _auto_find_transcript()
         active_model = read_active_model_from_transcript(path)
-    rec_norm = _normalize_model_id(rec_id)
-    active_norm = _normalize_model_id(active_model)
+    rec_tier = _model_tier(rec_id)
+    active_tier = _model_tier(active_model)
     line_recommended = (
         f"  recommended: {rec_display} ({rec_id}) — {complexity or 'no complexity set'}"
     )
     extra_lines: list[str] = []
-    if active_norm:
+    _PICKER = (
+        "  ⓘ Mid-session switch: use the IDE model picker "
+        "(Claude Code has no programmatic switch — `/fast` toggles fast-output on Opus only)"
+    )
+    slug = _model_id_to_profile_slug(rec_id)
+    if not active_model:
+        line_active = "  active:      unknown (no transcript readable)"
+        verdict = "  ⓘ active model unknown — recommendation only"
+    elif active_tier is None:
+        # Present but unrecognised family — never a false warning (AC3).
         line_active = f"  active:      {active_model}"
-        if rec_norm == active_norm:
+        verdict = f"  ⓘ active model '{active_model}' unrecognized — recommendation only"
+    else:
+        line_active = f"  active:      {active_model}"
+        if rec_tier is None or active_tier == rec_tier:
             verdict = "  ✓ model match"
-        else:
-            verdict = f"  ⚠ MODEL MISMATCH — recommended {rec_display} for cost savings"
-            extra_lines.append(
-                "  ⓘ Mid-session switch: use the IDE model picker "
-                "(Claude Code has no programmatic switch — `/fast` toggles fast-output on Opus only)"
+        elif active_tier > rec_tier:
+            # Higher tier than needed: quality surplus, not a defect. Nudge
+            # toward the cheaper recommended tier instead of a loud warning.
+            verdict = (
+                f"  ⓘ quality surplus — active exceeds recommended {rec_display}; "
+                "switch down to save cost"
             )
-            slug = _model_id_to_profile_slug(rec_id)
+            extra_lines.append(_PICKER.replace("Mid-session switch", "Switch down"))
+            if slug:
+                extra_lines.append(
+                    f"  ↪ Persist cheaper tier next session: `tausik config set model_profile {slug}`"
+                )
+        else:
+            # Genuinely under-powered for this tier — the real mismatch (AC2).
+            verdict = f"  ⚠ MODEL MISMATCH — recommended {rec_display} (active under-powered)"
+            extra_lines.append(_PICKER)
             if slug:
                 extra_lines.append(
                     f"  ↪ Persist for next session: `tausik config set model_profile {slug}`"
                 )
-    else:
-        line_active = "  active:      unknown (no transcript readable)"
-        verdict = "  ⓘ active model unknown — recommendation only"
     lines = [line_recommended, line_active, verdict, *extra_lines]
     return "Model recommendation:\n" + "\n".join(lines)
 
@@ -191,14 +237,18 @@ _PROFILE_SLUG_BY_MODEL_ID: dict[str, str] = {
     "claude-haiku-4-5": "haiku",
     "claude-sonnet-4-6": "sonnet",
     "claude-opus-4-7": "opus",
+    "claude-opus-4-8": "opus",
+    "claude-fable-5": "fable",
 }
 
 
 def _model_id_to_profile_slug(model_id: str) -> str | None:
     """Return the model_profile slug `tausik config set` accepts, or None.
 
-    Only the three Claude tiers in the routing table are mapped — other
-    model ids (e.g. GPT/Qwen overlays) come from upstream profile work and
-    aren't reachable from suggest_model today.
+    Explicit registry first (the four Claude tiers), then a family fallback so
+    a future point-release id (e.g. claude-opus-4-9) still resolves. Other
+    model ids (GPT/Qwen overlays) come from upstream profile work and aren't
+    reachable from suggest_model today.
     """
-    return _PROFILE_SLUG_BY_MODEL_ID.get(_normalize_model_id(model_id))
+    slug = _PROFILE_SLUG_BY_MODEL_ID.get(_normalize_model_id(model_id))
+    return slug if slug is not None else _model_family(model_id)
