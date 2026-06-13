@@ -48,7 +48,7 @@ the Backend handles only CRUD and SQL. CLI and MCP are two equal entry points.
 
 ### Scripts (Business Logic)
 
-138 source files in `scripts/` (v1.4). Highlights:
+138 source files in `scripts/` (v1.5). Highlights:
 
 | File | Purpose |
 |------|---------|
@@ -75,10 +75,10 @@ the Backend handles only CRUD and SQL. CLI and MCP are two equal entry points.
 | `model_routing.py` | Model selection helper |
 | `ide_utils.py` | IDE detection, paths, registry |
 | `tausik_utils.py` + `tausik_version.py` + `project_types.py` | Helpers, version, types |
-| `gen_doc_constants.py` + `mcp_tool_counts.py` | Generate `docs/_generated/constants.json` (v1.4) |
-| `audit_orphan_files.py` / `audit_stale_docs.py` / `audit_unused_python.py` / `audit_pytest_dedupe.py` | Static audit reports (review-only, v1.4) |
-| `project_cli_hygiene.py` | `tausik hygiene archive` (read-only project hygiene, v1.4) |
-| `hooks/check_docs.py` | Pre-commit / CI wrapper for doc-constants drift (v1.4) |
+| `gen_doc_constants.py` + `mcp_tool_counts.py` | Generate `docs/_generated/constants.json` (v1.5) |
+| `audit_orphan_files.py` / `audit_stale_docs.py` / `audit_unused_python.py` / `audit_pytest_dedupe.py` | Static audit reports (review-only, v1.5) |
+| `project_cli_hygiene.py` | `tausik hygiene archive` (read-only project hygiene, v1.5) |
+| `hooks/check_docs.py` | Pre-commit / CI wrapper for doc-constants drift (v1.5) |
 
 ### Bootstrap (Generation)
 

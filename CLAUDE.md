@@ -65,6 +65,25 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #81 (active) | Branch: main | Version: 1.4.0
-Tasks: 793/836 done, 0 active, 0 blocked
+Session: #81 (active) | Branch: main | Version: 1.5.0
+Tasks: 795/842 done, 1 active, 0 blocked
+Active: v15p-release-150
+
+### Memory tail
+Decisions (5):
+- #96 v15s-rule7: keyword hard-gate (3f1d70c) остаётся жёстким полом; structured-часть = парсер root-cause (closed-list катего
+- #95 Срез v1.5 = полировка (v15p) + SENAR (v15s) + единственная фича v15mr-fable-tier-fix (P0). Snippet ×5, orchestrator, ост
+- #94 Глобальная установка TAUSIK (отказ от сабмодуля, user-scope MCP) отложена из v1.5 в major-веху 2.0
+- #93 L3-эскалация: measured score >= 0.66 И покрытие измеренными факторами >= 0.75 весов (4 из 5)
+- #92 Risk-модель: взвешенная сумма 5 факторов (gates .25, tests .20, AC-evidence .20, security .20, churn .15), пороги 0.33/0
+Conventions (5):
+- #131 Токен-экономия: лаконичный вывод агента
+- #122 filesize gate exempt: docs/{en,ru}/research/*
+- #101 After editing scripts/* — bootstrap before dogfood via .tausik/tausik CLI
+- #94 Cross-IDE hook parity test: bootstrap_qwen mirrors bootstrap_hooks
+- #91 Filesize debt: extract via Mixin inheritance for stateful methods
+Dead ends (3):
+- #128 Real-screenshot + asciinema-cast in HomeLanding
+- #119 Edit tool с string-match для слияния тестов содержащих невидимые Unicode separators (U+2028, U+2029,
+- #109 v14b-token-t12-todo-reminder: гейтить TodoWrite reminder hook условиями (>5 tool calls без update +
 <!-- DYNAMIC:END -->

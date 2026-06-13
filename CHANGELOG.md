@@ -9,9 +9,36 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Planned (v1.5)
+## [1.5.0] — 2026-06-13
 
-- *(see below — Cursor MCP rework moved up from the previous Unreleased block; no other v1.5 items have promoted yet)*
+The pre-2.0 hardening release. v1.5 closes three epics — **evidence-attestation** (cryptographic verification receipts), **SENAR hardening** (scope ACL, closure-risk, fail-closed gates, external review), and **polish** (reliability, model routing, docs/memory drift gates).
+
+### Evidence attestation — cryptographic receipts
+
+- **Signed verification receipts.** `tausik verify` emits an ed25519-signed receipt (`tausik-signed/v1`) bound to the gate signature and HEAD sha; `task done` (QG-2) validates the signed receipt before closing, so a green cannot be forged or replayed.
+- **Portable receipts + offline verify.** Export a receipt and verify it with no SDK: a stateless HTTP verify endpoint plus a CI-tested no-SDK example guide.
+- **Supply-chain signing.** Skill and stack releases are signed; skill installs verify the signature before writing.
+
+### SENAR hardening
+
+- **Rule 2 scope ACL.** Tasks declare `scope` / `scope_exclude`; a write-enforcement hook blocks edits outside the declared surface; the QG-0 scope warning is now a hard gate.
+- **Closure-risk scoring.** A composite risk model computes + persists a closure-risk score on `task done`, surfaced in `metrics` / `status`; measured-high closures require an L3 adversarial review before they can close.
+- **Rule 4 external validation.** A `tausik-external-reviewer` subagent (different model, read-only — separation of duties) gates high-risk closures; a domain-challenge question was added to the QG-2 checklist.
+- **Rule 5 checklist hard gate** for substantial/deep planning tiers (escalating nudge for smaller tiers).
+- **Rule 7 root cause.** Fail-closed keyword gate (defect tasks cannot close without a documented cause) plus a **structured** layer — closed-list categories + parser + coverage metric in `metrics` + an advisory escalating nudge toward `Root cause (category): … Prevention: …`.
+- **Fail-closed gate policy** across the QG-2 surface (a gate that cannot evaluate blocks rather than passes).
+
+### Reliability, routing & drift
+
+- **Shell-less gate runner.** `shell=True` dropped — gate commands are tokenized (shlex) and only `&&` / `|` are honoured; every other shell metacharacter fails safe (command-injection fix for custom-stack templates).
+- **Escalating nudges framework** (silent → hint → warning → strong) — soft invariants get louder per breach and reset on compliance, replacing the tuned-out fixed reminder.
+- **Model routing.** Tier-aware verdict (haiku < sonnet < opus < fable) kills the false `MODEL MISMATCH` banner for capable models on medium/complex tasks.
+- **Doc-drift gate.** `gen_doc_constants --check` now scans cross-file version refs, MCP tool counts, test counts, and repo-state counts, plus an MCP-description cache-bust hash.
+- **Memory lint.** `tausik memory lint` flags contradictions, superseded entries, and stale file references.
+
+### Fixed
+
+- **MCP `task_done` / `verify` hang (Windows).** Restored `stdin=subprocess.DEVNULL` on git subprocesses (`risk_compute`, `verify_receipt_emit`, `cli_push_ok`) — a reintroduction of `v14b-defect-mcp-task-done-stdin-hang` where git, inheriting the MCP JSON-RPC stdin pipe, blocks on a paginator/credential probe. Added an AST class-guard test that fails on any `scripts/` top-level `subprocess` call missing a `stdin` argument, so the class cannot silently return again.
 
 ## [1.4.2] — 2026-05-15
 

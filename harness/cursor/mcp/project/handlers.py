@@ -280,6 +280,25 @@ def _do_memory_dedupe(svc: Any, args: dict) -> str:
     return "\n".join(lines)
 
 
+def _do_memory_lint(svc: Any, args: dict) -> str:
+    result = svc.memory_lint(apply=bool(args.get("apply", False)))
+    findings = result["findings"]
+    if not findings:
+        return "Memory lint: no contradictions, superseded, or stale-file issues found."
+    if result["applied"]:
+        head = (
+            f"{result['count']} finding(s); archived {result['archived']} superseded "
+            "entry(ies). Contradictions / stale-file hits are advisory:"
+        )
+    else:
+        head = f"{result['count']} finding(s) (dry-run; apply=true archives superseded):"
+    lines = [head]
+    for f in findings:
+        title = (f["title"] or "")[:50]
+        lines.append(f'  #{f["id"]} [{f["kind"]}] {f["reason"]} "{title}"')
+    return "\n".join(lines)
+
+
 def _do_memory_search(svc: Any, args: dict) -> str:
     results = svc.memory_search(
         args["query"],
@@ -500,6 +519,7 @@ _DISPATCH: dict[str, _Handler] = {
     "tausik_memory_compact": _do_memory_compact,
     "tausik_memory_archive": _do_memory_archive,
     "tausik_memory_dedupe": _do_memory_dedupe,
+    "tausik_memory_lint": _do_memory_lint,
     # --- Graph Memory ---
     "tausik_memory_link": _do_memory_link,
     "tausik_memory_unlink": lambda svc, args: svc.memory_unlink(

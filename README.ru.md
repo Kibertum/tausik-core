@@ -7,19 +7,18 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)](https://python.org)
 [![Tests](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml/badge.svg)](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml)
-[![3803 tests](https://img.shields.io/badge/tests-3803%20passed-brightgreen.svg)](#dogfooding-tausik-создан-с-помощью-себя)
+[![3818 tests](https://img.shields.io/badge/tests-3818%20passed-brightgreen.svg)](#dogfooding-tausik-создан-с-помощью-себя)
 [![Zero deps](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#что-внутри)
 
-> ⚠️ **v1.4 — околостабильный pre-2.0 релиз.** Это последний минорный релиз
-> 1.x перед мажорным переходом к **2.0**. v1.4 несёт очень большой объём
-> изменений (B+C polish phases — verify-first контракт, brain artifact pipeline,
-> audit suite, skill bundles, two-axis variants, per-task cost/token бюджеты) —
-> возможен рассинхрон в документации и редкие нестабильности на edge-cases.
-> Ядро покрыто 3803 тестами и используется на dogfood'е каждый день; если
-> наткнётесь на расхождение docs ↔ behaviour — заведите issue, постараемся
-> доехать до 2.0 без regression'ов.
+> ⚠️ **v1.5 — pre-2.0 hardening релиз.** Минорный релиз 1.x на пути к **2.0**.
+> v1.5 ужесточает SENAR-ядро: подписанные verification-receipt'ы (evidence
+> attestation), fail-closed quality gates, внешнее adversarial-ревью для
+> high-risk закрытий, структурированный root cause, scoring риска закрытия, плюс
+> фикс model-routing и escalating-nudges. Возможен рассинхрон docs ↔ behaviour
+> на редких путях. Ядро покрыто 3818 тестами и используется на dogfood'е каждый
+> день; наткнётесь на расхождение — заведите issue, доедем до 2.0 без regression'ов.
 
-### Что нового в v1.4 (простыми словами)
+### Что нового в v1.5 (простыми словами)
 
 - **Закрывать задачу снова быстро.** Тяжёлые тесты запускаются отдельным шагом `tausik verify` и кэшируются — `task done` закрывает задачу за миллисекунды, не ждёт полный пайплайн.
 - **Бюджет на каждую задачу.** Доллары или токены на задачу; агент получает warning на 1.5× и сигнал «stop and re-plan» на 2×.
@@ -73,9 +72,9 @@ Claude Code, Cursor, VSCode Claude Extension, Qwen Code, Windsurf.
 
 ## Token Efficiency
 
-В v1.4.x по default разворачивается меньше скиллов — только те, что реально нужны каждому проекту TAUSIK. Меньше system-reminder список = ниже стоимость каждого хода без потери функциональности.
+В v1.5.x по default разворачивается меньше скиллов — только те, что реально нужны каждому проекту TAUSIK. Меньше system-reminder список = ниже стоимость каждого хода без потери функциональности.
 
-| Компонент | До v1.4.x | После v1.4.x | Экономия |
+| Компонент | До v1.5.x | После v1.5.x | Экономия |
 |---|---|---|---|
 | Список skills в `system-reminder` | 38 skills (~1,520 ток/ход) | 12 + 1 conditional (~480 ток/ход) | **−1,040 ток/ход (−68%)** |
 
@@ -92,16 +91,16 @@ Claude Code, Cursor, VSCode Claude Extension, Qwen Code, Windsurf.
 |---|---|---|
 | **Lifecycle** | Иерархия Epic → Story → Task с state machine (planning → active → review → done) | `/plan`, `/task`, `/start`, `/end` |
 | **Quality Gates** | QG-0 блокирует `task start` без goal+AC. QG-2 блокирует `task done` без verify-cache hit. Scoped по задаче — только нужные тесты | Авто на `task start` / `task done` |
-| **Verify-First Contract** *(v1.4)* | Тяжёлые gates (pytest, tsc, cargo, phpstan…) на trigger `verify`, отдельно от `task done`. Закрытие задачи — миллисекунды. Envelope timeout 60s — нет молчаливых зависаний | `tausik verify --task X` затем `task done X` |
+| **Verify-First Contract** *(v1.5)* | Тяжёлые gates (pytest, tsc, cargo, phpstan…) на trigger `verify`, отдельно от `task done`. Закрытие задачи — миллисекунды. Envelope timeout 60s — нет молчаливых зависаний | `tausik verify --task X` затем `task done X` |
 | **Память проекта** | Паттерны, gotchas, конвенции, dead ends, решения в SQLite+FTS5. Re-инжектятся при старте сессии | `/brain`, `tausik memory add`, авто на `/start` |
 | **Verification Engine** | 25 stack-aware проверок (pytest, ruff, mypy, tsc, eslint, cargo, go-vet, phpstan, helm-lint, hadolint…). Scoped по relevant_files. Cache на 10 мин | Стек авто-определяется bootstrap |
 | **Real-time хуки** | 21 хуков: task gate (нет кода без задачи), bash firewall, push gate, auto-format, drift detection (SessionStart/UserPromptSubmit/Stop), memory pre/post audit | Авто в Claude Code и Qwen Code |
 | **Метрики** | Throughput, First-Pass Success Rate, Defect Escape Rate, Lead Time, Dead End Rate, Cost-per-task | `tausik metrics`, `tausik metrics --cost` |
 | **Multi-IDE** | Те же MCP-инструменты (104) + skills во всех хостах | VSCode/Claude, Cursor, Qwen Code, Windsurf, Codex, CLI |
-| **Skill Ecosystem** | 12 core skills auto-deployed (+ `/brain` если настроен Notion) — см. [Token Efficiency](#token-efficiency). 25+ official/vendor skills opt-in через `--include-official` или `tausik skill install`. Multi-model профили через `variants/<model>.md` *(v1.4)* | `tausik skill install <name>` |
-| **Cross-project Brain** *(опционально)* | Notion-mirror решений / паттернов / gotchas / web-кэша между проектами. v1.4 добавляет artifact pipeline: propose → audit (scrubbing секретов) → publish, со stack-aware bm25 ранжированием. Приватность через SHA256-хеши имён | `/brain` query, `tausik brain init`, `tausik brain propose-artifact`, `tausik brain publish` |
-| **Гигиена & Audit** *(v1.4)* | `tausik hygiene archive` списком показывает старые done-задачи (dry-run). Audit-скрипты: `audit_orphan_files`, `audit_stale_docs`, `audit_unused_python`, `audit_pytest_dedupe` — инвентаризация мёртвого кода, висячих доков, скопированных тестов | `tausik hygiene archive`, `python scripts/audit_*.py` |
-| **Task Archive** *(v1.4)* | Read-only спека архивирования done-задач старше N дней. Active / blocked / planning никогда не архивируются; `--confirm` зарезервирован под будущие деструктивные операции | `tausik hygiene archive` |
+| **Skill Ecosystem** | 12 core skills auto-deployed (+ `/brain` если настроен Notion) — см. [Token Efficiency](#token-efficiency). 25+ official/vendor skills opt-in через `--include-official` или `tausik skill install`. Multi-model профили через `variants/<model>.md` *(v1.5)* | `tausik skill install <name>` |
+| **Cross-project Brain** *(опционально)* | Notion-mirror решений / паттернов / gotchas / web-кэша между проектами. v1.5 добавляет artifact pipeline: propose → audit (scrubbing секретов) → publish, со stack-aware bm25 ранжированием. Приватность через SHA256-хеши имён | `/brain` query, `tausik brain init`, `tausik brain propose-artifact`, `tausik brain publish` |
+| **Гигиена & Audit** *(v1.5)* | `tausik hygiene archive` списком показывает старые done-задачи (dry-run). Audit-скрипты: `audit_orphan_files`, `audit_stale_docs`, `audit_unused_python`, `audit_pytest_dedupe` — инвентаризация мёртвого кода, висячих доков, скопированных тестов | `tausik hygiene archive`, `python scripts/audit_*.py` |
+| **Task Archive** *(v1.5)* | Read-only спека архивирования done-задач старше N дней. Active / blocked / planning никогда не архивируются; `--confirm` зарезервирован под будущие деструктивные операции | `tausik hygiene archive` |
 | **Batch Execution** | Автономное выполнение многозадачных markdown-планов | `/run plan.md` |
 | **Сессии** | Active-time tracking (gap-based, 10-мин idle threshold), лимит 180 мин, capacity gate (200 tool calls), handoff persistence | Авто на `/start`, `/end`, `/checkpoint` |
 
@@ -149,9 +148,9 @@ Bootstrap автоматически определяет стек и включ
 - **Anti-drift защита** — хуки SessionStart / UserPromptSubmit / Stop детектят coding intent без активной задачи, re-инжектят Memory Block на `/start`, аудитят `task_done` evidence (пути файлов, ✓ маркеры, test counts, lint status). Adversarial critic — 6-й параллельный агент `/review` находит слабости, которые упустили другие. [Детали →](docs/ru/hooks.md)
 - **Дисциплина памяти** — TAUSIK memory (`.tausik/tausik.db`, project-scoped) и Claude auto-memory (`~/.claude/`, cross-project) разделены через PreToolUse блок + PostToolUse audit. Утечки проектных следов в cross-project память блокируются у источника. [Детали →](docs/ru/memory-merge-guidelines.md)
 - **Shared Brain** *(опционально)* — второй слой знаний на Notion для cross-project паттернов + gotchas. Локальное SQLite FTS5 зеркало, bm25-ранжированный поиск, SHA256-хеши имён проектов. Stdlib-only Notion client. [Детали →](docs/ru/shared-brain.md)
-- **Brain artifact pipeline** *(v1.4)* — формальная таксономия (artifact / pattern / snippet) + JSON Schema валидатор + propose→audit→publish flow со scrubbing'ом секретов и явным `confirm_high_risk` gate. Stack-aware ранжирование в `brain_search`. [Таксономия →](docs/ru/brain-artifact-taxonomy.md) · [Search ranking →](docs/ru/brain-search-ranking.md)
-- **Надёжность pipeline** *(v1.4)* — Verify-First contract отделяет heavy gates от `task done`. Envelope timeout (60с default), relaxed cache для manual-scope verify, relevant_files fallback из verify-row. Никаких молчаливых зависаний. [Детали →](docs/ru/verify-glossary.md)
-- **Audit-набор** *(v1.4)* — orphan-file / stale-doc / unused-python / pytest-dedupe скрипты находят мёртвый код и копипасту в долгоживущих проектах. `tausik hygiene archive` + read-only спека архива задач. CI doc-constants drift check. [Детали →](docs/ru/dev-doc-checks.md)
+- **Brain artifact pipeline** *(v1.5)* — формальная таксономия (artifact / pattern / snippet) + JSON Schema валидатор + propose→audit→publish flow со scrubbing'ом секретов и явным `confirm_high_risk` gate. Stack-aware ранжирование в `brain_search`. [Таксономия →](docs/ru/brain-artifact-taxonomy.md) · [Search ranking →](docs/ru/brain-search-ranking.md)
+- **Надёжность pipeline** *(v1.5)* — Verify-First contract отделяет heavy gates от `task done`. Envelope timeout (60с default), relaxed cache для manual-scope verify, relevant_files fallback из verify-row. Никаких молчаливых зависаний. [Детали →](docs/ru/verify-glossary.md)
+- **Audit-набор** *(v1.5)* — orphan-file / stale-doc / unused-python / pytest-dedupe скрипты находят мёртвый код и копипасту в долгоживущих проектах. `tausik hygiene archive` + read-only спека архива задач. CI doc-constants drift check. [Детали →](docs/ru/dev-doc-checks.md)
 - **Interview & live dashboard** — `/interview` запускает Сократический Q&A перед complex задачей. `tausik hud` показывает live dashboard на один экран. `tausik suggest-model` маршрутизирует Haiku/Sonnet/Opus по сложности задачи. Webhook-уведомления в Slack/Discord/Telegram.
 
 ## Что внутри

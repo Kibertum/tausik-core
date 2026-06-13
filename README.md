@@ -7,18 +7,18 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)](https://python.org)
 [![Tests](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml/badge.svg)](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml)
-[![3803 tests](https://img.shields.io/badge/tests-3803%20passed-brightgreen.svg)](#dogfooding-tausik-built-tausik)
+[![3818 tests](https://img.shields.io/badge/tests-3818%20passed-brightgreen.svg)](#dogfooding-tausik-built-tausik)
 [![Zero deps](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#what-you-get)
 
-> ⚠️ **v1.4 — near-stable pre-2.0 release.** This is the last 1.x minor before
-> the major bump to **2.0**. v1.4 ships a very large change set (B+C polish
-> phases — verify-first contract, brain artifact pipeline, audit suite, skill
-> bundles, two-axis variants, per-task cost/token budgets); expect occasional
-> doc-vs-behaviour drift and rough edges on uncommon paths. The core is covered
-> by 3803 tests and is dogfooded daily — if you hit a mismatch, file an issue
-> and we'll converge it before 2.0.
+> ⚠️ **v1.5 — pre-2.0 hardening release.** A 1.x minor on the road to **2.0**.
+> v1.5 tightens the SENAR enforcement core: signed verification receipts
+> (evidence attestation), fail-closed quality gates, external adversarial review
+> for high-risk closures, structured root cause, closure-risk scoring, plus a
+> model-routing fix and escalating nudges. Expect occasional doc-vs-behaviour
+> drift on uncommon paths. The core is covered by 3818 tests and is dogfooded
+> daily — if you hit a mismatch, file an issue and we'll converge it before 2.0.
 
-### What's new in v1.4 (in plain language)
+### What's new in v1.5 (in plain language)
 
 - **Closing a task is fast again.** Heavy tests run on a separate `tausik verify` step and get cached, so `task done` finishes in milliseconds instead of waiting for the full pipeline.
 - **A budget for every task.** Set a dollar or token cap per task; the agent gets warned at 1.5× and a hard "stop and re-plan" signal at 2×.
@@ -71,9 +71,9 @@ That's it. The agent opens a session, creates a task with acceptance criteria, w
 
 ## Token Efficiency
 
-v1.4.x ships fewer skills by default — only the ones every TAUSIK project actually uses. Smaller system-reminder list = lower per-turn token cost without losing functionality.
+v1.5.x ships fewer skills by default — only the ones every TAUSIK project actually uses. Smaller system-reminder list = lower per-turn token cost without losing functionality.
 
-| Component | Before v1.4.x | After v1.4.x | Saving |
+| Component | Before v1.5.x | After v1.5.x | Saving |
 |---|---|---|---|
 | `system-reminder` skill list | 38 skills (~1,520 tok/turn) | 12 + 1 conditional (~480 tok/turn) | **−1,040 tok/turn (−68%)** |
 
@@ -90,16 +90,16 @@ How it works:
 |---|---|---|
 | **Lifecycle** | Epic → Story → Task hierarchy with state machine (planning → active → review → done) | `/plan`, `/task`, `/start`, `/end` |
 | **Quality Gates** | QG-0 blocks `task start` without goal+AC. QG-2 blocks `task done` without verify-cache hit. Scoped per task — only relevant tests run | Auto on `task start` / `task done` |
-| **Verify-First Contract** *(v1.4)* | Heavy gates (pytest, tsc, cargo, phpstan…) on a `verify` trigger separate from `task done`. Closing a task is millisecond. Pipeline envelope timeout 60s — no silent hangs | `tausik verify --task X` then `task done X` |
+| **Verify-First Contract** *(v1.5)* | Heavy gates (pytest, tsc, cargo, phpstan…) on a `verify` trigger separate from `task done`. Closing a task is millisecond. Pipeline envelope timeout 60s — no silent hangs | `tausik verify --task X` then `task done X` |
 | **Project Memory** | Patterns, gotchas, conventions, dead-ends, decisions stored in SQLite+FTS5. Re-injected at session start | `/brain`, `tausik memory add`, auto on `/start` |
 | **Verification Engine** | 25 stack-aware checks (pytest, ruff, mypy, tsc, eslint, cargo, go-vet, phpstan, helm-lint, hadolint…). Scoped to relevant_files. Cached for 10 min | Stack auto-detected by bootstrap |
 | **Real-time Hooks** | 21 hooks: task gate (no code without task), bash firewall, push gate, auto-format, drift detection (SessionStart/UserPromptSubmit/Stop), memory pre/post audit | Auto in Claude Code & Qwen Code |
 | **Metrics** | Throughput, First-Pass Success Rate, Defect Escape Rate, Lead Time, Dead End Rate, Cost-per-task | `tausik metrics`, `tausik metrics --cost` |
 | **Multi-IDE** | Same MCP tools (104) + skills across hosts | VSCode/Claude, Cursor, Qwen Code, Windsurf, Codex, CLI |
-| **Skill Ecosystem** | 12 core skills auto-deployed (+ `/brain` when configured) — see [Token Efficiency](#token-efficiency). 25+ official/vendor skills opt-in via `--include-official` flag or `tausik skill install`. Multi-model profiles via `variants/<model>.md` *(v1.4)* | `tausik skill install <name>` |
-| **Cross-project Brain** *(optional)* | Notion-mirrored decisions / patterns / gotchas / web-cache shared across projects. v1.4 adds an artifact pipeline: propose → audit (scrubbing for secrets) → publish, with stack-aware bm25 ranking. Privacy via SHA256 project hashes | `/brain` query, `tausik brain init`, `tausik brain propose-artifact`, `tausik brain publish` |
-| **Hygiene & Audit** *(v1.4)* | `tausik hygiene archive` lists old done tasks (dry-run). Audit scripts: `audit_orphan_files`, `audit_stale_docs`, `audit_unused_python`, `audit_pytest_dedupe` — inventory dead code, dangling docs, copy-pasted tests | `tausik hygiene archive`, `python scripts/audit_*.py` |
-| **Task Archive** *(v1.4)* | Read-only spec for archiving done tasks > N days. Active / blocked / planning never archived; `--confirm` reserved for future destructive ops | `tausik hygiene archive` |
+| **Skill Ecosystem** | 12 core skills auto-deployed (+ `/brain` when configured) — see [Token Efficiency](#token-efficiency). 25+ official/vendor skills opt-in via `--include-official` flag or `tausik skill install`. Multi-model profiles via `variants/<model>.md` *(v1.5)* | `tausik skill install <name>` |
+| **Cross-project Brain** *(optional)* | Notion-mirrored decisions / patterns / gotchas / web-cache shared across projects. v1.5 adds an artifact pipeline: propose → audit (scrubbing for secrets) → publish, with stack-aware bm25 ranking. Privacy via SHA256 project hashes | `/brain` query, `tausik brain init`, `tausik brain propose-artifact`, `tausik brain publish` |
+| **Hygiene & Audit** *(v1.5)* | `tausik hygiene archive` lists old done tasks (dry-run). Audit scripts: `audit_orphan_files`, `audit_stale_docs`, `audit_unused_python`, `audit_pytest_dedupe` — inventory dead code, dangling docs, copy-pasted tests | `tausik hygiene archive`, `python scripts/audit_*.py` |
+| **Task Archive** *(v1.5)* | Read-only spec for archiving done tasks > N days. Active / blocked / planning never archived; `--confirm` reserved for future destructive ops | `tausik hygiene archive` |
 | **Batch Execution** | Run multi-task markdown plans autonomously | `/run plan.md` |
 | **Sessions** | Active-time tracking (gap-based, 10-min idle threshold), 180-min limit, capacity gate (200 tool calls), handoff persistence | Auto on `/start`, `/end`, `/checkpoint` |
 
@@ -147,9 +147,9 @@ Bootstrap auto-detects your tech stack and enables matching quality gates. Proje
 - **Anti-drift guards** — SessionStart / UserPromptSubmit / Stop hooks detect coding intent without an active task, re-inject Memory Block on `/start`, audit `task_done` evidence (file paths, ✓ markers, test counts, lint status). Adversarial critic — 6th parallel `/review` agent finds weaknesses the others miss. [Details →](docs/en/hooks.md)
 - **Memory discipline** — TAUSIK memory (`.tausik/tausik.db`, project-scoped) and Claude auto-memory (`~/.claude/`, cross-project) are separated by a PreToolUse block + PostToolUse audit. Project leaks into cross-project memory are blocked at the source. [Details →](docs/en/memory-merge-guidelines.md)
 - **Shared Brain** *(optional)* — second knowledge layer on Notion for cross-project patterns + gotchas. Local SQLite FTS5 mirror, bm25-ranked search, SHA256-hashed project names. Stdlib-only Notion client. [Details →](docs/en/shared-brain.md)
-- **Brain artifact pipeline** *(v1.4)* — formal taxonomy (artifact / pattern / snippet) + JSON Schema validator + propose→audit→publish flow with scrubbing for secrets and explicit `confirm_high_risk` gate. Stack-aware ranking in `brain_search`. [Taxonomy →](docs/en/brain-artifact-taxonomy.md) · [Search ranking →](docs/en/brain-search-ranking.md)
-- **Pipeline reliability** *(v1.4)* — Verify-First contract decouples heavy gates from `task done`. Envelope timeout (60s default), relaxed cache for manual-scope verify, relevant_files fallback from verify-row. No silent hangs. [Details →](docs/en/verify-glossary.md)
-- **Audit suite** *(v1.4)* — orphan-file / stale-doc / unused-python / pytest-dedupe scripts surface dead code and copy-paste in long-running projects. `tausik hygiene archive` + read-only task archive spec. CI doc-constants drift check. [Details →](docs/en/dev-doc-checks.md)
+- **Brain artifact pipeline** *(v1.5)* — formal taxonomy (artifact / pattern / snippet) + JSON Schema validator + propose→audit→publish flow with scrubbing for secrets and explicit `confirm_high_risk` gate. Stack-aware ranking in `brain_search`. [Taxonomy →](docs/en/brain-artifact-taxonomy.md) · [Search ranking →](docs/en/brain-search-ranking.md)
+- **Pipeline reliability** *(v1.5)* — Verify-First contract decouples heavy gates from `task done`. Envelope timeout (60s default), relaxed cache for manual-scope verify, relevant_files fallback from verify-row. No silent hangs. [Details →](docs/en/verify-glossary.md)
+- **Audit suite** *(v1.5)* — orphan-file / stale-doc / unused-python / pytest-dedupe scripts surface dead code and copy-paste in long-running projects. `tausik hygiene archive` + read-only task archive spec. CI doc-constants drift check. [Details →](docs/en/dev-doc-checks.md)
 - **Interview & live dashboard** — `/interview` runs Socratic Q&A before complex tasks. `tausik hud` shows one-screen live dashboard. `tausik suggest-model` routes Haiku/Sonnet/Opus by task complexity. Webhook notifications to Slack/Discord/Telegram.
 
 ## What's Inside

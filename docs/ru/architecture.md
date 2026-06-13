@@ -48,7 +48,7 @@
 
 ### Скрипты (бизнес-логика)
 
-138 source-файлов в `scripts/` (v1.4). Хайлайты:
+138 source-файлов в `scripts/` (v1.5). Хайлайты:
 
 | Файл | Назначение |
 |------|------------|
@@ -75,10 +75,10 @@
 | `model_routing.py` | Helper выбора модели |
 | `ide_utils.py` | Определение IDE, пути, реестр |
 | `tausik_utils.py` + `tausik_version.py` + `project_types.py` | Хелперы, версия, типы |
-| `gen_doc_constants.py` + `mcp_tool_counts.py` | Генерация `docs/_generated/constants.json` (v1.4) |
-| `audit_orphan_files.py` / `audit_stale_docs.py` / `audit_unused_python.py` / `audit_pytest_dedupe.py` | Static audit reports (review-only, v1.4) |
-| `project_cli_hygiene.py` | `tausik hygiene archive` (read-only гигиена проекта, v1.4) |
-| `hooks/check_docs.py` | Pre-commit / CI wrapper для drift-проверки doc-constants (v1.4) |
+| `gen_doc_constants.py` + `mcp_tool_counts.py` | Генерация `docs/_generated/constants.json` (v1.5) |
+| `audit_orphan_files.py` / `audit_stale_docs.py` / `audit_unused_python.py` / `audit_pytest_dedupe.py` | Static audit reports (review-only, v1.5) |
+| `project_cli_hygiene.py` | `tausik hygiene archive` (read-only гигиена проекта, v1.5) |
+| `hooks/check_docs.py` | Pre-commit / CI wrapper для drift-проверки doc-constants (v1.5) |
 
 ### Начальная настройка (генерация)
 

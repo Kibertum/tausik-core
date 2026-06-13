@@ -1,8 +1,8 @@
 **English** | [Русский](/ru/docs/mcp)
 
-# TAUSIK MCP — Tool Reference (v1.4)
+# TAUSIK MCP — Tool Reference (v1.5)
 
-**104 tools** for AI agents (97 project + 7 brain; v1.4 actual count, asserted via `len(TOOLS)` on both servers). The MCP surface covers everything an agent does day-to-day. A few CLI-only commands have no MCP equivalent — they are operator / maintenance verbs that don't belong in an agent loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. For the agent's working set, prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
+**104 tools** for AI agents (97 project + 7 brain; v1.5 actual count, asserted via `len(TOOLS)` on both servers). The MCP surface covers everything an agent does day-to-day. A few CLI-only commands have no MCP equivalent — they are operator / maintenance verbs that don't belong in an agent loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. For the agent's working set, prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
 
 > **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 104 count — total with it is 111 tools.
 
@@ -13,7 +13,7 @@ Two MCP servers live in this project:
 
 There is also an optional `codebase-rag` server documented at the bottom.
 
-## Verify-First Contract (v1.4)
+## Verify-First Contract (v1.5)
 
 Heavy quality gates (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeval, hadolint, ansible-lint) live on a dedicated `verify` trigger. The MCP workflow:
 
@@ -24,7 +24,7 @@ tausik_verify(task_slug=…)        # heavy: subprocess gates → caches green
 tausik_task_done(slug=…, ac_verified=True)   # lightweight: cache lookup
 ```
 
-`tausik_task_done` will refuse to close the task if the verify cache is missing or stale — it returns a structured failure with explicit remediation. Opt-out for CI: set `{"task_done": {"auto_verify": true}}` in `.tausik/config.json` so the heavy gates fire inside `task_done` like in pre-v1.4 releases.
+`tausik_task_done` will refuse to close the task if the verify cache is missing or stale — it returns a structured failure with explicit remediation. Opt-out for CI: set `{"task_done": {"auto_verify": true}}` in `.tausik/config.json` so the heavy gates fire inside `task_done` like in pre-v1.5 releases.
 
 **Terminology:** [Verify / QG glossary](verify-glossary.md) distinguishes *supported opt-out*, *QG bypass* (not available for `task_done`), *verify-cache bypass*, and the pytest **test shim**.
 
@@ -94,7 +94,7 @@ Pre-1.4 there was a parallel `tausik_task_done_v2` alias for the structured-JSON
 | `tausik_session_list` | List sessions | — |
 | `tausik_session_handoff` | Save handoff data | `handoff` (object) |
 | `tausik_session_last_handoff` | Get handoff from previous session | — |
-| `tausik_session_open` (v1.4) | Compound RPC: session start + status + handoff + active/blocked tasks + self_check in one envelope. Powers `/start` Phase 1. | — |
+| `tausik_session_open` (v1.5) | Compound RPC: session start + status + handoff + active/blocked tasks + self_check in one envelope. Powers `/start` Phase 1. | — |
 
 Session limit is gap-based **active time** (paused after 10-min idle gap), not wall clock. See `session-active-time.md`.
 
@@ -123,8 +123,8 @@ Session limit is gap-based **active time** (paused after 10-min idle gap), not w
 | `tausik_memory_delete` | Delete entry | `id` |
 | `tausik_memory_block` | Compact markdown: recent decisions + conventions + dead ends (for /start re-injection) | — |
 | `tausik_memory_compact` | Aggregate recent task_logs (phases + top words + top files) | — |
-| `tausik_memory_archive` (v1.4) | Soft-archive memory rows older than a duration (90d / 12w / 2m / 1y). Dry-run unless `confirm: true`. | `before` (string), `confirm` (bool, optional) |
-| `tausik_memory_dedupe` (v1.4) | List near-duplicate memory pairs above a similarity threshold (read-only). | `threshold` (float, optional), `limit` (int, optional) |
+| `tausik_memory_archive` (v1.5) | Soft-archive memory rows older than a duration (90d / 12w / 2m / 1y). Dry-run unless `confirm: true`. | `before` (string), `confirm` (bool, optional) |
+| `tausik_memory_dedupe` (v1.5) | List near-duplicate memory pairs above a similarity threshold (read-only). | `threshold` (float, optional), `limit` (int, optional) |
 | `tausik_decide` | Record an architectural decision | `decision` |
 | `tausik_decisions_list` | List decisions | — |
 
@@ -157,7 +157,7 @@ Relation types: `supersedes`, `caused_by`, `relates_to`, `contradicts`.
 | `tausik_gates_status` | Status of all gates (by stack) | — |
 | `tausik_gates_enable` | Enable gate | `name` |
 | `tausik_gates_disable` | Disable gate | `name` |
-| `tausik_verify` | v1.4 Verify-First: run heavy gates (pytest, tsc, …) and cache green in `verification_runs`. After that `tausik_task_done` reads the cache and closes instantly. | `task_slug` |
+| `tausik_verify` | v1.5 Verify-First: run heavy gates (pytest, tsc, …) and cache green in `verification_runs`. After that `tausik_task_done` reads the cache and closes instantly. | `task_slug` |
 
 Available gates: `pytest`, `ruff`, `mypy`, `bandit`, `tsc`, `eslint`, `go-vet`, `golangci-lint`, `cargo-check`, `clippy`, `phpstan`, `phpcs`, `javac`, `ktlint`, `filesize`, `tdd_order`. Stack-scoped gates auto-enable based on detected stack; universal gates (`filesize`, `tdd_order`) apply to all stacks.
 
@@ -256,7 +256,7 @@ When `brain.enabled=true` in `.tausik/config.json`, ALL of the following must be
 |---|---|---|
 | `search_code` | Search project code via RAG index | `query` |
 | `search_knowledge` | Search project knowledge base | `query` |
-| `reindex` | Reindex the codebase | `mode` (incremental/full), `max_seconds` (soft limit, full only). v1.4: stderr progress every 100 files; truncated=true on timeout. |
+| `reindex` | Reindex the codebase | `mode` (incremental/full), `max_seconds` (soft limit, full only). v1.5: stderr progress every 100 files; truncated=true on timeout. |
 | `rag_status` | RAG index status | — |
 | `archive_done` | Archive completed tasks | — |
 | `cache_web_result` | Cache web search result for reuse | `query`, `content` |

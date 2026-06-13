@@ -44,6 +44,10 @@ def _seed_active_task(
     svc.task_start(slug)
     # Pre-log AC verification so QG-2 doesn't block task_done in tests.
     svc.task_log(slug, "AC verified: 1. covered ✓")
+    # Verification checklist so SENAR Rule 5 (hard gate for substantial/deep
+    # planning tiers, v15s-rule5-checklist-hardgate) doesn't block closes here —
+    # these tests exercise budget recording, not the checklist gate.
+    svc.task_log(slug, "Checklist: scope ok, tests cover edge case, no security surface.")
 
 
 # === Backend query: task_event_count_in_window ===
@@ -72,8 +76,7 @@ class TestEventCountWindow:
         # 'other' must not be counted under t1
         assert cnt >= 1
         assert all(
-            e["entity_id"] == "t1"
-            for e in svc.be.events_list(entity_type="task", entity_id="t1")
+            e["entity_id"] == "t1" for e in svc.be.events_list(entity_type="task", entity_id="t1")
         )
 
     def test_returns_zero_for_unknown_task(self, svc):

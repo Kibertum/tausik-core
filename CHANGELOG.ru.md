@@ -11,9 +11,36 @@
 
 ## [Unreleased]
 
-### Запланировано (v1.5)
+## [1.5.0] — 2026-06-13
 
-- *(см. ниже — Cursor MCP rework перемещён из предыдущего Unreleased; других v1.5 пунктов пока не промотировано)*
+Pre-2.0 hardening релиз. v1.5 закрывает три эпика — **evidence-attestation** (криптографические verification-receipt'ы), **SENAR hardening** (scope ACL, closure-risk, fail-closed gates, внешнее ревью) и **polish** (надёжность, model routing, drift-гейты docs/memory).
+
+### Evidence attestation — криптографические receipt'ы
+
+- **Подписанные verification-receipt'ы.** `tausik verify` эмитит ed25519-подписанный receipt (`tausik-signed/v1`), привязанный к сигнатуре гейтов и HEAD sha; `task done` (QG-2) валидирует подпись перед закрытием — green нельзя подделать или переиграть.
+- **Портативные receipt'ы + offline-verify.** Экспорт receipt'а и проверка без SDK: stateless HTTP verify-endpoint плюс CI-протестированный no-SDK пример.
+- **Supply-chain подпись.** Релизы skill'ов и стеков подписываются; установка skill'а проверяет подпись перед записью.
+
+### SENAR hardening
+
+- **Rule 2 scope ACL.** Задачи объявляют `scope` / `scope_exclude`; write-enforcement хук блокирует правки вне объявленной поверхности; QG-0 scope-предупреждение стало hard-гейтом.
+- **Closure-risk scoring.** Композитная risk-модель считает + персистит risk-score закрытия на `task done`, выводится в `metrics` / `status`; measured-high закрытия требуют L3 adversarial-ревью.
+- **Rule 4 внешняя валидация.** Субагент `tausik-external-reviewer` (другая модель, read-only — separation of duties) гейтит high-risk закрытия; в QG-2 checklist добавлен domain-challenge вопрос.
+- **Rule 5 checklist hard gate** для substantial/deep тиров (escalating-nudge для меньших).
+- **Rule 7 root cause.** Fail-closed keyword-гейт (defect нельзя закрыть без задокументированной причины) плюс **structured**-слой — closed-list категории + парсер + coverage-метрика в `metrics` + advisory escalating-nudge к форме `Root cause (category): … Prevention: …`.
+- **Fail-closed политика гейтов** по всей QG-2 поверхности (гейт, который не может оценить, блокирует, а не пропускает).
+
+### Надёжность, routing и drift
+
+- **Shell-less gate runner.** `shell=True` убран — команды гейтов токенизируются (shlex), признаются только `&&` / `|`; любой другой shell-метасимвол fail-safe (фикс command-injection для шаблонов custom-стеков).
+- **Escalating nudges framework** (silent → hint → warning → strong) — soft-инварианты громче с каждым нарушением и сбрасываются при compliance.
+- **Model routing.** Tier-aware вердикт (haiku < sonnet < opus < fable) убирает ложный `MODEL MISMATCH` для capable-моделей на medium/complex.
+- **Doc-drift gate.** `gen_doc_constants --check` сканирует кросс-файловые version-ref'ы, MCP tool-counts, test-counts и repo-state counts, плюс cache-bust hash описаний MCP.
+- **Memory lint.** `tausik memory lint` ловит противоречия, superseded-записи и stale-ссылки на файлы.
+
+### Исправлено
+
+- **Зависание MCP `task_done` / `verify` (Windows).** Восстановлен `stdin=subprocess.DEVNULL` на git-subprocess'ах (`risk_compute`, `verify_receipt_emit`, `cli_push_ok`) — реинтродукция `v14b-defect-mcp-task-done-stdin-hang`, где git, наследуя MCP JSON-RPC stdin-пайп, блокируется на paginator/credential-probe. Добавлен AST class-guard тест, падающий на любом `subprocess`-вызове в `scripts/` top-level без `stdin` — класс не вернётся молча.
 
 ## [1.4.2] — 2026-05-15
 
