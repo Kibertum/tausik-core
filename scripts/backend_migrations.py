@@ -11,9 +11,10 @@ Legacy migrations (v2-v11) are in backend_migrations_legacy.py.
 from __future__ import annotations
 
 from backend_migrations_legacy import LEGACY_MIGRATIONS, seed_v18_roles
-from backend_migrations_v34 import maybe_backfill_v34
+from backend_migrations_postseed import run_post_migrations
 from backend_migrations_v35 import MIGRATION_V35
 from backend_migrations_v36 import MIGRATION_V36
+from backend_migrations_v37 import MIGRATION_V37
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -326,6 +327,8 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     35: MIGRATION_V35,
     # v36: RENAR ADAPT artifacts (v16r-adapt) — SQL in backend_migrations_v36.py
     36: MIGRATION_V36,
+    # v37: dedicated snippets store (v15-snippet-table) — SQL in backend_migrations_v37.py
+    37: MIGRATION_V37,
 }
 
 
@@ -362,42 +365,5 @@ def run_migrations(conn: "sqlite3.Connection", current_version: int) -> int:  # 
             if violations:
                 raise RuntimeError(f"Migration v{ver} broke FK integrity: {violations}")
             current_version = ver
-    if current_version >= 18:
-        try:
-            already = conn.execute("SELECT value FROM meta WHERE key='v18_seeded'").fetchone()
-        except Exception:
-            already = None
-        try:
-            roles_exists = conn.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='roles'"
-            ).fetchone()
-        except Exception:
-            roles_exists = None
-        if not already and roles_exists:
-            report = None
-            try:
-                conn.execute("BEGIN IMMEDIATE")
-                report = seed_v18_roles(conn)
-                conn.execute("INSERT OR REPLACE INTO meta(key, value) VALUES('v18_seeded', '1')")
-                conn.commit()
-            except Exception as e:
-                import logging
-
-                logging.getLogger("tausik.migrations").warning("v18 seed/flag failed: %s", e)
-                try:
-                    conn.rollback()
-                except Exception:
-                    pass
-            if report and report["dropped_legacy_values"]:
-                import sys
-
-                print(
-                    f"  v18 role normalization: {report['seeded']} seeded, "
-                    f"{report['tasks_rewritten']} tasks rewritten, "
-                    f"dropped {len(report['dropped_legacy_values'])} unparseable: "
-                    f"{report['dropped_legacy_values']}",
-                    file=sys.stderr,
-                )
-    if current_version >= 34:  # seal historical events into the hash-chain
-        maybe_backfill_v34(conn)
+    run_post_migrations(conn, current_version)
     return current_version

@@ -26,6 +26,7 @@ from backend_schema import (
     SCHEMA_VERSION,
 )
 from backend_schema_adapts import ADAPTS_SQL
+from backend_schema_snippets import SNIPPETS_SQL
 from backend_schema_specs import SPECS_SQL
 
 logger = logging.getLogger("tausik.backend")
@@ -64,6 +65,7 @@ def init_schema(conn: sqlite3.Connection) -> None:
     cur.executescript(INDEXES_SQL)
     cur.executescript(SPECS_SQL)  # RENAR SPEC artifacts (v16r-spec-types)
     cur.executescript(ADAPTS_SQL)  # RENAR ADAPT artifacts (v16r-adapt)
+    cur.executescript(SNIPPETS_SQL)  # snippet store (v15-snippet-table)
     row = cur.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()
     if not row:
         cur.execute(
@@ -97,6 +99,7 @@ def init_schema(conn: sqlite3.Connection) -> None:
                 "fts_decisions",
                 "fts_specs",
                 "fts_adapts",
+                "fts_snippets",
             ):
                 try:
                     cur.execute(f"INSERT INTO {fts_table}({fts_table}) VALUES('rebuild')")
