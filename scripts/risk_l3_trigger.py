@@ -59,6 +59,26 @@ def measured_weight(risk: dict[str, Any]) -> float:
     )
 
 
+def _author_model() -> str | None:
+    """Best-effort author/active model from the live transcript. Never raises."""
+    try:
+        from model_routing import _auto_find_transcript, read_active_model_from_transcript
+
+        return read_active_model_from_transcript(_auto_find_transcript())
+    except Exception:
+        return None
+
+
+def _delegation_hint() -> str:
+    """SENAR Rule 4 delegation line for the L3 remediation. Never raises."""
+    try:
+        from external_reviewer import reviewer_hint
+
+        return " " + reviewer_hint(_author_model())
+    except Exception:
+        return ""
+
+
 def has_l3_review(conn: sqlite3.Connection, slug: str) -> bool:
     row = conn.execute(
         "SELECT 1 FROM reviews WHERE task_slug = ? AND UPPER(run_type) = 'L3' LIMIT 1",
@@ -102,8 +122,8 @@ def check_l3_required(
             )
         message = (
             f"High-risk closure: measured risk {ms} >= {LEVEL_HIGH} "
-            f"(SENAR Rule 10.15 selective escalation). Run an adversarial "
-            f"review first: /review (L3), then record it — "
+            f"(SENAR Rule 10.15 selective escalation, Rule 4 external validation)."
+            f"{_delegation_hint()} Then record the verdict — "
             f"`tausik review record --task {slug} --type L3 "
             f"--critical <n> --warnings <n>` — and re-run task done. "
             f"Opt out: config risk.l3_block_on_high=false."

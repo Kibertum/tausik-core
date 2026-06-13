@@ -90,6 +90,7 @@ overshoot is intentional (audit event + notes line trace it).
 | Rule 1 Задача перед кодом | CLAUDE.md + skills + `/plan` для старта | Instruction |
 | Rule 2 Scope Boundaries | Поля `scope` + `scope_exclude` в задачах, QG-0 предупреждает | Warning |
 | Rule 3 Verify Against Criteria | Per-criterion AC evidence парсинг | Hard + Warning |
+| Rule 4 External Validation | Субагент `tausik-external-reviewer` на ДРУГОЙ модели (separation of duties, read-only); требуется при measured-high closure через L3-триггер | Hard (при high-risk) |
 | Rule 5 Verification Checklist | 28-item checklist, 4 тира; **pytest gate scoped по relevant_files**, verify cache reuse в окне 10 мин; v1.4 — структурированный AC-evidence parser (`service_ac_evidence`) сообщает про gaps и отсутствующие test-refs/негативные сценарии | Warning + Hard scope |
 | Rule 7 Root Cause | Defect-задачи предупреждают если нет root cause | Warning |
 | Rule 8 Knowledge Capture | Warning при task_done + `--no-knowledge` для confirm-none | Warning |
@@ -110,6 +111,28 @@ overshoot is intentional (audit event + notes line trace it).
 | Batch Execution | `/run plan.md` — автономное выполнение планов | Instruction |
 | Structured Logs | `task_logs` таблица с phase + FTS5 | Hard (auto) |
 | Fake Test Detection | 10 паттернов в testing review agent | Warning |
+
+---
+
+## Rule 4 — External Validation (separation of duties)
+
+Закрытие задачи с **measured-high** риском требует независимого adversarial-ревью
+ДРУГОЙ моделью — модель не может валидировать собственный код. Реализация:
+
+- **Субагент** `tausik-external-reviewer` (`harness/claude/subagents/`) — read-only
+  tools (`Read, Grep, Bash`, без `Write`/`Edit`: SENAR «Reviewer SHALL NOT have
+  write access»), `model: opus`. Возвращает structured-вердикт
+  (`approved | changes_requested | blocked`) и точную команду `tausik review record`.
+- **Different model.** `scripts/external_reviewer.py::recommend_reviewer_model(author)`
+  выбирает семейство, отличное от автора (порядок opus → fable → sonnet → haiku);
+  `is_separate_duty()` отвергает совпадение семейств и неизвестного ревьюера.
+  Если автор уже на opus — ревьюер фолбэчится на fable.
+- **Триггер.** `risk_l3_trigger.check_l3_required` при measured-high closure
+  блокирует `task done` и в remediation называет `@tausik-external-reviewer`
+  с рекомендованной моделью. Записанный `tausik review record --type L3`
+  снимает блок. Opt-out: `config risk.l3_block_on_high=false` (→ warning).
+- **Evidence.** Вердикт ревьюера фиксируется в таблице `reviews` (run_type=L3) и
+  попадает в метрики ADR (`tausik review metrics`).
 
 ---
 

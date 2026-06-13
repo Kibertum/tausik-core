@@ -56,6 +56,13 @@ class TestCheckL3Required:
         assert blocking is True
         assert "review record" in note and "--type L3" in note
 
+    def test_high_risk_note_delegates_to_external_reviewer(self, conn):
+        # AC3: the remediation names the Rule 4 external reviewer subagent and
+        # recommends running it on a different model.
+        _, note = t.check_l3_required(conn, "t1", _risk_all_measured(0.9))
+        assert "@tausik-external-reviewer" in note
+        assert "separation of" in note
+
     def test_recorded_l3_satisfies(self, conn):
         conn.execute(
             "INSERT INTO reviews (task_slug, run_type, critical_findings, warnings, run_at) "
