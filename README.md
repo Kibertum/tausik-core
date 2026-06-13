@@ -7,7 +7,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)](https://python.org)
 [![Tests](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml/badge.svg)](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml)
-[![3774 tests](https://img.shields.io/badge/tests-3774%20passed-brightgreen.svg)](#dogfooding-tausik-built-tausik)
+[![3786 tests](https://img.shields.io/badge/tests-3786%20passed-brightgreen.svg)](#dogfooding-tausik-built-tausik)
 [![Zero deps](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#what-you-get)
 
 > ⚠️ **v1.4 — near-stable pre-2.0 release.** This is the last 1.x minor before
@@ -15,7 +15,7 @@
 > phases — verify-first contract, brain artifact pipeline, audit suite, skill
 > bundles, two-axis variants, per-task cost/token budgets); expect occasional
 > doc-vs-behaviour drift and rough edges on uncommon paths. The core is covered
-> by 3774 tests and is dogfooded daily — if you hit a mismatch, file an issue
+> by 3786 tests and is dogfooded daily — if you hit a mismatch, file an issue
 > and we'll converge it before 2.0.
 
 ### What's new in v1.4 (in plain language)
@@ -95,7 +95,7 @@ How it works:
 | **Verification Engine** | 25 stack-aware checks (pytest, ruff, mypy, tsc, eslint, cargo, go-vet, phpstan, helm-lint, hadolint…). Scoped to relevant_files. Cached for 10 min | Stack auto-detected by bootstrap |
 | **Real-time Hooks** | 21 hooks: task gate (no code without task), bash firewall, push gate, auto-format, drift detection (SessionStart/UserPromptSubmit/Stop), memory pre/post audit | Auto in Claude Code & Qwen Code |
 | **Metrics** | Throughput, First-Pass Success Rate, Defect Escape Rate, Lead Time, Dead End Rate, Cost-per-task | `tausik metrics`, `tausik metrics --cost` |
-| **Multi-IDE** | Same MCP tools (100) + skills across hosts | VSCode/Claude, Cursor, Qwen Code, Windsurf, Codex, CLI |
+| **Multi-IDE** | Same MCP tools (104) + skills across hosts | VSCode/Claude, Cursor, Qwen Code, Windsurf, Codex, CLI |
 | **Skill Ecosystem** | 12 core skills auto-deployed (+ `/brain` when configured) — see [Token Efficiency](#token-efficiency). 25+ official/vendor skills opt-in via `--include-official` flag or `tausik skill install`. Multi-model profiles via `variants/<model>.md` *(v1.4)* | `tausik skill install <name>` |
 | **Cross-project Brain** *(optional)* | Notion-mirrored decisions / patterns / gotchas / web-cache shared across projects. v1.4 adds an artifact pipeline: propose → audit (scrubbing for secrets) → publish, with stack-aware bm25 ranking. Privacy via SHA256 project hashes | `/brain` query, `tausik brain init`, `tausik brain propose-artifact`, `tausik brain publish` |
 | **Hygiene & Audit** *(v1.4)* | `tausik hygiene archive` lists old done tasks (dry-run). Audit scripts: `audit_orphan_files`, `audit_stale_docs`, `audit_unused_python`, `audit_pytest_dedupe` — inventory dead code, dangling docs, copy-pasted tests | `tausik hygiene archive`, `python scripts/audit_*.py` |
@@ -155,7 +155,7 @@ Bootstrap auto-detects your tech stack and enables matching quality gates. Proje
 ## What's Inside
 
 - **12 core skills + `/brain` conditional** (auto-deployed) — `/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, `/review`, `/test`, `/debug`, `/explore`, `/interview` always; `/brain` only after `tausik brain init`. Plus **25+ official/vendor skills** (`/audit`, `/zero-defect`, `/markitdown`, `/docs`, `/security`, `/onboard`, …) opt-in via `bootstrap --include-official` or `tausik skill install <name>`.
-- **103 MCP tools** (96 project + 7 brain) — full programmatic access to the project database
+- **104 MCP tools** (97 project + 7 brain) — full programmatic access to the project database
 - **25 quality checks** — pytest, ruff, tsc, eslint, cargo check, go vet, and more for your stack
 - **6 automatic metrics** — throughput, first-pass success rate, defect rate, lead time
 - **Project memory** — SQLite + FTS5, graph relations, dead-end tracking, Memory Block re-injection
@@ -171,11 +171,11 @@ Other integrations are supported by design, but are marked as expected/partial u
 
 | IDE | MCP Tools | Skills | Hooks | Rules | Validation status |
 |-----|-----------|--------|-------|-------|-------------------|
-| VSCode + Claude Extension | 103 tools | 12 core + brain conditional, 25+ on demand | 21 hooks (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md + .mcp.json | **Officially tested** |
-| Cursor | 103 tools | 12 core + brain conditional, 25+ on demand | — | .cursorrules + .cursor/mcp.json | **Officially tested** |
-| Claude Code (CLI) | 103 tools | 12 core + brain conditional, 25+ on demand | 21 hooks | CLAUDE.md + .mcp.json | Expected (partial matrix) |
-| Qwen Code | 103 tools | 12 core + brain conditional, 25+ on demand | 21 hooks (same as Claude) | QWEN.md + .mcp.json | Expected (partial matrix) |
-| Windsurf | 103 tools | 12 core + brain conditional, 25+ on demand | — | .windsurfrules + .mcp.json | Expected (partial matrix) |
+| VSCode + Claude Extension | 104 tools | 12 core + brain conditional, 25+ on demand | 21 hooks (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md + .mcp.json | **Officially tested** |
+| Cursor | 104 tools | 12 core + brain conditional, 25+ on demand | — | .cursorrules + .cursor/mcp.json | **Officially tested** |
+| Claude Code (CLI) | 104 tools | 12 core + brain conditional, 25+ on demand | 21 hooks | CLAUDE.md + .mcp.json | Expected (partial matrix) |
+| Qwen Code | 104 tools | 12 core + brain conditional, 25+ on demand | 21 hooks (same as Claude) | QWEN.md + .mcp.json | Expected (partial matrix) |
+| Windsurf | 104 tools | 12 core + brain conditional, 25+ on demand | — | .windsurfrules + .mcp.json | Expected (partial matrix) |
 | Codex / OpenCode-style agents | MCP + rules-driven where supported | Depends on host | Host-specific | AGENTS.md | Expected (manual validation) |
 
 **Hooks** block code edits without a task, dangerous shell commands, and direct push to main — in real time. Available in Claude Code and Qwen Code. Cursor and Windsurf get the same MCP tools and skills, with quality gates at `task start` and `task done`.
@@ -210,7 +210,7 @@ TAUSIK implements [SENAR](https://senar.tech) ([GitHub](https://github.com/Kiber
 | **[Skills](docs/en/skills.md)** | 12 core + brain conditional, 25+ official skills opt-in (38 total) |
 | **[Hooks](docs/en/hooks.md)** | Real-time enforcement |
 | **[CLI Commands](docs/en/cli.md)** | Terminal command reference |
-| **[MCP Tools](docs/en/mcp.md)** | 103 tools for the AI agent |
+| **[MCP Tools](docs/en/mcp.md)** | 104 tools for the AI agent |
 | **[Architecture](docs/en/architecture.md)** | How the framework works inside |
 
 **[Full documentation ->](docs/README.md)**

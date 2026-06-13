@@ -156,6 +156,26 @@ def cmd_memory(svc: ProjectService, args: Any) -> None:
             print(
                 f'  {s["ratio"]:.3f} [{s["type"]:<10}] #{s["id_a"]} "{ta}"  ↔  #{s["id_b"]} "{tb}"'
             )
+    elif c == "lint":
+        result = svc.memory_lint(apply=bool(getattr(args, "apply", False)))
+        findings = result["findings"]
+        if not findings:
+            print("Memory lint: no contradictions, superseded, or stale-file issues found.")
+            return
+        if result["applied"]:
+            print(
+                f"Memory lint: {result['count']} finding(s); archived "
+                f"{result['archived']} superseded entry(ies). Contradictions and "
+                f"stale-file hits are advisory — review them below."
+            )
+        else:
+            print(
+                f"Memory lint (dry-run): {result['count']} finding(s). "
+                f"Re-run with `--apply` to archive superseded entries."
+            )
+        for f in findings:
+            title = (f["title"] or "")[:50]
+            print(f'  #{f["id"]:<5} [{f["kind"]:<11}] {f["reason"]}  "{title}"')
 
 
 def cmd_update_claudemd(svc: ProjectService, args: Any) -> None:

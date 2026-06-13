@@ -623,6 +623,19 @@ TOOLS = [
         },
     },
     {
+        "name": "tausik_memory_lint",
+        "description": "Lint active memory for contradictions / superseded / stale-file references. Dry-run by default; apply=true archives only the unambiguous superseded entries.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "apply": {
+                    "type": "boolean",
+                    "description": "Archive superseded entries (idempotent). Default false (dry-run).",
+                },
+            },
+        },
+    },
+    {
         "name": "tausik_memory_show",
         "description": "Show a specific memory by ID",
         "inputSchema": {

@@ -15,12 +15,8 @@ class BackendGraphMixin:
 
         def _ins(self, sql: str, params: tuple[Any, ...] = ()) -> int: ...
         def _ex(self, sql: str, params: tuple[Any, ...] = ()) -> int: ...
-        def _q(
-            self, sql: str, params: tuple[Any, ...] = ()
-        ) -> list[dict[str, Any]]: ...
-        def _q1(
-            self, sql: str, params: tuple[Any, ...] = ()
-        ) -> dict[str, Any] | None: ...
+        def _q(self, sql: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]: ...
+        def _q1(self, sql: str, params: tuple[Any, ...] = ()) -> dict[str, Any] | None: ...
 
     # --- graph memory (memory_edges) ---
 
@@ -58,6 +54,22 @@ class BackendGraphMixin:
         return self._ex(
             "UPDATE memory_edges SET valid_to=?, invalidated_by=? WHERE id=? AND valid_to IS NULL",
             (utcnow_iso(), replacement_id, edge_id),
+        )
+
+    def memory_archive_ids(self, ids: list[int]) -> int:
+        """Stamp ``archived_at`` on the given memory ids (idempotent).
+
+        Used by ``memory lint --apply`` to archive superseded entries.
+        Already-archived rows are skipped. Returns rows newly archived.
+        """
+        if not ids:
+            return 0
+        now = utcnow_iso()
+        placeholders = ",".join("?" for _ in ids)
+        return self._ex(
+            f"UPDATE memory SET archived_at=?, updated_at=? "
+            f"WHERE id IN ({placeholders}) AND archived_at IS NULL",
+            (now, now, *ids),
         )
 
     def edge_get(self, edge_id: int) -> dict[str, Any] | None:

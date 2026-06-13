@@ -7,7 +7,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)](https://python.org)
 [![Tests](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml/badge.svg)](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml)
-[![3774 tests](https://img.shields.io/badge/tests-3774%20passed-brightgreen.svg)](#dogfooding-tausik-создан-с-помощью-себя)
+[![3786 tests](https://img.shields.io/badge/tests-3786%20passed-brightgreen.svg)](#dogfooding-tausik-создан-с-помощью-себя)
 [![Zero deps](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#что-внутри)
 
 > ⚠️ **v1.4 — околостабильный pre-2.0 релиз.** Это последний минорный релиз
@@ -15,7 +15,7 @@
 > изменений (B+C polish phases — verify-first контракт, brain artifact pipeline,
 > audit suite, skill bundles, two-axis variants, per-task cost/token бюджеты) —
 > возможен рассинхрон в документации и редкие нестабильности на edge-cases.
-> Ядро покрыто 3774 тестами и используется на dogfood'е каждый день; если
+> Ядро покрыто 3786 тестами и используется на dogfood'е каждый день; если
 > наткнётесь на расхождение docs ↔ behaviour — заведите issue, постараемся
 > доехать до 2.0 без regression'ов.
 
@@ -97,7 +97,7 @@ Claude Code, Cursor, VSCode Claude Extension, Qwen Code, Windsurf.
 | **Verification Engine** | 25 stack-aware проверок (pytest, ruff, mypy, tsc, eslint, cargo, go-vet, phpstan, helm-lint, hadolint…). Scoped по relevant_files. Cache на 10 мин | Стек авто-определяется bootstrap |
 | **Real-time хуки** | 21 хуков: task gate (нет кода без задачи), bash firewall, push gate, auto-format, drift detection (SessionStart/UserPromptSubmit/Stop), memory pre/post audit | Авто в Claude Code и Qwen Code |
 | **Метрики** | Throughput, First-Pass Success Rate, Defect Escape Rate, Lead Time, Dead End Rate, Cost-per-task | `tausik metrics`, `tausik metrics --cost` |
-| **Multi-IDE** | Те же MCP-инструменты (100) + skills во всех хостах | VSCode/Claude, Cursor, Qwen Code, Windsurf, Codex, CLI |
+| **Multi-IDE** | Те же MCP-инструменты (104) + skills во всех хостах | VSCode/Claude, Cursor, Qwen Code, Windsurf, Codex, CLI |
 | **Skill Ecosystem** | 12 core skills auto-deployed (+ `/brain` если настроен Notion) — см. [Token Efficiency](#token-efficiency). 25+ official/vendor skills opt-in через `--include-official` или `tausik skill install`. Multi-model профили через `variants/<model>.md` *(v1.4)* | `tausik skill install <name>` |
 | **Cross-project Brain** *(опционально)* | Notion-mirror решений / паттернов / gotchas / web-кэша между проектами. v1.4 добавляет artifact pipeline: propose → audit (scrubbing секретов) → publish, со stack-aware bm25 ранжированием. Приватность через SHA256-хеши имён | `/brain` query, `tausik brain init`, `tausik brain propose-artifact`, `tausik brain publish` |
 | **Гигиена & Audit** *(v1.4)* | `tausik hygiene archive` списком показывает старые done-задачи (dry-run). Audit-скрипты: `audit_orphan_files`, `audit_stale_docs`, `audit_unused_python`, `audit_pytest_dedupe` — инвентаризация мёртвого кода, висячих доков, скопированных тестов | `tausik hygiene archive`, `python scripts/audit_*.py` |
@@ -157,7 +157,7 @@ Bootstrap автоматически определяет стек и включ
 ## Что внутри
 
 - **12 core навыков + `/brain` conditional** (auto-deployed) — `/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, `/review`, `/test`, `/debug`, `/explore`, `/interview` всегда; `/brain` только после `tausik brain init`. Плюс **25+ official/vendor навыков** (`/audit`, `/zero-defect`, `/markitdown`, `/docs`, `/security`, `/onboard`, …) opt-in через `bootstrap --include-official` или `tausik skill install <name>`.
-- **103 MCP-инструмента** (96 project + 7 brain) — полный программный доступ к базе проекта
+- **104 MCP-инструмента** (97 project + 7 brain) — полный программный доступ к базе проекта
 - **25 проверок качества** — pytest, ruff, tsc, eslint, cargo check, go vet и другие для вашего стека
 - **6 автоматических метрик** — производительность, FPSR, уровень дефектов, активное время сессий
 - **Проектная память** — SQLite + FTS5, граф связей, трекинг тупиков, Memory Block re-injection
@@ -174,11 +174,11 @@ Bootstrap автоматически определяет стек и включ
 
 | Среда | Инструменты | Навыки | Хуки | Правила | Статус валидации |
 |-------|-------------|--------|------|---------|------------------|
-| VSCode + Claude Extension | 103 инстр. | 12 core + brain conditional, 25+ on demand | 21 хуков (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md + .mcp.json | **Официально протестировано** |
-| Cursor | 103 инстр. | 12 core + brain conditional, 25+ on demand | — | .cursorrules + .cursor/mcp.json | **Официально протестировано** |
-| Claude Code (CLI) | 103 инстр. | 12 core + brain conditional, 25+ on demand | 21 хуков | CLAUDE.md + .mcp.json | Ожидается (частичная матрица) |
-| Qwen Code | 103 инстр. | 12 core + brain conditional, 25+ on demand | 21 хуков (как у Claude) | QWEN.md + .mcp.json | Ожидается (частичная матрица) |
-| Windsurf | 103 инстр. | 12 core + brain conditional, 25+ on demand | — | .windsurfrules + .mcp.json | Ожидается (частичная матрица) |
+| VSCode + Claude Extension | 104 инстр. | 12 core + brain conditional, 25+ on demand | 21 хуков (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md + .mcp.json | **Официально протестировано** |
+| Cursor | 104 инстр. | 12 core + brain conditional, 25+ on demand | — | .cursorrules + .cursor/mcp.json | **Официально протестировано** |
+| Claude Code (CLI) | 104 инстр. | 12 core + brain conditional, 25+ on demand | 21 хуков | CLAUDE.md + .mcp.json | Ожидается (частичная матрица) |
+| Qwen Code | 104 инстр. | 12 core + brain conditional, 25+ on demand | 21 хуков (как у Claude) | QWEN.md + .mcp.json | Ожидается (частичная матрица) |
+| Windsurf | 104 инстр. | 12 core + brain conditional, 25+ on demand | — | .windsurfrules + .mcp.json | Ожидается (частичная матрица) |
 | Codex / OpenCode-подобные агенты | MCP + rules-driven при поддержке хоста | Зависит от хоста | Специфично для хоста | AGENTS.md | Ожидается (ручная валидация) |
 
 **Хуки** блокируют редактирование кода без задачи, опасные shell-команды и прямой push в main — в реальном времени. Доступны в Claude Code и Qwen Code. Cursor и Windsurf получают те же MCP-инструменты и навыки, с quality gates на `task start` и `task done`.
@@ -213,7 +213,7 @@ TAUSIK реализует [SENAR](https://senar.tech) ([GitHub](https://github.c
 | **[Навыки](docs/ru/skills.md)** | 12 core + brain conditional, 25+ official skills opt-in (38 total) |
 | **[Хуки](docs/ru/hooks.md)** | Контроль в реальном времени |
 | **[CLI-команды](docs/ru/cli.md)** | Справочник команд терминала |
-| **[MCP-инструменты](docs/ru/mcp.md)** | 103 инструмента для ИИ-агента |
+| **[MCP-инструменты](docs/ru/mcp.md)** | 104 инструмента для ИИ-агента |
 | **[Архитектура](docs/ru/architecture.md)** | Как устроен фреймворк внутри |
 
 **[Полная документация ->](docs/README.md)**

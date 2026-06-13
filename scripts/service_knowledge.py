@@ -120,6 +120,12 @@ class KnowledgeMixin:
 
         return dedupe_memory(self.be, threshold, n)
 
+    def memory_lint(self, apply: bool = False, n: int = 500) -> dict[str, Any]:
+        """Thin delegator — real logic lives in service_knowledge_hygiene."""
+        from service_knowledge_hygiene import lint_memory
+
+        return lint_memory(self.be, apply=apply, n=n)
+
     # --- Decisions ---
 
     def decide(self, text: str, task_slug: str | None = None, rationale: str | None = None) -> str:

@@ -7,8 +7,9 @@ in KnowledgeMixin, real logic here.
 
 from __future__ import annotations
 
+import os
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from tausik_utils import ServiceError
 
@@ -57,3 +58,31 @@ def dedupe_memory(be: SQLiteBackend, threshold: float = 0.85, n: int = 200) -> l
         raise ServiceError(f"threshold must be in (0, 1], got {threshold!r}")
     rows = be.memory_list(n=n, include_archived=False)
     return find_dedupe_candidates(rows, threshold)
+
+
+def lint_memory(
+    be: SQLiteBackend,
+    apply: bool = False,
+    n: int = 500,
+    file_exists: Callable[[str], bool] | None = None,
+) -> dict[str, Any]:
+    """Lint the active memory set for contradictions / superseded / stale files.
+
+    Dry-run by default: returns ``{findings, applied:False, archived:0}``. With
+    ``apply=True`` the unambiguous ``superseded`` findings are archived (the
+    superseding entry already replaces them); contradictions and stale-file
+    hits are advisory-only — they need human judgement, so ``apply`` never
+    auto-archives them. ``file_exists`` defaults to repo-relative existence.
+    """
+    from memory_cleanup import find_lint_candidates
+
+    rows = be.memory_list(n=n, include_archived=False)
+    edges = be.edge_list(relation="contradicts", n=n) + be.edge_list(relation="supersedes", n=n)
+    check = file_exists if file_exists is not None else os.path.exists
+    findings = find_lint_candidates(rows, edges, check)
+
+    archived = 0
+    if apply:
+        superseded_ids = sorted({f["id"] for f in findings if f["kind"] == "superseded"})
+        archived = be.memory_archive_ids(superseded_ids)
+    return {"findings": findings, "applied": apply, "archived": archived, "count": len(findings)}

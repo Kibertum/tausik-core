@@ -162,6 +162,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=200,
         help="Max recent rows scanned for pairs. Default 200.",
     )
+    mlint = mem_sub.add_parser(
+        "lint",
+        help="Find contradictions / superseded / stale-file memories. Dry-run unless --apply.",
+    )
+    mlint.add_argument(
+        "--apply",
+        action="store_true",
+        help="Archive superseded entries (idempotent). Without it: dry-run report.",
+    )
     # graph subcommands
     mlink = mem_sub.add_parser("link", help="Create edge between nodes")
     mlink.add_argument("source_type", choices=sorted(VALID_NODE_TYPES))

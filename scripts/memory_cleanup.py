@@ -83,3 +83,99 @@ def find_dedupe_candidates(rows: list[dict[str, Any]], threshold: float) -> list
                 )
     out.sort(key=lambda r: (-r["ratio"], r["id_a"], r["id_b"]))
     return out
+
+
+# --- memory lint (v15p-memory-lint) ---------------------------------------
+# Karpathy "second brain" hygiene: cheap deterministic linting instead of a
+# heavy RAG pass. Three detectors run over the active memory set:
+#   - contradicts: a `contradicts` graph edge between two live memories.
+#   - superseded:  a live memory that a `supersedes` edge marks as outdated.
+#   - stale_file:  content references a repo-relative path that no longer exists.
+# Version staleness is intentionally NOT a heuristic here — memories legitimately
+# cite both past and future versions ("deferred to v2.0"), so any pure rule is
+# noisy; that judgement is left to the optional LLM pass (llm_check seam).
+
+# A repo-relative path token: one-or-more slash segments ending in `.ext`.
+_PATH_RE = re.compile(r"(?<![\w./\\])((?:[\w.\-]+/)+[\w.\-]+\.[A-Za-z0-9]{1,6})\b")
+
+
+def _extract_paths(content: str) -> list[str]:
+    """Return unique repo-relative path-like tokens mentioned in ``content``."""
+    seen: dict[str, None] = {}
+    for m in _PATH_RE.finditer(content or ""):
+        token = m.group(1).strip("`'\"")
+        seen.setdefault(token, None)
+    return list(seen)
+
+
+def find_lint_candidates(
+    rows: list[dict[str, Any]],
+    edges: list[dict[str, Any]],
+    file_exists: Any,
+) -> list[dict[str, Any]]:
+    """Deterministic memory-lint findings over the ACTIVE memory set.
+
+    ``rows`` = unarchived ``memory_list`` output (id/type/title/content).
+    ``edges`` = ``memory_edges`` rows (source/target type+id, relation).
+    ``file_exists(path) -> bool`` resolves a repo-relative path.
+
+    Returns findings ``{id, title, kind, reason, suggestion}`` sorted by id.
+    Edges that point at non-active / non-memory nodes are skipped silently.
+    """
+    active = {int(r["id"]): (r.get("title") or "") for r in rows if r.get("id") is not None}
+    findings: list[dict[str, Any]] = []
+
+    def _is_mem(edge: dict[str, Any], side: str) -> bool:
+        return (edge.get(f"{side}_type") or "memory") == "memory"
+
+    for edge in edges:
+        relation = edge.get("relation")
+        if relation not in ("contradicts", "supersedes"):
+            continue
+        if not (_is_mem(edge, "source") and _is_mem(edge, "target")):
+            continue
+        try:
+            src, tgt = int(edge["source_id"]), int(edge["target_id"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if relation == "supersedes" and tgt in active:
+            findings.append(
+                {
+                    "id": tgt,
+                    "title": active[tgt],
+                    "kind": "superseded",
+                    "reason": f"superseded by memory #{src}",
+                    "suggestion": "archive",
+                }
+            )
+        elif relation == "contradicts":
+            for a, b in ((src, tgt), (tgt, src)):
+                if a in active:
+                    findings.append(
+                        {
+                            "id": a,
+                            "title": active[a],
+                            "kind": "contradicts",
+                            "reason": f"contradicts memory #{b}",
+                            "suggestion": "review both; archive the outdated one",
+                        }
+                    )
+
+    for r in rows:
+        rid = r.get("id")
+        if rid is None:
+            continue
+        for path in _extract_paths(r.get("content") or ""):
+            if not file_exists(path):
+                findings.append(
+                    {
+                        "id": int(rid),
+                        "title": r.get("title") or "",
+                        "kind": "stale_file",
+                        "reason": f"references missing path '{path}'",
+                        "suggestion": "update or archive — file no longer exists",
+                    }
+                )
+
+    findings.sort(key=lambda f: (int(f["id"]), f["kind"]))
+    return findings
