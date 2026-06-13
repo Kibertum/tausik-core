@@ -7,6 +7,33 @@ export default defineConfig({
   description:
     "AI development framework — plan, build, ship with quality control. Sessions, tasks, decisions, and dead-ends tracked locally; quality gates the agent can't skip.",
   cleanUrls: true,
+  head: [
+    ["meta", { name: "theme-color", content: "#5e6ad2" }],
+    ["meta", { property: "og:type", content: "website" }],
+    ["meta", { property: "og:site_name", content: "TAUSIK" }],
+    ["meta", { property: "og:title", content: "TAUSIK — AI agents that can't fake \"done\"" }],
+    [
+      "meta",
+      {
+        property: "og:description",
+        content:
+          "A discipline layer for AI coding agents. Hard quality gates the agent can't skip, plus ed25519-signed verify receipts — when the agent says green, you get a receipt.",
+      },
+    ],
+    ["meta", { property: "og:url", content: "https://tausik.tech/" }],
+    ["meta", { property: "og:image", content: "https://tausik.tech/og.png" }],
+    ["meta", { name: "twitter:card", content: "summary_large_image" }],
+    ["meta", { name: "twitter:title", content: "TAUSIK — AI agents that can't fake \"done\"" }],
+    [
+      "meta",
+      {
+        name: "twitter:description",
+        content:
+          "Hard quality gates AI coding agents can't skip, plus ed25519-signed verify receipts. Plan before code, ship with proof.",
+      },
+    ],
+    ["meta", { name: "twitter:image", content: "https://tausik.tech/og.png" }],
+  ],
   // lastUpdated disabled: relies on `git log` which isn't available in the Docker build stage.
   // Can be enabled later by either copying .git into the build context or running git inside the image.
   lastUpdated: false,

@@ -18,6 +18,17 @@ const VERSION = constants.tausik_version;
 const copy = {
   en: {
     eyebrow: "Discipline layer for AI coding agents",
+    nav: {
+      brand: "TAUSIK",
+      items: [
+        ["Receipts", "#receipts"],
+        ["Lifecycle", "#lifecycle"],
+        ["Features", "#what-you-get"],
+        ["Compare", "#compare"],
+        ["Quick start", "#quick-start"],
+      ],
+      cta: "Get started",
+    },
     hero: {
       titleA: "AI agents that can't",
       titleB: "fake 'done'",
@@ -25,12 +36,12 @@ const copy = {
         "A local Python framework that gates Claude Code, Cursor, Qwen, and Windsurf at the two points where AI agents lie most: starting a task without a goal, and claiming completion without proof. Three messages cover the full cycle.",
       ctaPrimary: "Get started",
       ctaSecondary: "View on GitHub",
-      badges: ["Apache 2.0", "Python 3.11+", `${TESTS.toLocaleString("en-US")} tests passing`, "0 core dependencies", "MCP-native"],
+      badges: ["ed25519 signed receipts", "Apache 2.0", "Python 3.11+", `${TESTS.toLocaleString("en-US")} tests passing`, "0 core dependencies"],
       termTitle: "~/your-project — claude code",
       annos: [
         { k: "/start", v: "opens session, reloads context" },
         { k: "/task", v: `creates AC · runs tests · ${REVIEW_AGENTS}-agent review` },
-        { k: "/ship", v: "runs gates → commits → asks before pushing" },
+        { k: "/ship", v: "verifies → signs a receipt → commits → asks before push" },
       ],
     },
     compare: {
@@ -73,6 +84,22 @@ const copy = {
           "",
         ],
       ],
+    },
+    receipts: {
+      eyebrow: "Verifiable trust · the differentiator",
+      title: "When the agent says green,",
+      titleAccent: "you get a receipt.",
+      sub: "This is what separates TAUSIK from every prompt-based ruleset. The green isn't a claim you take on faith — it's an ed25519-signed receipt bound to the exact gate and the HEAD commit. Forge-proof, replay-proof, verifiable offline.",
+      points: [
+        ["tausik verify emits a signed receipt", "Format tausik-signed/v1, ed25519, bound to the gate signature and the HEAD commit sha."],
+        ["task done validates it before close", "A green that wasn't actually produced — or was produced for a different commit — fails QG-2."],
+        ["Receipts are portable", "Export one and verify it offline: no SDK, a stateless HTTP endpoint or the no-SDK example."],
+        ["Releases are signed too", "Skill and stack installs verify the signature before writing a byte to disk."],
+      ],
+      kicker: "When an agent tells you the build is green, you don't have to believe it. You hold a receipt that proves it — or proves it lied.",
+      cta: "How signed receipts work",
+      ctaHref: "/docs/receipts",
+      termTitle: "tausik verify → receipt",
     },
     cycle: {
       eyebrow: "Task lifecycle",
@@ -135,12 +162,12 @@ const copy = {
       title: "TAUSIK built TAUSIK.",
       sub: "Every feature, every refactor, every bug fix went through the same gates that ship with the framework. The numbers below are the dogfood project's own state.",
       items: [
-        ["732", "tasks closed — every one with a goal + AC"],
+        ["800+", "tasks closed — every one with a goal + AC"],
         ["0", "tasks closed without verify evidence", true],
         [`${TESTS.toLocaleString("en-US")}`, "tests passing"],
         ["0", "core dependencies / phone-home calls"],
       ],
-      foot: "Snapshot at v1.4.0 release. Live numbers via tausik metrics.",
+      foot: `Snapshot at v${VERSION}. Live numbers via tausik metrics.`,
     },
     ides: {
       eyebrow: "Supported IDEs & agents",
@@ -174,6 +201,7 @@ const copy = {
       heads: ["Capability", "TAUSIK", "Aider", "Cursor Rules", "Continue", "Claude Skills"],
       rows: [
         ["Enforced task model (goal + AC)", "✓ QG-0 hook blocks edits", "—", "—", "—", "—"],
+        ["Signed verify receipts (ed25519)", "✓ tausik-signed/v1", "—", "—", "—", "—"],
         ["Verify cache decoupled from close", "✓ 10-min TTL", "—", "—", "—", "—"],
         ["Tracked decisions / dead-ends", "✓ SQLite + FTS5", "—", "—", "—", "—"],
         ["Cross-project memory (opt-in)", "✓ Notion-backed brain", "—", "—", "—", "—"],
@@ -227,6 +255,17 @@ const copy = {
   },
   ru: {
     eyebrow: "Discipline-слой для AI-кодинг-агентов",
+    nav: {
+      brand: "TAUSIK",
+      items: [
+        ["Чеки", "#receipts"],
+        ["Цикл", "#lifecycle"],
+        ["Возможности", "#what-you-get"],
+        ["Сравнение", "#compare"],
+        ["Быстрый старт", "#quick-start"],
+      ],
+      cta: "Начать",
+    },
     hero: {
       titleA: "AI-агенты, которые",
       titleB: "не врут «готово»",
@@ -234,12 +273,12 @@ const copy = {
         "Локальный Python-фреймворк, который перехватывает Claude Code, Cursor, Qwen и Windsurf в двух точках, где AI-агенты врут чаще всего: старт задачи без цели и заявление «готово» без доказательств. Три сообщения покрывают весь цикл.",
       ctaPrimary: "Начать",
       ctaSecondary: "Открыть GitHub",
-      badges: ["Apache 2.0", "Python 3.11+", `${TESTS.toLocaleString("ru-RU").replace(",", " ")} тестов проходит`, "0 core-зависимостей", "MCP-native"],
+      badges: ["ed25519 подписанные чеки", "Apache 2.0", "Python 3.11+", `${TESTS.toLocaleString("ru-RU").replace(",", " ")} тестов проходит`, "0 core-зависимостей"],
       termTitle: "~/your-project — claude code",
       annos: [
         { k: "/start", v: "открывает сессию, перезагружает контекст" },
         { k: "/task", v: `создаёт AC · запускает тесты · ${REVIEW_AGENTS}-агентное ревью` },
-        { k: "/ship", v: "проходит гейты → коммит → спрашивает перед push" },
+        { k: "/ship", v: "verify → подписывает чек → коммит → спрашивает перед push" },
       ],
     },
     compare: {
@@ -282,6 +321,22 @@ const copy = {
           "",
         ],
       ],
+    },
+    receipts: {
+      eyebrow: "Проверяемое доверие · differentiator",
+      title: "Когда агент говорит «зелёно» —",
+      titleAccent: "ты получаешь чек.",
+      sub: "Именно это отличает TAUSIK от любого prompt-based свода правил. «Зелёно» — не утверждение на веру, а ed25519-подписанный чек, привязанный к конкретному гейту и HEAD-коммиту. Нельзя подделать, нельзя переиграть, проверяется офлайн.",
+      points: [
+        ["tausik verify выдаёт подписанный чек", "Формат tausik-signed/v1, ed25519, привязан к сигнатуре гейта и sha HEAD-коммита."],
+        ["task done проверяет его перед закрытием", "«Зелёно», которого на самом деле не было — или было для другого коммита — валит QG-2."],
+        ["Чеки переносимы", "Экспортируй один и проверь офлайн: без SDK, через stateless HTTP-эндпоинт или no-SDK пример."],
+        ["Релизы тоже подписаны", "Установка скиллов и стеков проверяет подпись до записи единого байта на диск."],
+      ],
+      kicker: "Когда агент говорит, что билд зелёный, тебе не нужно верить. У тебя есть чек, который это доказывает — или доказывает, что агент соврал.",
+      cta: "Как работают подписанные чеки",
+      ctaHref: "/ru/docs/receipts",
+      termTitle: "tausik verify → чек",
     },
     cycle: {
       eyebrow: "Жизненный цикл задачи",
@@ -344,12 +399,12 @@ const copy = {
       title: "TAUSIK построил TAUSIK.",
       sub: "Каждая фича, каждый рефакторинг, каждый багфикс прошли через те же gates, которые поставляются с фреймворком. Числа ниже — состояние самого dogfood-проекта.",
       items: [
-        ["732", "задач закрыто — каждая с целью + AC"],
+        ["800+", "задач закрыто — каждая с целью + AC"],
         ["0", "задач закрыто без verify-evidence", true],
         [`${TESTS.toLocaleString("ru-RU").replace(",", " ")}`, "тестов проходит"],
         ["0", "core-зависимостей / phone-home вызовов"],
       ],
-      foot: "Снимок на момент релиза v1.4.0. Живые числа — через tausik metrics.",
+      foot: `Снимок на момент v${VERSION}. Живые числа — через tausik metrics.`,
     },
     ides: {
       eyebrow: "Поддерживаемые IDE и агенты",
@@ -383,6 +438,7 @@ const copy = {
       heads: ["Capability", "TAUSIK", "Aider", "Cursor Rules", "Continue", "Claude Skills"],
       rows: [
         ["Enforced task-модель (goal + AC)", "✓ QG-0 хук блокирует правки", "—", "—", "—", "—"],
+        ["Подписанные verify-чеки (ed25519)", "✓ tausik-signed/v1", "—", "—", "—", "—"],
         ["Verify-кеш отделён от close", "✓ 10-мин TTL", "—", "—", "—", "—"],
         ["Tracked decisions / dead-ends", "✓ SQLite + FTS5", "—", "—", "—", "—"],
         ["Cross-project memory (опционально)", "✓ Notion-backed brain", "—", "—", "—", "—"],
@@ -458,6 +514,19 @@ function copyInstall(e: MouseEvent) {
   <div class="landing-root">
     <a id="top"></a>
 
+    <!-- STICKY SECTION NAV -->
+    <nav class="section-nav" aria-label="Sections">
+      <div class="wrap section-nav-inner">
+        <a class="sn-brand" href="#top">
+          <span class="sn-mark"></span>{{ t.nav.brand }}
+        </a>
+        <div class="sn-links">
+          <a v-for="(it, i) in t.nav.items" :key="i" :href="it[1]">{{ it[0] }}</a>
+        </div>
+        <a class="sn-cta" href="#quick-start">{{ t.nav.cta }} <span class="arrow">→</span></a>
+      </div>
+    </nav>
+
     <!-- HERO -->
     <section class="hero">
       <div class="hero-grid-bg"></div>
@@ -521,7 +590,7 @@ function copyInstall(e: MouseEvent) {
     </section>
 
     <!-- COMPARE -->
-    <section>
+    <section id="compare">
       <div class="wrap">
         <p class="eyebrow">{{ t.compare.eyebrow }}</p>
         <h2>
@@ -545,8 +614,57 @@ function copyInstall(e: MouseEvent) {
       </div>
     </section>
 
+    <!-- RECEIPTS — the differentiator -->
+    <section id="receipts" class="receipts-section">
+      <div class="wrap">
+        <p class="eyebrow">{{ t.receipts.eyebrow }}</p>
+        <h2>{{ t.receipts.title }}<br /><span class="accent-fg">{{ t.receipts.titleAccent }}</span></h2>
+        <p class="section-sub">{{ t.receipts.sub }}</p>
+
+        <div class="receipts-grid">
+          <div class="receipts-points">
+            <div v-for="(p, i) in t.receipts.points" :key="i" class="rcp">
+              <span class="rcp-seal" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M8 1.5l5 2v3.2c0 3-2 5.4-5 6.6-3-1.2-5-3.6-5-6.6V3.5l5-2z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" />
+                  <path d="M5.6 8.1L7.2 9.7L10.5 6.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </span>
+              <div>
+                <h3>{{ p[0] }}</h3>
+                <p>{{ p[1] }}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="receipts-aside">
+            <div class="term">
+              <div class="term-head">
+                <span class="dots"><i></i><i></i><i></i></span>
+                <span class="term-title">{{ t.receipts.termTitle }}</span>
+              </div>
+              <div class="term-body">
+                <span class="line"><span class="muted">you ›</span> <span class="prompt">tausik verify --task T-219</span></span>
+                <span class="line">&nbsp;</span>
+                <span class="line"><span class="dim">tausik ›</span> pytest · ruff · tsc <span class="ok">passed</span></span>
+                <span class="line">        receipt <span class="kw">tausik-signed/v1</span></span>
+                <span class="line">        alg   <span class="num">ed25519</span></span>
+                <span class="line">        gate  <span class="kw">a1b2c3…</span> · head <span class="kw">a91f3e2</span></span>
+                <span class="line">        sig   <span class="num">3045022100…</span> <span class="ok">✓ valid</span></span>
+                <span class="line">&nbsp;</span>
+                <span class="line"><span class="dim">tausik ›</span> task done · <span class="kw">QG-2</span> reads receipt <span class="ok">✓</span></span>
+              </div>
+            </div>
+            <a class="receipts-link" :href="t.receipts.ctaHref">{{ t.receipts.cta }} <span>→</span></a>
+          </div>
+        </div>
+
+        <p class="receipts-kicker"><em>{{ t.receipts.kicker }}</em></p>
+      </div>
+    </section>
+
     <!-- THREE MESSAGES -->
-    <section>
+    <section id="lifecycle">
       <div class="wrap">
         <p class="eyebrow">{{ t.cycle.eyebrow }}</p>
         <h2>{{ t.cycle.title }}</h2>
@@ -1876,5 +1994,178 @@ h2 {
   font-size: 14px;
   line-height: 1.6;
   max-width: 80ch;
+}
+
+/* STICKY SECTION NAV */
+.section-nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(10, 10, 10, 0.82);
+  backdrop-filter: saturate(140%) blur(10px);
+  -webkit-backdrop-filter: saturate(140%) blur(10px);
+  border-bottom: 1px solid var(--lt-line);
+}
+.section-nav-inner {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  height: 52px;
+}
+.sn-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--lt-mono);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--lt-fg);
+  flex-shrink: 0;
+}
+.sn-mark {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, var(--lt-accent) 0%, var(--lt-accent-3) 100%);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+}
+.sn-links {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin-right: auto;
+  font-size: 13px;
+  color: var(--lt-fg-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.sn-links::-webkit-scrollbar {
+  display: none;
+}
+.sn-links a {
+  white-space: nowrap;
+  transition: color 0.15s ease;
+}
+.sn-links a:hover {
+  color: var(--lt-fg);
+}
+.sn-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+  padding: 7px 13px;
+  border-radius: 7px;
+  background: var(--lt-accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.15s ease;
+}
+.sn-cta:hover {
+  background: var(--lt-accent-2);
+}
+.sn-cta .arrow {
+  transition: transform 0.15s ease;
+}
+.sn-cta:hover .arrow {
+  transform: translateX(2px);
+}
+@media (max-width: 760px) {
+  .sn-links {
+    gap: 16px;
+  }
+  .sn-brand {
+    display: none;
+  }
+}
+
+/* RECEIPTS */
+.receipts-section {
+  background:
+    radial-gradient(900px 300px at 80% 0%, rgba(94, 106, 210, 0.06), transparent 60%),
+    var(--lt-bg);
+}
+.receipts-section h2 .accent-fg {
+  color: var(--lt-accent-2);
+}
+.receipts-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: clamp(28px, 4vw, 56px);
+  align-items: start;
+}
+@media (max-width: 920px) {
+  .receipts-grid {
+    grid-template-columns: 1fr;
+    gap: 36px;
+  }
+}
+.receipts-points {
+  display: grid;
+  gap: 22px;
+}
+.rcp {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: 14px;
+  align-items: start;
+}
+.rcp-seal {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(94, 106, 210, 0.1);
+  border: 1px solid rgba(94, 106, 210, 0.28);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--lt-accent-2);
+  flex-shrink: 0;
+}
+.rcp h3 {
+  font-size: 15px;
+  color: var(--lt-fg);
+  margin: 4px 0 4px;
+}
+.rcp p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--lt-fg-2);
+  line-height: 1.55;
+}
+.receipts-aside {
+  position: sticky;
+  top: 76px;
+}
+.receipts-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 18px;
+  color: var(--lt-accent-2);
+  font-size: 14px;
+  border-bottom: 1px solid transparent;
+}
+.receipts-link:hover {
+  border-bottom-color: var(--lt-accent-2);
+}
+.receipts-kicker {
+  margin: 44px auto 0;
+  max-width: 70ch;
+  text-align: center;
+  font-size: 17px;
+  color: var(--lt-fg-2);
+  text-wrap: balance;
+}
+.receipts-kicker em {
+  color: var(--lt-fg);
+  font-style: normal;
+}
+@media (max-width: 920px) {
+  .receipts-aside {
+    position: static;
+  }
 }
 </style>

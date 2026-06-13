@@ -71,7 +71,7 @@ curl -s http://127.0.0.1:8765/receipt/verify -d @receipt.json
 ## Рабочий пример клиента
 
 Исполняемый, проверяемый в CI референс-клиент:
-[`tests/test_no_sdk_example.py`](../../tests/test_no_sdk_example.py) — чистый
+[`tests/test_no_sdk_example.py`](https://github.com/Kibertum/tausik-core/blob/main/tests/test_no_sdk_example.py) — чистый
 stdlib `http.client`, без зависимостей. Ядро:
 
 ```python

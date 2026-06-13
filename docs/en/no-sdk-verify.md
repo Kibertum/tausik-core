@@ -72,7 +72,7 @@ verifying.
 ## Working client example
 
 The runnable, CI-tested reference client lives at
-[`tests/test_no_sdk_example.py`](../../tests/test_no_sdk_example.py) — pure
+[`tests/test_no_sdk_example.py`](https://github.com/Kibertum/tausik-core/blob/main/tests/test_no_sdk_example.py) — pure
 `http.client` stdlib, no dependencies. Core of it:
 
 ```python
