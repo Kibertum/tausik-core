@@ -67,6 +67,7 @@ export default defineConfig({
             {
               text: "Quality & verification",
               items: [
+                { text: "Signed receipts", link: "/docs/receipts" },
                 { text: "Verify glossary", link: "/docs/verify-glossary" },
                 { text: "Zero-defect", link: "/docs/zero-defect" },
                 { text: "Testing principles", link: "/docs/testing-principles" },
@@ -166,6 +167,7 @@ export default defineConfig({
             {
               text: "Качество и верификация",
               items: [
+                { text: "Подписанные чеки", link: "/ru/docs/receipts" },
                 { text: "Verify-глоссарий", link: "/ru/docs/verify-glossary" },
                 { text: "Zero-defect", link: "/ru/docs/zero-defect" },
                 { text: "Принципы тестирования", link: "/ru/docs/testing-principles" },

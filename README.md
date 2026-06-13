@@ -2,50 +2,35 @@
 
 # TAUSIK
 
-**AI development framework — plan, build, ship with quality control.**
+**AI agents that can't fake "done."**
 
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)](https://python.org)
-[![Tests](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml/badge.svg)](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml)
-[![3818 tests](https://img.shields.io/badge/tests-3818%20passed-brightgreen.svg)](#dogfooding-tausik-built-tausik)
-[![Zero deps](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#what-you-get)
+TAUSIK is a discipline layer for AI coding agents. It turns the agent's word — "tests pass," "the task is done" — into something you can actually verify. Plan before code, ship with proof, remember every decision. Not suggestions the agent can ignore: hard gates it physically cannot skip.
 
-> ⚠️ **v1.5 — pre-2.0 hardening release.** A 1.x minor on the road to **2.0**.
-> v1.5 tightens the SENAR enforcement core: signed verification receipts
-> (evidence attestation), fail-closed quality gates, external adversarial review
-> for high-risk closures, structured root cause, closure-risk scoring, plus a
-> model-routing fix and escalating nudges. Expect occasional doc-vs-behaviour
-> drift on uncommon paths. The core is covered by 3818 tests and is dogfooded
-> daily — if you hit a mismatch, file an issue and we'll converge it before 2.0.
+[![signed receipts: ed25519](https://img.shields.io/badge/signed%20receipts-ed25519-6f42c1.svg)](docs/en/receipts.md)
+[![3818 tests](https://img.shields.io/badge/tests-3818-brightgreen.svg)](#proof-tausik-built-tausik)
+[![0 dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#whats-inside)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB.svg)](https://python.org)
 
-### What's new in v1.5 (in plain language)
+---
 
-- **Closing a task is fast again.** Heavy tests run on a separate `tausik verify` step and get cached, so `task done` finishes in milliseconds instead of waiting for the full pipeline.
-- **A budget for every task.** Set a dollar or token cap per task; the agent gets warned at 1.5× and a hard "stop and re-plan" signal at 2×.
-- **Skill bundles, opt-in.** Install groups of official skills with one command (`integrations`, `data-formats`, `quality-pro`, `automation`, `workflow-helpers`).
-- **Skills auto-tune to your IDE and model.** Same skill, different overlay — Claude / Cursor / Qwen × Opus / Sonnet / Haiku / GPT, picked up automatically.
-- **Cleaner shared brain.** Patterns and gotchas are scrubbed for secrets before they leave your project, and search ranks results by your stack.
-- **Audit toolkit.** New scripts find dead docs, orphan files, unused Python, and copy-pasted tests so long-running projects stay tidy.
-- **Single-use push tickets.** Pushing now requires `tausik push-ok` (60-second, single-use, bound to your commit) — works the same in Claude Code, Cursor, and Qwen Code.
+## Without TAUSIK / With TAUSIK
 
-**TAUSIK is a quality control framework for AI coding agents** — Claude Code,
-Cursor, VSCode Claude Extension, Qwen Code, Windsurf. It enforces the
-discipline of a senior engineer: plan before coding, verify before claiming
-done, remember decisions across sessions, and never silently skip the
-test/lint pipeline.
+| Your agent does this | TAUSIK does this |
+|---|---|
+| Says "I'll just refactor this" and edits 30 files | **No active task → BLOCKED.** No code edits until a task is open. |
+| Declares "done" with nothing to show for it | **QG-2 blocks the close.** Every acceptance criterion needs evidence. |
+| Reports a green build you have to take on faith | **ed25519 signed receipt.** The green is cryptographically bound to the gate and the commit — it can't be forged or replayed. |
+| Tries the same broken approach for the third time | **Project memory.** Failed approaches are recorded; the agent sees what didn't work. |
+| Quietly skips the test/lint pipeline | **Separate `verify` step.** Heavy gates run on their own trigger and get cached — skipping is visible, not silent. |
 
-**Think of it as Git for AI workflow.** Sessions, tasks, decisions and
-dead-ends are tracked in a local SQLite database. Quality gates physically
-block the agent at two checkpoints — start (no goal? blocked) and done
-(no evidence? blocked) — so "I'll remember to test next time" stops being a thing.
+The difference is one word: **enforcement.**
 
-Three messages. Full engineering cycle. Quality gates that the agent can't skip.
+---
 
-> Works across Claude Code, VSCode Claude Extension, Cursor, Qwen Code (GigaCode), Windsurf.
+## The 30-second try
 
-## Try It Now
-
-Tell your AI agent:
+Tell your agent:
 
 ```
 Add https://github.com/Kibertum/tausik-core as a git submodule in .tausik-lib,
@@ -53,9 +38,7 @@ run python .tausik-lib/bootstrap/bootstrap.py --init,
 add .tausik/ to .gitignore
 ```
 
-The agent will execute all three steps. Restart your IDE after — done.
-
-Then just three messages:
+It runs all three steps. Restart your IDE so the MCP servers load — done. Now drive the whole engineering cycle with three messages:
 
 ```
 start working
@@ -67,58 +50,114 @@ fix the bug — button doesn't work on mobile
 ship it
 ```
 
-That's it. The agent opens a session, creates a task with acceptance criteria, writes the code, runs tests and code review, verifies each criterion with evidence, commits, and offers to push. Full engineering cycle — you just describe what you want.
+The agent opens a session, writes a task with acceptance criteria, codes, runs tests and review, verifies each criterion against evidence, commits, and offers to push. You described what you wanted; the framework forced the steps you skip when you trust the agent too much.
 
-## Token Efficiency
+---
 
-v1.5.x ships fewer skills by default — only the ones every TAUSIK project actually uses. Smaller system-reminder list = lower per-turn token cost without losing functionality.
+## Verifiable trust
 
-| Component | Before v1.5.x | After v1.5.x | Saving |
-|---|---|---|---|
-| `system-reminder` skill list | 38 skills (~1,520 tok/turn) | 12 + 1 conditional (~480 tok/turn) | **−1,040 tok/turn (−68%)** |
+This is what makes TAUSIK different from every prompt-based ruleset.
 
-How it works:
+- **`tausik verify` emits an ed25519-signed receipt** (`tausik-signed/v1`) bound to the exact gate signature and the HEAD commit sha.
+- **`task done` validates that receipt before it lets the task close.** A green that wasn't actually produced — or was produced for a different commit — fails the check.
+- **Receipts are portable.** Export one and verify it offline with no SDK, via a stateless HTTP endpoint or the no-SDK example.
+- **Skill and stack releases are signed too** — installs verify the signature before writing anything to disk.
 
-- **12 core skills** auto-deployed: `/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, `/review`, `/test`, `/debug`, `/explore`, `/interview`.
-- **`/brain` conditional** — surfaces only when `tausik brain init` has populated `brain.notion_db_ids`. Projects that never use the shared brain don't pay its ~600 tok/turn.
-- **Extras opt-in** — re-run `python .tausik-lib/bootstrap/bootstrap.py --include-official` (alias `--include-vendor`) for the full 38-skill set, or `tausik skill install <name>` for one at a time. Bundle CLI (`tausik skill bundle install`) lands in a follow-up release.
-- **`tausik status` warns** if the deployed skill set drifts from the active flag (e.g. 38 deployed without `--include-official`) so you notice unintended bloat.
+**What this means for you:** when an agent tells you the build is green, you don't have to believe it. You have a signed receipt that proves it — or proves it lied.
 
-## Functionality
+**[How signed receipts work →](docs/en/receipts.md)**
 
-| Category | What it does | How you use it |
-|---|---|---|
-| **Lifecycle** | Epic → Story → Task hierarchy with state machine (planning → active → review → done) | `/plan`, `/task`, `/start`, `/end` |
-| **Quality Gates** | QG-0 blocks `task start` without goal+AC. QG-2 blocks `task done` without verify-cache hit. Scoped per task — only relevant tests run | Auto on `task start` / `task done` |
-| **Verify-First Contract** *(v1.5)* | Heavy gates (pytest, tsc, cargo, phpstan…) on a `verify` trigger separate from `task done`. Closing a task is millisecond. Pipeline envelope timeout 60s — no silent hangs | `tausik verify --task X` then `task done X` |
-| **Project Memory** | Patterns, gotchas, conventions, dead-ends, decisions stored in SQLite+FTS5. Re-injected at session start | `/brain`, `tausik memory add`, auto on `/start` |
-| **Verification Engine** | 25 stack-aware checks (pytest, ruff, mypy, tsc, eslint, cargo, go-vet, phpstan, helm-lint, hadolint…). Scoped to relevant_files. Cached for 10 min | Stack auto-detected by bootstrap |
-| **Real-time Hooks** | 21 hooks: task gate (no code without task), bash firewall, push gate, auto-format, drift detection (SessionStart/UserPromptSubmit/Stop), memory pre/post audit | Auto in Claude Code & Qwen Code |
-| **Metrics** | Throughput, First-Pass Success Rate, Defect Escape Rate, Lead Time, Dead End Rate, Cost-per-task | `tausik metrics`, `tausik metrics --cost` |
-| **Multi-IDE** | Same MCP tools (104) + skills across hosts | VSCode/Claude, Cursor, Qwen Code, Windsurf, Codex, CLI |
-| **Skill Ecosystem** | 12 core skills auto-deployed (+ `/brain` when configured) — see [Token Efficiency](#token-efficiency). 25+ official/vendor skills opt-in via `--include-official` flag or `tausik skill install`. Multi-model profiles via `variants/<model>.md` *(v1.5)* | `tausik skill install <name>` |
-| **Cross-project Brain** *(optional)* | Notion-mirrored decisions / patterns / gotchas / web-cache shared across projects. v1.5 adds an artifact pipeline: propose → audit (scrubbing for secrets) → publish, with stack-aware bm25 ranking. Privacy via SHA256 project hashes | `/brain` query, `tausik brain init`, `tausik brain propose-artifact`, `tausik brain publish` |
-| **Hygiene & Audit** *(v1.5)* | `tausik hygiene archive` lists old done tasks (dry-run). Audit scripts: `audit_orphan_files`, `audit_stale_docs`, `audit_unused_python`, `audit_pytest_dedupe` — inventory dead code, dangling docs, copy-pasted tests | `tausik hygiene archive`, `python scripts/audit_*.py` |
-| **Task Archive** *(v1.5)* | Read-only spec for archiving done tasks > N days. Active / blocked / planning never archived; `--confirm` reserved for future destructive ops | `tausik hygiene archive` |
-| **Batch Execution** | Run multi-task markdown plans autonomously | `/run plan.md` |
-| **Sessions** | Active-time tracking (gap-based, 10-min idle threshold), 180-min limit, capacity gate (200 tool calls), handoff persistence | Auto on `/start`, `/end`, `/checkpoint` |
+---
 
-## What You Get
+## How it works
 
-| Without TAUSIK | With TAUSIK |
-|---|---|
-| Agent starts coding immediately | Must define goal + acceptance criteria first |
-| Claims "done" without proof | Completion blocked until every criterion has evidence |
-| Context lost between sessions | Decisions, patterns, and dead ends persist across sessions |
-| Same mistake repeated 3 times | Failed approaches recorded — agent sees what didn't work |
-| No tests, no linting | 25 checks auto-run for your stack (pytest, ruff, tsc, eslint, cargo, go vet...) |
-| No visibility into process | 6 metrics tracked automatically — throughput, defect rate, lead time |
+**Plan before code.** `/plan` opens with an interview — the agent asks about behavior, edge cases, and constraints, then writes tasks with acceptance criteria. No code until "done" is defined.
 
-**The key difference:** TAUSIK quality gates are _enforcement_. The agent physically cannot skip steps — no prompts, no hoping, no "please remember to run tests."
+**Ship with proof.** `/ship` runs parallel code review, tests, verifies every criterion against evidence, commits, and offers to push — one command, full pipeline, signed receipt at the end.
 
-## Manual Quick Start
+**Remember everything.** Decisions, patterns, conventions, and dead ends live in a local SQLite + FTS5 database and are re-injected at session start. New session, same context — no re-explaining the project.
 
-If you prefer to set things up yourself:
+**Enforce, not suggest.** Two quality gates and a set of real-time hooks block the agent the moment it tries to cut a corner. No `--force`, no "please remember to test."
+
+---
+
+## The two gates
+
+**QG-0 — before work starts.** No goal, no acceptance criteria → the task can't start.
+
+```
+$ tausik task start fix-mobile-button
+BLOCKED (QG-0): task has no acceptance criteria.
+Define what "done" means before writing code.
+```
+
+**QG-2 — before the task closes.** No verify evidence → the task can't be marked done.
+
+```
+$ tausik task done fix-mobile-button --ac-verified
+BLOCKED (QG-2): no valid verification receipt for HEAD a1b2c3d.
+Run `tausik verify --task fix-mobile-button` first.
+```
+
+Both are fail-closed: a gate that can't evaluate blocks rather than waves the task through.
+
+---
+
+## Proof: TAUSIK built TAUSIK
+
+TAUSIK was built with TAUSIK — every feature, refactor, and bug fix went through the gates that ship in the box. Not as a vanity metric, as the strongest test of the contract:
+
+- **Every task closed with a goal + acceptance criteria.** Zero closed without verify evidence.
+- **3818 tests** — the enforcement core is the most-tested part.
+- **0 core dependencies** — Python 3.11+ stdlib only; MCP deps live in an isolated `.tausik/venv/`.
+- **0 phone-home calls** — everything runs and stays on your machine.
+
+---
+
+## Why not .cursorrules / AGENTS.md?
+
+Those are **suggestions** — text the agent reads and is free to ignore the moment it's inconvenient. TAUSIK is **hard blocks**: hooks intercept edits, gates refuse to close, receipts prove the green. The rulebook becomes a rail.
+
+---
+
+## What's inside
+
+- **Lifecycle & gates** — Epic → Story → Task with a state machine; QG-0 at start, QG-2 at close, both fail-closed.
+- **Verifiable trust** — ed25519 signed verification receipts, offline-checkable, with supply-chain signing for skills and stacks.
+- **Project memory** — SQLite + FTS5 store of decisions, patterns, conventions and dead ends, re-injected every session.
+- **Real-time enforcement** — hooks for the no-code-without-a-task gate, a bash firewall, a single-use push ticket, and auto-format.
+- **Metrics & routing** — throughput, first-pass success, defect-escape and lead-time tracked automatically; per-task cost/token budgets; complexity-aware model routing.
+
+<details>
+<summary>Raw counts</summary>
+
+- **104 MCP tools** (97 project + 7 brain) — full programmatic access to the project database.
+- **21 real-time hooks** — task gate, bash firewall, push gate, auto-format, drift detection, memory pre/post audit, and more.
+- **25 stack-aware verify suites** — pytest, ruff, mypy, tsc, eslint, cargo, go vet, phpstan, helm-lint, hadolint, and others, scoped to the files you touched.
+- **12 core skills** auto-deployed (+ `/brain` once configured); 25+ official skills opt-in via `bootstrap --include-official` or `tausik skill install <name>`.
+- **6 automatic metrics**, **cross-project shared brain** (optional, Notion-mirrored), **batch execution** (`/run plan.md`).
+
+</details>
+
+---
+
+## Supported IDEs
+
+Multi-IDE by design, but we're honest about what's validated end-to-end.
+
+| IDE | MCP tools | Skills | Hooks | Status |
+|---|---|---|---|---|
+| **Claude Code** | 104 | 12 core + opt-in | 21 (full) | First-class |
+| **Qwen Code** | 104 | 12 core + opt-in | 21 (parity with Claude) | First-class |
+| **Cursor** | 104 | 12 core + opt-in | — (gates at task start/done) | Supported via MCP |
+| VSCode + Claude Extension | 104 | 12 core + opt-in | 21 | Tested E2E |
+| Windsurf / Codex-style | MCP + rules | host-dependent | host-specific | Expected / manual |
+
+Hooks — the real-time rails (no code without a task, bash firewall, push gate) — run in **Claude Code and Qwen Code**. Cursor, Windsurf and other MCP hosts get the same 104 tools and skills, with quality gates enforced at `task start` and `task done`.
+
+---
+
+## Install
 
 ```bash
 cd your-project
@@ -126,94 +165,23 @@ git submodule add https://github.com/Kibertum/tausik-core .tausik-lib
 python .tausik-lib/bootstrap/bootstrap.py --init
 ```
 
-Bootstrap auto-detects your tech stack and enables matching quality gates. Project name is derived from the directory.
+Bootstrap auto-detects your stack and enables matching gates; the project name comes from the directory. Restart your IDE afterward so the MCP servers load.
 
-> After bootstrap, restart your IDE so MCP servers load. Without a restart the agent falls back to CLI mode.
+**[Full quick-start guide →](docs/en/quickstart.md)**
 
-**[Detailed quick start guide ->](docs/en/quickstart.md)**
-
-## How It Works
-
-**Plan before code.** `/plan` starts with an interview — the agent asks clarifying questions about behavior, edge cases, and constraints. Then it creates tasks with acceptance criteria. No coding until the goal is defined.
-
-**Ship with confidence.** `/ship` runs code review (5 parallel agents), tests, verifies each acceptance criterion, commits, and suggests updating docs. One command — full quality pipeline.
-
-**Remember everything.** Decisions, patterns, conventions, and failed approaches are stored in a local SQLite database with full-text search. New session? The agent picks up right where you left off.
-
-**Enforce, not suggest.** Quality gates block the agent at two checkpoints: QG-0 (can't start without goal + criteria) and QG-2 (can't close without evidence + passing tests). Hooks block code edits without a task and dangerous shell commands in real time.
-
-## Advanced Features
-
-- **Anti-drift guards** — SessionStart / UserPromptSubmit / Stop hooks detect coding intent without an active task, re-inject Memory Block on `/start`, audit `task_done` evidence (file paths, ✓ markers, test counts, lint status). Adversarial critic — 6th parallel `/review` agent finds weaknesses the others miss. [Details →](docs/en/hooks.md)
-- **Memory discipline** — TAUSIK memory (`.tausik/tausik.db`, project-scoped) and Claude auto-memory (`~/.claude/`, cross-project) are separated by a PreToolUse block + PostToolUse audit. Project leaks into cross-project memory are blocked at the source. [Details →](docs/en/memory-merge-guidelines.md)
-- **Shared Brain** *(optional)* — second knowledge layer on Notion for cross-project patterns + gotchas. Local SQLite FTS5 mirror, bm25-ranked search, SHA256-hashed project names. Stdlib-only Notion client. [Details →](docs/en/shared-brain.md)
-- **Brain artifact pipeline** *(v1.5)* — formal taxonomy (artifact / pattern / snippet) + JSON Schema validator + propose→audit→publish flow with scrubbing for secrets and explicit `confirm_high_risk` gate. Stack-aware ranking in `brain_search`. [Taxonomy →](docs/en/brain-artifact-taxonomy.md) · [Search ranking →](docs/en/brain-search-ranking.md)
-- **Pipeline reliability** *(v1.5)* — Verify-First contract decouples heavy gates from `task done`. Envelope timeout (60s default), relaxed cache for manual-scope verify, relevant_files fallback from verify-row. No silent hangs. [Details →](docs/en/verify-glossary.md)
-- **Audit suite** *(v1.5)* — orphan-file / stale-doc / unused-python / pytest-dedupe scripts surface dead code and copy-paste in long-running projects. `tausik hygiene archive` + read-only task archive spec. CI doc-constants drift check. [Details →](docs/en/dev-doc-checks.md)
-- **Interview & live dashboard** — `/interview` runs Socratic Q&A before complex tasks. `tausik hud` shows one-screen live dashboard. `tausik suggest-model` routes Haiku/Sonnet/Opus by task complexity. Webhook notifications to Slack/Discord/Telegram.
-
-## What's Inside
-
-- **12 core skills + `/brain` conditional** (auto-deployed) — `/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, `/review`, `/test`, `/debug`, `/explore`, `/interview` always; `/brain` only after `tausik brain init`. Plus **25+ official/vendor skills** (`/audit`, `/zero-defect`, `/markitdown`, `/docs`, `/security`, `/onboard`, …) opt-in via `bootstrap --include-official` or `tausik skill install <name>`.
-- **104 MCP tools** (97 project + 7 brain) — full programmatic access to the project database
-- **25 quality checks** — pytest, ruff, tsc, eslint, cargo check, go vet, and more for your stack
-- **6 automatic metrics** — throughput, first-pass success rate, defect rate, lead time
-- **Project memory** — SQLite + FTS5, graph relations, dead-end tracking, Memory Block re-injection
-- **19 Claude Code hooks** — task gate, bash firewall, push gate, auto-format, activity event, SessionStart, UserPromptSubmit, Stop × 2, PostToolUse verify, memory pre-write block, memory post-write audit, brain post-WebFetch cache, brain pre-search proactive, notify-on-done, session-metrics, session-cleanup-check, task-call-counter
-- **Batch execution** — `/run plan.md` executes multi-task plans autonomously
-- **Zero dependencies** — Python 3.11+ stdlib only; MCP deps in isolated `.tausik/venv/`
-
-## Supported IDEs
-
-**Validation policy:** TAUSIK is designed to be multi-IDE, but release validation is explicit.
-Officially tested E2E right now: **VSCode + Claude Extension** and **Cursor**.
-Other integrations are supported by design, but are marked as expected/partial until full test matrix coverage is added.
-
-| IDE | MCP Tools | Skills | Hooks | Rules | Validation status |
-|-----|-----------|--------|-------|-------|-------------------|
-| VSCode + Claude Extension | 104 tools | 12 core + brain conditional, 25+ on demand | 21 hooks (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md + .mcp.json | **Officially tested** |
-| Cursor | 104 tools | 12 core + brain conditional, 25+ on demand | — | .cursorrules + .cursor/mcp.json | **Officially tested** |
-| Claude Code (CLI) | 104 tools | 12 core + brain conditional, 25+ on demand | 21 hooks | CLAUDE.md + .mcp.json | Expected (partial matrix) |
-| Qwen Code | 104 tools | 12 core + brain conditional, 25+ on demand | 21 hooks (same as Claude) | QWEN.md + .mcp.json | Expected (partial matrix) |
-| Windsurf | 104 tools | 12 core + brain conditional, 25+ on demand | — | .windsurfrules + .mcp.json | Expected (partial matrix) |
-| Codex / OpenCode-style agents | MCP + rules-driven where supported | Depends on host | Host-specific | AGENTS.md | Expected (manual validation) |
-
-**Hooks** block code edits without a task, dangerous shell commands, and direct push to main — in real time. Available in Claude Code and Qwen Code. Cursor and Windsurf get the same MCP tools and skills, with quality gates at `task start` and `task done`.
-
-## Dogfooding: TAUSIK Built TAUSIK
-
-TAUSIK was developed using itself. Real numbers:
-
-| Metric | Value |
-|---|---|
-| Tasks completed | 526 |
-| Sessions | 39 |
-| Throughput | ~13 tasks/session |
-| Test count | 2590 |
-| Dependencies | 0 core |
-
-Every feature, every refactor, every bug fix went through the same quality gates that ship with the framework.
+---
 
 ## Methodology
 
-TAUSIK implements [SENAR](https://senar.tech) ([GitHub](https://github.com/Kibertum/SENAR)) — an open engineering standard for AI-assisted development. Quality gates, session management, metrics, verification checklists — it's all defined in SENAR.
+TAUSIK is the reference implementation of [SENAR](https://senar.tech) ([GitHub](https://github.com/Kibertum/SENAR)) — an open engineering standard for AI-assisted development. The gates, sessions, metrics and verification checklists all come from the spec; you don't have to read it to use the framework.
 
-**[Read more about SENAR ->](docs/en/senar.md)**
+**[More about SENAR →](docs/en/senar.md)**
 
-## Documentation
+---
 
-| Document | Description |
-|----------|-------------|
-| **[Quick Start](docs/en/quickstart.md)** | First setup — 10-15 minutes |
-| **[What is SENAR?](docs/en/senar.md)** | The methodology behind TAUSIK |
-| **[Workflow](docs/en/workflow.md)** | A typical day with TAUSIK |
-| **[Skills](docs/en/skills.md)** | 12 core + brain conditional, 25+ official skills opt-in (38 total) |
-| **[Hooks](docs/en/hooks.md)** | Real-time enforcement |
-| **[CLI Commands](docs/en/cli.md)** | Terminal command reference |
-| **[MCP Tools](docs/en/mcp.md)** | 104 tools for the AI agent |
-| **[Architecture](docs/en/architecture.md)** | How the framework works inside |
+## v1.5 — pre-2.0, and confident about it
 
-**[Full documentation ->](docs/README.md)**
+v1.5 is a hardening release on the road to 2.0: signed receipts, fail-closed gates, external adversarial review for high-risk closures, closure-risk scoring, structured root cause. The enforcement core is **locked and covered by 3818 tests**, dogfooded daily. On uncommon paths you may still hit doc-vs-behavior drift — if you do, [file an issue](https://github.com/Kibertum/tausik-core/issues) and we'll converge it before 2.0.
 
 ## License
 

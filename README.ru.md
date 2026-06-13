@@ -2,51 +2,35 @@
 
 # TAUSIK
 
-**Фреймворк для AI-разработки — планируй, создавай, выпускай с контролем качества.**
+**AI-агенты, которые не врут «готово».**
 
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)](https://python.org)
-[![Tests](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml/badge.svg)](https://github.com/Kibertum/tausik-core/actions/workflows/tests.yml)
-[![3818 tests](https://img.shields.io/badge/tests-3818%20passed-brightgreen.svg)](#dogfooding-tausik-создан-с-помощью-себя)
-[![Zero deps](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#что-внутри)
+TAUSIK — это discipline-слой для AI-кодинг-агентов. Он превращает слова агента — «тесты прошли», «задача готова» — в то, что вы можете проверить. Планировать перед кодом, выпускать с доказательством, помнить каждое решение. Не рекомендации, которые агент волен игнорировать, а жёсткие гейты, которые он физически не может обойти.
 
-> ⚠️ **v1.5 — pre-2.0 hardening релиз.** Минорный релиз 1.x на пути к **2.0**.
-> v1.5 ужесточает SENAR-ядро: подписанные verification-receipt'ы (evidence
-> attestation), fail-closed quality gates, внешнее adversarial-ревью для
-> high-risk закрытий, структурированный root cause, scoring риска закрытия, плюс
-> фикс model-routing и escalating-nudges. Возможен рассинхрон docs ↔ behaviour
-> на редких путях. Ядро покрыто 3818 тестами и используется на dogfood'е каждый
-> день; наткнётесь на расхождение — заведите issue, доедем до 2.0 без regression'ов.
+[![signed receipts: ed25519](https://img.shields.io/badge/signed%20receipts-ed25519-6f42c1.svg)](docs/ru/receipts.md)
+[![3818 тестов](https://img.shields.io/badge/tests-3818-brightgreen.svg)](#proof-tausik-собран-на-tausik)
+[![0 зависимостей](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#что-внутри)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB.svg)](https://python.org)
 
-### Что нового в v1.5 (простыми словами)
+---
 
-- **Закрывать задачу снова быстро.** Тяжёлые тесты запускаются отдельным шагом `tausik verify` и кэшируются — `task done` закрывает задачу за миллисекунды, не ждёт полный пайплайн.
-- **Бюджет на каждую задачу.** Доллары или токены на задачу; агент получает warning на 1.5× и сигнал «stop and re-plan» на 2×.
-- **Bundle'ы скиллов, opt-in.** Ставь группами одной командой: `integrations`, `data-formats`, `quality-pro`, `automation`, `workflow-helpers`.
-- **Скиллы подстраиваются под IDE и модель.** Один скилл, разные оверлеи — Claude / Cursor / Qwen × Opus / Sonnet / Haiku / GPT, подбирается автоматически.
-- **Чище общий brain.** Паттерны и gotcha'и проверяются на секреты до того, как уйдут из проекта; поиск ранжирует по твоему stack'у.
-- **Audit-инструменты.** Новые скрипты находят мёртвую документацию, orphan-файлы, неиспользуемый Python и копипасту в тестах.
-- **Одноразовые push-тикеты.** Push теперь требует `tausik push-ok` (60 секунд, одноразовый, привязан к коммиту) — одинаково работает в Claude Code, Cursor и Qwen Code.
+## Без TAUSIK / С TAUSIK
 
-**TAUSIK — фреймворк контроля качества для AI-агентов разработки** —
-Claude Code, Cursor, VSCode Claude Extension, Qwen Code, Windsurf.
-Он навязывает дисциплину senior-инженера: планировать перед кодом,
-верифицировать перед заявкой о готовности, помнить решения между
-сессиями и никогда молча не пропускать тесты/линтер.
+| Что делает агент | Что делает TAUSIK |
+|---|---|
+| Говорит «сейчас по-быстрому отрефакторю» и правит 30 файлов | **Нет активной задачи → BLOCKED.** Без открытой задачи редактировать код нельзя. |
+| Объявляет «готово», не показав ничего | **QG-2 блокирует закрытие.** Под каждый критерий приёмки нужны доказательства. |
+| Рапортует зелёную сборку, в которую остаётся просто поверить | **ed25519-receipt с подписью.** Зелёное криптографически привязано к гейту и коммиту — его нельзя подделать или переиграть. |
+| Третий раз подряд пробует один и тот же сломанный подход | **Память проекта.** Неудачные подходы записаны — агент видит, что не сработало. |
+| Молча пропускает прогон тестов и линтера | **Отдельный шаг `verify`.** Тяжёлые гейты идут своим триггером и кэшируются — пропуск виден, а не происходит втихую. |
 
-**Это как Git для AI-разработки.** Сессии, задачи, решения и тупики
-хранятся в локальной SQLite. Quality gates физически блокируют агента
-в двух точках — старт (нет цели — заблокировано) и финиш (нет
-доказательств — заблокировано) — так что «постараюсь не забыть тесты
-в следующий раз» перестаёт быть сценарием.
+Разница в одном слове: **принуждение.**
 
-Три сообщения. Полный инженерный цикл. Quality gates, которые агент не может обойти.
+---
 
-> Работает в Claude Code, VSCode Claude Extension, Cursor, Qwen Code (GigaCode), Windsurf.
+## Попробовать за 30 секунд
 
-## Попробуйте прямо сейчас
-
-Скажите вашему ИИ-агенту:
+Скажите агенту:
 
 ```
 Добавь https://github.com/Kibertum/tausik-core как git submodule в .tausik-lib,
@@ -54,9 +38,7 @@ Claude Code, Cursor, VSCode Claude Extension, Qwen Code, Windsurf.
 добавь .tausik/ в .gitignore
 ```
 
-Агент выполнит все три шага. Перезапустите IDE после — готово.
-
-Дальше — три сообщения:
+Он выполнит все три шага. Перезапустите IDE, чтобы поднялись MCP-серверы, — готово. Дальше весь инженерный цикл — в три сообщения:
 
 ```
 начинай работу
@@ -68,58 +50,114 @@ Claude Code, Cursor, VSCode Claude Extension, Qwen Code, Windsurf.
 готово, отправляй
 ```
 
-Всё. Агент откроет сессию, создаст задачу с критериями приёмки, напишет код, запустит тесты и код-ревью, проверит каждый критерий с доказательствами, закоммитит и предложит запушить. Полный инженерный цикл — вы просто описываете, что хотите.
+Агент откроет сессию, заведёт задачу с критериями приёмки, напишет код, прогонит тесты и ревью, проверит каждый критерий по доказательствам, закоммитит и предложит запушить. Вы сказали, что хотите, — фреймворк заставил пройти шаги, которые пропускаешь, когда слишком доверяешь агенту.
 
-## Token Efficiency
+---
 
-В v1.5.x по default разворачивается меньше скиллов — только те, что реально нужны каждому проекту TAUSIK. Меньше system-reminder список = ниже стоимость каждого хода без потери функциональности.
+## Проверяемое доверие
 
-| Компонент | До v1.5.x | После v1.5.x | Экономия |
-|---|---|---|---|
-| Список skills в `system-reminder` | 38 skills (~1,520 ток/ход) | 12 + 1 conditional (~480 ток/ход) | **−1,040 ток/ход (−68%)** |
+Именно это отличает TAUSIK от любого набора правил на промптах.
 
-Как это устроено:
+- **`tausik verify` выпускает ed25519-receipt с подписью** (`tausik-signed/v1`), привязанный к точной сигнатуре гейта и sha коммита HEAD.
+- **`task done` проверяет этот receipt, прежде чем дать закрыть задачу.** Зелёное, которого на самом деле не было — или которое было для другого коммита, — проверку не пройдёт.
+- **Receipt'ы переносимы.** Экспортируйте один и проверьте офлайн без SDK — через stateless HTTP-эндпоинт или пример без зависимостей.
+- **Релизы скиллов и стеков тоже подписаны** — установка проверяет подпись до того, как что-либо запишется на диск.
 
-- **12 core-скиллов** разворачиваются автоматически: `/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, `/review`, `/test`, `/debug`, `/explore`, `/interview`.
-- **`/brain` условно** — появляется только после `tausik brain init` (когда заполнен `brain.notion_db_ids`). Проекты, не использующие shared brain, не платят его ~600 ток/ход.
-- **Extras по запросу** — перезапусти `python .tausik-lib/bootstrap/bootstrap.py --include-official` (alias `--include-vendor`) для полного набора 38 skills, либо `tausik skill install <name>` для одного. Bundle CLI (`tausik skill bundle install`) появится в следующем релизе.
-- **`tausik status` предупреждает**, если развёрнутый skill-set расходится с активным флагом (например, 38 развёрнуто без `--include-official`) — чтобы ты заметил случайный bloat.
+**Что это значит для вас:** когда агент говорит, что сборка зелёная, верить на слово не нужно. У вас есть подписанный receipt, который это доказывает — или доказывает, что агент соврал.
 
-## Функционал
+**[Как работают подписанные receipt'ы →](docs/ru/receipts.md)**
 
-| Категория | Что делает | Как использовать |
-|---|---|---|
-| **Lifecycle** | Иерархия Epic → Story → Task с state machine (planning → active → review → done) | `/plan`, `/task`, `/start`, `/end` |
-| **Quality Gates** | QG-0 блокирует `task start` без goal+AC. QG-2 блокирует `task done` без verify-cache hit. Scoped по задаче — только нужные тесты | Авто на `task start` / `task done` |
-| **Verify-First Contract** *(v1.5)* | Тяжёлые gates (pytest, tsc, cargo, phpstan…) на trigger `verify`, отдельно от `task done`. Закрытие задачи — миллисекунды. Envelope timeout 60s — нет молчаливых зависаний | `tausik verify --task X` затем `task done X` |
-| **Память проекта** | Паттерны, gotchas, конвенции, dead ends, решения в SQLite+FTS5. Re-инжектятся при старте сессии | `/brain`, `tausik memory add`, авто на `/start` |
-| **Verification Engine** | 25 stack-aware проверок (pytest, ruff, mypy, tsc, eslint, cargo, go-vet, phpstan, helm-lint, hadolint…). Scoped по relevant_files. Cache на 10 мин | Стек авто-определяется bootstrap |
-| **Real-time хуки** | 21 хуков: task gate (нет кода без задачи), bash firewall, push gate, auto-format, drift detection (SessionStart/UserPromptSubmit/Stop), memory pre/post audit | Авто в Claude Code и Qwen Code |
-| **Метрики** | Throughput, First-Pass Success Rate, Defect Escape Rate, Lead Time, Dead End Rate, Cost-per-task | `tausik metrics`, `tausik metrics --cost` |
-| **Multi-IDE** | Те же MCP-инструменты (104) + skills во всех хостах | VSCode/Claude, Cursor, Qwen Code, Windsurf, Codex, CLI |
-| **Skill Ecosystem** | 12 core skills auto-deployed (+ `/brain` если настроен Notion) — см. [Token Efficiency](#token-efficiency). 25+ official/vendor skills opt-in через `--include-official` или `tausik skill install`. Multi-model профили через `variants/<model>.md` *(v1.5)* | `tausik skill install <name>` |
-| **Cross-project Brain** *(опционально)* | Notion-mirror решений / паттернов / gotchas / web-кэша между проектами. v1.5 добавляет artifact pipeline: propose → audit (scrubbing секретов) → publish, со stack-aware bm25 ранжированием. Приватность через SHA256-хеши имён | `/brain` query, `tausik brain init`, `tausik brain propose-artifact`, `tausik brain publish` |
-| **Гигиена & Audit** *(v1.5)* | `tausik hygiene archive` списком показывает старые done-задачи (dry-run). Audit-скрипты: `audit_orphan_files`, `audit_stale_docs`, `audit_unused_python`, `audit_pytest_dedupe` — инвентаризация мёртвого кода, висячих доков, скопированных тестов | `tausik hygiene archive`, `python scripts/audit_*.py` |
-| **Task Archive** *(v1.5)* | Read-only спека архивирования done-задач старше N дней. Active / blocked / planning никогда не архивируются; `--confirm` зарезервирован под будущие деструктивные операции | `tausik hygiene archive` |
-| **Batch Execution** | Автономное выполнение многозадачных markdown-планов | `/run plan.md` |
-| **Сессии** | Active-time tracking (gap-based, 10-мин idle threshold), лимит 180 мин, capacity gate (200 tool calls), handoff persistence | Авто на `/start`, `/end`, `/checkpoint` |
+---
 
-## Что вы получаете
+## Как это работает
 
-| Без TAUSIK | С TAUSIK |
-|---|---|
-| Агент сразу пишет код | Обязан определить цель и критерии приёмки |
-| Заявляет «готово» без доказательств | Закрытие заблокировано, пока каждый критерий не подтверждён |
-| Контекст теряется между сессиями | Решения, закономерности и тупики сохраняются |
-| Одна ошибка повторяется 3 раза | Неудачные подходы записаны — агент видит, что не сработало |
-| Ни тестов, ни линтера | 25 проверок для вашего стека запускаются автоматически |
-| Нет видимости процесса | 6 метрик считаются автоматически — производительность, дефекты, скорость |
+**Планирование перед кодом.** `/plan` начинается с интервью — агент уточняет поведение, граничные случаи и ограничения, затем заводит задачи с критериями приёмки. Никакого кода, пока не определено «готово».
 
-**Ключевое отличие:** quality gates TAUSIK — это _принудительный контроль_. Агент физически не может пропустить шаги — никаких промптов, надежд и «пожалуйста, не забудь запустить тесты».
+**Выпуск с доказательством.** `/ship` запускает параллельное код-ревью, тесты, проверяет каждый критерий по доказательствам, коммитит и предлагает запушить — одна команда, весь пайплайн и подписанный receipt в конце.
 
-## Ручная установка
+**Помнит всё.** Решения, паттерны, соглашения и тупики живут в локальной SQLite + FTS5 и подгружаются при старте сессии. Новая сессия — тот же контекст, без пересказа проекта заново.
 
-Если предпочитаете настроить вручную:
+**Принуждение, а не советы.** Два quality gate и набор real-time хуков блокируют агента в момент, когда он пытается срезать угол. Никакого `--force`, никаких «не забудь, пожалуйста, прогнать тесты».
+
+---
+
+## Два гейта
+
+**QG-0 — до начала работы.** Нет цели и критериев приёмки → задачу не стартовать.
+
+```
+$ tausik task start fix-mobile-button
+BLOCKED (QG-0): у задачи нет критериев приёмки.
+Определи, что значит «готово», до написания кода.
+```
+
+**QG-2 — до закрытия задачи.** Нет verify-доказательств → задачу не закрыть.
+
+```
+$ tausik task done fix-mobile-button --ac-verified
+BLOCKED (QG-2): нет валидного verification-receipt для HEAD a1b2c3d.
+Сначала запусти `tausik verify --task fix-mobile-button`.
+```
+
+Оба гейта fail-closed: гейт, который не может вынести вердикт, блокирует, а не пропускает задачу.
+
+---
+
+## Proof: TAUSIK собран на TAUSIK
+
+TAUSIK создавался самим TAUSIK — каждая фича, рефакторинг и фикс прошли через гейты, которые поставляются в коробке. Не ради красивой цифры, а как самая жёсткая проверка контракта:
+
+- **Каждая задача закрыта с целью + критериями приёмки.** Ни одна не закрыта без verify-доказательств.
+- **3818 тестов** — ядро принуждения покрыто тестами плотнее всего.
+- **0 зависимостей в ядре** — только stdlib Python 3.11+; MCP-зависимости живут в изолированном `.tausik/venv/`.
+- **0 обращений наружу** — всё работает и остаётся на вашей машине.
+
+---
+
+## Почему не .cursorrules / AGENTS.md?
+
+Это **рекомендации** — текст, который агент читает и волен проигнорировать, как только это становится неудобно. TAUSIK — это **жёсткие блоки**: хуки перехватывают правки, гейты отказываются закрываться, receipt'ы доказывают зелёное. Свод правил превращается в рельсы.
+
+---
+
+## Что внутри
+
+- **Жизненный цикл и гейты** — Epic → Story → Task со state machine; QG-0 на старте, QG-2 на закрытии, оба fail-closed.
+- **Проверяемое доверие** — ed25519-receipt'ы с подписью, проверяемые офлайн, плюс supply-chain-подпись скиллов и стеков.
+- **Память проекта** — хранилище SQLite + FTS5 решений, паттернов, соглашений и тупиков, подгружаемое каждую сессию.
+- **Real-time-принуждение** — хуки для гейта «нет кода без задачи», bash-firewall, одноразовый push-тикет и auto-format.
+- **Метрики и роутинг** — throughput, first-pass success, defect-escape и lead time считаются автоматически; бюджеты $/токенов на задачу; роутинг модели по сложности.
+
+<details>
+<summary>Сырые цифры</summary>
+
+- **104 MCP-инструмента** (97 project + 7 brain) — полный программный доступ к базе проекта.
+- **21 real-time-хук** — task gate, bash firewall, push gate, auto-format, drift detection, memory pre/post audit и другие.
+- **25 stack-aware verify-наборов** — pytest, ruff, mypy, tsc, eslint, cargo, go vet, phpstan, helm-lint, hadolint и прочие, по затронутым файлам.
+- **12 core-скиллов** разворачиваются автоматически (+ `/brain` после настройки); 25+ official-скиллов по запросу через `bootstrap --include-official` или `tausik skill install <name>`.
+- **6 автоматических метрик**, **общий cross-project brain** (опционально, зеркало в Notion), **пакетное выполнение** (`/run plan.md`).
+
+</details>
+
+---
+
+## Поддерживаемые IDE
+
+Мульти-IDE по дизайну, но мы честны насчёт того, что прогнано end-to-end.
+
+| IDE | MCP-инструменты | Скиллы | Хуки | Статус |
+|---|---|---|---|---|
+| **Claude Code** | 104 | 12 core + по запросу | 21 (полностью) | First-class |
+| **Qwen Code** | 104 | 12 core + по запросу | 21 (паритет с Claude) | First-class |
+| **Cursor** | 104 | 12 core + по запросу | — (гейты на task start/done) | Через MCP |
+| VSCode + Claude Extension | 104 | 12 core + по запросу | 21 | Прогнано E2E |
+| Windsurf / Codex-подобные | MCP + правила | зависит от хоста | специфично для хоста | Ожидается / вручную |
+
+Хуки — это real-time-рельсы (нет кода без задачи, bash-firewall, push gate) — работают в **Claude Code и Qwen Code**. Cursor, Windsurf и другие MCP-хосты получают те же 104 инструмента и скиллы, с quality gates на `task start` и `task done`.
+
+---
+
+## Установка
 
 ```bash
 cd your-project
@@ -127,95 +165,23 @@ git submodule add https://github.com/Kibertum/tausik-core .tausik-lib
 python .tausik-lib/bootstrap/bootstrap.py --init
 ```
 
-Bootstrap автоматически определяет стек и включает подходящие проверки. Имя проекта берётся из названия папки.
+Bootstrap сам определит ваш стек и включит подходящие гейты; имя проекта берётся из папки. После установки перезапустите IDE, чтобы поднялись MCP-серверы.
 
-> После bootstrap перезапустите IDE, чтобы MCP-серверы загрузились. Без перезапуска агент будет работать через CLI.
+**[Полный быстрый старт →](docs/ru/quickstart.md)**
 
-**[Подробный быстрый старт ->](docs/ru/quickstart.md)**
-
-## Как это работает
-
-**Планирование перед кодом.** `/plan` начинает с интервью — агент задаёт уточняющие вопросы о поведении, граничных случаях, ограничениях. Затем создаёт задачи с критериями приёмки. Никакого кода, пока цель не определена.
-
-**Выпуск с уверенностью.** `/ship` запускает код-ревью (5 параллельных агентов), тесты, проверяет каждый критерий приёмки, коммитит и предлагает обновить документацию. Одна команда — полный конвейер качества.
-
-**Помнит всё.** Решения, закономерности, соглашения и неудачные подходы хранятся в локальной SQLite-базе с полнотекстовым поиском. Новая сессия? Агент продолжает с того места, где остановился.
-
-**Контроль, а не рекомендации.** Quality gates блокируют агента в двух точках: QG-0 (нельзя начать без цели и критериев) и QG-2 (нельзя закрыть без доказательств и пройденных тестов). Хуки блокируют редактирование кода без задачи и опасные shell-команды в реальном времени.
-
-## Продвинутые возможности
-
-- **Anti-drift защита** — хуки SessionStart / UserPromptSubmit / Stop детектят coding intent без активной задачи, re-инжектят Memory Block на `/start`, аудитят `task_done` evidence (пути файлов, ✓ маркеры, test counts, lint status). Adversarial critic — 6-й параллельный агент `/review` находит слабости, которые упустили другие. [Детали →](docs/ru/hooks.md)
-- **Дисциплина памяти** — TAUSIK memory (`.tausik/tausik.db`, project-scoped) и Claude auto-memory (`~/.claude/`, cross-project) разделены через PreToolUse блок + PostToolUse audit. Утечки проектных следов в cross-project память блокируются у источника. [Детали →](docs/ru/memory-merge-guidelines.md)
-- **Shared Brain** *(опционально)* — второй слой знаний на Notion для cross-project паттернов + gotchas. Локальное SQLite FTS5 зеркало, bm25-ранжированный поиск, SHA256-хеши имён проектов. Stdlib-only Notion client. [Детали →](docs/ru/shared-brain.md)
-- **Brain artifact pipeline** *(v1.5)* — формальная таксономия (artifact / pattern / snippet) + JSON Schema валидатор + propose→audit→publish flow со scrubbing'ом секретов и явным `confirm_high_risk` gate. Stack-aware ранжирование в `brain_search`. [Таксономия →](docs/ru/brain-artifact-taxonomy.md) · [Search ranking →](docs/ru/brain-search-ranking.md)
-- **Надёжность pipeline** *(v1.5)* — Verify-First contract отделяет heavy gates от `task done`. Envelope timeout (60с default), relaxed cache для manual-scope verify, relevant_files fallback из verify-row. Никаких молчаливых зависаний. [Детали →](docs/ru/verify-glossary.md)
-- **Audit-набор** *(v1.5)* — orphan-file / stale-doc / unused-python / pytest-dedupe скрипты находят мёртвый код и копипасту в долгоживущих проектах. `tausik hygiene archive` + read-only спека архива задач. CI doc-constants drift check. [Детали →](docs/ru/dev-doc-checks.md)
-- **Interview & live dashboard** — `/interview` запускает Сократический Q&A перед complex задачей. `tausik hud` показывает live dashboard на один экран. `tausik suggest-model` маршрутизирует Haiku/Sonnet/Opus по сложности задачи. Webhook-уведомления в Slack/Discord/Telegram.
-
-## Что внутри
-
-- **12 core навыков + `/brain` conditional** (auto-deployed) — `/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, `/review`, `/test`, `/debug`, `/explore`, `/interview` всегда; `/brain` только после `tausik brain init`. Плюс **25+ official/vendor навыков** (`/audit`, `/zero-defect`, `/markitdown`, `/docs`, `/security`, `/onboard`, …) opt-in через `bootstrap --include-official` или `tausik skill install <name>`.
-- **104 MCP-инструмента** (97 project + 7 brain) — полный программный доступ к базе проекта
-- **25 проверок качества** — pytest, ruff, tsc, eslint, cargo check, go vet и другие для вашего стека
-- **6 автоматических метрик** — производительность, FPSR, уровень дефектов, активное время сессий
-- **Проектная память** — SQLite + FTS5, граф связей, трекинг тупиков, Memory Block re-injection
-- **Cross-project Brain** — Notion-mirror для обмена знаний между проектами (опционально)
-- **19 Claude Code hooks** — task gate, bash firewall, push gate, auto-format, activity event, SessionStart, UserPromptSubmit, Stop × 2, PostToolUse verify, memory pre/post audit, brain proactive lookup и кэш WebFetch, notify, session metrics
-- **Пакетное выполнение** — `/run plan.md` автономно выполняет многозадачные планы
-- **Ноль зависимостей** — Python 3.11+ stdlib; MCP-deps в изолированном `.tausik/venv/`
-
-## Поддерживаемые среды разработки
-
-**Политика валидации:** TAUSIK проектируется как мульти-IDE фреймворк, но статус тестирования указываем явно.
-Официально прогнано end-to-end сейчас: **VSCode + Claude Extension** и **Cursor**.
-Остальные среды поддерживаются архитектурно, но помечаются как expected/partial до расширения матрицы автотестов.
-
-| Среда | Инструменты | Навыки | Хуки | Правила | Статус валидации |
-|-------|-------------|--------|------|---------|------------------|
-| VSCode + Claude Extension | 104 инстр. | 12 core + brain conditional, 25+ on demand | 21 хуков (task gate, bash firewall, push gate, auto-format, activity, memory guards, brain auto-cache, ...) | CLAUDE.md + .mcp.json | **Официально протестировано** |
-| Cursor | 104 инстр. | 12 core + brain conditional, 25+ on demand | — | .cursorrules + .cursor/mcp.json | **Официально протестировано** |
-| Claude Code (CLI) | 104 инстр. | 12 core + brain conditional, 25+ on demand | 21 хуков | CLAUDE.md + .mcp.json | Ожидается (частичная матрица) |
-| Qwen Code | 104 инстр. | 12 core + brain conditional, 25+ on demand | 21 хуков (как у Claude) | QWEN.md + .mcp.json | Ожидается (частичная матрица) |
-| Windsurf | 104 инстр. | 12 core + brain conditional, 25+ on demand | — | .windsurfrules + .mcp.json | Ожидается (частичная матрица) |
-| Codex / OpenCode-подобные агенты | MCP + rules-driven при поддержке хоста | Зависит от хоста | Специфично для хоста | AGENTS.md | Ожидается (ручная валидация) |
-
-**Хуки** блокируют редактирование кода без задачи, опасные shell-команды и прямой push в main — в реальном времени. Доступны в Claude Code и Qwen Code. Cursor и Windsurf получают те же MCP-инструменты и навыки, с quality gates на `task start` и `task done`.
-
-## Dogfooding: TAUSIK создан с помощью себя
-
-TAUSIK создавался с помощью самого себя. Реальные цифры:
-
-| Метрика | Значение |
-|---|---|
-| Задач завершено | 526 |
-| Сессий | 39 |
-| Производительность | ~13 задач/сессию |
-| Тестов | 2590 |
-| Зависимостей | 0 в ядре |
-
-Каждая новая возможность, каждая переработка, каждое исправление прошли через те же quality gates, которые поставляются с фреймворком.
+---
 
 ## Методология
 
-TAUSIK реализует [SENAR](https://senar.tech) ([GitHub](https://github.com/Kibertum/SENAR)) — открытый инженерный стандарт для разработки с помощью ИИ. Quality gates, управление сессиями, метрики, чеклисты верификации — всё определено в SENAR.
+TAUSIK — это эталонная реализация [SENAR](https://senar.tech) ([GitHub](https://github.com/Kibertum/SENAR)), открытого инженерного стандарта для разработки с ИИ. Гейты, сессии, метрики и чеклисты верификации — всё из спецификации; чтобы пользоваться фреймворком, читать её не нужно.
 
-**[Подробнее о SENAR ->](docs/ru/senar.md)**
+**[Подробнее о SENAR →](docs/ru/senar.md)**
 
-## Документация
+---
 
-| Документ | Описание |
-|----------|----------|
-| **[Быстрый старт](docs/ru/quickstart.md)** | Первое знакомство — 10-15 минут |
-| **[Что такое SENAR?](docs/ru/senar.md)** | Методология за TAUSIK |
-| **[Рабочий процесс](docs/ru/workflow.md)** | Типичный день с TAUSIK |
-| **[Навыки](docs/ru/skills.md)** | 12 core + brain conditional, 25+ official skills opt-in (38 total) |
-| **[Хуки](docs/ru/hooks.md)** | Контроль в реальном времени |
-| **[CLI-команды](docs/ru/cli.md)** | Справочник команд терминала |
-| **[MCP-инструменты](docs/ru/mcp.md)** | 104 инструмента для ИИ-агента |
-| **[Архитектура](docs/ru/architecture.md)** | Как устроен фреймворк внутри |
+## v1.5 — pre-2.0, и мы в нём уверены
 
-**[Полная документация ->](docs/README.md)**
+v1.5 — это hardening-релиз на пути к 2.0: подписанные receipt'ы, fail-closed гейты, внешнее adversarial-ревью для high-risk закрытий, scoring риска закрытия, структурированный root cause. Ядро принуждения **зафиксировано и покрыто 3818 тестами**, на dogfood'е каждый день. На редких путях ещё возможен рассинхрон docs ↔ behaviour — наткнётесь, [заведите issue](https://github.com/Kibertum/tausik-core/issues), доедем до 2.0 без regression'ов.
 
 ## Лицензия
 
