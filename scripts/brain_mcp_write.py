@@ -20,6 +20,7 @@ import brain_publish_flow
 import brain_config
 import brain_fallback
 import brain_scrubbing
+import brain_snippet_detect
 import brain_sync
 from brain_store_format import format_store_result  # noqa: F401  re-exported for brain_publish_cli.py
 
@@ -298,6 +299,11 @@ def store_record(
         confirm_hr = bool(work.pop("confirm_high_risk", False))
     else:
         work.pop("confirm_high_risk", None)
+
+    # Advisory: infer 'snippet' kind before validation when the caller omitted
+    # it. Runs first so the inferred value flows through the same validate/strip
+    # path as a caller-supplied one.
+    brain_snippet_detect.maybe_autofill_snippet_kind(category, work, cfg)
 
     ok_tax, tax_err = brain_artifact_taxonomy.validate_artifact_taxonomy_for_store(
         category, work, cfg

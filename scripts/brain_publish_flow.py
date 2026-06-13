@@ -41,9 +41,7 @@ def _stringify(v: Any) -> str:
 
 def artifact_blob_for_classifier(category: str, fields: Mapping[str, Any]) -> str:
     """Concatenate classify-relevant text like scrub_inputs does for markers."""
-    keys = (
-        _TEXT_KEYS_PATTERNS if category == "patterns" else _TEXT_KEYS_GOTCHAS
-    )
+    keys = _TEXT_KEYS_PATTERNS if category == "patterns" else _TEXT_KEYS_GOTCHAS
     lines = [_stringify(fields.get(k)) for k in keys]
     lines.extend(_stringify(fields.get(k)) for k in _TAGS_STACK)
     return "\n".join(lines)
@@ -93,23 +91,27 @@ def draft_artifact_publish(
     import brain_artifact_card
     import brain_artifact_taxonomy
     import brain_mcp_write
+    import brain_snippet_detect
 
     out: dict[str, Any] = {"category": category}
+    # Mirror store_record: auto-fill the inferred kind FIRST (on a copy — a
+    # dry-run never mutates the caller's fields), then validate the enriched
+    # copy so taxonomy_ok matches the real write outcome under strict mode.
+    work = dict(fields)
+    inferred = brain_snippet_detect.maybe_autofill_snippet_kind(category, work, cfg)
+    out["taxonomy_inferred"] = inferred
+
     ok_tax, tax_err = brain_artifact_taxonomy.validate_artifact_taxonomy_for_store(
-        category, fields, cfg
+        category, work, cfg
     )
     out["taxonomy_ok"] = ok_tax
     out["taxonomy_error"] = tax_err
 
-    ok_card, card_err = brain_artifact_card.validate_artifact_card_for_store(
-        category, fields, cfg
-    )
+    ok_card, card_err = brain_artifact_card.validate_artifact_card_for_store(category, work, cfg)
     out["card_ok"] = ok_card
     out["card_error"] = card_err
 
-    ok_ext, ext_err = brain_artifact_card.validate_external_repo_url_for_store(
-        category, fields, cfg
-    )
+    ok_ext, ext_err = brain_artifact_card.validate_external_repo_url_for_store(category, work, cfg)
     out["external_repo_ok"] = ok_ext
     out["external_repo_error"] = ext_err
 
@@ -139,6 +141,11 @@ def format_draft_report(payload: dict[str, Any]) -> str:
         f"- **external_repo_ok**: {payload.get('external_repo_ok')}",
         f"- **scrub_ok**: {payload.get('scrub_ok')}",
     ]
+    if payload.get("taxonomy_inferred"):
+        lines.append(
+            f"- **taxonomy_inferred**: `{payload['taxonomy_inferred']}` "
+            "(auto-classified; caller omitted artifact_taxonomy_kind)"
+        )
     if payload.get("taxonomy_error"):
         lines.append(f"- **taxonomy_error**: {payload['taxonomy_error']}")
     if payload.get("card_error"):
@@ -151,7 +158,9 @@ def format_draft_report(payload: dict[str, Any]) -> str:
         for i in issues:
             lines.append(f"  - {i}")
     lines.append("")
-    lines.append(f"- **would_publish_ok** (low risk, gates pass): {payload.get('would_publish_ok')}")
+    lines.append(
+        f"- **would_publish_ok** (low risk, gates pass): {payload.get('would_publish_ok')}"
+    )
     lines.append(
         f"- **would_need_confirm** (high risk, gates pass): {payload.get('would_need_confirm')}"
     )

@@ -34,6 +34,10 @@ DEFAULT_BRAIN: dict = {
     "private_url_patterns": [],
     "require_artifact_taxonomy_kind": False,
     "require_artifact_scope": False,
+    # When true (default): infer artifact_taxonomy_kind='snippet' for a
+    # patterns/gotchas write when the caller omitted it and the heuristic
+    # classifier fires (brain_snippet_detect). Advisory, never overwrites.
+    "auto_detect_snippet_kind": True,
     # When true: only syntax-check external_repo_url (no outbound HTTP). For offline CI.
     "skip_external_repo_url_reachability_check": False,
     # When true (default): emit_universality_hint also runs FTS5 nearest-neighbor
