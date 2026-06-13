@@ -83,6 +83,32 @@ def test_adapt_delta_orphan(svc):
     assert "adapt-delta-orphan" in _kinds(detect_schema_drift(svc.be._conn))
 
 
+def test_adapt_delta_non_numeric(svc):
+    """A corrupt non-numeric delta_n is drift, not a detector crash (sweep #87)."""
+    svc.be._conn.execute(
+        "INSERT INTO adapts(slug,title,tz_ref,status,parent_adapt,delta_n,"
+        "created_at,updated_at) VALUES('ad-bad','t','TZ','draft',NULL,'N/A','x','x')"
+    )
+    svc.be._conn.commit()
+    kinds = _kinds(detect_schema_drift(svc.be._conn))
+    assert "adapt-delta-invalid" in kinds
+    # delta-relationship checks are skipped (delta_n is None), not double-reported
+    assert "adapt-delta-orphan" not in kinds
+    assert "adapt-delta-negative" not in kinds
+
+
+def test_adapt_delta_invalid_does_not_mask_signature(svc):
+    """Non-numeric delta_n + signed-without-signatures: BOTH must surface (sweep #87)."""
+    svc.be._conn.execute(
+        "INSERT INTO adapts(slug,title,tz_ref,status,parent_adapt,delta_n,"
+        "created_at,updated_at) VALUES('ad-bs','t','TZ','signed',NULL,'oops','x','x')"
+    )
+    svc.be._conn.commit()
+    kinds = _kinds(detect_schema_drift(svc.be._conn))
+    assert "adapt-delta-invalid" in kinds
+    assert "adapt-signed-incomplete-signature" in kinds
+
+
 def test_adapt_base_has_parent(svc):
     """delta_n=0 base adapt that nonetheless chains a parent."""
     svc.adapt_create("ad-p", "Parent", "TZ")

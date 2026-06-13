@@ -124,24 +124,43 @@ def detect_schema_drift(conn: sqlite3.Connection) -> list[Finding]:
                     det, "adapt-status-invalid", ref, f"status {a['status']!r} not in closed-3"
                 )
             )
-        delta_n = int(a["delta_n"] or 0)  # tolerate a hand-edited TEXT '2'
-        if delta_n < 0:
-            findings.append(_finding(det, "adapt-delta-negative", ref, f"delta_n={delta_n} < 0"))
-        elif delta_n > 0 and not a["parent_adapt"]:
+        # delta_n is SQLite-dynamic-typed; tolerate a numeric TEXT '2'. A truly
+        # non-numeric value is itself drift — emit a finding instead of crashing
+        # the detector (drift-1 exists to surface exactly this corruption). On
+        # failure delta_n is None: skip the delta-relationship checks but still
+        # run the signature check below — corruptions can co-occur.
+        try:
+            delta_n: int | None = int(a["delta_n"] or 0)
+        except (ValueError, TypeError):
             findings.append(
                 _finding(
-                    det, "adapt-delta-orphan", ref, f"delta_n={delta_n} but parent_adapt is NULL"
+                    det, "adapt-delta-invalid", ref, f"delta_n {a['delta_n']!r} is not an integer"
                 )
             )
-        elif delta_n == 0 and a["parent_adapt"]:
-            findings.append(
-                _finding(
-                    det,
-                    "adapt-base-has-parent",
-                    ref,
-                    f"base adapt (delta_n=0) chains parent {a['parent_adapt']!r}",
+            delta_n = None
+        if delta_n is not None:
+            if delta_n < 0:
+                findings.append(
+                    _finding(det, "adapt-delta-negative", ref, f"delta_n={delta_n} < 0")
                 )
-            )
+            elif delta_n > 0 and not a["parent_adapt"]:
+                findings.append(
+                    _finding(
+                        det,
+                        "adapt-delta-orphan",
+                        ref,
+                        f"delta_n={delta_n} but parent_adapt is NULL",
+                    )
+                )
+            elif delta_n == 0 and a["parent_adapt"]:
+                findings.append(
+                    _finding(
+                        det,
+                        "adapt-base-has-parent",
+                        ref,
+                        f"base adapt (delta_n=0) chains parent {a['parent_adapt']!r}",
+                    )
+                )
         if a["status"] == "signed":
             have = sig_roles.get(a["slug"], set())
             missing = set(SIGNATURE_ROLES) - have
