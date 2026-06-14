@@ -25,6 +25,50 @@ def _delegation_key(slug: str) -> str:
     return f"{_DELEGATION_PREFIX}{slug}"
 
 
+def start_recognition_message(be: Any, slug: str, complexity: str | None) -> str | None:
+    """task_start recognition line: worker-mode notice for a delegated task, else
+    the model-recommendation banner (or None). All best-effort — never raises."""
+    try:
+        raw = be.meta_get(_delegation_key(slug))
+    except Exception:  # noqa: BLE001 — recognition is best-effort; fall back to banner
+        raw = None
+    if raw:
+        try:
+            deleg = json.loads(raw)
+        except (TypeError, ValueError):
+            deleg = None
+        if isinstance(deleg, dict):
+            return worker_mode_notice(slug, deleg)
+    try:
+        from project_config import is_task_start_model_banner_enabled
+
+        if is_task_start_model_banner_enabled():
+            from model_routing import format_task_start_banner
+
+            return format_task_start_banner(complexity)
+    except Exception:  # noqa: BLE001 — banner is informational, never block start
+        pass
+    return None
+
+
+def worker_mode_notice(slug: str, delegation: dict[str, Any]) -> str:
+    """In-session worker recognition banner for a delegated task_start.
+
+    Surfaces the worker operating contract (trimmed skills + hard-gated scope +
+    report-back). Runtime skill-trimming is not a mid-session operation, so this
+    announces the contract the worker honours rather than re-bootstrapping.
+    """
+    from ow_handoff import WORKER_SKILLS
+
+    model = delegation.get("display") or delegation.get("model") or "recommended"
+    return (
+        f"⚙ Worker mode — delegated task '{slug}' (model {model}). "
+        f"Operating contract: skills [{', '.join(WORKER_SKILLS)}]; scope is "
+        f"hard-gated (edits outside the task's scope are blocked); report back via "
+        f'`tausik task summary-back {slug} "<summary>"` when done.'
+    )
+
+
 class DelegateMixin:
     """task delegate / undelegate + delegation read. Composed into ProjectService."""
 

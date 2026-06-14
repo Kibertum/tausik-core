@@ -160,17 +160,13 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         msgs.extend(qg0_warnings)
         if capacity_audit:
             msgs.append(f"⚠ {capacity_audit}")
-        try:
-            from project_config import is_task_start_model_banner_enabled
+        # v15-ow-hook-recognize: worker-mode notice for a delegated task (and the
+        # orchestrator model banner is suppressed for it), else the normal banner.
+        from service_delegate import start_recognition_message
 
-            if is_task_start_model_banner_enabled():
-                from model_routing import format_task_start_banner
-
-                msgs.append(format_task_start_banner(task.get("complexity")))
-        except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
-            # Banner is informational; never block task_start on transcript IO,
-            # config parse, or import errors.
-            pass
+        rec_msg = start_recognition_message(self.be, slug, task.get("complexity"))
+        if rec_msg:
+            msgs.append(rec_msg)
         try:
             from model_routing_session import record_active_task_recommendation
             from project_config import find_tausik_dir
