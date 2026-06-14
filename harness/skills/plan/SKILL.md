@@ -8,6 +8,12 @@ context: inline
 # /plan — Task Planning (SENAR-aligned)
 
 Plans a new feature with complexity scoring.
+
+> **Model hint (phase=planning):** plan quality compounds across the whole task,
+> so run planning on a strong model — **Fable 5** (or **Opus 4.8**). Do NOT
+> downgrade the planner for a "simple" task; complexity does not lower the
+> planning tier. Rationale: `docs/ru/research/model-routing-matrix.md`.
+
 ## Algorithm
 
 ### 0. Interview phase (User Specification)

@@ -12,6 +12,11 @@ Investigation without full task formality.
 
 **Key rule:** If exploration yields implementation work, a task SHALL be created before changes are committed.
 
+> **Model hint (phase=research):** simple, read-only discovery (where-is-X,
+> symbol/pattern search, doc skim) runs fine on **Haiku 4.5** — 10-20× cheaper.
+> Escalate to **Sonnet 4.6** only for deep, multi-source investigation.
+> Rationale: `docs/ru/research/model-routing-matrix.md`.
+
 ## Argument Dispatch
 
 ### $ARGUMENTS = description of what to investigate

@@ -100,13 +100,14 @@ class TestReadActiveModel:
 
 class TestFormatBanner:
     def test_match_path(self):
-        # complex → recommends Opus 4.7; if active is also Opus 4.7 → match.
+        # implement/complex → recommends Opus 4.8; active Opus (any point release)
+        # is the same family → match.
         out = format_task_start_banner(
             complexity="complex",
-            active_model="claude-opus-4-7",
+            active_model="claude-opus-4-8",
         )
         assert "Model recommendation:" in out
-        assert "Opus 4.7" in out
+        assert "Opus 4.8" in out
         assert "✓ model match" in out
         assert "MISMATCH" not in out
 
@@ -119,10 +120,9 @@ class TestFormatBanner:
         assert "✓ model match" in out
 
     def test_surplus_is_info_not_warning(self):
-        # v15mr-fable-tier-fix: simple → recommends Haiku; active Opus is a
-        # HIGHER tier (quality surplus), so this is a cost nudge, NOT a loud
-        # mismatch. The old behaviour (⚠ MODEL MISMATCH here) was the false
-        # positive this task removes.
+        # implement/simple → recommends Sonnet (Decision #112: Haiku too weak for
+        # code); active Opus is a HIGHER tier (quality surplus), so this is a cost
+        # nudge, NOT a loud mismatch.
         out = format_task_start_banner(
             complexity="simple",
             active_model="claude-opus-4-8",
@@ -130,10 +130,10 @@ class TestFormatBanner:
         assert "⚠ MODEL MISMATCH" not in out
         assert "quality surplus" in out
         assert "switch down to save cost" in out
-        assert "Haiku 4.5" in out
+        assert "Sonnet 4.6" in out
         # Still actionable: IDE picker + persist the cheaper tier.
         assert "IDE model picker" in out
-        assert "tausik config set model_profile haiku" in out
+        assert "tausik config set model_profile sonnet" in out
 
     def test_under_powered_is_loud_warning(self):
         # AC2: active tier BELOW recommended (Haiku on a complex task) is the
@@ -144,7 +144,7 @@ class TestFormatBanner:
         )
         assert "⚠ MODEL MISMATCH" in out
         assert "under-powered" in out
-        assert "Opus 4.7" in out
+        assert "Opus 4.8" in out
         assert "IDE model picker" in out
         assert "tausik config set model_profile opus" in out
 
@@ -169,11 +169,11 @@ class TestFormatBanner:
         assert "gpt-9-turbo" in out
 
     def test_opus_point_release_matches_complex(self):
-        # The session bug: complex recommends Opus 4.7, active is Opus 4.8 —
+        # Point-release tolerance: complex recommends Opus 4.8, active Opus 4.7 —
         # same family, must read as match, not mismatch.
         out = format_task_start_banner(
             complexity="complex",
-            active_model="claude-opus-4-8",
+            active_model="claude-opus-4-7",
         )
         assert "✓ model match" in out
         assert "MISMATCH" not in out
@@ -252,7 +252,7 @@ class TestTaskStartIntegration:
                 ):  # ensure project_config picks up env, no real config file
                     out = svc.task_start("t-banner")
             assert "Model recommendation:" in out
-            assert "Opus 4.7" in out
+            assert "Opus 4.8" in out
         finally:
             svc.be.close()
 
@@ -267,7 +267,7 @@ class TestTaskStartIntegration:
             )
             out = svc.task_start("t-banner-off")
             assert "Model recommendation:" not in out
-            assert "Opus 4.7" not in out
+            assert "Opus 4.8" not in out
         finally:
             svc.be.close()
 
@@ -289,16 +289,16 @@ class TestTaskStartIntegration:
 
 
 class TestSuggestModelStillWorks:
-    """Regression guard: existing suggest_model contract is unchanged."""
+    """Regression guard: single-arg suggest_model = implement-phase matrix (Decision #112)."""
 
     @pytest.mark.parametrize(
         "complexity,expected",
         [
-            ("simple", "claude-haiku-4-5"),
+            ("simple", "claude-sonnet-4-6"),  # implement floor is Sonnet now
             ("medium", "claude-sonnet-4-6"),
-            ("complex", "claude-opus-4-7"),
-            (None, "claude-sonnet-4-6"),  # default
-            ("BOGUS", "claude-sonnet-4-6"),  # fallback
+            ("complex", "claude-opus-4-8"),
+            (None, "claude-sonnet-4-6"),  # default -> medium column
+            ("BOGUS", "claude-sonnet-4-6"),  # fallback -> medium column
         ],
     )
     def test_known_complexities(self, complexity, expected):

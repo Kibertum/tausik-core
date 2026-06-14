@@ -89,6 +89,19 @@ def cmd_metrics(svc: ProjectService, args: Any) -> None:
         risk = None
     if risk:
         print(f"\n{format_risk_section(risk)}")
+    # v15mr-routing-telemetry: recommended-vs-actual model adherence (matrix calibration).
+    try:
+        from model_routing_adherence import aggregate_adherence
+        from project_config import find_tausik_dir
+
+        adh = aggregate_adherence(find_tausik_dir())
+    except Exception:
+        adh = None
+    if adh and adh.get("n"):
+        print("\n--- Routing Adherence (v1.5) ---")
+        print(f"Recommended == actual: {adh['pct']}% (n={adh['n']})")
+        for d in adh.get("top_deviations", []):
+            print(f"  deviation {d['shift']}: {d['count']}")
     try:
         rm = svc.be.review_metrics()  # type: ignore[attr-defined]
     except Exception:

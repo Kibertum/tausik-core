@@ -52,6 +52,13 @@ Read every file in scope. Do NOT skim. Check `CLAUDE.md` for project rules.
 
 Launch **6 specialized review agents** in parallel via the Agent tool. Each agent receives the diff/files in scope, project context (CLAUDE.md, conventions, dead ends), and task info (goal, AC) if available.
 
+> **Subagent model (phase=code-review):** run the 5 domain reviewers on **Sonnet 4.6**
+> (`model="sonnet"` in the Agent call) — code review is a Sonnet-tier job. The
+> **critic**'s adversarial synthesis benefits from a stronger reasoner — **Opus 4.8**
+> (or Fable 5). Omitting `model=` is fine (the subagent inherits the session model);
+> this is a cost/quality hint, not a hard requirement. Mapping:
+> `docs/ru/research/model-routing-matrix.md`.
+
 **Agent prompt template:**
 > Read the agent instructions from `harness/skills/review/agents/{agent}.md`.
 > Review the following files: {files_in_scope}.

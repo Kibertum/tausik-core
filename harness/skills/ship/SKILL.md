@@ -41,8 +41,13 @@ Run the full `/review` skill — NOT a lightweight check. Use the Agent tool to 
 Agent(prompt: "[Paste full contents of review SKILL.md here]
 Review scope: git diff (unstaged + staged changes) [append 'deep' if critical].
 Task: {slug}, Goal: {goal}, AC: {AC}, Stack: {stack}.",
-subagent_type: "general-purpose")
+subagent_type: "general-purpose",
+model: "sonnet")
 ```
+
+> **Subagent model (phase=code-review):** review runs on **Sonnet 4.6** (`model="sonnet"`).
+> Omitting `model=` is fine (inherits the session model) — a cost hint, not a requirement.
+> Mapping: `docs/ru/research/model-routing-matrix.md`.
 
 **If review verdict = FAIL (CRITICAL/HIGH issues):** Stop. Show issues. Do NOT proceed to commit. User must fix first.
 **If review verdict = PASS or PASS WITH ISSUES (MEDIUM/LOW only):** Continue.
@@ -56,8 +61,12 @@ Run the full `/test` skill — do NOT re-implement test logic here. Use the Agen
 ```
 Agent(prompt: "[Paste full contents of test SKILL.md here]
 Run tests for the current project. Stack: {stack}.",
-subagent_type: "general-purpose")
+subagent_type: "general-purpose",
+model: "sonnet")
 ```
+
+> **Subagent model (phase=code-review):** test/verification is a Sonnet-tier job
+> (`model="sonnet"`). Omitting `model=` is fine — inherits the session model.
 
 **If tests fail:** Stop. Show failures. Do NOT proceed. User must fix first.
 **If tests pass:** Continue.

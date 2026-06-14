@@ -78,8 +78,13 @@ If your fix triggers a `tausik verify` failure (filesize / ruff / mypy / pytest)
 Agent(
   subagent_type="tausik-gate-fixer",
   prompt="gate_name=<name>; stderr=<copied verify output>; relevant_files=<list>; task_slug=<slug>; goal=<task goal>",
+  model="sonnet",
 )
 ```
+
+> **Subagent model (phase=code-review):** gate-fix diagnosis is a Sonnet-tier job
+> (`model="sonnet"`). Omitting `model=` is fine (inherits the session model) — a hint,
+> not a requirement. Mapping: `docs/ru/research/model-routing-matrix.md`.
 
 It returns a JSON `{gate, family, plan: [{step, action, target, change, why}], meta}` with a 1-3 step fix plan. Apply the plan, re-run `tausik verify`. The sub-agent is read-only — never applies edits itself. Fall back to the standard manual flow if `.claude/agents/tausik-gate-fixer.md` is missing on legacy installs.
 

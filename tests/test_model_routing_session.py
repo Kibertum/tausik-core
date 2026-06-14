@@ -32,25 +32,26 @@ def tausik_dir(tmp_path, monkeypatch):
 # --- record + read roundtrip -----------------------------------------------
 
 
-def test_record_simple_persists_haiku(tausik_dir):
+def test_record_simple_persists_sonnet(tausik_dir):
+    # implement-phase floor is Sonnet (Decision #112): Haiku too weak for code.
     payload = mrs.record_active_task_recommendation(tausik_dir, "fix-bug", "simple")
     assert payload is not None
     assert payload["slug"] == "fix-bug"
     assert payload["complexity"] == "simple"
-    assert payload["model"] == "claude-haiku-4-5"
-    assert payload["display"] == "Haiku 4.5"
+    assert payload["model"] == "claude-sonnet-4-6"
+    assert payload["display"] == "Sonnet 4.6"
     assert payload["recorded_at"].endswith("Z")
     # Read sees the same payload.
     got = mrs.read_active_task_recommendation(tausik_dir)
     assert got is not None
-    assert got["model"] == "claude-haiku-4-5"
+    assert got["model"] == "claude-sonnet-4-6"
     assert got["slug"] == "fix-bug"
 
 
 def test_record_complex_persists_opus(tausik_dir):
     payload = mrs.record_active_task_recommendation(tausik_dir, "big-refactor", "complex")
     assert payload is not None
-    assert payload["model"] == "claude-opus-4-7"
+    assert payload["model"] == "claude-opus-4-8"
 
 
 def test_record_unknown_complexity_normalized_to_none(tausik_dir):
@@ -167,7 +168,7 @@ def test_record_overwrites_previous_recommendation(tausik_dir):
     got = mrs.read_active_task_recommendation(tausik_dir)
     assert got is not None
     assert got["slug"] == "second"
-    assert got["model"] == "claude-opus-4-7"
+    assert got["model"] == "claude-opus-4-8"
 
 
 # --- atomic write ---------------------------------------------------------

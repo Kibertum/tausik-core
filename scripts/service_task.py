@@ -203,12 +203,12 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         if not report.get("ok"):
             raise ServiceError(_format_task_done_failures(report))
         try:
-            from model_routing_session import clear_active_task_recommendation
+            from model_routing_adherence import finalize_close
             from project_config import find_tausik_dir
 
-            clear_active_task_recommendation(find_tausik_dir())
+            # Routing-adherence telemetry + recommendation cleanup. Best-effort.
+            finalize_close(find_tausik_dir(), slug)
         except Exception:
-            # Persistence cleanup is best-effort.
             pass
         message = report.get("message")
         if isinstance(message, str) and message.strip():

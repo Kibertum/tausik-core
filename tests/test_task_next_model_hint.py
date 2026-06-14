@@ -48,17 +48,12 @@ class TestIsTaskNextModelHintEnabled:
     def test_true_when_set(self):
         from project_config import is_task_next_model_hint_enabled
 
-        assert (
-            is_task_next_model_hint_enabled({"task_next": {"model_hint": True}}) is True
-        )
+        assert is_task_next_model_hint_enabled({"task_next": {"model_hint": True}}) is True
 
     def test_false_when_disabled(self):
         from project_config import is_task_next_model_hint_enabled
 
-        assert (
-            is_task_next_model_hint_enabled({"task_next": {"model_hint": False}})
-            is False
-        )
+        assert is_task_next_model_hint_enabled({"task_next": {"model_hint": False}}) is False
 
     def test_false_when_task_next_not_dict(self):
         from project_config import is_task_next_model_hint_enabled
@@ -86,12 +81,13 @@ class TestTaskNextModelHint:
         _setup_hierarchy(svc)
         svc.task_add("setup", "t1", "T1", complexity="simple")
         picked = svc.task_next()
-        assert picked["model_hint"]["model"] == "claude-haiku-4-5"
-        assert picked["model_hint"]["display"] == "Haiku 4.5"
+        # implement-phase floor is Sonnet (Decision #112): Haiku too weak for code.
+        assert picked["model_hint"]["model"] == "claude-sonnet-4-6"
+        assert picked["model_hint"]["display"] == "Sonnet 4.6"
 
     def test_hint_via_config_file(self, svc, chdir_tmp):
         _write_cfg(chdir_tmp, {"task_next": {"model_hint": True}})
         _setup_hierarchy(svc)
         svc.task_add("setup", "t1", "T1", complexity="complex")
         picked = svc.task_next()
-        assert picked["model_hint"]["model"] == "claude-opus-4-7"
+        assert picked["model_hint"]["model"] == "claude-opus-4-8"
