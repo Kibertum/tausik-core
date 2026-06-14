@@ -227,6 +227,9 @@ class TaskDoneReportMixin:
         if task.get("defect_of"):
             notes_raw = task.get("notes") or ""
             notes_lower = notes_raw.lower()
+            # Rule-7 message text (template + closed-list categories, quoted
+            # inline) lives in root_cause so it can't drift from the parser
+            # (rule7-rootcause-nag-inline-template).
             _rc_kw = (
                 "root cause",
                 "причина",
@@ -237,12 +240,9 @@ class TaskDoneReportMixin:
                 "because",
             )
             if not any(kw in notes_lower for kw in _rc_kw):
-                rc_msg = (
-                    f"Defect task '{slug}' (defect_of={task['defect_of']}) "
-                    f"has no root cause documented (SENAR Rule 7). Log it: "
-                    f'.tausik/tausik task log {slug} "Root cause: ..." '
-                    f"Opt out: config task_done.root_cause_hard=false."
-                )
+                from root_cause import missing_root_cause_message
+
+                rc_msg = missing_root_cause_message(slug, task["defect_of"])
                 if _root_cause_hard_enabled():
                     report["blocking_failures"].append({"stage": "root-cause", "message": rc_msg})
                     return report
@@ -253,7 +253,10 @@ class TaskDoneReportMixin:
                 # prevention). Compliance resets the escalation counter.
                 try:
                     from nudge_escalation import escalate, reset
-                    from root_cause import has_structured_root_cause
+                    from root_cause import (
+                        has_structured_root_cause,
+                        structured_nudge_message,
+                    )
 
                     if has_structured_root_cause(notes_raw):
                         reset(self.be._conn, "root_cause")
@@ -261,11 +264,7 @@ class TaskDoneReportMixin:
                         root_cause_nudge = escalate(
                             self.be._conn,
                             "root_cause",
-                            (
-                                f"Defect '{slug}' documents a root cause but not in "
-                                f"structured form (category + description + prevention). "
-                                f"Format: see docs/ru/agent-contract.md (SENAR Rule 7)."
-                            ),
+                            structured_nudge_message(slug),
                         )
                 except Exception:
                     root_cause_nudge = ""

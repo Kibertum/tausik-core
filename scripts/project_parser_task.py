@@ -154,6 +154,13 @@ def add_task(sub: argparse._SubParsersAction) -> None:
     tupdate.add_argument("--title", default=None)
     tupdate.add_argument("--goal", default=None)
     tupdate.add_argument("--notes", default=None)
+    tupdate.add_argument(
+        "--notes-overwrite",
+        action="store_true",
+        dest="notes_overwrite",
+        help="Allow --notes to REPLACE the append-only journal (default: refuse; "
+        "use `task log` to append instead).",
+    )
     tupdate.add_argument("--acceptance-criteria", default=None, dest="ac")
     # --stack is validated in the service layer so config-defined custom
     # stacks (cfg.custom_stacks) work alongside the built-in DEFAULT_STACKS.

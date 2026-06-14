@@ -63,7 +63,7 @@
 | `project_backend.py` + `backend_*.py` | SQLite + FTS5 backend (WAL mode, 27 таблиц + 8 FTS5-индексов) |
 | `backend_session_metrics.py` | Gap-based active-time computation |
 | `backend_tier_metrics.py` | call_budget vs call_actual tier-метрики |
-| `backend_migrations.py` / `_legacy.py` | Миграции схемы до v27 |
+| `backend_migrations.py` / `_legacy.py` | Миграции схемы до v37 |
 | `project_config.py` + `default_gates.py` | Загрузчик конфигурации, настройка шлюзов, автовключение |
 | `gate_runner.py` + `gate_stack_dispatch.py` + `gate_test_resolver.py` | Scoped pytest mapping + dispatch |
 | `skill_manager.py` + `skill_repos.py` | Установка/удаление навыков из репозиториев |
@@ -108,7 +108,7 @@
 Навыки, роли, стеки — общие для всех сред. MCP-серверы — специфичны для среды:
 ```
 harness/
-├── skills/           # 12 core auto-deployed + brain условно + 20 в skills-official/ (opt-in через --include-official)
+├── skills/           # 13 core auto-deployed + brain условно + 20 в skills-official/ (opt-in через --include-official)
 ├── roles/            # 5 ролей (developer, architect, qa, tech-writer, ui-ux)
 ├── stacks/           # Руководства по стекам
 ├── overrides/        # Переопределения для конкретных сред (claude/, cursor/, qwen/)
@@ -215,7 +215,7 @@ Exit code `0` = caching активен (`cache_read_input_tokens > 0`);
 ## Тестирование
 
 ```bash
-pytest tests/ -v                    # все тесты (3844)
+pytest tests/ -v                    # все тесты (4095)
 pytest tests/test_tausik_backend.py   # backend CRUD
 pytest tests/test_tausik_service.py   # service logic
 pytest tests/test_tausik_cli.py       # CLI smoke

@@ -11,6 +11,12 @@
 
 ## [Unreleased]
 
+### RENAR adoption — Phase 0-1 (подложка + первый SPEC/ADAPT)
+
+- **`tausik renar export [--out] [--check]`.** Детерминированный one-way derived-вид SQLite-проекта в дерево `renar/` (README + conformance + specs + adapts). `--check` — CI drift-гейт; экспорт date-free и pinned к `eol=lf` (`.gitattributes renar/**`) для стабильных diff'ов, с containment-guard для `--out`.
+- **RENAR SPEC + ADAPT подложка.** 17 MCP-инструментов (`tausik_spec_*` ×8, `tausik_adapt_*` ×9): формальные требования (SPEC, 9 закрытых типов) и интерпретация ТЗ (ADAPT §7) с forward-интерпретациями, backward-findings из закрытого списка и двойной подписью ed25519/name. Документировано в `docs/ru/mcp.md`.
+- **Первый self-applied SPEC-ARCH + ADAPT.** TAUSIK достиг **RENAR-1** на честных данных (заблокирован на RENAR-2 — ADAPT оставлен draft, без поддельной подписи клиента); `tausik renar conformance` сам оценивает уровень.
+
 ## [1.5.0] — 2026-06-13
 
 Pre-2.0 hardening релиз. v1.5 закрывает три эпика — **evidence-attestation** (криптографические verification-receipt'ы), **SENAR hardening** (scope ACL, closure-risk, fail-closed gates, внешнее ревью) и **polish** (надёжность, model routing, drift-гейты docs/memory).

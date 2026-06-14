@@ -41,12 +41,22 @@ ROOT_CAUSE_CATEGORIES: tuple[str, ...] = (
 )
 _CATEGORIES_SET = frozenset(ROOT_CAUSE_CATEGORIES)
 
-# Canonical shape, bilingual (ru/en) to match the keyword floor. The category
-# is captured generically and validated in Python so an *unknown* category is
-# a clean "not structured" (AC4), distinguishable in tests from "no structure".
+# Canonical shape, bilingual (ru/en) to match the keyword floor. Two accepted
+# category forms:
+#   bracketed — "Root cause (logic-error): …"      (cat_b, validated in Python)
+#   label     — "Root cause — logic-error: …"      (cat_l, must be a known token)
+# The bracket form captures generically so an *unknown* bracketed category is a
+# clean "not structured" (AC4). The bracket-less label form would be ambiguous
+# (a free-text description could masquerade as a category), so there the regex
+# only matches an exact closed-list token — anything else falls through to None.
+_CAT_ALT = "|".join(re.escape(c) for c in ROOT_CAUSE_CATEGORIES)
 _RC_RE = re.compile(
     r"(?:root\s*cause|причина)\s*"
-    r"[\(\[]\s*(?P<cat>[^\)\]]+?)\s*[\)\]]\s*"
+    r"(?:"
+    r"[\(\[]\s*(?P<cat_b>[^\)\]]+?)\s*[\)\]]"
+    r"|"
+    r"[:\-—–]\s*(?P<cat_l>" + _CAT_ALT + r")"
+    r")\s*"
     r"[:\-—–]\s*"
     r"(?P<desc>.+?)\s*"
     r"(?:prevention|предотвращение|профилактика)\s*"
@@ -69,7 +79,9 @@ def parse_root_cause(notes: str | None) -> dict[str, str] | None:
     m = _RC_RE.search(notes)
     if not m:
         return None
-    cat = m.group("cat").strip().lower()
+    # cat_l (label form) is regex-constrained to the closed list already;
+    # cat_b (bracket form) is free-text and validated here.
+    cat = (m.group("cat_b") or m.group("cat_l") or "").strip().lower()
     if cat not in _CATEGORIES_SET:
         return None
     desc = m.group("desc").strip()
@@ -82,6 +94,47 @@ def parse_root_cause(notes: str | None) -> dict[str, str] | None:
 def has_structured_root_cause(notes: str | None) -> bool:
     """True when ``notes`` carry a valid structured root cause."""
     return parse_root_cause(notes) is not None
+
+
+# Canonical one-line template + closed-list categories, quoted INLINE by the
+# Rule-7 messages (rule7-rootcause-nag-inline-template). Keeping the strings
+# next to ROOT_CAUSE_CATEGORIES means the nag can never drift from the parser,
+# and the message text stays out of the already-large service_task_done module.
+_TEMPLATE = "Root cause (<category>): <what broke & why>. Prevention: <how to avoid>."
+
+
+def categories_str() -> str:
+    """Comma-joined closed-list categories for inline help text."""
+    return ", ".join(ROOT_CAUSE_CATEGORIES)
+
+
+def missing_root_cause_message(slug: str, defect_of: Any) -> str:
+    """Hard-block / warning text when a defect documents no cause at all.
+
+    Steers straight to the structured template so the agent writes it right the
+    first time instead of supplying a bare keyword that then triggers the nudge.
+    """
+    return (
+        f"Defect task '{slug}' (defect_of={defect_of}) has no root cause "
+        f"documented (SENAR Rule 7). Log it in structured form (one line):\n"
+        f'  .tausik/tausik task log {slug} "{_TEMPLATE}"\n'
+        f"  Valid <category>: {categories_str()}.\n"
+        f"Opt out: config task_done.root_cause_hard=false."
+    )
+
+
+def structured_nudge_message(slug: str) -> str:
+    """Advisory nudge text when the keyword floor passed but the shape is not
+    yet structured. Quotes the template + categories inline so it is actionable
+    from its own text (the old 'see the docs' form re-fired every close)."""
+    return (
+        f"Defect '{slug}' documents a root cause but not in structured form. "
+        f"Copy this into a task log (one line):\n"
+        f"  {_TEMPLATE}\n"
+        f"  Valid <category> (closed list): {categories_str()}.\n"
+        f"Label form also accepted: 'Root cause — <category>: …' or "
+        f"'Root cause: <category>: …'. (SENAR Rule 7)"
+    )
 
 
 def root_cause_metrics(q: Callable[..., list[dict[str, Any]]]) -> dict[str, Any]:

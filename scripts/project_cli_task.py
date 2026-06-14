@@ -140,6 +140,11 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
             v = getattr(args, k, None)
             if v is not None:
                 fields[k] = v
+        if getattr(args, "notes_overwrite", False):
+            if getattr(args, "notes", None) is None:
+                print("--notes-overwrite has no effect without --notes.", file=sys.stderr)
+                return
+            fields["notes_overwrite"] = True
         if args.ac is not None:
             fields["acceptance_criteria"] = args.ac
         rf = getattr(args, "update_relevant_files", None)

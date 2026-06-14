@@ -9,6 +9,12 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### RENAR adoption — Phase 0-1 (substrate + first SPEC/ADAPT)
+
+- **`tausik renar export [--out] [--check]`.** Deterministic, one-way derived view of the SQLite project into a `renar/` tree (README + conformance + specs + adapts). `--check` is a CI drift gate; the export is date-free and pinned to `eol=lf` (`.gitattributes renar/**`) for stable diffs, with a containment-guarded `--out` target.
+- **RENAR SPEC + ADAPT substrate.** 17 MCP tools (`tausik_spec_*` ×8, `tausik_adapt_*` ×9): formal requirements (SPEC, 9 closed types) and TZ-interpretation (ADAPT §7) with forward-interpretations, closed-list backward findings, and dual ed25519/name signatures. Documented in `docs/ru/mcp.md`.
+- **First self-applied SPEC-ARCH + ADAPT.** TAUSIK reached **RENAR-1** on honest data (blocked at RENAR-2 — ADAPT left draft, no faked client signature); `tausik renar conformance` self-assesses the level.
+
 ## [1.5.0] — 2026-06-13
 
 The pre-2.0 hardening release. v1.5 closes three epics — **evidence-attestation** (cryptographic verification receipts), **SENAR hardening** (scope ACL, closure-risk, fail-closed gates, external review), and **polish** (reliability, model routing, docs/memory drift gates).

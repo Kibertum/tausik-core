@@ -67,6 +67,35 @@ class TestParseRootCause:
             notes = f"Root cause ({cat}): desc here. Prevention: do thing."
             assert parse_root_cause(notes) is not None, cat
 
+    def test_label_form_dash_accepted(self):
+        # rule7-rootcause-nag-inline-template: bracket-less label form.
+        rc = parse_root_cause(
+            "Root cause — logic-error: off-by-one in pager. Prevention: add bounds test."
+        )
+        assert rc == {
+            "category": "logic-error",
+            "description": "off-by-one in pager.",
+            "prevention": "add bounds test.",
+        }
+
+    def test_label_form_colon_then_dash_accepted(self):
+        rc = parse_root_cause("Root cause: race-condition — init race. Prevention: take the lock.")
+        assert rc == {
+            "category": "race-condition",
+            "description": "init race.",
+            "prevention": "take the lock.",
+        }
+
+    def test_label_form_all_categories_parse(self):
+        for cat in ROOT_CAUSE_CATEGORIES:
+            notes = f"Root cause — {cat}: desc here. Prevention: do thing."
+            assert parse_root_cause(notes) is not None, cat
+
+    def test_label_form_unknown_category_rejected(self):
+        # No brackets + an out-of-list token must NOT parse (avoids a free-text
+        # description masquerading as a category).
+        assert parse_root_cause("Root cause — banana: x. Prevention: y.") is None
+
 
 @pytest.fixture
 def svc(tmp_path, monkeypatch):

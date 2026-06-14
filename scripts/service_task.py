@@ -250,7 +250,12 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         return f"Task '{slug}' moved to review."
 
     def task_update(self, slug: str, **fields: Any) -> str:
-        self._require_task(slug)
+        task = self._require_task(slug)
+        # Refuse to clobber the append-only journal (qa-task-update-notes-guard);
+        # pops notes_overwrite, raises if a non-empty journal would be replaced.
+        from task_notes_guard import guard_notes_overwrite
+
+        guard_notes_overwrite(slug, task.get("notes"), fields)
         if fields.get("status") in _LIFECYCLE_STATUSES:
             raise ServiceError(
                 f"status='{fields['status']}' must use lifecycle method "

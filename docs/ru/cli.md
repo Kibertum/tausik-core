@@ -67,9 +67,13 @@ task done <slug> --ac-verified [--no-knowledge] [--relevant-files FILE1 FILE2 ..
 task block <slug> [--reason TEXT]
 task unblock <slug>             # blocked → active
 task review <slug>              # active → review
-task update <slug> [--title T] [--goal G] [--notes N] [--acceptance-criteria AC]
+task update <slug> [--title T] [--goal G] [--notes N] [--notes-overwrite] [--acceptance-criteria AC]
                   [--scope S] [--scope-exclude S] [--stack S] [--complexity C] [--role ROLE]
                   [--call-budget N] [--tier TIER]
+                                # ⚠ --notes ЗАМЕНЯЕТ весь журнал (notes — append-only история,
+                                #   пишется через `task log`). По умолчанию перезапись непустого
+                                #   журнала ОТКЛОНЯЕТСЯ; чтобы дописать — `task log`, чтобы
+                                #   намеренно заменить — добавь --notes-overwrite.
 task delete <slug>
 task plan <slug> <шаг1> <шаг2> ...   # Задать шаги плана
 task step <slug> <номер_шага>  # Отметить шаг N выполненным (нумерация с 1)
