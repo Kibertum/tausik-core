@@ -95,6 +95,7 @@ def check_qg0_start(
     *,
     audit_check_fn: Callable[[], str | None] | None = None,
     session_check_duration_fn: Callable[[], str | None] | None = None,
+    renar_advisory_fn: Callable[[], str | None] | None = None,
 ) -> list[str]:
     """QG-0 Context Gate: validate goal, AC, scope, negative scenarios, security.
 
@@ -212,6 +213,15 @@ def check_qg0_start(
                 f"WARNING: Task '{slug}' appears security-relevant but AC has no security criteria. "
                 f"SENAR recommends identifying threat surface and adding security AC."
             )
+    # RENAR-lite advisory (Decision #115, rung 2): non-blocking nudge for a
+    # high-stakes task without a linked SPEC/ADAPT. Never raises.
+    if renar_advisory_fn is not None:
+        try:
+            renar_msg = renar_advisory_fn()
+            if renar_msg:
+                warnings.append(renar_msg)
+        except Exception:
+            pass
     # QG-0: 9-dimension intent completeness (prompt-master pattern)
     dims = qg0_dimensions_score(task)
     filled = sum(1 for v in dims.values() if v)

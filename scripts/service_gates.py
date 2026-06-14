@@ -110,11 +110,14 @@ class GatesMixin:
         Threads optional `audit_check` / `session_check_duration` callbacks
         from the composing service (ProjectService) when available.
         """
+        from gate_qg0_renar import renar_qg0_advisory
+
         return check_qg0_start(
             slug,
             task,
             audit_check_fn=getattr(self, "audit_check", None),
             session_check_duration_fn=getattr(self, "session_check_duration", None),
+            renar_advisory_fn=lambda: renar_qg0_advisory(self.be, task, slug),
         )
 
     def _verify_ac(self, slug: str, task: dict[str, Any], ac_verified: bool) -> list[str]:

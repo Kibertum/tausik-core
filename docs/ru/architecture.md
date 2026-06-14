@@ -157,6 +157,24 @@ Stack-scoped гейты: `pytest`, `tsc`, `eslint`, `js-test`, `go-vet`, `go-tes
 `cargo-check`, `cargo-test`, `clippy`, `phpstan`, `phpcs`, `phpunit`, `javac`, `ktlint`,
 `ansible-lint`, `terraform-validate`, `helm-lint`, `kubeval`, `hadolint`.
 
+## Адаптация RENAR — advisory-first («лайт»)
+
+TAUSIK — лёгкий zero-dep фреймворк, поэтому [RENAR](https://renar.tech) (стандарт
+рассуждения/управления) внедряется **advisory-first**, а не тяжёлой обязательной
+церемонией. Адаптация поднимается по лестнице с явными условиями входа на каждую
+ступень (Decision #115):
+
+| Ступень | Что | Статус |
+|---|---|---|
+| 1. Артефакты | SPEC / ADAPT / conformance в SQLite-субстрате + one-way экспорт `renar/` | done (RENAR-1) |
+| 2. Advisory-сигналы | QG-0 выдаёт **неблокирующий** нудж, когда high-stakes задача (tier `substantial`/`deep` или `complex`) стартует без связанного SPEC и без ADAPT — `gate_qg0_renar.renar_qg0_advisory`, тоггл `renar.qg0_advisory` (по умолчанию вкл) | done (1.5) |
+| 3. Хардгейт по доказательству | повысить конкретный advisory до **блокирующего** только когда реальный дефект упрётся в его отсутствие (аудит #91) | 2.0 |
+| 4. RENAR-2 подписанный/неизменяемый ADAPT | подпись ADAPT (ed25519) → `tz_immutable=true` + delta-ADAPT — **необратимо, только по команде пользователя** | 2.0 |
+
+Философия: RENAR усиливает SENAR, делая интерпретацию **видимой** на естественном
+гейте (QG-0), не блокируя агента — fail-soft на advisory, fail-closed только на
+доказанных гейтах. Это осознанная политика лёгкой адаптации, а не «недоделанный RENAR».
+
 ## Hooks (anti-drift, см. [hooks.md](hooks.md))
 
 Все hook-файлы в `scripts/hooks/` регистрируются через `bootstrap/bootstrap_generate.py` (Claude Code) и `bootstrap/bootstrap_qwen.py` (Qwen Code). Hook-скрипты non-blocking (exit 0), ошибки в stderr. Общие helper'ы в `scripts/hooks/_common.py`.

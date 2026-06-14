@@ -157,6 +157,23 @@ Stack-scoped gates: `pytest`, `tsc`, `eslint`, `js-test`, `go-vet`, `go-test`, `
 `cargo-check`, `cargo-test`, `clippy`, `phpstan`, `phpcs`, `phpunit`, `javac`, `ktlint`,
 `ansible-lint`, `terraform-validate`, `helm-lint`, `kubeval`, `hadolint`.
 
+## RENAR adoption — advisory-first ("lite")
+
+TAUSIK is a lightweight, zero-dependency framework, so it adopts [RENAR](https://renar.tech)
+(reasoning/governance standard) **advisory-first** rather than as heavyweight mandatory
+ceremony. Adoption climbs a ladder with explicit entry conditions per rung (Decision #115):
+
+| Rung | What | Status |
+|---|---|---|
+| 1. Artifacts | SPEC / ADAPT / conformance embedded in the SQLite substrate + one-way `renar/` export | done (RENAR-1) |
+| 2. Advisory signals | QG-0 surfaces a **non-blocking** nudge when a high-stakes task (tier `substantial`/`deep`, or `complex`) starts with no linked SPEC and no ADAPT — `gate_qg0_renar.renar_qg0_advisory`, toggle `renar.qg0_advisory` (default on) | done (1.5) |
+| 3. Evidence-based hard-gate | promote a specific advisory to **blocking** only when a real defect traces to its absence (per the #91 coherence audit) | 2.0 |
+| 4. RENAR-2 signed/immutable ADAPT | sign ADAPT (ed25519) → `tz_immutable=true` + delta-ADAPT — **irreversible, user-directed only** | 2.0 |
+
+The philosophy: RENAR strengthens SENAR by making interpretation **visible** at the natural
+gate (QG-0), while keeping the agent unblocked — fail-soft on advisory, fail-closed only on
+proven gates. This is a deliberate lightweight-adoption policy, not "unfinished RENAR".
+
 ## Hooks (anti-drift, see [hooks.md](hooks.md))
 
 All hook files under `scripts/hooks/` are registered via `bootstrap/bootstrap_generate.py` (Claude Code) and `bootstrap/bootstrap_qwen.py` (Qwen Code). Hook scripts are non-blocking (exit 0); errors go to stderr. Shared helpers live in `scripts/hooks/_common.py`.
