@@ -175,6 +175,25 @@ TAUSIK — лёгкий zero-dep фреймворк, поэтому [RENAR](http
 гейте (QG-0), не блокируя агента — fail-soft на advisory, fail-closed только на
 доказанных гейтах. Это осознанная политика лёгкой адаптации, а не «недоделанный RENAR».
 
+## Orchestrator-worker (авто-переключение модели через сабагентов)
+
+Главная сессия — **координатор** (планирование, AC, ревью). Задачу complexity ≤
+medium можно **делегировать** **воркеру-сабагенту**, поднятому через Agent tool с
+`model=recommended` — единственный программный механизм выбора модели в Claude
+Code (паттерн orchestrator-workers от Anthropic). TAUSIK даёт **scaffolding/state**
+делегирования; сам spawn делает агент.
+
+| Шаг | Команда / механизм |
+|---|---|
+| Делегировать | `tausik task delegate <slug>` — пишет {рекоменд. модель, parent session} в `meta` kv (без миграции). **complex отвергается** (остаётся у координатора). |
+| Handoff-контракт | `tausik task handoff <slug>` — детерминированный JSON {slug, goal, acceptance_criteria, scope, scope_exclude, model, skills}; trimmed профиль `WORKER_SKILLS` (без plan/explore/brain). Оркестратор передаёт его в Agent tool; воркер возвращает обратно (round-trip identity). |
+| Распознавание in-session | `task start` делегированной задачи показывает **worker mode** (operating contract) и подавляет orchestrator-only баннер модели. |
+| Scope hard-gate | воркер ограничен scope — `scope_write_gate` блокирует edits вне `scope_paths`, а делегированная задача **без** scope блокируется до объявления (нет legacy fail-open для воркеров). |
+| Summary-back | `tausik task summary-back <slug> "<summary>" [--gates …]` — воркер возвращает структурный результат (в `meta`, виден в `task show`), чтобы координатор взял его **без** транскрипта воркера. |
+
+Состояние делегирования — CLI-first (без MCP, чтобы избежать doc-count drift) и
+целиком в таблице `meta` (`delegation:<slug>`, `worker_summary:<slug>`).
+
 ## Hooks (anti-drift, см. [hooks.md](hooks.md))
 
 Все hook-файлы в `scripts/hooks/` регистрируются через `bootstrap/bootstrap_generate.py` (Claude Code) и `bootstrap/bootstrap_qwen.py` (Qwen Code). Hook-скрипты non-blocking (exit 0), ошибки в stderr. Общие helper'ы в `scripts/hooks/_common.py`.

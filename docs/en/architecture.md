@@ -174,6 +174,25 @@ The philosophy: RENAR strengthens SENAR by making interpretation **visible** at 
 gate (QG-0), while keeping the agent unblocked — fail-soft on advisory, fail-closed only on
 proven gates. This is a deliberate lightweight-adoption policy, not "unfinished RENAR".
 
+## Orchestrator-worker (model auto-switch via sub-agents)
+
+The main session is the **coordinator** (planning, AC, review). A task of
+complexity ≤ medium can be **delegated** to a **worker sub-agent** spawned via
+the Agent tool with `model=recommended` — the only programmatic model-selection
+Claude Code exposes (Anthropic orchestrator-workers pattern). TAUSIK provides
+the delegation **scaffolding/state**; the agent performs the actual spawn.
+
+| Step | Command / mechanism |
+|---|---|
+| Delegate | `tausik task delegate <slug>` — records {recommended model, parent session} in the `meta` kv (no schema migration). **complex tasks are refused** (they stay with the coordinator). |
+| Handoff contract | `tausik task handoff <slug>` — deterministic JSON {slug, goal, acceptance_criteria, scope, scope_exclude, model, skills}; the trimmed `WORKER_SKILLS` profile (no plan/explore/brain). The orchestrator passes it to the Agent tool; the worker echoes it back (round-trip identity). |
+| In-session recognition | `task start` on a delegated task surfaces **worker mode** (operating contract) and suppresses the orchestrator-only model-recommendation banner. |
+| Scope hard-gate | the worker is scope-bounded — `scope_write_gate` blocks edits outside `scope_paths`, and a delegated task with **no** scope is blocked until it declares one (no legacy fail-open for workers). |
+| Summary-back | `tausik task summary-back <slug> "<summary>" [--gates …]` — the worker returns a structured result (stored in `meta`, surfaced in `task show`) so the coordinator picks it up **without** the worker transcript. |
+
+Delegation state is CLI-first (no MCP surface, to avoid doc-count drift) and
+lives entirely in the `meta` table (`delegation:<slug>`, `worker_summary:<slug>`).
+
 ## Hooks (anti-drift, see [hooks.md](hooks.md))
 
 All hook files under `scripts/hooks/` are registered via `bootstrap/bootstrap_generate.py` (Claude Code) and `bootstrap/bootstrap_qwen.py` (Qwen Code). Hook scripts are non-blocking (exit 0); errors go to stderr. Shared helpers live in `scripts/hooks/_common.py`.
