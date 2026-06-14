@@ -80,6 +80,10 @@ task update <slug> [--title T] [--goal G] [--notes N] [--acceptance-criteria AC]
                   [--scope S] [--scope-exclude S] [--stack S] [--complexity C] [--role ROLE]
                   [--call-budget N] [--tier TIER]
 task delete <slug>
+task delegate <slug>            # Orchestrator-worker: mark a complexity<=medium task delegated to a worker sub-agent (records recommended model + parent session; complex refused)
+task undelegate <slug>          # Clear a task's delegation
+task handoff <slug>             # Print the deterministic worker handoff contract (JSON: goal/AC/scope/model/skills) for the Agent-tool spawn
+task summary-back <slug> "<summary>" [--changed F] [--gates S] [--ac-evidence E] [--follow-ups U]  # Worker -> coordinator structured result
 task plan <slug> <step1> <step2> ...   # Set plan steps
 task step <slug> <step_number>  # Mark step N as completed (1-indexed)
 task log <slug> <message>       # Append timestamped note (crash-safe journal)
@@ -187,6 +191,7 @@ Also wired as gates `renar_drift_schema` / `renar_drift_provenance`
 renar conformance              # Generate RENAR-CONFORMANCE.yaml (to stdout)
 renar conformance --write      # Write RENAR-CONFORMANCE.yaml at the project root
 renar conformance --assessor <id>
+renar export [--out DIR] [--check]  # Serialize specs+adapts+conformance to a derived renar/ tree; --check is a CI drift gate (exit 1 if stale)
 ```
 
 A self-assessment manifest with every §14.4.2 mandatory field. The RENAR-1..5

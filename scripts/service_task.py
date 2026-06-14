@@ -317,6 +317,9 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
     def task_delete(self, slug: str) -> str:
         self._require_task(slug)
         self.be.task_delete(slug)
+        from service_delegate import clear_delegation_state
+
+        clear_delegation_state(self.be, slug)  # drop stale OW meta on slug reuse
         return f"Task '{slug}' deleted."
 
     def task_plan(self, slug: str, steps: list[str]) -> str:

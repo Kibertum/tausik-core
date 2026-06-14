@@ -13,6 +13,7 @@ from project_cli_aidd_autogen import (  # noqa: E402
     _detect_package_meta,
     _detect_test_framework,
     _detect_top_dirs,
+    _fmt,
     _parse_readme,
     _pyproject_has_pytest,
     cmd_aidd_autogen,
@@ -75,6 +76,16 @@ class TestDetectTopDirs:
         for d in ("src", "tests", "node_modules", ".git", "__pycache__"):
             (tmp_path / d).mkdir()
         assert _detect_top_dirs(str(tmp_path)) == ["src", "tests"]
+
+
+class TestFmtSanitizes:
+    def test_newlines_flattened_no_markdown_injection(self):
+        out = _fmt("evil\n## Injected heading\n- item")
+        assert "\n" not in out
+        assert "evil ## Injected heading - item" == out
+
+    def test_list_items_sanitized(self):
+        assert "\n" not in _fmt(["a\nb", "c"])
 
 
 class TestDetectLanguages:

@@ -75,6 +75,20 @@ SECURITY_AC_KEYWORDS = (
 )
 
 
+def _has_scope_paths(raw: Any) -> bool:
+    """True only for a NON-empty scope_paths ACL. A parsed-empty '[]' is NOT a
+    valid declaration — it would pass QG-0 yet make the write-gate block every
+    edit (v15p review HIGH-1)."""
+    if not raw:
+        return False
+    try:
+        from scope_acl import _parse_list
+
+        return bool(_parse_list(raw, "scope_paths"))
+    except Exception:  # noqa: BLE001 — best-effort: fall back to a string check
+        return str(raw).strip() not in ("", "[]", "null")
+
+
 def _scope_hard_gate_enabled() -> bool:
     """config qg0.scope_hard_gate, default True; unreadable config = enabled
     (the opt-out must be explicit, mirroring the Rule 6 gate's posture)."""
@@ -125,8 +139,8 @@ def check_qg0_start(
     # free-text scope (backward compat). Hard gate is keyword-free (no FP
     # heuristics); opt out via config qg0.scope_hard_gate=false. Unset
     # complexity / simple keeps the historical warning-only behavior.
-    has_scope_decl = bool((task.get("scope") or "").strip()) or (
-        task.get("scope_paths") is not None
+    has_scope_decl = bool((task.get("scope") or "").strip()) or _has_scope_paths(
+        task.get("scope_paths")
     )
     if not has_scope_decl:
         if task.get("complexity") in ("medium", "complex") and _scope_hard_gate_enabled():

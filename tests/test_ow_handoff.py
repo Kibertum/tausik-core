@@ -77,3 +77,13 @@ class TestServiceHandoff:
         with pytest.raises(ServiceError, match="not found"):
             svc.task_handoff("nope")
         be.close()
+
+    def test_non_delegated_task_raises(self, tmp_path):
+        be = SQLiteBackend(str(tmp_path / "t.db"))
+        svc = ProjectService(be)
+        svc.epic_add("v1", "V1")
+        svc.story_add("v1", "setup", "Setup")
+        svc.task_add("setup", "feat-x", "X", complexity="medium", role="developer")
+        with pytest.raises(ServiceError, match="not delegated"):
+            svc.task_handoff("feat-x")  # no delegation → no empty contract
+        be.close()

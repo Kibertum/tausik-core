@@ -28,6 +28,13 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 - **ruff BLE001 enabled** across the tree: every blind `except Exception` is now justified with `# noqa: BLE001 — <why>` or narrowed; new unjustified blind catches fail CI. Makes the "нулевая толерантность к тихим ошибкам" principle real.
 
+### Orchestrator-worker — model auto-switch via sub-agents
+
+- **`tausik task delegate <slug>`** marks a complexity≤medium task delegated to a worker sub-agent (records the recommended model + parent session in the `meta` kv — no schema migration); complex tasks are refused (they stay with the coordinator). `task undelegate` clears it.
+- **`tausik task handoff <slug>`** prints the deterministic worker contract (goal/AC/scope/scope_exclude/model + trimmed `WORKER_SKILLS`) the coordinator passes to the Agent tool.
+- **In-session recognition:** `task start` on a delegated task surfaces worker mode and suppresses the orchestrator-only model banner. **Scope hard-gate:** a delegated worker is blocked from editing outside its `scope_paths` (and blocked until it declares one).
+- **`tausik task summary-back <slug> "<summary>"`** returns a structured worker result (stored in `meta`, surfaced in `task show`) so the coordinator picks it up without the worker transcript. CLI-first; full workflow documented in `architecture.md`.
+
 ### RENAR adoption — advisory-first ("lite")
 
 - **`tausik renar export [--out] [--check]`.** Deterministic, one-way derived view of the SQLite project into a `renar/` tree (README + conformance + specs + adapts). `--check` is a CI drift gate; the export is date-free and pinned to `eol=lf` (`.gitattributes renar/**`) for stable diffs, with a containment-guarded `--out` target.

@@ -83,6 +83,15 @@ class TestTaskDelegate:
         # No tombstone: the meta key is gone, not left as an empty string.
         assert svc.be.meta_get("delegation:feat-r") is None
 
+    def test_task_delete_clears_delegation_meta(self, svc):
+        _task(svc, "feat-del", "medium")
+        svc.task_delegate("feat-del")
+        svc.task_summary_back("feat-del", "done")
+        svc.task_delete("feat-del")
+        # No stale state a reused slug could inherit.
+        assert svc.be.meta_get("delegation:feat-del") is None
+        assert svc.be.meta_get("worker_summary:feat-del") is None
+
     def test_idempotent_message_no_session_shows_unknown(self, svc):
         # Fixture has no active session → parent_session is None; the no-op
         # message must read '#unknown', not the literal '#None'.

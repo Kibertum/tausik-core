@@ -51,6 +51,16 @@ def start_recognition_message(be: Any, slug: str, complexity: str | None) -> str
     return None
 
 
+def clear_delegation_state(be: Any, slug: str) -> None:
+    """Drop delegation + worker-summary meta for a slug (best-effort) so a reused
+    slug can't inherit stale orchestrator-worker state."""
+    for key in (_delegation_key(slug), f"worker_summary:{slug}"):
+        try:
+            be.meta_delete(key)
+        except Exception:  # noqa: BLE001 — best-effort cleanup, never block the caller
+            pass
+
+
 def worker_mode_notice(slug: str, delegation: dict[str, Any]) -> str:
     """In-session worker recognition banner for a delegated task_start.
 
@@ -121,13 +131,19 @@ class DelegateMixin:
         )
 
     def task_handoff(self, slug: str) -> dict[str, Any]:
-        """Build the worker handoff contract for a task (goal/AC/scope/model/skills)."""
+        """Build the worker handoff contract for a DELEGATED task."""
         task = self.be.task_get(slug)
         if task is None:
             raise ServiceError(f"Task '{slug}' not found")
+        delegation = self.task_delegation(slug)
+        if delegation is None:
+            raise ServiceError(
+                f"Task '{slug}' is not delegated — run `tausik task delegate {slug}` "
+                f"first (a handoff contract has no model without a delegation)."
+            )
         from ow_handoff import build_handoff_contract
 
-        return build_handoff_contract(task, self.task_delegation(slug))
+        return build_handoff_contract(task, delegation)
 
     def task_summary_back(
         self,

@@ -83,6 +83,25 @@ class TestVerifyLangVersion:
         )
         assert _verify_lang_version(str(tmp_path), "Python 3.1+")[0] == "drift"
 
+    def test_floor_satisfied_by_higher_pin(self, tmp_path):
+        # requires-python floor '>=3.11' is satisfied by a claim pinning 3.13 → ok, not drift.
+        (tmp_path / "pyproject.toml").write_text(
+            '[project]\nname = "x"\nrequires-python = ">=3.11"\n', encoding="utf-8"
+        )
+        assert _verify_lang_version(str(tmp_path), "Python 3.13")[0] == "ok"
+
+    def test_floor_not_satisfied_below(self, tmp_path):
+        (tmp_path / "pyproject.toml").write_text(
+            '[project]\nname = "x"\nrequires-python = ">=3.11"\n', encoding="utf-8"
+        )
+        assert _verify_lang_version(str(tmp_path), "Python 3.10")[0] == "drift"
+
+    def test_exact_spec_requires_exact(self, tmp_path):
+        (tmp_path / "pyproject.toml").write_text(
+            '[project]\nname = "x"\nrequires-python = "==3.11"\n', encoding="utf-8"
+        )
+        assert _verify_lang_version(str(tmp_path), "Python 3.13")[0] == "drift"
+
     def test_blank_claim_unverifiable(self, tmp_path):
         assert _verify_lang_version(str(tmp_path), "")[0] == "unverifiable"
 

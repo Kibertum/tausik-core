@@ -133,8 +133,21 @@ def _verify_lang_version(root: str, value: str) -> tuple[str, str]:
         return "unverifiable", f"requires-python='{req}', claim '{value}' has no version number"
     if req_ver is None:
         return "unverifiable", f"claim '{value}' but requires-python='{req}' has no version number"
-    # Numeric compare (not substring): '3.1' must NOT match '>=3.11'.
-    if claim_ver == req_ver:
+    # Operator-aware comparison:
+    #  - req is a FLOOR ('>=3.11','~=3.11','>') and the claim is an EXACT pin
+    #    (e.g. 'Python 3.13', no '+') → ok when the pin satisfies the floor
+    #    (same major, >= floor): developing on 3.13 while supporting 3.11+ is fine.
+    #  - both are floors (claim 'X+'/'>=' AND req floor) → the DECLARED minimums
+    #    must agree (a doc floor of 3.11 vs a pyproject floor of 3.9 is real drift).
+    #  - req is exact ('==') → exact match required.
+    req_op = re.search(r"(>=|<=|~=|==|>|<)", req)
+    req_is_floor = req_op is not None and req_op.group(1) in {">=", "~=", ">"}
+    claim_is_floor = bool(re.search(r"(\+|>=|~=|>)", value))
+    if req_is_floor and not claim_is_floor:
+        ok = claim_ver[0] == req_ver[0] and claim_ver >= req_ver
+    else:
+        ok = claim_ver == req_ver
+    if ok:
         return "ok", f"requires-python '{req}' satisfies claim '{value}'"
     return "drift", f"claim '{value}' but pyproject requires-python='{req}'"
 

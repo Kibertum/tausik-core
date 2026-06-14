@@ -7,6 +7,8 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
+import pytest
+
 from gate_qg0_check import check_qg0_start  # noqa: E402
 from gate_qg0_renar import renar_qg0_advisory  # noqa: E402
 
@@ -72,6 +74,22 @@ class TestRenarAdvisory:
             project_config, "load_config", lambda *a, **k: {"renar": {"qg0_advisory": False}}
         )
         assert renar_qg0_advisory(_Be(), _valid_task(), "x") is None
+
+
+class TestEmptyScopePathsRejected:
+    def test_empty_scope_paths_does_not_pass_qg0(self):
+        # scope_paths='[]' must NOT satisfy the scope declaration (else QG-0 passes
+        # but the write-gate blocks every edit). v15p review HIGH-1.
+        from tausik_utils import ServiceError
+
+        task = _valid_task(scope="", scope_paths="[]")
+        with pytest.raises(ServiceError, match="scope"):
+            check_qg0_start("x", task)
+
+    def test_nonempty_scope_paths_passes(self):
+        task = _valid_task(scope="", scope_paths='["scripts/*"]')
+        # Should not raise on the scope gate (negative AC + rollback present).
+        assert isinstance(check_qg0_start("x", task), list)
 
 
 class TestAdvisoryIsNonBlocking:

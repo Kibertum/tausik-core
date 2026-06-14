@@ -167,12 +167,13 @@ def _detect_languages(root: str, max_files: int = 4000) -> list[str]:
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if not d.startswith(".") and d not in _DENY_DIRS]
         for fn in filenames:
+            lang = _EXT_LANG.get(os.path.splitext(fn)[1].lower())
+            if not lang:
+                continue  # non-code files don't consume the budget (review fix)
             seen += 1
             if seen > max_files:
                 break
-            lang = _EXT_LANG.get(os.path.splitext(fn)[1].lower())
-            if lang:
-                counts[lang] = counts.get(lang, 0) + 1
+            counts[lang] = counts.get(lang, 0) + 1
         if seen > max_files:
             break
     return [lang for lang, _ in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
@@ -247,12 +248,18 @@ def gather_signals(root: str) -> dict:
     }
 
 
+def _sanitize(text: str) -> str:
+    """Flatten newlines/CR so a repo signal can't inject Markdown structure
+    (headings, list items) into the generated vision.md (v15p review)."""
+    return " ".join(text.replace("\r", " ").replace("\n", " ").split())
+
+
 def _fmt(value: object) -> str:
     if isinstance(value, list):
-        return ", ".join(value) if value else _PLACEHOLDER
+        return ", ".join(_sanitize(v) for v in value) if value else _PLACEHOLDER
     if value is None or value == "":
         return _PLACEHOLDER
-    return str(value)
+    return _sanitize(str(value))
 
 
 def _render_facts_block(signals: dict) -> str:

@@ -30,6 +30,13 @@
 
 - **ruff BLE001 включён** по всему дереву: каждый blind `except Exception` обоснован `# noqa: BLE001 — <почему>` или сужен; новые необоснованные blind-catch падают в CI. Делает принцип «нулевая толерантность к тихим ошибкам» реальным.
 
+### Orchestrator-worker — авто-переключение модели через сабагентов
+
+- **`tausik task delegate <slug>`** помечает задачу complexity≤medium делегированной воркеру-сабагенту (рекоменд. модель + parent session в `meta` kv, без миграции); complex отвергается (остаётся у координатора). `task undelegate` очищает.
+- **`tausik task handoff <slug>`** печатает детерминированный контракт воркера (goal/AC/scope/scope_exclude/model + trimmed `WORKER_SKILLS`), который координатор передаёт в Agent tool.
+- **Распознавание in-session:** `task start` делегированной задачи показывает worker-режим и подавляет orchestrator-only баннер модели. **Scope hard-gate:** воркер не может редактировать вне `scope_paths` (и блокируется, пока не объявит scope).
+- **`tausik task summary-back <slug> "<summary>"`** возвращает структурный результат воркера (в `meta`, виден в `task show`), чтобы координатор взял его без транскрипта. CLI-first; полный воркфлоу в `architecture.md`.
+
 ### Адаптация RENAR — advisory-first («лайт»)
 
 - **`tausik renar export [--out] [--check]`.** Детерминированный one-way derived-вид SQLite-проекта в дерево `renar/` (README + conformance + specs + adapts). `--check` — CI drift-гейт; экспорт date-free и pinned к `eol=lf` (`.gitattributes renar/**`) для стабильных diff'ов, с containment-guard для `--out`.
