@@ -70,6 +70,37 @@ def _active_acls(db_path: str) -> list[tuple[str, str | None]]:
         conn.close()
 
 
+def _delegated_slugs(db_path: str) -> set[str]:
+    """Slugs of tasks delegated to a worker sub-agent (meta delegation:<slug>).
+
+    Best-effort: any error → empty set (the scope gate keeps its legacy policy).
+    """
+    try:
+        conn = sqlite3.connect(db_path, timeout=2.0)
+        try:
+            rows = conn.execute(
+                "SELECT key, value FROM meta WHERE key LIKE 'delegation:%'"
+            ).fetchall()
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return set()
+    return {key.split(":", 1)[1] for key, value in rows if value}
+
+
+def delegated_missing_scope(acls: list[tuple[str, str | None]], delegated: set[str]) -> str | None:
+    """Return the slug of a DELEGATED active task that declares no scope_paths.
+
+    A delegated worker must be scope-bounded — it does NOT get the legacy
+    'undeclared task = unrestricted writes' freedom. None if all delegated active
+    tasks declare scope.
+    """
+    for slug, raw in acls:
+        if slug in delegated and raw is None:
+            return slug
+    return None
+
+
 def main() -> int:
     if os.environ.get("TAUSIK_SKIP_HOOKS"):
         return 0
@@ -105,6 +136,21 @@ def main() -> int:
             )
             return 2
         return 0  # fail-open: pre-v30 schema / transient DB issue
+
+    # Orchestrator-worker (v15-ow-scope-hardgate): a DELEGATED active task must be
+    # scope-bounded — it does NOT inherit the legacy 'undeclared = unrestricted'
+    # freedom, or a worker sub-agent could sprawl. Block edits until it declares
+    # scope (checked before the fail-open below).
+    offender = delegated_missing_scope(acls, _delegated_slugs(db_path))
+    if offender is not None:
+        print(
+            f"BLOCKED: delegated task '{offender}' has no scope_paths — a worker "
+            f"sub-agent must declare its writable surface before editing. "
+            f"Set it: `tausik task update {offender} --scope-paths <paths>`, "
+            f"or hand it back: `tausik task undelegate {offender}`.",
+            file=sys.stderr,
+        )
+        return 2
 
     if not acls or any(raw is None for _slug, raw in acls):
         return 0  # no active task, or an undeclared task grants legacy freedom
