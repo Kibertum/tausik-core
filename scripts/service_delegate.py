@@ -85,6 +85,54 @@ class DelegateMixin:
 
         return build_handoff_contract(task, self.task_delegation(slug))
 
+    def task_summary_back(
+        self,
+        slug: str,
+        summary: str,
+        *,
+        changed: str | None = None,
+        gates: str | None = None,
+        ac_evidence: str | None = None,
+        follow_ups: str | None = None,
+    ) -> str:
+        """Worker → orchestrator: persist a structured completion summary.
+
+        Stored in meta (worker_summary:<slug>) for transcript-free retrieval AND
+        appended to the task log so the orchestrator picks it up via `task show`.
+        """
+        if self.be.task_get(slug) is None:
+            raise ServiceError(f"Task '{slug}' not found")
+        record = {
+            "summary": summary,
+            "changed": changed or "",
+            "gates": gates or "",
+            "ac_evidence": ac_evidence or "",
+            "follow_ups": follow_ups or "",
+            "at": utcnow_iso(),
+        }
+        self.be.meta_set(f"worker_summary:{slug}", json.dumps(record))
+        line = f"[worker-summary] {summary}"
+        if gates:
+            line += f" | gates: {gates}"
+        if changed:
+            line += f" | changed: {changed}"
+        self.task_log(slug, line, phase="review")  # type: ignore[attr-defined]
+        return (
+            f"Worker summary recorded for '{slug}'. The orchestrator can read it "
+            f"via `tausik task show {slug}` without the worker transcript."
+        )
+
+    def task_worker_summary(self, slug: str) -> dict[str, Any] | None:
+        """Read the worker's structured summary for a task, or None."""
+        raw = self.be.meta_get(f"worker_summary:{slug}")
+        if not raw:
+            return None
+        try:
+            data = json.loads(raw)
+            return data if isinstance(data, dict) else None
+        except (TypeError, ValueError):
+            return None
+
     def task_undelegate(self, slug: str) -> str:
         """Clear a task's delegation record (idempotent)."""
         if not self.task_delegation(slug):

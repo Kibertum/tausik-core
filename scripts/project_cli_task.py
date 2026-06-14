@@ -69,7 +69,13 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
         if deleg:
             print(
                 f"delegated: worker sub-agent (model {deleg.get('display')}, "
-                f"parent session #{deleg.get('parent_session')})"
+                f"parent session #{deleg.get('parent_session') or 'unknown'})"
+            )
+        wsum = svc.task_worker_summary(args.slug)
+        if wsum:
+            print(
+                f"worker-summary: {wsum.get('summary')}"
+                + (f" | gates: {wsum.get('gates')}" if wsum.get("gates") else "")
             )
     elif c == "delegate":
         print(svc.task_delegate(args.slug))
@@ -79,6 +85,17 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
         from ow_handoff import serialize_contract
 
         print(serialize_contract(svc.task_handoff(args.slug)))
+    elif c == "summary-back":
+        print(
+            svc.task_summary_back(
+                args.slug,
+                args.summary,
+                changed=getattr(args, "changed", None),
+                gates=getattr(args, "gates", None),
+                ac_evidence=getattr(args, "ac_evidence", None),
+                follow_ups=getattr(args, "follow_ups", None),
+            )
+        )
     elif c == "start":
         _print_with_warnings(svc.task_start(args.slug, force=getattr(args, "force", False)))
     elif c == "done":

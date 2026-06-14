@@ -110,6 +110,15 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         "handoff", help="Print the worker handoff contract (JSON) for a delegated task"
     )
     thandoff.add_argument("slug")
+    tsumback = task_sub.add_parser(
+        "summary-back", help="Worker → orchestrator: record a structured completion summary"
+    )
+    tsumback.add_argument("slug")
+    tsumback.add_argument("summary")
+    tsumback.add_argument("--changed", default=None, help="Changed files/areas")
+    tsumback.add_argument("--gates", default=None, help="Gate status (e.g. green)")
+    tsumback.add_argument("--ac-evidence", dest="ac_evidence", default=None)
+    tsumback.add_argument("--follow-ups", dest="follow_ups", default=None)
 
     tstart = task_sub.add_parser("start")
     tstart.add_argument("slug")
