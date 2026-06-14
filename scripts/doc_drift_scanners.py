@@ -157,6 +157,24 @@ def _strip_fenced_blocks(text: str) -> str:
     return _FENCED_BLOCK_RE.sub(_repl, text)
 
 
+_DYNAMIC_BLOCK_RE = re.compile(r"<!-- DYNAMIC:START -->.*?<!-- DYNAMIC:END -->", re.DOTALL)
+
+
+def _strip_dynamic_block(text: str) -> str:
+    """Blank CLAUDE.md's auto-generated DYNAMIC section (line-count preserving).
+
+    The memory-tail there cites memory/decision titles verbatim — which can
+    legitimately name historical TAUSIK versions (e.g. 'parity for v1.4
+    features'). Those are not authored version claims, so they must not trip the
+    version-ref drift check. Authored refs in the static body are still scanned.
+    """
+
+    def _repl(m: re.Match[str]) -> str:
+        return "\n" * m.group().count("\n")
+
+    return _DYNAMIC_BLOCK_RE.sub(_repl, text)
+
+
 def _version_matches(major: int, minor: int, patch: int | None, expected: str) -> bool:
     """``patch`` is None for ``vX.Y`` refs — match major+minor only in that case."""
     parts = expected.split(".")
@@ -194,6 +212,8 @@ def scan_version_refs(repo_root: Path, expected_version: str) -> list[str]:
         if not path.is_file():
             continue
         text = _strip_fenced_blocks(path.read_text(encoding="utf-8"))
+        if rel == "CLAUDE.md":
+            text = _strip_dynamic_block(text)
         for m in _VERSION_RE.finditer(text):
             if _is_foreign_version(text, m.start()):
                 continue

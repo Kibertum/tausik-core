@@ -82,6 +82,32 @@ def test_scan_version_refs_clean_when_all_match(tmp_path: Path):
     assert scan_version_refs(repo, "1.4.0") == []
 
 
+def test_scan_version_refs_ignores_claudemd_dynamic_block(tmp_path: Path):
+    # The auto-generated memory-tail (inside DYNAMIC markers) cites memory titles
+    # that may name historical versions — those must NOT trip the drift check,
+    # but an authored ref in the static body still must.
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "CLAUDE.md").write_text(
+        "# CLAUDE.md\n\nStatic body, current line.\n\n"
+        "<!-- DYNAMIC:START -->\n## Current State\n"
+        "- #86 v1.4 roadmap: parity for v1.4 features\n"
+        "<!-- DYNAMIC:END -->\n",
+        encoding="utf-8",
+    )
+    assert scan_version_refs(repo, "1.5.1") == []  # v1.4 in dynamic block ignored
+
+
+def test_scan_version_refs_flags_static_body_drift_in_claudemd(tmp_path: Path):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "CLAUDE.md").write_text(
+        "# CLAUDE.md\n\nThis is the v1.4 contract.\n\n"
+        "<!-- DYNAMIC:START -->\nfresh\n<!-- DYNAMIC:END -->\n",
+        encoding="utf-8",
+    )
+    drifts = scan_version_refs(repo, "1.5.1")
+    assert any("CLAUDE.md" in d and "v1.4" in d for d in drifts)  # static body still checked
+
+
 def test_scan_version_refs_flags_minor_drift(tmp_path: Path):
     repo = _seed_cross_file_repo(tmp_path)
     (repo / "README.md").write_text("# Project\n\nv1.3 features.\n", encoding="utf-8")
