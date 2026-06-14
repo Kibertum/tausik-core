@@ -61,6 +61,7 @@ nul
 # Coverage / pytest / linter caches (all regenerable)
 .coverage
 .coverage.*
+coverage.json
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/

@@ -39,7 +39,9 @@ def find_templates_dir() -> str | None:
 
 
 def _read(path: str) -> str:
-    with open(path, "r", encoding="utf-8") as f:
+    # errors="replace": an existing user file may be non-UTF-8 (e.g. cp1252
+    # on Windows); the merge/read paths must not crash on a bad byte.
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
         return f.read()
 
 
@@ -48,13 +50,15 @@ def _write(path: str, content: str) -> None:
         f.write(content)
 
 
-def _merge_append(existing_path: str, template_path: str) -> None:
-    existing = _read(existing_path)
-    new = _read(template_path)
+def _merge_append_content(existing: str, new: str) -> str:
+    """Append `new` after `existing` with a merge marker. Pure string op."""
     if not existing.endswith("\n"):
         existing += "\n"
-    merged = existing + "\n<!-- merged from AIDD template -->\n" + new
-    _write(existing_path, merged)
+    return existing + "\n<!-- merged from AIDD template -->\n" + new
+
+
+def _merge_append(existing_path: str, template_path: str) -> None:
+    _write(existing_path, _merge_append_content(_read(existing_path), _read(template_path)))
 
 
 def _resolve_choice(raw: str) -> str:
@@ -82,6 +86,46 @@ def _apply_action(action: str, dst: str, src: str, log: Callable[[str], None]) -
         log(f"  merged-append: {os.path.basename(dst)}")
         return "merged"
     log(f"  skipped: {os.path.basename(dst)} (existing file preserved)")
+    return "skipped"
+
+
+def write_file_with_conflict(
+    dst: str,
+    content: str,
+    *,
+    force: bool = False,
+    prompt: Callable[[str], str] | None = None,
+    log: Callable[[str], None] | None = None,
+) -> str:
+    """Write `content` to a single file honoring AIDD conflict semantics.
+
+    Mirrors scaffold_aidd's per-file behaviour for generated (in-memory)
+    content rather than a template source path. Returns one of:
+    'created', 'overwritten', 'merged', 'skipped'.
+    """
+    log = log or (lambda msg: print(msg))
+    prompt = prompt or input
+    name = os.path.basename(dst)
+    if not os.path.exists(dst):
+        _write(dst, content)
+        log(f"  created: {name}")
+        return "created"
+    if force:
+        _write(dst, content)
+        log(f"  overwritten (--force): {name}")
+        return "overwritten"
+    log(f"Conflict: {name} already exists. {_PROMPT}")
+    action = _resolve_choice(prompt("> "))
+    if action == "overwrite":
+        _write(dst, content)
+        log(f"  overwritten: {name}")
+        return "overwritten"
+    if action == "merge-append":
+        _write(dst, _merge_append_content(_read(dst), content))
+        log(f"  merged-append: {name}")
+        return "merged"
+    # skip + abort-all both leave the existing single file untouched.
+    log(f"  skipped: {name} (existing file preserved)")
     return "skipped"
 
 

@@ -13,6 +13,15 @@ init --template aidd [--force] # Scaffold AIDD layers (idea.md/vision.md/convent
                                #   Existing files trigger a 4-option prompt: overwrite / merge-append / skip / abort-all.
                                #   Default (Enter) = skip. `--force` overwrites without prompting.
                                #   Unknown --template values exit non-zero with a stderr error.
+aidd autogen [--write] [--force] # Draft a vision.md pre-seeded with repo signals (package name+description,
+                               #   README title/intro, top-level source dirs, detected languages, test framework).
+                               #   Default prints the draft to stdout (writes nothing); --write persists to vision.md
+                               #   reusing the AIDD conflict prompt (--force overwrites). Missing signal → placeholder,
+                               #   never crashes. Stdlib-only, no LLM call.
+aidd validate                  # Check conventions.md ## Code claims (language/version pin, lint/format tool,
+                               #   testing framework, max file-size) against actual repo state. Each claim →
+                               #   ok / drift / unverifiable. Exit 1 on hard drift, 2 if conventions.md missing,
+                               #   0 otherwise. Blank/unparseable claim → unverifiable, never crashes. Stdlib-only.
 status [--compact]             # Project overview + SENAR session duration warning (active vs wall); --compact → one-line JSON
 metrics                        # SENAR metrics: Throughput, Lead Time, FPSR, DER, Dead End Rate, Cost per Task
 metrics [--cost]               # With --cost: rollup usage_events by task_slug (same as `metrics cost`)
@@ -407,7 +416,7 @@ events [--entity {task,epic,story}] [--id SLUG] [--limit N]
 ## Maintenance
 
 ```bash
-update-claudemd [--claudemd PATH] [--dry-run]  # Update <!-- DYNAMIC --> section in CLAUDE.md (v1.5: --dry-run prints diff and exits 1 if drift)
+update-claudemd [--claudemd PATH] [--dry-run]  # Update <!-- DYNAMIC --> section in CLAUDE.md AND its AGENTS.md sibling (v1.5: --dry-run prints diff and exits 1 if drift). A file without the marker is skipped with a notice.
 fts optimize                          # Optimize FTS5 indexes
 hud                                   # Live one-screen dashboard: task + session + gates + logs
 suggest-model [complexity]            # Recommend Claude model: simple→Haiku, medium→Sonnet, complex→Opus

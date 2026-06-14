@@ -37,11 +37,15 @@ _FILESIZE_EXEMPT_DIRS = (
     "docs/ru/research/",
 )
 
-# Append-only files that grow unboundedly by design — exempt from line cap.
+# Reference docs that grow by design (one entry per command/release) — exempt
+# from the line cap in the committed gate, same rationale as the research dumps
+# above: a fresh clone / CI must not block on them, and the per-project
+# .tausik/config.json exempt is gitignored.
 _FILESIZE_EXEMPT_BASENAMES = frozenset(
     {
         "CHANGELOG.md",
         "CHANGELOG.ru.md",
+        "cli.md",  # docs/{en,ru}/cli.md — full CLI command reference
     }
 )
 

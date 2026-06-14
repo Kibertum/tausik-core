@@ -13,6 +13,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from backend_queries_fts import BackendQueriesFtsMixin
 from backend_queries_metrics import BackendQueriesMetricsMixin
 from backend_queries_usage import BackendQueriesUsageMixin
 
@@ -65,7 +66,9 @@ def _sanitize_fts5(query: str) -> str:
     return " ".join(parts) if parts else ""
 
 
-class BackendQueriesMixin(BackendQueriesUsageMixin, BackendQueriesMetricsMixin):
+class BackendQueriesMixin(
+    BackendQueriesUsageMixin, BackendQueriesMetricsMixin, BackendQueriesFtsMixin
+):
     """Complex queries: search, metrics, roadmap, events."""
 
     # --- Search ---
@@ -151,20 +154,8 @@ class BackendQueriesMixin(BackendQueriesUsageMixin, BackendQueriesMetricsMixin):
             )
         return results
 
-    # --- FTS Maintenance ---
-
-    _FTS_TABLES = ("fts_tasks", "fts_memory", "fts_decisions")
-
-    def fts_optimize(self) -> dict[str, str]:
-        """Run FTS5 optimize on all full-text indexes."""
-        results: dict[str, str] = {}
-        for table in self._FTS_TABLES:
-            try:
-                self._ex(f"INSERT INTO {table}({table}) VALUES('optimize')")
-                results[table] = "ok"
-            except Exception as e:
-                results[table] = str(e)
-        return results
+    # FTS Maintenance (fts_optimize, fts_maybe_optimize) moved to
+    # backend_queries_fts.BackendQueriesFtsMixin (filesize cap). Inherited below.
 
     # Status & Metrics (get_status_data, get_metrics, session_capacity_summary)
     # moved to backend_queries_metrics.BackendQueriesMetricsMixin

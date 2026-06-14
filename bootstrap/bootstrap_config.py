@@ -146,7 +146,6 @@ STACK_SIGNATURES: dict[str, list[tuple[str, str]]] = _load_stack_signatures()
 # Extension skills are now in tausik/skills repo (official) or vendor repos.
 # This list is used only by the analyzer for auto-detection hints.
 ALL_EXTENSION_SKILLS = [
-    "diff",
     "security",
     "docs",
     "optimize",
@@ -261,9 +260,9 @@ def detect_extension_skills(project_dir: str, core_skills: list[str] | None = No
     """
     _core = set(core_skills or [])
     skills: list[str] = []
-    # Git
-    if os.path.exists(os.path.join(project_dir, ".git")):
-        skills.append("diff")
+    # NOTE: no .git -> "diff" mapping — there is no "diff" extension skill in the
+    # official registry (git workflow is covered by the built-in commit/review
+    # skills). Recommending it produced a phantom "skills not found: diff" warning.
     # Security
     if os.path.exists(os.path.join(project_dir, ".env")):
         skills.append("security")

@@ -201,6 +201,9 @@ class ProjectService(
     def fts_optimize(self) -> dict[str, str]:
         return self.be.fts_optimize()
 
+    def fts_maybe_optimize(self, threshold: int = 200) -> dict[str, Any]:
+        return self.be.fts_maybe_optimize(threshold)
+
     def audit_check(self) -> str | None:
         """SENAR Rule 9.5 warning string, None when not overdue."""
         if not self.be.meta_get("last_audit_session"):

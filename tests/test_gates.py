@@ -248,6 +248,15 @@ class TestGateRunner:
         assert passed is False
         assert "900 lines" in output
 
+    def test_filesize_gate_exempts_cli_reference(self, tmp_path):
+        # docs/{en,ru}/cli.md is the full CLI command reference — grows by design
+        # (one entry per command), exempt in the committed gate like CHANGELOG.
+        cli = tmp_path / "docs" / "en" / "cli.md"
+        cli.parent.mkdir(parents=True)
+        cli.write_text("x\n" * 900)
+        passed, _ = run_filesize_gate({"max_lines": 400}, [str(cli)])
+        assert passed is True
+
     def test_command_gate_pass(self):
         gate = {"command": "python -c \"print('ok')\""}
         passed, output = run_command_gate(gate, [])

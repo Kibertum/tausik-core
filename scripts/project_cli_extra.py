@@ -242,49 +242,20 @@ def cmd_update_claudemd(svc: ProjectService, args: Any) -> None:
 
     dynamic_content = "\n".join(lines)
 
-    # Read and replace
-    with open(claudemd, encoding="utf-8") as f:
-        original = f.read()
+    # Refresh CLAUDE.md AND its AGENTS.md sibling from the same dynamic source so
+    # no IDE's onboarding file goes stale mid-session (v15p-agents-md-bootstrap).
+    from claudemd_writer import apply_dynamic_section, resolve_sibling_targets
 
-    marker_start = "<!-- DYNAMIC:START -->"
-    marker_end = "<!-- DYNAMIC:END -->"
-
-    if marker_start in original:
-        if marker_end in original:
-            before = original[: original.index(marker_start) + len(marker_start)]
-            after = original[original.index(marker_end) :]
-            new_content = f"{before}\n{dynamic_content}\n{after}"
-        else:
-            # No end marker — replace from start marker to end of file
-            before = original[: original.index(marker_start) + len(marker_start)]
-            new_content = f"{before}\n{dynamic_content}\n{marker_end}\n"
-    else:
-        print("Warning: <!-- DYNAMIC:START --> marker not found in CLAUDE.md")
-        return
-
-    if getattr(args, "dry_run", False):
-        if new_content == original:
-            print(f"CLAUDE.md is up-to-date ({claudemd}). No drift.")
-            return
-        import difflib
+    dry_run = getattr(args, "dry_run", False)
+    any_change = False
+    for path in resolve_sibling_targets(claudemd):
+        msg, changed = apply_dynamic_section(path, dynamic_content, dry_run)
+        print(msg)
+        any_change = any_change or changed
+    if dry_run and any_change:
         import sys
 
-        diff = difflib.unified_diff(
-            original.splitlines(keepends=True),
-            new_content.splitlines(keepends=True),
-            fromfile=f"{claudemd} (current)",
-            tofile=f"{claudemd} (would write)",
-            lineterm="",
-        )
-        sys.stdout.write("".join(diff))
-        sys.stdout.write("\n")
         sys.exit(1)
-    if new_content == original:
-        print(f"CLAUDE.md already up-to-date ({claudemd}).")
-        return
-    with open(claudemd, "w", encoding="utf-8") as f:
-        f.write(new_content)
-    print(f"CLAUDE.md updated ({claudemd}).")
 
 
 def _get_version() -> str:

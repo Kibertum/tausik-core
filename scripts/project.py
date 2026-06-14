@@ -19,6 +19,7 @@ def main() -> None:
     install_file_logging()
 
     from project_cli import (
+        cmd_aidd,
         cmd_decide,
         cmd_decisions,
         cmd_epic,
@@ -80,6 +81,7 @@ def main() -> None:
 
     dispatch = {
         "init": cmd_init,
+        "aidd": cmd_aidd,
         "status": cmd_status,
         "epic": cmd_epic,
         "story": cmd_story,

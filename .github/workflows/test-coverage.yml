@@ -28,6 +28,13 @@ jobs:
         run: |
           pytest tests/ -v --cov=scripts --cov-report=json:coverage.json --cov-report=term-missing || true
 
+      - name: Upload coverage report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.json
+          if-no-files-found: ignore
+
       - name: Check coverage on changed files
         id: coverage
         run: |

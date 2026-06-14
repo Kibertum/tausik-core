@@ -55,6 +55,30 @@ def cmd_init(svc: ProjectService, args: Any) -> None:
     print(f"Project '{name}' initialized.")
 
 
+def cmd_aidd(svc: ProjectService, args: Any) -> None:
+    """AIDD layer commands. Dispatches on the `aidd_command` subcommand."""
+    sub = getattr(args, "aidd_command", None)
+    if sub == "autogen":
+        from project_cli_aidd_autogen import cmd_aidd_autogen
+
+        rc = cmd_aidd_autogen(
+            write=getattr(args, "write", False),
+            force=getattr(args, "force", False),
+        )
+        if rc != 0:
+            sys.exit(rc)
+        return
+    if sub == "validate":
+        from project_cli_aidd_validate import cmd_aidd_validate
+
+        rc = cmd_aidd_validate()
+        if rc != 0:
+            sys.exit(rc)
+        return
+    print("Usage: tausik aidd {autogen,validate}", file=sys.stderr)
+    sys.exit(2)
+
+
 def cmd_status(svc: ProjectService, args: Any) -> None:
     data = svc.get_status()
     if getattr(args, "compact", False):

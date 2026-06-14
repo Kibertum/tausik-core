@@ -307,6 +307,21 @@ def copy_roles(lib_dir: str, target_dir: str, ide: str) -> int:
     return len([f for f in os.listdir(roles_dst) if f.endswith(".md")])
 
 
+def copy_aidd_templates(lib_dir: str, target_dir: str) -> int:
+    """Copy harness/aidd-templates/ → <target>/harness/aidd-templates/.
+
+    The AIDD scaffold (`init --template aidd`) and `aidd autogen` resolve
+    templates relative to the generated scripts dir; without this copy the
+    CLI wrapper cannot find them. Returns count of template files copied.
+    """
+    src = os.path.join(lib_dir, "harness", "aidd-templates")
+    if not os.path.isdir(src):
+        return 0
+    dst = os.path.join(target_dir, "harness", "aidd-templates")
+    copy_dir(src, dst)
+    return len([f for f in os.listdir(dst) if f.endswith(".md")])
+
+
 from bootstrap_stacks import copy_stacks  # noqa: F401, E402
 
 

@@ -89,6 +89,13 @@ class SessionMixin:
         if not current:
             raise ServiceError("No active session. Start one: .tausik/tausik session start")
         self.be.session_end(current["id"], summary)
+        # Best-effort FTS maintenance: optimize only past a churn threshold, fast
+        # (sub-second on these indexes) and swallowed on failure so it never
+        # blocks or breaks session end. (v15p-fts-optimize-cron)
+        try:
+            self.be.fts_maybe_optimize()
+        except Exception:
+            pass
         if os.environ.get("TAUSIK_DISABLE_SESSION_METRICS") == "1":
             return f"Session #{current['id']} ended."
         hooks_script = os.path.join(

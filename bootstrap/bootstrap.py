@@ -36,6 +36,7 @@ from bootstrap_modes import (
     run_refresh_mode,
 )
 from bootstrap_copy import (
+    copy_aidd_templates,
     copy_mcp,
     copy_references,
     copy_roles,
@@ -142,6 +143,10 @@ def bootstrap_ide(
 
     n_stacks = copy_stacks(lib_dir, target_dir, ide, stacks)
     print(f"  Stacks: {n_stacks} copied")
+
+    n_aidd = copy_aidd_templates(lib_dir, target_dir)
+    if n_aidd:
+        print(f"  AIDD templates: {n_aidd} copied")
 
     user_stacks_dir = os.path.join(project_dir, ".tausik", "stacks")
     if os.path.isdir(user_stacks_dir):
