@@ -57,7 +57,7 @@ class DelegateMixin:
         if existing:
             return (
                 f"Task '{slug}' already delegated (model={existing.get('display')}, "
-                f"parent session #{existing.get('parent_session')}). No-op."
+                f"parent session #{existing.get('parent_session') or 'unknown'}). No-op."
             )
         model, display = self._recommended_model(task.get("complexity"))
         sess = self.be.session_current()
@@ -80,8 +80,7 @@ class DelegateMixin:
         """Clear a task's delegation record (idempotent)."""
         if not self.task_delegation(slug):
             return f"Task '{slug}' is not delegated."
-        # No meta_delete in the backend; an empty value reads back as None.
-        self.be.meta_set(_delegation_key(slug), "")
+        self.be.meta_delete(_delegation_key(slug))
         return f"Task '{slug}' delegation cleared."
 
     @staticmethod

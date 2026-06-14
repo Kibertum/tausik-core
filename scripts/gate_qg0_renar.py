@@ -1,8 +1,9 @@
 """RENAR-lite QG-0 advisory — Decision #115, ladder rung 2.
 
-Non-blocking nudge: a high-stakes task (tier substantial/deep, or complexity
-complex as fallback) that starts WITHOUT a linked SPEC and WITHOUT an ADAPT is
-reminded to author the RENAR interpretation+gap artifact before coding.
+Non-blocking nudge: a high-stakes task — tier substantial/deep OR complexity
+complex (either condition is sufficient) — that starts WITHOUT a linked SPEC and
+WITHOUT an ADAPT is reminded to author the RENAR interpretation+gap artifact
+before coding.
 
 Advisory-first by design: this NEVER raises and NEVER blocks task_start — it
 only appends a warning. Toggle via config `renar.qg0_advisory` (default on).

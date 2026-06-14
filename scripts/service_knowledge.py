@@ -191,11 +191,14 @@ class KnowledgeMixin:
         max_conventions: int = 10,
         max_deadends: int = 5,
         max_lines: int = 50,
+        max_contexts: int = 5,
     ) -> str:
         """Thin delegator — real logic lives in service_knowledge_aggregates."""
         from service_knowledge_aggregates import build_memory_block
 
-        return build_memory_block(self.be, max_decisions, max_conventions, max_deadends, max_lines)
+        return build_memory_block(
+            self.be, max_decisions, max_conventions, max_deadends, max_lines, max_contexts
+        )
 
     def memory_compact(self, last_n: int = 50) -> str:
         """Thin delegator — real logic lives in service_knowledge_aggregates."""

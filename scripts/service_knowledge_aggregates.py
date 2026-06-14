@@ -69,12 +69,19 @@ def build_memory_block(
     max_conventions: int = 10,
     max_deadends: int = 5,
     max_lines: int = 50,
+    max_contexts: int = 5,
 ) -> str:
-    """Compact markdown: architectural decisions + conventions + recent dead ends."""
-    decisions = be.decision_list(max_decisions)
-    conventions = be.memory_list("convention", max_conventions)
-    deadends = be.memory_list("dead_end", max_deadends)
-    contexts = be.memory_list("context", max_decisions)
+    """Compact markdown: context + decisions + conventions + recent dead ends.
+
+    Best-effort like build_compact_memory_tail: any backend error → '' (the
+    block is display-only; it must never break the caller)."""
+    try:
+        decisions = be.decision_list(max_decisions)
+        conventions = be.memory_list("convention", max_conventions)
+        deadends = be.memory_list("dead_end", max_deadends)
+        contexts = be.memory_list("context", max_contexts)
+    except Exception:  # noqa: BLE001 — display-only aggregate, non-fatal
+        return ""
 
     if not decisions and not conventions and not deadends and not contexts:
         return ""
@@ -96,28 +103,28 @@ def build_memory_block(
         lines.append(f"**Context — environment facts ({len(contexts)}):**")
         for ctx in contexts:
             title = (ctx.get("title") or "")[:80]
-            lines.append(f"- #{ctx['id']} {title}")
+            lines.append(f"- #{ctx.get('id')} {title}")
 
     if decisions:
         lines.append("")
         lines.append(f"**Recent decisions ({len(decisions)}):**")
         for d in decisions:
             text = (d.get("decision") or "")[:100]
-            lines.append(f"- #{d['id']} {text}")
+            lines.append(f"- #{d.get('id')} {text}")
 
     if conventions:
         lines.append("")
         lines.append(f"**Conventions ({len(conventions)}):**")
         for c in conventions:
             title = (c.get("title") or "")[:80]
-            lines.append(f"- #{c['id']} {title}")
+            lines.append(f"- #{c.get('id')} {title}")
 
     if deadends:
         lines.append("")
         lines.append(f"**Recent dead ends ({len(deadends)}):**")
         for de in deadends:
             title = (de.get("title") or "")[:80]
-            lines.append(f"- #{de['id']} {title}")
+            lines.append(f"- #{de.get('id')} {title}")
 
     if len(lines) > max_lines:
         overflow = len(lines) - max_lines

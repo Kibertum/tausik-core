@@ -278,6 +278,10 @@ class BackendCrudMixin:
         """Set a value in the meta table (upsert)."""
         self._ex("INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)", (key, value))
 
+    def meta_delete(self, key: str) -> None:
+        """Remove a key from the meta table (no-op if absent)."""
+        self._ex("DELETE FROM meta WHERE key=?", (key,))
+
     def meta_increment(self, key: str) -> None:
         """Atomically increment an integer meta value (init to 1 if missing)."""
         self._ex(

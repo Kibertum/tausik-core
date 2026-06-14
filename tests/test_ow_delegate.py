@@ -75,3 +75,18 @@ class TestTaskDelegate:
     def test_undelegate_noop_when_not_delegated(self, svc):
         _task(svc, "feat-n", "medium")
         assert "not delegated" in svc.task_undelegate("feat-n").lower()
+
+    def test_undelegate_removes_meta_row(self, svc):
+        _task(svc, "feat-r", "medium")
+        svc.task_delegate("feat-r")
+        svc.task_undelegate("feat-r")
+        # No tombstone: the meta key is gone, not left as an empty string.
+        assert svc.be.meta_get("delegation:feat-r") is None
+
+    def test_idempotent_message_no_session_shows_unknown(self, svc):
+        # Fixture has no active session → parent_session is None; the no-op
+        # message must read '#unknown', not the literal '#None'.
+        _task(svc, "feat-q", "medium")
+        svc.task_delegate("feat-q")
+        msg = svc.task_delegate("feat-q")
+        assert "#unknown" in msg and "#None" not in msg

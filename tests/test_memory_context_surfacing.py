@@ -56,6 +56,24 @@ class TestContextInMemoryTail:
         block = build_memory_block(be)
         assert "Context" in block and "db.internal" in block
 
+    def test_max_contexts_independent_of_max_decisions(self, tmp_path):
+        be = _backend(tmp_path)
+        for i in range(8):
+            be.memory_add("context", f"host-{i}", "x")
+        # Raising max_decisions must NOT inflate the context count.
+        block = build_memory_block(be, max_decisions=20, max_contexts=3)
+        assert block.count("host-") == 3
+
+    def test_memory_block_backend_error_returns_empty(self):
+        class _Boom:
+            def decision_list(self, n):
+                raise RuntimeError("db down")
+
+            def memory_list(self, *a, **k):
+                raise RuntimeError("db down")
+
+        assert build_memory_block(_Boom()) == ""
+
 
 class TestMemoryFirstConstraintInTemplates:
     def test_full_memory_template_has_memory_first_rule(self):
