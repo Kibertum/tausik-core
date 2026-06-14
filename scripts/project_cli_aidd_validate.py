@@ -222,14 +222,17 @@ def _verify_test_framework(root: str, value: str) -> tuple[str, str]:
     return "drift", f"claim '{value}' but repo uses '{detected}'"
 
 
-def _files_over(root: str, limit: int, max_files: int = 4000) -> list[str]:
+def _files_over(root: str, limit: int, max_files: int = 4000) -> tuple[list[str], bool]:
+    """Return (offenders, truncated). `truncated` is True if the walk hit its
+    file cap before finishing — the caller must then NOT claim 'ok' (it didn't
+    actually confirm every file)."""
     offenders: list[str] = []
     seen = 0  # count ALL visited files toward the circuit breaker, not just source
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if not d.startswith(".") and d not in _DENY_DIRS]
         for fn in filenames:
             if seen >= max_files:
-                return offenders
+                return offenders, True
             seen += 1
             if os.path.splitext(fn)[1].lower() not in _EXT_LANG:
                 continue
@@ -247,7 +250,7 @@ def _files_over(root: str, limit: int, max_files: int = 4000) -> list[str]:
                 continue
             if over:
                 offenders.append(os.path.relpath(full, root).replace("\\", "/"))
-    return offenders
+    return offenders, False
 
 
 def _verify_max_filesize(root: str, value: str) -> tuple[str, str]:
@@ -257,8 +260,10 @@ def _verify_max_filesize(root: str, value: str) -> tuple[str, str]:
     if not m:
         return "unverifiable", f"no line count in claim '{value}'"
     limit = int(m.group(1))
-    offenders = _files_over(root, limit)
+    offenders, truncated = _files_over(root, limit)
     if not offenders:
+        if truncated:
+            return "unverifiable", f"file walk hit its cap before confirming <={limit} lines"
         return "ok", f"no source file exceeds {limit} lines"
     shown = ", ".join(offenders[:3])
     more = "" if len(offenders) <= 3 else f" (+{len(offenders) - 3} more)"

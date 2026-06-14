@@ -83,20 +83,30 @@ def _delegated_slugs(db_path: str) -> set[str]:
             ).fetchall()
         finally:
             conn.close()
-    except sqlite3.Error:
+    except sqlite3.Error as e:
+        # Don't fully swallow: a silent no-op here downgrades the delegated
+        # hard-gate without any signal. Warn, then keep the legacy-empty policy.
+        print(f"  scope-gate: delegation lookup failed ({e}); hard-gate inactive", file=sys.stderr)
         return set()
     return {key.split(":", 1)[1] for key, value in rows if value}
 
 
+def _scope_empty(raw: str | None) -> bool:
+    """True when scope_paths is absent OR a parsed-empty list ('[]')."""
+    if raw is None:
+        return True
+    return str(raw).strip() in ("", "[]", "null")
+
+
 def delegated_missing_scope(acls: list[tuple[str, str | None]], delegated: set[str]) -> str | None:
-    """Return the slug of a DELEGATED active task that declares no scope_paths.
+    """Return the slug of a DELEGATED active task that declares no usable scope.
 
     A delegated worker must be scope-bounded — it does NOT get the legacy
-    'undeclared task = unrestricted writes' freedom. None if all delegated active
-    tasks declare scope.
+    'undeclared task = unrestricted writes' freedom. A parsed-empty '[]' counts
+    as missing (it would otherwise grant an empty ACL that blocks every edit).
     """
     for slug, raw in acls:
-        if slug in delegated and raw is None:
+        if slug in delegated and _scope_empty(raw):
             return slug
     return None
 

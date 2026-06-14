@@ -259,5 +259,12 @@ def run_command_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
         return False, output or f"Failed with exit code {returncode}."
     except subprocess.TimeoutExpired:
         return False, f"Gate timed out ({timeout}s)."
+    except (FileNotFoundError, PermissionError, NotADirectoryError) as e:
+        # Spawn failure (binary missing / not executable) — distinct from an
+        # honest non-zero exit. Log it so a misconfigured gate command is visible.
+        import logging
+
+        logging.getLogger("tausik.gates").warning("Gate command not runnable: %s", e)
+        return False, f"Gate command not runnable (check the configured path): {e}"
     except Exception as e:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         return False, f"Gate error: {e}"

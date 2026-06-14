@@ -68,12 +68,14 @@ class BackendQueriesFtsMixin:
         except Exception:  # noqa: BLE001 — best-effort: maintenance/IO, non-fatal to the surrounding op
             pass
         # Baseline AFTER logging so the optimize event itself isn't counted
-        # toward the next window (delta truly resets to 0).
+        # toward the next window (delta truly resets to 0). If the recount fails,
+        # approximate from the known count + the 1 optimize event we just logged —
+        # never persist a stale (pre-optimize) baseline.
         try:
-            current = int(self._q("SELECT count(*) AS c FROM events")[0]["c"])  # type: ignore[attr-defined]
+            baseline = int(self._q("SELECT count(*) AS c FROM events")[0]["c"])  # type: ignore[attr-defined]
         except Exception:  # noqa: BLE001 — best-effort: maintenance/IO, non-fatal to the surrounding op
-            pass
-        self._set_fts_baseline(current)
+            baseline = current + 1
+        self._set_fts_baseline(baseline)
         return {
             "optimized": True,
             "events_delta": delta,

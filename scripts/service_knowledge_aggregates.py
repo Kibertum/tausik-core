@@ -135,8 +135,13 @@ def build_memory_block(
 
 
 def build_memory_compact(be: Any, last_n: int = 50) -> str:
-    """Aggregate recent task_logs into phases + top words + top files summary."""
-    logs = be.task_log_recent(last_n)
+    """Aggregate recent task_logs into phases + top words + top files summary.
+
+    Best-effort like the sibling aggregates: a backend error → '' (never crash)."""
+    try:
+        logs = be.task_log_recent(last_n)
+    except Exception:  # noqa: BLE001 — display-only aggregate, non-fatal
+        return ""
     if not logs:
         return ""
 

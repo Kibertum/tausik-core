@@ -224,7 +224,7 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                 phase_tag = f" [{entry['phase']}]" if entry.get("phase") else ""
                 print(f"[{entry['created_at']}]{phase_tag} {entry['message']}")
     else:
-        subcmds = "add, list, show, start, done, block, unblock, review, update, delete, plan, step, quick, next, move, claim, unclaim, reason-step, replay, log, logs"
+        subcmds = "add, list, show, start, done, block, unblock, review, update, delete, delegate, undelegate, handoff, summary-back, plan, step, quick, next, move, claim, unclaim, reason-step, replay, log, logs"
         if c:
             from difflib import get_close_matches
 
