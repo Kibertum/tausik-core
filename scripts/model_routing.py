@@ -79,7 +79,7 @@ def _auto_find_transcript() -> str | None:
         finder = getattr(sm, "auto_find_transcript", None)
         if callable(finder):
             return finder()  # type: ignore[no-any-return]
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         return None
     return None
 

@@ -176,7 +176,7 @@ def try_brain_write_decision(text: str, rationale: str | None, cfg: dict) -> tup
                     query=text[:120],
                     result_count=1,
                 )
-            except Exception:
+            except Exception:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
                 pass
             from brain_universality import emit_universality_hint
 
@@ -250,7 +250,7 @@ def try_brain_write_web_cache(
                 from brain_metrics_log import log_brain_event
 
                 log_brain_event("write", query=query or url, result_count=1)
-            except Exception:
+            except Exception:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
                 pass
             from brain_universality import emit_universality_hint
 

@@ -101,7 +101,7 @@ def record_active_task_recommendation(
             file=sys.stderr,
         )
         return None
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         # suggest_model itself never raises, but any future regression should
         # not propagate up into task_start. Surface on stderr, keep going.
         print(

@@ -64,7 +64,7 @@ def _blocklist_names(cfg: dict | None) -> list[str]:
         for n in brain_project_registry.all_project_names():
             if isinstance(n, str) and n.strip() and n not in names:
                 names.append(n)
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
         # Registry file missing / unreadable → cfg-only blocklist.
         pass
     return names

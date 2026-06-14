@@ -207,5 +207,5 @@ def log_artifact_publish_audit(category: str, fields: Mapping[str, Any]) -> None
             query=f"artifact_publish:{category}:{name}",
             result_count=1,
         )
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
         pass

@@ -81,7 +81,7 @@ class KnowledgeMixin:
                             "tags": ",".join(u.get("domain", [])),
                         }
                     )
-        except Exception:
+        except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
             pass  # cq unavailable -- graceful degradation
         return local
 
@@ -226,7 +226,7 @@ class KnowledgeMixin:
             config = self._load_config()
             if get_cq_client(config):
                 cq_hint = " Consider sharing via tausik_cq_publish for other projects."
-        except Exception:
+        except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
             pass
         return f"Dead end #{mid} documented.{cq_hint}"
 

@@ -226,7 +226,7 @@ def search_with_fallback(
         log_brain_event("search", query=query, result_count=len(final))
         if final:
             log_brain_event("hit", query=query, result_count=len(final))
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
         pass
     return {"results": final, "warnings": warnings}
 

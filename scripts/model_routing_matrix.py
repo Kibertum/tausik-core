@@ -214,7 +214,7 @@ def _load_config_safe() -> dict:
         if callable(loader):
             cfg = loader()
             return cfg if isinstance(cfg, dict) else {}
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         return {}
     return {}
 

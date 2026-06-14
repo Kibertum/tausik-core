@@ -29,7 +29,7 @@ def _root_cause_hard_enabled() -> bool:
         td = load_config().get("task_done", {})
         if isinstance(td, dict):
             return bool(td.get("root_cause_hard", True))
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         pass
     return True
 
@@ -43,7 +43,7 @@ def _checklist_hard_enabled() -> bool:
         td = load_config().get("task_done", {})
         if isinstance(td, dict):
             return bool(td.get("checklist_hard", True))
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         pass
     return True
 
@@ -215,7 +215,7 @@ class TaskDoneReportMixin:
                     )
                 else:
                     reset(self.be._conn, "checklist")
-            except Exception:
+            except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
                 checklist_nudge = ""
         # SENAR Core Rule 7: defect tasks must document root cause.
         # v15-failclosed-gate-audit: hard gate by default — a defect closed
@@ -266,7 +266,7 @@ class TaskDoneReportMixin:
                             "root_cause",
                             structured_nudge_message(slug),
                         )
-                except Exception:
+                except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
                     root_cause_nudge = ""
 
         # Knowledge capture warning (SENAR Rule 8).
@@ -328,7 +328,7 @@ class TaskDoneReportMixin:
             from risk_compute import compute_task_risk
 
             risk = compute_task_risk(self.be._conn, task, relevant_files)
-        except Exception:
+        except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
             risk = None
         if risk is not None:
             updates["risk_score"] = risk["score"]

@@ -65,7 +65,7 @@ def _author_model() -> str | None:
         from model_routing import _auto_find_transcript, read_active_model_from_transcript
 
         return read_active_model_from_transcript(_auto_find_transcript())
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         return None
 
 
@@ -75,7 +75,7 @@ def _delegation_hint() -> str:
         from external_reviewer import reviewer_hint
 
         return " " + reviewer_hint(_author_model())
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         return ""
 
 
@@ -94,7 +94,7 @@ def _block_enabled() -> bool:
         risk_cfg = load_config().get("risk", {})
         if isinstance(risk_cfg, dict):
             return bool(risk_cfg.get("l3_block_on_high", True))
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         pass
     return True
 
@@ -131,5 +131,5 @@ def check_l3_required(
         if not _block_enabled():
             return False, f"WARNING (l3_block_on_high=false): {message}"
         return True, message
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         return False, ""

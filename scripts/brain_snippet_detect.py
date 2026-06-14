@@ -128,7 +128,7 @@ def detect_artifact_kind(fields: dict[str, Any]) -> str | None:
         if _symbol_ratio(text) >= _SYMBOL_RATIO_THRESHOLD:
             return "snippet"
         return "pattern"
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
         return None
 
 
@@ -155,6 +155,6 @@ def maybe_autofill_snippet_kind(
         if detect_artifact_kind(work) == "snippet":
             work["artifact_taxonomy_kind"] = "snippet"
             return "snippet"
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
         return None
     return None

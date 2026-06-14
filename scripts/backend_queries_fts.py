@@ -23,14 +23,14 @@ class BackendQueriesFtsMixin:
             try:
                 self._ex(f"INSERT INTO {table}({table}) VALUES('optimize')")  # type: ignore[attr-defined]
                 results[table] = "ok"
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — best-effort: maintenance/IO, non-fatal to the surrounding op
                 results[table] = str(e)
         return results
 
     def _set_fts_baseline(self, value: int) -> None:
         try:
             self.meta_set(self._FTS_OPTIMIZE_META_KEY, str(value))  # type: ignore[attr-defined]
-        except Exception:  # best-effort: a baseline write failure must not propagate
+        except Exception:  # best-effort: a baseline write failure must not propagate  # noqa: BLE001 — best-effort: maintenance/IO, non-fatal to the surrounding op
             pass
 
     def fts_maybe_optimize(self, threshold: int = 200) -> dict[str, Any]:
@@ -44,7 +44,7 @@ class BackendQueriesFtsMixin:
         """
         try:
             current = int(self._q("SELECT count(*) AS c FROM events")[0]["c"])  # type: ignore[attr-defined]
-        except Exception as e:  # best-effort: never let maintenance break session end
+        except Exception as e:  # best-effort: never let maintenance break session end  # noqa: BLE001 — best-effort: maintenance/IO, non-fatal to the surrounding op
             return {"optimized": False, "reason": f"events count failed: {e}"}
         try:
             last = int(self.meta_get(self._FTS_OPTIMIZE_META_KEY) or "0")  # type: ignore[attr-defined]
@@ -65,13 +65,13 @@ class BackendQueriesFtsMixin:
         results = self.fts_optimize()
         try:
             self.event_add("fts", "all", "optimize", f"auto: {delta} events since last optimize")  # type: ignore[attr-defined]
-        except Exception:
+        except Exception:  # noqa: BLE001 — best-effort: maintenance/IO, non-fatal to the surrounding op
             pass
         # Baseline AFTER logging so the optimize event itself isn't counted
         # toward the next window (delta truly resets to 0).
         try:
             current = int(self._q("SELECT count(*) AS c FROM events")[0]["c"])  # type: ignore[attr-defined]
-        except Exception:
+        except Exception:  # noqa: BLE001 — best-effort: maintenance/IO, non-fatal to the surrounding op
             pass
         self._set_fts_baseline(current)
         return {

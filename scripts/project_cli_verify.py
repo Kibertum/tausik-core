@@ -85,7 +85,7 @@ def cmd_verify(svc: ProjectService, args: Any) -> None:
                     "verify_cache_hit",
                     f"verify_run_id={hit['id']} scope={hit['scope']}",
                 )
-            except Exception:
+            except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
                 # Telemetry is best-effort; never block the verify flow.
                 import logging
 

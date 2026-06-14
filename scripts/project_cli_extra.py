@@ -218,7 +218,7 @@ def cmd_update_claudemd(svc: ProjectService, args: Any) -> None:
             stdin=subprocess.DEVNULL,
         )
         branch = r.stdout.strip() or "unknown"
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         branch = "unknown"
 
     session_info = f"#{session['id']} (active)" if session else "none"

@@ -167,7 +167,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
                 from model_routing import format_task_start_banner
 
                 msgs.append(format_task_start_banner(task.get("complexity")))
-        except Exception:
+        except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
             # Banner is informational; never block task_start on transcript IO,
             # config parse, or import errors.
             pass
@@ -176,7 +176,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             from project_config import find_tausik_dir
 
             record_active_task_recommendation(find_tausik_dir(), slug, task.get("complexity"))
-        except Exception:
+        except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
             # Persistence is best-effort — never block task_start on it.
             pass
         return "\n".join(msgs) if len(msgs) > 1 else msgs[0]
@@ -208,7 +208,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
 
             # Routing-adherence telemetry + recommendation cleanup. Best-effort.
             finalize_close(find_tausik_dir(), slug)
-        except Exception:
+        except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
             pass
         message = report.get("message")
         if isinstance(message, str) and message.strip():

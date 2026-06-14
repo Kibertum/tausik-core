@@ -159,7 +159,7 @@ def find_similar_universal(
     try:
         from brain_search import search_local
         from brain_universality import KNOWN_UNIVERSAL_TOPICS
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
         return []
 
     # Dedupe rows across token searches by (category, notion_page_id) — same
@@ -168,7 +168,7 @@ def find_similar_universal(
     for token in tokens:
         try:
             rows = search_local(conn, token, limit=limit)
-        except Exception:
+        except Exception:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
             continue
         for row in rows:
             key = (
@@ -214,11 +214,11 @@ def _resolve_brain_cfg(cfg: dict | None) -> dict | None:
     """Return merged brain dict (with semantic gate honored) or None."""
     try:
         from brain_config import load_brain
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
         return None
     try:
         merged = cfg if cfg is not None else load_brain()
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
         return None
     if not isinstance(merged, dict):
         return None
@@ -245,28 +245,28 @@ def emit_semantic_universality_hint(text: str, *, cfg: dict | None = None) -> No
         return
     try:
         from brain_config import get_brain_mirror_path
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
         return
     try:
         path = get_brain_mirror_path(merged)
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
         return
     if not path or not os.path.isfile(path):
         return
     try:
         conn = sqlite3.connect(path)
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
         return
     results: list[tuple[str, float]] = []
     try:
         conn.row_factory = sqlite3.Row
         results = find_similar_universal(text, conn)
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
         results = []
     finally:
         try:
             conn.close()
-        except Exception:
+        except Exception:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
             pass
     if not results:
         return
@@ -274,7 +274,7 @@ def emit_semantic_universality_hint(text: str, *, cfg: dict | None = None) -> No
         from brain_universality import detect_universal_patterns
 
         already = set(detect_universal_patterns(text))
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
         already = set()
     new_topics = [t for t, _ in results if t not in already]
     if not new_topics:
@@ -284,5 +284,5 @@ def emit_semantic_universality_hint(text: str, *, cfg: dict | None = None) -> No
         return
     try:
         print(hint, file=sys.stderr)
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
         pass

@@ -95,7 +95,7 @@ def _maybe_propose_brain_extract(ingested: list[tuple[int, int]]) -> None:
         print(f"\nBrain: {len(hot)} cluster(s) reused >= {thr}x — consider sharing:")
         for sid, occ in hot[:10]:
             print(f"  tausik snippet extract {sid} --scope brain  ({occ}x)")
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         # Advisory only — a brain-config hiccup must never break `detect`.
         return
 
@@ -161,7 +161,7 @@ def _cmd_snippet_extract(svc: ProjectService, args: Any) -> None:
             return
         fields = _snippet_to_pattern_card(snippet)
         result = store_record(client, conn, "patterns", fields, cfg)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         print(f"Brain error: {e}", file=sys.stderr)
         return
     print(format_store_result(result, "patterns"))

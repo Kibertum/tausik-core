@@ -74,7 +74,7 @@ def main() -> int:
             return 2
         # Default: fail-open so a transient DB issue never bricks editing.
         return 0
-    except Exception as e:  # defensive — never bring down the host.
+    except Exception as e:  # defensive — never bring down the host.  # noqa: BLE001 — best-effort: a hook must never break the tool call it guards
         if fail_secure:
             print(
                 f"BLOCKED: TAUSIK_HOOK_FAIL_SECURE=1 set, task gate crashed: {e}",

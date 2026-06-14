@@ -235,7 +235,7 @@ def move_to_local(
             try:
                 client.pages_update(notion_page_id, archived=True)
                 archive_status = "notion_archived"
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
                 archive_status = f"notion_archive_failed: {e}"
         else:
             archive_status = "notion_skipped (no token)"

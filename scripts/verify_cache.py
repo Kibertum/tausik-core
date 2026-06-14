@@ -49,7 +49,7 @@ def resolve_gate_signature(trigger: str = "task-done") -> str:
         from project_config import get_gates_for_trigger, load_config
 
         gates = get_gates_for_trigger(trigger, load_config())
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         return "unavailable"
     if not gates:
         return "empty"

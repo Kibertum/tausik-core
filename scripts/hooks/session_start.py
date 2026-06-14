@@ -113,7 +113,7 @@ def _auto_rebuild_skills(project_dir: str) -> None:
             try:
                 with open(cfg_path, encoding="utf-8") as f:
                     cfg = _json.load(f) or {}
-            except Exception:
+            except Exception:  # noqa: BLE001 — best-effort: a hook must never break the tool call it guards
                 cfg = {}
 
         ide, model, source = resolve_profile(cfg)
@@ -129,7 +129,7 @@ def _auto_rebuild_skills(project_dir: str) -> None:
         rebuild_skills(skills_dst, ide=ide, model=model, force=False)
         state.update({"ide": ide, "model": model, "source": source, "last_rebuild_at": now_iso()})
         save_session_state(tausik_dir, state)
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: a hook must never break the tool call it guards
         return  # SessionStart must never block
 
 
@@ -146,7 +146,7 @@ def _rag_summary(project_dir: str) -> str:
         with sqlite3.connect(rag_db) as conn:
             row = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()
             chunks = int(row[0]) if row else 0
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: a hook must never break the tool call it guards
         return "RAG: status unknown (db unreadable)."
     # Always kick off an incremental reindex in the background so the index
     # picks up any commits made between sessions. Cheap when nothing changed

@@ -49,7 +49,7 @@ def _verify_first_autouse_compat_shim(request, monkeypatch):
             return None
 
         monkeypatch.setattr(GatesMixin, "_enforce_verify_first", _noop)
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         pass
     yield
 

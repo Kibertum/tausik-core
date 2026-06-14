@@ -95,7 +95,7 @@ def emit_signed_receipt(
             (json.dumps(envelope, ensure_ascii=True, sort_keys=True), run_id),
         )
         conn.commit()
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         _log.warning("receipt emit failed for run #%s", run_id, exc_info=True)
         return STATUS_ERROR, fp
     return STATUS_SIGNED, fp

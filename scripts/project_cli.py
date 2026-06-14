@@ -104,7 +104,7 @@ def cmd_status(svc: ProjectService, args: Any) -> None:
         _risk = risk_summary(svc.be._conn)
         if _risk:
             print(format_risk_status_line(_risk))
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         pass
     try:
         # Best-effort RENAR adoption level (rich status only — kept off the
@@ -113,7 +113,7 @@ def cmd_status(svc: ProjectService, args: Any) -> None:
         from renar_conformance import current_level, format_status_line
 
         print(format_status_line(current_level(svc.be._conn)))
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         pass
     if data["session"]:
         active = svc.session_active_minutes()

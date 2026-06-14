@@ -74,7 +74,7 @@ def log_brain_event(
         finally:
             conn.close()
         return True
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
         return False
 
 
@@ -132,5 +132,5 @@ def read_metrics(session_id: int | None = None) -> dict[str, Any] | None:
             return {"session_id": session_id, "session": sess, "all_time": all_time}
         finally:
             conn.close()
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
         return None

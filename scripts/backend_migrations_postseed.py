@@ -19,13 +19,13 @@ def run_post_migrations(conn: sqlite3.Connection, current_version: int) -> None:
     if current_version >= 18:
         try:
             already = conn.execute("SELECT value FROM meta WHERE key='v18_seeded'").fetchone()
-        except Exception:
+        except Exception:  # noqa: BLE001 — best-effort: maintenance/IO, non-fatal to the surrounding op
             already = None
         try:
             roles_exists = conn.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='roles'"
             ).fetchone()
-        except Exception:
+        except Exception:  # noqa: BLE001 — best-effort: maintenance/IO, non-fatal to the surrounding op
             roles_exists = None
         if not already and roles_exists:
             report = None
@@ -34,13 +34,13 @@ def run_post_migrations(conn: sqlite3.Connection, current_version: int) -> None:
                 report = seed_v18_roles(conn)
                 conn.execute("INSERT OR REPLACE INTO meta(key, value) VALUES('v18_seeded', '1')")
                 conn.commit()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — best-effort: maintenance/IO, non-fatal to the surrounding op
                 import logging
 
                 logging.getLogger("tausik.migrations").warning("v18 seed/flag failed: %s", e)
                 try:
                     conn.rollback()
-                except Exception:
+                except Exception:  # noqa: BLE001 — best-effort: maintenance/IO, non-fatal to the surrounding op
                     pass
             if report and report["dropped_legacy_values"]:
                 import sys

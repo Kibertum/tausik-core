@@ -24,7 +24,7 @@ def _advisory_enabled() -> bool:
         renar = load_config().get("renar", {})
         if isinstance(renar, dict):
             return bool(renar.get("qg0_advisory", True))
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         pass
     return True
 
@@ -56,5 +56,5 @@ def renar_qg0_advisory(be: Any, task: dict[str, Any], slug: str) -> str | None:
             f"(`tausik adapt create ...`). Advisory only (Decision #115); "
             f"disable via config renar.qg0_advisory=false."
         )
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         return None

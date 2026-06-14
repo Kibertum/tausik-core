@@ -105,14 +105,14 @@ def record_cost_actual(be: "SQLiteBackend", slug: str, task: dict[str, Any]) -> 
     try:
         since = task.get("started_at") or task.get("created_at") or None
         rollup = be.usage_events_cost_rollup_for_task(slug, since=since)
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         return ""
     cost_actual = float(rollup.get("cost_usd") or 0.0)
     tokens_actual = int(rollup.get("tokens_total") or 0)
     try:
         be.task_set_cost_actual(slug, cost_actual)
         be.task_set_tokens_actual(slug, tokens_actual)
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         return ""
     cost_budget = task.get("cost_budget_usd")
     token_budget = task.get("token_budget")

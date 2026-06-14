@@ -81,7 +81,7 @@ def _registered_projects() -> list[dict[str, str]]:
     """List of {name, canonical, hash} entries; [] when registry missing."""
     try:
         entries = brain_project_registry.load_registry()
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
         return []
     out: list[dict[str, str]] = []
     for e in entries:
@@ -119,7 +119,7 @@ def collect_status() -> dict[str, Any]:
     }
     try:
         cfg = brain_config.load_brain()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
         snapshot["error"] = f"config unreadable: {e}"
         return snapshot
     snapshot["enabled"] = bool(cfg.get("enabled"))
@@ -128,7 +128,7 @@ def collect_status() -> dict[str, Any]:
 
     try:
         mirror_path = brain_config.get_brain_mirror_path()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
         snapshot["error"] = f"mirror_path unresolvable: {e}"
         return snapshot
     snapshot["mirror_path"] = mirror_path

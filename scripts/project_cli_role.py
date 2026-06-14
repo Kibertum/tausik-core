@@ -43,7 +43,7 @@ def _cmd_show(svc: ProjectService, slug: str) -> None:
 
     try:
         row = role_show(svc.be, slug)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         print(f"Error: {e}")
         return
     print(f"Role: {row['slug']}")
@@ -63,7 +63,7 @@ def _cmd_create(svc: ProjectService, args: Any) -> None:
 
     try:
         row = role_create(svc.be, args.slug, args.title, args.description, args.extends)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         print(f"Error: {e}")
         return
     print(
@@ -76,7 +76,7 @@ def _cmd_update(svc: ProjectService, args: Any) -> None:
 
     try:
         row = role_update(svc.be, args.slug, args.title, args.description)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         print(f"Error: {e}")
         return
     print(f"Role '{row['slug']}' updated.")
@@ -87,7 +87,7 @@ def _cmd_delete(svc: ProjectService, args: Any) -> None:
 
     try:
         msg = role_delete(svc.be, args.slug, args.force)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         print(f"Error: {e}")
         return
     print(msg)

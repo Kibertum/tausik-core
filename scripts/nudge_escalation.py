@@ -64,7 +64,7 @@ def resolve_thresholds(invariant: str, config: dict[str, Any] | None) -> dict[st
                     val = block.get(level)
                     if isinstance(val, int) and not isinstance(val, bool) and val > 0:
                         merged[level] = val
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         return dict(DEFAULT_THRESHOLDS)
     return merged
 
@@ -103,7 +103,7 @@ def peek(conn: sqlite3.Connection, invariant: str) -> int:
         if row is None:
             return 0
         return int(row[0])
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         return 0
 
 
@@ -117,7 +117,7 @@ def bump(conn: sqlite3.Connection, invariant: str) -> int:
         )
         conn.commit()
         return new_count
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         return peek(conn, invariant)
 
 
@@ -126,7 +126,7 @@ def reset(conn: sqlite3.Connection, invariant: str) -> None:
     try:
         conn.execute("DELETE FROM meta WHERE key = ?", (_meta_key(invariant),))
         conn.commit()
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         pass
 
 

@@ -287,7 +287,7 @@ def sync_deps(lib_dir: str, vendor_dir: str, force: bool = False) -> dict[str, A
         print(f"  Downloading {repo}@{ref}...")
         try:
             tarball = _download_tarball(repo, ref)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — best-effort: bootstrap step is non-fatal, continue install
             results[name] = {"status": "error", "error": str(e)}
             continue
 

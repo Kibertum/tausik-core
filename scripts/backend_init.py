@@ -57,7 +57,7 @@ def init_schema(conn: sqlite3.Connection) -> None:
                 )
     except RuntimeError:
         raise  # Re-raise schema version guard errors
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: maintenance/IO, non-fatal to the surrounding op
         pass  # Table doesn't exist yet -- run full DDL
     cur.executescript(SCHEMA_SQL)
     cur.executescript(FTS_SQL)
@@ -103,7 +103,7 @@ def init_schema(conn: sqlite3.Connection) -> None:
             ):
                 try:
                     cur.execute(f"INSERT INTO {fts_table}({fts_table}) VALUES('rebuild')")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 — best-effort: maintenance/IO, non-fatal to the surrounding op
                     logger.warning("FTS rebuild failed for %s: %s", fts_table, e)
             logger.info("Schema migrated %d -> %d", current_ver, new_ver)
     conn.commit()

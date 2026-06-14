@@ -277,7 +277,7 @@ def seed_existing_roles(be: Any) -> dict[str, Any]:
             out["from_tasks"] += 1
         except (ServiceError, ValueError):
             out["skipped"] += 1
-        except Exception:
+        except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
             import logging
 
             logging.getLogger("tausik.roles").warning(

@@ -70,7 +70,7 @@ def _supports_utf8() -> bool:
 
             cp = ctypes.windll.kernel32.GetConsoleOutputCP()
             return bool(cp == 65001)
-        except Exception:
+        except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
             return False
     enc = (getattr(sys.stdout, "encoding", None) or "").lower()
     return "utf" in enc
@@ -156,7 +156,7 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
             _cfg = load_config() or {}
             if bool((_cfg.get("brain") or {}).get("enabled", False)):
                 critical.add("brain")
-        except Exception:
+        except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
             critical.add("brain")  # default-on when config unreadable
         missing = critical - set(skills)
         if not missing:
@@ -223,7 +223,7 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
         if av_hint:
             _print_warn("Verify-First profile", av_hint)
             warnings += 1
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         _print_warn("Config knobs", f"load failed: {e}")
         warnings += 1
 
@@ -232,7 +232,7 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
 
         gate_names = sorted(DEFAULT_GATES.keys())
         _print_ok("Quality gates", f"{len(gate_names)} registered")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         _print_fail("Quality gates", f"registry load failed: {e}")
         failures += 1
 
@@ -257,7 +257,7 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
                 _print_ok("Brain config", "enabled, all 4 database_ids + token set")
         else:
             _print_ok("Brain config", "disabled (opt-in)")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         _print_warn("Brain config", f"could not validate: {e}")
         warnings += 1
 
@@ -268,7 +268,7 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
             _print_ok("Session", f"{active}m active / {wall}m wall")
         else:
             _print_ok("Session", "no active session")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         _print_warn("Session", f"could not read: {e}")
         warnings += 1
 

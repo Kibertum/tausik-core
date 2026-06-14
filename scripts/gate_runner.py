@@ -138,7 +138,7 @@ def run_gates(
                     "gates": [g.get("name") for g in gates],
                 }
             )
-        except Exception:
+        except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
             pass
     for idx, gate in enumerate(gates, start=1):
         name = gate["name"]

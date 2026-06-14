@@ -136,11 +136,11 @@ def emit_universality_hint(text: str, *, cfg: dict | None = None) -> None:
             import sys
 
             print(hint, file=sys.stderr)
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
         pass
     try:
         from brain_universality_semantic import emit_semantic_universality_hint
 
         emit_semantic_universality_hint(text, cfg=cfg)
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
         pass

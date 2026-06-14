@@ -184,7 +184,7 @@ class TestRoleCreateAtomicity:
         assert os.path.isfile(target)
         try:
             role_create(svc.be, "qa", "QA Two")
-        except Exception:
+        except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
             pass
         assert os.path.isfile(target), "pre-existing profile must NOT be unlinked"
 

@@ -85,7 +85,7 @@ def cmd_metrics(svc: ProjectService, args: Any) -> None:
         from risk_metrics import format_risk_section, risk_summary
 
         risk = risk_summary(svc.be._conn)
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         risk = None
     if risk:
         print(f"\n{format_risk_section(risk)}")
@@ -95,7 +95,7 @@ def cmd_metrics(svc: ProjectService, args: Any) -> None:
         from project_config import find_tausik_dir
 
         adh = aggregate_adherence(find_tausik_dir())
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         adh = None
     if adh and adh.get("n"):
         print("\n--- Routing Adherence (v1.5) ---")
@@ -104,7 +104,7 @@ def cmd_metrics(svc: ProjectService, args: Any) -> None:
             print(f"  deviation {d['shift']}: {d['count']}")
     try:
         rm = svc.be.review_metrics()  # type: ignore[attr-defined]
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         rm = None
     if rm and rm.get("l3_reviewed_tasks"):
         print("\n--- Adversarial Review (SENAR Rule 10.15) ---")
@@ -117,7 +117,7 @@ def cmd_metrics(svc: ProjectService, args: Any) -> None:
         from root_cause import root_cause_metrics
 
         rcm = root_cause_metrics(svc.be._q)  # type: ignore[attr-defined]
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         rcm = None
     if rcm and rcm.get("defect_done"):
         print("\n--- Root Cause Coverage (SENAR Rule 7) ---")
@@ -128,7 +128,7 @@ def cmd_metrics(svc: ProjectService, args: Any) -> None:
         )
     try:
         bm = svc.be.brain_event_metrics()  # type: ignore[attr-defined]
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         bm = None
     if bm and (bm["session"]["searches"] or bm["all_time"]["searches"]):
         print("\n--- Shared Brain (v1.4) ---")
@@ -177,7 +177,7 @@ def cmd_hud(svc: ProjectService, args: Any) -> None:
     # Session
     try:
         session = svc.session_current()
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         session = None
     if session:
         print(f"Session: #{session.get('id', '?')} started {session.get('started_at', '')}")
@@ -196,7 +196,7 @@ def cmd_hud(svc: ProjectService, args: Any) -> None:
                 plan_done = full.get("plan_done") or []
                 if isinstance(plan, list) and plan:
                     print(f"  Plan progress: {len(plan_done)}/{len(plan)} steps")
-            except Exception:
+            except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
                 pass
             try:
                 logs = svc.task_logs(slug)
@@ -206,7 +206,7 @@ def cmd_hud(svc: ProjectService, args: Any) -> None:
                         msg = (log.get("message") or "")[:80]
                         phase = log.get("phase") or "-"
                         print(f"    [{phase}] {msg}")
-            except Exception:
+            except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
                 pass
     else:
         print("\nActive: (no active task)")
@@ -221,7 +221,7 @@ def cmd_hud(svc: ProjectService, args: Any) -> None:
                 mh = nxt.get("model_hint")
                 if mh:
                     print(f"  Model hint: {mh['display']} ({mh['model']})")
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         pass
     # Gates
     try:
@@ -234,7 +234,7 @@ def cmd_hud(svc: ProjectService, args: Any) -> None:
             name for name, g in gates.items() if isinstance(g, dict) and not g.get("enabled")
         ]
         print(f"\nGates: {len(enabled)} ON ({', '.join(sorted(enabled)[:6])}), {len(disabled)} OFF")
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         print("\nGates: (config unavailable)")
     print("═══════════════════")
 

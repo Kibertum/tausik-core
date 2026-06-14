@@ -92,7 +92,7 @@ class SQLiteBackend(
         """Close connection with WAL checkpoint."""
         try:
             self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — best-effort: maintenance/IO, non-fatal to the surrounding op
             logger.warning("WAL checkpoint failed: %s", e)
         self._conn.close()
 
@@ -108,7 +108,7 @@ class SQLiteBackend(
         """Flush WAL to main DB file so .db is self-contained without -shm/-wal."""
         try:
             self._conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
-        except Exception:
+        except Exception:  # noqa: BLE001 — best-effort: maintenance/IO, non-fatal to the surrounding op
             pass
 
     def _q(self, sql: str, params: tuple = ()) -> list[dict[str, Any]]:

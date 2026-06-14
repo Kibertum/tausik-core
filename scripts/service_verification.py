@@ -221,7 +221,7 @@ def run_gates_with_cache(
             from project_config import load_config
 
             ttl = load_config().get("verify_cache_ttl_seconds", DEFAULT_CACHE_TTL_S)
-        except Exception:
+        except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
             ttl = DEFAULT_CACHE_TTL_S
         hit = lookup_recent_for_task(
             conn, slug, files_hash=files_hash, command=cache_command, max_age_s=ttl
@@ -266,7 +266,7 @@ def run_gates_with_cache(
         from project_config import load_config as _load_envelope_cfg
 
         envelope_s = resolve_pipeline_timeout_s(_load_envelope_cfg())
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         envelope_s = DEFAULT_PIPELINE_TIMEOUT_S
     if envelope_s <= 0:
         passed, results = run_gates(trigger, relevant_files, progress_callback=progress_fn)
@@ -352,7 +352,7 @@ def run_gates_with_cache(
                 duration_ms=duration_ms,
                 gate_results=results,
             )
-        except Exception:
+        except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
             import logging
 
             logging.getLogger("tausik.gates").warning(

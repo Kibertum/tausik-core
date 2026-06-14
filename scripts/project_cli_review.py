@@ -15,7 +15,7 @@ def cmd_review(svc: ProjectService, args: Any) -> None:
     if sub == "record":
         try:
             svc.task_show(args.task)
-        except Exception:
+        except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
             print(f"Error: task '{args.task}' not found", file=sys.stderr)
             sys.exit(1)
         rid = svc.be.review_record(  # type: ignore[attr-defined]

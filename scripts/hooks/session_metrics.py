@@ -327,7 +327,7 @@ def record_to_db(metrics: dict, project_root: str | None = None) -> bool:
         else:
             print(f"DB record failed: {result.stderr.strip()}", file=sys.stderr)
             return False
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: a hook must never break the tool call it guards
         print(f"DB record error: {e}", file=sys.stderr)
         return False
 

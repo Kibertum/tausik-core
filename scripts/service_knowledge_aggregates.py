@@ -33,7 +33,7 @@ def build_compact_memory_tail(be: Any) -> list[str]:
         # Surfaced every session so the agent never "forgets" them and asks the
         # user for something already recorded (v15p-memory-first-recall).
         contexts = be.memory_list("context", 5) or []
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         return []
 
     if not decisions and not conventions and not deadends and not contexts:

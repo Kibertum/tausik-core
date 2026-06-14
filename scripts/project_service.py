@@ -322,7 +322,7 @@ class ProjectService(
                 "no_goal": [t["slug"] for t in no_goal[:5]],
                 "no_ac": [t["slug"] for t in no_ac[:5]],
             }
-        except Exception:
+        except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
             pass
 
         return {

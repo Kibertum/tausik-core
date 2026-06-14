@@ -49,7 +49,7 @@ class TestConcurrentTaskCreation:
                         role="developer",
                     )
                 be.close()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
                 errors.append(e)
 
         threads = [
@@ -89,7 +89,7 @@ class TestConcurrentTaskCreation:
                         role="developer",
                     )
                 be.close()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
                 errors.append(e)
 
         threads = [
@@ -128,7 +128,7 @@ class TestConcurrentClaim:
                 with lock:
                     results.append((agent_id, True))
                 be.close()
-            except Exception:
+            except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
                 with lock:
                     results.append((agent_id, False))
 
@@ -175,10 +175,10 @@ class TestConcurrentCascade:
                             complexity="simple",
                             role="developer",
                         )
-                    except Exception:
+                    except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
                         pass  # Story may be deleted by cascade
                 be.close()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
                 errors.append(e)
 
         def delete_epic():
@@ -188,7 +188,7 @@ class TestConcurrentCascade:
                 local_svc = ProjectService(be)
                 local_svc.epic_delete("e1")
                 be.close()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
                 errors.append(e)
 
         t1 = threading.Thread(target=insert_tasks)

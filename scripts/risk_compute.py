@@ -125,7 +125,7 @@ def compute_task_risk(
 
             rep = build_report(task.get("acceptance_criteria") or "", task.get("notes") or "")
             factors["ac_evidence"] = norm_ac_evidence(rep.total_ac, rep.covered)
-        except Exception:
+        except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
             _log.warning("risk: AC evidence factor failed", exc_info=True)
 
         churn = _factor_code_churn(files, task.get("started_at"), project_dir)
@@ -133,10 +133,10 @@ def compute_task_risk(
             factors["code_churn"] = churn
 
         return compute_risk(factors)
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         try:
             slug = task.get("slug")
-        except Exception:
+        except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
             slug = "?"
         _log.warning("risk computation failed for %s", slug, exc_info=True)
         return None

@@ -259,7 +259,7 @@ class GatesMixin:
 
             cfg = load_config()
             verify_gates = get_gates_for_trigger("verify", cfg)
-        except Exception:
+        except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
             verify_gates = []
             cfg = {}
         if not verify_gates:
@@ -317,7 +317,7 @@ class GatesMixin:
                     append_notes_fn=self.be.task_append_notes,
                     trigger="verify",
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
                 report["passed"] = False
                 report["blocking_failures"].append(
                     {

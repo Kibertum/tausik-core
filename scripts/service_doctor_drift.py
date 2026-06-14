@@ -68,9 +68,9 @@ def check_claudemd_drift(project_dir: str) -> int | None:
         try:
             bt = importlib.import_module("bootstrap_templates")
             build_full_body = bt.build_full_body
-        except Exception:
+        except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
             return None
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         return None
     try:
         from project_config import load_config, resolve_context_tier  # noqa: PLC0415
@@ -87,7 +87,7 @@ def check_claudemd_drift(project_dir: str) -> int | None:
             ide="claude",
             context_tier=tier,
         )
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         return None
 
     import re as _re

@@ -259,5 +259,5 @@ def run_command_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
         return False, output or f"Failed with exit code {returncode}."
     except subprocess.TimeoutExpired:
         return False, f"Gate timed out ({timeout}s)."
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         return False, f"Gate error: {e}"

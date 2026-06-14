@@ -82,7 +82,7 @@ def record_adherence(
     except OSError as e:
         print(f"WARN [routing_adherence]: write failed for {tausik_dir}: {e}", file=sys.stderr)
         return None
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         print(f"WARN [routing_adherence]: record failed: {e}", file=sys.stderr)
         return None
 
@@ -104,7 +104,7 @@ def record_close_adherence(tausik_dir: str, slug: str) -> dict[str, Any] | None:
 
         actual = read_active_model_from_transcript(_auto_find_transcript())
         return record_adherence(tausik_dir, slug, rec.get("model"), actual)
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         return None
 
 
@@ -119,7 +119,7 @@ def finalize_close(tausik_dir: str, slug: str) -> None:
         from model_routing_session import clear_active_task_recommendation
 
         clear_active_task_recommendation(tausik_dir)
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         pass
 
 

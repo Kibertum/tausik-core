@@ -20,7 +20,7 @@ def load_stacks() -> frozenset[str]:
         from project_config import load_config
 
         return get_valid_stacks(load_config())
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         return get_valid_stacks(None)
 
 
