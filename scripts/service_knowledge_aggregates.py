@@ -29,13 +29,22 @@ def build_compact_memory_tail(be: Any) -> list[str]:
         decisions = be.decision_list(5) or []
         conventions = be.memory_list("convention", 5) or []
         deadends = be.memory_list("dead_end", 3) or []
+        # `context` = durable environment facts (hosts, machines, access, paths).
+        # Surfaced every session so the agent never "forgets" them and asks the
+        # user for something already recorded (v15p-memory-first-recall).
+        contexts = be.memory_list("context", 5) or []
     except Exception:
         return []
 
-    if not decisions and not conventions and not deadends:
+    if not decisions and not conventions and not deadends and not contexts:
         return []
 
     out: list[str] = ["### Memory tail"]
+    if contexts:
+        out.append(f"Context ({len(contexts)}):")
+        for ctx in contexts:
+            title = (ctx.get("title") or "").strip().replace("\n", " ")
+            out.append(f"- #{ctx.get('id')} {title[:100]}")
     if decisions:
         out.append(f"Decisions ({len(decisions)}):")
         for d in decisions:
@@ -65,8 +74,9 @@ def build_memory_block(
     decisions = be.decision_list(max_decisions)
     conventions = be.memory_list("convention", max_conventions)
     deadends = be.memory_list("dead_end", max_deadends)
+    contexts = be.memory_list("context", max_decisions)
 
-    if not decisions and not conventions and not deadends:
+    if not decisions and not conventions and not deadends and not contexts:
         return ""
 
     lines: list[str] = [
@@ -80,6 +90,13 @@ def build_memory_block(
             "user's last turn contains the marker `confirm: cross-project`."
         ),
     ]
+
+    if contexts:
+        lines.append("")
+        lines.append(f"**Context — environment facts ({len(contexts)}):**")
+        for ctx in contexts:
+            title = (ctx.get("title") or "")[:80]
+            lines.append(f"- #{ctx['id']} {title}")
 
     if decisions:
         lines.append("")

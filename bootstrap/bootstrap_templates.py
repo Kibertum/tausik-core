@@ -55,6 +55,13 @@ MEMORY = """## Memory (two systems — use the right one)
 
 Memory types: `pattern`, `gotcha`, `convention`, `context`, `dead_end`.
 
+**Memory-first recall (hard rule).** Before asking the user for — or guessing —
+an established project fact (hosts/machines, environments, where credentials
+live, paths, service URLs, prior decisions), you MUST `memory_search` /
+`decisions_list` FIRST. Asking the user for something already recorded in
+project memory is a process violation. Record durable environment facts as
+`context` so future sessions inherit them.
+
 Skills that need persistent data respect the `CLAUDE_PLUGIN_DATA` env var when set; otherwise fall back to `.tausik/plugin_data/`.
 """
 
@@ -168,6 +175,8 @@ MINIMAL_MEMORY = """## Memory (minimal)
 
 - Project patterns / dead ends: TAUSIK `memory add` (SQLite `.tausik/tausik.db`).
 - Host prefs: agent-specific auto-memory (`~/.claude/` is Claude-only — see glossary).
+- **Memory-first:** `memory_search` BEFORE asking the user for / guessing an
+  established project fact (hosts, env, paths, decisions). Store env facts as `context`.
 """
 
 MINIMAL_COMMANDS = """## Commands (minimal)
