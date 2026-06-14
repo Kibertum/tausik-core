@@ -11,8 +11,6 @@ import os
 import subprocess
 from typing import Any
 
-import yaml
-
 from project_config import load_config
 from project_service import ProjectService
 from renar_conformance import generate
@@ -65,6 +63,10 @@ def resolve_assessor(explicit: str | None, cfg: dict | None = None) -> str:
 def _existing_version(path: str) -> int:
     """Read manifest-version from an existing manifest; 0 if absent/unreadable."""
     if not os.path.isfile(path):
+        return 0
+    try:
+        import yaml  # lazy: PyYAML is an optional RENAR dep, not a core CLI dep
+    except ModuleNotFoundError:
         return 0
     try:
         with open(path, encoding="utf-8") as f:

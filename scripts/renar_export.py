@@ -22,11 +22,10 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING, Any
 
-import yaml
-
 from renar_conformance import (
     RENAR_VERSION,
     SENAR_VERSION,
+    _require_yaml,
     eval_mandatory_clauses,
     gather_signals,
     infer_level,
@@ -44,6 +43,7 @@ _DERIVED_BANNER = "> Derived view — do not hand-edit. Regenerate: `tausik rena
 
 def _frontmatter(data: dict[str, Any]) -> str:
     """YAML frontmatter block with stable (sorted) key order."""
+    yaml = _require_yaml()
     body = yaml.safe_dump(data, sort_keys=True, allow_unicode=True, default_flow_style=False)
     return f"---\n{body}---\n"
 

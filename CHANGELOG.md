@@ -11,6 +11,12 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 _Nothing yet — next changes land here._
 
+## [1.5.1] — 2026-06-15
+
+### Fixed
+
+- **CLI broken on a clean install (critical).** Every `tausik` command crashed with `ModuleNotFoundError: No module named 'yaml'` on a fresh clone: `project.py` imports the RENAR CLI unconditionally and the renar modules did a module-level `import yaml`, but PyYAML is an OPTIONAL dependency (the core CLI is stdlib-only). yaml is now lazy-imported inside the renar functions that emit it — the core CLI (`init`/`status`/`task`/…) loads stdlib-only, and `renar conformance/export` degrade with a clear `pip install pyyaml` hint when it's absent. Guarded by an AST test + a release-checklist fresh-clone smoke. Found by the post-1.5.0 fresh-clone smoke.
+
 ## [1.5.0] — 2026-06-15
 
 The pre-2.0 hardening release. Cryptographic verification receipts, fail-closed gates, scope ACL, closure-risk scoring + external review, the AIDD layer, orchestrator-worker delegation, advisory-first RENAR, and "no silent errors" enforcement.

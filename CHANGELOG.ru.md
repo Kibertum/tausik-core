@@ -13,6 +13,12 @@
 
 _Пока пусто — следующие изменения попадают сюда._
 
+## [1.5.1] — 2026-06-15
+
+### Исправлено
+
+- **CLI ломался на чистой установке (critical).** Любая команда `tausik` падала с `ModuleNotFoundError: No module named 'yaml'` на свежем клоне: `project.py` безусловно импортирует RENAR-CLI, а renar-модули делали `import yaml` на уровне модуля, хотя PyYAML — ОПЦИОНАЛЬНАЯ зависимость (ядро CLI — только stdlib). Теперь yaml импортируется лениво внутри renar-функций, которые его эмитят: ядро CLI (`init`/`status`/`task`/…) грузится stdlib-only, а `renar conformance/export` дают понятную подсказку `pip install pyyaml` при отсутствии. Защищено AST-тестом + fresh-clone smoke в release-чеклисте. Найдено post-1.5.0 fresh-clone smoke'ом.
+
 ## [1.5.0] — 2026-06-15
 
 Pre-2.0 hardening релиз. Криптографические verification-receipt'ы, fail-closed гейты, scope ACL, closure-risk + внешнее ревью, AIDD-слой, orchestrator-worker делегирование, advisory-first RENAR и enforcement «нет тихих ошибок».
