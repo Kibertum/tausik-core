@@ -2,13 +2,13 @@
 
 # TAUSIK MCP — Справочник инструментов (v1.5)
 
-**123 инструмента** для ИИ-агентов (116 project + 7 brain; v1.5 актуальный счёт, проверено `len(TOOLS)` обоих серверов). MCP-surface покрывает всё, что агент делает день за днём. Несколько CLI-only команд намеренно не имеют MCP-аналога — это оператор/maintenance verbs, которым не место в agent-loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. Для рабочего набора агента предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
+**124 инструмента** для ИИ-агентов (117 project + 7 brain; v1.5 актуальный счёт, проверено `len(TOOLS)` обоих серверов). MCP-surface покрывает всё, что агент делает день за днём. Несколько CLI-only команд намеренно не имеют MCP-аналога — это оператор/maintenance verbs, которым не место в agent-loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. Для рабочего набора агента предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
 
-> **Опциональный сервер `codebase-rag`** добавляет 7 инструментов (search_code, find_symbol, etc.). Он включается отдельно через bootstrap и НЕ входит в основной счёт 123 — итого с ним 130 инструментов.
+> **Опциональный сервер `codebase-rag`** добавляет 7 инструментов (search_code, find_symbol, etc.). Он включается отдельно через bootstrap и НЕ входит в основной счёт 124 — итого с ним 131 инструментов.
 
 В проекте живут два MCP-сервера:
 
-- `tausik-project` — project-scoped инструменты (116): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging, RENAR substrate (specs + adapts).
+- `tausik-project` — project-scoped инструменты (117): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging, RENAR substrate (specs + adapts).
 - `tausik-brain` — cross-project Shared Brain инструменты (7).
 
 Опционально доступен `codebase-rag` сервер (документирован в конце).

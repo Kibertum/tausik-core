@@ -335,6 +335,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=10,
         help="Minimum source-line span for a clone candidate (default: 10)",
     )
+    snip_extract = snip_sub.add_parser("extract", help="Publish a snippet to the Brain")
+    snip_extract.add_argument("id", type=int, help="Snippet id (from `snippet detect`)")
+    snip_extract.add_argument(
+        "--scope", choices=("brain",), default="brain", help="Destination (only 'brain')"
+    )
 
     # --- events ---
     ev_p = sub.add_parser("events", help="Audit event log")

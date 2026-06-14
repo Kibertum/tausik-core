@@ -127,6 +127,61 @@ def search_snippets(conn: sqlite3.Connection, query: str, limit: int = 20) -> li
     return [d for d in (_row_to_dict(r) for r in rows) if d is not None]
 
 
+def search_snippets_ranked(
+    conn: sqlite3.Connection,
+    query: str,
+    language: str | None = None,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    """FTS5 search ranked for agent reuse discovery.
+
+    Ranking (most reusable first): occurrences DESC, then line_count DESC, then
+    recency DESC, then id ASC for a stable tie-break. ``occurrences`` is the
+    clone-cluster size the AST detector stored in ``fts_rank`` (how many call
+    sites share this snippet). Optional exact ``language`` filter. The query is
+    matched as a single literal phrase (operator chars never raise). Empty /
+    whitespace query -> []; ``limit`` clamped to [1, 200].
+
+    Each result is an envelope dict: {code, source, language, occurrences,
+    line_count, taxonomy_kind}, where ``source`` is "file:lines" when both are
+    known, else the file (or "").
+    """
+    if not query or not query.strip():
+        return []
+    limit = max(1, min(limit, _MAX_LIMIT))
+    sql = (
+        "SELECT s.code, s.language, s.source_file, s.source_lines, s.taxonomy_kind, "
+        "COALESCE(s.fts_rank, 0) AS occurrences, "
+        "(length(s.code) - length(replace(s.code, char(10), '')) + 1) AS line_count "
+        "FROM fts_snippets f JOIN snippets s ON s.id = f.rowid "
+        "WHERE fts_snippets MATCH ?"
+    )
+    params: list[Any] = [_fts_quote(query)]
+    if language:
+        sql += " AND s.language = ?"
+        params.append(language)
+    sql += " ORDER BY occurrences DESC, line_count DESC, s.created_at DESC, s.id ASC LIMIT ?"
+    params.append(limit)
+    rows = conn.execute(sql, params).fetchall()
+    results: list[dict[str, Any]] = []
+    for code, lang, src_file, src_lines, kind, occ, line_count in rows:
+        if src_file and src_lines:
+            source = f"{src_file}:{src_lines}"
+        else:
+            source = src_file or ""
+        results.append(
+            {
+                "code": code,
+                "source": source,
+                "language": lang,
+                "occurrences": int(occ),
+                "line_count": int(line_count),
+                "taxonomy_kind": kind,
+            }
+        )
+    return results
+
+
 def delete_snippet(conn: sqlite3.Connection, snippet_id: int) -> bool:
     """Delete a snippet by id. Returns True if a row was removed, else False."""
     cur = conn.execute("DELETE FROM snippets WHERE id=?", (snippet_id,))

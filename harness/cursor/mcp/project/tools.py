@@ -872,6 +872,25 @@ TOOLS = [
         },
     },
     {
+        "name": "tausik_snippet_search",
+        "description": "Semantic FTS5 search over reusable code snippets (clone clusters detected by `tausik snippet detect`). Ranks by occurrences (how many call-sites share it), line count, then recency. Returns code, source 'file:lines', language, occurrences — call BEFORE writing new code to reuse an existing pattern instead of re-implementing it.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+                "language": {
+                    "type": "string",
+                    "description": "Optional exact language filter (e.g. python, typescript)",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results (default 20, clamped to 200)",
+                },
+            },
+            "required": ["query"],
+        },
+    },
+    {
         "name": "tausik_metrics",
         "description": "Project metrics: completion %, velocity, session hours",
         "inputSchema": {"type": "object", "properties": {}},

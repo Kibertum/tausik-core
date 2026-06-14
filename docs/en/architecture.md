@@ -101,7 +101,7 @@ Modules in `scripts/` (v1.5), each <=400 lines. Highlights:
 | `harness/claude/mcp/project/handlers.py` | Dispatch: tool name -> service method |
 | `harness/claude/mcp/project/handlers_skill.py` | Skill + maintenance handlers (split) |
 
-Total MCP surface: **116 project tools + 7 brain tools = 123** (optional `codebase-rag` adds 7 more; not part of the main count).
+Total MCP surface: **117 project tools + 7 brain tools = 124** (optional `codebase-rag` adds 7 more; not part of the main count).
 
 ### Cross-IDE Support
 

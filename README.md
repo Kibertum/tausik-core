@@ -7,7 +7,7 @@
 TAUSIK is a discipline layer for AI coding agents. It turns the agent's word — "tests pass," "the task is done" — into something you can actually verify. Plan before code, ship with proof, remember every decision. Not suggestions the agent can ignore: hard gates it physically cannot skip.
 
 [![signed receipts: ed25519](https://img.shields.io/badge/signed%20receipts-ed25519-6f42c1.svg)](docs/en/receipts.md)
-[![4151 tests](https://img.shields.io/badge/tests-4151-brightgreen.svg)](#proof-tausik-built-tausik)
+[![4172 tests](https://img.shields.io/badge/tests-4172-brightgreen.svg)](#proof-tausik-built-tausik)
 [![0 dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#whats-inside)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB.svg)](https://python.org)
@@ -108,7 +108,7 @@ Both are fail-closed: a gate that can't evaluate blocks rather than waves the ta
 TAUSIK was built with TAUSIK — every feature, refactor, and bug fix went through the gates that ship in the box. Not as a vanity metric, as the strongest test of the contract:
 
 - **Every task closed with a goal + acceptance criteria.** Zero closed without verify evidence.
-- **4151 tests** — the enforcement core is the most-tested part.
+- **4172 tests** — the enforcement core is the most-tested part.
 - **0 core dependencies** — Python 3.11+ stdlib only; MCP deps live in an isolated `.tausik/venv/`.
 - **0 phone-home calls** — everything runs and stays on your machine.
 
@@ -131,7 +131,7 @@ Those are **suggestions** — text the agent reads and is free to ignore the mom
 <details>
 <summary>Raw counts</summary>
 
-- **123 MCP tools** (116 project + 7 brain) — full programmatic access to the project database.
+- **124 MCP tools** (117 project + 7 brain) — full programmatic access to the project database.
 - **21 real-time hooks** — task gate, bash firewall, push gate, auto-format, drift detection, memory pre/post audit, and more.
 - **25 stack-aware verify suites** — pytest, ruff, mypy, tsc, eslint, cargo, go vet, phpstan, helm-lint, hadolint, and others, scoped to the files you touched.
 - **12 core skills** auto-deployed (+ `/brain` once configured); 25+ official skills opt-in via `bootstrap --include-official` or `tausik skill install <name>`.
@@ -153,7 +153,7 @@ Multi-IDE by design, but we're honest about what's validated end-to-end.
 | VSCode + Claude Extension | 105 | 12 core + opt-in | 21 | Tested E2E |
 | Windsurf / Codex-style | MCP + rules | host-dependent | host-specific | Expected / manual |
 
-Hooks — the real-time rails (no code without a task, bash firewall, push gate) — run in **Claude Code and Qwen Code**. Cursor, Windsurf and other MCP hosts get the same 123 tools and skills, with quality gates enforced at `task start` and `task done`.
+Hooks — the real-time rails (no code without a task, bash firewall, push gate) — run in **Claude Code and Qwen Code**. Cursor, Windsurf and other MCP hosts get the same 124 tools and skills, with quality gates enforced at `task start` and `task done`.
 
 ---
 

@@ -77,7 +77,7 @@
 | Функция | Статус | Evidence |
 |---------|--------|----------|
 | Multi-language gates | ✅ Реализовано | `project_config.py` — 25 default стеков + custom_stacks override |
-| MCP coverage (123 инструмента) | ✅ Реализовано | `tools.py` + `tools_extra.py` — (116 project + 7 brain) |
+| MCP coverage (124 инструмента) | ✅ Реализовано | `tools.py` + `tools_extra.py` — (117 project + 7 brain) |
 | Batch execution (`/run`) | ✅ Реализовано | `plan_parser.py` + скилл `/run` |
 | Structured logs (task_logs + FTS5) | ✅ Реализовано | `backend_schema.py` + `service_task.py:task_log` |
 | Fake test detection | ✅ Реализовано | `/review` — 10 паттернов |

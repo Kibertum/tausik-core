@@ -454,6 +454,29 @@ def _do_usage_event_log(svc: Any, args: dict) -> str:
         return f"Error: {e}"
 
 
+def _do_snippet_search(svc: Any, args: dict) -> str:
+    """Ranked FTS5 search over reusable snippets — JSON envelope for the agent."""
+    from snippet_storage import search_snippets_ranked
+
+    query = args.get("query", "")
+    language = args.get("language")
+    raw_limit = args.get("limit")
+    if isinstance(raw_limit, bool):
+        limit = 20  # bool is an int subclass — reject True/False as a count
+    elif isinstance(raw_limit, (int, float)):
+        limit = int(raw_limit)
+    elif isinstance(raw_limit, str) and raw_limit.strip().lstrip("-").isdigit():
+        limit = int(raw_limit)
+    else:
+        limit = 20  # missing / non-numeric -> default (never crashes the tool)
+    results = search_snippets_ranked(svc.be._conn, query, language=language, limit=limit)
+    return json.dumps(
+        {"query": query, "language": language, "count": len(results), "results": results},
+        ensure_ascii=False,
+        indent=2,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Dispatch table: tool name -> handler(svc, args)
 # ---------------------------------------------------------------------------
@@ -466,6 +489,7 @@ _DISPATCH: dict[str, _Handler] = {
     "tausik_metrics": lambda svc, args: _handle_metrics(svc),
     "tausik_usage_event_log": _do_usage_event_log,
     "tausik_search": lambda svc, args: _handle_search(svc, args),
+    "tausik_snippet_search": _do_snippet_search,
     "tausik_events": lambda svc, args: _handle_events(svc, args),
     "tausik_team": _do_team,
     # --- Tasks ---
