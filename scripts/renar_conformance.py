@@ -347,3 +347,37 @@ def generate(
         bundle, clauses, verdict, assessor_id, assessment_date, manifest_version
     )
     return manifest, render_yaml(manifest)
+
+
+def current_level(conn: sqlite3.Connection) -> dict[str, Any]:
+    """Read-only conformance verdict for display (no manifest / assessor / date).
+
+    Returns :func:`infer_level`'s verdict plus a ``missing_signals`` list — the
+    unmet §12.9 keys blocking the next level — so a status line can name them.
+    """
+    bundle = gather_signals(conn)
+    verdict = dict(infer_level(bundle, eval_mandatory_clauses(bundle)))
+    blocked = verdict.get("blocked_at")
+    signals = bundle["signals"]
+    verdict["missing_signals"] = (
+        [k for k in _LEVEL_REQUIRED[blocked] if not signals.get(k)]
+        if blocked in _LEVEL_REQUIRED
+        else []
+    )
+    return verdict
+
+
+def format_status_line(verdict: dict[str, Any]) -> str:
+    """One-line dashboard summary of a :func:`current_level` verdict."""
+    level = verdict.get("level")
+    blocked = verdict.get("blocked_at")
+    missing = verdict.get("missing_signals") or []
+    tail = f": {', '.join(missing)}" if missing else ""
+    if level is None:
+        if blocked and blocked != "mandatory-clauses":
+            return f"RENAR: pre-adoption (blocked at {blocked}{tail})"
+        n = len(verdict.get("unmet_clauses") or [])
+        return f"RENAR: pre-adoption ({n} mandatory clause(s) unmet)"
+    if blocked:
+        return f"RENAR: {level} (blocked at {blocked}{tail})"
+    return f"RENAR: {level}"

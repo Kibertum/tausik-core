@@ -82,6 +82,15 @@ def cmd_status(svc: ProjectService, args: Any) -> None:
             print(format_risk_status_line(_risk))
     except Exception:
         pass
+    try:
+        # Best-effort RENAR adoption level (rich status only — kept off the
+        # compact JSON hot path to avoid per-call signal queries). Display-only;
+        # a failure must never break `status`.
+        from renar_conformance import current_level, format_status_line
+
+        print(format_status_line(current_level(svc.be._conn)))
+    except Exception:
+        pass
     if data["session"]:
         active = svc.session_active_minutes()
         wall = svc.session_wall_minutes()

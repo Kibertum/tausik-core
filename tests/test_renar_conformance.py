@@ -20,6 +20,8 @@ from project_backend import SQLiteBackend  # noqa: E402
 from project_service import ProjectService  # noqa: E402
 from renar_conformance import (  # noqa: E402
     MANDATORY_FIELDS,
+    current_level,
+    format_status_line,
     generate,
     render_yaml,
 )
@@ -129,3 +131,60 @@ def test_render_yaml_is_deterministic(svc):
     m1, _ = _gen(svc)
     m2, _ = _gen(svc)
     assert render_yaml(m1) == render_yaml(m2)
+
+
+class TestStatusLine:
+    """renar-level-in-status: the rich-status one-liner (pure formatter)."""
+
+    def test_pre_adoption_mandatory_unmet(self):
+        v = {
+            "level": None,
+            "pre_adoption": True,
+            "unmet_clauses": ["adapt_per_tz"],
+            "blocked_at": "mandatory-clauses",
+            "missing_signals": [],
+        }
+        assert format_status_line(v) == "RENAR: pre-adoption (1 mandatory clause(s) unmet)"
+
+    def test_pre_adoption_signal_blocked(self):
+        v = {
+            "level": None,
+            "pre_adoption": True,
+            "unmet_clauses": [],
+            "blocked_at": "RENAR-1",
+            "missing_signals": ["adapt_per_tz"],
+        }
+        assert format_status_line(v) == "RENAR: pre-adoption (blocked at RENAR-1: adapt_per_tz)"
+
+    def test_achieved_level_blocked_names_signals(self):
+        v = {
+            "level": "RENAR-1",
+            "pre_adoption": False,
+            "unmet_clauses": [],
+            "blocked_at": "RENAR-2",
+            "missing_signals": ["tz_immutable", "delta_tz_artifact"],
+        }
+        assert format_status_line(v) == (
+            "RENAR: RENAR-1 (blocked at RENAR-2: tz_immutable, delta_tz_artifact)"
+        )
+
+    def test_top_level_no_blocker(self):
+        v = {
+            "level": "RENAR-5",
+            "pre_adoption": False,
+            "unmet_clauses": [],
+            "blocked_at": None,
+            "missing_signals": [],
+        }
+        assert format_status_line(v) == "RENAR: RENAR-5"
+
+    def test_current_level_empty_store_is_pre_adoption(self, svc):
+        # AC: read-only verdict over a live (empty) store -> pre-adoption line.
+        line = format_status_line(current_level(svc.be._conn))
+        assert line.startswith("RENAR: pre-adoption")
+
+    def test_current_level_reaches_renar1_with_adapt(self, svc):
+        svc.adapt_create("ad1", "Adapt 1", "TZ-1")
+        v = current_level(svc.be._conn)
+        assert v["level"] == "RENAR-1"
+        assert format_status_line(v).startswith("RENAR: RENAR-1")
