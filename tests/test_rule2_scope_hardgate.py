@@ -55,9 +55,16 @@ class TestDeclarationSatisfies:
     def test_scope_paths_passes(self):
         check_qg0_start("t1", _task("medium", scope_paths='["src/*"]'))
 
-    def test_explicit_empty_scope_paths_passes(self):
-        # "[]" is a declaration (deny-all ACL) — the gate wants intent, not breadth
-        check_qg0_start("t1", _task("complex", scope_paths="[]"))
+    def test_explicit_empty_scope_paths_rejected(self):
+        # v15p review HIGH-1: a parsed-empty '[]' is NOT a usable declaration —
+        # it would pass QG-0 yet make the write-gate block every edit. So QG-0
+        # now rejects it (declare real paths or drop scope_paths).
+        import pytest
+
+        from tausik_utils import ServiceError
+
+        with pytest.raises(ServiceError, match="scope"):
+            check_qg0_start("t1", _task("complex", scope_paths="[]"))
 
     def test_legacy_free_text_scope_passes(self):
         check_qg0_start("t1", _task("medium", scope="x.py only"))

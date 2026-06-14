@@ -11,7 +11,11 @@
 
 ## [Unreleased]
 
-> Сворачивается в 1.5.0 на публикации. Записи ниже уже влиты в `main`.
+_Пока пусто — следующие изменения попадают сюда._
+
+## [1.5.0] — 2026-06-15
+
+Pre-2.0 hardening релиз. Криптографические verification-receipt'ы, fail-closed гейты, scope ACL, closure-risk + внешнее ревью, AIDD-слой, orchestrator-worker делегирование, advisory-first RENAR и enforcement «нет тихих ошибок».
 
 ### AIDD-слой — cross-IDE parity
 
@@ -43,10 +47,6 @@
 - **RENAR SPEC + ADAPT подложка.** 17 MCP-инструментов (`tausik_spec_*` ×8, `tausik_adapt_*` ×9): формальные требования (SPEC, 9 закрытых типов) и интерпретация ТЗ (ADAPT §7) с forward-интерпретациями, backward-findings из закрытого списка и двойной подписью ed25519/name. Документировано в `docs/ru/mcp.md`.
 - **Первый self-applied SPEC-ARCH + ADAPT.** TAUSIK достиг **RENAR-1** на честных данных (заблокирован на RENAR-2 — ADAPT оставлен draft, без поддельной подписи клиента); `tausik renar conformance` сам оценивает уровень.
 - **QG-0 advisory (лайт, ступень 2).** Неблокирующий нудж, когда high-stakes задача (tier `substantial`/`deep` или `complex`) стартует без связанного SPEC/ADAPT — тоггл `renar.qg0_advisory`. RENAR внедряется advisory-first по дизайну (лёгкий фреймворк); хардгейт (ступень 3) и подписанный/неизменяемый RENAR-2 (ступень 4) — работа для 2.0. Лестница адаптации в `architecture.md`.
-
-## [1.5.0] — 2026-06-13
-
-Pre-2.0 hardening релиз. v1.5 закрывает три эпика — **evidence-attestation** (криптографические verification-receipt'ы), **SENAR hardening** (scope ACL, closure-risk, fail-closed gates, внешнее ревью) и **polish** (надёжность, model routing, drift-гейты docs/memory).
 
 ### Evidence attestation — криптографические receipt'ы
 

@@ -9,7 +9,11 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-> Folded into 1.5.0 at publish time. The entries below are merged to `main`.
+_Nothing yet — next changes land here._
+
+## [1.5.0] — 2026-06-15
+
+The pre-2.0 hardening release. Cryptographic verification receipts, fail-closed gates, scope ACL, closure-risk scoring + external review, the AIDD layer, orchestrator-worker delegation, advisory-first RENAR, and "no silent errors" enforcement.
 
 ### AIDD layer — cross-IDE parity
 
@@ -41,10 +45,6 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - **RENAR SPEC + ADAPT substrate.** 17 MCP tools (`tausik_spec_*` ×8, `tausik_adapt_*` ×9): formal requirements (SPEC, 9 closed types) and TZ-interpretation (ADAPT §7) with forward-interpretations, closed-list backward findings, and dual ed25519/name signatures. Documented in `docs/ru/mcp.md`.
 - **First self-applied SPEC-ARCH + ADAPT.** TAUSIK reached **RENAR-1** on honest data (blocked at RENAR-2 — ADAPT left draft, no faked client signature); `tausik renar conformance` self-assesses the level.
 - **QG-0 advisory (lite, rung 2).** A non-blocking nudge when a high-stakes task (tier `substantial`/`deep`, or `complex`) starts without a linked SPEC/ADAPT — toggle `renar.qg0_advisory`. RENAR is adopted advisory-first by design (lightweight framework); hard-gate (rung 3) and signed/immutable RENAR-2 (rung 4) are 2.0 work. See the adoption ladder in `architecture.md`.
-
-## [1.5.0] — 2026-06-13
-
-The pre-2.0 hardening release. v1.5 closes three epics — **evidence-attestation** (cryptographic verification receipts), **SENAR hardening** (scope ACL, closure-risk, fail-closed gates, external review), and **polish** (reliability, model routing, docs/memory drift gates).
 
 ### Evidence attestation — cryptographic receipts
 
