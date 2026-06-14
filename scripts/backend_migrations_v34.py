@@ -78,4 +78,8 @@ def maybe_backfill_v34(conn: sqlite3.Connection) -> int:
             conn.rollback()
         except sqlite3.Error:
             pass
+        # Rollback undid every UPDATE in this transaction and the flag was not
+        # committed — report 0 sealed, not the partial in-loop counter, so the
+        # caller never believes rows were sealed when none were committed.
+        return 0
     return sealed

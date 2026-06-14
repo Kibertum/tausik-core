@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from tausik_utils import ServiceError
 
 CHECK_MARK_RE = re.compile(r"[\u2713\u2714\u2705]|\[v\]")
-AC_NUMBER_PREFIX_RE = re.compile(r"^\s*(?:AC[-\s]*)?(\d+)[\.\)]?\s*(.*)$", re.IGNORECASE)
+AC_NUMBER_PREFIX_RE = re.compile(r"^\s*(?:AC[-\s]*)?(\d+)[\.\):]?\s*(.*)$", re.IGNORECASE)
 TEST_REF_RE = re.compile(
     r"(tests?/[\w/.\-]+\.py(?:::[\w_]+)?|test_[\w_]+\.py(?:::[\w_]+)?)",
     re.IGNORECASE,
@@ -37,6 +37,14 @@ REVIEW_RE = re.compile(r"/review|review\s*record|adversarial", re.IGNORECASE)
 # physically meaningless outputs. An evidence line answering the domain question.
 DOMAIN_RE = re.compile(
     r"\bdomain\b|\bsanity\b|makes?\s+sense|имеет\s+смысл|доменн|real[\s\-]?world",
+    re.IGNORECASE,
+)
+# Start of a numbered AC item inside a single-line blob: optional "AC-" prefix,
+# a number, a separator (. ) :), then whitespace. Anchored to start-of-text or a
+# preceding whitespace/`;`/`(` so a mid-token number (Python 3.11, SHA-256,
+# v1.4, "returns 0)") cannot start a spurious item.
+AC_ITEM_BOUNDARY_RE = re.compile(
+    r"(?:^|(?<=[\s;(]))(?:AC[-\s]*)?(\d+)\s*[.):]\s",
     re.IGNORECASE,
 )
 
@@ -122,8 +130,39 @@ class AcCoverageReport:
         return "\n".join(lines)
 
 
+def _split_inline_numbered(ac_text: str) -> list[str]:
+    """Split a single-line blob like '1. foo 2. bar 3. baz' into item bodies.
+
+    Only boundaries that continue the run 1, 2, 3, … (in order) are honored, so
+    a stray number in prose ('Decision #138', 'returns 0', 'Python 3.11') can
+    neither inflate the count nor mis-split an item. Returns [] when fewer than
+    two sequential boundaries are found (caller falls back to line-based parse).
+    """
+    boundaries = []
+    expected = 1
+    for m in AC_ITEM_BOUNDARY_RE.finditer(ac_text):
+        if int(m.group(1)) == expected:
+            boundaries.append(m)
+            expected += 1
+    if len(boundaries) < 2:
+        return []
+    items: list[str] = []
+    for i, m in enumerate(boundaries):
+        start = m.end()
+        end = boundaries[i + 1].start() if i + 1 < len(boundaries) else len(ac_text)
+        body = ac_text[start:end].strip()
+        if body:
+            items.append(body)
+    return items
+
+
 def parse_ac_text(ac_text: str) -> list[str]:
-    """Return AC item bodies in declaration order (1-indexed by position)."""
+    """Return AC item bodies in declaration order (1-indexed by position).
+
+    Multi-line AC is parsed line-by-line. A single-line AC ('1. … 2. … N.'),
+    which defeats the line-anchored parse (only the leading item matches), is
+    split inline on its numbered-item boundaries.
+    """
     if not ac_text:
         return []
     items: list[str] = []
@@ -131,9 +170,99 @@ def parse_ac_text(ac_text: str) -> list[str]:
         m = AC_NUMBER_PREFIX_RE.match(raw)
         if m and m.group(2).strip():
             items.append(m.group(2).strip())
-    if not items:
-        items = [ln.strip() for ln in ac_text.splitlines() if ln.strip()]
-    return items
+    if len(items) >= 2:
+        return items
+    # Line-based found <2 items — try an inline split for single-line AC.
+    inline = _split_inline_numbered(ac_text)
+    if len(inline) >= 2:
+        return inline
+    if items:
+        return items
+    return [ln.strip() for ln in ac_text.splitlines() if ln.strip()]
+
+
+def _segment_evidence_line(line: str) -> list[str]:
+    """Split one evidence line on its numbered-marker boundaries.
+
+    A one-line ``task log`` entry often packs several markers
+    ('1. ✓ a 2. ✓ b 3. ✓ c'). Splitting on AC_ITEM_BOUNDARY_RE lets each marker
+    own its ac_index and its own segment-local checkmark — both more correct
+    than treating the whole line as one unit (which credited every criterion if
+    a single ✓ appeared anywhere, and missed bare 'N.' markers entirely). A line
+    with fewer than two boundary markers is returned unchanged.
+    """
+    matches = list(AC_ITEM_BOUNDARY_RE.finditer(line))
+    if len(matches) < 2:
+        return [line]
+    # Guard against false segmentation of prose that merely contains numbered
+    # tokens ('see 3. tests/x.py … section 7. output'). Only split when the
+    # markers are unambiguously an enumeration: EITHER every boundary carries an
+    # explicit 'AC' prefix, OR the bare indices run contiguously from 1. A prose
+    # line ([3, 7], no prefix) fails both and is processed whole — so a stray
+    # number can never falsely credit a real criterion.
+    indices = [int(m.group(1)) for m in matches]
+    all_ac_prefixed = all("a" in m.group(0).lower() for m in matches)
+    contiguous_from_one = indices == list(range(1, len(indices) + 1))
+    if not (all_ac_prefixed or contiguous_from_one):
+        return [line]
+    segments: list[str] = []
+    preamble = line[: matches[0].start()].strip()
+    if preamble:
+        segments.append(preamble)
+    for i, m in enumerate(matches):
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(line)
+        seg = line[m.start() : end].strip()
+        if seg:
+            segments.append(seg)
+    return segments
+
+
+def _evidence_lines_for_unit(unit: str) -> list[EvidenceLine]:
+    """Build EvidenceLine(s) for one text unit (a whole line or a segment)."""
+    has_check = bool(CHECK_MARK_RE.search(unit))
+    test_refs = TEST_REF_RE.findall(unit)
+    is_manual = bool(MANUAL_RE.search(unit))
+    is_negative = bool(NEGATIVE_RE.search(unit))
+    is_review = bool(REVIEW_RE.search(unit))
+    is_domain = bool(DOMAIN_RE.search(unit))
+
+    ac_indices: list[int] = []
+    m = AC_NUMBER_PREFIX_RE.match(unit)
+    if m and m.group(2).strip():
+        try:
+            ac_indices.append(int(m.group(1)))
+        except (TypeError, ValueError):
+            pass
+    for inline in re.finditer(r"\bAC[-\s]*(\d+)\b", unit, re.IGNORECASE):
+        try:
+            ac_indices.append(int(inline.group(1)))
+        except (TypeError, ValueError):
+            continue
+    indices = list(dict.fromkeys(ac_indices)) or [None]  # type: ignore[list-item]
+
+    out: list[EvidenceLine] = []
+    for ac_idx in indices:
+        ev = EvidenceLine(
+            raw=unit,
+            ac_index=ac_idx,
+            has_checkmark=has_check,
+            test_refs=test_refs,
+            is_manual=is_manual,
+            is_negative=is_negative,
+            is_review=is_review,
+            is_domain=is_domain,
+        )
+        if (
+            ev.ac_index is not None
+            or ev.has_checkmark
+            or ev.test_refs
+            or ev.is_manual
+            or ev.is_negative
+            or ev.is_review
+            or ev.is_domain
+        ):
+            out.append(ev)
+    return out
 
 
 def parse_evidence_lines(notes_text: str) -> list[EvidenceLine]:
@@ -145,49 +274,8 @@ def parse_evidence_lines(notes_text: str) -> list[EvidenceLine]:
         line = raw.strip()
         if not line:
             continue
-        # First, capture line-level signals (review/negative/manual) once.
-        line_has_check = bool(CHECK_MARK_RE.search(line))
-        line_test_refs = TEST_REF_RE.findall(line)
-        line_manual = bool(MANUAL_RE.search(line))
-        line_negative = bool(NEGATIVE_RE.search(line))
-        line_review = bool(REVIEW_RE.search(line))
-        line_domain = bool(DOMAIN_RE.search(line))
-
-        ac_indices: list[int] = []
-        m = AC_NUMBER_PREFIX_RE.match(line)
-        if m and m.group(2).strip():
-            try:
-                ac_indices.append(int(m.group(1)))
-            except (TypeError, ValueError):
-                pass
-        for inline in re.finditer(r"\bAC[-\s]*(\d+)\b", line, re.IGNORECASE):
-            try:
-                ac_indices.append(int(inline.group(1)))
-            except (TypeError, ValueError):
-                continue
-        ac_indices = list(dict.fromkeys(ac_indices)) or [None]  # type: ignore[list-item]
-
-        for ac_idx in ac_indices:
-            ev = EvidenceLine(
-                raw=line,
-                ac_index=ac_idx,
-                has_checkmark=line_has_check,
-                test_refs=line_test_refs,
-                is_manual=line_manual,
-                is_negative=line_negative,
-                is_review=line_review,
-                is_domain=line_domain,
-            )
-            if (
-                ev.ac_index is not None
-                or ev.has_checkmark
-                or ev.test_refs
-                or ev.is_manual
-                or ev.is_negative
-                or ev.is_review
-                or ev.is_domain
-            ):
-                out.append(ev)
+        for unit in _segment_evidence_line(line):
+            out.extend(_evidence_lines_for_unit(unit))
     return out
 
 

@@ -15,7 +15,6 @@ raise `ServiceError` for hard-gate failures. The mixin methods on
 from __future__ import annotations
 
 import json
-import re
 from typing import Any
 
 from gate_qg0_check import SECURITY_KEYWORDS
@@ -35,38 +34,46 @@ def verify_ac(slug: str, task: dict[str, Any], ac_verified: bool) -> list[str]:
             f"QG-2: '{slug}' cannot complete — acceptance criteria not verified. "
             f"Verify each criterion, then: .tausik/tausik task done {slug} --ac-verified"
         )
+    from service_ac_evidence import build_report
+
     notes = task.get("notes") or ""
     ac_text = task["acceptance_criteria"].strip()
-    # Parse numbered AC: lines starting with "1.", "2.", etc.
-    ac_items = re.findall(r"^\s*\d+[\.\)]\s*(.+)", ac_text, re.MULTILINE)
-    if not ac_items:
-        # Fallback: split by newlines
-        ac_items = [ln.strip() for ln in ac_text.splitlines() if ln.strip()]
-    if not ac_items:
+    # Structured parse (inline-aware: single-line "1. … 2. … N." AC is counted
+    # correctly, and 'AC-N: ✓' evidence markers are recognised — unlike the old
+    # line-anchored regexes that under-counted both, producing a bogus
+    # "N criteria, only 0 markers" warning on every single-line AC closure).
+    report = build_report(ac_text, notes)
+    total_ac = report.total_ac
+    if not total_ac:
         return []
     # Check that evidence acknowledges verification. Accept any of:
     #  - literal "ac verified" / "verified ac" phrase
-    #  - any line with checkmark (✓✔✅) — implies per-item evidence
-    #  - "verified" keyword (broader, catches "verified all AC" etc)
+    #  - any checkmark (✓✔✅) — implies per-item evidence
+    #  - at least one AC criterion with parsed evidence (test ref / marker)
+    # A bare "verified" anywhere in notes is NOT accepted: an incidental
+    # mention ("git identity verified", "CI verified") must not bypass QG-2.
     notes_l = notes.lower()
     has_marker = (
         "ac verified" in notes_l
         or "verified ac" in notes_l
-        or "verified" in notes_l
         or any(c in notes for c in "✓✔✅")
+        or report.covered > 0
     )
     if not has_marker:
         raise ServiceError(
-            f"QG-2: '{slug}' has {len(ac_items)} acceptance criteria but no verification "
+            f"QG-2: '{slug}' has {total_ac} acceptance criteria but no verification "
             f"evidence in task notes. Log verification: "
             f'.tausik/tausik task log {slug} "AC verified: 1. ✓ 2. ✓ ..."'
         )
-    # Per-criterion check: warn if not all numbered criteria have evidence
+    # Per-criterion check: warn if not all numbered criteria have an explicit
+    # evidence marker (✓ or a test ref) mapped to them.
     warnings: list[str] = []
-    ac_verified_lines = re.findall(r"\d+[\.\)].*(?:[✓✔✅]|\[v\])", notes)
-    if len(ac_verified_lines) < len(ac_items):
+    verified = sum(
+        1 for item in report.items if any(e.has_checkmark or e.test_refs for e in item.evidence)
+    )
+    if verified < total_ac:
         warnings.append(
-            f"WARNING: {len(ac_items)} AC criteria, but only {len(ac_verified_lines)} "
+            f"WARNING: {total_ac} AC criteria, but only {verified} "
             f"have explicit evidence markers (✓). Consider verifying each criterion."
         )
     return warnings
