@@ -65,24 +65,6 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: none | Branch: main | Version: 1.5.0
-Tasks: 818/851 done, 0 active, 0 blocked
-
-### Memory tail
-Decisions (5):
-- #107 snippets DDL is maintained in two structurally-equivalent sources (fresh-DB SNIPPETS_SQL + migration v37), asserted equa
-- #106 snippets.taxonomy_kind is free TEXT (not CHECK-constrained) and the snippet classifier is advisory-only auto-fill
-- #105 RENAR drift-7 (TC↔requirement provenance) маппится на TAUSIK-модель: единица верификации = task (acceptance_criteria=«TC
-- #104 RENAR conformance честность: mandatory clauses §14.3 классифицированы как machinery (capability — confirmed по наличию м
-- #103 v16r-adapt-lite resolved path A: реализовать полный ADAPT строго по renar.tech v1.0-draft §7.4-7.6, дроп «lite». Премиса
-Conventions (5):
-- #150 Adding a new schema migration (vN)
-- #146 Adding an MCP tool requires syncing 3 mirrors + bumping 6 doc-count sites
-- #131 Токен-экономия: лаконичный вывод агента
-- #122 filesize gate exempt: docs/{en,ru}/research/*
-- #101 After editing scripts/* — bootstrap before dogfood via .tausik/tausik CLI
-Dead ends (3):
-- #151 FTS5 query WHERE <alias> MATCH ? (aliased fts table in MATCH)
-- #145 Hash-chain events на insert-time (event_add вычисляет prev_hash/entry_hash при вставке)
-- #128 Real-screenshot + asciinema-cast in HomeLanding
+Session: #89 (active) | Branch: main | Version: 1.5.0
+Tasks: 830/864 done, 0 active, 0 blocked
 <!-- DYNAMIC:END -->

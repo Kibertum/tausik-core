@@ -8,9 +8,13 @@ from __future__ import annotations
 
 from typing import Any
 
-SPEC_TYPE_CHOICES = ["ARCH", "API", "DATA", "INT", "PROC", "UI", "AI", "SEC", "OPS"]
+from service_specs import SPEC_STATUSES, SPEC_TYPES
+
+# Derived from the service-layer source of truth (no independent literal here).
+# Drift is impossible: tests/test_enum_single_source.py pins these to SPEC_TYPES.
+SPEC_TYPE_CHOICES = list(SPEC_TYPES)
 SPEC_RELATION_CHOICES = ["implements", "constrained_by"]
-SPEC_STATUS_CHOICES = ["draft", "active", "deprecated"]
+SPEC_STATUS_CHOICES = list(SPEC_STATUSES)
 
 
 def build_spec_subparsers(sub: Any) -> None:

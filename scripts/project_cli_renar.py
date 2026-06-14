@@ -8,13 +8,58 @@ stdout; `--write` persists to RENAR-CONFORMANCE.yaml at the project root.
 from __future__ import annotations
 
 import os
+import subprocess
 from typing import Any
 
 import yaml
 
+from project_config import load_config
 from project_service import ProjectService
 from renar_conformance import generate
 from tausik_utils import utcnow_iso
+
+# Neutral fallback when no assessor can be resolved. Surfaced verbatim in the
+# manifest so a self-assessment is never silently attributed to a real person.
+FALLBACK_ASSESSOR = "unknown-assessor"
+
+
+def _git_user_name() -> str | None:
+    """Best-effort `git config user.name`. None on any failure (no git, no repo)."""
+    try:
+        out = subprocess.run(
+            ["git", "config", "user.name"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            stdin=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    name = (out.stdout or "").strip()
+    return name or None
+
+
+def resolve_assessor(explicit: str | None, cfg: dict | None = None) -> str:
+    """Resolve the conformance assessor id without baking in any personal identity.
+
+    Resolution order: explicit --assessor → config['renar_default_assessor'] →
+    git user.name → neutral FALLBACK_ASSESSOR. The fallback is intentional and
+    visible: a manifest must never misattribute the self-assessment to a real
+    person who did not run it.
+    """
+    if explicit and explicit.strip():
+        return explicit.strip()
+    cfg = cfg if cfg is not None else load_config()
+    # `or ""` collapses a JSON null (Python None) to "" — a present-but-null
+    # config key would otherwise make `cfg.get(key, "")` return None, and
+    # str(None) == "None" would be returned as a (fictional) assessor id.
+    configured = str(cfg.get("renar_default_assessor") or "").strip()
+    if configured:
+        return configured
+    git_name = _git_user_name()
+    if git_name:
+        return git_name
+    return FALLBACK_ASSESSOR
 
 
 def _existing_version(path: str) -> int:
@@ -34,7 +79,7 @@ def cmd_renar(svc: ProjectService, args: Any) -> None:
     if cmd != "conformance":
         print(f"Unknown renar subcommand: {cmd!r}")
         return
-    assessor = getattr(args, "assessor", None) or "architect-andrey-y"
+    assessor = resolve_assessor(getattr(args, "assessor", None))
     date = utcnow_iso()[:10]
     write = getattr(args, "write", False)
 

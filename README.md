@@ -7,7 +7,7 @@
 TAUSIK is a discipline layer for AI coding agents. It turns the agent's word — "tests pass," "the task is done" — into something you can actually verify. Plan before code, ship with proof, remember every decision. Not suggestions the agent can ignore: hard gates it physically cannot skip.
 
 [![signed receipts: ed25519](https://img.shields.io/badge/signed%20receipts-ed25519-6f42c1.svg)](docs/en/receipts.md)
-[![4021 tests](https://img.shields.io/badge/tests-4021-brightgreen.svg)](#proof-tausik-built-tausik)
+[![4037 tests](https://img.shields.io/badge/tests-4037-brightgreen.svg)](#proof-tausik-built-tausik)
 [![0 dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#whats-inside)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB.svg)](https://python.org)
@@ -108,7 +108,7 @@ Both are fail-closed: a gate that can't evaluate blocks rather than waves the ta
 TAUSIK was built with TAUSIK — every feature, refactor, and bug fix went through the gates that ship in the box. Not as a vanity metric, as the strongest test of the contract:
 
 - **Every task closed with a goal + acceptance criteria.** Zero closed without verify evidence.
-- **4021 tests** — the enforcement core is the most-tested part.
+- **4037 tests** — the enforcement core is the most-tested part.
 - **0 core dependencies** — Python 3.11+ stdlib only; MCP deps live in an isolated `.tausik/venv/`.
 - **0 phone-home calls** — everything runs and stays on your machine.
 
@@ -153,7 +153,7 @@ Multi-IDE by design, but we're honest about what's validated end-to-end.
 | VSCode + Claude Extension | 105 | 12 core + opt-in | 21 | Tested E2E |
 | Windsurf / Codex-style | MCP + rules | host-dependent | host-specific | Expected / manual |
 
-Hooks — the real-time rails (no code without a task, bash firewall, push gate) — run in **Claude Code and Qwen Code**. Cursor, Windsurf and other MCP hosts get the same 105 tools and skills, with quality gates enforced at `task start` and `task done`.
+Hooks — the real-time rails (no code without a task, bash firewall, push gate) — run in **Claude Code and Qwen Code**. Cursor, Windsurf and other MCP hosts get the same 123 tools and skills, with quality gates enforced at `task start` and `task done`.
 
 ---
 
@@ -181,7 +181,7 @@ TAUSIK is the reference implementation of [SENAR](https://senar.tech) ([GitHub](
 
 ## v1.5 — pre-2.0, and confident about it
 
-v1.5 is a hardening release on the road to 2.0: signed receipts, fail-closed gates, external adversarial review for high-risk closures, closure-risk scoring, structured root cause. The enforcement core is **locked and covered by 4021 tests**, dogfooded daily. On uncommon paths you may still hit doc-vs-behavior drift — if you do, [file an issue](https://github.com/Kibertum/tausik-core/issues) and we'll converge it before 2.0.
+v1.5 is a hardening release on the road to 2.0: signed receipts, fail-closed gates, external adversarial review for high-risk closures, closure-risk scoring, structured root cause. The enforcement core is **locked and covered by 4037 tests**, dogfooded daily. On uncommon paths you may still hit doc-vs-behavior drift — if you do, [file an issue](https://github.com/Kibertum/tausik-core/issues) and we'll converge it before 2.0.
 
 ## License
 

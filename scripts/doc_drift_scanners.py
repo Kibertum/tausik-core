@@ -43,6 +43,18 @@ CROSS_FILE_SCAN_TARGETS: tuple[str, ...] = (
     "docs/ru/mcp.md",
 )
 
+# Extra files scanned for MCP tool counts ONLY (not version/test/code-state).
+# These docs hardcode the MCP count and drifted silently (93/98/100/105 vs 123)
+# because they were outside CROSS_FILE_SCAN_TARGETS. They carry legitimate
+# historical version refs (e.g. "introduced in v1.4") that would false-positive
+# the version scanner, so they are guarded by the MCP-count scanner alone.
+MCP_COUNT_EXTRA_TARGETS: tuple[str, ...] = (
+    "docs/ru/agent-contract.md",
+    "docs/ru/senar-compliance-matrix.md",
+    "docs/en/senar-compliance-matrix.md",
+    "docs/README.md",
+)
+
 # RU/EN word for "tool" in MCP-count contexts. Matches singular + plural genitive
 # forms: tools, tool, инструмент, инструмента, инструментов.
 _TOOL_WORD = r"(?:tools?|инструмент(?:а|ов)?)"
@@ -239,9 +251,13 @@ def scan_mcp_tool_counts(repo_root: Path, payload: dict[str, object]) -> list[st
     Patterns are deliberately specific-context (require "project"/"brain"/
     backtick-wrapped server name nearby) to avoid noise on generic phrases like
     "200 tool calls" or "Should have 26+ tools".
+
+    Scans CROSS_FILE_SCAN_TARGETS plus MCP_COUNT_EXTRA_TARGETS — the latter are
+    count-bearing docs that carry historical version refs, so only the
+    MCP-count scanner (not the version scanner) runs over them.
     """
     messages: list[str] = []
-    for rel in CROSS_FILE_SCAN_TARGETS:
+    for rel in (*CROSS_FILE_SCAN_TARGETS, *MCP_COUNT_EXTRA_TARGETS):
         path = repo_root / rel
         if not path.is_file():
             continue

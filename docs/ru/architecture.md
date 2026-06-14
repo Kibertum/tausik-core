@@ -40,7 +40,7 @@
               ↓
   ┌─────────────────────────┐
   │ SQLite (WAL mode)       │  ← .tausik/tausik.db
-  │ 17 таблиц + 4 FTS5      │
+  │ 27 таблиц + 8 FTS5      │
   └─────────────────────────┘
 ```
 
@@ -48,7 +48,7 @@
 
 ### Скрипты (бизнес-логика)
 
-138 source-файлов в `scripts/` (v1.5). Хайлайты:
+Модули в `scripts/` (v1.5), каждый ≤400 строк. Хайлайты:
 
 | Файл | Назначение |
 |------|------------|
@@ -60,7 +60,7 @@
 | `service_verification.py` | Scoped pytest gate + verify cache (10 min TTL) |
 | `service_roles.py` | Гибридное хранение ролей (DB-метаданные + harness/roles/*.md) |
 | `service_stack_ops.py` | Stack scaffold, lint, diff, reset |
-| `project_backend.py` + `backend_*.py` | SQLite + FTS5 backend (WAL mode, 17 таблиц + 4 FTS5-индекса) |
+| `project_backend.py` + `backend_*.py` | SQLite + FTS5 backend (WAL mode, 27 таблиц + 8 FTS5-индексов) |
 | `backend_session_metrics.py` | Gap-based active-time computation |
 | `backend_tier_metrics.py` | call_budget vs call_actual tier-метрики |
 | `backend_migrations.py` / `_legacy.py` | Миграции схемы до v27 |
@@ -101,7 +101,7 @@
 | `harness/claude/mcp/project/handlers.py` | Диспетчеризация: имя инструмента → метод сервиса |
 | `harness/claude/mcp/project/handlers_skill.py` | Обработчики навыков + обслуживания (split) |
 
-Полный MCP-surface: **98 project + 7 brain = 105 инструмента** (опциональный `codebase-rag` добавляет ещё 7; не в основном счёте).
+Полный MCP-surface: **116 project + 7 brain = 123 инструмента** (опциональный `codebase-rag` добавляет ещё 7; не в основном счёте).
 
 ### Поддержка разных сред разработки
 
@@ -117,7 +117,7 @@ harness/
 └── qwen/ → claude/   # Qwen Code (fallback на Claude MCP)
 ```
 
-## БД: Таблицы (Schema v27)
+## БД: Таблицы (Schema v37)
 
 | Таблица | Назначение |
 |---------|------------|

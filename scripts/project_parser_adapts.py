@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from service_adapts import ADAPT_STATUSES
+
 FINDING_CATEGORY_CHOICES = [
     "contradiction",
     "gap",
@@ -20,7 +22,9 @@ FINDING_CATEGORY_CHOICES = [
 ]
 SIGNATURE_ROLE_CHOICES = ["client", "architect"]
 LINK_TARGET_CHOICES = ["task", "spec"]
-ADAPT_STATUS_CHOICES = ["draft", "signed", "superseded"]
+# Derived from the service-layer source of truth (no independent literal here).
+# Drift is impossible: tests/test_enum_single_source.py pins this to ADAPT_STATUSES.
+ADAPT_STATUS_CHOICES = list(ADAPT_STATUSES)
 
 
 def build_adapt_subparsers(sub: Any) -> None:

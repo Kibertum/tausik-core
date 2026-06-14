@@ -226,6 +226,28 @@ class TestGateRunner:
         passed, _ = run_filesize_gate(gate, [])
         assert passed is True
 
+    def test_filesize_gate_exempts_research_dir(self, tmp_path):
+        # Research dumps (convention #122) grow large by design — exempt in the
+        # committed gate, not just the gitignored .tausik/config.json.
+        research = tmp_path / "docs" / "ru" / "research"
+        research.mkdir(parents=True)
+        big = research / "tausik-dump.md"
+        big.write_text("x\n" * 900)
+        gate = {"max_lines": 400}
+        passed, _ = run_filesize_gate(gate, [str(big)])
+        assert passed is True
+
+    def test_filesize_gate_non_research_md_still_blocks(self, tmp_path):
+        # Negative: the research exemption must not over-exempt — a large markdown
+        # outside docs/{en,ru}/research/ still violates the line cap.
+        other = tmp_path / "docs" / "ru" / "guide.md"
+        other.parent.mkdir(parents=True)
+        other.write_text("x\n" * 900)
+        gate = {"max_lines": 400}
+        passed, output = run_filesize_gate(gate, [str(other)])
+        assert passed is False
+        assert "900 lines" in output
+
     def test_command_gate_pass(self):
         gate = {"command": "python -c \"print('ok')\""}
         passed, output = run_command_gate(gate, [])

@@ -40,7 +40,7 @@ the Backend handles only CRUD and SQL. CLI and MCP are two equal entry points.
               |
   +---------------------------+
   | SQLite (WAL mode)         |  <- .tausik/tausik.db
-  | 17 tables + 4 FTS5 indexes|
+  | 27 tables + 8 FTS5 indexes|
   +---------------------------+
 ```
 
@@ -48,7 +48,7 @@ the Backend handles only CRUD and SQL. CLI and MCP are two equal entry points.
 
 ### Scripts (Business Logic)
 
-138 source files in `scripts/` (v1.5). Highlights:
+Modules in `scripts/` (v1.5), each <=400 lines. Highlights:
 
 | File | Purpose |
 |------|---------|
@@ -60,7 +60,7 @@ the Backend handles only CRUD and SQL. CLI and MCP are two equal entry points.
 | `service_verification.py` | Scoped pytest gate + verify cache (10 min TTL) |
 | `service_roles.py` | Hybrid role storage (DB metadata + harness/roles/*.md) |
 | `service_stack_ops.py` | Stack scaffold, lint, diff, reset |
-| `project_backend.py` + `backend_*.py` | SQLite + FTS5 backend (WAL mode, 17 tables + 4 FTS5 indexes) |
+| `project_backend.py` + `backend_*.py` | SQLite + FTS5 backend (WAL mode, 27 tables + 8 FTS5 indexes) |
 | `backend_session_metrics.py` | Gap-based active-time computation |
 | `backend_tier_metrics.py` | call_budget vs call_actual tier metrics |
 | `backend_migrations.py` / `_legacy.py` | Schema migrations through v27 |
@@ -117,7 +117,7 @@ harness/
 +-- qwen/ → claude/   # Qwen Code (falls back to Claude MCP)
 ```
 
-## DB: Tables (Schema v27)
+## DB: Tables (Schema v37)
 
 | Table | Purpose |
 |-------|---------|

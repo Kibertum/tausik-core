@@ -77,7 +77,7 @@
 | Feature | Status | Evidence |
 |---------|--------|----------|
 | Multi-language gates | ✅ Implemented | `project_config.py` — 25 default stacks + custom_stacks override |
-| MCP coverage 105 tools | ✅ Implemented | `tools.py` + `tools_extra.py` — 98 project + 7 brain |
+| MCP coverage 123 tools | ✅ Implemented | `tools.py` + `tools_extra.py` — (116 project + 7 brain) |
 | Batch execution (`/run`) | ✅ Implemented | `plan_parser.py` + `/run` skill |
 | Structured logs (task_logs + FTS5) | ✅ Implemented | `backend_schema.py` + `service_task.py:task_log` |
 | Fake test detection | ✅ Implemented | `/review` skill — 10 patterns |

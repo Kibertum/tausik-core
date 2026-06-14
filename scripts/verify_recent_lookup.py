@@ -1,7 +1,7 @@
 """Latest matching row in verification_runs (cache lookup).
 
 Separate module for filesize compliance of service_verification.py.
-Default TTL mirrors service_verification.DEFAULT_CACHE_TTL_S (600).
+Default TTL comes from the single source verify_constants.DEFAULT_CACHE_TTL_S.
 """
 
 from __future__ import annotations
@@ -10,8 +10,7 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Any
 
-# Keep in sync with service_verification.DEFAULT_CACHE_TTL_S.
-_DEFAULT_VERIFY_CACHE_TTL_S = 600
+from verify_constants import DEFAULT_CACHE_TTL_S as _DEFAULT_VERIFY_CACHE_TTL_S
 
 
 def _extract_files_from_cache_command(command: str) -> list[str]:

@@ -18,17 +18,13 @@ import sqlite3
 from typing import Any
 
 from security_pattern import is_security_sensitive
+from verify_constants import DEFAULT_CACHE_TTL_S
 from verify_files_hash import compute_files_hash
 from verify_recent_lookup import (
     _extract_files_from_cache_command,
     lookup_any_fresh_run_for_task,
     lookup_recent_for_task,
 )
-
-
-# Mirrors service_verification.DEFAULT_CACHE_TTL_S; kept local to avoid an
-# import cycle (service_verification imports from this module).
-DEFAULT_CACHE_TTL_S = 600
 
 
 def is_cache_allowed(file_paths: list[str]) -> bool:

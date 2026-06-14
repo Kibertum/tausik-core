@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 
 from project_parser_errors import SelfCorrectingParser
+from project_parser_hierarchy import build_hierarchy_subparsers
 from project_parser_task import add_task
 from project_types import (
     VALID_EDGE_RELATIONS,
@@ -42,39 +43,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Single-line JSON (tasks + session id + optional session_warning)",
     )
 
-    # --- epic ---
-    epic_p = sub.add_parser("epic", help="Epic management")
-    epic_sub = epic_p.add_subparsers(dest="epic_cmd")
-    ea = epic_sub.add_parser(
-        "add",
-        epilog='Example: tausik epic add my-epic "Epic title"',
-    )
-    ea.add_argument("slug", help="Epic slug (lowercase, hyphens)")
-    ea.add_argument("title", help="Epic title (in quotes)")
-    ea.add_argument("--description", default=None)
-    epic_sub.add_parser("list")
-    ed = epic_sub.add_parser("done")
-    ed.add_argument("slug")
-    edel = epic_sub.add_parser("delete")
-    edel.add_argument("slug")
-
-    # --- story ---
-    story_p = sub.add_parser("story", help="Story management")
-    story_sub = story_p.add_subparsers(dest="story_cmd")
-    sa = story_sub.add_parser(
-        "add",
-        epilog='Example: tausik story add my-epic my-story "Story title"',
-    )
-    sa.add_argument("epic_slug", help="Parent epic slug")
-    sa.add_argument("slug", help="Story slug (lowercase, hyphens)")
-    sa.add_argument("title", help="Story title (in quotes)")
-    sa.add_argument("--description", default=None)
-    sl = story_sub.add_parser("list")
-    sl.add_argument("--epic", default=None)
-    sd = story_sub.add_parser("done")
-    sd.add_argument("slug")
-    sdel = story_sub.add_parser("delete")
-    sdel.add_argument("slug")
+    # --- epic + story (extracted to project_parser_hierarchy for filesize) ---
+    build_hierarchy_subparsers(sub)
 
     # --- task --- (extracted to project_parser_task.add_task to keep filesize gate)
     add_task(sub)
@@ -111,7 +81,11 @@ def build_parser() -> argparse.ArgumentParser:
     rc = renar_sub.add_parser(
         "conformance", help="Generate RENAR-CONFORMANCE.yaml from live DB state"
     )
-    rc.add_argument("--assessor", default=None, help="Assessor id (default: architect-andrey-y)")
+    rc.add_argument(
+        "--assessor",
+        default=None,
+        help="Assessor id (default: config renar_default_assessor -> git user.name -> unknown-assessor)",
+    )
     rc.add_argument(
         "--write", action="store_true", help="Write RENAR-CONFORMANCE.yaml to project root"
     )

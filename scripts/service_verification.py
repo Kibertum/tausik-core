@@ -24,11 +24,9 @@ from verify_git_diff import (  # noqa: F401
     is_declared_consistent_with_git_diff,
 )
 
-# Default freshness window for cached verify runs.
-# After this many seconds since the recorded run, the cache is treated as stale
-# regardless of files_hash agreement. Aligned with SENAR Rule 9.3 checkpoint
-# cadence (30-50 tool calls ≈ 5-15 min) — cache covers a coherent work session.
-DEFAULT_CACHE_TTL_S = 600
+# Single source of truth for the verify-cache TTL; re-exported here so callers
+# (e.g. service_gates) keep importing `service_verification.DEFAULT_CACHE_TTL_S`.
+from verify_constants import DEFAULT_CACHE_TTL_S  # noqa: F401
 
 # v14-verify-pipeline-envelope-timeout: wall-time envelope for the entire
 # `run_gates` cycle (NOT per-gate). Guards against a misconfigured / hanging

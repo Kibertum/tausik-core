@@ -121,7 +121,7 @@ These are agent-facing specifications consumed by AI assistants — not user-fac
 | **[Навыки (Skills)](ru/skills.md)** | Что умеет AI-агент |
 | **[Хуки (Hooks)](ru/hooks.md)** | Real-time контроль: блокировки, firewall, drift guards |
 | **[CLI-команды](ru/cli.md)** | Справочник команд терминала |
-| **[MCP-инструменты](ru/mcp.md)** | 105 инструмента для AI-агента |
+| **[MCP-инструменты](ru/mcp.md)** | 123 инструмента для AI-агента |
 | **[Архитектура](ru/architecture.md)** | Как устроен фреймворк внутри |
 | **[Роли](ru/roles.md)** | Free-text роли (developer, qa, architect…) |
 | **[Стэки](ru/stacks.md)** | Технологические стэки и stack-scoped gates |

@@ -24,87 +24,15 @@ if _script_dir not in sys.path:
 from project_config import get_gates_for_trigger, load_config  # noqa: E402
 
 
-def count_lines(filepath: str) -> int:
-    """Count lines in a file."""
-    try:
-        with open(filepath, encoding="utf-8", errors="replace") as f:
-            return sum(1 for _ in f)
-    except OSError:
-        return 0
-
-
-_FILESIZE_EXEMPT_DIRS = (
-    "tests/",
-    "harness/claude/mcp/",
-    "harness/cursor/mcp/",
-    "harness/qwen/mcp/",
-    ".claude/mcp/",
-    # Common exempt dirs for source materials, ADR markdowns, agent configs.
-    "docs/content/",
-    "docs/architecture/",
-    "backend/configs/",
-)
-
-# Append-only files that grow unboundedly by design — exempt from line cap.
-_FILESIZE_EXEMPT_BASENAMES = frozenset(
-    {
-        "CHANGELOG.md",
-        "CHANGELOG.ru.md",
-    }
-)
-
+# Filesize gate moved to gate_filesize.py (gate_runner sat exactly at the 400
+# cap). Re-exported so tests and the run_gates dispatch import them unchanged.
+from gate_filesize import count_lines, run_filesize_gate  # noqa: E402,F401
 
 from gate_stack_dispatch import (  # noqa: E402,F401
     gate_applies_to,
     infer_stacks_from_files,
     skipped_result,
 )
-
-
-def _normalize_path(p: str) -> str:
-    """Canonicalize path for matching: forward slashes, strip leading './'."""
-    n = os.path.normpath(p).replace("\\", "/")
-    if n.startswith("./"):
-        n = n[2:]
-    return n
-
-
-def run_filesize_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
-    """Check file sizes against max_lines threshold.
-
-    Exempt: tests, MCP handlers (dispatchers, not creative logic).
-    Per-file exempts via gate.exempt_files: entries with '/' match by exact
-    path, bare names match by basename (covers a file anywhere in tree).
-    """
-    max_lines = gate.get("max_lines", 400)
-    exempt_paths: set[str] = set()
-    exempt_basenames: set[str] = set()
-    for entry in gate.get("exempt_files") or []:
-        norm = entry.replace("\\", "/")
-        if "/" in norm:
-            exempt_paths.add(_normalize_path(norm))
-        else:
-            exempt_basenames.add(norm)
-
-    violations = []
-    for f in files:
-        if not os.path.isfile(f):
-            continue
-        normalized = f.replace("\\", "/")
-        if any(d in normalized for d in _FILESIZE_EXEMPT_DIRS):
-            continue
-        canon = _normalize_path(f)
-        basename = os.path.basename(canon)
-        if canon in exempt_paths or basename in exempt_basenames:
-            continue
-        if basename in _FILESIZE_EXEMPT_BASENAMES:
-            continue
-        lines = count_lines(f)
-        if lines > max_lines:
-            violations.append(f"  {f}: {lines} lines (max {max_lines})")
-    if violations:
-        return False, "Files exceeding line limit:\n" + "\n".join(violations)
-    return True, "All files within line limit."
 
 
 def run_tdd_order_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
