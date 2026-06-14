@@ -360,7 +360,7 @@ def main():
                         if related:
                             output += "\n\n=== RELATED TASKS ===\n" + related
                         be.close()
-                    except Exception:
+                    except Exception:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
                         pass
                 return output
             finally:
@@ -420,7 +420,7 @@ def main():
                 cache = _get_web_cache(project_dir)
                 web_status = cache.status()
                 cache.close()
-            except Exception:
+            except Exception:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
                 web_status = {"total_entries": 0}
             return json.dumps(
                 {
@@ -495,7 +495,7 @@ def main():
                     ),
                 )
             ]
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
             return [TextContent(type="text", text=f"Error: {e}")]
 
     async def _run():

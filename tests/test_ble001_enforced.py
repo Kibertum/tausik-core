@@ -20,19 +20,12 @@ def test_ble001_enabled_in_config():
     assert "BLE001" in cfg and "extend-select" in cfg
 
 
-def test_no_unannotated_blind_except_in_ci_scope():
+def test_no_unannotated_blind_except_whole_tree():
+    # Whole committed tree (ruff respects .gitignore → skips .claude/.tausik).
+    # Covers harness/**/mcp too, not just CI-linted paths, so `ruff check .`
+    # stays clean under BLE001.
     proc = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "ruff",
-            "check",
-            "--select",
-            "BLE001",
-            "scripts/",
-            "tests/",
-            "bootstrap/",
-        ],
+        [sys.executable, "-m", "ruff", "check", "--select", "BLE001", "."],
         cwd=_REPO,
         capture_output=True,
         text=True,

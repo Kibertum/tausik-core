@@ -103,7 +103,7 @@ def main():
         try:
             result = await asyncio.to_thread(handle_tool, svc, name, arguments)
             return [TextContent(type="text", text=result)]
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
             # Full traceback to host stderr for diagnostics, mirroring
             # tausik-brain server. The text reply to the agent stays minimal
             # so frame-locals (potentially containing secrets/paths) do not

@@ -100,7 +100,7 @@ def _eager_import_watch_list() -> None:
     for name in _WATCHED_MODULES:
         try:
             __import__(name)
-        except Exception:
+        except Exception:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
             # Stale modules are best-effort; skip failures silently.
             continue
 

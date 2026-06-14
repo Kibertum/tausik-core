@@ -60,7 +60,7 @@ def handle_skill_list() -> str:
         from project_service import ProjectService
 
         data = ProjectService.skill_list(p["vendor_dir"], p["skills_dst"])
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         return f"Error: {e}"
     lines = []
     active_names: set[str] = set()
@@ -79,7 +79,7 @@ def handle_skill_list() -> str:
             if s["name"] not in active_names and s["name"] not in vendored_names:
                 desc = f" — {s['description']}" if s.get("description") else ""
                 lines.append(f"[AVAILABLE] {s['name']} ({s['repo']}){desc}")
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         pass  # Non-fatal — repo listing is optional
     return "\n".join(lines) if lines else "(none)"
 
@@ -95,7 +95,7 @@ def handle_skill_catalog(repo_name: str | None = None, as_json: bool = False) ->
         rows = ProjectService.skill_catalog(
             p["vendor_dir"], repo_name=repo_name, config_path=p["config_path"]
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         return f"Error: {e}"
     if as_json:
         return _json.dumps(rows, ensure_ascii=False, indent=2)
@@ -121,7 +121,7 @@ def handle_skill_activate(svc: Any, name: str) -> str:
         return ProjectService.skill_activate(
             name, p["vendor_dir"], p["skills_dst"], p["lib_skills"], p["config_path"]
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         return f"Error: {e}"
 
 
@@ -133,7 +133,7 @@ def handle_skill_deactivate(svc: Any, name: str) -> str:
         return ProjectService.skill_deactivate(
             name, p["skills_dst"], p["lib_skills"], p["config_path"]
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         return f"Error: {e}"
 
 
@@ -148,7 +148,7 @@ def handle_skill_install(name: str) -> str:
         return ProjectService.skill_install(
             name, p["vendor_dir"], p["skills_dst"], p["config_path"], p["tausik_dir"]
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         return f"Error: {e}"
 
 
@@ -158,7 +158,7 @@ def handle_skill_uninstall(name: str) -> str:
         from project_service import ProjectService
 
         return ProjectService.skill_uninstall(name, p["skills_dst"], p["config_path"])
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         return f"Error: {e}"
 
 
@@ -171,7 +171,7 @@ def handle_skill_repo_add(url: str, force: bool = False) -> str:
         from skill_repos import repo_add
 
         return repo_add(url, p["vendor_dir"], p["config_path"], force=force)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         return f"Error: {e}"
 
 
@@ -181,7 +181,7 @@ def handle_skill_repo_remove(name: str) -> str:
         from skill_repos import repo_remove
 
         return repo_remove(name, p["vendor_dir"], p["config_path"])
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         return f"Error: {e}"
 
 
@@ -201,7 +201,7 @@ def handle_skill_repo_list() -> str:
             if r["skills"]:
                 lines.append(f"  Skills: {', '.join(r['skills'])}")
         return "\n".join(lines)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         return f"Error: {e}"
 
 
@@ -224,12 +224,12 @@ def handle_update_claudemd(svc) -> str:
         with open(head, encoding="utf-8") as f:
             ref = f.read().strip()
         branch = ref.replace("ref: refs/heads/", "") if ref.startswith("ref:") else ref[:8]
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         branch = "unknown"
 
     try:
         from tausik_version import __version__ as version
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         version = "unknown"
 
     session_info = f"#{session['id']} (active)" if session else "none"

@@ -40,7 +40,7 @@ def _increment_tool_counter(svc: Any) -> str:
             )
         if count > _CHECKPOINT_THRESHOLD and count % 10 == 0:
             return f"\n⚠ SENAR Rule 9.3: {count} tool calls! /checkpoint overdue."
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         import logging
 
         logging.getLogger("tausik.counter").debug("tool counter error: %s", e)
@@ -165,7 +165,7 @@ def _do_session_handoff(svc: Any, args: dict) -> str:
     # Reset tool call counter on checkpoint (SENAR Rule 9.3)
     try:
         svc.be.meta_set("tool_call_count", "0")
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         pass
     return svc.session_handoff(args["handoff"])
 
@@ -649,7 +649,7 @@ def _handle_role_show(svc: Any, slug: str) -> str:
 
     try:
         return _json.dumps(role_show(svc.be, slug), indent=2, ensure_ascii=False)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         return f"Error: {e}"
 
 
@@ -667,7 +667,7 @@ def _handle_role_create(svc: Any, args: dict) -> str:
             args.get("extends"),
         )
         return _json.dumps(row, indent=2, ensure_ascii=False)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         return f"Error: {e}"
 
 
@@ -679,7 +679,7 @@ def _handle_role_update(svc: Any, args: dict) -> str:
     try:
         row = role_update(svc.be, args["slug"], args.get("title"), args.get("description"))
         return _json.dumps(row, indent=2, ensure_ascii=False)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         return f"Error: {e}"
 
 
@@ -688,7 +688,7 @@ def _handle_role_delete(svc: Any, args: dict) -> str:
 
     try:
         return role_delete(svc.be, args["slug"], args.get("force", False))
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         return f"Error: {e}"
 
 
@@ -743,7 +743,7 @@ def _handle_verify(
         result = svc.run_verify_for_task(task_slug=task_slug, scope=scope, trigger=trigger)
     except ServiceError as e:
         return f"Error: {e}"
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         return f"Error: {e}"
     gates = [r.get("name", "?") for r in result.get("results", [])]
     return (
@@ -762,7 +762,7 @@ def _handle_stack_reset(name: str) -> str:
 
     try:
         validate_slug(name)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         return f"Error: {e}"
     user_dir = os.path.join(os.getcwd(), ".tausik", "stacks", name)
     if not os.path.isdir(user_dir):
@@ -859,7 +859,7 @@ def _get_cq_client() -> Any:
         from cq_client import get_cq_client
 
         return get_cq_client(config)
-    except Exception:
+    except Exception:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         return None
 
 
@@ -920,7 +920,7 @@ def _handle_health(svc: Any) -> str:
                 "tables": info["tables"],
             }
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         return json.dumps({"status": "error", "error": str(e)})
 
 
@@ -930,7 +930,7 @@ def _handle_self_check() -> str:
         import self_check  # type: ignore[import-not-found]
 
         return json.dumps(self_check.collect(), ensure_ascii=False, default=str)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         return json.dumps(
             {
                 "server": "tausik-project",
@@ -1189,7 +1189,7 @@ def _handle_gates_status() -> str:
         gates = load_gates()
         cfg = load_config()
         stacks = cfg.get("bootstrap", {}).get("stacks", [])
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         return f"Error loading gates: {e}"
     lines = []
     for name, gate in sorted(gates.items()):
@@ -1215,7 +1215,7 @@ def _handle_gate_toggle(name: str, enable: bool) -> str:
         cfg.setdefault("gates", {}).setdefault(name, {})["enabled"] = enable
         save_config(cfg)
         return f"Gate '{name}' {'enabled' if enable else 'disabled'}."
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         return f"Error: {e}"
 
     # _handle_list kept here as it's used by core handlers above

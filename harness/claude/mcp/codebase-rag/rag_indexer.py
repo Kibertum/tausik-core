@@ -331,7 +331,7 @@ def index_full(
                     f"{total_chunks} chunks, {round(time.time() - t0)}s elapsed\n"
                 )
                 _sys.stderr.flush()
-            except Exception:
+            except Exception:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
                 pass
 
     commit = _get_current_commit(project_dir)

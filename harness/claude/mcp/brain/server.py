@@ -63,7 +63,7 @@ def main() -> None:
         try:
             result = await asyncio.to_thread(handle_tool, name, arguments)
             return [TextContent(type="text", text=result)]
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
             print(
                 f"[tausik-brain] tool {name!r} failed:\n{traceback.format_exc()}",
                 file=sys.stderr,
