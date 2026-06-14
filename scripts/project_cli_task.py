@@ -65,6 +65,16 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
     elif c == "show":
         task = svc.task_show(args.slug)
         _print_task_detail(task)
+        deleg = svc.task_delegation(args.slug)
+        if deleg:
+            print(
+                f"delegated: worker sub-agent (model {deleg.get('display')}, "
+                f"parent session #{deleg.get('parent_session')})"
+            )
+    elif c == "delegate":
+        print(svc.task_delegate(args.slug))
+    elif c == "undelegate":
+        print(svc.task_undelegate(args.slug))
     elif c == "start":
         _print_with_warnings(svc.task_start(args.slug, force=getattr(args, "force", False)))
     elif c == "done":

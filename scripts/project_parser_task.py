@@ -100,6 +100,13 @@ def add_task(sub: argparse._SubParsersAction) -> None:
     ts = task_sub.add_parser("show")
     ts.add_argument("slug")
 
+    tdelegate = task_sub.add_parser(
+        "delegate", help="Mark a complexity<=medium task delegated to a worker sub-agent"
+    )
+    tdelegate.add_argument("slug")
+    tundelegate = task_sub.add_parser("undelegate", help="Clear a task's delegation")
+    tundelegate.add_argument("slug")
+
     tstart = task_sub.add_parser("start")
     tstart.add_argument("slug")
     tstart.add_argument(
