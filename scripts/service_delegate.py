@@ -76,6 +76,15 @@ class DelegateMixin:
             f"task_log. Parent session #{parent}."
         )
 
+    def task_handoff(self, slug: str) -> dict[str, Any]:
+        """Build the worker handoff contract for a task (goal/AC/scope/model/skills)."""
+        task = self.be.task_get(slug)
+        if task is None:
+            raise ServiceError(f"Task '{slug}' not found")
+        from ow_handoff import build_handoff_contract
+
+        return build_handoff_contract(task, self.task_delegation(slug))
+
     def task_undelegate(self, slug: str) -> str:
         """Clear a task's delegation record (idempotent)."""
         if not self.task_delegation(slug):

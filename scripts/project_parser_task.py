@@ -106,6 +106,10 @@ def add_task(sub: argparse._SubParsersAction) -> None:
     tdelegate.add_argument("slug")
     tundelegate = task_sub.add_parser("undelegate", help="Clear a task's delegation")
     tundelegate.add_argument("slug")
+    thandoff = task_sub.add_parser(
+        "handoff", help="Print the worker handoff contract (JSON) for a delegated task"
+    )
+    thandoff.add_argument("slug")
 
     tstart = task_sub.add_parser("start")
     tstart.add_argument("slug")

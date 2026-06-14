@@ -75,6 +75,10 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
         print(svc.task_delegate(args.slug))
     elif c == "undelegate":
         print(svc.task_undelegate(args.slug))
+    elif c == "handoff":
+        from ow_handoff import serialize_contract
+
+        print(serialize_contract(svc.task_handoff(args.slug)))
     elif c == "start":
         _print_with_warnings(svc.task_start(args.slug, force=getattr(args, "force", False)))
     elif c == "done":
