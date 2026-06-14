@@ -76,6 +76,9 @@ def _existing_version(path: str) -> int:
 
 def cmd_renar(svc: ProjectService, args: Any) -> None:
     cmd = getattr(args, "renar_cmd", None) or "conformance"
+    if cmd == "export":
+        _cmd_renar_export(svc, args)
+        return
     if cmd != "conformance":
         print(f"Unknown renar subcommand: {cmd!r}")
         return
@@ -108,3 +111,59 @@ def cmd_renar(svc: ProjectService, args: Any) -> None:
     print(f"# inferred level: {level} | pre_adoption: {manifest['pre-adoption']}")
     if manifest["assessment-evidence"]["blocked-at"]:
         print(f"# blocked at: {manifest['assessment-evidence']['blocked-at']}")
+
+
+def _resolve_out_dir(explicit: str | None) -> str:
+    """Resolve + safety-check the export target dir.
+
+    Default is <project_root>/renar/. An explicit --out is accepted only if it
+    stays strictly inside the project root (assert_export_target) — the write
+    path reconciles *.md deletions and must never escape the repo.
+    """
+    from project_config import find_tausik_dir
+    from renar_export import assert_export_target
+
+    project_root = os.path.dirname(find_tausik_dir())
+    target = (
+        explicit.strip() if (explicit and explicit.strip()) else os.path.join(project_root, "renar")
+    )
+    return assert_export_target(target, project_root)
+
+
+def _cmd_renar_export(svc: ProjectService, args: Any) -> None:
+    """`tausik renar export [--out renar/] [--check]` — sqlite → derived tree.
+
+    --check exits 1 on drift (stale tree) like `doc constants --check`; the
+    default write reconciles deletions and reports written/deleted counts.
+    """
+    from renar_export import build_tree, check_tree, write_tree
+
+    try:
+        out = _resolve_out_dir(getattr(args, "out", None))
+    except ValueError as e:
+        print(f"renar export: {e}")
+        raise SystemExit(1) from e
+
+    tree = build_tree(svc)
+
+    try:
+        if getattr(args, "check", False):
+            drift = check_tree(out, tree)
+            if drift:
+                print(f"Drift: {out} does not match live DB state ({len(drift)} issue(s)):")
+                for msg in drift:
+                    print(f"  {msg}")
+                print("  Run: tausik renar export")
+                raise SystemExit(1)
+            print(f"OK — {out} matches the RENAR artifact store ({len(tree)} file(s)).")
+            return
+
+        counts = write_tree(out, tree)
+    except OSError as e:
+        print(f"renar export failed: {e}")
+        raise SystemExit(1) from e
+
+    print(
+        f"Exported {counts['written']} file(s) to {out}"
+        + (f" (removed {counts['deleted']} stale)" if counts["deleted"] else "")
+    )

@@ -78,3 +78,6 @@ site/ru/docs/
 # Claude Design export drop-zone (re-generatable from site/brief.md)
 site/public/uploads/
 site/tausik.zip
+
+# Scratch next-session prompt (not tracked)
+prompt.md

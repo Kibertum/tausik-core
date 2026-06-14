@@ -89,6 +89,15 @@ def build_parser() -> argparse.ArgumentParser:
     rc.add_argument(
         "--write", action="store_true", help="Write RENAR-CONFORMANCE.yaml to project root"
     )
+    re_ = renar_sub.add_parser(
+        "export", help="Serialize specs+adapts+conformance to a derived renar/ tree"
+    )
+    re_.add_argument("--out", default=None, help="Output dir (default: <project_root>/renar/)")
+    re_.add_argument(
+        "--check",
+        action="store_true",
+        help="Exit 1 if the renar/ tree is stale vs live DB (CI gate)",
+    )
 
     # --- decide ---
     dec_p = sub.add_parser("decide", help="Record a decision")
