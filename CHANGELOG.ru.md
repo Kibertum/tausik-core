@@ -11,11 +11,31 @@
 
 ## [Unreleased]
 
-### RENAR adoption — Phase 0-1 (подложка + первый SPEC/ADAPT)
+> Сворачивается в 1.5.0 на публикации. Записи ниже уже влиты в `main`.
+
+### AIDD-слой — cross-IDE parity
+
+- **`tausik aidd autogen [--write] [--force]`.** Черновик `vision.md`, заполненный сигналами репо (имя/описание пакета, заголовок/интро README, top-level каталоги, языки, тест-фреймворк). Только stdlib, без LLM; нет сигнала → placeholder, не падает; переиспользует scaffold-prompt конфликтов. Bootstrap теперь кладёт `harness/aidd-templates` в генерируемое дерево (попутно чинит `init --template aidd` через CLI).
+- **`tausik aidd validate`.** Проверяет machine-checkable claim'ы `conventions.md` (язык/версия, lint/format, тест-фреймворк, макс. размер файла) против репо: ok / drift / unverifiable; exit 1 при hard drift, 2 если нет файла. Числовое сравнение версий + word-boundary матчинг тулов (без substring false-positive).
+
+### Строгость памяти и agent-UX
+
+- **Context-память на старте сессии.** Память типа `context` (факты окружения: хосты, машины, доступы, пути) теперь в memory-tail CLAUDE.md каждую сессию + жёсткое правило **memory-first**: `memory_search` перед вопросом/догадкой о факте проекта.
+- **`update-claudemd` синкает AGENTS.md** dynamic-секцию вместе с CLAUDE.md.
+- **FTS optimize по порогу** на завершении сессии (events-churn proxy, best-effort).
+- **Coverage badge** (baseline 76%) + загрузка `coverage.json` артефактом в CI.
+- Fix: убран фантомный extension-скилл `diff` (больше нет `skills not found: diff` при bootstrap).
+
+### Нет тихих ошибок — enforced
+
+- **ruff BLE001 включён** по всему дереву: каждый blind `except Exception` обоснован `# noqa: BLE001 — <почему>` или сужен; новые необоснованные blind-catch падают в CI. Делает принцип «нулевая толерантность к тихим ошибкам» реальным.
+
+### Адаптация RENAR — advisory-first («лайт»)
 
 - **`tausik renar export [--out] [--check]`.** Детерминированный one-way derived-вид SQLite-проекта в дерево `renar/` (README + conformance + specs + adapts). `--check` — CI drift-гейт; экспорт date-free и pinned к `eol=lf` (`.gitattributes renar/**`) для стабильных diff'ов, с containment-guard для `--out`.
 - **RENAR SPEC + ADAPT подложка.** 17 MCP-инструментов (`tausik_spec_*` ×8, `tausik_adapt_*` ×9): формальные требования (SPEC, 9 закрытых типов) и интерпретация ТЗ (ADAPT §7) с forward-интерпретациями, backward-findings из закрытого списка и двойной подписью ed25519/name. Документировано в `docs/ru/mcp.md`.
 - **Первый self-applied SPEC-ARCH + ADAPT.** TAUSIK достиг **RENAR-1** на честных данных (заблокирован на RENAR-2 — ADAPT оставлен draft, без поддельной подписи клиента); `tausik renar conformance` сам оценивает уровень.
+- **QG-0 advisory (лайт, ступень 2).** Неблокирующий нудж, когда high-stakes задача (tier `substantial`/`deep` или `complex`) стартует без связанного SPEC/ADAPT — тоггл `renar.qg0_advisory`. RENAR внедряется advisory-first по дизайну (лёгкий фреймворк); хардгейт (ступень 3) и подписанный/неизменяемый RENAR-2 (ступень 4) — работа для 2.0. Лестница адаптации в `architecture.md`.
 
 ## [1.5.0] — 2026-06-13
 

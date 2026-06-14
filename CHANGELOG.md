@@ -9,11 +9,31 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### RENAR adoption — Phase 0-1 (substrate + first SPEC/ADAPT)
+> Folded into 1.5.0 at publish time. The entries below are merged to `main`.
+
+### AIDD layer — cross-IDE parity
+
+- **`tausik aidd autogen [--write] [--force]`.** Drafts a `vision.md` pre-seeded from repo signals (package name/description, README title/intro, top-level dirs, detected languages, test framework). Stdlib-only, no LLM; missing signal → placeholder, never crashes; reuses the scaffold conflict prompt. Bootstrap now bundles `harness/aidd-templates` into the generated tree (also fixes `init --template aidd` via the CLI wrapper).
+- **`tausik aidd validate`.** Checks `conventions.md` machine-checkable claims (language/version pin, lint/format tool, testing framework, max file-size) against the repo: ok / drift / unverifiable; exit 1 on hard drift, 2 if missing. Numeric version + word-boundary tool matching (no substring false-positives).
+
+### Memory strictness & agent-UX
+
+- **Context memory surfaced at session start.** `context`-type memories (durable env facts: hosts, machines, access, paths) now appear in the CLAUDE.md memory tail every session, plus a hard **memory-first** rule: `memory_search` before asking the user for / guessing an established project fact.
+- **`update-claudemd` syncs AGENTS.md** dynamic section alongside CLAUDE.md.
+- **Threshold-gated FTS optimize** on session end (events-churn proxy, best-effort).
+- **Coverage badge** (76% baseline) + CI `coverage.json` artifact upload.
+- Fix: dropped a phantom `diff` extension skill (no more `skills not found: diff` on bootstrap).
+
+### No silent errors — enforced
+
+- **ruff BLE001 enabled** across the tree: every blind `except Exception` is now justified with `# noqa: BLE001 — <why>` or narrowed; new unjustified blind catches fail CI. Makes the "нулевая толерантность к тихим ошибкам" principle real.
+
+### RENAR adoption — advisory-first ("lite")
 
 - **`tausik renar export [--out] [--check]`.** Deterministic, one-way derived view of the SQLite project into a `renar/` tree (README + conformance + specs + adapts). `--check` is a CI drift gate; the export is date-free and pinned to `eol=lf` (`.gitattributes renar/**`) for stable diffs, with a containment-guarded `--out` target.
 - **RENAR SPEC + ADAPT substrate.** 17 MCP tools (`tausik_spec_*` ×8, `tausik_adapt_*` ×9): formal requirements (SPEC, 9 closed types) and TZ-interpretation (ADAPT §7) with forward-interpretations, closed-list backward findings, and dual ed25519/name signatures. Documented in `docs/ru/mcp.md`.
 - **First self-applied SPEC-ARCH + ADAPT.** TAUSIK reached **RENAR-1** on honest data (blocked at RENAR-2 — ADAPT left draft, no faked client signature); `tausik renar conformance` self-assesses the level.
+- **QG-0 advisory (lite, rung 2).** A non-blocking nudge when a high-stakes task (tier `substantial`/`deep`, or `complex`) starts without a linked SPEC/ADAPT — toggle `renar.qg0_advisory`. RENAR is adopted advisory-first by design (lightweight framework); hard-gate (rung 3) and signed/immutable RENAR-2 (rung 4) are 2.0 work. See the adoption ladder in `architecture.md`.
 
 ## [1.5.0] — 2026-06-13
 
