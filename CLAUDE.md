@@ -65,30 +65,6 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #96 (active) | Branch: main | Version: 1.5.1
-Tasks: 879/901 done, 0 active, 0 blocked
-
-### Memory tail
-Context (5):
-- #172 v1.5 swarm-review: accepted-by-design LOW findings (post-release backlog)
-- #163 TAUSIK reached RENAR-1 on honest data via the renar-adoption ТЗ/ADAPT
-- #86 v1.5 roadmap: Cursor/Qwen parity for v1.4 Claude-only features
-- #74 session-44-handoff (extended, post-trim)
-- #31 cq (Mozilla) — план интеграции
-Decisions (5):
-- #117 REVERSE Decision #116: implement v15-orchestrator-worker epic INTO 1.5 (user direction). TAUSIK provides delegation SCAF
-- #116 Defer v15-orchestrator-worker epic (6 tasks) OUT of 1.5 → 1.5.x/2.0. 1.5 is a hardening release; orchestrator-worker is 
-- #115 RENAR adoption is ADVISORY-FIRST ('lite') — TAUSIK is a lightweight zero-dep framework. Ladder: (1) artifacts SPEC/ADAPT
-- #114 Decomposed v15-orchestrator-worker-pattern (single complex placeholder) into epic v15-orchestrator-worker → story v15-ow
-- #113 Plan the v15-cross-ide-parity (AIDD) epic INTO 1.5 — one concrete task per existing story, no invented padding. autogen 
-Conventions (5):
-- #171 meta kv: delete with meta_delete, not empty-string tombstone; sibling aggregates share defensive pos
-- #166 Co-locate message text with its data module near filesize cap
-- #155 Don't re-run 'tausik <cmd> --help' for a subcommand you already used this session
-- #150 Adding a new schema migration (vN)
-- #146 Adding an MCP tool requires syncing 3 mirrors + bumping 6 doc-count sites
-Dead ends (3):
-- #151 FTS5 query WHERE <alias> MATCH ? (aliased fts table in MATCH)
-- #145 Hash-chain events на insert-time (event_add вычисляет prev_hash/entry_hash при вставке)
-- #128 Real-screenshot + asciinema-cast in HomeLanding
+Session: #96 (active) | Branch: main | Version: 1.5.0
+Tasks: 880/902 done, 0 active, 0 blocked
 <!-- DYNAMIC:END -->
