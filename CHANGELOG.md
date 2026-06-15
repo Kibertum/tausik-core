@@ -11,6 +11,17 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 _Nothing yet — next changes land here._
 
+## [1.5.2] — 2026-06-15
+
+### Security / housekeeping (public-release readiness)
+
+- **Removed confidential material from the tree.** `docs/audit/` (internal GTM/COI strategy, private-repo paths, a 1.7MB audit PDF) and `site/_archive/` (a leaked internal GitLab URL) are deleted and gitignored — they should never have shipped in the public mirror. (Earlier 1.5.x tarballs still contain them; this is the first clean release.)
+- **Onboarding fixes.** The Windows quickstart command pointed at a nonexistent path → `.tausik/tausik.cmd status`. The CLI wrapper now resolves `.qwen/.windsurf/.codex/scripts` (Qwen/others were broken).
+- **Doc accuracy.** Corrected showcase counters (tests 4341, MCP 124, 20 official / 13 core skills, matrix v1.5.1) and added the RU coverage badge.
+- **Community health files.** Added SECURITY.md, CODE_OF_CONDUCT.md, issue/PR templates.
+
+All driven by a multi-agent public-release-readiness audit.
+
 ## [1.5.1] — 2026-06-15
 
 ### Fixed
