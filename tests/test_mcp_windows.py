@@ -19,6 +19,7 @@ import sys
 _rag_dir = os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "codebase-rag")
 sys.path.insert(0, os.path.abspath(_rag_dir))
 
+import rag_detect
 from rag_indexer import _get_current_commit, _get_changed_files, _safe_path, chunk_file
 from rag_detect import get_file_list, detect_language
 
@@ -195,3 +196,83 @@ class TestFileListGitignore:
         assert any("main.py" in p for p in paths)
         assert not any(".git" in p for p in paths)
         assert not any(".venv" in p for p in paths)
+
+
+class TestReservedDosNames:
+    """get_file_list must not be aborted by Windows reserved device names.
+
+    A path component named con/prn/aux/nul/com1-9/lpt1-9 (with or without an
+    extension) makes os.path.relpath raise ValueError on Windows, which would
+    abort the whole os.walk and produce a silently-empty index. (v153 fix)
+    """
+
+    def test_is_reserved_name_truth_table(self):
+        reserved = [
+            "con",
+            "CON",
+            "Con",
+            "nul",
+            "prn",
+            "aux",
+            "com1",
+            "com9",
+            "lpt1",
+            "lpt9",
+            "con.txt",
+            "NUL.py",
+            "com1.log",
+            "aux.",
+        ]
+        for name in reserved:
+            assert rag_detect._is_reserved_name(name), name
+        normal = [
+            "console",
+            "con1",
+            "main.py",
+            "com0",
+            "com10",
+            "lpt0",
+            "readme",
+            "conf.py",
+            "aux_helper.py",
+            "command.py",
+        ]
+        for name in normal:
+            assert not rag_detect._is_reserved_name(name), name
+
+    def test_reserved_files_and_dirs_skipped(self, tmp_path):
+        """Reserved-named files/dirs are pruned; siblings still indexed."""
+        (tmp_path / "main.py").write_text("x = 1")
+        (tmp_path / "nul.py").write_text("y = 2")  # would otherwise be indexable
+        reserved_dir = tmp_path / "com1"
+        reserved_dir.mkdir()
+        (reserved_dir / "inner.py").write_text("z = 3")
+
+        files = get_file_list(str(tmp_path))  # must not raise
+        paths = [f["rel_path"] for f in files]
+
+        assert any(p == "main.py" for p in paths)
+        assert not any("nul" in p for p in paths)
+        assert not any("com1" in p for p in paths)
+
+    def test_relpath_valueerror_does_not_abort_walk(self, tmp_path, monkeypatch):
+        """Simulate Windows: relpath raising mid-walk skips only that subtree."""
+        (tmp_path / "main.py").write_text("x = 1")
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        (sub / "inner.py").write_text("y = 2")
+
+        real_relpath = os.path.relpath
+
+        def fake_relpath(path, start=None):
+            if os.path.basename(str(path)) == "sub":
+                raise ValueError("simulated reserved-name path")
+            return real_relpath(path, start)
+
+        monkeypatch.setattr(rag_detect.os.path, "relpath", fake_relpath)
+
+        files = get_file_list(str(tmp_path))  # must not raise
+        paths = [f["rel_path"] for f in files]
+
+        assert any("main.py" in p for p in paths)
+        assert not any("inner.py" in p for p in paths)

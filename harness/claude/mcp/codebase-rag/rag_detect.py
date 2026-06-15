@@ -181,6 +181,23 @@ def _is_reparse_or_symlink(path: str) -> bool:
     return False
 
 
+# Windows reserved device names. A path component named (case-insensitively)
+# like one of these — with OR without an extension — makes os.path.relpath
+# raise ValueError on Windows, which aborts the whole os.walk and yields a
+# silently-empty index. Detect and skip them. (v153 Windows fix)
+_RESERVED_DOS_NAMES = frozenset(
+    {"con", "prn", "aux", "nul"}
+    | {f"com{i}" for i in range(1, 10)}
+    | {f"lpt{i}" for i in range(1, 10)}
+)
+
+
+def _is_reserved_name(name: str) -> bool:
+    """True if `name`'s stem (before the first dot) is a reserved DOS device name."""
+    stem = name.split(".", 1)[0].strip().lower()
+    return stem in _RESERVED_DOS_NAMES
+
+
 def get_file_list(project_dir: str, max_seconds: float | None = None) -> list[dict[str, str]]:
     """Return indexable files: [{path, rel_path, language}].
 
@@ -205,15 +222,24 @@ def get_file_list(project_dir: str, max_seconds: float | None = None) -> list[di
                 d not in ALWAYS_IGNORE_DIRS and not d.startswith(".") or d in (".github",)
             )  # allow .github
             and not _is_reparse_or_symlink(os.path.join(root, d))
+            and not _is_reserved_name(d)  # reserved DOS name → relpath ValueError
         ]
         # Also prune dirs matching gitignore
-        rel_root = os.path.relpath(root, project_dir).replace("\\", "/")
+        try:
+            rel_root = os.path.relpath(root, project_dir).replace("\\", "/")
+        except ValueError:
+            continue  # reserved-name component on Windows — skip this subtree
         if rel_root != ".":
             dirs[:] = [d for d in dirs if not _matches_ignore(f"{rel_root}/{d}", patterns)]
 
         for fname in filenames:
+            if _is_reserved_name(fname):
+                continue
             full_path = os.path.join(root, fname)
-            rel_path = os.path.relpath(full_path, project_dir).replace("\\", "/")
+            try:
+                rel_path = os.path.relpath(full_path, project_dir).replace("\\", "/")
+            except ValueError:
+                continue  # reserved-name component on Windows
 
             # Skip gitignored
             if _matches_ignore(rel_path, patterns):

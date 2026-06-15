@@ -11,10 +11,9 @@ set "SCRIPTS="
 for %%I in (claude cursor qwen windsurf codex) do (
     if not defined SCRIPTS if exist "%PROJECT_DIR%\.%%I\scripts" set "SCRIPTS=%PROJECT_DIR%\.%%I\scripts"
 )
-if not defined SCRIPTS (
-    echo Error: no scripts dir found (.claude/.cursor/.qwen/.windsurf/.codex \scripts) 1>&2
-    exit /b 1
-)
+REM goto (not an inline block) so literal parens in the error text can't
+REM prematurely close the if-block and make exit unconditional. (v153 Windows fix)
+if not defined SCRIPTS goto :noscripts
 
 REM Find Python: prefer .tausik/venv
 if exist "%SCRIPT_DIR%venv\Scripts\python.exe" (
@@ -24,3 +23,8 @@ if exist "%SCRIPT_DIR%venv\Scripts\python.exe" (
 )
 
 "%PYTHON%" "%SCRIPTS%\project.py" %*
+exit /b %ERRORLEVEL%
+
+:noscripts
+echo Error: no scripts dir found ^(.claude/.cursor/.qwen/.windsurf/.codex^) 1>&2
+exit /b 1

@@ -11,6 +11,13 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 _Nothing yet — next changes land here._
 
+## [1.5.3] — 2026-06-15
+
+### Fixed (Windows)
+
+- **CLI wrapper failed on every command (critical regression).** A literal `(` / `)` in the "no scripts dir found" error text sat *inside* the `if not defined SCRIPTS (...)` block in `tausik_wrapper.cmd`, closing the block early — so `exit /b 1` ran unconditionally and `.tausik/tausik.cmd <anything>` exited 1 right after bootstrap. Rewritten to `goto :noscripts` (no inline block to break) with an explicit `exit /b %ERRORLEVEL%` so the wrapper propagates Python's exit code. Now covered by a Windows `.cmd` smoke test (passthrough + negative).
+- **RAG index silently empty on projects with reserved-name paths.** A path component that is a Windows reserved device name (`con`/`prn`/`aux`/`nul`/`com1-9`/`lpt1-9`, with or without an extension) makes `os.path.relpath` raise `ValueError`, which aborted the entire `os.walk` in `codebase-rag`'s `get_file_list` → an empty code index with no error. Added `_is_reserved_name` pruning (dirs and files) plus defensive `try/except ValueError` around both `relpath` calls; mirrored into the Cursor harness copy.
+
 ## [1.5.2] — 2026-06-15
 
 ### Security / housekeeping (public-release readiness)
