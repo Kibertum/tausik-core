@@ -1,0 +1,6 @@
+{
+  "name": "flutter",
+  "version": "1",
+  "detect": [{ "file": "pubspec.yaml", "type": "exact", "keyword": "flutter" }],
+  "extensions": [".dart"]
+}

@@ -1,0 +1,9 @@
+{
+  "name": "fastapi",
+  "version": "1",
+  "detect": [
+    { "file": "requirements.txt", "type": "exact", "keyword": "fastapi" },
+    { "file": "pyproject.toml", "type": "exact", "keyword": "fastapi" }
+  ],
+  "extensions": [".py"]
+}

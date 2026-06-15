@@ -1,0 +1,6 @@
+{
+  "name": "blade",
+  "version": "1",
+  "detect": [{ "file": "*.blade.php", "type": "glob" }],
+  "extensions": [".blade.php"]
+}
