@@ -136,7 +136,7 @@ Those are **suggestions** — text the agent reads and is free to ignore the mom
 - **124 MCP tools** (117 project + 7 brain) — full programmatic access to the project database.
 - **21 real-time hooks** — task gate, bash firewall, push gate, auto-format, drift detection, memory pre/post audit, and more.
 - **25 stack-aware verify suites** — pytest, ruff, mypy, tsc, eslint, cargo, go vet, phpstan, helm-lint, hadolint, and others, scoped to the files you touched.
-- **12 core skills** auto-deployed (+ `/brain` once configured); 25+ official skills opt-in via `bootstrap --include-official` or `tausik skill install <name>`.
+- **13 core skills** auto-deployed (+ `/brain` once configured); 20 official skills opt-in via `bootstrap --include-official` or `tausik skill install <name>`.
 - **6 automatic metrics**, **cross-project shared brain** (optional, Notion-mirrored), **batch execution** (`/run plan.md`).
 
 </details>
@@ -149,10 +149,10 @@ Multi-IDE by design, but we're honest about what's validated end-to-end.
 
 | IDE | MCP tools | Skills | Hooks | Status |
 |---|---|---|---|---|
-| **Claude Code** | 105 | 12 core + opt-in | 21 (full) | First-class |
-| **Qwen Code** | 105 | 12 core + opt-in | 21 (parity with Claude) | First-class |
-| **Cursor** | 105 | 12 core + opt-in | — (gates at task start/done) | Supported via MCP |
-| VSCode + Claude Extension | 105 | 12 core + opt-in | 21 | Tested E2E |
+| **Claude Code** | 124 | 13 core + opt-in | 21 (full) | First-class |
+| **Qwen Code** | 124 | 13 core + opt-in | 21 (parity with Claude) | First-class |
+| **Cursor** | 124 | 13 core + opt-in | — (gates at task start/done) | Supported via MCP |
+| VSCode + Claude Extension | 124 | 13 core + opt-in | 21 | Tested E2E |
 | Windsurf / Codex-style | MCP + rules | host-dependent | host-specific | Expected / manual |
 
 Hooks — the real-time rails (no code without a task, bash firewall, push gate) — run in **Claude Code and Qwen Code**. Cursor, Windsurf and other MCP hosts get the same 124 tools and skills, with quality gates enforced at `task start` and `task done`.

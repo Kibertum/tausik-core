@@ -82,3 +82,8 @@ site/tausik.zip
 
 # Scratch next-session prompt (not tracked)
 prompt.md
+
+# Confidential / internal — must NOT ship in the public repo (v151 release-readiness)
+docs/audit/
+site/_archive/
+tausik_systemwide_analysis.md

@@ -61,7 +61,7 @@ scripts/          # Core framework (CLI → Service → Backend)
 bootstrap/        # Installation and IDE setup
 harness/skills/    # 12 core auto-deployed (+ /brain conditional on Notion config) + 25+ official/vendor opt-in (--include-official or tausik skill install)
 harness/overrides/ # IDE-specific overrides
-tests/            # pytest test suite (2590 tests)
+tests/            # pytest test suite (4341 tests)
 docs/             # User-facing + technical documentation (was references/)
 ```
 

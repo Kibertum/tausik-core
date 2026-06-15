@@ -123,7 +123,7 @@ echo ".tausik/" >> .gitignore
 .tausik/tausik status
 ```
 
-> **Windows:** эта команда требует Git Bash или WSL. Если используете cmd.exe или PowerShell, выполните `python .tausik/scripts/project.py status`.
+> **Windows:** эта команда требует Git Bash или WSL. Если используете cmd.exe или PowerShell, выполните `.tausik/tausik.cmd status`.
 
 Если видите что-то вроде:
 
@@ -236,7 +236,7 @@ Claude Code — чат с ИИ-агентом.
 
 **"command not found: .tausik/tausik"**
 - На Windows используйте Git Bash или WSL, не cmd.exe
-- Или вызывайте напрямую: `python .tausik/scripts/project.py status`
+- Или вызывайте напрямую: `.tausik/tausik.cmd status`
 
 **"Python not found"**
 - Убедитесь что Python в PATH: `python --version`

@@ -7,13 +7,16 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
-# Find scripts dir (claude or cursor)
-if [ -d "$PROJECT_DIR/.claude/scripts" ]; then
-    SCRIPTS="$PROJECT_DIR/.claude/scripts"
-elif [ -d "$PROJECT_DIR/.cursor/scripts" ]; then
-    SCRIPTS="$PROJECT_DIR/.cursor/scripts"
-else
-    echo "Error: no scripts dir found (.claude/scripts or .cursor/scripts)" >&2
+# Find scripts dir (claude / cursor / qwen / windsurf / codex)
+SCRIPTS=""
+for _ide in claude cursor qwen windsurf codex; do
+    if [ -d "$PROJECT_DIR/.$_ide/scripts" ]; then
+        SCRIPTS="$PROJECT_DIR/.$_ide/scripts"
+        break
+    fi
+done
+if [ -z "$SCRIPTS" ]; then
+    echo "Error: no scripts dir found (.claude/.cursor/.qwen/.windsurf/.codex /scripts)" >&2
     exit 1
 fi
 

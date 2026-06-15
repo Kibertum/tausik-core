@@ -123,7 +123,7 @@ for the agent, they should be in the repository.
 .tausik/tausik status
 ```
 
-> **Windows note:** This command requires Git Bash or WSL. If you're using cmd.exe or PowerShell, run `python .tausik/scripts/project.py status` instead.
+> **Windows note:** This command requires Git Bash or WSL. If you're using cmd.exe or PowerShell, run `.tausik/tausik.cmd status` instead.
 
 If you see something like:
 
@@ -236,7 +236,7 @@ Two or three messages per task. Everything else — automatic.
 
 **"command not found: .tausik/tausik"**
 - On Windows use Git Bash or WSL, not cmd.exe
-- Or call directly: `python .tausik/scripts/project.py status`
+- Or call directly: `.tausik/tausik.cmd status`
 
 **"Python not found"**
 - Make sure Python is in PATH: `python --version`

@@ -6,13 +6,13 @@ setlocal
 set "SCRIPT_DIR=%~dp0"
 set "PROJECT_DIR=%SCRIPT_DIR%.."
 
-REM Find scripts dir
-if exist "%PROJECT_DIR%\.claude\scripts" (
-    set "SCRIPTS=%PROJECT_DIR%\.claude\scripts"
-) else if exist "%PROJECT_DIR%\.cursor\scripts" (
-    set "SCRIPTS=%PROJECT_DIR%\.cursor\scripts"
-) else (
-    echo Error: no scripts dir found 1>&2
+REM Find scripts dir (claude / cursor / qwen / windsurf / codex)
+set "SCRIPTS="
+for %%I in (claude cursor qwen windsurf codex) do (
+    if not defined SCRIPTS if exist "%PROJECT_DIR%\.%%I\scripts" set "SCRIPTS=%PROJECT_DIR%\.%%I\scripts"
+)
+if not defined SCRIPTS (
+    echo Error: no scripts dir found (.claude/.cursor/.qwen/.windsurf/.codex \scripts) 1>&2
     exit /b 1
 )
 
