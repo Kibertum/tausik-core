@@ -6,7 +6,7 @@ readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11"
 authors = [
-    { name = "Andrey Yumashev", email = "andrey.jumashev@gmail.com" },
+    { name = "Andrey Yumashev" },
 ]
 keywords = ["ai", "agent", "framework", "ide", "quality-gates", "senar"]
 classifiers = [
