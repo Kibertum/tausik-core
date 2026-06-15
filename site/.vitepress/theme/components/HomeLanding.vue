@@ -240,13 +240,13 @@ const copy = {
       eyebrow: "Foundation",
       title: "Built on SENAR.",
       bodyHtml:
-        'TAUSIK implements <b>SENAR</b> — an open engineering standard for AI-assisted development. Quality gates, session management, metrics, verification checklists — all defined in SENAR. See <a href="https://senar.tech">senar.tech</a> for the spec.',
+        'TAUSIK implements <b>SENAR</b> — an open engineering standard for AI-assisted development. Quality gates, session management, metrics, verification checklists — all defined in SENAR. See <a href="https://senar.tech">senar.tech</a> for the spec. It also adopts <b>RENAR</b> — a reasoning/governance standard (<a href="https://renar.tech">renar.tech</a>) — advisory-first, making interpretation visible at each quality gate.',
     },
     footer: {
       tagline: "AI development framework with enforced quality gates for coding agents.",
       cols: [
         { h: "Source", links: [["github.com/Kibertum/tausik-core", "https://github.com/Kibertum/tausik-core"]] },
-        { h: "Spec", links: [["senar.tech", "https://senar.tech"], ["Documentation", "/docs/quickstart"]] },
+        { h: "Spec", links: [["senar.tech", "https://senar.tech"], ["renar.tech", "https://renar.tech"], ["Documentation", "/docs/quickstart"]] },
         { h: "License", text: ["Apache 2.0", "Free & open source"] },
       ],
       copyright: "© 2026 · tausik.tech",
@@ -477,13 +477,13 @@ const copy = {
       eyebrow: "Фундамент",
       title: "Построено на SENAR.",
       bodyHtml:
-        'TAUSIK реализует <b>SENAR</b> — открытый инженерный стандарт AI-assisted разработки. Quality gates, управление сессиями, метрики, чек-листы верификации — всё определено в SENAR. Спецификация: <a href="https://senar.tech">senar.tech</a>.',
+        'TAUSIK реализует <b>SENAR</b> — открытый инженерный стандарт AI-assisted разработки. Quality gates, управление сессиями, метрики, чек-листы верификации — всё определено в SENAR. Спецификация: <a href="https://senar.tech">senar.tech</a>. А также адаптирует <b>RENAR</b> — стандарт рассуждения и governance (<a href="https://renar.tech">renar.tech</a>) — advisory-first: интерпретация становится видимой на каждом quality gate.',
     },
     footer: {
       tagline: "Фреймворк AI-разработки с принудительными quality gates для coding-агентов.",
       cols: [
         { h: "Исходники", links: [["github.com/Kibertum/tausik-core", "https://github.com/Kibertum/tausik-core"]] },
-        { h: "Спецификация", links: [["senar.tech", "https://senar.tech"], ["Документация", "/ru/docs/quickstart"]] },
+        { h: "Спецификация", links: [["senar.tech", "https://senar.tech"], ["renar.tech", "https://renar.tech"], ["Документация", "/ru/docs/quickstart"]] },
         { h: "Лицензия", text: ["Apache 2.0", "Свободный & open source"] },
       ],
       copyright: "© 2026 · tausik.tech",

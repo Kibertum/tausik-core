@@ -1,7 +1,7 @@
 # Матрица выбора модели: фаза × сложность
 
 > Источник истины для `scripts/model_routing.py::suggest_model`. Решение
-> [Decision #112](../../../CHANGELOG.md). Задача `v15mr-phase-matrix` (P1).
+> [Decision #112](https://github.com/Kibertum/tausik-core/blob/main/CHANGELOG.md). Задача `v15mr-phase-matrix` (P1).
 
 TAUSIK рекомендует Claude-модель (применяет её пользователь вручную — Claude Code
 не переключает модель программно). До v1.5 выбор зависел только от сложности
