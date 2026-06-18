@@ -144,8 +144,11 @@ def _rag_summary(project_dir: str) -> str:
         import sqlite3
 
         with sqlite3.connect(rag_db) as conn:
-            row = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()
+            row = conn.execute("SELECT COUNT(*) FROM rag_chunks").fetchone()
             chunks = int(row[0]) if row else 0
+    except sqlite3.OperationalError as exc:
+        # Schema mismatch (e.g. table missing) is a real bug — surface it instead of hiding it.
+        return f"RAG: schema error ({exc})."
     except Exception:  # noqa: BLE001 — best-effort: a hook must never break the tool call it guards
         return "RAG: status unknown (db unreadable)."
     # Always kick off an incremental reindex in the background so the index
