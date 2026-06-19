@@ -8,6 +8,14 @@ import sys
 from typing import Any
 
 from bootstrap_hooks import build_hooks_dict
+from bootstrap_paths import portable_path
+
+# Workspace variables each host expands at launch — used to keep generated
+# configs rename-proof (no absolute project paths). Claude's .mcp.json var is
+# absent at config-parse time, hence the ``:-.`` fallback.
+_CLAUDE_MCP_VAR = "${CLAUDE_PROJECT_DIR:-.}"
+_CLAUDE_HOOK_VAR = "${CLAUDE_PROJECT_DIR}"
+_CURSOR_VAR = "${workspaceFolder}"
 
 
 def _stdio_mcp_server(command: str, args: list[str]) -> dict[str, Any]:
@@ -19,20 +27,18 @@ def generate_settings_claude(target_dir: str, project_dir: str, lib_dir: str | N
     """Generate .claude/settings.json for Claude Code.
 
     lib_dir: path to TAUSIK library (submodule). Auto-detected from bootstrap location.
-    Hooks use absolute paths to avoid breakage when CWD changes mid-session.
+    Hooks reference ${CLAUDE_PROJECT_DIR} when in-project (rename-proof), else absolute.
     """
-
-    def _p(p: str) -> str:
-        return p.replace("\\", "/")
-
     # Determine library path relative to project
     if lib_dir is None:
         lib_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     hooks_dir = os.path.join(lib_dir, "scripts", "hooks")
 
-    # Always use absolute paths for hooks — relative paths break when
-    # Claude Code CWD changes (e.g. after `cd frontend && npm install`)
-    rel_hooks = _p(os.path.abspath(hooks_dir))
+    # Reference hooks via ${CLAUDE_PROJECT_DIR} when they live inside the project
+    # (always set in the hook environment) so a folder rename doesn't break them;
+    # an external lib stays absolute. No quotes — a path with spaces is a
+    # pre-existing edge, and quotes would break the hooks-parity tokenizer.
+    rel_hooks = portable_path(os.path.abspath(hooks_dir), project_dir, _CLAUDE_HOOK_VAR)
 
     def _hook_cmd(script: str, suffix: str = "") -> str:
         return f"python {rel_hooks}/{script}{suffix}"
@@ -75,27 +81,32 @@ def generate_mcp_json(project_dir: str, ide_dir: str, venv_python: str | None = 
 
     servers = existing.get("mcpServers", {})
 
-    def _p(p: str) -> str:
-        return p.replace("\\", "/")
+    # Rename-proof: in-project paths become ${CLAUDE_PROJECT_DIR:-.}-relative;
+    # external paths (system venv) stay absolute. --project uses the same var.
+    def _pp(p: str) -> str:
+        return portable_path(p, project_dir, _CLAUDE_MCP_VAR)
+
+    cmd = _pp(python_exe)
+    proj_arg = _CLAUDE_MCP_VAR
 
     # Core MCP servers (always managed)
     rag_server = os.path.join(ide_dir, "mcp", "codebase-rag", "server.py")
     if os.path.exists(rag_server):
         servers["codebase-rag"] = _stdio_mcp_server(
-            _p(python_exe),
-            [_p(rag_server), "--project", _p(project_dir)],
+            cmd,
+            [_pp(rag_server), "--project", proj_arg],
         )
     project_server = os.path.join(ide_dir, "mcp", "project", "server.py")
     if os.path.exists(project_server):
         servers["tausik-project"] = _stdio_mcp_server(
-            _p(python_exe),
-            [_p(project_server), "--project", _p(project_dir)],
+            cmd,
+            [_pp(project_server), "--project", proj_arg],
         )
     brain_server = os.path.join(ide_dir, "mcp", "brain", "server.py")
     if os.path.exists(brain_server):
         servers["tausik-brain"] = _stdio_mcp_server(
-            _p(python_exe),
-            [_p(brain_server), "--project", _p(project_dir)],
+            cmd,
+            [_pp(brain_server), "--project", proj_arg],
         )
 
     mcp_config = {**existing, "mcpServers": servers}
@@ -125,26 +136,31 @@ def generate_cursor_mcp_json(
 
     servers = existing.get("mcpServers", {})
 
-    def _p(p: str) -> str:
-        return p.replace("\\", "/")
+    # Cursor expands ${workspaceFolder} at launch → rename-proof for in-project
+    # paths; external paths stay absolute.
+    def _pp(p: str) -> str:
+        return portable_path(p, project_dir, _CURSOR_VAR)
+
+    cmd = _pp(python_exe)
+    proj_arg = _CURSOR_VAR
 
     rag_server = os.path.join(ide_dir, "mcp", "codebase-rag", "server.py")
     if os.path.exists(rag_server):
         servers["codebase-rag"] = _stdio_mcp_server(
-            _p(python_exe),
-            [_p(rag_server), "--project", _p(project_dir)],
+            cmd,
+            [_pp(rag_server), "--project", proj_arg],
         )
     project_server = os.path.join(ide_dir, "mcp", "project", "server.py")
     if os.path.exists(project_server):
         servers["tausik-project"] = _stdio_mcp_server(
-            _p(python_exe),
-            [_p(project_server), "--project", _p(project_dir)],
+            cmd,
+            [_pp(project_server), "--project", proj_arg],
         )
     brain_server = os.path.join(ide_dir, "mcp", "brain", "server.py")
     if os.path.exists(brain_server):
         servers["tausik-brain"] = _stdio_mcp_server(
-            _p(python_exe),
-            [_p(brain_server), "--project", _p(project_dir)],
+            cmd,
+            [_pp(brain_server), "--project", proj_arg],
         )
 
     mcp_config = {**existing, "mcpServers": servers}

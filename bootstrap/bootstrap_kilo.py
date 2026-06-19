@@ -23,6 +23,8 @@ import json
 import os
 from typing import Any
 
+from bootstrap_paths import portable_path
+
 # (server-name, relative path under an mcp/ root) — order is the emit order.
 _SERVERS = (
     ("tausik-project", os.path.join("project", "server.py")),
@@ -43,23 +45,9 @@ def _p(path: str) -> str:
 
 
 def _portable_path(abs_path: str, project_dir: str) -> str:
-    """Make a path rename-proof when it lives inside the project.
-
-    Kilo expands ``${workspaceFolder}`` to the workspace root at launch, so a
-    server copied under the project survives a folder rename. Paths outside the
-    project (e.g. an external ``.tausik-lib``) are kept absolute — a project
-    rename doesn't move them anyway.
-    """
-    abs_norm = os.path.normpath(abs_path)
-    proj_norm = os.path.normpath(project_dir)
-    try:
-        rel = os.path.relpath(abs_norm, proj_norm)
-    except ValueError:
-        # Different drive (Windows) → not inside the project.
-        return _p(abs_norm)
-    if rel == os.pardir or rel.startswith(os.pardir + os.sep):
-        return _p(abs_norm)  # outside the project tree
-    return "${workspaceFolder}/" + _p(rel)
+    """Kilo expands ``${workspaceFolder}`` at launch — rename-proof for in-project
+    paths. Thin wrapper over the shared helper (see bootstrap_paths)."""
+    return portable_path(abs_path, project_dir, "${workspaceFolder}")
 
 
 def _resolve_server(name_path: str, ide_dir: str, lib_dir: str | None) -> str | None:

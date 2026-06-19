@@ -36,6 +36,16 @@ _Nothing yet — next changes land here._
 - **Docs:** [Kilo + z.ai](docs/en/kilo-zai.md) (+ RU mirror) — setup, model
   switching, secret hygiene; architecture two-axis (runtime × model) table.
 
+### Changed — rename-proof generated configs
+
+- Generated MCP configs and Claude hooks no longer embed absolute project paths,
+  so **renaming the project folder no longer breaks the framework**. In-project
+  paths use the host's workspace variable — `${CLAUDE_PROJECT_DIR:-.}` (Claude
+  `.mcp.json`), `${CLAUDE_PROJECT_DIR}` (Claude hooks), `${workspaceFolder}`
+  (Cursor, Kilo); paths outside the project (system venv, external lib) stay
+  absolute. Shared helper `bootstrap/bootstrap_paths.py`. Qwen Code is unchanged
+  (no workspace variable in its config format) — tracked as a follow-up.
+
 ### Fixed
 
 - Provider scaffold rewritten: removed a syntactically broken `claude.py`,
