@@ -202,3 +202,42 @@ class TestSettingsGeneration:
         assert "SessionStart" in hooks, "SessionStart hook not registered for Qwen"
         cmds = [h["command"] for entry in hooks["SessionStart"] for h in entry["hooks"]]
         assert any("session_start.py" in c for c in cmds)
+
+
+def _load_session_start():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("_ss_mod", _HOOK_PATH)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+class TestRagSummary:
+    """Regression for issue #2 / PR #3: wrong table name + swallowed schema error."""
+
+    def _make_rag_db(self, tmp_path, table: str, rows: int):
+        import sqlite3
+
+        rag_dir = tmp_path / ".tausik" / "rag"
+        rag_dir.mkdir(parents=True)
+        con = sqlite3.connect(str(rag_dir / "rag.db"))
+        con.execute(f"CREATE TABLE {table}(id INTEGER)")
+        con.executemany(f"INSERT INTO {table} VALUES(?)", [(i,) for i in range(rows)])
+        con.commit()
+        con.close()
+
+    def test_healthy_index_reports_count(self, tmp_path):
+        ss = _load_session_start()
+        self._make_rag_db(tmp_path, "rag_chunks", 42)
+        out = ss._rag_summary(str(tmp_path))
+        assert "42 chunks indexed" in out
+
+    def test_schema_error_is_surfaced_not_hidden(self, tmp_path):
+        # Wrong/missing table → real OperationalError, must NOT be the generic swallow.
+        ss = _load_session_start()
+        self._make_rag_db(tmp_path, "other_table", 1)
+        out = ss._rag_summary(str(tmp_path))
+        assert "schema error" in out
+        assert "no such table: rag_chunks" in out
+        assert "db unreadable" not in out

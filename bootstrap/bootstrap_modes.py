@@ -30,7 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--ide",
         default="claude",
-        choices=["claude", "cursor", "qwen", "all"],
+        choices=["claude", "cursor", "qwen", "kilo", "all"],
         help="Target IDE (default: claude)",
     )
     parser.add_argument(

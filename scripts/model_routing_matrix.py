@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import re
 
+import model_profiles
+
 
 # --- Tier family detection (version-agnostic) --------------------------------
 
@@ -48,10 +50,25 @@ def _model_family(model_id: str | None) -> str | None:
     return hits[0] if len(hits) == 1 else None
 
 
-def _model_tier(model_id: str | None) -> int | None:
-    """Return the tier rank for a model id, or None when unrecognised."""
+def _model_tier(
+    model_id: str | None,
+    families: dict[str, dict[str, dict[str, str]]] | None = None,
+) -> int | None:
+    """Return the capability tier rank for a model id, or None when unrecognised.
+
+    Claude ids resolve via the family token (haiku/sonnet/opus/fable). When that
+    fails and ``families`` is supplied, the id is looked up in the model_profiles
+    reverse index — so a GLM id (which carries no Claude token) still gets a rank
+    and the banner verdict no longer treats it as 'unknown'.
+    """
     family = _model_family(model_id)
-    return _TIER_ORDER[family] if family is not None else None
+    if family is not None:
+        return _TIER_ORDER[family]
+    if families is not None:
+        rank = model_profiles.rank_of(model_id, families)
+        if rank is not None:
+            return _TIER_ORDER.get(rank)
+    return None
 
 
 _PROFILE_SLUG_BY_MODEL_ID: dict[str, str] = {
@@ -80,12 +97,9 @@ def _model_id_to_profile_slug(model_id: str) -> str | None:
 # the implement floor is Sonnet; Haiku is reserved for research-simple (read-only
 # discovery). Planning always uses a strong planner — plan quality compounds.
 
-_TIER_SPEC: dict[str, dict[str, str]] = {
-    "haiku": {"model": "claude-haiku-4-5", "display": "Haiku 4.5"},
-    "sonnet": {"model": "claude-sonnet-4-6", "display": "Sonnet 4.6"},
-    "opus": {"model": "claude-opus-4-8", "display": "Opus 4.8"},
-    "fable": {"model": "claude-fable-5", "display": "Fable 5"},
-}
+# Claude tier specs — single source of truth lives in model_profiles
+# (DEFAULT_FAMILIES["claude"]) so the matrix and the profile data never drift.
+_TIER_SPEC: dict[str, dict[str, str]] = model_profiles.DEFAULT_FAMILIES["claude"]
 
 DEFAULT_PHASE = "implement"
 _VALID_TIERS = ("simple", "medium", "complex")
@@ -162,9 +176,28 @@ def _normalize_phase(phase: str | None) -> str:
     return key
 
 
-def _spec_from_tier(tier: str, rationale: str) -> dict[str, str]:
-    base = _TIER_SPEC[tier]
-    return {"model": base["model"], "display": base["display"], "rationale": rationale}
+def _spec_from_tier(
+    tier: str,
+    rationale: str,
+    *,
+    family: str | None = None,
+    config: dict | None = None,
+) -> dict[str, str]:
+    """Resolve a capability tier to a concrete {model, display} for ``family``.
+
+    family None/'claude' keeps the canonical Claude spec (back-compat — callers
+    that don't pass family get identical output). Any other family resolves via
+    model_profiles, falling back to the Claude spec for ranks it doesn't define.
+    """
+    if family is None or family.strip().lower() == "claude":
+        base = _TIER_SPEC[tier]
+        return {"model": base["model"], "display": base["display"], "rationale": rationale}
+    families = model_profiles.load_families(config)
+    spec = model_profiles.spec_for(family, tier, families)
+    if spec is None:
+        base = _TIER_SPEC[tier]
+        return {"model": base["model"], "display": base["display"], "rationale": rationale}
+    return {"model": spec["model"], "display": spec["display"], "rationale": rationale}
 
 
 def _override_model_id(config: dict | None, phase: str, tier: str) -> str | None:
@@ -224,6 +257,7 @@ def suggest_model(
     phase: str | None = DEFAULT_PHASE,
     *,
     config: dict | None = None,
+    family: str | None = None,
 ) -> dict[str, str]:
     """Return {model, display, rationale} for a (complexity, phase) cell.
 
@@ -245,7 +279,7 @@ def suggest_model(
         return _spec_from_model_id(override, rationale)
 
     rationale = base_rationale if note is None else f"{note} {base_rationale}"
-    return _spec_from_tier(primary_tier, rationale)
+    return _spec_from_tier(primary_tier, rationale, family=family, config=config)
 
 
 def format_suggestion(

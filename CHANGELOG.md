@@ -11,6 +11,37 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 _Nothing yet — next changes land here._
 
+## [1.5.5] — 2026-06-19
+
+### Added — Kilo Code + z.ai (GLM) first-class support
+
+- **`--ide kilo` bootstrap target.** `bootstrap.py --ide kilo` re-exposes the
+  TAUSIK MCP server inside Kilo Code (VSCode addon + CLI). The MCP stanza is
+  written to **both** known Kilo config paths — `.kilo/kilo.jsonc` and
+  `.kilocode/mcp.json` — so it works across Kilo versions (Decision #120). Format
+  is Kilo-native (`mcp` key, `command` as an array, `type: local`, `enabled`);
+  existing servers are merged, not overwritten; re-runs are idempotent. Override
+  the target paths via `.tausik/config.json` `kilo.config_paths`.
+- **Model profiles as data — z.ai GLM routing with no code change** (Decision #119).
+  New `scripts/model_profiles.py` maps vendor families (`claude`, `glm`) ×
+  capability ranks → concrete model ids, overridable/extendable in
+  `.tausik/config.json` `model_profiles.families`. `suggest_model(family=…)` and
+  the task-start banner now recommend **within the active model's family**: a
+  z.ai GLM session (Anthropic-compatible endpoint → transcript reads `glm-*`)
+  routes to GLM models and gets correct under/over-powered verdicts. Optional
+  `model_profiles.default_family` pins the family when detection is unavailable.
+- **Provider registry** (`scripts/providers/`) abstracting runtime/IDE detection
+  (claude/cursor/kilo/qwen). Kilo reads the active model from `KILO_MODEL` /
+  `.kilo` config; Claude delegates to the existing transcript parser.
+- **Docs:** [Kilo + z.ai](docs/en/kilo-zai.md) (+ RU mirror) — setup, model
+  switching, secret hygiene; architecture two-axis (runtime × model) table.
+
+### Fixed
+
+- Provider scaffold rewritten: removed a syntactically broken `claude.py`,
+  inconsistent registration, and a `model_routing` import that silently nulled
+  active-model detection.
+
 ## [1.5.3] — 2026-06-15
 
 ### Fixed (Windows)

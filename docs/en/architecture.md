@@ -117,6 +117,24 @@ harness/
 +-- qwen/ → claude/   # Qwen Code (falls back to Claude MCP)
 ```
 
+#### Runtime (IDE) × Model — two orthogonal axes (Decision #119)
+
+TAUSIK separates *where* it runs from *which model* answers:
+
+| Axis | What it controls | `bootstrap --ide` target | Active-model detection |
+|------|------------------|--------------------------|------------------------|
+| **claude** | Claude Code (VSCode/CLI) | `.claude/` + `.mcp.json` | JSONL transcript (`model` field) |
+| **cursor** | Cursor | `.cursor/` + `.cursor/mcp.json` | — |
+| **qwen** | Qwen Code | `.qwen/settings.json` | — |
+| **kilo** | Kilo Code (addon + CLI) | `.kilo/kilo.jsonc` **and** `.kilocode/mcp.json` | `KILO_MODEL` env / `.kilo` config |
+
+The **model axis** is data, not code: `scripts/model_profiles.py` maps vendor
+families (`claude`, `glm`/z.ai) × capability ranks → concrete model ids,
+overridable in `.tausik/config.json` `model_profiles.families`. The routing
+matrix emits an abstract rank; the active family resolves it to a real model —
+so a z.ai GLM session routes to GLM models with no code change. See
+[Kilo + z.ai](kilo-zai.md).
+
 ## DB: Tables (Schema v37)
 
 | Table | Purpose |

@@ -6,9 +6,9 @@
 
 TAUSIK — это discipline-слой для AI-кодинг-агентов. Он превращает слова агента — «тесты прошли», «задача готова» — в то, что вы можете проверить. Планировать перед кодом, выпускать с доказательством, помнить каждое решение. Не рекомендации, которые агент волен игнорировать, а жёсткие гейты, которые он физически не может обойти.
 
-[![v1.5.3](https://img.shields.io/badge/version-v1.5.3-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
+[![v1.5.5](https://img.shields.io/badge/version-v1.5.5-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
 [![signed receipts: ed25519](https://img.shields.io/badge/signed%20receipts-ed25519-6f42c1.svg)](docs/ru/receipts.md)
-[![4348 тестов](https://img.shields.io/badge/tests-4348-brightgreen.svg)](#proof-tausik-собран-на-tausik)
+[![4390 тестов](https://img.shields.io/badge/tests-4390-brightgreen.svg)](#proof-tausik-собран-на-tausik)
 [![покрытие 76%](https://img.shields.io/badge/coverage-76%25-green.svg)](#proof-tausik-собран-на-tausik)
 [![0 зависимостей](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#что-внутри)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)

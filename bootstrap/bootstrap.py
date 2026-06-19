@@ -61,6 +61,7 @@ from bootstrap_generate import (
     generate_mcp_json,
     generate_settings_claude,
 )
+from bootstrap_kilo import generate_kilo_commands, generate_kilo_config
 from bootstrap_qwen import generate_qwen_md, generate_settings_qwen
 
 
@@ -85,6 +86,7 @@ _IDE_DIRS = {
     "windsurf": ".windsurf",
     "codex": ".codex",
     "qwen": ".qwen",
+    "kilo": ".kilo",
 }
 
 
@@ -180,6 +182,15 @@ def bootstrap_ide(
     elif ide == "qwen":
         generate_settings_qwen(target_dir, project_dir, venv_python, lib_dir)
         generate_qwen_md(project_dir, config.get("project", "my-project"), stacks, context_tier)
+    elif ide == "kilo":
+        written = generate_kilo_config(project_dir, target_dir, venv_python, lib_dir, config)
+        if written:
+            print(f"  Kilo MCP config: {len(written)} file(s) — {', '.join(written)}")
+        else:
+            print("  Kilo MCP config: skipped (no server.py found)")
+        n_cmds = generate_kilo_commands(target_dir)
+        if n_cmds:
+            print(f"  Kilo commands: {n_cmds} stub(s)")
 
     generate_agents_md(project_dir, config.get("project", "my-project"), stacks, context_tier)
 
@@ -240,7 +251,7 @@ def main() -> None:
 
     config["ide"] = args.ide
 
-    ides = ["claude", "cursor", "qwen"] if args.ide == "all" else [args.ide]
+    ides = ["claude", "cursor", "qwen", "kilo"] if args.ide == "all" else [args.ide]
 
     try:
         env_profile_slug = parse_strict_model_profile_env()

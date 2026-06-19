@@ -333,3 +333,41 @@ class TestTierOrdering:
         assert _model_family("gpt-9") is None
         assert _model_tier("gpt-9") is None
         assert _model_tier(None) is None
+
+
+class TestBannerGlmFamily:
+    """Family-agnostic banner: on a z.ai/GLM session, recommend within GLM (Decision #119)."""
+
+    def test_glm_active_recommends_glm_and_matches(self):
+        # complex implement on GLM → recommend GLM flagship; active==rec → ✓ match.
+        out = format_task_start_banner(
+            "complex", active_model="glm-4.6", phase="implement", config={}
+        )
+        assert "glm-4.6" in out
+        assert "claude" not in out
+        assert "✓ model match" in out
+
+    def test_default_family_used_when_active_unknown(self):
+        # No detectable active model, but config pins default_family=glm.
+        cfg = {"model_profiles": {"default_family": "glm"}}
+        out = format_task_start_banner(
+            "complex", active_model=None, transcript_path="", phase="implement", config=cfg
+        )
+        assert "glm-4.6" in out
+        assert "active model unknown" in out
+
+    def test_glm_underpowered_is_mismatch(self):
+        # Running the light GLM on a complex task → genuine mismatch.
+        out = format_task_start_banner(
+            "complex", active_model="glm-4.5-air", phase="implement", config={}
+        )
+        assert "MISMATCH" in out
+        assert "glm-4.6" in out  # recommended flagship still shown
+
+    def test_claude_session_unchanged(self):
+        # Back-compat: a Claude active model still recommends Claude and matches.
+        out = format_task_start_banner(
+            "complex", active_model="claude-opus-4-8", phase="implement", config={}
+        )
+        assert "claude-opus-4-8" in out
+        assert "glm" not in out

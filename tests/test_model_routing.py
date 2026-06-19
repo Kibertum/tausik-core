@@ -185,3 +185,42 @@ def test_override_future_pointrelease_keeps_honest_display():
 def test_valid_phases_derived_from_matrix():
     # M2: VALID_PHASES is the matrix's own keys (single source of truth).
     assert set(VALID_PHASES) == {"planning", "implement", "research"}
+
+
+# --- Family-agnostic routing: GLM/z.ai (Decision #119, axis-2) ----------------
+
+
+def test_family_none_defaults_to_claude():
+    # Back-compat: no family arg → canonical Claude ids (matches all other tests).
+    assert suggest_model("complex", "implement")["model"] == "claude-opus-4-8"
+    assert suggest_model("complex", "implement", family=None)["model"] == "claude-opus-4-8"
+    assert suggest_model("complex", "implement", family="claude")["model"] == "claude-opus-4-8"
+
+
+def test_glm_family_resolves_glm_ids():
+    # complex implement → flagship rank → GLM's flagship model, not a Claude id.
+    r = suggest_model("complex", "implement", family="glm")
+    assert r["model"] == "glm-4.6"
+    assert "claude" not in r["model"]
+    # simple implement → sonnet rank → GLM's sonnet-rank model.
+    assert suggest_model("simple", "implement", family="glm")["model"] == "glm-4.6"
+
+
+def test_glm_family_via_config_override_models():
+    cfg = {"model_profiles": {"families": {"glm": {"opus": {"model": "glm-5.2"}}}}}
+    assert suggest_model("complex", "implement", config=cfg, family="glm")["model"] == "glm-5.2"
+
+
+def test_nonexistent_family_falls_back_to_claude():
+    # NEGATIVE: unknown family must not raise — falls back to the claude spec.
+    assert suggest_model("complex", "implement", family="nonexistent")["model"] == "claude-opus-4-8"
+
+
+def test_model_tier_resolves_glm_via_profiles():
+    from model_profiles import load_families
+    from model_routing_matrix import _model_tier
+
+    fams = load_families(None)
+    assert _model_tier("glm-4.6", fams) == 3  # fable rank (highest it fills)
+    assert _model_tier("glm-4.6") is None  # without profiles → unknown (back-compat)
+    assert _model_tier("claude-opus-4-8") == 2  # claude token path unchanged

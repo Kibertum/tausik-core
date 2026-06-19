@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import os
 
-# Re-exported so existing importers (`from model_routing import ...`) keep working.
+import model_profiles
 from model_routing_matrix import (  # noqa: F401
     DEFAULT_PHASE,
     VALID_PHASES,
@@ -35,6 +35,12 @@ def read_active_model_from_transcript(transcript_path: str | None) -> str | None
     field encountered (under top-level or nested `message`). Returns None
     when the path is missing/unreadable, the file is empty, or no model
     field is present — callers must treat None as "unknown".
+
+    This is the Claude Code transcript format. Because z.ai's GLM endpoint is
+    Anthropic-compatible, a session running on z.ai produces the same JSONL
+    shape with `model` set to a `glm-*` id — so this parser handles it too.
+    The `ClaudeProvider` delegates here (single source of truth); non-transcript
+    runtimes (Kilo) implement their own detection in `providers/`.
     """
     if not transcript_path or not os.path.isfile(transcript_path):
         return None
@@ -109,14 +115,25 @@ def format_task_start_banner(
       `tausik config set model_profile <slug>`.
     """
     cfg = config if config is not None else _load_config_safe()
-    s = suggest_model(complexity, phase, config=cfg)
-    rec_id = s["model"]
-    rec_display = s["display"]
     if active_model is None:
         path = transcript_path if transcript_path is not None else _auto_find_transcript()
         active_model = read_active_model_from_transcript(path)
-    rec_tier = _model_tier(rec_id)
-    active_tier = _model_tier(active_model)
+    # Recommend WITHIN the active model's vendor family (e.g. on z.ai GLM, suggest
+    # a GLM model — not Claude). Falls back to config default_family, then claude.
+    families = model_profiles.load_families(cfg)
+    family = model_profiles.vendor_of(active_model, families) if active_model else None
+    if family is None:
+        family = model_profiles.default_family(cfg)
+    s = suggest_model(complexity, phase, config=cfg, family=family)
+    rec_id = s["model"]
+    rec_display = s["display"]
+    rec_tier = _model_tier(rec_id, families)
+    active_tier = _model_tier(active_model, families)
+    # Same model resolved for recommendation and active → unambiguous match,
+    # regardless of rank arithmetic (one model can fill several ranks in a family).
+    same_model = bool(active_model) and _normalize_model_id(active_model) == _normalize_model_id(
+        rec_id
+    )
     line_recommended = (
         f"  recommended: {rec_display} ({rec_id}) — {complexity or 'no complexity set'}"
     )
@@ -129,6 +146,9 @@ def format_task_start_banner(
     if not active_model:
         line_active = "  active:      unknown (no transcript readable)"
         verdict = "  ⓘ active model unknown — recommendation only"
+    elif same_model:
+        line_active = f"  active:      {active_model}"
+        verdict = "  ✓ model match"
     elif active_tier is None:
         # Present but unrecognised family — never a false warning.
         line_active = f"  active:      {active_model}"

@@ -33,6 +33,7 @@ Make sure the following are installed on your computer:
    - **Claude Code** — VSCode extension or CLI: `npm install -g @anthropic-ai/claude-code`
    - **Cursor** — download from [cursor.com](https://cursor.com)
    - **Qwen Code (GigaCode)** — install from [qwen.ai/qwencode](https://qwen.ai/qwencode)
+   - **Kilo Code** — VSCode addon; pairs with z.ai GLM models (see [Kilo + z.ai](kilo-zai.md))
    - **Windsurf** — download from [windsurf.com](https://windsurf.com)
    - You'll need an API key or subscription for your chosen IDE
 
