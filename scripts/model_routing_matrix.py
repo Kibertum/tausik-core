@@ -11,14 +11,10 @@ via the IDE model picker. This module only produces a *recommendation*.
 
 from __future__ import annotations
 
-import re
-
 import model_profiles
 
 
 # --- Tier family detection (version-agnostic) --------------------------------
-
-_BRACKET_SUFFIX = re.compile(r"\[[^\[\]]+\]\s*$")
 
 # Tier ordering for the mismatch verdict. Higher = more capable (and costly).
 # Verdicts compare by FAMILY token (haiku/sonnet/opus/fable), never the exact
@@ -27,12 +23,10 @@ _BRACKET_SUFFIX = re.compile(r"\[[^\[\]]+\]\s*$")
 _TIER_ORDER: dict[str, int] = {"haiku": 0, "sonnet": 1, "opus": 2, "fable": 3}
 
 
-def _normalize_model_id(raw: str | None) -> str:
-    """Strip 1M-context [Nm] (and similar) suffixes for comparison."""
-    if not raw:
-        return ""
-    s = str(raw).strip().lower()
-    return _BRACKET_SUFFIX.sub("", s).strip()
+# Single source of truth for id normalization lives in model_profiles. Alias
+# keeps the historical private name used across this module and re-exported by
+# model_routing (lowercase + strip a trailing ``[Nm]`` context-window suffix).
+_normalize_model_id = model_profiles.normalize_model_id
 
 
 def _model_family(model_id: str | None) -> str | None:
