@@ -26,6 +26,20 @@ def test_outside_project_stays_absolute():
     assert "${workspaceFolder}" not in out
 
 
+def test_bare_executable_not_portablized():
+    # Regression (review HIGH): a bare 'python'/'py' is a PATH lookup, not a file
+    # path — must stay unchanged even when CWD == project_dir on the same drive
+    # (where relpath would otherwise yield 'python' → '${var}/python').
+    proj = os.getcwd()
+    assert portable_path("python", proj, "${workspaceFolder}") == "python"
+    assert portable_path("py", proj, "${CLAUDE_PROJECT_DIR:-.}") == "py"
+
+
+def test_project_root_itself_maps_to_var():
+    proj = os.path.normpath("/work/proj")
+    assert portable_path(proj, proj, "${workspaceFolder}") == "${workspaceFolder}"
+
+
 def test_no_backslashes_in_output():
     proj = os.path.normpath("/work/proj")
     inside = os.path.join(proj, "scripts", "hooks", "x.py")

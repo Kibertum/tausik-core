@@ -147,9 +147,12 @@ def _rag_summary(project_dir: str) -> str:
             row = conn.execute("SELECT COUNT(*) FROM rag_chunks").fetchone()
             chunks = int(row[0]) if row else 0
     except sqlite3.OperationalError as exc:
-        # Schema mismatch (e.g. table missing) is a real bug — surface it
-        # instead of hiding it behind the generic 'db unreadable' message.
-        return f"RAG: schema error ({exc})."
+        # A missing table is a real schema bug (issue #2) — surface it. Other
+        # OperationalErrors (e.g. "unable to open database file") are
+        # infrastructure problems, not schema drift — keep the generic message.
+        if "no such table" in str(exc).lower():
+            return f"RAG: schema error ({exc})."
+        return "RAG: status unknown (db unreadable)."
     except Exception:  # noqa: BLE001 — best-effort: a hook must never break the tool call it guards
         return "RAG: status unknown (db unreadable)."
     # Always kick off an incremental reindex in the background so the index

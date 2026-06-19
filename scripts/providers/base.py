@@ -16,7 +16,7 @@ class Provider(ABC):
 
     @abstractmethod
     def name(self) -> str:
-        """Lowercase provider slug (e.g. 'claude', 'kilo', 'zai')."""
+        """Lowercase provider slug (e.g. 'claude', 'kilo', 'qwen')."""
         ...
 
     @abstractmethod

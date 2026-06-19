@@ -61,11 +61,10 @@ def test_kilo_reads_config_file(monkeypatch, tmp_path):
 
 def test_kilo_unknown_returns_none(monkeypatch):
     monkeypatch.delenv("KILO_MODEL", raising=False)
-    monkeypatch.delenv("KILO_CONFIG", raising=False)
-    # No env, no config file on a temp cwd → unknown.
     k = providers.get("kilo")
-    # _find_kilo_config may still hit a real ~/.config; only assert it never raises.
-    assert k.get_active_model() is None or isinstance(k.get_active_model(), str)
+    # Stub config discovery so the real ~/.config/kilo can't make this flaky.
+    monkeypatch.setattr(k, "_find_kilo_config", lambda: None)
+    assert k.get_active_model() is None
 
 
 def test_reset_repopulates():

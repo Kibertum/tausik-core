@@ -155,7 +155,11 @@ def format_task_start_banner(
         verdict = f"  ⓘ active model '{active_model}' unrecognized — recommendation only"
     else:
         line_active = f"  active:      {active_model}"
-        if rec_tier is None or active_tier == rec_tier:
+        if rec_tier is None:
+            # Recommended id isn't in any known family (e.g. a custom config
+            # override) — we can't compare tiers, so don't claim a match.
+            verdict = f"  ⓘ recommended {rec_display} tier unknown — recommendation only"
+        elif active_tier == rec_tier:
             verdict = "  ✓ model match"
         elif active_tier > rec_tier:
             # Higher tier than needed: quality surplus, not a defect. Nudge

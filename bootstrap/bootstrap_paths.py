@@ -31,6 +31,12 @@ def portable_path(abs_path: str, project_dir: str, workspace_var: str) -> str:
     Otherwise return the absolute, forward-slashed path unchanged. Never raises:
     a cross-drive path (relpath ValueError on Windows) falls back to absolute.
     """
+    # A bare executable name (e.g. "python", "py") is a PATH lookup, not a file
+    # path — never rewrite it. Without this guard, os.path.relpath treats it as
+    # CWD-relative and, when CWD == project_dir, emits "${var}/python" (a broken
+    # interpreter path). Any real in-project path passed here is always absolute.
+    if not os.path.isabs(abs_path):
+        return _fwd(abs_path)
     abs_norm = os.path.normpath(abs_path)
     proj_norm = os.path.normpath(project_dir)
     try:
@@ -38,6 +44,8 @@ def portable_path(abs_path: str, project_dir: str, workspace_var: str) -> str:
     except ValueError:
         # Different drive (Windows) → not inside the project.
         return _fwd(abs_norm)
+    if rel == os.curdir:
+        return workspace_var  # abs_path IS the project root
     if rel == os.pardir or rel.startswith(os.pardir + os.sep) or os.path.isabs(rel):
         return _fwd(abs_norm)  # outside the project tree
     return workspace_var + "/" + _fwd(rel)
