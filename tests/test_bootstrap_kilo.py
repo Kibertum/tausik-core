@@ -76,6 +76,35 @@ def test_in_project_server_is_rename_proof(tmp_path):
     assert cmd[3] == "${workspaceFolder}"
 
 
+def test_in_project_venv_python_is_portable(tmp_path):
+    # Regression (dogfood): an in-project venv python must be ${workspaceFolder}-
+    # relative, not absolute — else a folder rename breaks the interpreter path.
+    project = tmp_path / "proj"
+    ide_dir = project / ".kilo"
+    (ide_dir / "mcp" / "project").mkdir(parents=True)
+    (ide_dir / "mcp" / "project" / "server.py").write_text("# x\n", encoding="utf-8")
+    venv_py = project / ".tausik" / "venv" / "Scripts" / "python.exe"
+    venv_py.parent.mkdir(parents=True)
+    venv_py.write_text("", encoding="utf-8")
+    bk.generate_kilo_config(str(project), str(ide_dir), str(venv_py), _make_lib(tmp_path))
+    cmd = json.loads((ide_dir / "kilo.jsonc").read_text(encoding="utf-8"))["mcp"]["tausik-project"][
+        "command"
+    ]
+    assert cmd[0] == "${workspaceFolder}/.tausik/venv/Scripts/python.exe"
+    assert str(project).replace("\\", "/") not in json.dumps(cmd)
+
+
+def test_bare_python_stays_bare(tmp_path):
+    # No venv → 'python' on PATH must not be rewritten into a workspace path.
+    project = tmp_path / "proj"
+    project.mkdir()
+    bk.generate_kilo_config(str(project), str(project / ".kilo"), "python", _make_lib(tmp_path))
+    cmd = json.loads((project / ".kilo" / "kilo.jsonc").read_text(encoding="utf-8"))["mcp"][
+        "tausik-project"
+    ]["command"]
+    assert cmd[0] == "python"
+
+
 def test_external_lib_server_stays_absolute(tmp_path):
     # A server resolved from an external lib (outside the project) keeps its
     # absolute path — a project rename doesn't move it. No ${workspaceFolder}.

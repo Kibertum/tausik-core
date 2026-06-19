@@ -39,11 +39,6 @@ _DEFAULT_CONFIG_PATHS = (
 )
 
 
-def _p(path: str) -> str:
-    """Forward-slash a path for JSON portability (Windows-safe)."""
-    return path.replace("\\", "/")
-
-
 def _portable_path(abs_path: str, project_dir: str) -> str:
     """Kilo expands ``${workspaceFolder}`` at launch — rename-proof for in-project
     paths. Thin wrapper over the shared helper (see bootstrap_paths)."""
@@ -82,7 +77,7 @@ def _build_mcp_servers(
         out[name] = {
             "type": "local",
             "command": [
-                _p(python_exe),
+                _portable_path(python_exe, project_dir),
                 _portable_path(server, project_dir),
                 "--project",
                 "${workspaceFolder}",
