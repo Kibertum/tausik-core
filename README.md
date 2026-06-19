@@ -129,7 +129,7 @@ Those are **suggestions** — text the agent reads and is free to ignore the mom
 - **Verifiable trust** — ed25519 signed verification receipts, offline-checkable, with supply-chain signing for skills and stacks.
 - **Project memory** — SQLite + FTS5 store of decisions, patterns, conventions and dead ends, re-injected every session.
 - **Real-time enforcement** — hooks for the no-code-without-a-task gate, a bash firewall, a single-use push ticket, and auto-format.
-- **Metrics & routing** — throughput, first-pass success, defect-escape and lead-time tracked automatically; per-task cost/token budgets; complexity-aware model routing.
+- **Metrics & routing** — throughput, first-pass success, defect-escape and lead-time tracked automatically; per-task cost/token budgets; complexity-aware model routing across vendor families (Claude and [z.ai GLM](docs/en/kilo-zai.md), data-driven, no code change).
 
 <details>
 <summary>Raw counts</summary>
@@ -152,11 +152,14 @@ Multi-IDE by design, but we're honest about what's validated end-to-end.
 |---|---|---|---|---|
 | **Claude Code** | 124 | 13 core + opt-in | 21 (full) | First-class |
 | **Qwen Code** | 124 | 13 core + opt-in | 21 (parity with Claude) | First-class |
+| **Kilo Code** (+ [z.ai GLM](docs/en/kilo-zai.md)) | 124 | 13 core + opt-in | — (gates at task start/done) | First-class via MCP |
 | **Cursor** | 124 | 13 core + opt-in | — (gates at task start/done) | Supported via MCP |
 | VSCode + Claude Extension | 124 | 13 core + opt-in | 21 | Tested E2E |
 | Windsurf / Codex-style | MCP + rules | host-dependent | host-specific | Expected / manual |
 
-Hooks — the real-time rails (no code without a task, bash firewall, push gate) — run in **Claude Code and Qwen Code**. Cursor, Windsurf and other MCP hosts get the same 124 tools and skills, with quality gates enforced at `task start` and `task done`.
+Hooks — the real-time rails (no code without a task, bash firewall, push gate) — run in **Claude Code and Qwen Code**. Kilo, Cursor, Windsurf and other MCP hosts get the same 124 tools and skills, with quality gates enforced at `task start` and `task done`.
+
+**Kilo Code + z.ai (GLM):** bootstrap with `--ide kilo` and TAUSIK runs as a first-class MCP host driven by GLM models — model routing recommends within the active model's family (a `glm-*` session gets GLM verdicts), all as data, no code change. See **[Kilo + z.ai →](docs/en/kilo-zai.md)**.
 
 ---
 
@@ -168,7 +171,7 @@ git submodule add https://github.com/Kibertum/tausik-core .tausik-lib
 python .tausik-lib/bootstrap/bootstrap.py --init
 ```
 
-Bootstrap auto-detects your stack and enables matching gates; the project name comes from the directory. Restart your IDE afterward so the MCP servers load.
+Bootstrap auto-detects your stack and enables matching gates; the project name comes from the directory. Restart your IDE afterward so the MCP servers load. Target a specific host with `--ide claude|cursor|qwen|kilo` (e.g. `--ide kilo` for [Kilo Code + z.ai GLM](docs/en/kilo-zai.md)).
 
 **[Full quick-start guide →](docs/en/quickstart.md)**
 
