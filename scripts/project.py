@@ -1,0 +1,170 @@
+#!/usr/bin/env python3
+"""TAUSIK CLI entry point -- parse args, dispatch to handlers."""
+
+from __future__ import annotations
+
+import os
+import sys
+
+# Add scripts dir to path for imports
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+if _script_dir not in sys.path:
+    sys.path.insert(0, _script_dir)
+
+
+def main() -> None:
+    from tausik_utils import fix_stdio_encoding, install_file_logging
+
+    fix_stdio_encoding()
+    install_file_logging()
+
+    from project_cli import (
+        cmd_aidd,
+        cmd_decide,
+        cmd_decisions,
+        cmd_epic,
+        cmd_init,
+        cmd_roadmap,
+        cmd_session,
+        cmd_status,
+        cmd_story,
+        cmd_task,
+        cmd_team,
+    )
+    from project_cli_extra import (
+        cmd_fts,
+        cmd_gates,
+        cmd_memory,
+        cmd_skill,
+        cmd_stack,
+        cmd_update_claudemd,
+    )
+    from project_cli_config import cmd_config
+    from project_cli_doctor import cmd_doctor
+    from project_cli_hygiene import cmd_hygiene
+    from project_cli_role import cmd_role
+    from project_cli_verify import cmd_verify
+    from project_cli_ops import (
+        cmd_audit,
+        cmd_brain,
+        cmd_dead_end,
+        cmd_doc,
+        cmd_explore,
+        cmd_hud,
+        cmd_metrics,
+        cmd_run,
+        cmd_search,
+        cmd_suggest_model,
+    )
+    from project_cli_events import cmd_events
+    from project_cli_specs import cmd_spec
+    from project_cli_adapts import cmd_adapt
+    from project_cli_drift import cmd_drift
+    from project_cli_renar import cmd_renar
+    from cli_push_ok import cmd_push_ok
+    from project_cli_key import cmd_key
+    from project_cli_receipt import cmd_receipt
+    from project_cli_serve import cmd_serve
+    from project_cli_snippet import cmd_snippet
+    from cmd_db import cmd_db
+    from project_cli_review import cmd_review
+    from project_config import get_service
+    from project_parser import build_parser
+    from tausik_utils import ServiceError
+
+    parser = build_parser()
+    args = parser.parse_args()
+
+    if not args.command:
+        parser.print_help()
+        sys.exit(1)
+
+    dispatch = {
+        "init": cmd_init,
+        "aidd": cmd_aidd,
+        "status": cmd_status,
+        "epic": cmd_epic,
+        "story": cmd_story,
+        "task": cmd_task,
+        "session": cmd_session,
+        "decide": cmd_decide,
+        "decisions": cmd_decisions,
+        "memory": cmd_memory,
+        "gates": cmd_gates,
+        "verify": cmd_verify,
+        "roadmap": cmd_roadmap,
+        "search": cmd_search,
+        "metrics": cmd_metrics,
+        "hud": cmd_hud,
+        "suggest-model": cmd_suggest_model,
+        "team": cmd_team,
+        "update-claudemd": cmd_update_claudemd,
+        "events": cmd_events,
+        "spec": cmd_spec,
+        "adapt": cmd_adapt,
+        "drift": cmd_drift,
+        "renar": cmd_renar,
+        "fts": cmd_fts,
+        "skill": cmd_skill,
+        "stack": cmd_stack,
+        "role": cmd_role,
+        "doctor": cmd_doctor,
+        "dead-end": cmd_dead_end,
+        "explore": cmd_explore,
+        "audit": cmd_audit,
+        "brain": cmd_brain,
+        "doc": cmd_doc,
+        "run": cmd_run,
+        "review": cmd_review,
+        "hygiene": cmd_hygiene,
+        "config": cmd_config,
+        "db": cmd_db,
+        "push-ok": cmd_push_ok,
+        "key": cmd_key,
+        "receipt": cmd_receipt,
+        "serve": cmd_serve,
+        "snippet": cmd_snippet,
+    }
+
+    if args.command == "doctor":
+        from project_cli_doctor import _capture_db_state
+
+        _capture_db_state()
+    fn = dispatch.get(args.command)
+    if not fn:
+        # Suggest similar commands
+        from difflib import get_close_matches
+
+        matches = get_close_matches(args.command, dispatch.keys(), n=3, cutoff=0.5)
+        if matches:
+            print(
+                f"Unknown command '{args.command}'. Did you mean: {', '.join(matches)}?",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"Unknown command '{args.command}'. Available: {', '.join(sorted(dispatch.keys()))}",
+                file=sys.stderr,
+            )
+        sys.exit(1)
+
+    from skill_manager import SkillManagerError
+
+    svc = get_service()
+    try:
+        fn(svc, args)
+    except (ServiceError, SkillManagerError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as e:
+        print(f"Validation error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        print("\nInterrupted.", file=sys.stderr)
+        sys.exit(130)
+    finally:
+        svc.be.close()
+
+
+if __name__ == "__main__":
+    main()

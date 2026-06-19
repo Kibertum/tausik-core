@@ -1,0 +1,19 @@
+{
+  "name": "kotlin",
+  "version": "1",
+  "detect": [
+    { "file": "build.gradle.kts", "type": "exact" },
+    { "file": "*.kt", "type": "glob" }
+  ],
+  "extensions": [".kt", ".kts"],
+  "gates": {
+    "ktlint": {
+      "enabled": false,
+      "severity": "warn",
+      "trigger": ["commit"],
+      "command": "ktlint {files} 2>&1 | head -20",
+      "description": "Kotlin code style check",
+      "stacks": ["kotlin"]
+    }
+  }
+}
