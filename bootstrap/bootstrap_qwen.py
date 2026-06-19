@@ -40,7 +40,10 @@ def generate_settings_qwen(
     abs_hooks = _p(os.path.abspath(hooks_dir))
 
     def _hook_cmd(script: str, suffix: str = "") -> str:
-        return f"python {abs_hooks}/{script}{suffix}"
+        # -X utf8 forces UTF-8 stdio for every hook (they run directly, not via
+        # the CLI wrapper, so they don't inherit its PYTHONUTF8). One injection
+        # point covers all hooks — no per-file fix_stdio_encoding() needed.
+        return f"python -X utf8 {abs_hooks}/{script}{suffix}"
 
     path = os.path.join(target_dir, "settings.json")
 

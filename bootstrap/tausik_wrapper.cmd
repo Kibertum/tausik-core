@@ -6,9 +6,15 @@ setlocal
 set "SCRIPT_DIR=%~dp0"
 set "PROJECT_DIR=%SCRIPT_DIR%.."
 
-REM Find scripts dir (claude / cursor / qwen / windsurf / codex)
+REM Force UTF-8 stdio so Unicode output (Cyrillic, checkmarks) never hits a
+REM cp1251/cp1252 console encoder and raises UnicodeEncodeError on Windows.
+set "PYTHONUTF8=1"
+
+REM Find scripts dir. IDE list injected from bootstrap_config.IDE_DIRS
+REM (single source of truth) by install_cli_wrapper.
+set "IDE_LIST=__IDE_LIST__"
 set "SCRIPTS="
-for %%I in (claude cursor qwen windsurf codex) do (
+for %%I in (%IDE_LIST%) do (
     if not defined SCRIPTS if exist "%PROJECT_DIR%\.%%I\scripts" set "SCRIPTS=%PROJECT_DIR%\.%%I\scripts"
 )
 REM goto (not an inline block) so literal parens in the error text can't
@@ -26,5 +32,5 @@ if exist "%SCRIPT_DIR%venv\Scripts\python.exe" (
 exit /b %ERRORLEVEL%
 
 :noscripts
-echo Error: no scripts dir found ^(.claude/.cursor/.qwen/.windsurf/.codex^) 1>&2
+echo Error: no scripts dir found ^(none of: %IDE_LIST% under .^<ide^>\scripts^) 1>&2
 exit /b 1

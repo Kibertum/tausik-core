@@ -70,6 +70,27 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "ide": "claude",
 }
 
+# Single source of truth for supported IDEs → their config dir.
+# Consumed by bootstrap.get_ide_target, `--ide all`, and the CLI wrapper
+# template (injected at copy time by install_cli_wrapper). Do NOT hardcode
+# this list anywhere else — add a new IDE here and it propagates everywhere.
+IDE_DIRS: dict[str, str] = {
+    "claude": ".claude",
+    "cursor": ".cursor",
+    "windsurf": ".windsurf",
+    "codex": ".codex",
+    "qwen": ".qwen",
+    "kilo": ".kilo",
+}
+
+# IDEs that have a full scaffold branch in bootstrap (generate_*_config).
+# These are the only individually-selectable `--ide` targets and the set
+# that `--ide all` expands to. windsurf/codex live in IDE_DIRS (so the
+# wrapper can discover scripts that land there) but have no generator yet,
+# so they are intentionally excluded here. Add an IDE once its scaffold
+# branch exists in bootstrap.run_for_ide.
+SCAFFOLD_IDES: list[str] = ["claude", "cursor", "qwen", "kilo"]
+
 # Hardcoded fallback signatures — used when stack_registry can't be loaded
 # (very early bootstrap, missing stacks/ dir). The canonical source is
 # `<repo>/stacks/<name>/stack.json` consumed via `stack_registry`.

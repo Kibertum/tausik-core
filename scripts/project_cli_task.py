@@ -198,7 +198,11 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
     elif c == "unclaim":
         print(svc.task_unclaim(args.slug))
     elif c == "quick":
-        print(svc.task_quick(args.title, args.goal, args.role, args.stack))
+        print(
+            svc.task_quick(
+                args.title, args.goal, args.role, args.stack, getattr(args, "acceptance", None)
+            )
+        )
     elif c == "next":
         next_task = svc.task_next(args.agent)
         if next_task:

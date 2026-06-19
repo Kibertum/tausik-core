@@ -1,5 +1,7 @@
 """Tests for IDE abstraction layer (ide_utils.py)."""
 
+import os
+
 import pytest
 from ide_utils import (
     DEFAULT_IDE,
@@ -64,6 +66,8 @@ class TestDetectIde:
             pytest.param(".cursor", "cursor", id="project_dir_detection_cursor"),
             pytest.param(".windsurf", "windsurf", id="project_dir_detection_windsurf"),
             pytest.param(".codex", "codex", id="project_dir_detection_codex"),
+            pytest.param(".kilo", "kilo", id="project_dir_detection_kilo"),
+            pytest.param(".qwen", "qwen", id="project_dir_detection_qwen"),
         ],
     )
     def test_project_dir_detection(self, tmp_path, ide_dir, expected):
@@ -161,3 +165,34 @@ class TestRegistry:
 
     def test_default_ide_is_supported(self):
         assert DEFAULT_IDE in SUPPORTED_IDES
+
+
+class TestKiloQwen:
+    """v156 P5: kilo/qwen are first-class in the runtime IDE layer."""
+
+    def test_kilo_and_qwen_registered(self):
+        assert "kilo" in SUPPORTED_IDES
+        assert "qwen" in SUPPORTED_IDES
+
+    def test_kilo_registry_values(self):
+        cfg = get_ide_config("kilo")
+        assert cfg["config_dir"] == ".kilo"
+        assert cfg["rules_file"] == "AGENTS.md"
+
+    def test_qwen_registry_values(self):
+        cfg = get_ide_config("qwen")
+        assert cfg["config_dir"] == ".qwen"
+        assert cfg["rules_file"] == "QWEN.md"
+
+    def test_kilo_only_install_resolves_to_kilo_not_claude(self, tmp_path):
+        """The core P5 bug: a Kilo-only install must resolve skills to .kilo."""
+        (tmp_path / ".kilo").mkdir()
+        ide = detect_ide(str(tmp_path))
+        assert ide == "kilo"
+        assert get_skills_dir(str(tmp_path), ide).endswith(os.path.join(".kilo", "skills"))
+        assert get_ide_dir(str(tmp_path), ide).endswith(".kilo")
+
+    @pytest.mark.parametrize("ide", ["kilo", "qwen"])
+    def test_explicit_tausik_ide_override(self, monkeypatch, ide):
+        monkeypatch.setenv("TAUSIK_IDE", ide)
+        assert detect_ide() == ide

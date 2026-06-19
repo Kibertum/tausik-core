@@ -221,16 +221,29 @@ def install_requirements(tausik_dir: str, lib_dir: str) -> bool:
 
 
 def install_cli_wrapper(bootstrap_dir: str, tausik_dir: str) -> None:
-    """Copy tausik CLI wrapper scripts (bash + cmd) into .tausik/ and make them executable."""
-    import shutil
+    """Render tausik CLI wrapper scripts (bash + cmd) into .tausik/ and make them executable.
+
+    The wrapper's IDE-discovery loop is injected from bootstrap_config.IDE_DIRS
+    (single source of truth) by substituting the ``__IDE_LIST__`` placeholder —
+    add a new IDE to IDE_DIRS and the wrapper picks it up on next bootstrap.
+    """
     import stat
 
+    from bootstrap_config import IDE_DIRS
+
+    ide_list = " ".join(IDE_DIRS)
     for wrapper in ("tausik_wrapper.sh", "tausik_wrapper.cmd"):
         src = os.path.join(bootstrap_dir, wrapper)
         if not os.path.exists(src):
             continue
+        with open(src, "r", encoding="utf-8") as f:
+            content = f.read()
+        content = content.replace("__IDE_LIST__", ide_list)
         ext = os.path.splitext(wrapper)[1]
         dst = os.path.join(tausik_dir, f"tausik{ext}" if ext == ".cmd" else "tausik")
-        shutil.copy2(src, dst)
+        # Normalize line endings per platform: .sh must stay LF even on Windows.
+        newline = "\r\n" if ext == ".cmd" else "\n"
+        with open(dst, "w", encoding="utf-8", newline=newline) as f:
+            f.write(content)
         if ext != ".cmd":
             os.chmod(dst, os.stat(dst).st_mode | stat.S_IEXEC)

@@ -14,6 +14,7 @@ import sys
 from typing import Any, Callable
 
 from bootstrap_config import (
+    SCAFFOLD_IDES,
     TAUSIK_MODEL_PROFILE_ENV,
     save_tausik_config,
 )
@@ -30,7 +31,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--ide",
         default="claude",
-        choices=["claude", "cursor", "qwen", "kilo", "all"],
+        choices=[*SCAFFOLD_IDES, "all"],
         help="Target IDE (default: claude)",
     )
     parser.add_argument(

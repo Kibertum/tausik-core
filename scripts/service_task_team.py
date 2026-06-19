@@ -22,8 +22,16 @@ class TaskTeamMixin:
         goal: str | None = None,
         role: str | None = None,
         stack: str | None = None,
+        acceptance: str | None = None,
     ) -> str:
-        """Quick-create a task from minimal input (auto-slug, no story required)."""
+        """Quick-create a task from minimal input (auto-slug, no story required).
+
+        `acceptance` is optional. When given, it is set as the task's
+        acceptance_criteria via task_update — so a single command can produce
+        a QG-0-ready task (goal + AC). QG-0 itself is unchanged: omitting
+        `acceptance` (or passing blank) leaves AC empty and task_start still
+        demands goal + acceptance_criteria.
+        """
         from tausik_utils import slugify
 
         slug = slugify(title)
@@ -33,6 +41,8 @@ class TaskTeamMixin:
         msg: str = self.task_add(  # type: ignore[attr-defined]
             None, slug, title, stack=stack, goal=goal, role=role
         )
+        if acceptance and acceptance.strip():
+            self.task_update(slug, acceptance_criteria=acceptance)  # type: ignore[attr-defined]
         return msg
 
     def task_next(self, agent_id: str | None = None) -> dict[str, Any] | None:

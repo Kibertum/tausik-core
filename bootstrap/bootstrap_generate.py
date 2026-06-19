@@ -41,7 +41,10 @@ def generate_settings_claude(target_dir: str, project_dir: str, lib_dir: str | N
     rel_hooks = portable_path(os.path.abspath(hooks_dir), project_dir, _CLAUDE_HOOK_VAR)
 
     def _hook_cmd(script: str, suffix: str = "") -> str:
-        return f"python {rel_hooks}/{script}{suffix}"
+        # -X utf8 forces UTF-8 stdio for every hook (they run directly, not via
+        # the CLI wrapper, so they don't inherit its PYTHONUTF8). One injection
+        # point covers all hooks — no per-file fix_stdio_encoding() needed.
+        return f"python -X utf8 {rel_hooks}/{script}{suffix}"
 
     settings = {
         "permissions": {

@@ -253,6 +253,38 @@ class TestTaskLifecycle:
         slugs = [t["slug"] for t in tasks]
         assert slugs[0] != slugs[1]
 
+    def test_task_quick_with_acceptance_sets_ac(self, svc):
+        """v156 P2: acceptance is persisted as the task's acceptance_criteria."""
+        ac = "1. login works 2. negative: 400 on bad creds"
+        svc.task_quick("Fix login", goal="Fix it", acceptance=ac)
+        task = svc.be.task_get(svc.task_list()[0]["slug"])
+        assert task["acceptance_criteria"] == ac
+
+    def test_task_quick_blank_acceptance_leaves_ac_empty(self, svc):
+        """v156 P2 negative: blank/whitespace acceptance is ignored (QG-0 unchanged)."""
+        svc.task_quick("Fix login", goal="Fix it", acceptance="   ")
+        task = svc.be.task_get(svc.task_list()[0]["slug"])
+        assert not (task.get("acceptance_criteria") or "").strip()
+
+    def test_task_quick_without_acceptance_unchanged(self, svc):
+        """v156 P2: omitting acceptance keeps legacy behavior — AC stays empty."""
+        svc.task_quick("Fix login", goal="Fix it")
+        task = svc.be.task_get(svc.task_list()[0]["slug"])
+        assert not (task.get("acceptance_criteria") or "").strip()
+
+    def test_task_quick_acceptance_enables_qg0_start(self, svc):
+        """v156 P2: goal + acceptance via task_quick makes the task QG-0-ready
+        (task_start succeeds without a separate task_update)."""
+        svc.task_quick(
+            "Fix login",
+            goal="Fix the login flow",
+            acceptance="1. valid creds log in 2. negative: invalid creds rejected",
+        )
+        slug = svc.task_list()[0]["slug"]
+        # Should not raise ServiceError for missing goal/AC.
+        msg = svc.task_start(slug)
+        assert "started" in msg.lower()
+
     # --- v2.0: task_next ---
 
     def test_task_next_returns_planning(self, svc):

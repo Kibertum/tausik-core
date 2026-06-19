@@ -13,6 +13,57 @@
 
 _Пока пусто — следующие изменения попадают сюда._
 
+## [1.5.6] — 2026-06-19
+
+Fine-tune релиз по итогам боевого теста в Kilo Code + z.ai (GLM). Структурный
+корень — три рассинхронизированных списка IDE; теперь это две именованные
+константы.
+
+### Исправлено
+
+- **Kilo-only установка ломала CLI «no scripts dir found».** Цикл поиска scripts
+  во враппере хардкодил `claude cursor qwen windsurf codex` — без `kilo`, поэтому
+  `bootstrap --ide kilo` давал `.tausik/tausik`, не находящий `.kilo/scripts`.
+  Теперь список IDE **инжектится из `bootstrap_config.IDE_DIRS`** (единый источник
+  правды) в шаблон враппера при установке через плейсхолдер `__IDE_LIST__`;
+  добавь IDE в `IDE_DIRS` — и его подхватят все потребители. `--ide all` и
+  argparse-choices `--ide` теперь выводятся из соседней константы `SCAFFOLD_IDES`.
+  (P0/P4)
+- **Windows UnicodeEncodeError при выводе кириллицы / ✓.** Многослойная UTF-8
+  защита: враппер экспортирует `PYTHONUTF8=1`; каждый хук запускается через
+  `python -X utf8` (одна точка инжекта в билдере команд хуков — покрывает все
+  хуки); standalone entry points — `bootstrap.py` и все MCP-серверы — зовут
+  `fix_stdio_encoding()` на старте. Нюанс: `PYTHONUTF8`/`-X utf8` чинят locale
+  default, но НЕ переопределяют явный `PYTHONIOENCODING`; runtime-reconfigure —
+  переопределяет. (P1)
+- **Skill/rules-пути резолвились в `.claude` под Kilo/Qwen.** Рантайм-слой IDE
+  (`ide_utils`) знал только claude/cursor/windsurf/codex, поэтому при Kilo-only
+  установке `detect_ide()` падал в claude, а skill install / SessionStart
+  profile-rebuild целились в `.claude` вместо `.kilo`. Теперь `qwen`
+  (`.qwen`/`QWEN.md`) и `kilo` (`.kilo`/`AGENTS.md`) зарегистрированы и
+  детектируются по их project-каталогам + `TAUSIK_IDE`. (Env-var авто-детект для
+  kilo/qwen намеренно отложен до проверки на живом билде.) (P5)
+
+### Добавлено
+
+- **`task quick --ac/--acceptance`.** Быстрое создание задачи сразу с acceptance
+  criteria одной командой — задача готова к QG-0 (goal + AC) без отдельного
+  `task update`. Пустой/пробельный AC игнорируется — QG-0 не ослаблен. Доступно и
+  в MCP-инструменте `tausik_task_quick`. (P2)
+- **`tausik doctor` валидирует Kilo MCP-конфиг.** При наличии установки
+  `.kilo/`/`.kilocode/` doctor проверяет, что `kilo.jsonc` / `mcp.json` парсятся
+  (JSONC допускается), содержат `mcp`-станзу `tausik-project` с массивом
+  `command`, и что указанный `server.py` резолвится (`${workspaceFolder}`
+  разворачивается). Каждая находка подсказывает пере-bootstrap и перезапуск Kilo.
+  Для не-Kilo проектов — тихо пропускается. (P3)
+
+### Внутреннее
+
+- Guard-тесты фиксируют инвариант единого источника IDE (`SCAFFOLD_IDES ⊆
+  IDE_DIRS`, choices и `--ide all` выводятся из констант, нет хардкод-литерала
+  списка IDE в `bootstrap/`) и Unicode-stdio фиксы (враппер, хуки, MCP-серверы,
+  bootstrap).
+
 ## [1.5.5] — 2026-06-19
 
 ### Добавлено — полноценная поддержка Kilo Code + z.ai (GLM)

@@ -136,6 +136,24 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
         _print_warn("MCP server (brain)", "missing — bootstrap may have skipped it")
         warnings += 1
 
+    # Kilo MCP config — only fires for Kilo installs (.kilo/.kilocode present).
+    # Silent for non-Kilo projects so it adds no noise to the common path.
+    try:
+        from service_doctor_kilo import check_kilo_config
+
+        for severity, label, detail in check_kilo_config(project_dir):
+            if severity == "fail":
+                _print_fail(label, detail)
+                failures += 1
+            elif severity == "warn":
+                _print_warn(label, detail)
+                warnings += 1
+            else:
+                _print_ok(label, detail)
+    except Exception as e:  # noqa: BLE001 — best-effort: a Kilo-check bug must not crash doctor
+        _print_warn("Kilo MCP config", f"could not validate: {e}")
+        warnings += 1
+
     skills_dir = os.path.join(project_dir, ".claude", "skills")
     if os.path.isdir(skills_dir):
         skills = [d for d in os.listdir(skills_dir) if os.path.isdir(os.path.join(skills_dir, d))]

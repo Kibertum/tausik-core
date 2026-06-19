@@ -31,6 +31,19 @@ IDE_REGISTRY: dict[str, dict[str, str]] = {
         "rules_file": "AGENTS.md",
         "skills_subdir": "skills",
     },
+    "qwen": {
+        "config_dir": ".qwen",
+        "rules_file": "QWEN.md",
+        "skills_subdir": "skills",
+    },
+    "kilo": {
+        # Kilo Code (VSCode addon + CLI). MCP config lands in .kilo/ (and the
+        # Cline-lineage .kilocode/); instructions are read from AGENTS.md, which
+        # bootstrap generates for every IDE.
+        "config_dir": ".kilo",
+        "rules_file": "AGENTS.md",
+        "skills_subdir": "skills",
+    },
 }
 
 DEFAULT_IDE = "claude"
@@ -42,11 +55,15 @@ def detect_ide(project_dir: str | None = None) -> str:
 
     Detection order:
     1. TAUSIK_IDE environment variable (explicit override)
-    2. CURSOR_* env vars -> cursor
-    3. WINDSURF_* env vars -> windsurf
-    4. .cursor/ dir exists in project -> cursor
-    5. .windsurf/ dir exists -> windsurf
-    6. Default -> claude
+    2. CURSOR_* / WINDSURF_* / CODEX_* env vars -> that IDE
+    3. Project-structure: first matching .{ide}/ dir among
+       cursor, windsurf, codex, kilo, qwen
+    4. Default -> claude
+
+    Note: kilo/qwen have no env-var branch yet — their launch-time env
+    signature is unverified pending a live build (v156 P3/P5). They are
+    still detected via TAUSIK_IDE and their .kilo/.qwen project dirs, which
+    is reliable for a bootstrapped install.
     """
     # Explicit override
     explicit = os.environ.get("TAUSIK_IDE", "").lower().strip()
@@ -65,9 +82,11 @@ def detect_ide(project_dir: str | None = None) -> str:
     if os.environ.get("CODEX_SANDBOX_DIR") or os.environ.get("OPENCODE_DIR"):
         return "codex"
 
-    # Project-structure detection
+    # Project-structure detection. kilo/qwen included so a Kilo-/Qwen-only
+    # install resolves skill/rules paths to .kilo/.qwen instead of falling
+    # back to .claude (v156 P5).
     if project_dir:
-        for ide_name in ("cursor", "windsurf", "codex"):
+        for ide_name in ("cursor", "windsurf", "codex", "kilo", "qwen"):
             config_dir = IDE_REGISTRY[ide_name]["config_dir"]
             if os.path.isdir(os.path.join(project_dir, config_dir)):
                 return ide_name
@@ -83,9 +102,7 @@ def get_ide_config(ide: str | None = None) -> dict[str, str]:
     if ide is None:
         ide = DEFAULT_IDE
     if ide not in IDE_REGISTRY:
-        raise ValueError(
-            f"Unknown IDE '{ide}', must be one of {sorted(SUPPORTED_IDES)}"
-        )
+        raise ValueError(f"Unknown IDE '{ide}', must be one of {sorted(SUPPORTED_IDES)}")
     return dict(IDE_REGISTRY[ide])
 
 

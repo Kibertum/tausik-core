@@ -11,6 +11,56 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 _Nothing yet — next changes land here._
 
+## [1.5.6] — 2026-06-19
+
+Fine-tune release from a live Kilo Code + z.ai (GLM) field test. The structural
+root was three drifted IDE lists; they are now two named constants.
+
+### Fixed
+
+- **Kilo-only installs got "no scripts dir found" from the CLI.** The wrapper's
+  IDE-discovery loop hardcoded `claude cursor qwen windsurf codex` — no `kilo` —
+  so `bootstrap --ide kilo` produced a `.tausik/tausik` that couldn't find
+  `.kilo/scripts`. The loop is now **injected from `bootstrap_config.IDE_DIRS`**
+  (the single source of truth) into the wrapper template at install time via an
+  `__IDE_LIST__` placeholder; add an IDE to `IDE_DIRS` and every consumer picks
+  it up. `--ide all` and the `--ide` argparse choices now derive from a sibling
+  `SCAFFOLD_IDES` constant. (P0/P4)
+- **Windows UnicodeEncodeError on Cyrillic / ✓ output.** Layered UTF-8 hardening:
+  the CLI wrapper exports `PYTHONUTF8=1`; every hook runs via `python -X utf8`
+  (one injection point in the hook-command builder, covering all hooks); and the
+  standalone entry points — `bootstrap.py` and all MCP servers — call
+  `fix_stdio_encoding()` at startup. Note: `PYTHONUTF8`/`-X utf8` fix the locale
+  default but do not override an explicit `PYTHONIOENCODING`; the runtime
+  reconfigure does. (P1)
+- **Skill/rules paths resolved to `.claude` under Kilo/Qwen.** The runtime IDE
+  layer (`ide_utils`) only knew claude/cursor/windsurf/codex, so under a
+  Kilo-only install `detect_ide()` fell back to claude and skill install /
+  SessionStart profile rebuild targeted `.claude` instead of `.kilo`. `qwen`
+  (`.qwen`/`QWEN.md`) and `kilo` (`.kilo`/`AGENTS.md`) are now registered and
+  detected via their project dirs + `TAUSIK_IDE`. (Env-var auto-detection for
+  kilo/qwen is intentionally deferred until verified on a live build.) (P5)
+
+### Added
+
+- **`task quick --ac/--acceptance`.** Quick-create a task with its acceptance
+  criteria in one command, so it is QG-0-ready (goal + AC) without a follow-up
+  `task update`. Blank/whitespace AC is ignored — QG-0 is unchanged. Exposed on
+  the `tausik_task_quick` MCP tool as well. (P2)
+- **`tausik doctor` validates the Kilo MCP config.** When a `.kilo/`/`.kilocode/`
+  install is present, doctor checks that `kilo.jsonc` / `mcp.json` parse (JSONC
+  tolerated), carry a `tausik-project` `mcp` stanza with a `command` array, and
+  that the referenced `server.py` resolves (`${workspaceFolder}` expanded). Each
+  finding tells you to re-bootstrap and restart Kilo. Silent for non-Kilo
+  projects. (P3)
+
+### Internal
+
+- Guard tests lock the IDE single-source invariant (`SCAFFOLD_IDES ⊆ IDE_DIRS`,
+  argparse choices and `--ide all` derive from the constants, no hardcoded IDE
+  list literal in `bootstrap/`) and the Unicode-stdio fixes (wrapper, hooks, MCP
+  servers, bootstrap).
+
 ## [1.5.5] — 2026-06-19
 
 ### Added — Kilo Code + z.ai (GLM) first-class support

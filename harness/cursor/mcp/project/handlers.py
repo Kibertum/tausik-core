@@ -76,7 +76,13 @@ def _do_task_add(svc: Any, args: dict) -> str:
 
 
 def _do_task_quick(svc: Any, args: dict) -> str:
-    return svc.task_quick(args["title"], args.get("goal"), args.get("role"), args.get("stack"))
+    return svc.task_quick(
+        args["title"],
+        args.get("goal"),
+        args.get("role"),
+        args.get("stack"),
+        args.get("acceptance"),
+    )
 
 
 def _do_task_next(svc: Any, args: dict) -> str:

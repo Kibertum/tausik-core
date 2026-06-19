@@ -22,6 +22,8 @@ from tausik_utils import tausik_config_path  # noqa: E402
 
 from bootstrap_config import (
     ALL_EXTENSION_SKILLS,
+    IDE_DIRS,
+    SCAFFOLD_IDES,
     detect_extension_skills,
     detect_stacks,
     is_brain_enabled,
@@ -80,14 +82,9 @@ def get_lib_commit(lib_dir: str) -> str | None:
         return None
 
 
-_IDE_DIRS = {
-    "claude": ".claude",
-    "cursor": ".cursor",
-    "windsurf": ".windsurf",
-    "codex": ".codex",
-    "qwen": ".qwen",
-    "kilo": ".kilo",
-}
+# Canonical list lives in bootstrap_config.IDE_DIRS (single source of truth).
+# Kept as a module-level alias for backward compatibility with existing callers.
+_IDE_DIRS = IDE_DIRS
 
 
 def get_ide_target(project_dir: str, ide: str) -> str:
@@ -201,10 +198,12 @@ def bootstrap_ide(
 
 
 def main() -> None:
-    if sys.platform == "win32":
-        for stream in (sys.stdout, sys.stderr):
-            if hasattr(stream, "reconfigure"):
-                stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+    # Single source of truth for UTF-8 stdio (Windows cp1251 crashes on Cyrillic
+    # output). bootstrap runs directly (not via the CLI wrapper) so it must
+    # self-protect — same guard every other entry point uses.
+    from tausik_utils import fix_stdio_encoding
+
+    fix_stdio_encoding()
 
     args = build_parser().parse_args()
 
@@ -251,7 +250,7 @@ def main() -> None:
 
     config["ide"] = args.ide
 
-    ides = ["claude", "cursor", "qwen", "kilo"] if args.ide == "all" else [args.ide]
+    ides = list(SCAFFOLD_IDES) if args.ide == "all" else [args.ide]
 
     try:
         env_profile_slug = parse_strict_model_profile_env()

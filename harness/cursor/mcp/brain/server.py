@@ -16,6 +16,20 @@ import traceback
 
 
 def main() -> None:
+    # UTF-8 stdio before any output — MCP servers launch directly (not via the
+    # CLI wrapper); a Windows cp1251 host crashes on Cyrillic paths/messages.
+    _scripts_dir = os.path.normpath(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scripts")
+    )
+    if os.path.isdir(_scripts_dir) and _scripts_dir not in sys.path:
+        sys.path.insert(0, _scripts_dir)
+    try:
+        from tausik_utils import fix_stdio_encoding
+
+        fix_stdio_encoding()
+    except Exception:  # noqa: BLE001 — never let stdio setup crash the server
+        pass
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--project", required=True, help="Project root directory")
     args = parser.parse_args()
@@ -72,9 +86,7 @@ def main() -> None:
 
     async def _run():
         async with stdio_server() as (read_stream, write_stream):
-            await server.run(
-                read_stream, write_stream, server.create_initialization_options()
-            )
+            await server.run(read_stream, write_stream, server.create_initialization_options())
 
     asyncio.run(_run())
 

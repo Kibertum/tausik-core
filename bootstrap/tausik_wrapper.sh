@@ -7,18 +7,24 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
-# Find scripts dir (claude / cursor / qwen / windsurf / codex)
+# Find scripts dir. IDE list injected from bootstrap_config.IDE_DIRS
+# (single source of truth) by install_cli_wrapper.
+IDE_LIST="__IDE_LIST__"
 SCRIPTS=""
-for _ide in claude cursor qwen windsurf codex; do
+for _ide in $IDE_LIST; do
     if [ -d "$PROJECT_DIR/.$_ide/scripts" ]; then
         SCRIPTS="$PROJECT_DIR/.$_ide/scripts"
         break
     fi
 done
 if [ -z "$SCRIPTS" ]; then
-    echo "Error: no scripts dir found (.claude/.cursor/.qwen/.windsurf/.codex /scripts)" >&2
+    echo "Error: no scripts dir found (none of: $IDE_LIST under .<ide>/scripts)" >&2
     exit 1
 fi
+
+# Force UTF-8 stdio so Unicode output (Cyrillic, ✓/→) never hits a
+# cp1251/cp1252 console encoder and raises UnicodeEncodeError on Windows.
+export PYTHONUTF8=1
 
 # Find Python: prefer .tausik/venv, fallback to system
 if [ -f "$SCRIPT_DIR/venv/bin/python" ]; then

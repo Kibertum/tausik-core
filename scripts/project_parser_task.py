@@ -222,6 +222,13 @@ def add_task(sub: argparse._SubParsersAction) -> None:
     tquick.add_argument("--goal", default=None)
     tquick.add_argument("--role", default=None)
     tquick.add_argument("--stack", default=None)
+    tquick.add_argument(
+        "--ac",
+        "--acceptance",
+        dest="acceptance",
+        default=None,
+        help="Acceptance criteria — sets the task's AC so it is QG-0-ready in one step",
+    )
 
     tnext = task_sub.add_parser("next", help="Pick next available task")
     tnext.add_argument("--agent", default=None, help="Agent ID to auto-claim")

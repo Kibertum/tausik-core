@@ -813,7 +813,7 @@ TOOLS = [
     },
     {
         "name": "tausik_task_quick",
-        "description": "Quick-create a standalone task with auto-generated slug. No story required. Provide title and optionally goal, role, stack",
+        "description": "Quick-create a standalone task with auto-generated slug. No story required. Provide title and optionally goal, role, stack, acceptance",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -833,6 +833,10 @@ TOOLS = [
                     "type": "string",
                     "description": "Technology stack",
                     "enum": _STACKS_ENUM,
+                },
+                "acceptance": {
+                    "type": "string",
+                    "description": "Acceptance criteria — sets the task's AC so it is QG-0-ready in one step (REQUIRED for QG-0 alongside goal)",
                 },
             },
             "required": ["title"],
