@@ -65,6 +65,6 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #97 (active) | Branch: feat/v155-provider-kilo | Version: 1.5.3
-Tasks: 889/911 done, 0 active, 0 blocked
+Session: none | Branch: main | Version: 1.5.5
+Tasks: 901/924 done, 0 active, 0 blocked
 <!-- DYNAMIC:END -->
