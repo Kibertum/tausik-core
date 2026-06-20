@@ -1,0 +1,391 @@
+"""Brain MCP write-path — build Notion payloads, scrub, create, mirror.
+
+Composes pages.create payload → scrubs ALL string fields (incl. tags/stack/
+domain/severity) → calls client.pages_create → mirrors to local SQLite.
+Project hash: explicit arg > TAUSIK_PROJECT_NAME env > basename(cwd).
+See docs/en/brain-db-schema.md §3 + §5.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import os
+import sqlite3
+from datetime import date as _date
+from typing import Any, Callable
+
+import brain_artifact_card
+import brain_artifact_taxonomy
+import brain_publish_flow
+import brain_config
+import brain_fallback
+import brain_scrubbing
+import brain_snippet_detect
+import brain_sync
+from brain_store_format import format_store_result  # noqa: F401  re-exported for brain_publish_cli.py
+
+CATEGORIES = ("decisions", "web_cache", "patterns", "gotchas")
+
+_NOTION_RICH_TEXT_CHUNK = 2000  # Notion's per-block rich_text content limit
+
+
+# ---- Project identity ----------------------------------------------------
+
+
+def _resolve_project_name(explicit: str | None) -> str:
+    if explicit and explicit.strip():
+        return explicit.strip()
+    env = os.environ.get("TAUSIK_PROJECT_NAME", "").strip()
+    if env:
+        return env
+    return os.path.basename(os.getcwd()) or "unknown-project"
+
+
+def compute_content_hash(content: str) -> str:
+    """SHA256(content)[:16] — matches Source Project Hash sizing."""
+    if not isinstance(content, str):
+        raise TypeError("content must be a string")
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
+
+
+# ---- Notion property helpers --------------------------------------------
+
+
+def _chunk_rich_text(text: str | None) -> list[dict]:
+    if not text:
+        return []
+    return [
+        {"text": {"content": text[i : i + _NOTION_RICH_TEXT_CHUNK]}}
+        for i in range(0, len(text), _NOTION_RICH_TEXT_CHUNK)
+    ]
+
+
+def _title_prop(name: str) -> dict:
+    if not name or not name.strip():
+        raise ValueError("Name is required and cannot be empty")
+    return {"title": [{"text": {"content": name}}]}
+
+
+def _rich_text_prop(text: str | None) -> dict:
+    return {"rich_text": _chunk_rich_text(text)}
+
+
+def _multi_select_prop(names: list[str] | tuple[str, ...] | None) -> dict:
+    if not names:
+        return {"multi_select": []}
+    seen: set[str] = set()
+    out: list[dict] = []
+    for n in names:
+        if isinstance(n, str) and (nv := n.strip()) and nv not in seen:
+            out.append({"name": nv})
+            seen.add(nv)
+    return {"multi_select": out}
+
+
+def _select_prop(name: str | None) -> dict | None:
+    return {"select": {"name": str(name).strip()}} if name and str(name).strip() else None
+
+
+def _date_prop(iso: str | None) -> dict | None:
+    return {"date": {"start": iso}} if iso else None
+
+
+def _url_prop(url: str | None) -> dict | None:
+    return {"url": url} if url else None
+
+
+def _checkbox_prop(val: bool) -> dict:
+    return {"checkbox": bool(val)}
+
+
+def _number_prop(val: int | float | None) -> dict | None:
+    return {"number": val} if val is not None else None
+
+
+def _today_iso() -> str:
+    return _date.today().isoformat()
+
+
+def _clean_props(props: dict) -> dict:
+    return {k: v for k, v in props.items() if v is not None}
+
+
+# ---- Per-category builders ----------------------------------------------
+
+
+def build_properties_decision(
+    *,
+    name: str,
+    decision: str,
+    context: str = "",
+    rationale: str = "",
+    tags: list[str] | None = None,
+    stack: list[str] | None = None,
+    date: str | None = None,
+    project_hash: str = "",
+    generalizable: bool = True,
+    superseded_by: str | None = None,
+) -> dict:
+    return _clean_props(
+        {
+            "Name": _title_prop(name),
+            "Context": _rich_text_prop(context),
+            "Decision": _rich_text_prop(decision),
+            "Rationale": _rich_text_prop(rationale),
+            "Tags": _multi_select_prop(tags),
+            "Stack": _multi_select_prop(stack),
+            "Date": _date_prop(date or _today_iso()),
+            "Source Project Hash": _rich_text_prop(project_hash),
+            "Generalizable": _checkbox_prop(generalizable),
+            "Superseded By": _url_prop(superseded_by),
+        }
+    )
+
+
+def build_properties_web_cache(
+    *,
+    name: str,
+    url: str,
+    content: str,
+    query: str = "",
+    fetched_at: str | None = None,
+    ttl_days: int = 30,
+    domain: str | None = None,
+    tags: list[str] | None = None,
+    project_hash: str = "",
+    content_hash: str = "",
+) -> dict:
+    if not url:
+        raise ValueError("url is required for web_cache")
+    if not content:
+        raise ValueError("content is required for web_cache")
+    return _clean_props(
+        {
+            "Name": _title_prop(name),
+            "URL": _url_prop(url),
+            "Query": _rich_text_prop(query),
+            "Content": _rich_text_prop(content),
+            "Fetched At": _date_prop(fetched_at or _today_iso()),
+            "TTL Days": _number_prop(ttl_days),
+            "Domain": _select_prop(domain),
+            "Tags": _multi_select_prop(tags),
+            "Source Project Hash": _rich_text_prop(project_hash),
+            "Content Hash": _rich_text_prop(content_hash),
+        }
+    )
+
+
+def build_properties_pattern(
+    *,
+    name: str,
+    description: str,
+    when_to_use: str = "",
+    example: str = "",
+    tags: list[str] | None = None,
+    stack: list[str] | None = None,
+    date: str | None = None,
+    project_hash: str = "",
+    confidence: str | None = None,
+) -> dict:
+    return _clean_props(
+        {
+            "Name": _title_prop(name),
+            "Description": _rich_text_prop(description),
+            "When to Use": _rich_text_prop(when_to_use),
+            "Example": _rich_text_prop(example),
+            "Tags": _multi_select_prop(tags),
+            "Stack": _multi_select_prop(stack),
+            "Date": _date_prop(date or _today_iso()),
+            "Source Project Hash": _rich_text_prop(project_hash),
+            "Confidence": _select_prop(confidence),
+        }
+    )
+
+
+def build_properties_gotcha(
+    *,
+    name: str,
+    description: str,
+    wrong_way: str = "",
+    right_way: str = "",
+    tags: list[str] | None = None,
+    stack: list[str] | None = None,
+    date: str | None = None,
+    project_hash: str = "",
+    severity: str | None = None,
+    evidence_url: str | None = None,
+) -> dict:
+    return _clean_props(
+        {
+            "Name": _title_prop(name),
+            "Description": _rich_text_prop(description),
+            "Wrong Way": _rich_text_prop(wrong_way),
+            "Right Way": _rich_text_prop(right_way),
+            "Tags": _multi_select_prop(tags),
+            "Stack": _multi_select_prop(stack),
+            "Date": _date_prop(date or _today_iso()),
+            "Source Project Hash": _rich_text_prop(project_hash),
+            "Severity": _select_prop(severity),
+            "Evidence URL": _url_prop(evidence_url),
+        }
+    )
+
+
+_BUILDERS: dict[str, Callable[..., dict]] = {
+    "decisions": build_properties_decision,
+    "web_cache": build_properties_web_cache,
+    "patterns": build_properties_pattern,
+    "gotchas": build_properties_gotcha,
+}
+
+
+# ---- Scrubbing bridge ---------------------------------------------------
+
+
+# All string-valued fields are scrubbed (v1.3 blind-review pass closed leak via tags/stack/domain).
+_TEXT_FIELDS_BY_CATEGORY = {
+    "decisions": "name context decision rationale tags stack superseded_by".split(),
+    "web_cache": "name content query url tags domain".split(),
+    "patterns": (
+        "name description when_to_use example tags stack confidence scope external_repo_url"
+    ).split(),
+    "gotchas": (
+        "name description wrong_way right_way tags stack severity evidence_url scope "
+        "external_repo_url"
+    ).split(),
+}
+
+
+def _stringify(v: Any) -> str:
+    if isinstance(v, (list, tuple)):
+        return " ".join(str(x) for x in v)
+    return str(v) if v is not None else ""
+
+
+def scrub_inputs(category: str, fields: dict, cfg: dict) -> dict:
+    """Join ALL string-valued fields (incl. tags/stack/domain/etc) and scrub."""
+    keys = _TEXT_FIELDS_BY_CATEGORY.get(category, ())
+    joined = "\n".join(_stringify(fields.get(k)) for k in keys)
+    return brain_scrubbing.scrub_with_config(joined, cfg, union_with_registry=True)
+
+
+# ---- Orchestration ------------------------------------------------------
+
+
+def store_record(
+    client: Any,
+    conn: sqlite3.Connection,
+    category: str,
+    fields: dict,
+    cfg: dict,
+    *,
+    project_name: str | None = None,
+    confirm_high_risk: bool = False,
+) -> dict:
+    """End-to-end write: scrub → Notion create → local mirror upsert.
+
+    Returns one of:
+      {"status": "scrub_blocked", "issues": [...]}
+      {"status": "risk_blocked", "error": str}
+      {"status": "notion_error", "error": str}
+      {"status": "ok", "notion_page_id": str, "source_project_hash": str}
+    """
+    if category not in _BUILDERS:
+        return {"status": "bad_category", "error": f"Unknown category: {category!r}"}
+
+    work = dict(fields)
+    confirm_hr = bool(confirm_high_risk)
+    if not confirm_hr:
+        confirm_hr = bool(work.pop("confirm_high_risk", False))
+    else:
+        work.pop("confirm_high_risk", None)
+
+    # Advisory: infer 'snippet' kind before validation when the caller omitted
+    # it. Runs first so the inferred value flows through the same validate/strip
+    # path as a caller-supplied one.
+    brain_snippet_detect.maybe_autofill_snippet_kind(category, work, cfg)
+
+    ok_tax, tax_err = brain_artifact_taxonomy.validate_artifact_taxonomy_for_store(
+        category, work, cfg
+    )
+    if not ok_tax:
+        return {"status": "taxonomy_blocked", "error": tax_err or "taxonomy_blocked"}
+
+    ok_card, card_err = brain_artifact_card.validate_artifact_card_for_store(category, work, cfg)
+    if not ok_card:
+        return {
+            "status": "card_schema_blocked",
+            "error": card_err or "card_schema_blocked",
+        }
+
+    ok_ext, ext_err = brain_artifact_card.validate_external_repo_url_for_store(category, work, cfg)
+    if not ok_ext:
+        return {
+            "status": "card_schema_blocked",
+            "error": ext_err or "external_repo_url_invalid",
+        }
+
+    scrub = scrub_inputs(category, work, cfg)
+    if not scrub["ok"]:
+        return {"status": "scrub_blocked", "issues": scrub["issues"]}
+
+    blocked, br_msg = brain_publish_flow.maybe_block_high_risk_publish(
+        category, work, cfg, confirm_high_risk=confirm_hr
+    )
+    if blocked:
+        return {"status": "risk_blocked", "error": br_msg or "risk_blocked"}
+
+    project_name_resolved = _resolve_project_name(project_name)
+    project_hash = brain_config.compute_project_hash(project_name_resolved)
+    effective = dict(work)
+    effective.pop("artifact_taxonomy_kind", None)
+    effective.pop("scope", None)
+    effective.pop("external_repo_url", None)
+    effective["project_hash"] = project_hash
+
+    if category == "web_cache":
+        effective.setdefault("content_hash", compute_content_hash(effective.get("content") or ""))
+
+    db_ids = cfg.get("database_ids") or {}
+    db_id = db_ids.get(category)
+    if not db_id:
+        return {
+            "status": "config_error",
+            "error": f"brain.database_ids.{category} is empty",
+        }
+
+    try:
+        properties = _BUILDERS[category](**effective)
+    except (TypeError, ValueError) as e:
+        return {"status": "bad_fields", "error": str(e)}
+
+    try:
+        page = client.pages_create(parent={"database_id": db_id}, properties=properties)
+    except Exception as e:  # noqa: BLE001
+        return {
+            "status": "notion_error",
+            "error_category": brain_fallback.classify_error(e),
+            "error": str(e),
+            "retry_after": brain_fallback.retry_after_from(e),
+        }
+
+    try:
+        row = brain_sync.map_page_to_row(category, page)
+        brain_sync.upsert_page(conn, category, row)
+        conn.commit()
+    except Exception as e:  # noqa: BLE001
+        brain_publish_flow.log_artifact_publish_audit(category, effective)
+        return {
+            "status": "ok_not_mirrored",
+            "notion_page_id": page.get("id", ""),
+            "source_project_hash": project_hash,
+            "warning": f"Notion write succeeded but local mirror failed: {e}",
+        }
+
+    brain_publish_flow.log_artifact_publish_audit(category, effective)
+
+    return {
+        "status": "ok",
+        "notion_page_id": page.get("id", ""),
+        "source_project_hash": project_hash,
+    }

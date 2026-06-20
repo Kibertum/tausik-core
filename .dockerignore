@@ -1,0 +1,36 @@
+# Keep Docker context lean: nothing here needs to be in the build context.
+.git
+.github
+.gitlab
+.gitlab-ci.yml
+
+# Local Python virtualenvs and caches
+.tausik
+.venv
+__pycache__
+*.pyc
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.coverage
+.coverage.*
+
+# Node / VitePress build artefacts
+**/node_modules
+**/.vitepress/cache
+**/.vitepress/dist
+**/dist
+
+# Source-of-truth for site lives in repo root — do not ship local working copies.
+site/public/uploads
+site/tausik.zip
+# Reference-only files (not needed in the build context)
+site/_archive
+site/README.md
+site/brief.md
+
+# IDE / OS noise
+.idea
+.vscode
+.DS_Store
+Thumbs.db

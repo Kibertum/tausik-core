@@ -1,0 +1,46 @@
+#!/bin/bash
+# KAI pre-commit hook: mypy type checking
+# Blocks commit if type errors are found in scripts/
+#
+# Install: cp scripts/hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+# Or: git config core.hooksPath scripts/hooks
+
+echo "Running mypy type check..."
+
+# Run mypy using project config from pyproject.toml
+python -m mypy 2>&1
+MYPY_EXIT=$?
+
+if [ $MYPY_EXIT -ne 0 ]; then
+    echo ""
+    echo "ERROR: mypy found type errors. Fix them before committing."
+    echo "Run 'python -m mypy' to see details."
+    exit 1
+fi
+
+echo "mypy: OK"
+
+# Optional: incremental RAG reindex (warn-only, max 5s).
+# Keeps codebase-rag index aligned with each commit so the next session's
+# search_code reflects what was just committed. Soft-fails — never blocks
+# the commit, even on timeout or missing rag deps.
+RAG_SERVER=""
+for p in ".claude/mcp/codebase-rag/server.py" "harness/claude/mcp/codebase-rag/server.py"; do
+    [ -f "$p" ] && RAG_SERVER="$p" && break
+done
+if [ -n "$RAG_SERVER" ]; then
+    PY=".tausik/venv/Scripts/python.exe"
+    [ -f "$PY" ] || PY=".tausik/venv/bin/python"
+    [ -f "$PY" ] || PY="python"
+    timeout 5 "$PY" -c "
+import sys, os
+sys.path.insert(0, os.path.dirname('$RAG_SERVER'))
+from rag_store import RAGStore
+from rag_indexer import index_incremental
+store = RAGStore('.tausik/rag/rag.db')
+result = index_incremental('.', store)
+print(f'RAG: incremental reindex {result.get(\"files_indexed\", 0)} files')
+" 2>/dev/null || echo "RAG: incremental reindex skipped (timeout or missing deps)"
+fi
+
+exit 0
