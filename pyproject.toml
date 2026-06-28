@@ -1,0 +1,122 @@
+[project]
+name = "tausik"
+version = "1.5.6"
+description = "Cross-IDE AI agent framework with task lifecycle, quality gates, and project memory"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.11"
+authors = [
+    { name = "Andrey Yumashev" },
+]
+keywords = ["ai", "agent", "framework", "ide", "quality-gates", "senar"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+
+[project.urls]
+Homepage = "https://github.com/Kibertum/tausik-core"
+Documentation = "https://github.com/Kibertum/tausik-core/tree/main/docs"
+Repository = "https://github.com/Kibertum/tausik-core"
+Changelog = "https://github.com/Kibertum/tausik-core/blob/main/CHANGELOG.md"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["scripts"]
+# Default fast lane — slow integration / subprocess / e2e tests are skipped.
+# Run the full battery via `pytest -m ''` or `tausik verify --full` (env:
+# TAUSIK_VERIFY_FULL=1). See docs/{en,ru}/cli.md for the full contract.
+addopts = "-m 'not slow'"
+markers = [
+    "verify_first: opt the test in to v1.4 Verify-First Contract enforcement (default conftest fixture sets auto_verify=True for backward compat)",
+    "slow: subprocess/integration/e2e/stress tests; skipped by default in interactive verify, run via `pytest -m ''` or `tausik verify --full` / TAUSIK_VERIFY_FULL=1",
+]
+
+[tool.coverage.run]
+source = ["scripts"]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ ==",
+]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["scripts"]
+# scripts/hooks/*.py is reachable as both `<name>` (via pythonpath=scripts at
+# runtime) and `hooks.<name>` (via scripts/hooks/). Excluding the hooks/
+# subdir from the default check avoids the dual-module-names error;
+# hooks are exercised via tests/ rather than mypy directly.
+exclude = ["scripts/hooks/"]
+warn_return_any = true
+warn_unused_configs = true
+check_untyped_defs = true
+no_implicit_optional = true
+# memory_markers is a hooks/ module imported from scripts/brain_classifier.py
+# via runtime sys.path injection; mypy can't follow it statically.
+[[tool.mypy.overrides]]
+module = "memory_markers"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "project_types"
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "project_service"
+# Mixin classes — methods resolved at runtime
+disable_error_code = "attr-defined"
+
+[[tool.mypy.overrides]]
+module = "service_task"
+# Mixin — _require_task, _require_story resolved via ProjectService
+disable_error_code = "attr-defined"
+
+[[tool.mypy.overrides]]
+module = "service_knowledge"
+disable_error_code = "attr-defined"
+
+[[tool.mypy.overrides]]
+module = "backend_queries"
+# Mixin — _q, _q1, epic_list, session_current resolved via SQLiteBackend
+disable_error_code = ["attr-defined", "no-any-return"]
+
+[[tool.mypy.overrides]]
+module = "backend_migrations"
+# sqlite3 used in TYPE_CHECKING string annotation
+disable_error_code = "name-defined"
+
+[[tool.mypy.overrides]]
+module = "project_config"
+warn_return_any = false
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+# Default rules: E (pycodestyle), F (Pyflakes). Project enforces these in CI.
+# BLE001 (flake8-blind-except): enforce 'no silent errors' — a blind
+# `except Exception` must be justified with `# noqa: BLE001 — <why>` or narrowed.
+extend-select = ["BLE001"]
+
+[tool.ruff.lint.per-file-ignores]
+# Files that need sys.path manipulation before importing project modules.
+"bootstrap/bootstrap.py" = ["E402"]
+"tests/test_bootstrap_frontmatter.py" = ["E402"]
+"tests/test_mcp_windows.py" = ["E402"]
+"tests/test_migrations.py" = ["E402"]
+"tests/test_rag.py" = ["E402"]
+"tests/test_rag_benchmark.py" = ["E402"]
+"tests/test_rag_edge.py" = ["E402"]

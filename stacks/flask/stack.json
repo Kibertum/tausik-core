@@ -1,0 +1,9 @@
+{
+  "name": "flask",
+  "version": "1",
+  "detect": [
+    { "file": "requirements.txt", "type": "exact", "keyword": "flask" },
+    { "file": "pyproject.toml", "type": "exact", "keyword": "flask" }
+  ],
+  "extensions": [".py"]
+}

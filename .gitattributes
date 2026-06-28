@@ -1,0 +1,4 @@
+# The RENAR derived tree is generated with LF newlines (renar_export.write_tree
+# uses newline="\n"). Pin it to LF on checkout so `tausik renar export --check`
+# does not see false CRLF drift on Windows clones (core.autocrlf=true).
+renar/** text eol=lf

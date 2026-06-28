@@ -1,0 +1,312 @@
+"""TAUSIK bootstrap — Qwen Code (GigaCode) IDE generators.
+
+Generates .qwen/settings.json (MCP + hooks) and QWEN.md project instructions.
+Qwen Code uses the same hook format as Claude Code (PreToolUse, PostToolUse, SessionEnd).
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+from typing import Any
+
+from bootstrap_generate import _stdio_mcp_server
+
+
+def generate_settings_qwen(
+    target_dir: str,
+    project_dir: str,
+    venv_python: str | None = None,
+    lib_dir: str | None = None,
+) -> None:
+    """Generate .qwen/settings.json with MCP servers and hooks for Qwen Code.
+
+    Qwen Code uses the same hook format as Claude Code (PreToolUse, PostToolUse,
+    SessionEnd) — so we generate the **same** SENAR enforcement hooks. v1.4
+    closed the four-hook gap audited as r14-qwen-parity-or-honesty
+    (brain_search_proactive, brain_post_webfetch, task_call_counter,
+    activity_event). Parity is now pinned by tests/test_bootstrap_hooks_parity.py.
+    MCP config goes into mcpServers key in the same file.
+    """
+    python_exe = venv_python or sys.executable
+
+    def _p(p: str) -> str:
+        return p.replace("\\", "/")
+
+    if lib_dir is None:
+        lib_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    hooks_dir = os.path.join(lib_dir, "scripts", "hooks")
+    abs_hooks = _p(os.path.abspath(hooks_dir))
+
+    def _hook_cmd(script: str, suffix: str = "") -> str:
+        # -X utf8 forces UTF-8 stdio for every hook (they run directly, not via
+        # the CLI wrapper, so they don't inherit its PYTHONUTF8). One injection
+        # point covers all hooks — no per-file fix_stdio_encoding() needed.
+        return f"python -X utf8 {abs_hooks}/{script}{suffix}"
+
+    path = os.path.join(target_dir, "settings.json")
+
+    # Load existing to preserve user settings
+    existing: dict[str, Any] = {}
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                existing = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    # MCP servers
+    servers = existing.get("mcpServers", {})
+    rag_server = os.path.join(target_dir, "mcp", "codebase-rag", "server.py")
+    if os.path.exists(rag_server):
+        servers["codebase-rag"] = _stdio_mcp_server(
+            _p(python_exe),
+            [_p(rag_server), "--project", _p(project_dir)],
+        )
+    project_server = os.path.join(target_dir, "mcp", "project", "server.py")
+    if os.path.exists(project_server):
+        servers["tausik-project"] = _stdio_mcp_server(
+            _p(python_exe),
+            [_p(project_server), "--project", _p(project_dir)],
+        )
+    brain_server = os.path.join(target_dir, "mcp", "brain", "server.py")
+    if os.path.exists(brain_server):
+        servers["tausik-brain"] = _stdio_mcp_server(
+            _p(python_exe),
+            [_p(brain_server), "--project", _p(project_dir)],
+        )
+
+    # Hooks — same SENAR enforcement as Claude Code
+    hooks = {
+        "PreToolUse": [
+            {
+                "matcher": "Write|Edit",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("task_gate.py"),
+                        "timeout": 10,
+                    }
+                ],
+            },
+            {
+                # v15-scope-enforce-write parity with bootstrap_hooks.py
+                "matcher": "Write|Edit|MultiEdit",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("scope_write_gate.py"),
+                        "timeout": 5,
+                    }
+                ],
+            },
+            {
+                "matcher": "Write|Edit|MultiEdit",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("memory_pretool_block.py"),
+                        "timeout": 5,
+                    }
+                ],
+            },
+            {
+                "matcher": "Write|Edit|MultiEdit",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("secret_scan.py"),
+                        "timeout": 5,
+                    }
+                ],
+            },
+            {
+                "matcher": "Bash",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("bash_firewall.py"),
+                        "timeout": 5,
+                    }
+                ],
+            },
+            {
+                "matcher": "Bash",
+                "if": "Bash(git push *)",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("git_push_gate.py"),
+                        "timeout": 5,
+                    }
+                ],
+            },
+            {
+                "matcher": "WebSearch|WebFetch",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("brain_search_proactive.py"),
+                        "timeout": 5,
+                    }
+                ],
+            },
+        ],
+        "PostToolUse": [
+            {
+                "matcher": "Write|Edit",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("auto_format.py"),
+                        "timeout": 15,
+                    }
+                ],
+            },
+            {
+                "matcher": "Write|Edit|MultiEdit",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("memory_posttool_audit.py"),
+                        "timeout": 5,
+                    }
+                ],
+            },
+            {
+                "matcher": (
+                    "mcp__tausik-project__tausik_task_done"
+                    "|mcp__tausik-project__tausik_task_done_v2"
+                    "|Bash"
+                ),
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("task_done_verify.py"),
+                        "timeout": 6,
+                    }
+                ],
+            },
+            {
+                "matcher": "WebFetch",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("brain_post_webfetch.py"),
+                        "timeout": 5,
+                    }
+                ],
+            },
+            {
+                "matcher": "*",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("task_call_counter.py"),
+                        "timeout": 5,
+                    },
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("posttool_usage.py"),
+                        "timeout": 4,
+                    },
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("activity_event.py"),
+                        "timeout": 5,
+                    },
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("tool_output_truncation_nudge.py"),
+                        "timeout": 3,
+                    },
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("task_cost_budget_check.py"),
+                        "timeout": 3,
+                    },
+                ],
+            },
+        ],
+        "SessionStart": [
+            {
+                "matcher": "",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("session_start.py"),
+                        "timeout": 6,
+                    }
+                ],
+            }
+        ],
+        "UserPromptSubmit": [
+            {
+                "matcher": "",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("user_prompt_submit.py"),
+                        "timeout": 5,
+                    }
+                ],
+            }
+        ],
+        "Stop": [
+            {
+                "matcher": "",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("keyword_detector.py"),
+                        "timeout": 5,
+                    },
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("session_cleanup_check.py"),
+                        "timeout": 5,
+                    },
+                ],
+            }
+        ],
+        "SessionEnd": [
+            {
+                "matcher": "",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("session_metrics.py", " --auto --record 2>&1 || true"),
+                    }
+                ],
+            },
+        ],
+    }
+
+    settings = {**existing, "mcpServers": servers, "hooks": hooks}
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(settings, f, indent=2)
+
+
+def generate_qwen_md(
+    project_dir: str, project_name: str, stacks: list[str], context_tier: str = "standard"
+) -> None:
+    """Generate QWEN.md for Qwen Code CLI — same constraints as CLAUDE.md.
+
+    Preserves existing QWEN.md if present.
+    """
+    from bootstrap_templates import build_full_body
+
+    body = build_full_body(
+        project_name,
+        stacks,
+        "Qwen Code (an AI coding agent)",
+        ".qwen",
+        ide="qwen",
+        context_tier=context_tier,
+    )
+    content = f"# QWEN.md\n\n{body}"
+    path = os.path.join(project_dir, "QWEN.md")
+    if not os.path.exists(path):
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)

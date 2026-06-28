@@ -1,0 +1,9 @@
+{
+  "name": "laravel",
+  "version": "1",
+  "detect": [
+    { "file": "artisan", "type": "exact" },
+    { "file": "composer.json", "type": "exact", "keyword": "laravel" }
+  ],
+  "extensions": [".php"]
+}
