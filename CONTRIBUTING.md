@@ -23,10 +23,12 @@ python bootstrap/bootstrap.py --init
 # Activate the venv and install dev tools
 source .tausik/venv/bin/activate   # Linux/Mac
 .tausik\venv\Scripts\activate      # Windows
-pip install pytest ruff
+pip install pytest ruff pyyaml
 ```
 
 > Bootstrap automatically finds the best Python >= 3.11, creates `.tausik/venv/`, and installs dependencies from `requirements.txt`. Your system Python is not modified.
+>
+> **`pyyaml`** is an *optional* dependency — core scripts import it lazily, so the CLI runs without it. It is only required to run the RENAR conformance/export tests (`test_renar_conformance.py`, `test_renar_export.py`); without it those tests are skipped, not failed.
 
 ## Running Tests
 
@@ -117,10 +119,12 @@ python bootstrap/bootstrap.py --init
 # Активируйте venv и установите dev-инструменты
 source .tausik/venv/bin/activate   # Linux/Mac
 .tausik\venv\Scripts\activate      # Windows
-pip install pytest ruff
+pip install pytest ruff pyyaml
 ```
 
 > Bootstrap автоматически находит Python >= 3.11, создаёт `.tausik/venv/` и устанавливает зависимости из `requirements.txt`. Ваш системный Python не модифицируется.
+>
+> **`pyyaml`** — *опциональная* зависимость: ядро импортирует её лениво, поэтому CLI работает без неё. Она нужна только для RENAR-тестов (`test_renar_conformance.py`, `test_renar_export.py`); без неё эти тесты скипаются, а не падают.
 
 ## Запуск тестов
 
