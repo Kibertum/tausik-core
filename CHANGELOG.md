@@ -11,6 +11,27 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 _Nothing yet — next changes land here._
 
+## [1.5.8] — 2026-07-06
+
+Reliability release from a field-test: `/start` could freeze forever on a large
+project. Hardens the `tausik_session_open` compound RPC so it can never hang.
+
+### Fixed
+
+- **`/start` froze on "Generating…" on large projects.** `tausik_session_open`
+  bundles five sub-calls (session start+current, status, handoff, tasks,
+  self_check) for `/start` Phase 1. Each was wrapped only in `try/except`, which
+  catches exceptions but **not a blocked call** — so a sub-operation that *hangs*
+  rather than raises (a DB write contending with sibling MCP servers, a
+  self_check subprocess wedged past its own timeout, a pathologically large
+  repo) froze the whole envelope and the IDE sat on "Generating…" indefinitely.
+  Each sub-call now runs under `_section_with_timeout` — a daemon-thread watchdog
+  (6 s) that returns `{"error": "<section> timed out after 6s"}` for the wedged
+  section instead of blocking. `/start` degrades to a visible, self-diagnosing
+  dashboard rather than hanging, and the error names the culprit section.
+  Cross-thread DB use is safe (the connection is opened `check_same_thread=False`
+  with `busy_timeout=5000`). (P1)
+
 ## [1.5.7] — 2026-07-06
 
 Field-fix release. The v1.5.6 UTF-8 hardening covered the **encode** side
