@@ -51,6 +51,8 @@ def main(argv: list[str] | None = None) -> int:
         cwd=str(root),
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         env={**os.environ, "PYTHONIOENCODING": "utf-8"},
     )
     if proc.returncode == 0:

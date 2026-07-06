@@ -11,6 +11,30 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 _Nothing yet — next changes land here._
 
+## [1.5.7] — 2026-07-06
+
+Field-fix release. The v1.5.6 UTF-8 hardening covered the **encode** side
+(writing Cyrillic / ✓ output on Windows); this covers the **decode** side —
+hooks and gates that *read* TAUSIK CLI or git output back.
+
+### Fixed
+
+- **SessionStart hook (and other CLI readers) crashed on Windows when the
+  captured output contained Cyrillic.** `subprocess.run(..., text=True)` decodes
+  the child's stdout with the OS locale codec (cp1252 on a typical RU Windows),
+  which chokes on UTF-8 Cyrillic bytes (e.g. `0x81` is undefined in cp1252). The
+  reader thread raised `UnicodeDecodeError`, leaving `result.stdout = None`, and
+  the subsequent `.strip()` raised `AttributeError` — outside the caught
+  exception tuple — so the entire hook aborted with a traceback and no session
+  context was injected (framework "silently broken" on affected projects). Every
+  `text=True` subprocess reader of CLI/git output now passes
+  `encoding="utf-8", errors="replace"` — 12 call sites across `session_start`,
+  `_common`, `auto_format`, `task_done_verify`, `session_metrics`, `check_docs`,
+  `project_cli_extra`, `project_cli_renar`, `pytest_test_count`,
+  `service_session`, and `verify_git_diff`. The last two also affect the
+  `task done` / verify gates on repos with Cyrillic filenames or `git user.name`.
+  (P0)
+
 ## [1.5.6] — 2026-06-19
 
 Fine-tune release from a live Kilo Code + z.ai (GLM) field test. The structural

@@ -115,6 +115,8 @@ class SessionMixin:
                 cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=30,
                 check=False,
                 stdin=subprocess.DEVNULL,

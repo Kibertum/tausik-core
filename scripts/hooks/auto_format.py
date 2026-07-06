@@ -51,6 +51,8 @@ def main() -> int:
                 formatter + [file_path],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=10,
                 cwd=project_dir,
             )
@@ -67,15 +69,15 @@ def main() -> int:
                 [tausik_cmd, "task", "list", "--status", "active"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=5,
                 cwd=project_dir,
             )
             lines = [
                 line
                 for line in result.stdout.strip().splitlines()
-                if line.strip()
-                and not line.startswith("slug")
-                and not line.startswith("---")
+                if line.strip() and not line.startswith("slug") and not line.startswith("---")
             ]
             if lines:
                 slug = lines[0].split()[0]
@@ -84,6 +86,8 @@ def main() -> int:
                     [tausik_cmd, "task", "log", slug, f"Modified: {rel_path}"],
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     timeout=5,
                     cwd=project_dir,
                 )

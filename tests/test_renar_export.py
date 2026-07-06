@@ -12,7 +12,10 @@ import re
 import sys
 
 import pytest
-import yaml
+
+# PyYAML is an OPTIONAL RENAR dependency (see test_no_hard_yaml_import). A clean
+# checkout without it should SKIP these tests, not error at collection.
+yaml = pytest.importorskip("yaml")
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 

@@ -320,7 +320,15 @@ def record_to_db(metrics: dict, project_root: str | None = None) -> bool:
         metrics.get("model", ""),
     ]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, cwd=project_root)
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            cwd=project_root,
+        )
         if result.returncode == 0:
             print(f"DB: {result.stdout.strip()}")
             return True
