@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import threading
 from typing import Any, Callable
 
 # Ensure scripts dir is in path (once, at import time)
@@ -1028,50 +1029,82 @@ def _handle_status(svc: Any, args: dict | None = None) -> str:
     return result
 
 
+def _section_with_timeout(label: str, fn: Callable[[], Any], timeout: float = 6.0) -> Any:
+    """Run a session_open sub-section under a hard watchdog.
+
+    Each /start sub-call (DB read/write, self_check subprocess) is best-effort.
+    Historically they were wrapped only in try/except, so a sub-call that BLOCKS
+    rather than raises (a slow/wedged DB write, a self_check subprocess that
+    hangs past its own timeout, a pathologically large project) would freeze the
+    whole compound RPC — and the IDE sits on "Generating…" forever. This runs the
+    sub-call in a daemon thread and joins with `timeout`; on timeout the section
+    returns `{"error": "<label> timed out after Ns"}` so /start degrades to a
+    visible, self-diagnosing dashboard instead of hanging. The connection is
+    opened check_same_thread=False, so cross-thread DB use here is safe.
+    """
+    box: dict[str, Any] = {}
+
+    def _run() -> None:
+        try:
+            box["r"] = fn()
+        except Exception as e:  # noqa: BLE001 — surfaced as the section's error
+            box["e"] = e
+
+    t = threading.Thread(target=_run, name=f"session_open:{label}", daemon=True)
+    t.start()
+    t.join(timeout)
+    if t.is_alive():
+        return {"error": f"{label} timed out after {timeout:g}s (section wedged — /start degraded)"}
+    if "e" in box:
+        return {"error": str(box["e"])}
+    return box.get("r")
+
+
 def _handle_session_open(svc: Any, args: dict | None = None) -> str:
     """v14b-session-open-compound-rpc — single envelope for /start Phase 1.
 
     Replaces 5 sequential MCP calls (session_start + status compact +
     last_handoff + task_list active+blocked + self_check) with one
-    round-trip. Each sub-section is best-effort: a sub-call failure
-    surfaces as an "error" key inside that section so /start can render
-    a degraded dashboard rather than aborting. On self_check.drift_detected
-    the agent still falls back to CLI per /start SKILL.md.
+    round-trip. Each sub-section is best-effort AND watchdog-bounded via
+    `_section_with_timeout`: a sub-call that hangs (not just raises) surfaces
+    as an "error" key for that section so /start renders a degraded dashboard
+    rather than freezing on "Generating…". On self_check.drift_detected the
+    agent still falls back to CLI per /start SKILL.md.
     """
     args = args or {}
+
     # 1. Session — start (idempotent) + current dict snapshot.
-    try:
+    def _session() -> Any:
         svc.session_start()  # text return ignored — we rebuild from session_current
-        session_data = svc.session_current()
-    except Exception as e:  # noqa: BLE001 — never fail open on any sub-error
-        session_data = {"error": str(e)}
+        return svc.session_current()
+
+    session_data = _section_with_timeout("session", _session)
+
     # 2. Status (compact JSON identical to tausik_status compact:true).
-    try:
-        status_data = json.loads(_handle_status(svc, {"compact": True}))
-    except Exception as e:  # noqa: BLE001
-        status_data = {"error": str(e)}
+    status_data = _section_with_timeout(
+        "status", lambda: json.loads(_handle_status(svc, {"compact": True}))
+    )
+
     # 3. Last handoff (None if absent — caller distinguishes from error).
-    try:
-        handoff = svc.session_last_handoff()
-    except Exception as e:  # noqa: BLE001
-        handoff = {"error": str(e)}
+    handoff = _section_with_timeout("handoff", lambda: svc.session_last_handoff())
 
     # 4. Active + blocked tasks. Each task slimmed to slug/title/status.
     def _slim(t: dict) -> dict:
         return {"slug": t["slug"], "title": t["title"], "status": t["status"]}
 
-    try:
-        tasks = {
+    def _tasks() -> Any:
+        return {
             "active": [_slim(t) for t in svc.task_list(status="active")],
             "blocked": [_slim(t) for t in svc.task_list(status="blocked")],
         }
-    except Exception as e:  # noqa: BLE001
-        tasks = {"active": [], "blocked": [], "error": str(e)}
+
+    tasks = _section_with_timeout("tasks", _tasks)
+    if isinstance(tasks, dict) and "error" in tasks and "active" not in tasks:
+        tasks = {"active": [], "blocked": [], "error": tasks["error"]}
+
     # 5. Self-check (re-use existing handler — already serialized).
-    try:
-        self_check_data = json.loads(_handle_self_check())
-    except Exception as e:  # noqa: BLE001
-        self_check_data = {"error": str(e)}
+    self_check_data = _section_with_timeout("self_check", lambda: json.loads(_handle_self_check()))
+
     return json.dumps(
         {
             "session": session_data,
