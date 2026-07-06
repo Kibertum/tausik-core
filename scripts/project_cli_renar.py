@@ -28,6 +28,8 @@ def _git_user_name() -> str | None:
             ["git", "config", "user.name"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=5,
             stdin=subprocess.DEVNULL,
         )

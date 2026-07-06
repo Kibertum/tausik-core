@@ -105,6 +105,8 @@ def has_active_task(project_dir: str, timeout: int = 4) -> bool:
             [tausik_cmd, "task", "list", "--status", "active"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=timeout,
             cwd=project_dir,
         )

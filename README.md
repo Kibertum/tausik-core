@@ -6,7 +6,7 @@
 
 TAUSIK is a discipline layer for AI coding agents. It turns the agent's word — "tests pass," "the task is done" — into something you can actually verify. Plan before code, ship with proof, remember every decision. Not suggestions the agent can ignore: hard gates it physically cannot skip.
 
-[![v1.5.6](https://img.shields.io/badge/version-v1.5.6-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
+[![v1.5.7](https://img.shields.io/badge/version-v1.5.7-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
 [![signed receipts: ed25519](https://img.shields.io/badge/signed%20receipts-ed25519-6f42c1.svg)](docs/en/receipts.md)
 [![4445 tests](https://img.shields.io/badge/tests-4445-brightgreen.svg)](#proof-tausik-built-tausik)
 [![coverage 76%](https://img.shields.io/badge/coverage-76%25-green.svg)](#proof-tausik-built-tausik)

@@ -214,6 +214,8 @@ def cmd_update_claudemd(svc: ProjectService, args: Any) -> None:
             ["git", "branch", "--show-current"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=5,
             stdin=subprocess.DEVNULL,
         )

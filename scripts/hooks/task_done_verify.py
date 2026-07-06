@@ -31,12 +31,8 @@ from _common import (  # noqa: E402
 MAX_NOTES = 12_000
 
 _AC_MARKER_RE = re.compile(r"[✓✔]|\b(passed|verified|ok|complete[d]?)\b", re.IGNORECASE)
-_FILE_RE = re.compile(
-    r"\b[\w/.-]+\.(py|js|ts|tsx|jsx|go|rs|java|kt|php|md|json|yaml|yml|sql|sh)\b"
-)
-_TEST_COUNT_RE = re.compile(
-    r"\b\d+\s*(passed|failed|tests?|assertions?)\b", re.IGNORECASE
-)
+_FILE_RE = re.compile(r"\b[\w/.-]+\.(py|js|ts|tsx|jsx|go|rs|java|kt|php|md|json|yaml|yml|sql|sh)\b")
+_TEST_COUNT_RE = re.compile(r"\b\d+\s*(passed|failed|tests?|assertions?)\b", re.IGNORECASE)
 _FILE_REF_PATTERNS = (
     re.compile(r"\b\w+\.\w+:\d+"),
     re.compile(r"\b(def|class|function)\s+\w+"),
@@ -69,6 +65,8 @@ def _fetch_task_show(tausik_cmd: str, slug: str, project_dir: str) -> str:
             [tausik_cmd, "task", "show", slug],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=4,
             cwd=project_dir,
         )
