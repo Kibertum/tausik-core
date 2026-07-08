@@ -1,37 +1,59 @@
-# Kilo Code + z.ai (GLM)
+# z.ai GLM under TAUSIK (Claude Code & Kilo)
 
-TAUSIK runs as a first-class MCP host inside **Kilo Code** (the VSCode addon and
-its CLI), driven by **z.ai GLM** models. This works because of two design
-choices (Decision #119):
+TAUSIK runs on **z.ai GLM** models under any Anthropic-compatible host. GLM is a
+**model family** (axis-2, Decision #119) — pure data in `model_profiles`, not
+code — so it is **independent of which host you run in**. The simplest and most
+capable path is **Claude Code**: the host is unchanged, so every SENAR gate keeps
+firing and only the `model` field reads `glm-*`.
 
-- **Kilo is a runtime host** (axis-1) — it owns the bootstrap directory, the MCP
-  config, and active-model detection. It is the only thing that changes when you
-  switch IDE.
-- **z.ai GLM is a model family** (axis-2) — pure data in `model_profiles`, not
-  code. Switching or adding GLM models needs **no code change**.
+- **Host** (axis-1) = Claude Code / Kilo / Cursor / Qwen — owns the bootstrap
+  directory, the MCP config, and active-model detection.
+- **Model family** (axis-2) = Claude vs z.ai GLM — pure data. Switching or adding
+  GLM models needs **no code change**.
 
 z.ai's endpoint is **Anthropic-compatible**, so the session transcript looks
-exactly like Claude's — only the `model` field reads `glm-*`. Routing,
-verdicts, and cost all work unchanged.
+exactly like Claude's — routing, verdicts, and cost all work unchanged.
+
+> **Subscription, not per-token.** The z.ai **GLM Coding Plan** (from ~$10/mo) is
+> a flat-fee subscription with usage quotas — not pay-as-you-go API billing. Same
+> spirit as running Claude Code on a Max/Pro plan; you keep working on a
+> subscription rather than metered tokens.
 
 ---
 
-## 1. Point your agent at z.ai
+## 1. GLM under Claude Code (recommended — subscription, full gates)
 
-z.ai exposes an Anthropic-compatible endpoint. Set these for Claude Code **or**
-Kilo (Kilo respects the same Anthropic env vars):
+Keep **Claude Code** as your host and point it at z.ai. Because the host never
+changes, **all SENAR enforcement gates keep firing** (QG-0 no-code-without-task,
+QG-2 verify, scope / secret / firewall) — GLM simply becomes the brain.
+
+Set two environment variables (shell profile or the IDE secret store — **never**
+commit them):
 
 ```bash
 export ANTHROPIC_BASE_URL="https://api.z.ai/api/anthropic"
-export ANTHROPIC_AUTH_TOKEN="<your-z.ai-api-key>"   # NEVER commit this
+export ANTHROPIC_AUTH_TOKEN="<your-z.ai-key>"   # z.ai GLM Coding Plan key
 ```
 
-> **Secret hygiene:** the z.ai key is a credential. Keep it in your shell
-> profile or the IDE's secret store — never in `.tausik/config.json`, `.kilo/`,
-> or anything tracked by git.
+Launch Claude Code. It now reasons through GLM on your z.ai subscription; TAUSIK
+reads `model: glm-*` from the transcript and routes within the GLM family
+(`model_profiles`, family `glm`). To recommend GLM tiers from the first message,
+set `"default_family": "glm"` in `.tausik/config.json` (see §4).
 
-The GLM Coding Plan ($10/mo tier) gives access to the GLM family
-(`glm-4.5-air`, `glm-4.6`, and the `glm-5.x` line).
+> **Secret hygiene:** the z.ai key is a credential. Keep it in your shell profile
+> or the IDE's secret store — never in `.tausik/config.json`, `.kilo/`, or
+> anything tracked by git.
+
+> **Smoke-test billing before you rely on it.** z.ai sells the Coding Plan against
+> its `/api/coding/paas/v4` endpoint; confirm your Coding-Plan quota actually
+> bills through the Anthropic-compatible `/api/anthropic` endpoint used above
+> (send one request, check the z.ai dashboard) so usage draws on the subscription
+> and not a pay-as-you-go wallet. z.ai documents the Coding Plan for Claude Code,
+> but pin this down first.
+
+The **same two env vars** also drive **Kilo** and any other Anthropic-compatible
+host — the sections below cover Kilo-specific bootstrap. Available GLM models
+today include `glm-4.5-air`, `glm-4.6`, and the `glm-5.x` line (§4).
 
 ## 2. Bootstrap TAUSIK for Kilo
 

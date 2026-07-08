@@ -11,6 +11,31 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 _Nothing yet — next changes land here._
 
+## [1.5.9] — 2026-07-08
+
+Docs release. Surfaces **z.ai GLM as a first-class model under Claude Code** —
+not a Kilo-only feature. GLM already ran under Claude Code via the
+Anthropic-compatible endpoint (host unchanged → every SENAR gate keeps firing);
+this makes that path discoverable and documents it as a **subscription** (not
+per-token) option. Part of the `universal-vscode-extension` epic, where
+GLM-by-subscription is deliberately decoupled from the extension itself.
+
+### Changed
+
+- **`docs/{en,ru}/kilo-zai.md` reframed host-agnostic.** The intro no longer
+  presents GLM as a Kilo-only capability. A new §1 — "GLM under Claude Code
+  (recommended — subscription, full gates)" — documents the two env vars
+  (`ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic` + `ANTHROPIC_AUTH_TOKEN`),
+  states that keeping Claude Code as the host preserves every enforcement gate
+  (QG-0 / QG-2 / scope / secret / firewall), frames the GLM Coding Plan as a
+  flat-fee subscription rather than metered tokens, and adds a **billing
+  smoke-test caveat** (confirm the Coding-Plan quota bills through `/api/anthropic`
+  and not a pay-as-you-go wallet). The filename is unchanged, so existing README /
+  quickstart / architecture links still resolve.
+
+- `__version__` bumped `1.5.8` → `1.5.9` (`scripts/tausik_version.py`,
+  `pyproject.toml`, `docs/_generated/constants.json`, README badges ru+en).
+
 ## [1.5.8] — 2026-07-06
 
 Reliability release from a field-test: `/start` could freeze forever on a large
