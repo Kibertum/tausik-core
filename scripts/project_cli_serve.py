@@ -21,3 +21,9 @@ def cmd_serve(svc, args) -> None:
         )
         sys.exit(2)
     serve(os.getcwd(), host=host, port=int(port))
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests
+    from cli_entrypoint import refuse_direct_run
+
+    refuse_direct_run(__file__)

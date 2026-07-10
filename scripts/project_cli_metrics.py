@@ -54,3 +54,9 @@ def dispatch_metrics_subcmd(svc: ProjectService, args: Any) -> bool:
         print_cli(int(getattr(args, "last", 10) or 10), bool(getattr(args, "as_json", False)))
         return True
     return False
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests
+    from cli_entrypoint import refuse_direct_run
+
+    refuse_direct_run(__file__)

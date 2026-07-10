@@ -320,3 +320,9 @@ from service_doctor_drift import (  # noqa: E402,F401
     check_scripts_drift as _check_scripts_drift,
     is_trimmed_baseline as _is_trimmed_baseline,
 )
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests
+    from cli_entrypoint import refuse_direct_run
+
+    refuse_direct_run(__file__)
