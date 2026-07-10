@@ -639,6 +639,71 @@ class TestInstallWithDeps:
         assert "failed" in result
 
 
+class TestVenvResolution:
+    """A bootstrapped project gets only `scripts/`, not `bootstrap/`.
+
+    The old code imported `bootstrap_venv` from a sibling `bootstrap/` and
+    swallowed the ImportError, so `requires` silently installed nothing in
+    every real project. Every test here ran from the core checkout, where that
+    sibling exists — which is exactly why none of them saw it.
+    """
+
+    def _hide_bootstrap(self, monkeypatch):
+        import skill_manager
+
+        real_isdir = os.path.isdir
+        monkeypatch.setattr(
+            skill_manager.os.path,
+            "isdir",
+            lambda path: False if "bootstrap" in str(path) else real_isdir(path),
+        )
+
+    def _fake_venv(self, tausik_dir: str) -> str:
+        import sys as _sys
+
+        sub, exe = ("Scripts", "python.exe") if _sys.platform == "win32" else ("bin", "python3")
+        d = os.path.join(tausik_dir, "venv", sub)
+        os.makedirs(d, exist_ok=True)
+        py = os.path.join(d, exe)
+        with open(py, "w") as f:
+            f.write("")
+        return py
+
+    def test_resolves_venv_without_bootstrap_on_path(self, tmp_path, monkeypatch):
+        from skill_manager import _resolve_venv_python
+
+        self._hide_bootstrap(monkeypatch)
+        tausik_dir = str(tmp_path / ".tausik")
+        expected = self._fake_venv(tausik_dir)
+        assert _resolve_venv_python(tausik_dir) == expected
+
+    def test_missing_venv_returns_none(self, tmp_path, monkeypatch):
+        from skill_manager import _resolve_venv_python
+
+        self._hide_bootstrap(monkeypatch)
+        assert _resolve_venv_python(str(tmp_path / ".tausik")) is None
+
+    def test_deps_failure_keeps_signature_verdict(self, tmp_path):
+        vendor = str(tmp_path / "vendor")
+        repo = os.path.join(vendor, "test-repo")
+        _write_manifest(
+            repo,
+            {"myskill": {"path": "myskill/", "description": "T", "requires": ["nonexistent-pkg"]}},
+        )
+        _make_skill(repo, "myskill")
+        skills_dst = str(tmp_path / "skills")
+        os.makedirs(skills_dst)
+        tausik_dir = str(tmp_path / ".tausik")
+        os.makedirs(tausik_dir)
+        result = install_skill(
+            "myskill", vendor, skills_dst, str(tmp_path / "config.json"), tausik_dir
+        )
+        # An unsigned skill whose deps failed must still say it is unsigned.
+        assert "failed" in result
+        assert "UNSIGNED" in result or "WARNING" in result
+        assert "nonexistent-pkg" in result
+
+
 class TestInstallDepsEnvHardening:
     """v1.3.4 (med-batch-1-hooks #2): pip subprocess must run with --no-config
     AND with PIP_INDEX_URL/PIP_EXTRA_INDEX_URL/PIP_TRUSTED_HOST stripped from

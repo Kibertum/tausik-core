@@ -250,6 +250,42 @@ def copy_skill(
     return dst
 
 
+def _resolve_venv_python(tausik_dir: str) -> str | None:
+    """Path to .tausik/venv python, whatever the surrounding layout is.
+
+    `bootstrap_venv` sits next to the core checkout, but a bootstrapped project
+    receives only `scripts/`: importing it from a sibling `bootstrap/` finds
+    nothing there. That ImportError used to be swallowed, so pip dependencies
+    declared by a skill were never installed and nothing said why.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    project_dir = os.path.dirname(os.path.abspath(tausik_dir))
+    for cand in (
+        os.path.join(here, "..", "bootstrap"),
+        os.path.join(here, "..", "..", "bootstrap"),
+        os.path.join(project_dir, ".tausik-lib", "bootstrap"),
+    ):
+        if not os.path.isdir(cand):
+            continue
+        if cand not in sys.path:
+            sys.path.insert(0, cand)
+        try:
+            from bootstrap_venv import get_venv_python  # type: ignore[import-not-found]
+        except ImportError:
+            continue
+        return get_venv_python(tausik_dir)
+
+    # Core is out of reach; the venv layout is fixed, so derive it directly.
+    if sys.platform == "win32":
+        candidates = [os.path.join(tausik_dir, "venv", "Scripts", "python.exe")]
+    else:
+        candidates = [
+            os.path.join(tausik_dir, "venv", "bin", "python3"),
+            os.path.join(tausik_dir, "venv", "bin", "python"),
+        ]
+    return next((p for p in candidates if os.path.isfile(p)), None)
+
+
 def install_skill_deps(repo_dir: str, skill_info: dict[str, Any], tausik_dir: str) -> bool:
     """Install skill pip dependencies into .tausik/venv/.
 
@@ -275,18 +311,12 @@ def install_skill_deps(repo_dir: str, skill_info: dict[str, Any], tausik_dir: st
         "  WARNING: packages come from an external skill manifest. Review before use in production."
     )
 
-    # Find venv python
-    _bootstrap_dir = os.path.join(os.path.dirname(__file__), "..", "bootstrap")
-    if _bootstrap_dir not in sys.path:
-        sys.path.insert(0, _bootstrap_dir)
-    try:
-        from bootstrap_venv import get_venv_python  # type: ignore[import-not-found]
-    except ImportError:
-        return False
-
-    venv_python = get_venv_python(tausik_dir)
+    venv_python = _resolve_venv_python(tausik_dir)
     if not venv_python:
-        print(f"  Warning: venv not found, cannot install deps: {requires}")
+        print(
+            f"  Warning: venv python not found under {tausik_dir}, "
+            f"cannot install deps: {requires}"
+        )
         return False
 
     # v1.3.4 (med-batch-1-hooks #2): harden subprocess env so pip cannot be
@@ -306,9 +336,19 @@ def install_skill_deps(repo_dir: str, skill_info: dict[str, Any], tausik_dir: st
         "PIP_FIND_LINKS",
     ):
         safe_env.pop(var, None)
-    try:
-        result = subprocess.run(
-            [venv_python, "-m", "pip", "install", "--no-config", "--quiet", "--"] + requires,
+
+    # `--no-config` landed in a later pip than the one `ensurepip` ships with
+    # Python 3.11 (22.3.1), so the flag alone cannot carry the hardening.
+    # PIP_CONFIG_FILE is honoured by every pip and disables config lookup the
+    # same way, which keeps old venvs protected instead of merely refused.
+    safe_env["PIP_CONFIG_FILE"] = os.devnull
+
+    base = [venv_python, "-m", "pip", "install", "--quiet", "--"] + requires
+    hardened = base[:4] + ["--no-config"] + base[4:]
+
+    def _run(cmd: list[str]) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            cmd,
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -317,6 +357,12 @@ def install_skill_deps(repo_dir: str, skill_info: dict[str, Any], tausik_dir: st
             env=safe_env,
             stdin=subprocess.DEVNULL,
         )
+
+    try:
+        result = _run(hardened)
+        if result.returncode != 0 and "no such option: --no-config" in result.stderr:
+            print("  Note: pip is too old for --no-config; PIP_CONFIG_FILE still disables it.")
+            result = _run(base)
         if result.returncode != 0:
             print(f"  pip install failed: {result.stderr}")
             return False
@@ -366,9 +412,17 @@ def install_skill(
     if requires:
         ok = install_skill_deps(repo_dir, skill_info, tausik_dir)
         if not ok:
+            # The signature verdict must survive a dependency failure: a skill
+            # whose deps did not install is still a skill the user must trust.
+            verdict = (
+                " Supply-chain: signature verified."
+                if sig_level == "ok"
+                else f" WARNING: {sig_msg}"
+            )
             return (
                 f"Skill '{skill_name}' installed from {repo_name} "
-                f"but dependency installation failed: {requires}"
+                f"but dependency installation failed: {requires}."
+                f" Install them yourself: {' '.join(requires)}.{verdict}"
             )
 
     # Update config
