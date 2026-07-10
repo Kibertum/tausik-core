@@ -1072,8 +1072,9 @@ class TestCloneEolPinning:
         monkeypatch.setattr(skill_manager, "_validate_url", lambda _u: None)
         for k, v in self._hostile_env(tmp_path).items():
             monkeypatch.setenv(k, v)
-        url = "file:///" + str(src).replace(os.sep, "/")
-        return skill_manager.clone_repo(url, str(tmp_path / "vendor"))
+        # Path.as_uri(): "file:///" + str(path) becomes file:////tmp/... on POSIX,
+        # where the path already starts with a slash. Windows-only code hid it.
+        return skill_manager.clone_repo(src.as_uri(), str(tmp_path / "vendor"))
 
     def _sha(self, path) -> str:
         import hashlib

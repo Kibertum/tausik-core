@@ -44,8 +44,11 @@ def _origin(tmp_path):
 
 def _clone(tmp_path, origin, name, *cfg):
     dst = tmp_path / name
+    # `Path.as_uri()`, not `"file:///" + str(path)`: the manual form yields
+    # `file:////tmp/...` on POSIX (four slashes) because the path already starts
+    # with one. It only looked right because it was only ever run on Windows.
     subprocess.run(
-        ["git", *cfg, "clone", "-q", "file:///" + str(origin).replace(os.sep, "/"), str(dst)],
+        ["git", *cfg, "clone", "-q", origin.as_uri(), str(dst)],
         capture_output=True,
         timeout=120,
     )

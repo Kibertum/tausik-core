@@ -1,0 +1,78 @@
+# TAUSIK — CI on the development remote.
+#
+# Development happens here, on GitLab. github.com/Kibertum/tausik-core is a
+# release mirror, published by hand off an orphan lineage. Until this file
+# existed, the test suite first saw a commit *after* it had been merged, tagged
+# and published — the gate stood behind the door.
+#
+# That gap has a name: the CRLF bug. Signatures computed over raw bytes verified
+# only on the machine that made them, every skill was refused on Linux, and every
+# run on the maintainer's Windows box was green. Windows is covered by the
+# developer's machine; macOS has never produced a finding. Linux is the half that
+# was missing, so Linux is what this pipeline runs.
+#
+# The GitHub matrix (ubuntu/windows/macos x 3.11-3.13) stays as release
+# verification. This is the development gate.
+
+stages:
+  - check
+  - test
+
+default:
+  tags:
+    - common
+  # NOT `-slim`: six test modules drive a real `git` (clone, cat-file, ls-files).
+  # A slim image would make them fail — or, worse, quietly skip.
+  image: python:3.11
+  interruptible: true
+
+variables:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PIP_NO_CACHE_DIR: "1"
+  PYTHONUTF8: "1"
+  GIT_DEPTH: "50"
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+lint:
+  stage: check
+  script:
+    - pip install ruff
+    - ruff check scripts/ tests/ bootstrap/
+
+doc-constants:
+  stage: check
+  script:
+    # The gate that catches a stale test count / version / MCP tool count.
+    - python scripts/gen_doc_constants.py --check
+
+tests:
+  stage: test
+  image: python:$PY
+  parallel:
+    matrix:
+      - PY: ["3.11", "3.12", "3.13"]
+  before_script:
+    # Prove the image really carries git before the suite depends on it.
+    - git --version
+    - git config --global user.email "ci@tausik.local"
+    - git config --global user.name "TAUSIK CI"
+    # Linux already defaults to false, but the supply-chain tests assert against
+    # a known baseline rather than whatever the image ships with. They simulate a
+    # hostile global config through GIT_CONFIG_GLOBAL themselves.
+    - git config --global core.autocrlf false
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
+    - pip install pytest
+    # The mirror-sync tests read .claude/settings.json, which is gitignored and
+    # therefore absent from a fresh checkout. Without this they fail with
+    # FileNotFoundError and look like a code regression.
+    - python bootstrap/bootstrap.py --no-detect --ide claude
+  script:
+    - >
+      pytest tests/ -q --tb=short
+      --ignore=tests/test_bootstrap_skills_coverage.py
+      --ignore=tests/test_bootstrap_real.py

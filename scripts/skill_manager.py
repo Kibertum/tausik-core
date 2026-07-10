@@ -9,9 +9,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import stat
 import subprocess
-import sys
 from typing import Any
 
 TAUSIK_MANIFEST = "tausik-skills.json"
