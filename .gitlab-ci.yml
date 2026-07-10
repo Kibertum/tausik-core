@@ -12,7 +12,20 @@
 # was missing, so Linux is what this pipeline runs.
 #
 # The GitHub matrix (ubuntu/windows/macos x 3.11-3.13) stays as release
-# verification. This is the development gate.
+# verification. This is the development gate: one Linux, every push.
+#
+# NOTE ON RUNNERS. Every runner on this instance is a **shell** executor — both
+# `common` and `docker-services` print `Preparing the "shell" executor`. There is
+# no docker executor, so `image:` is silently ignored: the first version of this
+# file asked for `python:3.11`, got the host's Debian python3.12, and `pip install`
+# died on PEP 668 (externally-managed-environment). A python-version matrix is not
+# possible here, and we do not need one — GitHub covers versions before a release.
+#
+# Consequences of a shell executor, all handled below:
+#   * the workspace is REUSED between runs -> GIT_CLEAN_FLAGS wipes .tausik/, venv
+#   * packages must go in a venv, never into the system python
+#   * `git config --global` would write into the runner user's ~/.gitconfig and
+#     leak into other projects' pipelines -> GIT_CONFIG_GLOBAL points at a job file
 
 stages:
   - check
@@ -21,9 +34,6 @@ stages:
 default:
   tags:
     - common
-  # NOT `-slim`: six test modules drive a real `git` (clone, cat-file, ls-files).
-  # A slim image would make them fail — or, worse, quietly skip.
-  image: python:3.11
   interruptible: true
 
 variables:
@@ -31,6 +41,10 @@ variables:
   PIP_NO_CACHE_DIR: "1"
   PYTHONUTF8: "1"
   GIT_DEPTH: "50"
+  # The shell runner keeps the working copy between jobs. Without -ffdx a stale
+  # .tausik/ or .ci-venv/ from the previous run leaks into this one.
+  GIT_CLEAN_FLAGS: -ffdx
+  VENV_DIR: .ci-venv
 
 workflow:
   rules:
@@ -38,38 +52,46 @@ workflow:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_COMMIT_TAG
 
+# Fail loudly if `venv` is missing rather than reaching for
+# --break-system-packages, which would install into the runner's system python.
+.venv: &venv
+  - python3 --version
+  - python3 -m venv --help > /dev/null || { echo "python3-venv is not installed on this runner"; exit 1; }
+  - python3 -m venv "$VENV_DIR"
+  - . "$VENV_DIR/bin/activate"
+  - python -m pip install --quiet --upgrade pip
+
 lint:
   stage: check
+  before_script: *venv
   script:
-    - pip install ruff
+    - pip install --quiet ruff
     - ruff check scripts/ tests/ bootstrap/
 
 doc-constants:
   stage: check
   script:
-    # The gate that catches a stale test count / version / MCP tool count.
-    - python scripts/gen_doc_constants.py --check
+    # stdlib only — no venv, so PEP 668 never enters the picture.
+    - python3 scripts/gen_doc_constants.py --check
 
 tests:
   stage: test
-  image: python:$PY
-  parallel:
-    matrix:
-      - PY: ["3.11", "3.12", "3.13"]
   before_script:
-    # Prove the image really carries git before the suite depends on it.
+    - *venv
+    # Six test modules drive a real git (clone, cat-file, ls-files).
     - git --version
+    # Job-local git config: `--global` on a shared shell runner would rewrite the
+    # runner user's ~/.gitconfig and affect every other project built here.
+    - export GIT_CONFIG_GLOBAL="$CI_PROJECT_DIR/.ci-gitconfig"
     - git config --global user.email "ci@tausik.local"
     - git config --global user.name "TAUSIK CI"
-    # Linux already defaults to false, but the supply-chain tests assert against
-    # a known baseline rather than whatever the image ships with. They simulate a
-    # hostile global config through GIT_CONFIG_GLOBAL themselves.
+    # Linux already defaults to false; assert it so the supply-chain tests measure
+    # against a known baseline. They simulate a hostile config themselves.
     - git config --global core.autocrlf false
-    - git config --global --add safe.directory "$CI_PROJECT_DIR"
-    - pip install pytest
-    # The mirror-sync tests read .claude/settings.json, which is gitignored and
-    # therefore absent from a fresh checkout. Without this they fail with
-    # FileNotFoundError and look like a code regression.
+    - pip install --quiet pytest
+    # The mirror-sync tests read .claude/settings.json, which is gitignored and so
+    # absent from a fresh checkout. Without this they fail with FileNotFoundError
+    # and it looks like a code regression.
     - python bootstrap/bootstrap.py --no-detect --ide claude
   script:
     - >
