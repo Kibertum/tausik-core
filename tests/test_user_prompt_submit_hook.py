@@ -108,6 +108,98 @@ class TestActiveTaskCheck:
         assert result.stdout.strip() == "", "active task should suppress nudge"
 
 
+def _context(result) -> str:
+    if not result.stdout.strip():
+        return ""
+    return json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+
+
+class TestRagFirstNudge:
+    """Moved here from the Stop hook — see keyword-detector-self-trigger-loop.
+
+    On Stop the nudge fired after the agent had already searched, cost a whole
+    turn, and re-armed itself because Claude Code echoes a block's `reason` back
+    as a role=user message whose text quoted the trigger phrases verbatim.
+    """
+
+    def test_english_where_is_triggers(self, tmp_path):
+        _setup_empty_tausik(tmp_path)
+        result = _run(tmp_path, "where is parse_manifest defined in the codebase?")
+        assert result.returncode == 0
+        assert "search_code" in _context(result)
+        assert "rag-first" in _context(result)
+
+    def test_english_find_function_triggers(self, tmp_path):
+        _setup_empty_tausik(tmp_path)
+        result = _run(tmp_path, "find the function that handles login")
+        assert result.returncode == 0
+        assert "search_code" in _context(result)
+
+    def test_russian_triggers(self, tmp_path):
+        _setup_empty_tausik(tmp_path)
+        result = _run(tmp_path, "где определена функция auth?")
+        assert result.returncode == 0
+        assert "search_code" in _context(result)
+
+    def test_active_task_does_not_suppress_rag_nudge(self, tmp_path):
+        """Token economy is orthogonal to task discipline."""
+        _setup_active_task(tmp_path)
+        result = _run(tmp_path, "where is the bar handler?")
+        assert result.returncode == 0
+        assert "search_code" in _context(result)
+
+    def test_non_search_question_does_not_trigger(self, tmp_path):
+        _setup_empty_tausik(tmp_path)
+        result = _run(tmp_path, "what time is it?")
+        assert result.returncode == 0
+        assert result.stdout.strip() == ""
+
+    def test_own_recommendation_text_does_not_rearm(self, tmp_path):
+        """The self-arming input. Feeding the nudge back must produce nothing."""
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks"))
+        from user_prompt_submit import SEARCH_RECOMMENDATION, _has_search_intent
+
+        assert not _has_search_intent(SEARCH_RECOMMENDATION), (
+            "the nudge text must not quote its own trigger phrases"
+        )
+        _setup_empty_tausik(tmp_path)
+        result = _run(tmp_path, SEARCH_RECOMMENDATION)
+        assert result.returncode == 0
+        assert result.stdout.strip() == ""
+
+    def test_stop_hook_feedback_shape_does_not_rearm(self, tmp_path):
+        _setup_empty_tausik(tmp_path)
+        echoed = (
+            "Stop hook feedback:\n[TAUSIK rag-first nudge] Your prompt looks like a "
+            "code-discovery question ('where is X' / 'how does Z work' / 'где определ…')."
+        )
+        result = _run(tmp_path, echoed)
+        assert result.returncode == 0
+        assert result.stdout.strip() == ""
+
+    def test_slash_command_body_does_not_trigger(self, tmp_path):
+        """/start's own SKILL.md contains the literal string 'where is X used'."""
+        _setup_empty_tausik(tmp_path)
+        result = _run(tmp_path, "/start")
+        assert result.returncode == 0
+        assert result.stdout.strip() == ""
+
+        expanded = (
+            "<command-message>start</command-message><command-name>/start</command-name>\n"
+            'search_code — first choice for symbols, patterns, "where is X used".'
+        )
+        result = _run(tmp_path, expanded)
+        assert result.returncode == 0
+        assert result.stdout.strip() == ""
+
+    def test_both_nudges_combine(self, tmp_path):
+        _setup_empty_tausik(tmp_path)
+        result = _run(tmp_path, "fix the bug — where is the auth handler defined?")
+        assert result.returncode == 0
+        ctx = _context(result)
+        assert "TAUSIK nudge" in ctx and "rag-first" in ctx
+
+
 class TestGracefulDegradation:
     def test_no_db_exits_silently(self, tmp_path):
         result = _run(tmp_path, "fix the bug")
@@ -159,9 +251,7 @@ class TestSettingsGeneration:
         cfg = json.loads((target / "settings.json").read_text(encoding="utf-8"))
         hooks = cfg.get("hooks", {})
         assert "UserPromptSubmit" in hooks
-        cmds = [
-            h["command"] for entry in hooks["UserPromptSubmit"] for h in entry["hooks"]
-        ]
+        cmds = [h["command"] for entry in hooks["UserPromptSubmit"] for h in entry["hooks"]]
         assert any("user_prompt_submit.py" in c for c in cmds)
 
     def test_qwen_settings_has_userpromptsubmit(self, tmp_path):

@@ -43,7 +43,7 @@ Hooks are scripts that run automatically with every agent action. They decide wh
 
 | Hook | When | What It Does |
 |------|------|-------------|
-| `user_prompt_submit.py` | On user prompt | Detects coding-intent (EN+RU) → nudges if no active task |
+| `user_prompt_submit.py` | On user prompt | Detects coding-intent (EN+RU) → nudges if no active task; detects code-discovery intent ("where is X") → nudges toward `search_code`. Ignores slash-command bodies and hook-generated text |
 
 ## Stop
 
