@@ -171,3 +171,9 @@ def _cmd_renar_export(svc: ProjectService, args: Any) -> None:
         f"Exported {counts['written']} file(s) to {out}"
         + (f" (removed {counts['deleted']} stale)" if counts["deleted"] else "")
     )
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests
+    from cli_entrypoint import refuse_direct_run
+
+    refuse_direct_run(__file__)

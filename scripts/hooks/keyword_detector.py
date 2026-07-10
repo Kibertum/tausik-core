@@ -7,6 +7,14 @@ message for drift-announcement keywords ("I'll implement", "let me code",
 "реализую это"), and if the agent is about to act without an active TAUSIK task
 — blocks the stop and forces the agent to re-check task state before continuing.
 
+The rag-first search nudge used to live here too, and it did not belong.
+A Stop hook fires *after* the agent has already run Grep/Read, so the nudge
+could never steer the turn it interrupted — it could only spend another one.
+Worse, blocking Stop makes the harness render the reason as a hook error and
+swallow the turn's output. The nudge now runs on UserPromptSubmit
+(``user_prompt_submit.py``), where it is injected as context, costs no turn,
+and only ever sees genuine human prompts. See ``keyword-detector-self-trigger-loop``.
+
 Output schema for the block response (Claude Code Stop hook):
     {"decision": "block", "reason": "<instruction>"}
 
@@ -42,34 +50,6 @@ DRIFT_KEYWORDS = (
 )
 
 
-# Search-intent patterns in the user's last prompt — when the user asks
-# "where is X" / "find Y" / "how does Z work", we want the agent to reach
-# for `mcp__codebase-rag__search_code` first instead of Grep/Read of full files.
-SEARCH_INTENT_KEYWORDS = (
-    # English
-    r"\bwhere\s+is\s+\w+",
-    r"\bwhere\s+(does|do)\s+\w+",
-    r"\bfind\s+(the\s+)?(function|method|class|definition|implementation|usage|usages|references)\b",
-    r"\bhow\s+does\s+\w+\s+(work|behave)",
-    r"\bhow\s+is\s+\w+\s+(implemented|used|called)",
-    r"\bwhich\s+(file|files|module|modules)\s+(define|defines|contain|contains)",
-    # Russian
-    r"\bгде\s+(определ|реализ|использ|объявл|задан)",
-    r"\bнайди\s+(функци|метод|класс|реализаци|использовани)",
-    r"\bкак\s+работает\s+\w+",
-    r"\bкакие\s+файлы\s+(содерж|определ|использ)",
-)
-
-
-SEARCH_RECOMMENDATION = (
-    "[TAUSIK rag-first nudge] Your prompt looks like a code-discovery question "
-    "('where is X' / 'find Y' / 'how does Z work' / 'где определ…'). "
-    "Prefer `mcp__codebase-rag__search_code` for symbol/pattern lookup — it returns "
-    "ranked chunks, not full files, and is much cheaper token-wise than Grep+Read on "
-    "unfamiliar code. Use Grep/Read only for known file paths."
-)
-
-
 def _extract_text(content) -> str:
     """Normalize assistant message content to plain text.
 
@@ -91,27 +71,15 @@ def _extract_text(content) -> str:
     return ""
 
 
-def _is_tool_result_only(content) -> bool:
-    """True if content is a list of blocks where every block is a tool_result.
-
-    Claude transcripts represent tool outputs as role=user messages whose
-    content is `[{"type": "tool_result", ...}, ...]`. Treating those as the
-    "last user message" produced a false-positive search-intent loop in
-    v14b-defect-keyword-detector-search-loop: a tool result containing the
-    string "where is X" anywhere in its output triggered the rag-first nudge
-    on every Stop until the agent defensively echoed `search_code`.
-    """
-    if not isinstance(content, list) or not content:
-        return False
-    return all(isinstance(b, dict) and b.get("type") == "tool_result" for b in content)
-
-
 def _read_last_message(transcript_path: str, target_role: str) -> str:
     """Walk the transcript backwards and return the text of the most recent message
     matching `target_role` ("user" or "assistant"). Empty string if not found.
 
-    For target_role="user", tool-result-only messages are skipped — those are
-    Claude transcript wrappers for tool outputs, not actual human prompts.
+    Entries whose extracted text is empty are skipped rather than returned.
+    Claude writes one transcript entry per content block, so an assistant turn
+    ends up as separate `thinking`, `text` and `tool_use` records. Returning the
+    first role match regardless of its text meant a turn that ended in a tool
+    call yielded "" — and the drift guard then inspected nothing at all.
     """
     if not transcript_path or not os.path.exists(transcript_path):
         return ""
@@ -137,9 +105,9 @@ def _read_last_message(transcript_path: str, target_role: str) -> str:
             content = message.get("content")
         else:
             content = entry.get("content") or message.get("content")
-        if target_role == "user" and _is_tool_result_only(content):
-            continue
-        return _extract_text(content)
+        text = _extract_text(content)
+        if text.strip():
+            return text
     return ""
 
 
@@ -147,22 +115,11 @@ def _read_last_assistant_message(transcript_path: str) -> str:
     return _read_last_message(transcript_path, "assistant")
 
 
-def _read_last_user_message(transcript_path: str) -> str:
-    return _read_last_message(transcript_path, "user")
-
-
 def _has_drift_keyword(text: str) -> bool:
     if not text:
         return False
     lowered = text.lower()
     return any(re.search(pat, lowered) for pat in DRIFT_KEYWORDS)
-
-
-def _has_search_intent(text: str) -> bool:
-    if not text:
-        return False
-    lowered = text.lower()
-    return any(re.search(pat, lowered) for pat in SEARCH_INTENT_KEYWORDS)
 
 
 def main() -> int:
@@ -197,11 +154,6 @@ def main() -> int:
             "SENAR Rule 1 (enforced by PreToolUse) will block Write/Edit otherwise."
         )
         print(json.dumps({"decision": "block", "reason": reason}))
-        return 0
-
-    last_user = _read_last_user_message(transcript_path)
-    if _has_search_intent(last_user) and "search_code" not in last_assistant.lower():
-        print(json.dumps({"decision": "block", "reason": SEARCH_RECOMMENDATION}))
         return 0
 
     return 0

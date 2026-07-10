@@ -211,3 +211,9 @@ def cmd_init_template(template: str, force: bool = False) -> int:
         f"{merged} merged, {skipped} skipped."
     )
     return 0
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests
+    from cli_entrypoint import refuse_direct_run
+
+    refuse_direct_run(__file__)

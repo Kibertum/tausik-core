@@ -11,6 +11,189 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 _Nothing yet — next changes land here._
 
+## [1.6.0] — 2026-07-10
+
+Skill supply-chain release. Several mechanisms were specified, covered by green
+tests, and had never once worked. Each is now pinned by a test that fails without
+the fix, and each was verified against a real environment rather than a mock.
+
+**Minor, not patch:** `skill sign` now refuses a converted worktree and
+`skill install` exits non-zero when dependencies fail. Both change the behaviour
+of existing commands.
+
+### Breaking
+
+- **`tausik skill install` now fails when `requires` cannot be installed.** It
+  used to print "Skill 'x' installed ... but dependency installation failed" and
+  return **exit 0**. The skill sat in the tree unable to run, and anything reading
+  the exit code — CI, MCP, a shell script — saw success. A direct violation of the
+  project's first principle. It now raises `SkillManagerError`, the CLI exits
+  non-zero, the copied files are removed and nothing is written to
+  `installed_skills`. Installation is atomic: either the skill is there and works,
+  or it is not there. The signature verdict and the manual-install command stay in
+  the message.
+
+- **`tausik skill sign` refuses to sign a converted worktree.** If the worktree
+  bytes differ from the bytes the repository stores, no signature is written and
+  the offending files are named. Sign such bytes deliberately with
+  `--allow-eol-drift`.
+
+- **`scripts/project_cli*.py` refuse to be run directly** (exit 2). All 26 modules
+  are libraries; there is one entry point, `.tausik/tausik`.
+
+### Fixed
+
+- **A skill's `requires` was never installed.** `install_skill_deps` imported
+  `bootstrap_venv` from a sibling `bootstrap/`. A bootstrapped project receives
+  only `scripts/`, the sibling is not there, and the `ImportError` was swallowed:
+  `return False` without a single line of output. Tests never saw it because they
+  run from the core checkout, where the sibling exists. The venv python is now
+  resolved across several candidates, and when core is out of reach it is derived
+  directly — the `.tausik/venv` layout is fixed.
+
+- **`--no-config` is not a flag in any version of pip.** The v1.3.4 hardening
+  (`med-batch-1-hooks #2`) crashed pip with `no such option` and rc=2 — confirmed
+  on 22.3.1 (what `ensurepip` ships with Python 3.11) and on 26.0.1; the flag is
+  absent from `pip install --help` in both. The "hardening" therefore broke every
+  dependency install instead of protecting it. Index-substitution defence now
+  rests on two things, read out of `pip/_internal/configuration.py` rather than
+  assumed:
+
+  - `--isolated` (real, present in both versions) skips USER config and every
+    `PIP_*` environment variable;
+  - an explicit `--index-url` argument — config values become optparse *defaults*
+    (`cli/parser.py::_update_defaults`), and a command-line argument overrides a
+    default.
+
+  Residual risk, accepted knowingly: an `extra-index-url` in a GLOBAL/SITE
+  `pip.conf` still adds a second index. Only `--no-index` suppresses that, and it
+  would forbid installing anything. `iter_config_files` yields GLOBAL and SITE
+  unconditionally — no flag and no variable disables them, contrary to what the
+  old `PIP_CONFIG_FILE` comment claimed.
+
+- **A test pinned a nonexistent flag through a mock.** `assert "--no-config" in
+  cmd` stayed green precisely because it mocked `subprocess` and never asked a
+  real pip. The new `TestPipFlagsAreRealFlags` validates every flag we pass
+  against a real pip offline (`pip install <flag> --help` returns rc=0 for a real
+  flag and rc=2 for an invented one) and guards the probe itself with its own test.
+
+- **A dependency failure lost the signature verdict.** The message said nothing
+  about whether the skill was signed. The verdict is back, together with the
+  command to install the dependencies by hand.
+
+- **The `keyword_detector.py` Stop hook swallowed the agent's turn and re-armed
+  itself.** The rag-first nudge matched regexes against the last user message, and
+  Claude Code feeds the `reason` from `{"decision":"block"}` back into the
+  conversation as a role=user message. The nudge text quoted its own triggers
+  (`'where is X'`, `'how does Z work'`, `'где определ…'`), so every block armed the
+  next one: `_has_search_intent(SEARCH_RECOMMENDATION)` returned `True`. The escape
+  hatch was unreachable too — transcripts store one entry per content block, so
+  `_read_last_message` returned the first `assistant` entry, often a `tool_use`
+  with no text, and `"search_code" not in last_assistant` never cleared. *Calling*
+  the tool did not count; only writing the word in prose did. The harness renders a
+  blocked Stop as a hook error and swallows the turn's output — hence turns that
+  ended in silence.
+
+- **The drift guard was blind on turns ending in a tool call.** The same transcript
+  walk handed it an empty string. Entries with no text are now skipped, so prose is
+  found behind a trailing `tool_use`.
+
+- **A skill signature reproduced only on the platform that made it.** The manifest's
+  `sha256` is taken over raw bytes, and `core.autocrlf` rewrites line endings on
+  checkout. A Linux clone got LF, the hashes disagreed, and the install refused an
+  untouched file with `modified: SKILL.md`.
+
+  It is **core** that clones, not the publisher, so the consumer half is fixed here:
+  `clone_repo` invokes git with `-c core.autocrlf=false -c core.eol=lf` and also
+  writes the pin into the clone's local config — otherwise the next
+  `git pull --ff-only` re-reads the user's global `core.autocrlf` and converts the
+  freshly fetched blobs (verified experimentally; `-c` covers only the `clone`
+  command itself). Vendor clones made before this fix are re-cloned rather than
+  served silently.
+
+  The publisher half is the `skill sign` refusal, see Breaking. The check compares a
+  file's bytes against `git cat-file blob :<path>` rather than reading
+  `git ls-files --eol` codes: it is exact and catches any clean/smudge filter.
+  `git status` is useless here — with `core.autocrlf=true` it normalises before
+  comparing and reports a clean tree. The signature stays a signature of raw bytes:
+  normalisation was rejected because a skill is executable content (decision #129).
+
+- **Re-adding a skill repo dropped the pinned publisher key.**
+  `update_config_repo_add` did `repos[name] = {"url": url}` — it replaced the whole
+  entry and lost the sibling `pubkey`. The next install printed
+  `Installing UNVERIFIED` and nothing explained why. The bug was wider than
+  `--force`: any re-add un-pinned the key, builtin URLs included. Fields are now
+  merged; a changed URL still drops the pin — it is a different repository — but
+  loudly, with the command to re-pin.
+
+- **`skill repo remove` failed on Windows and left the cache alive.**
+  `shutil.rmtree` without a handler tripped over git's read-only pack files
+  (`PermissionError`), and it raised **before** the config was updated: the repo
+  stayed configured, the vendor cache kept serving the stale skill — which is how a
+  freshly pushed signature was still reported `UNSIGNED`. Removal now clears the
+  read-only bit and retries; on failure the command exits non-zero instead of
+  printing a false success.
+
+- **CLI library modules silently exited 0.** `python .claude/scripts/project_cli.py
+  skill sign <dir>` defined the handlers, called none of them, printed nothing and
+  exited 0 — indistinguishable from success. Not one of the 26 modules had a guard;
+  fixing only the one someone tripped over would have left the trap on the other 25.
+
+### Changed
+
+- **The rag-first nudge moved from `Stop` to `UserPromptSubmit`.** The placement was
+  wrong on the merits, not merely buggy: `Stop` fires *after* the agent has already
+  run Grep/Read, so it cannot steer the turn it interrupts — it can only spend the
+  next one. On `UserPromptSubmit` the nudge is injected as `additionalContext`,
+  costs no turn, and only ever sees genuine human prompts. A new `_is_machine_prompt`
+  filter drops anything carrying `[TAUSIK `, `<command-name>`, `<command-message>`,
+  or a leading `/`. The nudge text no longer quotes its own triggers. Only the drift
+  guard remains on `Stop`, where the agent's last message is genuinely needed.
+
+  This also closes `/start` shooting itself: its `SKILL.md` body contains the literal
+  string `"where is X used"`, so the slash command silenced its own turn.
+
+- **`scripts/skill_deps.py` and `scripts/skill_git.py` split out of
+  `skill_manager.py`.** The module hit the filesize gate (469 lines against a 400
+  cap). `skill_deps` took `_resolve_venv_python`, `install_skill_deps`,
+  `DEFAULT_PIP_INDEX_URL` and `_SAFE_PKG`; `skill_git` took `rmtree_force` and the
+  line-ending pin. `skill_manager` re-exports them, so imports are intact.
+  `_SAFE_PKG` also stopped being recompiled on every call.
+
+- **`docs/{ru,en}/skill-spec.md` gained a section on signing and line endings**,
+  requiring a `.gitattributes` with `* -text` in the skill repo. The docs used to be
+  silent while the mechanism was quietly platform-dependent.
+
+- **The version-ref scanner no longer demands that history be rewritten.**
+  `scan_version_refs` flagged every `vX.Y`, without distinguishing an "as of the
+  current release" marker from a record of *when a thing landed*. Bumping 1.5 → 1.6
+  made the gate demand edits to `tausik_session_open (v1.5)`,
+  `hooks/check_docs.py (v1.5)` and "like in pre-v1.5 releases" — all three would have
+  become false statements. A separate `VERSION_SCAN_TARGETS` now says where a version
+  ref means "current": `README.md`, `README.ru.md`, `AGENTS.md`, `CLAUDE.md`.
+  `architecture.md` and `mcp.md` are out of the version scan — their MCP tool counts
+  are still checked — and the doc-wide version markers were removed from their
+  headings so nothing rots silently. The same move was already made for four other
+  docs via `MCP_COUNT_EXTRA_TARGETS`; the list simply missed these two.
+
+### Notes
+
+- Full suite: 4540 tests. `docs/_generated/constants.json` and the four doc-count
+  sites in the READMEs were regenerated.
+- `gen_doc_constants.py` only updates `constants.json`; the README counts are edited
+  by hand, even though the `check_docs` gate tells you to run that very script.
+  Filed as a separate task.
+- `skill_manager.py` sat exactly at the 400-line cap on `main`, and commit `c3e7ed9`
+  pushed it to 454 — the branch was already failing the filesize gate before the pip
+  fix, so `task done` could never have passed on it.
+- `TestCloneRepo::test_existing_repo_pulls` passed by accident: it looked for the
+  substring `"pull"` in `str(cmd)`, and pytest names `tmp_path` after the test
+  (`test_existing_repo_pulls0`), so the repo path contained it whatever git
+  subcommand ran. Rewritten to assert on `argv[1]`.
+- Left out: the dead `sources` section in `skills.example.json` (needs a decision —
+  wire it up or remove it), bundles from a skill repo (architecture), the store's
+  `LICENSE` (someone else's repository). All filed as tasks.
+
 ## [1.5.9] — 2026-07-08
 
 Docs release. Surfaces **z.ai GLM as a first-class model under Claude Code** —

@@ -407,20 +407,48 @@ class TestCloneRepo:
             clone_repo("ext::sh -c evil", str(tmp_path / "vendor"))
 
     def test_existing_repo_pulls(self, tmp_path, monkeypatch):
+        """An EOL-pinned checkout is updated in place, not re-cloned.
+
+        Assert on argv[1], not on `"pull" in str(cmd)`: pytest names tmp_path
+        after the test, so the repo path itself contains the substring "pull"
+        and the old assertion passed no matter which git subcommand ran.
+        """
         vendor = str(tmp_path / "vendor")
         repo_dir = os.path.join(vendor, "my-repo")
         os.makedirs(os.path.join(repo_dir, ".git"))
 
-        pull_called = []
+        calls = []
 
         def fake_run(cmd, **kwargs):
-            pull_called.append(cmd)
-            return subprocess.CompletedProcess(cmd, 0)
+            calls.append(list(cmd))
+            if "--get" in cmd:  # _eol_is_pinned: report the clone as pinned
+                return subprocess.CompletedProcess(cmd, 0, stdout="false\n")
+            return subprocess.CompletedProcess(cmd, 0, stdout="")
 
         monkeypatch.setattr(subprocess, "run", fake_run)
         result_dir, name = clone_repo("https://github.com/Org/my-repo", vendor)
         assert result_dir == repo_dir
-        assert any("pull" in str(c) for c in pull_called)
+        subcommands = [c[1] for c in calls]
+        assert "pull" in subcommands
+        assert "clone" not in subcommands
+
+    def test_existing_unpinned_repo_is_recloned_not_pulled(self, tmp_path, monkeypatch):
+        """The mirror image: a checkout without the EOL pin must not be pulled."""
+        vendor = str(tmp_path / "vendor")
+        repo_dir = os.path.join(vendor, "my-repo")
+        os.makedirs(os.path.join(repo_dir, ".git"))
+
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(list(cmd))
+            return subprocess.CompletedProcess(cmd, 0, stdout="")
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        clone_repo("https://github.com/Org/my-repo", vendor)
+        flat = [tok for c in calls for tok in c]
+        assert "clone" in flat
+        assert "pull" not in flat
 
     def test_clone_timeout(self, tmp_path, monkeypatch):
         def fake_run(cmd, **kwargs):
@@ -633,16 +661,201 @@ class TestInstallWithDeps:
         config = str(tmp_path / "config.json")
         tausik_dir = str(tmp_path / ".tausik")
         os.makedirs(tausik_dir)
-        # No venv → deps will fail
-        result = install_skill("myskill", vendor, skills_dst, config, tausik_dir)
-        assert "installed" in result
-        assert "failed" in result
+        # No venv → deps will fail. The old contract returned the string
+        # "Skill 'myskill' installed ... but dependency installation failed",
+        # i.e. it said "installed" and exited 0. A caller reading the exit code
+        # could not tell that the skill cannot run. Fail closed instead.
+        with pytest.raises(SkillManagerError) as exc:
+            install_skill("myskill", vendor, skills_dst, config, tausik_dir)
+        message = str(exc.value)
+        assert "NOT installed" in message
+        assert "nonexistent-pkg" in message
+        assert "pip install" in message, "tell the user how to recover"
+
+
+class TestVenvResolution:
+    """A bootstrapped project gets only `scripts/`, not `bootstrap/`.
+
+    The old code imported `bootstrap_venv` from a sibling `bootstrap/` and
+    swallowed the ImportError, so `requires` silently installed nothing in
+    every real project. Every test here ran from the core checkout, where that
+    sibling exists — which is exactly why none of them saw it.
+    """
+
+    def _hide_bootstrap(self, monkeypatch):
+        import skill_manager
+
+        real_isdir = os.path.isdir
+        monkeypatch.setattr(
+            skill_manager.os.path,
+            "isdir",
+            lambda path: False if "bootstrap" in str(path) else real_isdir(path),
+        )
+
+    def _fake_venv(self, tausik_dir: str) -> str:
+        import sys as _sys
+
+        sub, exe = ("Scripts", "python.exe") if _sys.platform == "win32" else ("bin", "python3")
+        d = os.path.join(tausik_dir, "venv", sub)
+        os.makedirs(d, exist_ok=True)
+        py = os.path.join(d, exe)
+        with open(py, "w") as f:
+            f.write("")
+        return py
+
+    def test_resolves_venv_without_bootstrap_on_path(self, tmp_path, monkeypatch):
+        from skill_manager import _resolve_venv_python
+
+        self._hide_bootstrap(monkeypatch)
+        tausik_dir = str(tmp_path / ".tausik")
+        expected = self._fake_venv(tausik_dir)
+        assert _resolve_venv_python(tausik_dir) == expected
+
+    def test_missing_venv_returns_none(self, tmp_path, monkeypatch):
+        from skill_manager import _resolve_venv_python
+
+        self._hide_bootstrap(monkeypatch)
+        assert _resolve_venv_python(str(tmp_path / ".tausik")) is None
+
+    def test_deps_failure_keeps_signature_verdict(self, tmp_path):
+        vendor = str(tmp_path / "vendor")
+        repo = os.path.join(vendor, "test-repo")
+        _write_manifest(
+            repo,
+            {"myskill": {"path": "myskill/", "description": "T", "requires": ["nonexistent-pkg"]}},
+        )
+        _make_skill(repo, "myskill")
+        skills_dst = str(tmp_path / "skills")
+        os.makedirs(skills_dst)
+        tausik_dir = str(tmp_path / ".tausik")
+        os.makedirs(tausik_dir)
+        config = str(tmp_path / "config.json")
+        # Fail closed: a skill whose declared deps are missing is not installed.
+        # This used to return a string and exit 0, so CI and MCP read it as success.
+        with pytest.raises(SkillManagerError) as exc:
+            install_skill("myskill", vendor, skills_dst, config, tausik_dir)
+        message = str(exc.value)
+        assert "NOT installed" in message
+        assert "nonexistent-pkg" in message
+        # An unsigned skill whose deps failed must still say it is unsigned.
+        assert "UNSIGNED" in message or "WARNING" in message
+
+    def test_deps_failure_leaves_no_half_install(self, tmp_path):
+        vendor = str(tmp_path / "vendor")
+        repo = os.path.join(vendor, "test-repo")
+        _write_manifest(
+            repo,
+            {"myskill": {"path": "myskill/", "description": "T", "requires": ["nonexistent-pkg"]}},
+        )
+        _make_skill(repo, "myskill")
+        skills_dst = str(tmp_path / "skills")
+        os.makedirs(skills_dst)
+        tausik_dir = str(tmp_path / ".tausik")
+        os.makedirs(tausik_dir)
+        config = str(tmp_path / "config.json")
+
+        with pytest.raises(SkillManagerError):
+            install_skill("myskill", vendor, skills_dst, config, tausik_dir)
+
+        assert not os.path.exists(os.path.join(skills_dst, "myskill")), (
+            "copied files must not survive a failed install"
+        )
+        if os.path.exists(config):
+            with open(config) as f:
+                installed = json.load(f).get("bootstrap", {}).get("installed_skills", [])
+            assert "myskill" not in installed
+
+    def test_skill_without_requires_still_installs(self, tmp_path):
+        """The fail-closed path must not touch the ordinary case."""
+        vendor = str(tmp_path / "vendor")
+        repo = os.path.join(vendor, "test-repo")
+        _write_manifest(repo, {"plain": {"path": "plain/", "description": "T"}})
+        _make_skill(repo, "plain")
+        skills_dst = str(tmp_path / "skills")
+        os.makedirs(skills_dst)
+        tausik_dir = str(tmp_path / ".tausik")
+        os.makedirs(tausik_dir)
+        result = install_skill(
+            "plain", vendor, skills_dst, str(tmp_path / "config.json"), tausik_dir
+        )
+        assert "installed" in result.lower()
+        assert os.path.isfile(os.path.join(skills_dst, "plain", "SKILL.md"))
+
+
+class TestPipFlagsAreRealFlags:
+    """Every flag we hand pip must be accepted by a real pip, not just by a mock.
+
+    v1.3.4 hardened `install_skill_deps` with `--no-config`, a flag no pip has
+    ever had. `TestInstallDepsEnvHardening` asserted its presence while mocking
+    `subprocess.run`, so it stayed green for releases while every `requires`
+    install died on `no such option: --no-config` (rc=2).
+
+    `pip install <flag> --help` parses options before printing, so it validates
+    a flag offline: rc=0 when the flag exists, rc=2 when it does not.
+    """
+
+    def _pip_accepts(self, *flags: str) -> int:
+        return subprocess.run(
+            [sys.executable, "-m", "pip", "install", *flags, "--help"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            stdin=subprocess.DEVNULL,
+        ).returncode
+
+    def test_probe_rejects_a_nonexistent_flag(self):
+        """Guard the probe itself: it must be able to say no."""
+        assert self._pip_accepts("--no-config") == 2, (
+            "--no-config does not exist in any pip; if this passes, the probe is broken"
+        )
+
+    def test_every_flag_we_pass_is_accepted_by_real_pip(self, tmp_path, monkeypatch):
+        from skill_manager import DEFAULT_PIP_INDEX_URL
+
+        cmd = _capture_pip_cmd(tmp_path, monkeypatch)
+        # Drop argv[0..3] (python -m pip install), the `--` separator and the pkgs.
+        flags = cmd[4 : cmd.index("--")]
+        assert "--isolated" in flags
+        assert "--index-url" in flags
+        assert DEFAULT_PIP_INDEX_URL in flags
+        assert "--no-config" not in flags
+        assert self._pip_accepts(*flags) == 0, f"real pip rejected {flags}"
+
+
+def _capture_pip_cmd(tmp_path, monkeypatch) -> list:
+    """Run install_skill_deps with subprocess mocked, return the argv it built."""
+    from skill_manager import install_skill_deps
+
+    fake_venv_py = str(tmp_path / "venv-py")
+    with open(fake_venv_py, "w") as f:
+        f.write("")
+
+    bootstrap_dir = os.path.join(os.path.dirname(__file__), "..", "bootstrap")
+    if bootstrap_dir not in sys.path:
+        sys.path.insert(0, bootstrap_dir)
+    import bootstrap_venv
+
+    monkeypatch.setattr(bootstrap_venv, "get_venv_python", lambda _td: fake_venv_py)
+
+    captured = {}
+
+    def fake_run(cmd, **kwargs):
+        captured["cmd"] = list(cmd)
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    install_skill_deps(
+        repo_dir=str(tmp_path / "repo"),
+        skill_info={"requires": ["requests"]},
+        tausik_dir=str(tmp_path / ".tausik"),
+    )
+    return captured["cmd"]
 
 
 class TestInstallDepsEnvHardening:
-    """v1.3.4 (med-batch-1-hooks #2): pip subprocess must run with --no-config
-    AND with PIP_INDEX_URL/PIP_EXTRA_INDEX_URL/PIP_TRUSTED_HOST stripped from
-    its env, so a hostile parent env or pip.conf cannot redirect installs."""
+    """pip subprocess must run with --isolated + an explicit --index-url AND with
+    PIP_INDEX_URL/PIP_EXTRA_INDEX_URL/PIP_TRUSTED_HOST stripped from its env, so a
+    hostile parent env or pip.conf cannot redirect installs."""
 
     def _setup_install_skill_deps(self, tmp_path, monkeypatch):
         """Build the minimum to reach install_skill_deps' subprocess.run."""
@@ -664,13 +877,25 @@ class TestInstallDepsEnvHardening:
         monkeypatch.setattr(bootstrap_venv, "get_venv_python", lambda _td: fake_venv_py)
         return install_skill_deps
 
-    def test_pip_install_runs_with_no_config_flag(self, tmp_path, monkeypatch):
+    def test_pip_install_pins_the_index_on_the_command_line(self, tmp_path, monkeypatch):
+        """Config files set optparse *defaults*; an explicit argument overrides them.
+
+        `--isolated` alone is not enough: pip's `iter_config_files` yields GLOBAL
+        and SITE unconditionally, so /etc/pip.conf and <venv>/pip.conf still load.
+        """
+        from skill_manager import DEFAULT_PIP_INDEX_URL
+
+        cmd = _capture_pip_cmd(tmp_path, monkeypatch)
+        assert "--isolated" in cmd
+        assert cmd[cmd.index("--index-url") + 1] == DEFAULT_PIP_INDEX_URL
+
+    def test_pip_install_runs_exactly_once(self, tmp_path, monkeypatch):
+        """The old --no-config fallback invoked pip twice on every single install."""
         install_skill_deps = self._setup_install_skill_deps(tmp_path, monkeypatch)
-        captured = {}
+        calls = []
 
         def fake_run(cmd, **kwargs):
-            captured["cmd"] = cmd
-            captured["env"] = kwargs.get("env") or {}
+            calls.append(list(cmd))
             return subprocess.CompletedProcess(cmd, 0)
 
         monkeypatch.setattr(subprocess, "run", fake_run)
@@ -680,7 +905,23 @@ class TestInstallDepsEnvHardening:
             tausik_dir=str(tmp_path / ".tausik"),
         )
         assert ok is True
-        assert "--no-config" in captured["cmd"]
+        assert len(calls) == 1, f"pip must run once, ran {len(calls)}×"
+
+    def test_no_false_claim_about_old_pip(self, tmp_path, monkeypatch, capsys):
+        """The removed fallback printed 'pip is too old for --no-config' on EVERY
+        install. No pip is too old for it — no pip ever had it."""
+        install_skill_deps = self._setup_install_skill_deps(tmp_path, monkeypatch)
+        monkeypatch.setattr(
+            subprocess, "run", lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0)
+        )
+        install_skill_deps(
+            repo_dir=str(tmp_path / "repo"),
+            skill_info={"requires": ["requests"]},
+            tausik_dir=str(tmp_path / ".tausik"),
+        )
+        out = capsys.readouterr().out
+        assert "too old" not in out
+        assert "--no-config" not in out
 
     def test_pip_install_strips_pip_index_url_from_env(self, tmp_path, monkeypatch):
         install_skill_deps = self._setup_install_skill_deps(tmp_path, monkeypatch)
@@ -786,3 +1027,119 @@ class TestRepoListWithData:
         r = [x for x in result if x["name"] == "old-repo"][0]
         assert r["url"] == "https://old"
         assert r["cloned"] is False
+
+
+class TestCloneEolPinning:
+    """Decision #129 — the signed manifest hashes raw bytes, so a checkout that
+    git line-ending-converted cannot reproduce the publisher's hashes.
+
+    `git clone` is core's command, not the publisher's, so conversion is pinned
+    off there. `-c` covers the clone only: without persisting the pin into the
+    clone's local config, the next `git pull` re-reads the user's global
+    core.autocrlf and re-converts. Both halves are exercised here.
+    """
+
+    def _git(self, cwd, *args, env=None):
+        return subprocess.run(
+            ["git", *args], cwd=cwd, capture_output=True, text=True, env=env, timeout=60
+        )
+
+    def _origin(self, tmp_path, body: bytes = b"---\nname: s\n---\n# body\n"):
+        src = tmp_path / "origin"
+        (src / "myskill").mkdir(parents=True)
+        (src / "myskill" / "SKILL.md").write_bytes(body)
+        self._git(src, "init", "-q", "-b", "main")
+        self._git(src, "config", "user.email", "a@b.c")
+        self._git(src, "config", "user.name", "t")
+        self._git(src, "config", "core.autocrlf", "false")
+        self._git(src, "add", "-A")
+        self._git(src, "commit", "-qm", "one")
+        return src
+
+    def _hostile_env(self, tmp_path):
+        """A consumer whose GLOBAL git config converts to CRLF (Windows default).
+
+        `-c core.autocrlf=true` would beat the clone's local config and test the
+        wrong thing; GIT_CONFIG_GLOBAL is the honest simulation.
+        """
+        gcfg = tmp_path / "gitconfig-global"
+        gcfg.write_text("[core]\n\tautocrlf = true\n")
+        return {**os.environ, "GIT_CONFIG_GLOBAL": str(gcfg), "GIT_CONFIG_NOSYSTEM": "1"}
+
+    def _clone(self, tmp_path, monkeypatch, src):
+        import skill_manager
+
+        monkeypatch.setattr(skill_manager, "_validate_url", lambda _u: None)
+        for k, v in self._hostile_env(tmp_path).items():
+            monkeypatch.setenv(k, v)
+        url = "file:///" + str(src).replace(os.sep, "/")
+        return skill_manager.clone_repo(url, str(tmp_path / "vendor"))
+
+    def _sha(self, path) -> str:
+        import hashlib
+
+        return hashlib.sha256(open(path, "rb").read()).hexdigest()
+
+    def test_clone_reproduces_publisher_bytes_under_hostile_global_config(
+        self, tmp_path, monkeypatch
+    ):
+        src = self._origin(tmp_path)
+        ref = self._sha(src / "myskill" / "SKILL.md")
+        repo_dir, _ = self._clone(tmp_path, monkeypatch, src)
+        got = self._sha(os.path.join(repo_dir, "myskill", "SKILL.md"))
+        assert got == ref, "clone must not inherit the consumer's core.autocrlf"
+
+    def test_pin_is_persisted_into_the_clone(self, tmp_path, monkeypatch):
+        from skill_manager import _eol_is_pinned
+
+        src = self._origin(tmp_path)
+        repo_dir, _ = self._clone(tmp_path, monkeypatch, src)
+        assert _eol_is_pinned(repo_dir), "a bare -c would not survive the next git pull"
+
+    def test_pull_does_not_reconvert(self, tmp_path, monkeypatch):
+        src = self._origin(tmp_path)
+        repo_dir, _ = self._clone(tmp_path, monkeypatch, src)
+
+        (src / "myskill" / "SKILL.md").write_bytes(b"---\nname: s\n---\n# body\nmore\n")
+        self._git(src, "add", "-A")
+        self._git(src, "commit", "-qm", "two")
+        ref = self._sha(src / "myskill" / "SKILL.md")
+
+        repo_dir, _ = self._clone(tmp_path, monkeypatch, src)  # takes the pull path
+        assert self._sha(os.path.join(repo_dir, "myskill", "SKILL.md")) == ref
+
+    def test_stale_unpinned_cache_is_recloned(self, tmp_path, monkeypatch, capsys):
+        """A checkout made before this fix may hold converted bytes. Serving it
+        silently would fail signature verification on an untouched file."""
+        from skill_manager import _eol_is_pinned
+
+        src = self._origin(tmp_path)
+        repo_dir, _ = self._clone(tmp_path, monkeypatch, src)
+        self._git(repo_dir, "config", "--unset", "core.autocrlf")
+        assert not _eol_is_pinned(repo_dir)
+
+        repo_dir, _ = self._clone(tmp_path, monkeypatch, src)
+        assert "Re-cloning" in capsys.readouterr().out
+        assert _eol_is_pinned(repo_dir)
+        assert self._sha(os.path.join(repo_dir, "myskill", "SKILL.md")) == self._sha(
+            src / "myskill" / "SKILL.md"
+        )
+
+
+class TestRmtreeForce:
+    """3.3 — git marks pack files read-only; plain rmtree raises PermissionError
+    on Windows and leaves the vendor cache alive."""
+
+    def test_removes_readonly_files(self, tmp_path):
+        import stat as _stat
+
+        from skill_manager import rmtree_force
+
+        pack = tmp_path / "repo" / ".git" / "objects" / "pack"
+        pack.mkdir(parents=True)
+        f = pack / "x.pack"
+        f.write_bytes(b"x")
+        os.chmod(f, _stat.S_IREAD)
+
+        rmtree_force(str(tmp_path / "repo"))
+        assert not (tmp_path / "repo").exists()

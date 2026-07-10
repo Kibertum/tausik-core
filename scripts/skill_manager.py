@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 from typing import Any
@@ -16,6 +17,22 @@ from typing import Any
 TAUSIK_MANIFEST = "tausik-skills.json"
 MANIFEST_FORMAT = "tausik-skills"
 ADAPTATION_GUIDE = "docs/{lang}/skill-adaptation.md"
+
+# Re-exported: git helpers and dependency installation live in sibling modules
+# (filesize cap). Public names keep working for callers and tests.
+from skill_git import (  # noqa: E402,F401
+    EOL_PINS as _EOL_PINS,
+    eol_is_pinned as _eol_is_pinned,
+    pin_eol_config as _pin_eol_config,
+    rmtree_force,
+)
+
+# Re-exported: dependency installation lives in skill_deps (filesize cap).
+from skill_deps import (  # noqa: E402,F401
+    DEFAULT_PIP_INDEX_URL,
+    _resolve_venv_python,
+    install_skill_deps,
+)
 
 
 class SkillManagerError(Exception):
@@ -98,28 +115,34 @@ def clone_repo(url: str, vendor_dir: str) -> tuple[str, str]:
     repo_dir = os.path.join(vendor_dir, repo_name)
 
     if os.path.isdir(os.path.join(repo_dir, ".git")):
-        # Already cloned -- pull latest
-        try:
-            result = subprocess.run(
-                ["git", "pull", "--ff-only"],
-                cwd=repo_dir,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=60,
-                stdin=subprocess.DEVNULL,
-            )
-            if result.returncode != 0:
-                print(f"  Warning: git pull failed for {repo_name}, using existing checkout")
-        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-            print(f"  Warning: could not update {repo_name}, using existing checkout")
-        return repo_dir, repo_name
+        if not _eol_is_pinned(repo_dir):
+            # Cloned by a build that inherited the user's core.autocrlf, so these
+            # bytes may already differ from the repository's. A stale cache that
+            # silently fails signature checks is worse than a re-clone.
+            print(f"  Re-cloning {repo_name}: cached checkout predates EOL pinning.")
+            rmtree_force(repo_dir)
+        else:
+            try:
+                result = subprocess.run(
+                    ["git", "pull", "--ff-only"],
+                    cwd=repo_dir,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=60,
+                    stdin=subprocess.DEVNULL,
+                )
+                if result.returncode != 0:
+                    print(f"  Warning: git pull failed for {repo_name}, using existing checkout")
+            except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+                print(f"  Warning: could not update {repo_name}, using existing checkout")
+            return repo_dir, repo_name
 
     os.makedirs(vendor_dir, exist_ok=True)
     try:
         result = subprocess.run(
-            ["git", "clone", "--depth", "1", url, repo_dir],
+            ["git", *_EOL_PINS, "clone", "--depth", "1", url, repo_dir],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -133,6 +156,7 @@ def clone_repo(url: str, vendor_dir: str) -> tuple[str, str]:
         raise SkillManagerError("git not found. Install git to use skill repos.")
     except subprocess.TimeoutExpired:
         raise SkillManagerError("git clone timed out (120s). Check URL and network.")
+    _pin_eol_config(repo_dir)
     return repo_dir, repo_name
 
 
@@ -250,82 +274,6 @@ def copy_skill(
     return dst
 
 
-def install_skill_deps(repo_dir: str, skill_info: dict[str, Any], tausik_dir: str) -> bool:
-    """Install skill pip dependencies into .tausik/venv/.
-
-    Dependencies come from skill_info["requires"] list.
-    """
-    import re as _re
-
-    requires = skill_info.get("requires", [])
-    if not requires:
-        return True
-
-    _SAFE_PKG = _re.compile(
-        r"^[A-Za-z0-9][A-Za-z0-9._-]*(?:\[[A-Za-z0-9._,-]+\])?"
-        r"(?:[<>=!~]=?[\w.+*-]+)?$"
-    )
-    bad = [r for r in requires if not isinstance(r, str) or not _SAFE_PKG.match(r)]
-    if bad:
-        print(f"  REFUSED: unsafe package specs in 'requires': {bad}")
-        return False
-
-    print(f"  Installing dependencies: {', '.join(requires)}")
-    print(
-        "  WARNING: packages come from an external skill manifest. Review before use in production."
-    )
-
-    # Find venv python
-    _bootstrap_dir = os.path.join(os.path.dirname(__file__), "..", "bootstrap")
-    if _bootstrap_dir not in sys.path:
-        sys.path.insert(0, _bootstrap_dir)
-    try:
-        from bootstrap_venv import get_venv_python  # type: ignore[import-not-found]
-    except ImportError:
-        return False
-
-    venv_python = get_venv_python(tausik_dir)
-    if not venv_python:
-        print(f"  Warning: venv not found, cannot install deps: {requires}")
-        return False
-
-    # v1.3.4 (med-batch-1-hooks #2): harden subprocess env so pip cannot be
-    # redirected to a hostile index via PIP_INDEX_URL / PIP_EXTRA_INDEX_URL /
-    # PIP_TRUSTED_HOST in the parent environment, and so pip.conf files in
-    # ~ / /etc / venv override scope cannot inject the same indirection.
-    # --no-config disables every pip.conf lookup; explicit env strip handles
-    # the env-var pathway. Combined with the existing _SAFE_PKG regex on
-    # `requires`, this closes the supply-chain redirect surface for
-    # third-party skills declaring a `requires` array.
-    safe_env = os.environ.copy()
-    for var in (
-        "PIP_INDEX_URL",
-        "PIP_EXTRA_INDEX_URL",
-        "PIP_TRUSTED_HOST",
-        "PIP_INDEX",
-        "PIP_FIND_LINKS",
-    ):
-        safe_env.pop(var, None)
-    try:
-        result = subprocess.run(
-            [venv_python, "-m", "pip", "install", "--no-config", "--quiet", "--"] + requires,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=120,
-            env=safe_env,
-            stdin=subprocess.DEVNULL,
-        )
-        if result.returncode != 0:
-            print(f"  pip install failed: {result.stderr}")
-            return False
-        return True
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
-        print(f"  pip install error: {e}")
-        return False
-
-
 def install_skill(
     skill_name: str,
     vendor_dir: str,
@@ -359,16 +307,34 @@ def install_skill(
         raise SkillManagerError(sig_msg)
 
     # Copy skill files
-    copy_skill(repo_dir, skill_info, skill_name, skills_dst)
+    dst = copy_skill(repo_dir, skill_info, skill_name, skills_dst)
 
     # Install pip deps
     requires = skill_info.get("requires", [])
     if requires:
         ok = install_skill_deps(repo_dir, skill_info, tausik_dir)
         if not ok:
-            return (
-                f"Skill '{skill_name}' installed from {repo_name} "
-                f"but dependency installation failed: {requires}"
+            # Fail closed. This used to print a message and return 0: the skill
+            # sat in the skills tree unable to run, and every caller that reads an
+            # exit code — CI, MCP, a shell script — saw success. A skill whose
+            # declared dependencies are missing is not installed.
+            #
+            # The signature verdict survives the failure: it is what the user needs
+            # in order to decide whether to install the packages by hand.
+            try:
+                rmtree_force(dst)
+            except OSError:  # pragma: no cover - leave the mess, but report it
+                pass
+            verdict = (
+                "Supply-chain: signature verified." if sig_level == "ok" else f"WARNING: {sig_msg}"
+            )
+            raise SkillManagerError(
+                f"Skill '{skill_name}' from {repo_name} was NOT installed: "
+                f"its dependencies failed to install ({', '.join(requires)}). "
+                f"{verdict} "
+                f"Install them yourself and retry:\n"
+                f"  .tausik/venv/bin/python -m pip install {' '.join(requires)}\n"
+                f"  tausik skill install {skill_name}"
             )
 
     # Update config

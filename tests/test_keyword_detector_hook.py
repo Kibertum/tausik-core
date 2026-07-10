@@ -104,11 +104,19 @@ class TestDriftDetection:
         assert result.stdout.strip() == ""
 
 
-class TestSearchIntentNudge:
-    """RAG-first nudge — when the user asks 'where is X' / 'find Y' / 'how does Z work'
-    and the agent's response did not mention search_code, suggest mcp__codebase-rag__search_code."""
+class TestSearchIntentIsNotAStopConcern:
+    """The rag-first nudge moved to UserPromptSubmit (keyword-detector-self-trigger-loop).
 
-    def test_english_where_is_triggers_recommendation(self, tmp_path):
+    It lived here and self-armed: Claude Code feeds a Stop block's `reason` back
+    as a role=user message, and SEARCH_RECOMMENDATION quoted every trigger phrase
+    verbatim ("where is X" / "how does Z work" / "где определ…"). Each block
+    therefore re-matched on the next Stop. The escape hatch was unreachable too:
+    transcripts store one entry per content block, so the last assistant entry is
+    often a `tool_use` with no text — meaning `"search_code" not in last_assistant`
+    stayed true even when the agent had just called search_code.
+    """
+
+    def test_search_intent_no_longer_blocks_stop(self, tmp_path):
         _setup_tausik(tmp_path, active=False)
         transcript = _make_transcript(
             tmp_path,
@@ -117,90 +125,27 @@ class TestSearchIntentNudge:
         )
         result = _run(tmp_path, {"transcript_path": transcript})
         assert result.returncode == 0
-        assert result.stdout.strip(), "expected block with rag-first recommendation"
-        parsed = json.loads(result.stdout)
-        assert parsed["decision"] == "block"
-        assert "search_code" in parsed["reason"]
-        assert "rag-first" in parsed["reason"]
+        assert result.stdout.strip() == "", (
+            "Stop must not block on search intent — the nudge belongs on "
+            f"UserPromptSubmit (stdout: {result.stdout!r})"
+        )
 
-    def test_english_find_function_triggers_recommendation(self, tmp_path):
+    def test_hook_own_reason_text_does_not_block(self, tmp_path):
+        """The exact self-arming input: our own nudge echoed back as a user message."""
         _setup_tausik(tmp_path, active=False)
-        transcript = _make_transcript(
-            tmp_path,
-            assistant_text="Sure.",
-            user_text="find the function that handles login",
+        echoed = (
+            "Stop hook feedback:\n"
+            "[TAUSIK rag-first nudge] Your prompt looks like a "
+            "code-discovery question ('where is X' / 'find Y' / 'how does Z work' / "
+            "'где определ…'). Prefer `mcp__codebase-rag__search_code`."
         )
-        result = _run(tmp_path, {"transcript_path": transcript})
-        assert result.returncode == 0
-        parsed = json.loads(result.stdout) if result.stdout.strip() else {}
-        assert parsed.get("decision") == "block"
-        assert "search_code" in parsed.get("reason", "")
-
-    def test_russian_where_is_triggers_recommendation(self, tmp_path):
-        _setup_tausik(tmp_path, active=False)
-        transcript = _make_transcript(
-            tmp_path,
-            assistant_text="Сейчас посмотрю.",
-            user_text="где определена функция auth?",
-        )
-        result = _run(tmp_path, {"transcript_path": transcript})
-        assert result.returncode == 0
-        parsed = json.loads(result.stdout) if result.stdout.strip() else {}
-        assert parsed.get("decision") == "block"
-        assert "search_code" in parsed.get("reason", "")
-
-    def test_assistant_already_used_search_code_suppresses_nudge(self, tmp_path):
-        _setup_tausik(tmp_path, active=False)
-        transcript = _make_transcript(
-            tmp_path,
-            assistant_text="I called mcp__codebase-rag__search_code and found 3 chunks.",
-            user_text="where is foo defined?",
-        )
-        result = _run(tmp_path, {"transcript_path": transcript})
-        assert result.returncode == 0
-        assert result.stdout.strip() == "", "search_code mention in assistant suppresses nudge"
-
-    def test_active_task_does_not_suppress_search_nudge(self, tmp_path):
-        """Search-intent nudge fires regardless of task state — it's about token economy, not task discipline."""
-        _setup_tausik(tmp_path, active=True)
-        transcript = _make_transcript(
-            tmp_path,
-            assistant_text="Looking now.",
-            user_text="where is the bar handler?",
-        )
-        result = _run(tmp_path, {"transcript_path": transcript})
-        assert result.returncode == 0
-        parsed = json.loads(result.stdout) if result.stdout.strip() else {}
-        assert parsed.get("decision") == "block"
-        assert "search_code" in parsed.get("reason", "")
-
-    def test_non_search_question_does_not_trigger(self, tmp_path):
-        _setup_tausik(tmp_path, active=False)
-        transcript = _make_transcript(
-            tmp_path,
-            assistant_text="Here's a thought.",
-            user_text="what time is it?",
-        )
+        transcript = _make_transcript(tmp_path, assistant_text="Acknowledged.", user_text=echoed)
         result = _run(tmp_path, {"transcript_path": transcript})
         assert result.returncode == 0
         assert result.stdout.strip() == ""
 
-    def test_stop_hook_active_short_circuits_search_nudge(self, tmp_path):
-        _setup_tausik(tmp_path, active=False)
-        transcript = _make_transcript(
-            tmp_path,
-            assistant_text="Looking.",
-            user_text="where is foo defined?",
-        )
-        result = _run(
-            tmp_path,
-            {"transcript_path": transcript, "stop_hook_active": True},
-        )
-        assert result.returncode == 0
-        assert result.stdout.strip() == ""
-
-    def test_drift_takes_precedence_over_search_nudge(self, tmp_path):
-        """If both drift and search-intent fire, the drift block wins (more critical)."""
+    def test_drift_guard_survives(self, tmp_path):
+        """Removing the search nudge must not disarm the drift guard."""
         _setup_tausik(tmp_path, active=False)
         transcript = _make_transcript(
             tmp_path,
@@ -214,119 +159,71 @@ class TestSearchIntentNudge:
         assert "drift guard" in parsed["reason"]
 
 
-class TestToolResultFalsePositiveGuard:
-    """v14b-defect-keyword-detector-search-loop — tool_result-only messages
-    are role=user in Claude transcripts. If their text matched search-intent
-    regex, the hook fired the rag-first nudge on every Stop until the agent
-    defensively echoed `search_code`. Filter them so only actual human
-    prompts trigger the nudge.
+class TestLastAssistantProseLookup:
+    """_read_last_message must skip entries with no text.
+
+    Claude writes one transcript entry per content block, so an assistant turn
+    is separate `thinking` / `text` / `tool_use` records. Returning the first
+    role match regardless of text meant a turn ending in a tool call handed the
+    drift guard an empty string, and it inspected nothing.
     """
 
-    def _write_jsonl(self, tmp_path, lines: list[dict]) -> str:
+    def _write_jsonl(self, tmp_path, lines: list) -> str:
         path = tmp_path / "transcript.jsonl"
-        path.write_text(
-            "\n".join(json.dumps(line) for line in lines) + "\n",
-            encoding="utf-8",
-        )
+        path.write_text("\n".join(json.dumps(line) for line in lines) + "\n", encoding="utf-8")
         return str(path)
 
-    def test_tool_result_with_search_intent_does_not_trigger(self, tmp_path):
-        """Real bug: /review tool result contained 'where is X' style text;
-        hook walked back and matched it as the user's last message."""
+    def test_drift_found_behind_trailing_tool_use_entry(self, tmp_path):
         _setup_tausik(tmp_path, active=False)
         transcript = self._write_jsonl(
             tmp_path,
             [
-                {"role": "user", "content": "fix the defects"},
-                {"role": "assistant", "content": "running review"},
+                {"role": "user", "content": "go"},
+                {"role": "assistant", "content": "I'll implement the parser now."},
                 {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": "abc",
-                            "content": "Findings: where is is_security_sensitive defined? It's at scripts/security_pattern.py",
-                        }
-                    ],
+                    "role": "assistant",
+                    "content": [{"type": "tool_use", "name": "Read", "input": {}}],
                 },
-                {"role": "assistant", "content": "Got it, applying fix."},
             ],
         )
-        result = _run(tmp_path, {"transcript_path": transcript})
-        assert result.returncode == 0, result.stderr
-        assert result.stdout.strip() == "", (
-            "tool_result content with search-intent text MUST NOT trigger the nudge "
-            f"(stdout: {result.stdout!r})"
-        )
-
-    def test_real_user_prompt_after_tool_result_still_triggers(self, tmp_path):
-        """Regression guard: filtering tool_result-only must not break the
-        legitimate path where the actual most-recent human prompt has search-intent.
-        """
-        _setup_tausik(tmp_path, active=False)
-        transcript = self._write_jsonl(
-            tmp_path,
-            [
-                {
-                    "role": "user",
-                    "content": [{"type": "tool_result", "tool_use_id": "x", "content": "ok"}],
-                },
-                {"role": "user", "content": "where is bar handler defined?"},
-                {"role": "assistant", "content": "I read scripts/bar.py."},
-            ],
-        )
-        # Walking backwards: assistant (skip), then user "where is bar..." → triggers.
         result = _run(tmp_path, {"transcript_path": transcript})
         assert result.returncode == 0
         parsed = json.loads(result.stdout) if result.stdout.strip() else {}
-        assert parsed.get("decision") == "block"
-        assert "search_code" in parsed.get("reason", "")
+        assert parsed.get("decision") == "block", (
+            "drift prose sits behind a trailing tool_use entry and must still be seen"
+        )
+        assert "drift guard" in parsed.get("reason", "")
 
-    def test_mixed_tool_result_blocks_still_filtered(self, tmp_path):
-        """Multiple tool_result blocks in one user message still skipped."""
+    def test_empty_thinking_entry_skipped(self, tmp_path):
         _setup_tausik(tmp_path, active=False)
         transcript = self._write_jsonl(
             tmp_path,
             [
-                {"role": "user", "content": "do work"},
-                {"role": "assistant", "content": "looking"},
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": "a",
-                            "content": "find the function foo",
-                        },
-                        {"type": "tool_result", "tool_use_id": "b", "content": "where is X"},
-                    ],
-                },
-                {"role": "assistant", "content": "Done."},
-            ],
-        )
-        result = _run(tmp_path, {"transcript_path": transcript})
-        assert result.returncode == 0
-        assert result.stdout.strip() == "", (
-            f"all-tool_result content must be filtered (stdout: {result.stdout!r})"
-        )
-
-    def test_user_text_string_with_tool_result_keyword_unaffected(self, tmp_path):
-        """Plain string content (not a list) is always treated as user prompt,
-        even if the string mentions tool_result. We only filter when content
-        is a list of tool_result blocks.
-        """
-        _setup_tausik(tmp_path, active=False)
-        transcript = self._write_jsonl(
-            tmp_path,
-            [
-                {"role": "user", "content": "where is the tool_result handler?"},
-                {"role": "assistant", "content": "Looking now."},
+                {"role": "user", "content": "go"},
+                {"role": "assistant", "content": "сейчас напишу парсер"},
+                {"role": "assistant", "content": [{"type": "thinking", "thinking": "hmm"}]},
             ],
         )
         result = _run(tmp_path, {"transcript_path": transcript})
         assert result.returncode == 0
         parsed = json.loads(result.stdout) if result.stdout.strip() else {}
         assert parsed.get("decision") == "block"
+
+    def test_no_prose_anywhere_is_not_a_crash(self, tmp_path):
+        _setup_tausik(tmp_path, active=False)
+        transcript = self._write_jsonl(
+            tmp_path,
+            [
+                {"role": "user", "content": "go"},
+                {
+                    "role": "assistant",
+                    "content": [{"type": "tool_use", "name": "Read", "input": {}}],
+                },
+            ],
+        )
+        result = _run(tmp_path, {"transcript_path": transcript})
+        assert result.returncode == 0
+        assert result.stdout.strip() == ""
 
 
 class TestLoopSafety:

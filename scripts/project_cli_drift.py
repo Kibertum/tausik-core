@@ -18,3 +18,9 @@ def cmd_drift(svc: ProjectService, args: Any) -> None:
     conn = svc.be._conn
     findings = run_all(conn) if which == "all" else run_detector(conn, which)
     print(format_findings(findings))
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests
+    from cli_entrypoint import refuse_direct_run
+
+    refuse_direct_run(__file__)

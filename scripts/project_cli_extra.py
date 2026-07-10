@@ -352,3 +352,9 @@ def cmd_gates(svc: ProjectService, args: Any) -> None:
 # cmd_verify moved to project_cli_verify.py to keep this file under filesize gate
 # cmd_metrics, cmd_search, cmd_events, cmd_dead_end, cmd_explore, cmd_audit, cmd_run
 # -> moved to project_cli_ops.py
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests
+    from cli_entrypoint import refuse_direct_run
+
+    refuse_direct_run(__file__)

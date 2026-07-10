@@ -165,3 +165,9 @@ def _cmd_snippet_extract(svc: ProjectService, args: Any) -> None:
         print(f"Brain error: {e}", file=sys.stderr)
         return
     print(format_store_result(result, "patterns"))
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests
+    from cli_entrypoint import refuse_direct_run
+
+    refuse_direct_run(__file__)

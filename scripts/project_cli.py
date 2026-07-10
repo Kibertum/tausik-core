@@ -299,3 +299,9 @@ def cmd_roadmap(svc: ProjectService, args: Any) -> None:
 
 # _print_with_warnings, _auto_slug, _print_task_detail
 # -> moved to project_cli_task.py (filesize-debt-paydown-2)
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests
+    from cli_entrypoint import refuse_direct_run
+
+    refuse_direct_run(__file__)

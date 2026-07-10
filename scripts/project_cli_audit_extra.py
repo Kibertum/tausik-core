@@ -62,3 +62,9 @@ def cmd_audit_research(args: Any) -> None:
         for c in result["candidates"]:
             print(f"    - {c['path']}  ({c['age_days']} days old)")
         print("\n  Audit is read-only — review manually before moving.")
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests
+    from cli_entrypoint import refuse_direct_run
+
+    refuse_direct_run(__file__)
