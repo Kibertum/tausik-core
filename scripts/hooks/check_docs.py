@@ -61,7 +61,7 @@ def main(argv: list[str] | None = None) -> int:
     sys.stderr.write(proc.stderr or proc.stdout)
     sys.stderr.write(
         "\n[check_docs] doc-constants drift — run "
-        "`python scripts/gen_doc_constants.py` and re-commit.\n"
+        "`python scripts/gen_doc_constants.py --write` and re-commit.\n"
     )
     return 1
 

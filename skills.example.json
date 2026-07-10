@@ -1,16 +1,4 @@
 {
-  "sources": {
-    "tausik-official": {
-      "repo": "Kibertum/tausik-skills",
-      "ref": "main",
-      "description": "Official TAUSIK skills: review, test, debug, audit, security, ship, and more",
-      "skill_dirs": [
-        "review", "test", "debug", "audit", "security", "ship",
-        "docs", "optimize", "dispatch", "run", "loop-task", "ultra",
-        "init", "onboard", "retro", "daily", "sentry", "pdf", "excel"
-      ]
-    }
-  },
   "external_skills": {
     "seo": {
       "repo": "AgriciDaniel/claude-seo",

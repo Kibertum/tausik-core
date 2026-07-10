@@ -191,6 +191,37 @@ def run_main(
     return 0
 
 
+def run_write(repo_root: Path) -> int:
+    """Regenerate constants.json AND repair cross-file drift, then verify.
+
+    This is what ``check_docs`` now tells users to run: after it, a ``--check``
+    is green. The final self-check makes that promise testable rather than
+    assumed — if anything still drifts, we exit non-zero and say so.
+    """
+    from doc_drift_scanners import write_cross_file_fixes
+
+    path = output_json_path(repo_root)
+    payload = build_constants_doc(repo_root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(render_json(payload), encoding="utf-8")
+    print(f"Wrote {path}")
+
+    changed = write_cross_file_fixes(repo_root, payload)
+    for rel in changed:
+        print(f"Fixed cross-file refs in {rel}")
+    if not changed:
+        print("Cross-file refs already in sync.")
+
+    rc = run_main(repo_root, check=True)
+    if rc != 0:
+        print(
+            "error: drift remains after --write; a ref is outside the known "
+            "patterns. Fix it by hand or widen the scanner.",
+            file=sys.stderr,
+        )
+    return rc
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Generate docs/_generated/constants.json")
     p.add_argument(
@@ -219,6 +250,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Skip the cross-file repo-state count scan (stacks / hooks / review agents)",
     )
     p.add_argument(
+        "--write",
+        action="store_true",
+        help="Regenerate constants.json AND repair cross-file drift (README badges, "
+        "prose counts, version refs) so a following --check is green. Idempotent.",
+    )
+    p.add_argument(
         "--repo-root",
         type=Path,
         default=None,
@@ -226,6 +263,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = p.parse_args(argv)
     root = Path(args.repo_root).resolve() if args.repo_root else find_repo_root()
+    if args.write:
+        return run_write(root)
     return run_main(
         root,
         check=args.check,
