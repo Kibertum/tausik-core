@@ -507,3 +507,51 @@ def test_description_edit_busts_check(tmp_path: Path, monkeypatch: pytest.Monkey
     bumped["mcp_descriptions_hash"] = "deadbeefdeadbeef"  # simulate a description edit
     monkeypatch.setattr(g, "build_constants_doc", lambda _root: bumped)
     assert run_main(REPO, check=True) == 1
+
+
+class TestVersionScanTargets:
+    """A version ref means 'current release' only where the doc claims to be current.
+
+    architecture.md / mcp.md annotate when a feature landed ("tausik_session_open
+    (v1.5)", "like in pre-v1.5 releases"). Scanning them against the current version
+    made every minor bump demand those markers be rewritten — i.e. it demanded that
+    true statements be made false.
+    """
+
+    def test_history_docs_are_out_of_the_version_scan(self):
+        from doc_drift_scanners import VERSION_SCAN_TARGETS
+
+        for rel in (
+            "docs/en/mcp.md",
+            "docs/ru/mcp.md",
+            "docs/en/architecture.md",
+            "docs/ru/architecture.md",
+        ):
+            assert rel not in VERSION_SCAN_TARGETS
+
+    def test_current_version_docs_are_still_scanned(self):
+        from doc_drift_scanners import VERSION_SCAN_TARGETS
+
+        for rel in ("README.md", "README.ru.md", "CLAUDE.md"):
+            assert rel in VERSION_SCAN_TARGETS
+
+    def test_history_docs_still_have_their_mcp_counts_checked(self):
+        from doc_drift_scanners import CROSS_FILE_SCAN_TARGETS
+
+        for rel in ("docs/en/mcp.md", "docs/ru/mcp.md"):
+            assert rel in CROSS_FILE_SCAN_TARGETS
+
+    def test_stale_version_in_readme_is_still_caught(self, tmp_path):
+        from doc_drift_scanners import scan_version_refs
+
+        (tmp_path / "README.md").write_text("badge v1.5 here\n", encoding="utf-8")
+        messages = scan_version_refs(tmp_path, "1.6.0")
+        assert any("README.md" in m for m in messages)
+
+    def test_historical_marker_in_mcp_doc_is_not_flagged(self, tmp_path):
+        from doc_drift_scanners import scan_version_refs
+
+        docs = tmp_path / "docs" / "en"
+        docs.mkdir(parents=True)
+        (docs / "mcp.md").write_text("`tausik_session_open` (v1.5) landed then.\n", encoding="utf-8")
+        assert scan_version_refs(tmp_path, "1.6.0") == []

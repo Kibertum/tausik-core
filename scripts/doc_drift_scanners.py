@@ -43,6 +43,22 @@ CROSS_FILE_SCAN_TARGETS: tuple[str, ...] = (
     "docs/ru/mcp.md",
 )
 
+# Files where a bare `vX.Y` means "the version you are running now", so a stale
+# one is a bug worth failing on.
+#
+# architecture.md and mcp.md are deliberately absent. They annotate *when a thing
+# arrived* — `tausik_session_open (v1.5)`, `hooks/check_docs.py (v1.5)`, "like in
+# pre-v1.5 releases". Scanning them against the current version forced every minor
+# bump to rewrite those markers, turning true statements into false ones. That is
+# the same reason MCP_COUNT_EXTRA_TARGETS exists; the list simply missed these two.
+# Their MCP tool counts are still checked — see scan_mcp_counts.
+VERSION_SCAN_TARGETS: tuple[str, ...] = (
+    "README.md",
+    "README.ru.md",
+    "AGENTS.md",
+    "CLAUDE.md",
+)
+
 # Extra files scanned for MCP tool counts ONLY (not version/test/code-state).
 # These docs hardcode the MCP count and drifted silently (93/98/100/105 vs 123)
 # because they were outside CROSS_FILE_SCAN_TARGETS. They carry legitimate
@@ -200,14 +216,18 @@ def _is_foreign_version(text: str, match_start: int) -> bool:
 def scan_version_refs(repo_root: Path, expected_version: str) -> list[str]:
     """Return drift messages for cross-file version refs.
 
-    Walks :data:`CROSS_FILE_SCAN_TARGETS`, strips fenced code blocks, and
+    Walks :data:`VERSION_SCAN_TARGETS`, strips fenced code blocks, and
     flags every ``vX.Y`` / ``vX.Y.Z`` occurrence whose major.minor (and
     patch, if present) does not match ``expected_version``. Refs preceded
     by a foreign-version prefix (SENAR / Python / OWASP) are skipped —
     those products version independently.
+
+    Only docs where a version ref means "the current release" are scanned.
+    Docs that record *when* a feature landed are excluded, or the gate would
+    demand that history be rewritten at every bump.
     """
     messages: list[str] = []
-    for rel in CROSS_FILE_SCAN_TARGETS:
+    for rel in VERSION_SCAN_TARGETS:
         path = repo_root / rel
         if not path.is_file():
             continue
