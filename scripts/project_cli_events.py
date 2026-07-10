@@ -127,3 +127,9 @@ def cmd_events_anchor(svc: Any, _args: Any) -> None:
     )
     fp = envelope["signature"]["key_fingerprint"]
     print(f"Anchored head #{res['head_id']} ({res['total']} events) with key {fp}.")
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests
+    from cli_entrypoint import refuse_direct_run
+
+    refuse_direct_run(__file__)

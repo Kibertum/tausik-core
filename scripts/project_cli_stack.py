@@ -181,3 +181,9 @@ def _stack_paths(stack: str) -> tuple[str, str]:
     builtin = os.path.join(repo_root, "stacks", stack, "stack.json")
     user = os.path.join(os.getcwd(), ".tausik", "stacks", stack, "stack.json")
     return builtin, user
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests
+    from cli_entrypoint import refuse_direct_run
+
+    refuse_direct_run(__file__)

@@ -395,3 +395,9 @@ def cmd_session_recompute(svc: ProjectService, args: Any) -> None:
         print(f"{r['id']:>4} {wall:>6} {active:>7} {idle_pct:>6}  {r['started_at']}")
     total_idle = f"{round((1 - total_active / total_wall) * 100)}%" if total_wall > 0 else "  -"
     print(f"{'TOTAL':>4} {total_wall:>6} {total_active:>7} {total_idle:>6}")
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests
+    from cli_entrypoint import refuse_direct_run
+
+    refuse_direct_run(__file__)

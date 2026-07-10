@@ -174,6 +174,13 @@ def add_skill(sub: argparse._SubParsersAction) -> None:
     )
     sk_sign.add_argument("path", help="Release directory to sign")
     sk_sign.add_argument("--name", default=None, help="Artifact name (default: dir name)")
+    sk_sign.add_argument(
+        "--allow-eol-drift",
+        action="store_true",
+        help="Sign even when the worktree bytes differ from the repository's "
+        "(git line-ending conversion). Such a signature verifies only where the "
+        "same conversion happens.",
+    )
 
     sk_rebuild = sk_sub.add_parser(
         "rebuild",

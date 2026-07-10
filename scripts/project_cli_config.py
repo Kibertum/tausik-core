@@ -134,3 +134,9 @@ def _cmd_config_show() -> None:
     print(f"ide:    {ide or '(none)'}")
     print(f"model:  {model or '(none)'}")
     print(f"source: {source}")
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests
+    from cli_entrypoint import refuse_direct_run
+
+    refuse_direct_run(__file__)

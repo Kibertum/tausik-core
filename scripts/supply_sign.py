@@ -73,18 +73,31 @@ def build_artifact_manifest(artifact_dir: str, *, name: str | None = None) -> di
 
 
 def sign_artifact(
-    project_dir: str, artifact_dir: str, *, name: str | None = None
+    project_dir: str,
+    artifact_dir: str,
+    *,
+    name: str | None = None,
+    allow_eol_drift: bool = False,
 ) -> dict[str, Any]:
     """Sign a release directory; writes SIGNATURE_FILENAME inside it.
 
     Returns {"path", "name", "files", "key_fingerprint"}. Raises
-    SupplySignError (no key / empty dir / not canonicalizable).
+    SupplySignError (no key / empty dir / not canonicalizable / the worktree
+    holds bytes the repository does not, unless `allow_eol_drift`).
     """
     import crypto_keys
     from crypto_receipt import ReceiptError
     from crypto_sign import SignError, sign_receipt
+    from supply_eol import WorktreeDriftError, assert_worktree_matches_repo
 
     manifest = build_artifact_manifest(artifact_dir, name=name)
+    if not allow_eol_drift:
+        # A signature over converted bytes verifies only on the machine that made
+        # it. Catch it here rather than at every consumer's install. Decision #129.
+        try:
+            assert_worktree_matches_repo(artifact_dir, [f["path"] for f in manifest["files"]])
+        except WorktreeDriftError as e:
+            raise SupplySignError(str(e)) from e
     try:
         envelope = sign_receipt(project_dir, manifest)
     except (SignError, ReceiptError) as e:

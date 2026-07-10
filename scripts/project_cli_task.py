@@ -331,3 +331,9 @@ def _print_task_detail(task: dict[str, Any]) -> None:
         for sp in specs:
             ref = f" -> {sp['content_ref']}" if sp.get("content_ref") else ""
             print(f"  [{sp['type']}] {sp['slug']} {sp['version']} ({sp['relation']}){ref}")
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests
+    from cli_entrypoint import refuse_direct_run
+
+    refuse_direct_run(__file__)

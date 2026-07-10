@@ -48,7 +48,7 @@ the Backend handles only CRUD and SQL. CLI and MCP are two equal entry points.
 
 ### Scripts (Business Logic)
 
-Modules in `scripts/` (v1.5), each <=400 lines. Highlights:
+Modules in `scripts/`, each <=400 lines. Highlights:
 
 | File | Purpose |
 |------|---------|

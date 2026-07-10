@@ -134,3 +134,9 @@ def _cmd_hygiene_archive(svc: ProjectService, args: Any) -> None:
         if len(title) > 60:
             title = title[:57] + "..."
         print(f"  {row['slug']:<32} {row['completed_at']}  {title}")
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests
+    from cli_entrypoint import refuse_direct_run
+
+    refuse_direct_run(__file__)

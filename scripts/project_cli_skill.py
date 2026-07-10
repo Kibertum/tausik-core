@@ -66,7 +66,12 @@ def _cmd_skill_sign(args: Any, project_dir: str) -> None:
     from supply_sign import SupplySignError, sign_artifact
 
     try:
-        info = sign_artifact(project_dir, args.path, name=getattr(args, "name", None))
+        info = sign_artifact(
+            project_dir,
+            args.path,
+            name=getattr(args, "name", None),
+            allow_eol_drift=getattr(args, "allow_eol_drift", False),
+        )
     except SupplySignError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(2)
@@ -233,7 +238,17 @@ def _cmd_skill_repo(args: Any, vendor_dir: str, config_path: str) -> None:
             )
         )
     elif rc == "remove":
-        print(repo_remove(args.name, vendor_dir, config_path))
+        import sys
+
+        from skill_manager import SkillManagerError
+
+        try:
+            print(repo_remove(args.name, vendor_dir, config_path))
+        except SkillManagerError as e:
+            # A half-removed vendor cache keeps serving the stale skill. Say so
+            # and fail, rather than printing a traceback or a false success.
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(2)
     elif rc == "trust":
         import sys
 
@@ -269,3 +284,9 @@ def _cmd_skill_repo(args: Any, vendor_dir: str, config_path: str) -> None:
                 print(f"    Skills: {', '.join(r['skills'])}")
     else:
         print("Usage: tausik skill repo [add|remove|list|trust]")
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests
+    from cli_entrypoint import refuse_direct_run
+
+    refuse_direct_run(__file__)

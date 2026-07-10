@@ -37,3 +37,9 @@ def cmd_key(svc, args) -> None:
     else:
         print("Usage: tausik key {init,show}", file=sys.stderr)
         sys.exit(2)
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests
+    from cli_entrypoint import refuse_direct_run
+
+    refuse_direct_run(__file__)

@@ -98,3 +98,9 @@ def _cmd_seed(svc: ProjectService) -> None:
 
     out = seed_existing_roles(svc.be)
     print(json.dumps(out, indent=2))
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests
+    from cli_entrypoint import refuse_direct_run
+
+    refuse_direct_run(__file__)

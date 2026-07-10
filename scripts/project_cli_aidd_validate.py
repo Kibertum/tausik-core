@@ -311,3 +311,9 @@ def cmd_aidd_validate(*, root: str | None = None, log: Callable[[str], None] | N
             n_unver += 1
     out(f"Summary: {n_ok} ok, {n_drift} drift, {n_unver} unverifiable.")
     return 1 if n_drift else 0
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests
+    from cli_entrypoint import refuse_direct_run
+
+    refuse_direct_run(__file__)
