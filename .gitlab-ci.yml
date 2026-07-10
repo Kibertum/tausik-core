@@ -42,9 +42,13 @@ variables:
   PYTHONUTF8: "1"
   GIT_DEPTH: "50"
   # The shell runner keeps the working copy between jobs. Without -ffdx a stale
-  # .tausik/ or .ci-venv/ from the previous run leaks into this one.
+  # .tausik/ from the previous run leaks into this one.
   GIT_CLEAN_FLAGS: -ffdx
-  VENV_DIR: .ci-venv
+  # OUTSIDE the checkout. A venv inside it gets picked up by anything that walks
+  # the tree — `test_ble001_enforced` runs ruff over the whole repo, and ruff does
+  # not skip a directory just because we consider it ours.
+  VENV_DIR: /tmp/tausik-ci-venv-$CI_JOB_ID
+  GIT_CFG: /tmp/tausik-ci-gitconfig-$CI_JOB_ID
 
 workflow:
   rules:
@@ -54,25 +58,38 @@ workflow:
 
 # Fail loudly if `venv` is missing rather than reaching for
 # --break-system-packages, which would install into the runner's system python.
+#
+# TAUSIK's core has zero dependencies. These are the dev tools its own gates and
+# tests invoke:
+#   pytest — the suite, and `gen_doc_constants` counts tests by collecting it
+#   PyYAML — WITHOUT it, tests/test_renar_{conformance,export}.py hit
+#            `pytest.importorskip("yaml")` and their 36 tests are never collected.
+#            That is exactly 4540 - 4504, the drift the first Linux run reported.
+#            The count is a function of installed packages, not of the platform.
+#   ruff   — `test_ble001_enforced` shells out to `python -m ruff` over the tree
 .venv: &venv
   - python3 --version
   - python3 -m venv --help > /dev/null || { echo "python3-venv is not installed on this runner"; exit 1; }
   - python3 -m venv "$VENV_DIR"
   - . "$VENV_DIR/bin/activate"
   - python -m pip install --quiet --upgrade pip
+  - pip install --quiet pytest PyYAML ruff
 
 lint:
   stage: check
   before_script: *venv
   script:
-    - pip install --quiet ruff
     - ruff check scripts/ tests/ bootstrap/
 
 doc-constants:
   stage: check
+  before_script: *venv
   script:
-    # stdlib only — no venv, so PEP 668 never enters the picture.
-    - python3 scripts/gen_doc_constants.py --check
+    # Needs pytest: `count_tests` shells out to `pytest --collect-only`, and when
+    # that fails it falls back to the value already on disk — comparing the file
+    # against itself. Run without pytest, this gate cannot fail.
+    - python -c "import pytest, yaml" # the count depends on both
+    - python scripts/gen_doc_constants.py --check
 
 tests:
   stage: test
@@ -82,13 +99,12 @@ tests:
     - git --version
     # Job-local git config: `--global` on a shared shell runner would rewrite the
     # runner user's ~/.gitconfig and affect every other project built here.
-    - export GIT_CONFIG_GLOBAL="$CI_PROJECT_DIR/.ci-gitconfig"
+    - export GIT_CONFIG_GLOBAL="$GIT_CFG"
     - git config --global user.email "ci@tausik.local"
     - git config --global user.name "TAUSIK CI"
     # Linux already defaults to false; assert it so the supply-chain tests measure
     # against a known baseline. They simulate a hostile config themselves.
     - git config --global core.autocrlf false
-    - pip install --quiet pytest
     # The mirror-sync tests read .claude/settings.json, which is gitignored and so
     # absent from a fresh checkout. Without this they fail with FileNotFoundError
     # and it looks like a code regression.
