@@ -59,12 +59,34 @@ def save_config(config_path: str, cfg: dict[str, Any]) -> None:
         json.dump(cfg, f, indent=2, ensure_ascii=False)
 
 
-def update_config_repo_add(config_path: str, name: str, url: str) -> None:
-    """Add repo to config."""
+def update_config_repo_add(config_path: str, name: str, url: str) -> bool:
+    """Add or update a repo in config. Returns True if a pinned key was dropped.
+
+    Merges into the existing entry instead of replacing it. `repos[name] = {...}`
+    silently discarded the sibling `pubkey`, so re-adding an already-configured
+    repo un-pinned its publisher key and the next install printed
+    "Installing UNVERIFIED" with nothing explaining why. That happened for any
+    re-add, not only `--force` ones.
+
+    A changed URL is a different repository: the old key must not vouch for it,
+    so the pin is dropped — but loudly, never silently.
+    """
     cfg = load_config(config_path)
     repos = cfg.setdefault("skill_repos", {})
-    repos[name] = {"url": url}
+    existing = repos.get(name) or {}
+    if not isinstance(existing, dict):  # legacy: bare URL string
+        existing = {"url": existing}
+
+    url_changed = bool(existing.get("url")) and existing["url"] != url
+    dropped_pin = bool(existing.get("pubkey")) and url_changed
+
+    entry = dict(existing)
+    entry["url"] = url
+    if dropped_pin:
+        entry.pop("pubkey", None)
+    repos[name] = entry
     save_config(config_path, cfg)
+    return dropped_pin
 
 
 def update_config_repo_trust(config_path: str, name: str, pubkey: str) -> None:
@@ -163,22 +185,46 @@ def repo_add(
         )
 
     # Save to config
-    update_config_repo_add(config_path, repo_name, url)
+    dropped_pin = update_config_repo_add(config_path, repo_name, url)
 
     names = ", ".join(info["skill_names"][:10])
     suffix = f" (+{info['skills_count'] - 10} more)" if info["skills_count"] > 10 else ""
+    trust = ""
+    if dropped_pin:
+        trust = (
+            "\nWARNING: the URL changed, so the pinned publisher key was dropped.\n"
+            "  Installs from this repo are now UNVERIFIED. Re-pin out-of-band:\n"
+            f"    tausik skill repo trust {repo_name} <pubkey>"
+        )
+    elif get_repo_pinned_pubkey(config_path, repo_name):
+        trust = "\nSupply-chain: publisher key still pinned; signed skills stay verified."
     return (
         f"Repository '{repo_name}' added ({info['skills_count']} skills).\n"
         f"Available: {names}{suffix}\n"
-        f"Install with: tausik skill install <name>"
+        f"Install with: tausik skill install <name>{trust}"
     )
 
 
 def repo_remove(name: str, vendor_dir: str, config_path: str) -> str:
-    """Remove a skill repo from vendor dir and config."""
+    """Remove a skill repo from vendor dir and config.
+
+    The checkout goes first: `shutil.rmtree` used to raise PermissionError on
+    Windows against git's read-only pack files, and it raised *before* the config
+    was updated. The repo stayed configured, the vendor cache stayed alive, and it
+    kept serving the stale skill — which is how a freshly pushed signature was
+    still reported UNSIGNED.
+    """
+    from skill_manager import rmtree_force
+
     repo_dir = os.path.join(vendor_dir, name)
     if os.path.isdir(repo_dir):
-        shutil.rmtree(repo_dir)
+        try:
+            rmtree_force(repo_dir)
+        except OSError as e:
+            raise SkillManagerError(
+                f"could not remove vendor checkout {repo_dir}: {e}. "
+                "The repo is still configured; nothing was changed."
+            ) from e
     update_config_repo_remove(config_path, name)
     return f"Repository '{name}' removed."
 

@@ -108,3 +108,38 @@ What to show the user.
 - Rule 1
 - Rule 2
 ```
+
+## Signing and line endings
+
+`tausik skill sign` hashes the **raw bytes** of every file. There is no
+normalisation and there will not be: a skill is executable content, and a
+signature blind to line endings would stop covering something that changes
+behaviour (a `#!/bin/sh` line ending in `\r` yields `bad interpreter`).
+Decision #129.
+
+Hence a requirement on the skill repository: **git must not convert bytes on
+checkout**. Otherwise a signature made on Windows with `core.autocrlf=true`
+reproduces only on Windows, and on Linux the install refuses an untouched file
+with `modified: SKILL.md`.
+
+Put a `.gitattributes` at the root of the skill repo:
+
+```gitattributes
+* -text
+```
+
+`skill sign` checks this itself: if the worktree bytes differ from the bytes the
+repository stores, it refuses and names the offending files. Inspect the drift
+with `git ls-files --eol` — a line like `i/lf w/crlf` means git converted the file
+on checkout. Note that `git status` reports a clean tree in that case: it
+normalises before comparing.
+
+To bring an already-converted worktree back to the repository's bytes, drop the
+index (`git rm --cached -r .`) and restore the worktree from the objects
+(`git reset --hard`) once `.gitattributes` is in place.
+
+To sign converted bytes deliberately, pass `--allow-eol-drift`. Such a signature
+verifies only where the same conversion happens.
+
+Outside a git repository (an unpacked tarball) the check is skipped: there is
+nothing to compare against.
