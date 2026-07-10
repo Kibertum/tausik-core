@@ -173,14 +173,21 @@ def _gate_commands() -> list[tuple[str, str]]:
 
 
 def _flags_of(cmd: str) -> tuple[str, list[str]]:
-    """(binary, flag-tokens) — drop the `2>&1 | head -N` truncation tail and
-    placeholders, keep the leading `-x` / `--long` tokens on the primary stage."""
+    """(binary, flags belonging to THIS binary).
+
+    Drops the `2>&1 | head -N` truncation tail and `{placeholders}`, and stops at
+    `--`: tokens after it are handed to a different program (e.g. `cargo clippy --
+    -D warnings` gives `-D` to rustc, not cargo), so they must not be probed
+    against the primary binary's help."""
     stage = cmd.split("2>&1")[0].split("|")[0].split("&&")[0].strip()
     toks = [t for t in shlex.split(stage) if not t.startswith("{")]
     if not toks:
         return "", []
     binary = toks[0]
-    flags = [t for t in toks[1:] if t.startswith("-") and t != "--"]
+    rest = toks[1:]
+    if "--" in rest:
+        rest = rest[: rest.index("--")]
+    flags = [t for t in rest if t.startswith("-")]
     return binary, flags
 
 
@@ -219,6 +226,21 @@ class TestGateCommandFlagsAreRealFlags:
             stage = cmd.split("2>&1")[0].split("|")[0].strip()
             shlex.split(stage)  # must not raise
 
+    # Binaries whose `<binary> [subcmd] --help` reliably ENUMERATES the flag, so
+    # "flag not in help" is a trustworthy failure. Others are skipped: a probe
+    # that raises false alarms is the inverse of the mock we're replacing.
+    #
+    # Excluded on purpose:
+    #   * npx  — a wrapper; --help describes npx, not the tool it fetches, and it
+    #            tries to run rather than print the tool's help.
+    #   * npm  — `--silent` is a GLOBAL npm flag, absent from `npm test --help`.
+    #   * mvn  — Maven help does not list `-q` under a goal.
+    # For those the static em-dash / shlex tests above still apply; the flag
+    # itself (`--noEmit`, `--silent`) is a well-known stable tool flag.
+    _HELP_ENUMERATES_FLAGS = frozenset(
+        {"ruff", "mypy", "bandit", "pytest", "cargo", "gofmt", "terraform", "hadolint"}
+    )
+
     @pytest.mark.parametrize(
         "source,cmd", _GATE_COMMANDS, ids=lambda v: v if isinstance(v, str) else ""
     )
@@ -226,8 +248,10 @@ class TestGateCommandFlagsAreRealFlags:
         binary, flags = _flags_of(cmd)
         if not flags:
             pytest.skip("no leading flags on the primary stage")
-        resolved = binary if os.path.isabs(binary) or "/" in binary else binary
-        if shutil.which(resolved) is None:
+        base = os.path.basename(binary)
+        if base not in self._HELP_ENUMERATES_FLAGS:
+            pytest.skip(f"{binary}: --help does not reliably enumerate flags")
+        if shutil.which(binary) is None:
             pytest.skip(f"{binary} not installed")
         # A subcommand-style token (e.g. `check`, `test`) may precede flags.
         toks = shlex.split(cmd.split("2>&1")[0].split("|")[0].strip())
