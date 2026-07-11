@@ -11,6 +11,62 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 _Nothing yet — next changes land here._
 
+## [1.6.1] — 2026-07-11
+
+Tooling and CI hardening. No runtime behaviour changes — this release is entirely
+tests, gates and the development pipeline. It exists because every 1.6.0 finding
+shared one shape: **code that could not fail where it was run.**
+
+### Added
+
+- **CI is back on the development remote.** Development happens on GitLab, where
+  there were no tests: `.gitlab-ci.yml` had vanished with the site extraction, so
+  the suite first saw a commit only after it was merged, tagged and mirrored to
+  GitHub — the gate stood behind the door. The CRLF bug walked straight through
+  it: green on the maintainer's Windows box, broken on every Linux clone. A Linux
+  pipeline now runs on every push and merge request. The GitHub matrix
+  (ubuntu/windows/macos × 3.11–3.13) stays as release verification.
+
+  It earned its place before its first green: the opening runs caught a `ruff`
+  error already on `main`, three tests that only passed because of tools present
+  on one machine, and a `file:///` + path join that yields four slashes on POSIX.
+
+- **The skill store verifies its own signatures on Linux.** A new CI job in the
+  store repo re-clones it the way the most hostile consumer would (`autocrlf=true`)
+  and checks all 39 signatures reproduce. A signature's whole value is that it
+  reproduces where it was not made; now that is exercised, on the platform that
+  broke.
+
+### Fixed (the silent-error class)
+
+- **External-binary flags are verified against the real binary, not a mock.**
+  `--no-config` (which no pip accepts) shipped across two minors because the test
+  mocked `subprocess`. Flags handed to git, and to the per-stack gate commands,
+  are now probed against the actual tool. This caught `cargo clippy — -D warnings`
+  in the rust stack: an em-dash (U+2014) instead of `--`, so `-D warnings` never
+  reached the driver.
+
+- **A gate that advises "run X" must have X actually fix it.** `check_docs` told
+  you to run `gen_doc_constants.py`, which only rewrote `constants.json` and left
+  the README counts — so following the advice kept the gate red. `--write` now
+  repairs every cross-file drift (badges, prose, version refs) and re-checks
+  itself; a meta-test proves the advice greens the gate. Widened the count
+  patterns to the forms that were never scanned (the badge URL, all Russian
+  forms) — which is why a stale "4341 тестов" had sat in the README for releases.
+
+- **A discarded `subprocess.run(...)` must state `check=` explicitly.**
+  `pin_eol_config` ran `git config` and threw the result away; if the pin failed
+  to write, the next `git pull` re-converted line endings and signatures broke
+  again, silently. A discarded run now has to opt in (`check=True`) or opt out
+  (`check=False`) — the swallow is no longer the default. The broad "never
+  discard" rule was rejected as noisy (metrics, formatters, background launches
+  legitimately fire-and-forget).
+
+### Notes
+
+- Everything above is post-1.6.0 work; the 1.6.0 tag does not contain it. 1.6.1
+  makes the tag match `main`.
+
 ## [1.6.0] — 2026-07-10
 
 Skill supply-chain release. Several mechanisms were specified, covered by green
