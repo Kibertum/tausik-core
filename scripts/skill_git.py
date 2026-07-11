@@ -47,13 +47,22 @@ def pin_eol_config(repo_dir: str) -> None:
     core.autocrlf and converts the freshly fetched blobs. Verified, not assumed.
     """
     for key, value in (("core.autocrlf", "false"), ("core.eol", "lf")):
-        subprocess.run(
+        result = subprocess.run(
             ["git", "config", key, value],
             cwd=repo_dir,
             capture_output=True,
+            text=True,
             timeout=30,
             stdin=subprocess.DEVNULL,
         )
+        if result.returncode != 0:
+            # A dropped pin is not cosmetic: the next `git pull` re-reads the
+            # user's global core.autocrlf and re-converts the bytes, so signature
+            # verification silently breaks again. Say so rather than swallow it.
+            print(
+                f"  Warning: could not pin {key} in {repo_dir}: "
+                f"{result.stderr.strip()}. EOL conversion may recur on pull."
+            )
 
 
 def eol_is_pinned(repo_dir: str) -> bool:
