@@ -16,7 +16,7 @@
       "enabled": false,
       "severity": "warn",
       "trigger": ["commit"],
-      "command": "cargo clippy — -D warnings 2>&1 | head -20",
+      "command": "cargo clippy -- -D warnings 2>&1 | head -20",
       "description": "Rust linter",
       "stacks": ["rust"]
     },

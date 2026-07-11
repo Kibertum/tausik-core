@@ -1,0 +1,116 @@
+# TAUSIK — CI on the development remote.
+#
+# Development happens here, on GitLab. github.com/Kibertum/tausik-core is a
+# release mirror, published by hand off an orphan lineage. Until this file
+# existed, the test suite first saw a commit *after* it had been merged, tagged
+# and published — the gate stood behind the door.
+#
+# That gap has a name: the CRLF bug. Signatures computed over raw bytes verified
+# only on the machine that made them, every skill was refused on Linux, and every
+# run on the maintainer's Windows box was green. Windows is covered by the
+# developer's machine; macOS has never produced a finding. Linux is the half that
+# was missing, so Linux is what this pipeline runs.
+#
+# The GitHub matrix (ubuntu/windows/macos x 3.11-3.13) stays as release
+# verification. This is the development gate: one Linux, every push.
+#
+# NOTE ON RUNNERS. Every runner on this instance is a **shell** executor — both
+# `common` and `docker-services` print `Preparing the "shell" executor`. There is
+# no docker executor, so `image:` is silently ignored: the first version of this
+# file asked for `python:3.11`, got the host's Debian python3.12, and `pip install`
+# died on PEP 668 (externally-managed-environment). A python-version matrix is not
+# possible here, and we do not need one — GitHub covers versions before a release.
+#
+# Consequences of a shell executor, all handled below:
+#   * the workspace is REUSED between runs -> GIT_CLEAN_FLAGS wipes .tausik/, venv
+#   * packages must go in a venv, never into the system python
+#   * `git config --global` would write into the runner user's ~/.gitconfig and
+#     leak into other projects' pipelines -> GIT_CONFIG_GLOBAL points at a job file
+
+stages:
+  - check
+  - test
+
+default:
+  tags:
+    - common
+  interruptible: true
+
+variables:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PIP_NO_CACHE_DIR: "1"
+  PYTHONUTF8: "1"
+  GIT_DEPTH: "50"
+  # The shell runner keeps the working copy between jobs. Without -ffdx a stale
+  # .tausik/ from the previous run leaks into this one.
+  GIT_CLEAN_FLAGS: -ffdx
+  # OUTSIDE the checkout. A venv inside it gets picked up by anything that walks
+  # the tree — `test_ble001_enforced` runs ruff over the whole repo, and ruff does
+  # not skip a directory just because we consider it ours.
+  VENV_DIR: /tmp/tausik-ci-venv-$CI_JOB_ID
+  GIT_CFG: /tmp/tausik-ci-gitconfig-$CI_JOB_ID
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+# Fail loudly if `venv` is missing rather than reaching for
+# --break-system-packages, which would install into the runner's system python.
+#
+# TAUSIK's core has zero dependencies. These are the dev tools its own gates and
+# tests invoke:
+#   pytest — the suite, and `gen_doc_constants` counts tests by collecting it
+#   PyYAML — WITHOUT it, tests/test_renar_{conformance,export}.py hit
+#            `pytest.importorskip("yaml")` and their 36 tests are never collected.
+#            That is exactly 4540 - 4504, the drift the first Linux run reported.
+#            The count is a function of installed packages, not of the platform.
+#   ruff   — `test_ble001_enforced` shells out to `python -m ruff` over the tree
+.venv: &venv
+  - python3 --version
+  - python3 -m venv --help > /dev/null || { echo "python3-venv is not installed on this runner"; exit 1; }
+  - python3 -m venv "$VENV_DIR"
+  - . "$VENV_DIR/bin/activate"
+  - python -m pip install --quiet --upgrade pip
+  - pip install --quiet pytest PyYAML ruff
+
+lint:
+  stage: check
+  before_script: *venv
+  script:
+    - ruff check scripts/ tests/ bootstrap/
+
+doc-constants:
+  stage: check
+  before_script: *venv
+  script:
+    # Needs pytest: `count_tests` shells out to `pytest --collect-only`, and when
+    # that fails it falls back to the value already on disk — comparing the file
+    # against itself. Run without pytest, this gate cannot fail.
+    - python -c "import pytest, yaml" # the count depends on both
+    - python scripts/gen_doc_constants.py --check
+
+tests:
+  stage: test
+  before_script:
+    - *venv
+    # Six test modules drive a real git (clone, cat-file, ls-files).
+    - git --version
+    # Job-local git config: `--global` on a shared shell runner would rewrite the
+    # runner user's ~/.gitconfig and affect every other project built here.
+    - export GIT_CONFIG_GLOBAL="$GIT_CFG"
+    - git config --global user.email "ci@tausik.local"
+    - git config --global user.name "TAUSIK CI"
+    # Linux already defaults to false; assert it so the supply-chain tests measure
+    # against a known baseline. They simulate a hostile config themselves.
+    - git config --global core.autocrlf false
+    # The mirror-sync tests read .claude/settings.json, which is gitignored and so
+    # absent from a fresh checkout. Without this they fail with FileNotFoundError
+    # and it looks like a code regression.
+    - python bootstrap/bootstrap.py --no-detect --ide claude
+  script:
+    - >
+      pytest tests/ -q --tb=short
+      --ignore=tests/test_bootstrap_skills_coverage.py
+      --ignore=tests/test_bootstrap_real.py

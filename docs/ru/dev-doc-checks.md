@@ -23,7 +23,8 @@ python scripts/gen_doc_constants.py --check
 
 ```bash
 python scripts/gen_doc_constants.py --check     # exit 1 при дрейфе
-python scripts/gen_doc_constants.py             # перегенерировать JSON
+python scripts/gen_doc_constants.py --write      # починить всё, что флагует --check, затем перепроверить
+python scripts/gen_doc_constants.py             # перегенерировать только constants.json
 ```
 
 Или добавить в локальный `pre-commit` hook (в репо уже есть mypy hook;
@@ -61,4 +62,4 @@ python scripts/hooks/check_docs.py || exit 1
   Тест: `tests/test_check_docs_hook.py`.
 - **`gen_doc_constants.py` отсутствует** (legacy checkout) → SKIP, exit 0.
 - **Drift найден** → exit 1 + stderr-подсказка:
-  `[check_docs] doc-constants drift — run python scripts/gen_doc_constants.py and re-commit.`
+  `[check_docs] doc-constants drift — run python scripts/gen_doc_constants.py --write and re-commit.`

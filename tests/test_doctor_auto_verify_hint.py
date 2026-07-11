@@ -71,9 +71,15 @@ def _run_doctor_capture(cfg_overrides: dict, env_overrides: dict) -> str:
     }
     base_cfg.update(cfg_overrides)
 
-    base_env = {
-        k: v for k, v in __import__("os").environ.items() if k not in {"CI", "GITHUB_ACTIONS"}
-    }
+    # Strip every marker the code checks, not the two we happened to think of.
+    # The hand-written {"CI", "GITHUB_ACTIONS"} left GITLAB_CI in place, so this
+    # test passed on GitHub Actions and failed the moment it ran on GitLab —
+    # `looks_like_ci_environment` saw a CI and suppressed the interactive hint.
+    import os
+
+    from project_cli_doctor import _CI_ENV_MARKERS
+
+    base_env = {k: v for k, v in os.environ.items() if k not in _CI_ENV_MARKERS}
     base_env.update(env_overrides)
 
     buf = io.StringIO()

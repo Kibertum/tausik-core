@@ -47,6 +47,9 @@ def main() -> int:
     formatter = FORMATTERS.get(ext.lower())
     if formatter:
         try:
+            # check=False on purpose: a formatter's non-zero exit (syntax it
+            # can't parse, config quibble) must not fail the write hook. The
+            # explicit flag marks this as a conscious ignore, not a default swallow.
             subprocess.run(
                 formatter + [file_path],
                 capture_output=True,
@@ -55,6 +58,7 @@ def main() -> int:
                 errors="replace",
                 timeout=10,
                 cwd=project_dir,
+                check=False,
             )
         except (FileNotFoundError, subprocess.TimeoutExpired):
             # Formatter not installed — graceful degradation
@@ -82,6 +86,8 @@ def main() -> int:
             if lines:
                 slug = lines[0].split()[0]
                 rel_path = os.path.relpath(file_path, project_dir).replace("\\", "/")
+                # check=False on purpose: journaling the edit is best-effort and
+                # must never fail the write hook.
                 subprocess.run(
                     [tausik_cmd, "task", "log", slug, f"Modified: {rel_path}"],
                     capture_output=True,
@@ -90,6 +96,7 @@ def main() -> int:
                     errors="replace",
                     timeout=5,
                     cwd=project_dir,
+                    check=False,
                 )
         except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
             pass

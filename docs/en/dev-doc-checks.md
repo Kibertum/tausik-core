@@ -23,7 +23,8 @@ Manually:
 
 ```bash
 python scripts/gen_doc_constants.py --check     # exit 1 on drift
-python scripts/gen_doc_constants.py             # regenerate the JSON
+python scripts/gen_doc_constants.py --write      # fix everything --check flags, then re-check
+python scripts/gen_doc_constants.py             # regenerate constants.json only
 ```
 
 Or wire it into your local `pre-commit` hook (the repo ships a basic
@@ -61,4 +62,4 @@ profile is well understood.
   and exits 0. Tested in `tests/test_check_docs_hook.py`.
 - **`gen_doc_constants.py` missing** (legacy checkout) → SKIP, exit 0.
 - **Drift detected** → exit 1 with stderr hint:
-  `[check_docs] doc-constants drift — run python scripts/gen_doc_constants.py and re-commit.`
+  `[check_docs] doc-constants drift — run python scripts/gen_doc_constants.py --write and re-commit.`

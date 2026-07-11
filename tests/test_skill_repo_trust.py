@@ -149,8 +149,9 @@ class TestRealGitPacksAreReadOnly:
         g(src, "commit", "-qm", "one")
 
         dst = tmp_path / "clone"
+        # Path.as_uri(): "file:///" + str(path) becomes file:////tmp/... on POSIX.
         subprocess.run(
-            ["git", "clone", "-q", "file:///" + str(src).replace(os.sep, "/"), str(dst)],
+            ["git", "clone", "-q", src.as_uri(), str(dst)],
             capture_output=True,
             timeout=120,
         )

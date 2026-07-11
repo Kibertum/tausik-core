@@ -11,6 +11,8 @@ import json
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bootstrap"))
 
 from bootstrap_config import detect_extension_skills  # noqa: E402
@@ -51,6 +53,14 @@ class TestDetectExtensionSkills:
     def test_no_recommendation_is_a_phantom(self, tmp_path):
         # Every skill the detector can output MUST resolve to a real source,
         # else bootstrap warns 'skills not found'. This is the regression guard.
+        #
+        # It can only be evaluated where the official registry exists.
+        # `skills-official/` is gitignored (.gitignore:44), so a fresh clone — a
+        # CI checkout, for instance — has only `harness/skills/`, and the detector's
+        # perfectly legitimate 'docs' recommendation looks like a phantom. Skipping
+        # is honest; asserting against half the sources is not.
+        if not os.path.isfile(os.path.join(_REPO, "skills-official", "registry.json")):
+            pytest.skip("skills-official/ is gitignored and absent; resolvable set is partial")
         (tmp_path / ".git").mkdir()
         (tmp_path / "docs").mkdir()
         (tmp_path / ".env").write_text("X=1", encoding="utf-8")
