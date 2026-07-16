@@ -172,7 +172,11 @@ def generate_cursor_mcp_json(
 
 
 def generate_claude_md(
-    project_dir: str, project_name: str, stacks: list[str], context_tier: str = "standard"
+    project_dir: str,
+    project_name: str,
+    stacks: list[str],
+    context_tier: str = "standard",
+    output_mode: str = "off",
 ) -> None:
     """Generate CLAUDE.md — load-bearing instructions for Claude Code.
 
@@ -180,7 +184,7 @@ def generate_claude_md(
     Shared body lives in bootstrap_templates to keep CLAUDE.md / AGENTS.md / .cursorrules / QWEN.md in sync.
     Preserves existing CLAUDE.md if present (user customizations).
     """
-    from bootstrap_templates import build_full_body
+    from bootstrap_templates import build_full_body, warn_output_mode_not_applied
 
     body = build_full_body(
         project_name,
@@ -189,45 +193,66 @@ def generate_claude_md(
         ".claude",
         ide="claude",
         context_tier=context_tier,
+        output_mode=output_mode,
     )
     content = f"# CLAUDE.md\n\n{body}"
     path = os.path.join(project_dir, "CLAUDE.md")
-    if not os.path.exists(path):
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(content)
+    if os.path.exists(path):
+        # Preserving the user's file must not silently drop a mode they asked for.
+        warn_output_mode_not_applied(path, output_mode)
+        return
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
 
 
 def generate_agents_md(
-    project_dir: str, project_name: str, stacks: list[str], context_tier: str = "standard"
+    project_dir: str,
+    project_name: str,
+    stacks: list[str],
+    context_tier: str = "standard",
+    output_mode: str = "off",
 ) -> None:
     """Generate AGENTS.md — universal agent onboarding (OpenCode/Codex/Cursor/Claude compatible).
 
     Shares the same hard constraints and SENAR rules as CLAUDE.md so no IDE gets a weaker ruleset.
     Preserves existing AGENTS.md if present.
     """
-    from bootstrap_templates import build_full_body
+    from bootstrap_templates import build_full_body, warn_output_mode_not_applied
 
     body = build_full_body(
-        project_name, stacks, "an AI agent", ".claude", ide=None, context_tier=context_tier
+        project_name,
+        stacks,
+        "an AI agent",
+        ".claude",
+        ide=None,
+        context_tier=context_tier,
+        output_mode=output_mode,
     )
     content = f"# AGENTS.md — AI Agent Onboarding\n\n{body}"
     path = os.path.join(project_dir, "AGENTS.md")
-    if not os.path.exists(path):
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(content)
+    if os.path.exists(path):
+        # Preserving the user's file must not silently drop a mode they asked for.
+        warn_output_mode_not_applied(path, output_mode)
+        return
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
 
 
 # generate_settings_qwen + generate_qwen_md moved to bootstrap_qwen.py
 
 
 def generate_cursorrules(
-    project_dir: str, project_name: str, stacks: list[str], context_tier: str = "standard"
+    project_dir: str,
+    project_name: str,
+    stacks: list[str],
+    context_tier: str = "standard",
+    output_mode: str = "off",
 ) -> None:
     """Generate .cursorrules for Cursor IDE — same constraints as CLAUDE.md.
 
     Preserves existing .cursorrules if present.
     """
-    from bootstrap_templates import build_full_body
+    from bootstrap_templates import build_full_body, warn_output_mode_not_applied
 
     body = build_full_body(
         project_name,
@@ -236,12 +261,16 @@ def generate_cursorrules(
         ".cursor",
         ide="cursor",
         context_tier=context_tier,
+        output_mode=output_mode,
     )
     content = f"# Cursor Rules\n\n{body}"
     path = os.path.join(project_dir, ".cursorrules")
-    if not os.path.exists(path):
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(content)
+    if os.path.exists(path):
+        # Preserving the user's file must not silently drop a mode they asked for.
+        warn_output_mode_not_applied(path, output_mode)
+        return
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
 
 
 # generate_skill_catalog moved to bootstrap_catalog.py

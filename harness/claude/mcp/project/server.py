@@ -110,6 +110,20 @@ def main():
             for t in TOOLS
         ]
 
+    # TAUSIK exposes no prompts and no resources — only tools. Some hosts (OpenCode)
+    # request prompts/list and resources/list unconditionally, without consulting the
+    # advertised capabilities, and log a `-32601 Method not found` for each. The
+    # server is healthy and its tools work, but the log reads like a dead server: a
+    # user chasing a real bug wasted a debugging cycle concluding "TAUSIK MCP is
+    # down". Answering with an empty list costs nothing and keeps the log honest.
+    @server.list_prompts()
+    async def list_prompts():
+        return []
+
+    @server.list_resources()
+    async def list_resources():
+        return []
+
     import asyncio
 
     @server.call_tool()

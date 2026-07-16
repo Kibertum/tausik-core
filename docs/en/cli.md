@@ -418,6 +418,19 @@ Opt-in: requires `markitdown` and Python ≥3.11. See `docs/en/markitdown-integr
 events [--entity {task,epic,story}] [--id SLUG] [--limit N]
 ```
 
+## Snippets / clone detection (v15-snippet)
+
+```bash
+snippet detect [--path X] [--threshold N]  # AST clone detection: normalizes
+                                           #   identifiers/literals to placeholders,
+                                           #   hashes def/class subtrees, clusters
+                                           #   >=2 matches and writes them to the
+                                           #   snippets table (taxonomy_kind='clone').
+                                           #   --threshold = minimum candidate line
+                                           #   count (default 10).
+                                           #   Idempotent (deduped by hash).
+```
+
 ## Maintenance
 
 ```bash

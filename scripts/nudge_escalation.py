@@ -25,8 +25,6 @@ HINT = 1
 WARNING = 2
 STRONG = 3
 
-_LEVEL_NAMES = {SILENT: "silent", HINT: "hint", WARNING: "warning", STRONG: "strong"}
-
 # Default count thresholds: how many breaches before each level kicks in.
 # count < hint → silent; >= hint → hint; >= warning → warning; >= strong → strong.
 DEFAULT_THRESHOLDS: dict[str, int] = {"hint": 1, "warning": 3, "strong": 5}
@@ -79,11 +77,6 @@ def level_for_count(count: int, thresholds: dict[str, int] | None = None) -> int
     if count >= t.get("hint", DEFAULT_THRESHOLDS["hint"]):
         return HINT
     return SILENT
-
-
-def level_name(level: int) -> str:
-    """Human-readable level name (silent/hint/warning/strong)."""
-    return _LEVEL_NAMES.get(level, "silent")
 
 
 def render_nudge(message: str, level: int, count: int) -> str:

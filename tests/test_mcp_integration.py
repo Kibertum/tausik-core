@@ -278,11 +278,24 @@ class TestMCPHandlerDispatch:
             "tausik_role_delete",
             "tausik_verify",
         }
+        # `skip_tools` above is kept only as documentation of which tools need args.
+        # It is NOT consulted: a hand-maintained exclusion list rots the moment someone
+        # adds a tool and forgets it — which is exactly what happened to `tausik_reason_step`
+        # and `tausik_task_replay`, and this test (slow lane, deselected by default) sat red
+        # in main unnoticed. So instead of skipping, we treat a missing-argument error as
+        # PROOF that a handler exists and ran: only "Unknown tool" — the actual thing under
+        # test — is a failure. Every future tool is then covered with no list to maintain.
+        unhandled = []
         for tool in TOOLS:
-            if tool["name"] in skip_tools:
+            try:
+                result = handle_tool(svc, tool["name"], {})
+            except (KeyError, TypeError):
+                continue  # handler exists; it just wants arguments we deliberately withheld
+            except Exception:  # noqa: BLE001 — any other error still proves dispatch happened
                 continue
-            result = handle_tool(svc, tool["name"], {})
-            assert "Unknown tool" not in result, f"Tool {tool['name']} not handled"
+            if "Unknown tool" in result:
+                unhandled.append(tool["name"])
+        assert not unhandled, f"tools with no handler: {unhandled}"
         be.close()
 
 
@@ -413,12 +426,12 @@ class TestMCPNewToolHandlers:
         assert not rx.match("active,")
 
 
-class TestMCPCrossIDEParity:
-    def test_claude_cursor_files_identical(self):
-        """claude and cursor MCP servers must be byte-identical."""
-        base = os.path.join(os.path.dirname(__file__), "..")
-        for fname in ("server.py", "tools.py", "handlers.py"):
-            claude_path = os.path.join(base, "harness", "claude", "mcp", "project", fname)
-            cursor_path = os.path.join(base, "harness", "cursor", "mcp", "project", fname)
-            with open(claude_path) as f1, open(cursor_path) as f2:
-                assert f1.read() == f2.read(), f"{fname} differs between claude and cursor"
+# TestMCPCrossIDEParity (claude/cursor MCP servers must be byte-identical) was deleted
+# in v1.7.0 along with the mirror it guarded. Its premise is now inverted: harness/claude/mcp
+# is the single canonical tree, and tests/test_mcp_single_canonical_tree.py asserts the
+# STRONGER property — that no IDE may ship a byte-copy of it at all.
+#
+# Worth remembering how this test was found: it lived behind `pytestmark = pytest.mark.slow`,
+# and pyproject.toml's `addopts = "-m 'not slow'"` deselects that lane by default. The mirror
+# deletion therefore looked green across 4530 tests while the one test that would have caught
+# it sat unrun. Before tagging a release, run BOTH lanes (`pytest` and `pytest -m ''`).

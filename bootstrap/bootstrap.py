@@ -28,9 +28,11 @@ from bootstrap_config import (
     detect_stacks,
     is_brain_enabled,
     parse_strict_model_profile_env,
+    resolve_output_mode,
     save_tausik_config,
 )
 from bootstrap_modes import (
+    resolve_context_tier_or_exit,
     build_parser,
     load_bootstrap_config,
     run_dry_run,
@@ -64,6 +66,7 @@ from bootstrap_generate import (
     generate_settings_claude,
 )
 from bootstrap_kilo import generate_kilo_commands, generate_kilo_config
+from bootstrap_opencode import scaffold_opencode
 from bootstrap_qwen import generate_qwen_md, generate_settings_qwen
 
 
@@ -105,6 +108,7 @@ def bootstrap_ide(
     venv_python: str | None = None,
     context_tier: str = "standard",
     *,
+    full_cfg: dict | None = None,
     include_official_stubs: bool = False,
     brain_enabled: bool = True,
 ) -> None:
@@ -171,14 +175,23 @@ def bootstrap_ide(
     if n_mcp_enums:
         print(f"  MCP stack enums regenerated: {n_mcp_enums} file(s)")
 
+    # output_mode (caveman) compresses agent OUTPUT; orthogonal to tier. Bad value → "off".
+    #
+    # It is read from `full_cfg` — the ROOT of .tausik/config.json, where the docs put it and
+    # where `context_tier` also lives. NOT from `config`, which is only the nested "bootstrap"
+    # section: resolving it from there made the documented key a silent no-op (bootstrap said
+    # "Done!", applied nothing, warned nobody). Keep the two dicts straight.
+    proj = config.get("project", "my-project")
+    output_mode = resolve_output_mode(full_cfg)
+
     if ide == "claude":
         generate_settings_claude(target_dir, project_dir, lib_dir)
-        generate_claude_md(project_dir, config.get("project", "my-project"), stacks, context_tier)
+        generate_claude_md(project_dir, proj, stacks, context_tier, output_mode)
     elif ide == "cursor":
-        generate_cursorrules(project_dir, config.get("project", "my-project"), stacks, context_tier)
+        generate_cursorrules(project_dir, proj, stacks, context_tier, output_mode)
     elif ide == "qwen":
         generate_settings_qwen(target_dir, project_dir, venv_python, lib_dir)
-        generate_qwen_md(project_dir, config.get("project", "my-project"), stacks, context_tier)
+        generate_qwen_md(project_dir, proj, stacks, context_tier, output_mode)
     elif ide == "kilo":
         written = generate_kilo_config(project_dir, target_dir, venv_python, lib_dir, config)
         if written:
@@ -188,8 +201,19 @@ def bootstrap_ide(
         n_cmds = generate_kilo_commands(target_dir)
         if n_cmds:
             print(f"  Kilo commands: {n_cmds} stub(s)")
+    elif ide == "opencode":
+        scaffold_opencode(
+            project_dir, target_dir, venv_python, lib_dir, config, stacks, context_tier,
+            output_mode,
+        )
 
-    generate_agents_md(project_dir, config.get("project", "my-project"), stacks, context_tier)
+    # AGENTS.md for every host EXCEPT OpenCode. OpenCode merges the `instructions`
+    # files INTO AGENTS.md, so shipping both would put the identical rule body in the
+    # context twice — and context bloat is one of the pains this work exists to fix.
+    # Capturing AGENTS.md would be pointless there anyway: OpenCode is
+    # first-matching-file-wins, so a user's own AGENTS.md always beats ours.
+    if ide != "opencode":
+        generate_agents_md(project_dir, proj, stacks, context_tier, output_mode)
 
     if ide == "cursor":
         generate_cursor_mcp_json(project_dir, target_dir, venv_python)
@@ -306,22 +330,8 @@ def main() -> None:
     _scripts = os.path.join(lib_dir, "scripts")
     if _scripts not in sys.path:
         sys.path.insert(0, _scripts)
-    import json as _json_ct
 
-    _cfg_for_tier: dict = {}
-    if os.path.isfile(config_path):
-        try:
-            with open(config_path, encoding="utf-8") as _cf:
-                _cfg_for_tier = _json_ct.load(_cf)
-        except (_json_ct.JSONDecodeError, OSError):
-            _cfg_for_tier = {}
-    from project_config import resolve_context_tier
-
-    try:
-        context_tier = resolve_context_tier(_cfg_for_tier)
-    except ValueError as exc:
-        print(f"Error: {exc} (file: {config_path})")
-        sys.exit(1)
+    context_tier = resolve_context_tier_or_exit(config_path)
 
     for ide in ides:
         bootstrap_ide(
@@ -333,6 +343,7 @@ def main() -> None:
             vendor_skills,
             venv_python,
             context_tier,
+            full_cfg=full_cfg,
             include_official_stubs=include_official_stubs,
             brain_enabled=brain_enabled,
         )

@@ -22,9 +22,10 @@ def count_lines(filepath: str) -> int:
 
 _FILESIZE_EXEMPT_DIRS = (
     "tests/",
+    # harness/claude/mcp is the ONE canonical MCP tree — every IDE gets it via
+    # copy_mcp's fallback. The cursor/qwen mirrors that used to be listed here were
+    # byte-for-byte copies and have been deleted.
     "harness/claude/mcp/",
-    "harness/cursor/mcp/",
-    "harness/qwen/mcp/",
     ".claude/mcp/",
     # Common exempt dirs for source materials, ADR markdowns, agent configs.
     "docs/content/",

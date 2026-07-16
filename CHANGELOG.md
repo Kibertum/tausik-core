@@ -11,6 +11,162 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 _Nothing yet — next changes land here._
 
+## [1.7.0] — 2026-07-16
+
+OpenCode support — and the reason it took three tasks to ship one IDE.
+
+A user's OpenCode host died with `ConfigInvalidError` and `ERR_MODULE_NOT_FOUND`.
+The config that killed it was not written by TAUSIK: no such code existed. It was
+written by an agent, by hand, because our docs listed OpenCode as a supported
+platform while `bootstrap` had no branch for it. The agent found "supported" and
+found nothing configured, and closed the gap by guessing — inventing a `tools.qg0`
+object (the key is boolean-only) and a plugin importing `@opencode-ai/plugin` (a
+package that does not exist at that version).
+
+**A support claim with no code behind it is not a harmless inaccuracy. It is an
+instruction to improvise.** So this release ships the code first and the claim last.
+
+> **What is verified, and what is not.** Everything below is covered by the test suite
+> (both lanes green: 4694 full / 4578 fast) and by `tausik doctor`. Three things are
+> **not** verified and are stated here rather than left for a user to discover:
+> the QG-0 plugin has never run under a real Bun/OpenCode host — its behaviour is
+> exercised under Node against a faked Bun shell; the `OPENCODE_DIR` / `OPENCODE_BIN_PATH`
+> environment variables are taken from OpenCode's documented behaviour and were not
+> confirmed against a live build (auto-detection does not depend on them — the
+> `.opencode/` directory check does); and the `-32601` log noise is confirmed gone by
+> code inspection and tests, not by watching a restarted host's log. Live OpenCode
+> validation is deferred to QA. The compression figure caveman reports for itself
+> (~65%) is likewise **their** measurement, not ours.
+
+### Added
+
+- **OpenCode is a scaffolded IDE.** `bootstrap.py --ide opencode` writes
+  `opencode.json` (MCP servers + the `instructions` key), installs the rules at
+  `.opencode/tausik-rules.md`, and deploys command stubs. Every path in the MCP
+  command is absolute: OpenCode expands no `${workspaceFolder}` — copying Kilo's
+  portable paths would have produced a config that points at a literal directory
+  named `${workspaceFolder}`.
+
+- **QG-0 enforcement for OpenCode** (`.opencode/plugins/tausik-qg0.js`, note the
+  plural — a singular `plugin/` directory never loads and never says so). The
+  plugin implements `tool.execute.before` and refuses `write`/`edit`/`apply_patch`
+  when no TAUSIK task is active, the same contract as Claude Code's PreToolUse
+  hook. It has **zero imports** — not even a type-only one — because the import is
+  what killed the user's host. Types come from JSDoc; it runs with nothing
+  installed.
+
+  Its active-task verdict is cached against a signature of the DB files
+  (`tausik.db` + the WAL), not against a bare TTL: `task done` moves the WAL, so a
+  cached "allow" cannot outlive the task that justified it. The cache may only ever
+  err toward strictness. When the CLI cannot be reached the gate fails **open** — a
+  broken CLI must not brick an editor — but never in silence: it warns that QG-0 is
+  degraded and names `TAUSIK_HOOK_FAIL_SECURE=1` as the way to invert the policy.
+
+- **`tausik doctor` validates OpenCode installs.** It catches the three ways this
+  host fails quietly: an object under `tools` (fatal to the host at startup), a
+  missing or singular-directory plugin (enforcement simply absent), and
+  `instructions` pointing at a file that does not exist (rules simply never load).
+  It also refuses to report "writes are refused" unless the CLI wrapper the plugin
+  queries actually exists — a guarantee doctor cannot verify is a guarantee it will
+  not make.
+
+- **Guard: an IDE cannot claim to be scaffolded without a dispatch branch**
+  (`tests/test_scaffold_dispatch_backed.py`). Parsed from the AST, so a comment
+  naming an IDE cannot satisfy it. Without this, `--ide <name>` would copy the
+  skills, print `Done!`, configure nothing, and exit 0 — the silent no-op that
+  started this whole story.
+
+- **Output-economy mode (`output_mode: caveman`, opt-in).** Orthogonal to `context_tier`:
+  the tier compresses the **input** rules TAUSIK injects, this compresses the agent's
+  **output**. When enabled, bootstrap appends a short directive — inspired by the
+  [caveman skill](https://github.com/JuliusBrussee/caveman) — telling the agent to answer
+  in terse prose while keeping code, commands, tool output and error messages byte-exact,
+  and acceptance-criteria evidence, decisions and SPEC/ADAPT full (future agents parse
+  those). Shipped as our own rule via `build_full_body`, so it reaches all five IDEs from
+  one source — deliberately **not** through caveman's own installer, whose Claude-Code
+  hooks and `settings.json` merge would collide with TAUSIK's SessionStart hook and its
+  ownership of that file. The directive is length-capped and guarded: it is injected every
+  session, so a bloated directive would cost more input than the terse output saves.
+  Default `off`; a bad value falls back to `off` without crashing. caveman's own
+  "~65% reduction" is *their* figure — unmeasured in TAUSIK's harness, so not restated as
+  ours. `tausik doctor` reports coexistence when the real caveman skill is also installed,
+  and warns if a caveman hook is wired into the `.claude/settings.json` TAUSIK manages.
+
+### Changed
+
+- **`OPENCODE_DIR` no longer detects as Codex.** They are different hosts with
+  different configs; an OpenCode session was being handed `.codex/` paths that
+  OpenCode never reads.
+
+- **Rules reach OpenCode through `instructions`, not `AGENTS.md`.** OpenCode
+  resolves AGENTS.md first-matching-file-wins, so a user's own file would shadow
+  ours forever; `instructions` files are merged with it instead. Consequently
+  `--ide opencode` generates no AGENTS.md — it would put identical rules in the
+  context twice.
+
+- **The platform table is now enforced against the code.** The `Scaffolded` column
+  in `docs/*/model-providers.md` is checked against `SCAFFOLD_IDES`; the table and
+  the code cannot drift apart in either direction.
+
+### Removed
+
+- **`harness/cursor/mcp/` — 19 files, deleted.** It was a byte-for-byte copy of
+  `harness/claude/mcp/`; `diff -r` across the whole tree returned exactly one
+  difference, a single word in one docstring. Nothing generated it. It was kept in
+  sync by hand, and a project convention existed telling agents to keep doing so.
+
+  The danger was never the duplication itself — it was the precedence. `copy_mcp`
+  prefers `harness/<ide>/mcp/` over the canonical tree when it exists, so the first
+  time anyone patched only the Claude copy, Cursor users would have silently kept
+  running the old server, and no test would have noticed: each mirror passed its own
+  checks in isolation.
+
+  Cursor now receives the canonical tree through the fallback that Kilo, Qwen and
+  OpenCode have always used. Verified equivalent: `copy_mcp` hands all three servers
+  to all five IDEs. A guard (`tests/test_mcp_single_canonical_tree.py`) refuses any
+  file under `harness/<ide>/mcp/` that is byte-identical to its canonical counterpart
+  — an IDE may ship a genuinely different server, it may not ship a copy of ours.
+
+### Fixed
+
+- **MCP servers answer `prompts/list` and `resources/list`** instead of `-32601`.
+  The error was harmless — tools worked fine — but it filled the host log with a
+  message that reads exactly like a dead server, and it did: a user reported the
+  MCP as broken when it was not. All three canonical servers (`project`,
+  `codebase-rag`, `brain`) now return an empty list — and since `copy_mcp` hands that
+  one tree to every IDE, every host gets the fix.
+
+- **`opencode.rules_path` can no longer escape the project.** `.tausik/config.json`
+  travels with a repository, so a tampered one would have turned the next bootstrap
+  into an arbitrary-file-write. Escaping, absolute and drive-qualified overrides are
+  refused — loudly, and without crashing: the containment check itself used to raise
+  (`os.path.commonpath` throws on a foreign Windows drive), and a crash is not a guard.
+
+- **Bootstrap no longer reports success on a config that cannot start.** The project
+  that triggered this whole release still holds the config that killed it — a `tools`
+  object, and a plugin under the singular `.opencode/plugin/`. Re-running bootstrap
+  merged our stanzas in beside them and printed a cheerful "Done!", while OpenCode went
+  on refusing to boot for exactly the same reason as before. TAUSIK does not delete
+  those (they are the user's file), but it now says plainly what is fatal and what to
+  remove, and `tausik doctor` fails on the same conditions.
+
+- **The QG-0 plugin can actually be upgraded.** Plugin resolution preferred the copy
+  already installed in the project, which exists after the first bootstrap — so every
+  later run resolved source == destination and skipped the copy. A user upgrading TAUSIK
+  to get a *fixed* gate would have run bootstrap, seen it succeed, and kept running the
+  broken one: the enforcement artifact was the single file an upgrade could never reach.
+  The library copy now wins.
+
+- **`tools` as a list or a string is caught too.** The doctor check only inspected
+  objects, so `"tools": ["qg0"]` sailed past it and doctor printed *"valid — no `tools`
+  object"*: an OK that affirmed the very thing that was broken.
+
+- **The docs no longer name an npm package that does not exist.**
+  `@anthropic-ai/opencode` was never real (OpenCode is SST's `opencode-ai`). Docs
+  that name a nonexistent package teach agents to invent module names by analogy —
+  which is precisely how `@opencode-ai/plugin@local` ended up in a user's project.
+  A guard now fails the build if any doc puts a bogus package on an install line.
+
 ## [1.6.1] — 2026-07-11
 
 Tooling and CI hardening. No runtime behaviour changes — this release is entirely

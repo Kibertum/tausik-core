@@ -357,6 +357,16 @@ def main():
             ),
         ]
 
+    # Empty prompts/resources — hosts that call prompts/list unconditionally (OpenCode)
+    # must get an empty answer, not -32601, or the log slanders a healthy server.
+    @server.list_prompts()
+    async def list_prompts():
+        return []
+
+    @server.list_resources()
+    async def list_resources():
+        return []
+
     import asyncio
 
     def _sync_call_tool(name: str, arguments: dict) -> str:

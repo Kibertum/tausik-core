@@ -170,22 +170,27 @@ class TestOverflowDocs:
         assert ">400" in text
         assert "deep" in text.lower()
 
-    def test_mcp_mirrors_in_sync(self):
+    def test_deployed_mcp_matches_the_canonical_source(self):
+        """The deployed copy must match its source.
+
+        This used to also compare harness/cursor/mcp — a byte-identical hand-maintained
+        mirror that has since been deleted (copy_mcp hands every IDE the canonical
+        harness/claude tree). What remains worth asserting is that the DEPLOYED tree has
+        not drifted from source; that a mirror never comes back is guarded separately in
+        tests/test_mcp_single_canonical_tree.py.
+        """
         base = os.path.join(os.path.dirname(__file__), "..")
+        assert not os.path.exists(os.path.join(base, "harness", "cursor", "mcp")), (
+            "the byte-copy cursor MCP mirror is back — see test_mcp_single_canonical_tree"
+        )
         with open(
             os.path.join(base, "harness", "claude", "mcp", "project", "tools.py"),
             encoding="utf-8",
         ) as f:
-            claude = f.read()
-        with open(
-            os.path.join(base, "harness", "cursor", "mcp", "project", "tools.py"),
-            encoding="utf-8",
-        ) as f:
-            cursor = f.read()
+            canonical = f.read()
         with open(
             os.path.join(base, ".claude", "mcp", "project", "tools.py"),
             encoding="utf-8",
         ) as f:
             installed = f.read()
-        assert claude == cursor
-        assert claude == installed
+        assert canonical == installed

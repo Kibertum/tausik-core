@@ -159,6 +159,60 @@ RESPONSE_LANGUAGE = """## Response Language
 Always respond in the user's language.
 """
 
+# Output-economy directive, appended only when `output_mode: caveman`. Inspired by the
+# caveman skill (github.com/JuliusBrussee/caveman); we ship the idea as our own rule
+# rather than installing its hooks (which would collide with TAUSIK's SessionStart hook
+# and settings.json ownership).
+#
+# This block is INJECTED EVERY SESSION, so its own length is a token line-item: a long
+# directive would cost more input than the terse output saves. CAVEMAN_DIRECTIVE_MAX_CHARS
+# caps it, enforced by tests. caveman's own "~65% output reduction" is THEIR figure and is
+# unmeasured in our harness — we do not restate it as our result.
+CAVEMAN_DIRECTIVE = """## Output economy (caveman mode)
+
+Answer in terse, telegraphic prose — drop articles/filler, keep the meaning. \
+Inspired by the caveman skill (github.com/JuliusBrussee/caveman).
+- KEEP BYTE-EXACT (never compress): code, shell commands, tool output, file paths, error messages.
+- KEEP FULL PROSE (never compress): acceptance-criteria evidence, decisions, SPEC/ADAPT, \
+task logs, handoffs — future agents parse these verbatim.
+"""
+
+# Hard ceiling on the injected directive. If a future edit bloats it, the guard fails —
+# the whole point of the mode is fewer tokens, and a fat directive defeats it.
+CAVEMAN_DIRECTIVE_MAX_CHARS = 700
+
+# The heading that marks the directive inside a generated rules file.
+CAVEMAN_DIRECTIVE_MARKER = "## Output economy (caveman mode)"
+
+
+def warn_output_mode_not_applied(path: str, output_mode: str) -> bool:
+    """Warn when a requested output_mode cannot reach an already-existing rules file.
+
+    Every rules generator is preserve-if-exists, so flipping `output_mode: caveman` on a
+    project that was bootstrapped once changes nothing on disk. Staying quiet about that
+    would leave the user believing compression is on while bootstrap prints "Done!" — a
+    silent no-op, the failure class this framework refuses to ship.
+
+    We warn rather than rewrite: the file is the user's. Returns True when a warning fired.
+    """
+    if (output_mode or "off").strip().lower() != "caveman":
+        return False
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            existing = f.read()
+    except OSError:
+        return False
+    if CAVEMAN_DIRECTIVE_MARKER in existing:
+        return False
+    print(
+        f"  WARNING: output_mode=caveman is set, but {os.path.basename(path)} already exists "
+        f"and has no '{CAVEMAN_DIRECTIVE_MARKER}' section — bootstrap preserves existing rules "
+        f"files, so the mode was NOT applied. Delete {path} and re-run, or paste the directive "
+        "in by hand."
+    )
+    return True
+
+
 DYNAMIC_BLOCK = """<!-- DYNAMIC:START -->
 <!-- DYNAMIC:END -->
 """
@@ -276,6 +330,7 @@ def build_full_body(
     ide_subdir: str,
     ide: str | None = None,
     context_tier: str = "standard",
+    output_mode: str = "off",
 ) -> str:
     """Compose the shared body used by all IDE-specific generators.
 
@@ -289,10 +344,17 @@ def build_full_body(
     ``context_tier`` (from ``.tausik/config.json``) selects how verbose the
     generated rules are: ``minimal`` (short), ``standard`` (default), or
     ``full`` (standard + extra pointers for framework work).
+
+    ``output_mode`` is ORTHOGONAL to ``context_tier``: the tier sizes the INPUT
+    rules, ``output_mode: caveman`` compresses the agent's OUTPUT. When ``caveman``,
+    the CAVEMAN_DIRECTIVE is appended in every tier (it applies regardless of how
+    verbose the rules themselves are). Any non-``caveman`` value is a no-op.
     """
     tier = (context_tier or "standard").strip().lower()
     if tier not in ("minimal", "standard", "full"):
         tier = "standard"
+
+    caveman = (output_mode or "off").strip().lower() == "caveman"
 
     header = build_header(project_name, stacks, agent_name)
     if tier == "minimal":
@@ -303,6 +365,7 @@ def build_full_body(
             MINIMAL_MEMORY,
             MINIMAL_COMMANDS,
             RESPONSE_LANGUAGE,
+            CAVEMAN_DIRECTIVE if caveman else "",
             MINIMAL_TIER_FOOTER,
             DYNAMIC_BLOCK,
         ]
@@ -328,5 +391,7 @@ def build_full_body(
         parts.insert(idx, CURSOR_MCP_SETUP)
     if tier == "full":
         parts.append(FULL_TIER_NOTE)
+    if caveman:
+        parts.append(CAVEMAN_DIRECTIVE)
     parts.append(DYNAMIC_BLOCK)
     return "\n".join(p for p in parts if p)

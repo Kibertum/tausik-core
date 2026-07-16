@@ -101,21 +101,42 @@
 | `harness/claude/mcp/project/handlers.py` | Диспетчеризация: имя инструмента → метод сервиса |
 | `harness/claude/mcp/project/handlers_skill.py` | Обработчики навыков + обслуживания (split) |
 
-Полный MCP-surface: **116 project + 7 brain = 123 инструмента** (опциональный `codebase-rag` добавляет ещё 7; не в основном счёте).
+Полный MCP-surface: **117 project + 7 brain = 124 инструмента** (опциональный `codebase-rag` добавляет ещё 7; не в основном счёте).
 
 ### Поддержка разных сред разработки
 
-Навыки, роли, стеки — общие для всех сред. MCP-серверы — специфичны для среды:
+Навыки, роли, стеки — общие для всех сред. MCP-серверы тоже: `harness/claude/mcp/` —
+единственное каноническое дерево, и `copy_mcp` отдаёт его каждой среде, у которой нет
+своего (сегодня — всем). Отдельная копия под IDE была бы зеркалом, обречённым разъехаться:
+такое лежало в `harness/cursor/` и удалено в v1.7.0.
 ```
 harness/
 ├── skills/           # 13 core auto-deployed + brain условно + 20 в skills-official/ (opt-in через --include-official)
 ├── roles/            # 5 ролей (developer, architect, qa, tech-writer, ui-ux)
 ├── stacks/           # Руководства по стекам
 ├── overrides/        # Переопределения для конкретных сред (claude/, cursor/, qwen/)
-├── claude/mcp/       # MCP-серверы (project, codebase-rag)
-├── cursor/mcp/       # MCP-серверы для Cursor
-└── qwen/ → claude/   # Qwen Code (fallback на Claude MCP)
+├── claude/mcp/       # MCP-серверы (project, brain, codebase-rag) — канон для ВСЕХ сред
+└── opencode/plugins/ # Плагин принуждения QG-0 для OpenCode (tool.execute.before)
 ```
+
+#### Среда (IDE) × Модель — две ортогональные оси (Решение #119)
+
+TAUSIK разделяет *где* он работает и *какая модель* отвечает:
+
+| Ось | Что задаёт | Цель `bootstrap --ide` | Определение активной модели |
+|-----|------------|------------------------|-----------------------------|
+| **claude** | Claude Code (VSCode/CLI) | `.claude/` + `.mcp.json` | JSONL-транскрипт (поле `model`) |
+| **cursor** | Cursor | `.cursor/` + `.cursor/mcp.json` | — |
+| **qwen** | Qwen Code | `.qwen/settings.json` | — |
+| **kilo** | Kilo Code (аддон + CLI) | `.kilo/kilo.jsonc` **и** `.kilocode/mcp.json` | env `KILO_MODEL` / конфиг `.kilo` |
+| **opencode** | OpenCode (SST) | `opencode.json` + `.opencode/plugins/` | — |
+
+**Ось модели — это данные, а не код**: `scripts/model_profiles.py` отображает семейства
+вендоров (`claude`, `glm`/z.ai) × ранги способностей → конкретные id моделей;
+переопределяется в `.tausik/config.json`, ключ `model_profiles.families`. Матрица
+маршрутизации выдаёт абстрактный ранг, активное семейство резолвит его в реальную модель —
+поэтому сессия на z.ai GLM уезжает к GLM-моделям без единой правки кода. См.
+[Kilo + z.ai](kilo-zai.md).
 
 ## БД: Таблицы (Schema v37)
 
