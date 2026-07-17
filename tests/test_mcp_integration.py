@@ -217,74 +217,12 @@ class TestMCPHandlerDispatch:
         be = SQLiteBackend(db)
         svc = ProjectService(be)
 
-        # Tools that need specific args to avoid KeyError
-        skip_tools = {
-            "tausik_task_show",
-            "tausik_task_add",
-            "tausik_task_start",
-            "tausik_task_done",
-            "tausik_task_block",
-            "tausik_task_unblock",
-            "tausik_task_update",
-            "tausik_task_plan",
-            "tausik_task_step",
-            "tausik_task_delete",
-            "tausik_task_review",
-            "tausik_task_move",
-            "tausik_task_log",
-            "tausik_task_logs",
-            "tausik_task_claim",
-            "tausik_task_unclaim",
-            "tausik_task_quick",
-            "tausik_session_handoff",
-            "tausik_session_extend",
-            "tausik_epic_add",
-            "tausik_epic_done",
-            "tausik_epic_delete",
-            "tausik_story_add",
-            "tausik_story_done",
-            "tausik_story_delete",
-            "tausik_memory_add",
-            "tausik_memory_search",
-            "tausik_memory_show",
-            "tausik_memory_archive",
-            "tausik_memory_delete",
-            "tausik_memory_link",
-            "tausik_memory_unlink",
-            "tausik_memory_related",
-            "tausik_decide",
-            "tausik_search",
-            "tausik_dead_end",
-            "tausik_explore_start",
-            "tausik_explore_end",
-            "tausik_audit_mark",
-            "tausik_gates_enable",
-            "tausik_gates_disable",
-            "tausik_skill_activate",
-            "tausik_skill_deactivate",
-            "tausik_skill_install",
-            "tausik_skill_uninstall",
-            "tausik_skill_repo_add",
-            "tausik_skill_repo_remove",
-            # v1.3: stack/role/verify tools require args (name/slug/task_slug)
-            "tausik_stack_show",
-            "tausik_stack_diff",
-            "tausik_stack_scaffold",
-            "tausik_stack_reset",
-            "tausik_stack_export",
-            "tausik_role_show",
-            "tausik_role_create",
-            "tausik_role_update",
-            "tausik_role_delete",
-            "tausik_verify",
-        }
-        # `skip_tools` above is kept only as documentation of which tools need args.
-        # It is NOT consulted: a hand-maintained exclusion list rots the moment someone
-        # adds a tool and forgets it — which is exactly what happened to `tausik_reason_step`
-        # and `tausik_task_replay`, and this test (slow lane, deselected by default) sat red
-        # in main unnoticed. So instead of skipping, we treat a missing-argument error as
-        # PROOF that a handler exists and ran: only "Unknown tool" — the actual thing under
-        # test — is a failure. Every future tool is then covered with no list to maintain.
+        # No hand-maintained skip-list of tools-that-need-args: it rots the moment someone
+        # adds a tool and forgets it — which is exactly how `tausik_reason_step` and
+        # `tausik_task_replay` slipped through, leaving this test (slow lane, deselected by
+        # default) red in main unnoticed. Instead, a missing-argument error is treated as
+        # PROOF that a handler exists and ran; only "Unknown tool" — the thing actually under
+        # test — is a failure. Every future tool is covered with no list to maintain.
         unhandled = []
         for tool in TOOLS:
             try:

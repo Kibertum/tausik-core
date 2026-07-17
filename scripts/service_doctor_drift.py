@@ -43,7 +43,9 @@ def _resolve_output_mode_for_drift(cfg: dict) -> str:
     try:
         from bootstrap_config import resolve_output_mode  # noqa: PLC0415
 
-        return resolve_output_mode(cfg)
+        # str(): resolve_output_mode is imported across a sys.path boundary mypy can't
+        # follow, so it infers Any; the function's own contract is str.
+        return str(resolve_output_mode(cfg))
     except Exception:  # noqa: BLE001 — best-effort: bootstrap/ may not be importable here
         raw = cfg.get("output_mode", "off") if isinstance(cfg, dict) else "off"
         mode = raw.strip().lower() if isinstance(raw, str) else "off"
