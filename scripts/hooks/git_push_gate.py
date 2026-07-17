@@ -30,15 +30,66 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Fallback matcher, used only when the command cannot be tokenized (unbalanced
+# quotes). Token-based detection (`_command_invokes_git_push`) is the primary
+# path — it does not false-positive on a 'git push' mention inside a quoted
+# argument, which the substring regex did (blocking e.g. `tausik memory add
+# "...git push..."`).
 _GIT_PUSH_RE = re.compile(
     r"(?:^|[\s;&|()`])(?:[/\w.\\-]*[/\\])?git(?:\s+-c\s+\S+)*\s+push\b",
     re.IGNORECASE,
 )
+
+# git global options that consume the FOLLOWING token as their value; they may
+# sit between `git` and the `push` subcommand (`git -c k=v push`, `git -C repo
+# push`). The `--opt=value` form is self-contained (one token) and needs no
+# skip. Keeping this list lets a real push be detected even with global flags,
+# while the token model still ignores quoted mentions.
+_GIT_VALUE_OPTS = frozenset({"-c", "-C", "--git-dir", "--work-tree", "--namespace"})
+
+
+def _tokens_invoke_git_push(tokens: list[str]) -> bool:
+    """True iff the token stream invokes ``git ... push`` as a command.
+
+    shlex keeps a quoted argument as a SINGLE token, so a 'git push' mention
+    inside a quoted string (``tausik task log "...git push..."``) collapses to
+    one token and never matches — this is the substring-false-positive fix.
+    """
+    n = len(tokens)
+    for i, tok in enumerate(tokens):
+        if tok != "git" and os.path.basename(tok) not in ("git", "git.exe"):
+            continue
+        j = i + 1
+        while j < n and tokens[j].startswith("-"):
+            opt = tokens[j]
+            j += 1
+            if opt in _GIT_VALUE_OPTS:  # '--opt=value' form is self-contained
+                j += 1
+        if j < n and tokens[j] == "push":
+            return True
+    return False
+
+
+def _command_invokes_git_push(command: str) -> bool:
+    """Detect a genuine ``git push`` invocation, ignoring quoted mentions.
+
+    Primary: shlex-tokenize and look for ``git ... push`` in command position.
+    Fallback: if the command cannot be tokenized (unbalanced quotes raise
+    ValueError), use the substring regex — conservative, since a real push must
+    not slip through on a parse failure.
+    """
+    try:
+        tokens = shlex.split(command, posix=True)
+    except ValueError:
+        return bool(_GIT_PUSH_RE.search(command))
+    return _tokens_invoke_git_push(tokens)
+
 
 TICKET_FILENAME = ".push_ticket.json"
 SCHEMA_VERSION = 1
@@ -138,7 +189,7 @@ def main() -> int:
     command = data.get("tool_input", {}).get("command", "")
     if not command:
         return 0
-    if not _GIT_PUSH_RE.search(command):
+    if not _command_invokes_git_push(command):
         return 0
 
     allow, reason = _consume_ticket()
