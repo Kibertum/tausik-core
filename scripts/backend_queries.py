@@ -318,15 +318,24 @@ class BackendQueriesMixin(
     def task_event_count_in_window(self, slug: str) -> int:
         """Count task lifecycle events within the task's active window.
 
-        Counts rows in `events` where entity_type='task', entity_id=slug,
-        and created_at falls between tasks.started_at and a closing bound:
-        completed_at if set, otherwise current time. Returns 0 if the task
-        has no started_at recorded (cannot define a window).
+        Counts rows in `events` where entity_type='task', entity_id=slug, and
+        created_at is at or after tasks.started_at. For a COMPLETED task the
+        window closes at completed_at; for an ACTIVE task (completed_at IS NULL)
+        the window is open-ended — no upper bound. Returns 0 if the task has no
+        started_at recorded (cannot define a window).
 
         Used by task_done to derive a baseline call_actual when a richer
         per-tool counter is unavailable. MED-9 review fix: comparisons
         run through julianday() so the window is robust against ISO-8601
         format drift (microseconds, +00:00 vs Z suffix).
+
+        No 'now' upper bound for active tasks: utcnow_iso() is second-granular,
+        so a freshly written event can carry a created_at that is >= SQLite
+        'now' at query time (truncation, or tiny skew between the writer's clock
+        and 'now'). Capping the active window at julianday('now') dropped such
+        events non-deterministically — the windows-3.13 CI flake where
+        test_counts_events_in_window saw 3 events instead of 4. An active
+        window has no meaningful upper edge, so we don't impose one.
         """
         row = self._q1(
             "SELECT COUNT(*) AS cnt FROM events e "
@@ -334,8 +343,8 @@ class BackendQueriesMixin(
             "WHERE e.entity_type='task' AND e.entity_id=? "
             "AND t.started_at IS NOT NULL "
             "AND julianday(e.created_at) >= julianday(t.started_at) "
-            "AND julianday(e.created_at) <= "
-            "    julianday(COALESCE(t.completed_at, 'now'))",
+            "AND (t.completed_at IS NULL "
+            "     OR julianday(e.created_at) <= julianday(t.completed_at))",
             (slug,),
         )
         return int(row["cnt"]) if row else 0
