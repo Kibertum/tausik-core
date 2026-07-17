@@ -150,7 +150,18 @@ def run_main(
         except json.JSONDecodeError as e:
             print(f"Drift: invalid JSON in {path}: {e}", file=sys.stderr)
             return 1
-        if existing != payload:
+        # test_count is measured by `pytest --collect-only`, so it varies with the
+        # environment: optional-dependency modules `importorskip` themselves out of
+        # collection when a package is absent, so a minimal CI runner (pytest only)
+        # legitimately collects FEWER tests than a rich dev box. Gating on an exact
+        # match therefore fails CI for a reason that is not drift — it is the point of
+        # `--skip-test-count`. When set, compare everything EXCEPT test_count; the
+        # deterministic constants (version, tool/hook/code counts) stay hard-gated.
+        left, right = existing, payload
+        if skip_test_count:
+            left = {k: v for k, v in existing.items() if k != "test_count"}
+            right = {k: v for k, v in payload.items() if k != "test_count"}
+        if left != right:
             print(
                 f"Drift: {path} does not match live pyproject / MCP tools / test count.\n"
                 f"  expected tausik_version={payload.get('tausik_version')!r}\n"

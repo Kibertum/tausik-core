@@ -38,14 +38,23 @@ def test_build_constants_matches_tool_totals():
 
 
 def test_constants_json_file_matches_live():
-    """Committed ``constants.json`` must match generator (regression guard)."""
+    """Committed ``constants.json`` must match generator (regression guard).
+
+    ``test_count`` is excluded: it is measured by ``pytest --collect-only`` and so varies
+    with the environment (optional-dependency modules import-skip out of collection on a
+    minimal runner), which made this a flaky gate across the CI matrix. The deterministic
+    constants — version, MCP tool counts, hook/code counts — are still compared exactly.
+    """
     path = output_json_path(REPO)
     if not path.is_file():
         pytest.skip(f"missing {path} — run python scripts/gen_doc_constants.py")
     import json
 
     on_disk = json.loads(path.read_text(encoding="utf-8"))
-    assert on_disk == build_constants_doc(REPO)
+    live = build_constants_doc(REPO)
+    on_disk_cmp = {k: v for k, v in on_disk.items() if k != "test_count"}
+    live_cmp = {k: v for k, v in live.items() if k != "test_count"}
+    assert on_disk_cmp == live_cmp
 
 
 def test_run_main_check_fails_on_payload_drift(monkeypatch: pytest.MonkeyPatch):
@@ -553,5 +562,7 @@ class TestVersionScanTargets:
 
         docs = tmp_path / "docs" / "en"
         docs.mkdir(parents=True)
-        (docs / "mcp.md").write_text("`tausik_session_open` (v1.5) landed then.\n", encoding="utf-8")
+        (docs / "mcp.md").write_text(
+            "`tausik_session_open` (v1.5) landed then.\n", encoding="utf-8"
+        )
         assert scan_version_refs(tmp_path, "1.6.0") == []
