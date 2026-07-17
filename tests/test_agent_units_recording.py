@@ -50,6 +50,14 @@ def _seed_active_task(
     svc.task_log(slug, "Checklist: scope ok, tests cover edge case, no security surface.")
 
 
+def _iso_shift(iso_z: str, seconds: int) -> str:
+    """Shift a 'YYYY-MM-DDTHH:MM:SSZ' timestamp by ``seconds`` (may be negative)."""
+    from datetime import datetime, timedelta, timezone
+
+    dt = datetime.strptime(iso_z, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    return (dt + timedelta(seconds=seconds)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 # === Backend query: task_event_count_in_window ===
 
 
@@ -68,6 +76,46 @@ class TestEventCountWindow:
         cnt = svc.be.task_event_count_in_window("t1")
         # at minimum: created + status_changed (planning→active) + 2 manual = 4
         assert cnt >= 4
+
+    def test_active_window_counts_event_stamped_at_or_after_now(self, svc):
+        """Regression for the windows-3.13 CI flake (assert 3 >= 4).
+
+        utcnow_iso() is second-granular, so a freshly written event can carry a
+        created_at that is >= SQLite 'now' at query time (truncation, or tiny
+        skew between the writer's clock and 'now'). For an ACTIVE task the window
+        is open-ended, so such an event must still count. The old upper bound
+        julianday('now') dropped it — non-deterministically, hence a flake.
+        """
+        _seed_active_task(svc)
+        started = svc.be.task_get("t1")["started_at"]
+        baseline = svc.be.task_event_count_in_window("t1")
+        # created_at in a LATER second than any 'now' at query time — the exact
+        # shape second-granular clock skew produces.
+        ahead = _iso_shift(started, seconds=5)
+        svc.be._ins(
+            "INSERT INTO events(entity_type,entity_id,action,details,actor,created_at) "
+            "VALUES(?,?,?,?,?,?)",
+            ("task", "t1", "log_added", "future-edge", None, ahead),
+        )
+        assert svc.be.task_event_count_in_window("t1") == baseline + 1
+
+    def test_completed_window_excludes_event_after_completion(self, svc):
+        """The upper bound is dropped only for ACTIVE tasks. Once completed_at is
+        set, an event stamped AFTER it must NOT count — otherwise removing the
+        'now' cap would leak post-completion events into the window."""
+        _seed_active_task(svc)
+        started = svc.be.task_get("t1")["started_at"]
+        completed = _iso_shift(started, seconds=2)
+        svc.be.task_update("t1", status="done", completed_at=completed)
+        before = svc.be.task_event_count_in_window("t1")
+        # An event well after completion — must be excluded by the completed cap.
+        after_completion = _iso_shift(started, seconds=60)
+        svc.be._ins(
+            "INSERT INTO events(entity_type,entity_id,action,details,actor,created_at) "
+            "VALUES(?,?,?,?,?,?)",
+            ("task", "t1", "log_added", "post-done", None, after_completion),
+        )
+        assert svc.be.task_event_count_in_window("t1") == before
 
     def test_excludes_other_tasks(self, svc):
         _seed_active_task(svc, slug="t1")
