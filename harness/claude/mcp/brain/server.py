@@ -72,6 +72,17 @@ def main() -> None:
             for t in TOOLS
         ]
 
+    # Empty prompts/resources — see the rationale in the project server: hosts that
+    # call prompts/list unconditionally must get an empty answer, not -32601, or the
+    # log slanders a healthy server.
+    @server.list_prompts()
+    async def list_prompts():
+        return []
+
+    @server.list_resources()
+    async def list_resources():
+        return []
+
     @server.call_tool()
     async def call_tool(name: str, arguments: dict):
         try:

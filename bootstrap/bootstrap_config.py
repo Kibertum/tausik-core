@@ -81,6 +81,7 @@ IDE_DIRS: dict[str, str] = {
     "codex": ".codex",
     "qwen": ".qwen",
     "kilo": ".kilo",
+    "opencode": ".opencode",
 }
 
 # IDEs that have a full scaffold branch in bootstrap (generate_*_config).
@@ -89,7 +90,30 @@ IDE_DIRS: dict[str, str] = {
 # wrapper can discover scripts that land there) but have no generator yet,
 # so they are intentionally excluded here. Add an IDE once its scaffold
 # branch exists in bootstrap.run_for_ide.
-SCAFFOLD_IDES: list[str] = ["claude", "cursor", "qwen", "kilo"]
+#
+# `opencode` was the cautionary tale that produced this split: the docs called it
+# supported while no generator existed, and an agent filling that gap by hand took
+# a user's host down. It joins the list only now — with bootstrap_opencode
+# (config + rules) and harness/opencode/plugins/tausik-qg0.js (QG-0 enforcement)
+# both shipped. Membership here is a promise; keep it backed by code.
+SCAFFOLD_IDES: list[str] = ["claude", "cursor", "qwen", "kilo", "opencode"]
+
+# --- Agent OUTPUT economy (orthogonal to context_tier, which sizes the INPUT rules) ---
+# `caveman` = telegraphic compressed output (bootstrap_templates.CAVEMAN_DIRECTIVE).
+OUTPUT_MODE_VALUES = frozenset({"off", "caveman"})
+DEFAULT_OUTPUT_MODE = "off"
+
+
+def resolve_output_mode(cfg: dict | None) -> str:
+    """Normalized ``output_mode`` from the config root; a bad value → ``off`` (never raises).
+
+    Unlike ``context_tier``, a typo in an output-economy knob must not break a bootstrap:
+    missing / null / non-string / unknown → ``off``; whitespace and case are normalized.
+    """
+    raw = cfg.get("output_mode", DEFAULT_OUTPUT_MODE) if isinstance(cfg, dict) else ""
+    mode = raw.strip().lower() if isinstance(raw, str) else ""
+    return mode if mode in OUTPUT_MODE_VALUES else DEFAULT_OUTPUT_MODE
+
 
 # Hardcoded fallback signatures — used when stack_registry can't be loaded
 # (very early bootstrap, missing stacks/ dir). The canonical source is

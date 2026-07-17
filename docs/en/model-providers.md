@@ -4,19 +4,50 @@ TAUSIK is model-agnostic. Skills work with any LLM that supports tool use.
 
 ## Supported Platforms
 
-| Platform | Config file | Skills location | Instructions file |
-|----------|------------|-----------------|-------------------|
-| Claude Code | `.claude/settings.json` | `.claude/skills/` | `CLAUDE.md` |
-| Cursor | `.cursor/settings.json` | `.cursor/skills/` | `.cursorrules` |
-| OpenCode | `opencode.json` | `.claude/skills/` (shared) | `AGENTS.md` |
-| Codex | `.codex/config.toml` | `.codex/agents/` | `AGENTS.md` |
+"Scaffolded" means `bootstrap.py --ide <name>` has a generator branch for it: it
+writes the config, wires the MCP servers, and installs the skills. Anything not
+scaffolded gets no wiring from TAUSIK — you would have to configure the host by
+hand. The scaffolded set is the single source of truth in
+`bootstrap/bootstrap_config.py::SCAFFOLD_IDES`; keep this table in sync with it.
+
+| Platform | Scaffolded | Config file | Skills location | Instructions file |
+|----------|-----------|-------------|-----------------|-------------------|
+| Claude Code | yes | `.claude/settings.json` | `.claude/skills/` | `CLAUDE.md` |
+| Cursor | yes | `.cursor/settings.json` | `.cursor/skills/` | `.cursorrules` |
+| Qwen Code | yes | `.qwen/settings.json` | `.qwen/skills/` | `QWEN.md` |
+| Kilo Code | yes | `.kilo/` | `.kilo/skills/` | `AGENTS.md` |
+| OpenCode | yes | `opencode.json` | `.opencode/skills/` | `.opencode/tausik-rules.md` |
+| Codex | no | `.codex/config.toml` | — | `AGENTS.md` |
+| Windsurf | no | `.windsurf/` | — | `.windsurfrules` |
+
+> **OpenCode (since v1.7.0).** `bootstrap.py --ide opencode` writes `opencode.json`
+> (MCP servers + the `instructions` key), puts the rules in
+> `.opencode/tausik-rules.md`, and installs the QG-0 enforcement plugin at
+> `.opencode/plugins/tausik-qg0.js` — a write with no active task is refused, exactly
+> as in Claude Code.
+>
+> Three traps if you ever configure OpenCode by hand:
+> 1. `tools` accepts **booleans only** (`"bash": false`). A `tools.qg0` object aborts
+>    startup with `ConfigInvalidError` — TAUSIK never writes that key, and never
+>    deletes yours.
+> 2. Plugins live in `.opencode/plugins/` (**plural**). A singular `plugin/` directory
+>    is not an error: it simply never loads.
+> 3. Rules ship via the `instructions` key, **not** `AGENTS.md`. OpenCode resolves
+>    AGENTS.md first-matching-file-wins, so yours would shadow ours forever;
+>    `instructions` files are merged with your AGENTS.md instead. That is why
+>    `--ide opencode` generates no AGENTS.md — it would put the same rules in the
+>    context twice.
+>
+> **Codex is not scaffolded yet** — TAUSIK writes only an `AGENTS.md` for it.
+> See [adding a new IDE](/docs/adding-new-ide).
 
 ## Using GigaChat (Sber)
 
 GigaChat models can be used via OpenCode with liteLLM:
 
 1. Get API credentials at https://developers.sber.ru/
-2. Install OpenCode: `npm i -g @anthropic-ai/opencode` (or via brew)
+2. Install OpenCode: `npm i -g opencode-ai` (or via brew) — OpenCode is built by
+   [SST](https://opencode.ai); there is no `@anthropic-ai/opencode` package.
 3. Configure `opencode.json`:
 ```json
 {

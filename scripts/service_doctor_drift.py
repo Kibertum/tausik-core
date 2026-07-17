@@ -38,6 +38,20 @@ def is_trimmed_baseline(text: str, size_bytes: int) -> bool:
     return bool(_re.search(r"docs/(?:ru|en)/agent-contract\.md", body))
 
 
+def _resolve_output_mode_for_drift(cfg: dict) -> str:
+    """output_mode from the config root, or "off". Never raises — drift is best-effort."""
+    try:
+        from bootstrap_config import resolve_output_mode  # noqa: PLC0415
+
+        # str(): resolve_output_mode is imported across a sys.path boundary mypy can't
+        # follow, so it infers Any; the function's own contract is str.
+        return str(resolve_output_mode(cfg))
+    except Exception:  # noqa: BLE001 — best-effort: bootstrap/ may not be importable here
+        raw = cfg.get("output_mode", "off") if isinstance(cfg, dict) else "off"
+        mode = raw.strip().lower() if isinstance(raw, str) else "off"
+        return mode if mode in ("off", "caveman") else "off"
+
+
 def check_claudemd_drift(project_dir: str) -> int | None:
     """Compare static CLAUDE.md sections against bootstrap_templates output.
 
@@ -79,6 +93,10 @@ def check_claudemd_drift(project_dir: str) -> int | None:
         project_name = cfg.get("project_name") or os.path.basename(project_dir)
         stacks = cfg.get("stacks") or []
         tier = resolve_context_tier(cfg)
+        # output_mode must be rendered into `expected` too, or this check is blind to the
+        # whole feature: with it hardcoded off, a CLAUDE.md that is MISSING the directive
+        # the config asked for looks perfectly correct to the only automated check we have.
+        mode = _resolve_output_mode_for_drift(cfg)
         expected = build_full_body(
             project_name,
             stacks,
@@ -86,6 +104,7 @@ def check_claudemd_drift(project_dir: str) -> int | None:
             ".claude",
             ide="claude",
             context_tier=tier,
+            output_mode=mode,
         )
     except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         return None

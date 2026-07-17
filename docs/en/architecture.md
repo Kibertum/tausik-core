@@ -105,16 +105,18 @@ Total MCP surface: **117 project tools + 7 brain tools = 124** (optional `codeba
 
 ### Cross-IDE Support
 
-Skills, roles, stacks -- shared across IDEs. MCP servers are IDE-specific:
+Skills, roles, stacks -- shared across IDEs. So are the MCP servers: `harness/claude/mcp/`
+is the single canonical tree, and `copy_mcp` hands it to every IDE that has none of its
+own (all of them, today). A per-IDE copy would be a mirror waiting to drift — one used to
+exist under `harness/cursor/` and was deleted in v1.7.0.
 ```
 harness/
 +-- skills/           # 12 core auto-deployed + brain conditional + 20 in skills-official/ (opt-in via --include-official)
 +-- roles/            # 5 roles (developer, architect, qa, tech-writer, ui-ux)
 +-- stacks/           # Stack guides
 +-- overrides/        # IDE-specific overrides (claude/, cursor/, qwen/)
-+-- claude/mcp/       # MCP servers (project, codebase-rag)
-+-- cursor/mcp/       # MCP servers for Cursor
-+-- qwen/ → claude/   # Qwen Code (falls back to Claude MCP)
++-- claude/mcp/       # MCP servers (project, brain, codebase-rag) — canonical for ALL IDEs
++-- opencode/plugins/ # QG-0 enforcement plugin for OpenCode (tool.execute.before)
 ```
 
 #### Runtime (IDE) × Model — two orthogonal axes (Decision #119)
@@ -127,6 +129,7 @@ TAUSIK separates *where* it runs from *which model* answers:
 | **cursor** | Cursor | `.cursor/` + `.cursor/mcp.json` | — |
 | **qwen** | Qwen Code | `.qwen/settings.json` | — |
 | **kilo** | Kilo Code (addon + CLI) | `.kilo/kilo.jsonc` **and** `.kilocode/mcp.json` | `KILO_MODEL` env / `.kilo` config |
+| **opencode** | OpenCode (SST) | `opencode.json` + `.opencode/plugins/` | — |
 
 The **model axis** is data, not code: `scripts/model_profiles.py` maps vendor
 families (`claude`, `glm`/z.ai) × capability ranks → concrete model ids,

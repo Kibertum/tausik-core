@@ -1,8 +1,12 @@
 """tausik-brain MCP handlers — dispatch calls to brain_mcp_read helpers.
 
 Connection + client setup lives in `brain_runtime.open_brain_deps` so
-the same contract is shared with service_knowledge, the PostToolUse
-WebFetch hook, and the cursor sibling of this module.
+the same contract is shared with service_knowledge and the PostToolUse
+WebFetch hook.
+
+This tree is the ONE canonical MCP source: every IDE receives it through
+copy_mcp's fallback. There is no per-IDE sibling to keep in sync (there used
+to be a byte-identical harness/cursor/ copy; it was deleted, not maintained).
 """
 
 from __future__ import annotations

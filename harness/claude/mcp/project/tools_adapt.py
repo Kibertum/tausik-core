@@ -2,7 +2,8 @@
 
 Kept in its own module (filesize hygiene). ``category`` (findings) and ``role``
 (signatures) are CLOSED lists — enforced both by the enum here and the service +
-DB CHECK. Mirrored in harness/claude + harness/cursor.
+DB CHECK. No mirror to keep in sync: harness/claude/mcp is the single canonical
+tree, handed to every IDE by copy_mcp.
 """
 
 from __future__ import annotations

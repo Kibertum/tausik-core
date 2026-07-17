@@ -255,3 +255,30 @@ def load_bootstrap_config(
             )
         return config, full_cfg
     return dict(DEFAULT_CONFIG), full_cfg
+
+
+def resolve_context_tier_or_exit(config_path: str) -> str:
+    """Read the config ROOT and return its ``context_tier``, or exit(1) on a bad value.
+
+    Both root-level rule knobs are resolved from the same file: this one raises-then-exits
+    (an unknown tier is a typo worth stopping for), while ``resolve_output_mode`` falls back
+    to ``off``. Kept beside it so the two contracts are visible together — and so callers
+    cannot accidentally hand either of them the nested "bootstrap" section (gotcha #207).
+    """
+    import json
+    import sys
+
+    cfg: dict = {}
+    if os.path.isfile(config_path):
+        try:
+            with open(config_path, encoding="utf-8") as f:
+                cfg = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            cfg = {}
+    from project_config import resolve_context_tier
+
+    try:
+        return resolve_context_tier(cfg)
+    except ValueError as exc:
+        print(f"Error: {exc} (file: {config_path})")
+        sys.exit(1)

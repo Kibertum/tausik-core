@@ -40,10 +40,17 @@ def _clean_env(**overrides):
 
 
 def _run(args, code, env):
+    # errors="replace": these tests deliberately make the CHILD emit mis-encoded
+    # (cp1251) bytes. The PARENT decodes captured output with the locale codec, and on
+    # a UTF-8 locale (Linux CI) + Python 3.13 a strict decode of those bytes raises
+    # UnicodeDecodeError OUT of subprocess.run — the harness crashes instead of the
+    # assertion running. Replacing undecodable bytes keeps the harness alive; the
+    # ASCII phrase "UnicodeEncodeError" we assert on survives intact.
     return subprocess.run(
         [sys.executable, *args, "-c", code],
         capture_output=True,
         text=True,
+        errors="replace",
         env=env,
     )
 

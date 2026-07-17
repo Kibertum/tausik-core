@@ -8,7 +8,7 @@
 
 Two MCP servers live in this project:
 
-- `tausik-project` — project-scoped tools (99): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging.
+- `tausik-project` — project-scoped tools (117): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging.
 - `tausik-brain` — cross-project Shared Brain tools (7).
 
 There is also an optional `codebase-rag` server documented at the bottom.
@@ -113,6 +113,40 @@ Session limit is gap-based **active time** (paused after 10-min idle gap), not w
 | `tausik_story_done` | Complete story | `slug` |
 | `tausik_story_delete` | Delete (cascade: tasks) | `slug` |
 | `tausik_roadmap` | Tree: epic → story → task | — |
+
+## RENAR substrate — SPEC + ADAPT (17 tools)
+
+The RENAR substrate: formal requirements (**SPEC**) and requirement interpretation
+(**ADAPT**, §7) with forward interpretations, backward findings and a dual signature.
+Used by QG-0 for substantial/deep tasks and by `tausik renar export` / `conformance`.
+See also `tausik_reason_step` (RENAR trace) under "Tasks".
+
+### SPEC (8)
+
+| Tool | Description | Required Parameters |
+|---|---|---|
+| `tausik_spec_add` | Create a SPEC artifact. `type` is a closed list of 9 (ARCH/API/DATA/INT/PROC/UI/AI/SEC/OPS); a new type is an amendment to the standard, not free text | `slug`, `type`, `title`, `version` |
+| `tausik_spec_list` | List SPECs, optionally filtered by type (JSON) | — |
+| `tausik_spec_show` | SPEC + linked tasks (JSON) | `slug` |
+| `tausik_spec_update` | Patch mutable fields (title/version/content_ref/status); `type` and `slug` are immutable | `slug` |
+| `tausik_spec_delete` | Delete a SPEC (cascade: task links) | `slug` |
+| `tausik_spec_link` | Link a task to a SPEC (both must exist — no silent dangling links) | `task_slug`, `spec_slug` |
+| `tausik_spec_unlink` | Unlink task ↔ SPEC | `task_slug`, `spec_slug` |
+| `tausik_spec_search` | FTS5 over slug/title/content_ref (JSON) | `query` |
+
+### ADAPT (9)
+
+| Tool | Description | Required Parameters |
+|---|---|---|
+| `tausik_adapt_create` | Create an ADAPT header (§7); `tz_ref` (the source requirement doc) is mandatory; starts in `draft` | `slug`, `title`, `tz_ref` |
+| `tausik_adapt_interpret` | Forward interpretation (§7.4.3); tz_ref/citation/interpretation/scope_in/scope_out all required | `tz_ref`, `citation`, `interpretation`, `scope_in`, `scope_out` (+ adapt) |
+| `tausik_adapt_finding` | Backward finding; `category` is a closed list of 7 (contradiction/gap/hidden-assumption/feasibility/regulatory/terminology/scope) | `adapt_slug`, `category`, `description` |
+| `tausik_adapt_sign` | Dual signature (§7.5): `architect` signs the body with the project's ed25519 key, `client` signs with name+timestamp; both roles ⇒ `signed` | `adapt_slug`, `role`, `signed_by` |
+| `tausik_adapt_show` | ADAPT + forward interpretations, findings, signatures, links (JSON) | `slug` |
+| `tausik_adapt_list` | List ADAPTs, optionally filtered by status (draft/signed/superseded) | — |
+| `tausik_adapt_delta` | Delta-ADAPT superseding its parent (§7.6); the parent becomes `superseded`, and a later link to it is a FATAL dangling link (§7.6.4) | `parent_slug`, `new_slug`, `title`, `tz_ref` |
+| `tausik_adapt_link` | Link an ADAPT to a task/SPEC; the target must exist; a link to a superseded ADAPT is FATAL (§7.6.4) | `adapt_slug`, `target_type`, `target_slug` |
+| `tausik_adapt_search` | FTS5 over slug/title/tz_ref (JSON) | `query` |
 
 ## Knowledge
 
@@ -264,7 +298,7 @@ When `brain.enabled=true` in `.tausik/config.json`, ALL of the following must be
 | `cache_web_result` | Cache web search result for reuse | `query`, `content` |
 | `search_web_cache` | Search cached web results | `query` |
 
-These are not part of the main 105 count — they belong to the optional `codebase-rag` server.
+These are not part of the main 124 count — they belong to the optional `codebase-rag` server.
 
 ## Launching the Tausik MCP Server
 

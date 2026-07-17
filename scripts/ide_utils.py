@@ -44,6 +44,18 @@ IDE_REGISTRY: dict[str, dict[str, str]] = {
         "rules_file": "AGENTS.md",
         "skills_subdir": "skills",
     },
+    "opencode": {
+        # OpenCode (SST, npm `opencode-ai`). Config is `opencode.json` at the project
+        # root; MCP + the `instructions` key live there.
+        #
+        # rules_file is NOT AGENTS.md, unlike every other host here. OpenCode resolves
+        # AGENTS.md first-matching-file-wins, so a user's own file would shadow ours
+        # forever. Rules ship as a dedicated file referenced from `instructions`, which
+        # OpenCode *merges* with whatever AGENTS.md it finds.
+        "config_dir": ".opencode",
+        "rules_file": os.path.join(".opencode", "tausik-rules.md"),
+        "skills_subdir": "skills",
+    },
 }
 
 DEFAULT_IDE = "claude"
@@ -55,9 +67,9 @@ def detect_ide(project_dir: str | None = None) -> str:
 
     Detection order:
     1. TAUSIK_IDE environment variable (explicit override)
-    2. CURSOR_* / WINDSURF_* / CODEX_* env vars -> that IDE
+    2. CURSOR_* / WINDSURF_* / OPENCODE_* / CODEX_* env vars -> that IDE
     3. Project-structure: first matching .{ide}/ dir among
-       cursor, windsurf, codex, kilo, qwen
+       cursor, windsurf, codex, kilo, qwen, opencode
     4. Default -> claude
 
     Note: kilo/qwen have no env-var branch yet — their launch-time env
@@ -79,14 +91,25 @@ def detect_ide(project_dir: str | None = None) -> str:
         return "cursor"
     if os.environ.get("WINDSURF_DIR") or os.environ.get("WINDSURF_SESSION"):
         return "windsurf"
-    if os.environ.get("CODEX_SANDBOX_DIR") or os.environ.get("OPENCODE_DIR"):
+    # OPENCODE_DIR used to resolve to "codex" — two different hosts with different configs
+    # sharing one branch. An OpenCode session was therefore told it was Codex, and its
+    # skill/rules paths resolved to .codex/, which OpenCode never reads.
+    #
+    # HONESTY NOTE: these two names are NOT verified against a live OpenCode build (same
+    # caveat as kilo/qwen below). They cost nothing if OpenCode never sets them — detection
+    # then falls through to the .opencode/ directory check, which bootstrap does create and
+    # which is reliable. What is verified is the negative: mapping OPENCODE_DIR to "codex"
+    # was wrong either way.
+    if os.environ.get("OPENCODE_DIR") or os.environ.get("OPENCODE_BIN_PATH"):
+        return "opencode"
+    if os.environ.get("CODEX_SANDBOX_DIR"):
         return "codex"
 
     # Project-structure detection. kilo/qwen included so a Kilo-/Qwen-only
     # install resolves skill/rules paths to .kilo/.qwen instead of falling
-    # back to .claude (v156 P5).
+    # back to .claude (v156 P5). opencode joins them for the same reason.
     if project_dir:
-        for ide_name in ("cursor", "windsurf", "codex", "kilo", "qwen"):
+        for ide_name in ("cursor", "windsurf", "codex", "kilo", "qwen", "opencode"):
             config_dir = IDE_REGISTRY[ide_name]["config_dir"]
             if os.path.isdir(os.path.join(project_dir, config_dir)):
                 return ide_name

@@ -67,7 +67,28 @@ In `tests/test_ide_utils.py` add tests for the new IDE.
 | Cursor | `.cursor` | `.cursorrules` | — | `CURSOR_DIR` env |
 | Qwen Code | `.qwen` | `QWEN.md` | 4 hooks | `--ide qwen` |
 | Windsurf | `.windsurf` | `.windsurfrules` | — | `WINDSURF_DIR` env |
-| Codex/OpenCode | `.codex` | `AGENTS.md` | — | — |
+| Codex | `.codex` | `AGENTS.md` | — | `CODEX_SANDBOX_DIR` env |
+| OpenCode | `.opencode` | `.opencode/tausik-rules.md` | QG-0 plugin | `.opencode/` dir (+ `OPENCODE_DIR` env, unverified) |
+
+Rows with `—` under Hooks have no scaffold branch: TAUSIK does not generate their
+config and does not install a QG-0 enforcement hook for them.
+
+**OpenCode is a separate host, not a Codex alias** (before v1.7.0 `OPENCODE_DIR`
+resolved to `codex`, so an OpenCode session was handed `.codex/` paths that OpenCode
+never reads). It reads `opencode.json` (not `.codex/config.toml`), loads plugins from
+`.opencode/plugins/` (plural), and merges extra rule files listed under the config's
+`instructions` key.
+
+Its enforcement is a plugin, not a process hook: `.opencode/plugins/tausik-qg0.js`
+implements `tool.execute.before` and throws on `write`/`edit`/`apply_patch` when no
+TAUSIK task is active — the same contract as Claude Code's PreToolUse hook.
+
+OpenCode is also the only host whose rules file is not at the project root. Rules live
+in `.opencode/tausik-rules.md` and are wired in through `instructions`, because
+OpenCode resolves `AGENTS.md` first-matching-file-wins — a user's own AGENTS.md would
+shadow ours forever. `instructions` files are merged with AGENTS.md instead, so
+`--ide opencode` deliberately generates no AGENTS.md (it would duplicate the rules in
+the context).
 
 ## How It Works
 
@@ -80,9 +101,13 @@ harness/
 │   ├── claude/
 │   ├── cursor/
 │   └── qwen/
-├── claude/mcp/      # MCP servers for Claude Code
-├── cursor/mcp/      # MCP servers for Cursor
-└── qwen/ → claude/  # Qwen Code (falls back to Claude MCP)
+├── claude/mcp/      # MCP servers — CANONICAL for every IDE (copy_mcp falls back here)
+└── opencode/plugins/ # QG-0 enforcement plugin (the one genuinely IDE-specific artifact)
 ```
+
+Do **not** add a `harness/<your-ide>/mcp/` directory. `copy_mcp` prefers it over the canonical
+tree, so a per-IDE copy silently keeps serving the old server the day someone patches only the
+claude one. A byte-identical `harness/cursor/mcp/` existed for exactly that reason and was
+deleted in v1.7.0; `tests/test_mcp_single_canonical_tree.py` now refuses to let one come back.
 
 Bootstrap lookup chain: `harness/skills/` → `harness/{ide}/skills/` → `harness/claude/skills/`

@@ -295,7 +295,7 @@ DEFAULT_STACKS: 25 записей (python, fastapi, django, flask, react, next, 
 | `cache_web_result` | Кешировать web-результат | `query`, `content` |
 | `search_web_cache` | Поиск кешированных web-результатов | `query` |
 
-Эти не входят в основной счёт 98 — принадлежат опциональному `codebase-rag` серверу.
+Эти не входят в основной счёт 124 — принадлежат опциональному `codebase-rag` серверу.
 
 ## Запуск Tausik MCP-сервера
 

@@ -217,3 +217,64 @@ def test_memory_tail_only_decisions_no_conventions_or_deadends():
     assert "Solo decision" in text
     assert "Conventions" not in text
     assert "Dead ends" not in text
+
+
+def test_drift_check_is_not_blind_to_output_mode(temp_project):
+    """The drift check must render `expected` with the CONFIGURED output_mode.
+
+    It used to call build_full_body without the argument, so `expected` was always built
+    as if output_mode were off. A CLAUDE.md missing the directive its config asked for
+    therefore looked perfectly correct to the one automated check we have — the feature
+    was invisible to doctor. Here: config says caveman, the deployed file has no directive,
+    so drift must be non-zero.
+    """
+    import json
+
+    sys.path.insert(0, str(REPO / "bootstrap"))
+    from bootstrap_templates import build_full_body
+
+    (temp_project / ".tausik" / "config.json").write_text(
+        json.dumps({"output_mode": "caveman", "bootstrap": {"project": "temp-project"}}),
+        encoding="utf-8",
+    )
+    # Deployed file generated WITHOUT the mode — i.e. the state every project is in
+    # right after flipping the knob on (generators are preserve-if-exists).
+    body = build_full_body(
+        "temp-project", ["python"], "an AI agent (Claude Code)", ".claude", ide="claude"
+    )
+    (temp_project / "CLAUDE.md").write_text(f"# CLAUDE.md\n\n{body}", encoding="utf-8")
+
+    from project_cli_doctor import _check_claudemd_drift
+
+    drift = _check_claudemd_drift(str(temp_project))
+    assert drift, (
+        "doctor reported no drift while the config asks for caveman and CLAUDE.md has no "
+        "directive — the check is still blind to output_mode"
+    )
+
+
+def test_no_false_drift_when_output_mode_matches(temp_project):
+    """The converse: config says caveman AND the file has the directive → no drift.
+    Otherwise the fix above would just make doctor cry wolf on correct projects."""
+    import json
+
+    sys.path.insert(0, str(REPO / "bootstrap"))
+    from bootstrap_templates import build_full_body
+
+    (temp_project / ".tausik" / "config.json").write_text(
+        json.dumps({"output_mode": "caveman", "bootstrap": {"project": "temp-project"}}),
+        encoding="utf-8",
+    )
+    body = build_full_body(
+        "temp-project",
+        ["python"],
+        "an AI agent (Claude Code)",
+        ".claude",
+        ide="claude",
+        output_mode="caveman",
+    )
+    (temp_project / "CLAUDE.md").write_text(f"# CLAUDE.md\n\n{body}", encoding="utf-8")
+
+    from project_cli_doctor import _check_claudemd_drift
+
+    assert _check_claudemd_drift(str(temp_project)) == 0

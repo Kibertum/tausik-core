@@ -2,7 +2,8 @@
 
 Split from handlers.py (filesize hygiene). List/show/search return JSON;
 mutating ops return the service's status string. Merged into handlers._DISPATCH
-via ``handlers_adapt.ADAPT_HANDLERS``. Mirrored in harness/claude + harness/cursor.
+via ``handlers_adapt.ADAPT_HANDLERS``. No mirror to keep in sync: harness/claude/mcp
+is the single canonical tree, handed to every IDE by copy_mcp.
 """
 
 from __future__ import annotations

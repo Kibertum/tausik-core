@@ -217,72 +217,23 @@ class TestMCPHandlerDispatch:
         be = SQLiteBackend(db)
         svc = ProjectService(be)
 
-        # Tools that need specific args to avoid KeyError
-        skip_tools = {
-            "tausik_task_show",
-            "tausik_task_add",
-            "tausik_task_start",
-            "tausik_task_done",
-            "tausik_task_block",
-            "tausik_task_unblock",
-            "tausik_task_update",
-            "tausik_task_plan",
-            "tausik_task_step",
-            "tausik_task_delete",
-            "tausik_task_review",
-            "tausik_task_move",
-            "tausik_task_log",
-            "tausik_task_logs",
-            "tausik_task_claim",
-            "tausik_task_unclaim",
-            "tausik_task_quick",
-            "tausik_session_handoff",
-            "tausik_session_extend",
-            "tausik_epic_add",
-            "tausik_epic_done",
-            "tausik_epic_delete",
-            "tausik_story_add",
-            "tausik_story_done",
-            "tausik_story_delete",
-            "tausik_memory_add",
-            "tausik_memory_search",
-            "tausik_memory_show",
-            "tausik_memory_archive",
-            "tausik_memory_delete",
-            "tausik_memory_link",
-            "tausik_memory_unlink",
-            "tausik_memory_related",
-            "tausik_decide",
-            "tausik_search",
-            "tausik_dead_end",
-            "tausik_explore_start",
-            "tausik_explore_end",
-            "tausik_audit_mark",
-            "tausik_gates_enable",
-            "tausik_gates_disable",
-            "tausik_skill_activate",
-            "tausik_skill_deactivate",
-            "tausik_skill_install",
-            "tausik_skill_uninstall",
-            "tausik_skill_repo_add",
-            "tausik_skill_repo_remove",
-            # v1.3: stack/role/verify tools require args (name/slug/task_slug)
-            "tausik_stack_show",
-            "tausik_stack_diff",
-            "tausik_stack_scaffold",
-            "tausik_stack_reset",
-            "tausik_stack_export",
-            "tausik_role_show",
-            "tausik_role_create",
-            "tausik_role_update",
-            "tausik_role_delete",
-            "tausik_verify",
-        }
+        # No hand-maintained skip-list of tools-that-need-args: it rots the moment someone
+        # adds a tool and forgets it — which is exactly how `tausik_reason_step` and
+        # `tausik_task_replay` slipped through, leaving this test (slow lane, deselected by
+        # default) red in main unnoticed. Instead, a missing-argument error is treated as
+        # PROOF that a handler exists and ran; only "Unknown tool" — the thing actually under
+        # test — is a failure. Every future tool is covered with no list to maintain.
+        unhandled = []
         for tool in TOOLS:
-            if tool["name"] in skip_tools:
+            try:
+                result = handle_tool(svc, tool["name"], {})
+            except (KeyError, TypeError):
+                continue  # handler exists; it just wants arguments we deliberately withheld
+            except Exception:  # noqa: BLE001 — any other error still proves dispatch happened
                 continue
-            result = handle_tool(svc, tool["name"], {})
-            assert "Unknown tool" not in result, f"Tool {tool['name']} not handled"
+            if "Unknown tool" in result:
+                unhandled.append(tool["name"])
+        assert not unhandled, f"tools with no handler: {unhandled}"
         be.close()
 
 
@@ -413,12 +364,12 @@ class TestMCPNewToolHandlers:
         assert not rx.match("active,")
 
 
-class TestMCPCrossIDEParity:
-    def test_claude_cursor_files_identical(self):
-        """claude and cursor MCP servers must be byte-identical."""
-        base = os.path.join(os.path.dirname(__file__), "..")
-        for fname in ("server.py", "tools.py", "handlers.py"):
-            claude_path = os.path.join(base, "harness", "claude", "mcp", "project", fname)
-            cursor_path = os.path.join(base, "harness", "cursor", "mcp", "project", fname)
-            with open(claude_path) as f1, open(cursor_path) as f2:
-                assert f1.read() == f2.read(), f"{fname} differs between claude and cursor"
+# TestMCPCrossIDEParity (claude/cursor MCP servers must be byte-identical) was deleted
+# in v1.7.0 along with the mirror it guarded. Its premise is now inverted: harness/claude/mcp
+# is the single canonical tree, and tests/test_mcp_single_canonical_tree.py asserts the
+# STRONGER property — that no IDE may ship a byte-copy of it at all.
+#
+# Worth remembering how this test was found: it lived behind `pytestmark = pytest.mark.slow`,
+# and pyproject.toml's `addopts = "-m 'not slow'"` deselects that lane by default. The mirror
+# deletion therefore looked green across 4530 tests while the one test that would have caught
+# it sat unrun. Before tagging a release, run BOTH lanes (`pytest` and `pytest -m ''`).

@@ -58,9 +58,7 @@ class TestPublicServiceVerifyMethod:
         assert "passed" in result
         assert result["task_slug"] is None
         # No verification_runs row written when task_slug is None.
-        rows = svc.be._conn.execute(
-            "SELECT COUNT(*) AS n FROM verification_runs"
-        ).fetchone()
+        rows = svc.be._conn.execute("SELECT COUNT(*) AS n FROM verification_runs").fetchone()
         assert rows["n"] == 0
 
 
@@ -117,23 +115,25 @@ class TestMcpHandlerNoPrivateAttrAccess:
     layering regression that used to happen in `_handle_verify`."""
 
     def test_no_be_conn_in_handle_verify_source(self):
-        for ide in ("claude", "cursor"):
-            path = os.path.join(
-                os.path.dirname(__file__),
-                "..",
-                "harness",
-                ide,
-                "mcp",
-                "project",
-                "handlers.py",
-            )
-            with open(path, encoding="utf-8") as f:
-                src = f.read()
-            # Find `_handle_verify` body — terminate at next top-level def.
-            start = src.index("def _handle_verify(")
-            end = src.find("\ndef ", start + 1)
-            body = src[start: end if end != -1 else len(src)]
-            assert "svc.be._conn" not in body, (
-                f"_handle_verify in {ide} still touches svc.be._conn — "
-                "must use ProjectService.run_verify_for_task instead."
-            )
+        # One canonical MCP tree. The `cursor` copy this loop used to also read was a
+        # byte-identical hand-maintained mirror and has been deleted — copy_mcp hands
+        # harness/claude/mcp to every IDE (see tests/test_mcp_single_canonical_tree.py).
+        path = os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "harness",
+            "claude",
+            "mcp",
+            "project",
+            "handlers.py",
+        )
+        with open(path, encoding="utf-8") as f:
+            src = f.read()
+        # Find `_handle_verify` body — terminate at next top-level def.
+        start = src.index("def _handle_verify(")
+        end = src.find("\ndef ", start + 1)
+        body = src[start : end if end != -1 else len(src)]
+        assert "svc.be._conn" not in body, (
+            "_handle_verify still touches svc.be._conn — "
+            "must use ProjectService.run_verify_for_task instead."
+        )

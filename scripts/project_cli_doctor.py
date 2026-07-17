@@ -154,6 +154,41 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
         _print_warn("Kilo MCP config", f"could not validate: {e}")
         warnings += 1
 
+    # OpenCode config + QG-0 plugin — only fires for OpenCode installs (.opencode/).
+    # Catches the three failures that broke a user's host: a `tools` object
+    # (ConfigInvalidError), a missing/singular-dir plugin (enforcement silently off),
+    # and `instructions` pointing nowhere (rules silently never load).
+    try:
+        from service_doctor_opencode import check_opencode_config
+
+        for severity, label, detail in check_opencode_config(project_dir):
+            if severity == "fail":
+                _print_fail(label, detail)
+                failures += 1
+            elif severity == "warn":
+                _print_warn(label, detail)
+                warnings += 1
+            else:
+                _print_ok(label, detail)
+    except Exception as e:  # noqa: BLE001 — best-effort: a check bug must not crash doctor
+        _print_warn("OpenCode config", f"could not validate: {e}")
+        warnings += 1
+
+    # caveman interop — silent unless a user-installed caveman is present alongside
+    # TAUSIK's own output_mode. Surfaces coexistence + the .claude/settings.json overlap.
+    try:
+        from service_doctor_caveman import check_caveman_interop
+
+        for severity, label, detail in check_caveman_interop(project_dir):
+            if severity == "warn":
+                _print_warn(label, detail)
+                warnings += 1
+            else:
+                _print_ok(label, detail)
+    except Exception as e:  # noqa: BLE001 — best-effort: a check bug must not crash doctor
+        _print_warn("caveman interop", f"could not validate: {e}")
+        warnings += 1
+
     skills_dir = os.path.join(project_dir, ".claude", "skills")
     if os.path.isdir(skills_dir):
         skills = [d for d in os.listdir(skills_dir) if os.path.isdir(os.path.join(skills_dir, d))]

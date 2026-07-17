@@ -5,7 +5,7 @@ server in an installed `.claude/mcp/brain/` layout (subprocess + filesystem).
 
 Background
 ----------
-Commit b5f6281 shipped harness/{claude,cursor}/mcp/brain/server.py and
+Commit b5f6281 shipped harness/claude/mcp/brain/server.py and
 handlers.py with 4-segment `..` path arithmetic that only resolves
 scripts/ correctly in the source-tree layout (harness/claude/mcp/brain/ →
 repo root). In the installed layout (.claude/mcp/brain/) four `..` jumps
@@ -35,9 +35,13 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+# One canonical source. The "cursor" variant these tests used to also exercise was a
+# byte-identical hand-maintained mirror; it has been deleted, and copy_mcp now hands
+# harness/claude/mcp to every IDE (tests/test_mcp_single_canonical_tree.py guards it).
+# The installed-layout behaviour under test is per-layout, not per-IDE, so one source
+# covers what two copies did.
 BRAIN_SRCS = {
     "claude": REPO_ROOT / "harness" / "claude" / "mcp" / "brain",
-    "cursor": REPO_ROOT / "harness" / "cursor" / "mcp" / "brain",
 }
 
 # Minimal stubs that satisfy handlers.py's module-level imports.
@@ -118,7 +122,7 @@ def _run_import(handlers_path: Path, tail: str = "") -> subprocess.CompletedProc
     )
 
 
-@pytest.mark.parametrize("variant", ["claude", "cursor"])
+@pytest.mark.parametrize("variant", ["claude"])
 def test_handlers_resolves_scripts_dir_in_installed_layout(tmp_path, variant):
     """handlers.py._SCRIPTS_DIR must resolve to <root>/.claude/scripts/ when it
     lives at <root>/.claude/mcp/brain/handlers.py."""
@@ -137,7 +141,7 @@ def test_handlers_resolves_scripts_dir_in_installed_layout(tmp_path, variant):
     )
 
 
-@pytest.mark.parametrize("variant", ["claude", "cursor"])
+@pytest.mark.parametrize("variant", ["claude"])
 def test_handlers_emits_stderr_diag_when_scripts_missing(tmp_path, variant):
     """When .claude/scripts/ does not exist, handlers.py must emit a stderr
     diagnostic ('[tausik-brain] scripts dir missing: ...') instead of silently
@@ -151,7 +155,7 @@ def test_handlers_emits_stderr_diag_when_scripts_missing(tmp_path, variant):
     )
 
 
-@pytest.mark.parametrize("variant", ["claude", "cursor"])
+@pytest.mark.parametrize("variant", ["claude"])
 def test_server_call_tool_logs_traceback(variant):
     """server.py call_tool exception branch must log the full traceback to
     stderr before returning the error TextContent. Currently only the repr of

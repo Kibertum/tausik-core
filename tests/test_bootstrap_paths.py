@@ -11,8 +11,20 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bootstrap"))
 from bootstrap_paths import portable_path  # noqa: E402
 
 
+def _abs(*parts: str) -> str:
+    """A genuinely-absolute project path on the running platform.
+
+    ``os.path.normpath("/work/proj")`` yields the drive-RELATIVE ``\\work\\proj`` on
+    Windows (no drive letter). Python 3.13 changed ``ntpath.isabs`` so that such a path
+    is correctly reported non-absolute — which makes ``portable_path`` early-return it
+    unchanged (its bare-executable guard), and the pre-3.13 fixtures then failed. Real
+    ``project_dir`` values are always fully qualified, so anchor the fixture with
+    ``abspath`` (adds the current drive on Windows, no-op on POSIX)."""
+    return os.path.abspath(os.path.join(os.sep, *parts))
+
+
 def test_in_project_becomes_var_relative():
-    proj = os.path.normpath("/work/proj")
+    proj = _abs("work", "proj")
     inside = os.path.join(proj, ".claude", "mcp", "project", "server.py")
     out = portable_path(inside, proj, "${workspaceFolder}")
     assert out == "${workspaceFolder}/.claude/mcp/project/server.py"
@@ -36,12 +48,12 @@ def test_bare_executable_not_portablized():
 
 
 def test_project_root_itself_maps_to_var():
-    proj = os.path.normpath("/work/proj")
+    proj = _abs("work", "proj")
     assert portable_path(proj, proj, "${workspaceFolder}") == "${workspaceFolder}"
 
 
 def test_no_backslashes_in_output():
-    proj = os.path.normpath("/work/proj")
+    proj = _abs("work", "proj")
     inside = os.path.join(proj, "scripts", "hooks", "x.py")
     out = portable_path(inside, proj, "${CLAUDE_PROJECT_DIR}")
     assert "\\" not in out

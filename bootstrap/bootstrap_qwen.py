@@ -289,13 +289,17 @@ def generate_settings_qwen(
 
 
 def generate_qwen_md(
-    project_dir: str, project_name: str, stacks: list[str], context_tier: str = "standard"
+    project_dir: str,
+    project_name: str,
+    stacks: list[str],
+    context_tier: str = "standard",
+    output_mode: str = "off",
 ) -> None:
     """Generate QWEN.md for Qwen Code CLI — same constraints as CLAUDE.md.
 
     Preserves existing QWEN.md if present.
     """
-    from bootstrap_templates import build_full_body
+    from bootstrap_templates import build_full_body, warn_output_mode_not_applied
 
     body = build_full_body(
         project_name,
@@ -304,9 +308,13 @@ def generate_qwen_md(
         ".qwen",
         ide="qwen",
         context_tier=context_tier,
+        output_mode=output_mode,
     )
     content = f"# QWEN.md\n\n{body}"
     path = os.path.join(project_dir, "QWEN.md")
-    if not os.path.exists(path):
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(content)
+    if os.path.exists(path):
+        # Preserving the user's file must not silently drop a mode they asked for.
+        warn_output_mode_not_applied(path, output_mode)
+        return
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
