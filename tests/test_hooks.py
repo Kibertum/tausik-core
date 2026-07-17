@@ -175,6 +175,40 @@ class TestGitPushGate:
         )
         assert r.returncode == 2
 
+    def test_quoted_push_mention_not_treated_as_push(self, tmp_path):
+        """Substring false-positive: 'git push' inside a QUOTED argument (e.g.
+        `tausik memory add "...git push..."` when journaling a mirror recipe)
+        must not be treated as a push. Token-based detection keeps a quoted
+        string as one token, so it is allowed even with no ticket present."""
+        ticket = tmp_path / ".push_ticket.json"  # absent — a real push would block
+        r = run_hook(
+            "git_push_gate.py",
+            {
+                "tool_input": {
+                    "command": '.tausik/tausik memory add pattern t "recipe: git push tmp:main"'
+                }
+            },
+            env_extra={"TAUSIK_PUSH_TICKET_PATH": str(ticket)},
+        )
+        assert r.returncode == 0, r.stderr
+
+    def test_commit_with_push_word_in_message_allowed(self):
+        r = run_hook(
+            "git_push_gate.py",
+            {"tool_input": {"command": 'git commit -m "wire up the push flow"'}},
+        )
+        assert r.returncode == 0
+
+    def test_dash_c_flag_before_push_blocked_without_ticket(self, tmp_path):
+        """A real push behind a `-c` global flag must still be caught."""
+        ticket = tmp_path / ".push_ticket.json"
+        r = run_hook(
+            "git_push_gate.py",
+            {"tool_input": {"command": "git -c protocol.version=2 push origin main"}},
+            env_extra={"TAUSIK_PUSH_TICKET_PATH": str(ticket)},
+        )
+        assert r.returncode == 2
+
     def test_valid_ticket_allows_push_and_consumes_it(self, tmp_path):
         from datetime import datetime, timedelta, timezone
 
