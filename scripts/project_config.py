@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import re
 
 from project_backend import SQLiteBackend
 from project_service import ProjectService
@@ -19,65 +18,15 @@ CONFIG_NAME = "config.json"
 
 # --- Gate defaults ---
 
-VALID_GATE_SEVERITIES = frozenset({"warn", "block"})
-# v1.4: "verify" is the Verify-First Contract trigger — slow subprocess gates
-# (pytest, tsc, cargo, phpstan, etc.) live here, not on "task-done". The CLI
-# `tausik verify --task <slug>` runs them and records a green into
-# verification_runs; subsequent `task done` checks for a fresh cache hit and
-# closes in milliseconds. This decouples task closure from heavy verification
-# — fixes "task_done hangs in VS Code Claude Extension" UX.
-VALID_GATE_TRIGGERS = frozenset({"task-done", "verify", "commit", "review"})
-
-# --- Security: allowed executables for custom gates ---
-ALLOWED_GATE_EXECUTABLES = frozenset(
-    {
-        "pytest",
-        "ruff",
-        "mypy",
-        "bandit",
-        "tsc",
-        "eslint",
-        "go",
-        "golangci-lint",
-        "cargo",
-        "clippy",
-        "phpstan",
-        "phpcs",
-        "javac",
-        "ktlint",
-        "npm",
-        "npx",
-        "pnpm",
-        "yarn",
-        "make",
-        "python",
-        "ruby",
-        "php",
-        # IaC tooling — added when stack-iac-vertical introduced default gates
-        # (HIGH-1 review fix: without this, user overrides like
-        # vendor/bin/ansible-lint silently fail _validate_custom_gate).
-        "ansible-lint",
-        "ansible",
-        "terraform",
-        "tflint",
-        "tofu",
-        "helm",
-        "kubeval",
-        "kube-score",
-        "hadolint",
-    }
+# Custom-gate command security lives in `gate_command_policy` (split out at the
+# 400-line cap). Re-exported here because callers and tests import it from this
+# module.
+from gate_command_policy import (  # noqa: E402,F401
+    ALLOWED_GATE_EXECUTABLES,
+    VALID_GATE_SEVERITIES,
+    VALID_GATE_TRIGGERS,
+    _validate_custom_gate,
 )
-
-# Shell operators forbidden in commands that use {files} placeholder
-# (broader rule because file paths are user-controlled in {files}).
-_SHELL_INJECTION_PATTERN = re.compile(r"\||\&\&|\|\||;|\$\(|`")
-
-# Shell chain/substitution operators that are NEVER acceptable in custom
-# gates regardless of {files} — legitimate static gates may pipe stdout
-# to head/tail (single `|`), but command chaining (&&, ||, ;) and
-# command-substitution ($(, backtick) signal an attempt to escape the
-# allowed-executable whitelist. HIGH-2 review fix.
-_SHELL_CHAIN_PATTERN = re.compile(r"&&|\|\||;|\$\(|`")
 
 # --- Agent rule pack size (bootstrap templates: CLAUDE.md / AGENTS.md / .cursorrules) ---
 CONTEXT_TIER_VALUES = frozenset({"minimal", "standard", "full"})
@@ -243,51 +192,6 @@ def auto_enable_gates_for_stacks(cfg: dict, stacks: list[str]) -> list[str]:
     return list(dict.fromkeys(newly_enabled))  # deduplicate preserving order
 
 
-def _validate_custom_gate(name: str, gate: dict) -> str | None:
-    """Validate a custom gate command for security.
-
-    Returns None if valid, or an error message string if invalid.
-    HIGH-2 review fix: shell metachars are blocked unconditionally now —
-    previously the guard required `{files}` placeholder, which let a
-    custom gate run pipelines under shell=True without scrutiny.
-    """
-    command = gate.get("command")
-    if not command or command is None:
-        return None  # no command = built-in gate like filesize, OK
-
-    # Extract first token (the executable)
-    first_token = command.split()[0] if command.strip() else ""
-    # Strip path prefixes (e.g. "vendor/bin/phpstan" -> "phpstan")
-    exe = first_token.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
-    exe = exe[:-4] if os.name == "nt" and exe.lower().endswith(".exe") else exe
-
-    if exe not in ALLOWED_GATE_EXECUTABLES:
-        return (
-            f"Custom gate '{name}': executable '{exe}' not in allowed list. "
-            f"Allowed: {sorted(ALLOWED_GATE_EXECUTABLES)}"
-        )
-
-    # Always reject command chaining / substitution — these escape the
-    # allowed-executable whitelist regardless of placeholder usage.
-    if _SHELL_CHAIN_PATTERN.search(command):
-        return (
-            f"Custom gate '{name}': command contains shell operators "
-            f"(&&/||/;/$(/`) — refused. Use a wrapper script or split "
-            f"into multiple gates."
-        )
-
-    # Stricter rule when the user-controlled {files} placeholder is in
-    # play: block bare pipes too, since they let user input redirect
-    # to an arbitrary downstream command.
-    if "{files}" in command and _SHELL_INJECTION_PATTERN.search(command):
-        return (
-            f"Custom gate '{name}': command contains shell operators "
-            f"with {{files}} placeholder — potential injection risk."
-        )
-
-    return None
-
-
 def find_tausik_dir() -> str:
     """Find .tausik/ directory, searching up from cwd. Env override: TAUSIK_DIR."""
     override = os.environ.get("TAUSIK_DIR")
@@ -314,7 +218,14 @@ def get_config_path() -> str:
     return os.path.join(find_tausik_dir(), CONFIG_NAME)
 
 
-def load_config() -> dict:
+def load_project_config() -> dict:
+    """Raw ``.tausik/config.json`` — the project tier alone, no trusted layers.
+
+    This is what config *writers* must read: `save_config` persists whatever it
+    is handed, so round-tripping the effective config (`load_config`) would
+    copy the user's and the operator's settings into the repository file.
+    Readers want `load_config` instead.
+    """
     path = get_config_path()
     if os.path.exists(path):
         try:
@@ -331,6 +242,28 @@ def load_config() -> dict:
                 "Config corrupted (%s): %s — using defaults", path, e
             )
     return {}
+
+
+def load_config_with_rejections() -> tuple[dict, list]:
+    """Effective config plus the guarded keys the project tier tried to weaken.
+
+    Layers merge project < user < managed; on top of that a project-tier value
+    for a guarded key applies only if it is at least as strict as what the
+    trusted tiers (or the framework default) already establish. See
+    `config_trust` for the rule and its honest threat boundary.
+    """
+    from config_trust import resolve
+
+    cfg, rejections = resolve(load_project_config())
+    for r in rejections:
+        logger.warning("Config trust tier: %s", r.describe())
+    return cfg, rejections
+
+
+def load_config() -> dict:
+    """Effective config for readers. Rejections are logged, not returned —
+    use `load_config_with_rejections` when you need to surface them."""
+    return load_config_with_rejections()[0]
 
 
 def save_config(cfg: dict) -> None:
@@ -355,12 +288,29 @@ def load_gates(cfg: dict | None = None) -> dict[str, dict]:
     if cfg is None:
         cfg = load_config()
     user_gates = cfg.get("gates", {})
+    if not isinstance(user_gates, dict):
+        logger.warning("Config `gates` must be an object — user overrides ignored")
+        user_gates = {}
     merged: dict[str, dict] = {}
     # Start with defaults
     for name, defaults in DEFAULT_GATES.items():
         gate = dict(defaults)
-        if name in user_gates:
-            gate.update(user_gates[name])
+        override = user_gates.get(name)
+        if isinstance(override, dict):
+            # An override that swaps a built-in gate's command used to skip the
+            # allowed-executable check entirely — it only ran for gate names
+            # absent from DEFAULT_GATES. `.tausik/config.json` travels with the
+            # repo, so that let a cloned project point `ruff.command` at any
+            # binary and have the runner execute it. Validate every command an
+            # override supplies, built-in or not; on refusal keep the default.
+            if "command" in override:
+                error = _validate_custom_gate(name, override)
+                if error:
+                    logger.warning("Ignoring command override: %s", error)
+                    override = {k: v for k, v in override.items() if k != "command"}
+            gate.update(override)
+        elif override is not None:
+            logger.warning("Gate '%s' override must be an object — ignored", name)
         merged[name] = gate
     # Add custom user gates (not in defaults) — with security validation
     for name, ucfg in user_gates.items():
@@ -387,6 +337,54 @@ def get_gates_for_trigger(trigger: str, cfg: dict | None = None) -> list[dict]:
         if trigger in triggers:
             result.append({**gate, "name": name})
     return result
+
+
+def set_gate_enabled(name: str, enable: bool) -> str:
+    """Toggle a gate in the project tier and report what actually took effect.
+
+    The write always lands in the project file, but it does not always take
+    effect: the trust policy refuses a project-scope disable of a guarded gate,
+    and a trusted tier can hold the opposite value outright. Reporting success
+    in either case would be the silent lie this whole mechanism exists to
+    remove, so the answer is derived from the EFFECTIVE config rather than from
+    the write — in both directions. Shared by the CLI and the MCP handler.
+    """
+    from config_trust import resolve
+
+    cfg = load_project_config()
+    cfg.setdefault("gates", {}).setdefault(name, {})["enabled"] = enable
+    save_config(cfg)
+
+    effective, rejections = resolve(cfg)
+    gate = effective.get("gates", {})
+    gate = gate.get(name, {}) if isinstance(gate, dict) else {}
+    actual = gate.get("enabled") if isinstance(gate, dict) else None
+    if actual is None:
+        actual = DEFAULT_GATES.get(name, {}).get("enabled", True)
+
+    if bool(actual) == bool(enable):
+        return f"Gate '{name}' {'enabled' if enable else 'disabled'}."
+
+    verb = "enabled" if enable else "disabled"
+    for r in rejections:
+        if r.key == f"gates.{name}.enabled":
+            return (
+                f"Gate '{name}' NOT {verb} — {r.reason}. The key was written to "
+                f"{get_config_path()} but the effective config keeps {r.applied!r}. "
+                f"To change it for real, set it in the user tier "
+                f"(~/.tausik/config.json) or in $TAUSIK_MANAGED_CONFIG."
+            )
+    # Backstop. With the present guard set this is unreachable: a project
+    # DISABLE that a trusted tier contradicts produces a rejection above, and a
+    # project ENABLE always wins because tightening wins. It stays because the
+    # answer is derived from the effective config rather than from the guard
+    # table — so if the table grows a case this function has not anticipated,
+    # it reports the truth instead of asserting its own assumptions.
+    return (
+        f"Gate '{name}' NOT {verb} — a trusted config tier sets it to {actual!r} "
+        f"and outranks {get_config_path()}. Change it in ~/.tausik/config.json "
+        f"or in $TAUSIK_MANAGED_CONFIG."
+    )
 
 
 def get_service() -> ProjectService:

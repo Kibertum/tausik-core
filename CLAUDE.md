@@ -66,29 +66,5 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 <!-- DYNAMIC:START -->
 ## Current State
 Session: none | Branch: main | Version: 1.7.0
-Tasks: 973/1038 done, 0 active, 0 blocked
-
-### Memory tail
-Context (5):
-- #206 caveman: что это, из него ничего не брали, наша поддержка — свой output-режим
-- #190 Host x enforcement x GLM-subscription matrix (extension research, session #102)
-- #184 Два независимых IDE-реестра: bootstrap-time (IDE_DIRS) vs runtime (ide_utils.IDE_REGISTRY)
-- #172 v1.5 swarm-review: accepted-by-design LOW findings (post-release backlog)
-- #163 TAUSIK reached RENAR-1 on honest data via the renar-adoption ТЗ/ADAPT
-Decisions (5):
-- #136 mcp-session-leak: фикс отложен на свежую сессию — требует архитектурного выбора auto-reap vs ручной reap
-- #135 Ревью-агентам с правом RUN/reproduce не давать живое рабочее дерево — только изолированную копию (snapshot в temp) с явн
-- #134 harness/claude/mcp — ЕДИНСТВЕННОЕ каноническое дерево MCP. Зеркало harness/cursor/mcp (19 файлов) удалено, а не синхрони
-- #133 QG-0-плагин OpenCode кэширует вердикт активной задачи, но кэш привязан к ПОДПИСИ БД (size+mtime файлов .tausik/tausik.db
-- #132 Работы по v1.7.0 (поддержка OpenCode) ведём прямо в main, без feature-ветки feat/opencode-support.
-Conventions (5):
-- #215 Формат evidence при закрытии задачи (что парсит task done)
-- #214 Списки объектов схемы выводить из sqlite_master, а не хардкодить
-- #213 Хуки-гейты команд: токенизировать (shlex), не матчить подстроку
-- #204 Добавление MCP-тула: ОДНО каноническое дерево (не три зеркала) + 6 doc-count сайтов
-- #196 Внутренний магазин скиллов не утекает в публичный github.com/Kibertum/tausik-skills
-Dead ends (3):
-- #198 Ужесточить `tausik push-ok`: выдавать push-тикет только при наличии зелёного verify-receipt на текущ
-- #191 Chain 'tausik push-ok && git push' in a single Bash tool call to authorize + push atomically
-- #151 FTS5 query WHERE <alias> MATCH ? (aliased fts table in MATCH)
+Tasks: 0/1 done, 0 active, 0 blocked
 <!-- DYNAMIC:END -->

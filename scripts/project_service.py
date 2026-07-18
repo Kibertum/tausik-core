@@ -336,20 +336,14 @@ class ProjectService(
 
     @staticmethod
     def gate_enable(name: str) -> str:
-        from project_config import load_config, save_config
+        from project_config import set_gate_enabled
 
-        cfg = load_config()
-        cfg.setdefault("gates", {}).setdefault(name, {})["enabled"] = True
-        save_config(cfg)
-        return f"Gate '{name}' enabled."
+        return set_gate_enabled(name, True)
 
     @staticmethod
     def gate_disable(name: str) -> str:
-        from project_config import load_config, save_config
+        from project_config import set_gate_enabled
 
-        cfg = load_config()
-        cfg.setdefault("gates", {}).setdefault(name, {})["enabled"] = False
-        save_config(cfg)
-        return f"Gate '{name}' disabled."
+        return set_gate_enabled(name, False)
 
     # Skill lifecycle -> inherited from SkillsMixin (service_skills.py)

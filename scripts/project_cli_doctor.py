@@ -259,10 +259,10 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
         from project_config import (
             DEFAULT_SESSION_CAPACITY_CALLS,
             DEFAULT_SESSION_MAX_MINUTES,
-            load_config,
+            load_config_with_rejections,
         )
 
-        cfg = load_config()
+        cfg, trust_rejections = load_config_with_rejections()
         cap = cfg.get("session_capacity_calls", DEFAULT_SESSION_CAPACITY_CALLS)
         max_min = cfg.get("session_max_minutes", DEFAULT_SESSION_MAX_MINUTES)
         warn_th = cfg.get("session_warn_threshold_minutes", 150)
@@ -276,6 +276,15 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
         if av_hint:
             _print_warn("Verify-First profile", av_hint)
             warnings += 1
+        # Trust tiers: a project-scope key that tried to weaken enforcement is
+        # dropped on read. Silent dropping would look like the setting works,
+        # so every rejection is named here.
+        if trust_rejections:
+            for r in trust_rejections:
+                _print_warn("Config trust tier", r.describe())
+            warnings += len(trust_rejections)
+        else:
+            _print_ok("Config trust tier", "no project-scope key weakens enforcement")
     except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         _print_warn("Config knobs", f"load failed: {e}")
         warnings += 1
@@ -284,9 +293,21 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
         from default_gates import DEFAULT_GATES
 
         gate_names = sorted(DEFAULT_GATES.keys())
-        _print_ok("Quality gates", f"{len(gate_names)} registered")
-    except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
-        _print_fail("Quality gates", f"registry load failed: {e}")
+        # Resolve the gates the project will ACTUALLY run, not just the registry
+        # count. Counting DEFAULT_GATES alone cannot fail, so it reported a
+        # clean bill of health while a malformed `gates` entry crashed
+        # `load_gates` and silently disabled Verify-First enforcement.
+        from project_config import get_gates_for_trigger, load_gates
+
+        effective = load_gates()
+        verify_gates = get_gates_for_trigger("verify")
+        _print_ok(
+            "Quality gates",
+            f"{len(gate_names)} registered, {len(effective)} resolved, "
+            f"{len(verify_gates)} on verify",
+        )
+    except Exception as e:  # noqa: BLE001 — a gate config that cannot resolve is a FAIL, not a warning
+        _print_fail("Quality gates", f"config failed to resolve: {type(e).__name__}: {e}")
         failures += 1
 
     # Brain config — surfaces "enabled but misconfigured" before the user

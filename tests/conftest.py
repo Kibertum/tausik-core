@@ -64,3 +64,17 @@ def _isolated_brain_registry(tmp_path_factory, monkeypatch):
     reg_dir = tmp_path_factory.mktemp("brain_registry")
     monkeypatch.setenv("TAUSIK_BRAIN_REGISTRY", str(reg_dir / "projects.json"))
     yield
+
+
+@pytest.fixture(autouse=True)
+def _isolated_config_trust_tiers(tmp_path_factory, monkeypatch):
+    """Point the user/managed config tiers at throwaway paths for every test.
+
+    `load_config` merges ~/.tausik/config.json on top of the project config, so
+    without this a dev who keeps a real user-tier file would get different
+    results from CI — the suite would silently measure their machine.
+    """
+    tier_dir = tmp_path_factory.mktemp("config_tiers")
+    monkeypatch.setenv("TAUSIK_USER_CONFIG", str(tier_dir / "user.json"))
+    monkeypatch.delenv("TAUSIK_MANAGED_CONFIG", raising=False)
+    yield

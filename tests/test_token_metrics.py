@@ -2,7 +2,7 @@
 
 After defect v14b-defect-token-metrics-no-realworld-write (decision #61),
 per-tool token rows are produced by the SessionEnd transcript-parser in
-scripts/hooks/session_metrics.py (extract_token_rows / append_token_rows /
+scripts/hooks/session_metrics.py (extract_token_rows / replace_session_token_rows /
 resolve_session_id), NOT by a PostToolUse hook. The aggregator
 (scripts/service_token_metrics.py) reads the same JSONL schema as before.
 """
@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hoo
 
 from service_token_metrics import _percentile, aggregate, format_table  # noqa: E402
 from session_metrics import (  # noqa: E402
-    append_token_rows,
+    replace_session_token_rows,
     extract_token_rows,
     resolve_session_id,
 )
@@ -317,27 +317,64 @@ class TestExtractTokenRows:
         assert len(rows) == 1
 
 
-class TestAppendTokenRows:
+class TestReplaceSessionTokenRows:
+    """The writer REPLACES a session's rows rather than appending to them.
+
+    `extract_token_rows` re-derives a session's complete set from the transcript
+    on every call, so the caller always hands over the whole set. Appending
+    duplicated every row on every SessionEnd re-run — that is how the file
+    reached 191 MB. Replace-by-session is idempotent by construction.
+    """
+
+    def _lines(self, tmp_path):
+        path = tmp_path / ".tausik" / "token_metrics.jsonl"
+        return [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+
     def test_no_rows_returns_none(self, tmp_path):
         (tmp_path / ".tausik").mkdir()
-        assert append_token_rows([], project_dir=str(tmp_path)) is None
+        assert replace_session_token_rows([], project_dir=str(tmp_path)) is None
 
     def test_no_tausik_dir_returns_none(self, tmp_path):
         rows = [{"ts": "x", "session_id": 1, "tool_name": "Read", "input_tokens": 5}]
-        assert append_token_rows(rows, project_dir=str(tmp_path)) is None
+        assert replace_session_token_rows(rows, project_dir=str(tmp_path)) is None
         assert not (tmp_path / ".tausik" / "token_metrics.jsonl").exists()
 
-    def test_appends_rows_idempotent_across_calls(self, tmp_path):
+    def test_rerun_with_the_same_set_does_not_duplicate(self, tmp_path):
+        """The real caller's pattern: the same complete set, written twice."""
         (tmp_path / ".tausik").mkdir()
-        rows1 = [{"ts": "a", "session_id": 1, "tool_name": "Read", "input_tokens": 5}]
-        rows2 = [{"ts": "b", "session_id": 1, "tool_name": "Edit", "input_tokens": 7}]
-        append_token_rows(rows1, project_dir=str(tmp_path))
-        append_token_rows(rows2, project_dir=str(tmp_path))
-        path = tmp_path / ".tausik" / "token_metrics.jsonl"
-        lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        rows = [
+            {"ts": "a", "session_id": 1, "tool_name": "Read", "input_tokens": 5},
+            {"ts": "b", "session_id": 1, "tool_name": "Edit", "input_tokens": 7},
+        ]
+        replace_session_token_rows(rows, project_dir=str(tmp_path))
+        replace_session_token_rows(rows, project_dir=str(tmp_path))
+        lines = self._lines(tmp_path)
         assert len(lines) == 2
-        assert json.loads(lines[0])["tool_name"] == "Read"
-        assert json.loads(lines[1])["tool_name"] == "Edit"
+        assert [json.loads(ln)["tool_name"] for ln in lines] == ["Read", "Edit"]
+
+    def test_grown_set_replaces_the_session_wholesale(self, tmp_path):
+        """A later run sees more of the transcript; the session's rows are
+        swapped for the new set, not merged with the old one."""
+        (tmp_path / ".tausik").mkdir()
+        first = [{"ts": "a", "session_id": 1, "tool_name": "Read", "input_tokens": 5}]
+        grown = first + [{"ts": "b", "session_id": 1, "tool_name": "Edit", "input_tokens": 7}]
+        replace_session_token_rows(first, project_dir=str(tmp_path))
+        replace_session_token_rows(grown, project_dir=str(tmp_path))
+        lines = self._lines(tmp_path)
+        assert len(lines) == 2
+        assert [json.loads(ln)["tool_name"] for ln in lines] == ["Read", "Edit"]
+
+    def test_other_sessions_are_not_erased(self, tmp_path):
+        (tmp_path / ".tausik").mkdir()
+        replace_session_token_rows(
+            [{"ts": "a", "session_id": 1, "tool_name": "Read", "input_tokens": 5}],
+            project_dir=str(tmp_path),
+        )
+        replace_session_token_rows(
+            [{"ts": "b", "session_id": 2, "tool_name": "Edit", "input_tokens": 7}],
+            project_dir=str(tmp_path),
+        )
+        assert {json.loads(ln)["session_id"] for ln in self._lines(tmp_path)} == {1, 2}
 
 
 class TestResolveSessionId:
@@ -425,7 +462,7 @@ class TestEndToEndEmitter:
         assert sid == 1
         rows = extract_token_rows(str(transcript), session_id=sid)
         assert len(rows) == 3  # 1 + 2 tool_uses
-        out = append_token_rows(rows)
+        out = replace_session_token_rows(rows)
         assert out is not None
         assert (tausik / "token_metrics.jsonl").exists()
 

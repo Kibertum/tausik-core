@@ -39,6 +39,13 @@ if TYPE_CHECKING:
     from project_backend import SQLiteBackend
 
 
+def _block(report: dict[str, Any], gate: str, output: str, remediation: str, files=None):
+    """Record a blocking gate failure. Four call sites repeated this dict."""
+    report["passed"] = False
+    entry = {"gate": gate, "files": list(files or []), "output": output}
+    report["blocking_failures"].append({**entry, "remediation": remediation})
+
+
 class GatesMixin:
     """QG-0 and QG-2 verification methods for task lifecycle."""
 
@@ -259,13 +266,26 @@ class GatesMixin:
 
             cfg = load_config()
             verify_gates = get_gates_for_trigger("verify", cfg)
-        except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
-            verify_gates = []
-            cfg = {}
+        except Exception as e:  # noqa: BLE001 — turned into a blocking failure below
+            # FAIL CLOSED. Swallowing this into `verify_gates = []` reads as
+            # "no verify gates configured", so one malformed `gates` entry
+            # skipped the whole Verify-First Contract in silence.
+            _block(
+                report,
+                "config-load",
+                f"{type(e).__name__}: {e}",
+                "Verify-First cannot tell which gates to enforce: the config failed "
+                "to load. Fix `.tausik/config.json` (`tausik doctor` names the key), "
+                "then retry.",
+            )
+            return
         if not verify_gates:
             return  # no heavy gates configured, nothing to enforce
 
-        td_cfg = cfg.get("task_done", {}) if isinstance(cfg, dict) else {}
+        # `.get(key, {})` yields None when the key is present and explicitly
+        # null — the default never applies. Type-check the value, not `cfg`.
+        td_raw = cfg.get("task_done")
+        td_cfg = td_raw if isinstance(td_raw, dict) else {}
         auto_verify = bool(td_cfg.get("auto_verify", False))
         ttl = int(
             cfg.get("verify_cache_ttl_seconds", DEFAULT_CACHE_TTL_S)
@@ -285,19 +305,13 @@ class GatesMixin:
                 f"Verify-First: cache hit (verify run #{hit['id']} at {hit['ran_at']}) | {note}",
             )
             if not ok:
-                report["passed"] = False
-                report["blocking_failures"].append(
-                    {
-                        "gate": "receipt-signature",
-                        "files": [],
-                        "output": note,
-                        "remediation": (
-                            f"Re-run `tausik verify --task {slug}` to record a "
-                            f"freshly signed receipt; inspect `tausik receipt "
-                            f"show --run {hit['id']}` and `tausik key show` if "
-                            "it persists."
-                        ),
-                    }
+                _block(
+                    report,
+                    "receipt-signature",
+                    note,
+                    f"Re-run `tausik verify --task {slug}` to record a freshly "
+                    f"signed receipt; inspect `tausik receipt show --run "
+                    f"{hit['id']}` and `tausik key show` if it persists.",
                 )
             return
 
@@ -318,18 +332,13 @@ class GatesMixin:
                     trigger="verify",
                 )
             except Exception as e:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
-                report["passed"] = False
-                report["blocking_failures"].append(
-                    {
-                        "gate": "verify-first",
-                        "files": [],
-                        "output": f"auto_verify run crashed: {e}",
-                        "remediation": (
-                            "Fix the failing verify gate or set "
-                            "config.task_done.auto_verify=false and run "
-                            "`tausik verify` manually."
-                        ),
-                    }
+                _block(
+                    report,
+                    "verify-first",
+                    f"auto_verify run crashed: {e}",
+                    "Fix the failing verify gate or set "
+                    "config.task_done.auto_verify=false and run `tausik verify` "
+                    "manually.",
                 )
                 return
             if not passed:
@@ -353,23 +362,17 @@ class GatesMixin:
 
         # Default v1.4 behavior: refuse to close.
         gate_names = ", ".join(g.get("name", "?") for g in verify_gates)
-        report["passed"] = False
-        report["blocking_failures"].append(
-            {
-                "gate": "verify-first",
-                "files": list(relevant_files or []),
-                "output": (
-                    f"QG-2: no fresh `tausik verify` run for this task "
-                    f"(verify gates configured: {gate_names}). "
-                    f"Run `tausik verify --task {slug}` first — it caches; "
-                    f"then `task done` closes in milliseconds. To opt out "
-                    f"set config.task_done.auto_verify=true (legacy)."
-                ),
-                "remediation": (
-                    f".tausik/tausik verify --task {slug}  &&  "
-                    f".tausik/tausik task done {slug} --ac-verified"
-                ),
-            }
+        _block(
+            report,
+            "verify-first",
+            f"QG-2: no fresh `tausik verify` run for this task "
+            f"(verify gates configured: {gate_names}). "
+            f"Run `tausik verify --task {slug}` first — it caches; "
+            f"then `task done` closes in milliseconds. To opt out "
+            f"set config.task_done.auto_verify=true (legacy).",
+            f".tausik/tausik verify --task {slug}  &&  "
+            f".tausik/tausik task done {slug} --ac-verified",
+            files=relevant_files,
         )
 
     def _run_quality_gates(

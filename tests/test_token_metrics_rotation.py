@@ -14,7 +14,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks"))
 
-from session_metrics import append_token_rows
+from session_metrics import replace_session_token_rows
 
 
 def _rows(session_id: int, n: int = 3) -> list[dict]:
@@ -50,24 +50,24 @@ class TestIdempotence:
         """The bug: the SessionEnd hook re-parses the transcript from byte 0 and
         re-emits every row, so appending multiplied the session on each run."""
         proj = _proj(tmp_path)
-        append_token_rows(_rows(1), project_dir=proj)
-        append_token_rows(_rows(1), project_dir=proj)
-        append_token_rows(_rows(1), project_dir=proj)
+        replace_session_token_rows(_rows(1), project_dir=proj)
+        replace_session_token_rows(_rows(1), project_dir=proj)
+        replace_session_token_rows(_rows(1), project_dir=proj)
         assert len(_read(tmp_path)) == 3
 
     def test_other_sessions_are_preserved(self, tmp_path):
         proj = _proj(tmp_path)
-        append_token_rows(_rows(1), project_dir=proj)
-        append_token_rows(_rows(2), project_dir=proj)
-        append_token_rows(_rows(1), project_dir=proj)  # replaces session 1 only
+        replace_session_token_rows(_rows(1), project_dir=proj)
+        replace_session_token_rows(_rows(2), project_dir=proj)
+        replace_session_token_rows(_rows(1), project_dir=proj)  # replaces session 1 only
         got = _read(tmp_path)
         assert sorted({r["session_id"] for r in got}) == [1, 2]
         assert len(got) == 6
 
     def test_replacement_uses_the_newest_content(self, tmp_path):
         proj = _proj(tmp_path)
-        append_token_rows(_rows(1, n=5), project_dir=proj)
-        append_token_rows(_rows(1, n=2), project_dir=proj)
+        replace_session_token_rows(_rows(1, n=5), project_dir=proj)
+        replace_session_token_rows(_rows(1, n=2), project_dir=proj)
         assert len(_read(tmp_path)) == 2
 
 
@@ -75,7 +75,7 @@ class TestRotation:
     def test_file_stays_under_cap_and_keeps_newest(self, tmp_path):
         proj = _proj(tmp_path)
         for sid in range(1, 40):
-            append_token_rows(_rows(sid, n=5), project_dir=proj, max_bytes=4096)
+            replace_session_token_rows(_rows(sid, n=5), project_dir=proj, max_bytes=4096)
         path = tmp_path / ".tausik" / "token_metrics.jsonl"
         assert path.stat().st_size <= 4096
         seen = {r["session_id"] for r in _read(tmp_path)}
@@ -92,20 +92,20 @@ class TestDegradation:
             json.dumps(_rows(7)[0]) + "\n" + "{not json at all\n",
             encoding="utf-8",
         )
-        assert append_token_rows(_rows(9), project_dir=proj) is not None
+        assert replace_session_token_rows(_rows(9), project_dir=proj) is not None
         got = _read(tmp_path)
         assert {r["session_id"] for r in got} == {7, 9}
 
     def test_empty_rows_is_a_noop(self, tmp_path):
         """Negative: nothing to record must not create or truncate the file."""
         proj = _proj(tmp_path)
-        assert append_token_rows([], project_dir=proj) is None
+        assert replace_session_token_rows([], project_dir=proj) is None
         assert not (tmp_path / ".tausik" / "token_metrics.jsonl").exists()
 
     def test_missing_tausik_dir_is_a_noop(self, tmp_path):
-        assert append_token_rows(_rows(1), project_dir=str(tmp_path)) is None
+        assert replace_session_token_rows(_rows(1), project_dir=str(tmp_path)) is None
 
     def test_no_temp_file_left_behind(self, tmp_path):
         proj = _proj(tmp_path)
-        append_token_rows(_rows(1), project_dir=proj)
+        replace_session_token_rows(_rows(1), project_dir=proj)
         assert not list((tmp_path / ".tausik").glob("*.tmp"))

@@ -9,7 +9,73 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-_Nothing yet — next changes land here._
+### Configuration trust tiers — a project may only tighten enforcement
+
+The enforcement switches lived in `.tausik/config.json`, an ordinary file inside
+the repository. `qg0.scope_hard_gate`, `risk.l3_block_on_high`,
+`task_done.auto_verify`, per-gate `enabled` and `severity` — one write to a
+git-tracked file removed the supervision. An agent could disable its own
+oversight; a pull request could turn the gates off on the reviewer's machine.
+
+Config now resolves across three tiers — project (`.tausik/config.json`), user
+(`~/.tausik/config.json`), managed (`$TAUSIK_MANAGED_CONFIG`). Higher tiers win,
+and a guarded key from the project tier applies only if it is at least as strict
+as what the trusted tiers established. Tightening still passes through untouched;
+weakening is replaced with the enforced value and named in `tausik doctor`.
+`gates disable` on a guarded gate now says it did not take effect instead of
+reporting a success that never happened.
+
+**Guarding `enabled` alone would have been decorative.** An adversarial pass
+against the new control found three ways to turn a gate off by another spelling,
+each of which worked before the fix: emptying `trigger` (the gate stays
+"enabled" and never fires), narrowing `file_extensions` until nothing matches,
+and overriding a built-in gate's `command`. `trigger` and `file_extensions` are
+now set-valued guards — a project may extend them, never shrink them.
+
+The `command` finding was worse than a bypass. `_validate_custom_gate` ran only
+for gate names absent from `DEFAULT_GATES`, so overriding `gates.ruff.command`
+skipped the allowed-executable check entirely — a cloned repository could point
+a built-in gate at any binary and the runner would execute it. Every command an
+override supplies is validated now, built-in or not; a refused command falls
+back to the default and the rest of the override still applies. A project can
+still neuter a gate with an *allowed* but inert command (`python -c pass`);
+that vector is tracked in `l26-gate-command-neutering` and named in the docs
+rather than left implied.
+
+### Verify-First now fails closed on a config it cannot read
+
+Found by the same adversarial pass, and independent of the tiers.
+`_enforce_verify_first` caught every config-load error and continued with an
+empty gate list — indistinguishable from "this project configured no verify
+gates". One malformed entry in the `gates` object therefore skipped the entire
+Verify-First Contract in silence, while `tausik doctor` still reported a clean
+config. The framework documents its gates as fail-closed; this one was not.
+A config that cannot resolve is now a blocking failure with remediation.
+
+Two supporting fixes: `cfg.get("task_done", {})` returned `None` when the key
+was present and explicitly `null` (the default never applies), crashing
+`task done` on a one-key typo — the value's type is checked now, not the
+container's. And `tausik doctor`'s gate check only counted `DEFAULT_GATES`, a
+number that cannot fail; it resolves the project's actual gates now, so this
+class of defect is visible before it reaches a closure.
+
+**BREAKING — projects that disable gates in `.tausik/config.json`.** That is now
+rejected: the gate stays on and `tausik doctor` names the key. If you have a
+legitimate reason to turn a gate off — a sandbox, a CI image, a project where a
+gate genuinely does not apply — move that setting to `~/.tausik/config.json`
+(per machine) or to a file pointed at by `$TAUSIK_MANAGED_CONFIG` (per fleet).
+Nothing else changes; tightening from the project tier works exactly as before.
+
+**What this does not do**, stated here rather than left to be assumed: an agent
+that can run shell commands can write the user tier itself. Tiers are not a
+sandbox. They make a repository unable to grant itself authority, and they force
+weakening out of the diff and into the open. See
+[`docs/en/config-trust-tiers.md`](docs/en/config-trust-tiers.md) for the full
+threat boundary and for the two keys (`gates.filesize.exempt_files`,
+`verify_cache_ttl_seconds`) deliberately left unguarded.
+
+Split out of `project_config` at the 400-line cap: custom-gate command security
+now lives in `scripts/gate_command_policy.py`, re-exported for existing callers.
 
 ## [1.7.0] — 2026-07-16
 
