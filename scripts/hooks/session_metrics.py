@@ -14,6 +14,7 @@ Can be used as a Claude Code hook (PostSessionEnd) or called from /end skill.
 import json
 import os
 import sys
+from collections import deque
 from glob import glob
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -246,8 +247,61 @@ def extract_token_rows(path: str, session_id: int) -> list[dict]:
     return rows
 
 
-def append_token_rows(rows: list[dict], project_dir: str | None = None) -> str | None:
-    """Append rows to .tausik/token_metrics.jsonl. Returns path or None on no-op."""
+#: Size ceiling for .tausik/token_metrics.jsonl. The file had no cap at all and
+#: reached 191 MB on this project. Oldest rows are dropped first: token
+#: attribution is only useful for recent sessions, and the DB keeps the
+#: authoritative per-session totals regardless.
+TOKEN_METRICS_MAX_BYTES = 32 * 1024 * 1024
+
+
+def _surviving_lines(path: str, drop_sessions: set, max_bytes: int) -> list[str]:
+    """Existing lines to keep: not from `drop_sessions`, newest within `max_bytes`.
+
+    Streams the file and holds at most `max_bytes` of it, because the file this
+    was written for was 191 MB — reading it whole would trade a disk problem for
+    a memory one. Unparseable lines are dropped rather than aborting the write:
+    losing one malformed metrics row is strictly better than losing the file.
+    """
+    kept: deque[str] = deque()
+    size = 0
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                line = line.rstrip("\n")
+                if not line.strip():
+                    continue
+                try:
+                    if json.loads(line).get("session_id") in drop_sessions:
+                        continue
+                except (json.JSONDecodeError, AttributeError):
+                    continue
+                kept.append(line)
+                size += len(line.encode("utf-8")) + 1
+                while size > max_bytes and kept:
+                    size -= len(kept.popleft().encode("utf-8")) + 1
+    except OSError as exc:
+        print(f"token_metrics.jsonl read failed: {exc}", file=sys.stderr)
+        return []
+    return list(kept)
+
+
+def append_token_rows(
+    rows: list[dict],
+    project_dir: str | None = None,
+    max_bytes: int = TOKEN_METRICS_MAX_BYTES,
+) -> str | None:
+    """Record `rows` in .tausik/token_metrics.jsonl. Returns path or None on no-op.
+
+    REPLACES the rows already stored for the sessions in `rows` rather than
+    appending to them. `extract_token_rows` re-derives a session's *complete*
+    set from the transcript on every call, so appending duplicated every row on
+    every re-run of the SessionEnd hook — which is how the file reached 191 MB.
+    Replace-by-session makes a re-run idempotent by construction, with no need
+    to track offsets or per-row identity.
+
+    Writes via a temp file and os.replace so an interrupted run cannot leave a
+    truncated metrics file behind.
+    """
     if not rows:
         return None
     proj = project_dir or os.getcwd()
@@ -255,12 +309,26 @@ def append_token_rows(rows: list[dict], project_dir: str | None = None) -> str |
     if not os.path.isdir(tausik_dir):
         return None
     path = os.path.join(tausik_dir, "token_metrics.jsonl")
+
+    new_lines = [json.dumps(r, ensure_ascii=False) for r in rows]
+    sessions = {r.get("session_id") for r in rows}
+    budget = max(0, max_bytes - sum(len(s.encode("utf-8")) + 1 for s in new_lines))
+    old_lines = _surviving_lines(path, sessions, budget) if os.path.exists(path) else []
+
+    tmp = f"{path}.tmp"
     try:
-        with open(path, "a", encoding="utf-8") as fh:
-            for r in rows:
-                fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+        with open(tmp, "w", encoding="utf-8") as fh:
+            for line in old_lines:
+                fh.write(line + "\n")
+            for line in new_lines:
+                fh.write(line + "\n")
+        os.replace(tmp, path)
     except OSError as exc:
-        print(f"token_metrics.jsonl append failed: {exc}", file=sys.stderr)
+        print(f"token_metrics.jsonl write failed: {exc}", file=sys.stderr)
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
         return None
     return path
 
