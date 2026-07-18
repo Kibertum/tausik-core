@@ -66,7 +66,7 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 <!-- DYNAMIC:START -->
 ## Current State
 Session: none | Branch: main | Version: 1.7.0
-Tasks: 965/995 done, 0 active, 0 blocked
+Tasks: 973/1038 done, 0 active, 0 blocked
 
 ### Memory tail
 Context (5):
@@ -82,11 +82,11 @@ Decisions (5):
 - #133 QG-0-плагин OpenCode кэширует вердикт активной задачи, но кэш привязан к ПОДПИСИ БД (size+mtime файлов .tausik/tausik.db
 - #132 Работы по v1.7.0 (поддержка OpenCode) ведём прямо в main, без feature-ветки feat/opencode-support.
 Conventions (5):
+- #215 Формат evidence при закрытии задачи (что парсит task done)
+- #214 Списки объектов схемы выводить из sqlite_master, а не хардкодить
 - #213 Хуки-гейты команд: токенизировать (shlex), не матчить подстроку
 - #204 Добавление MCP-тула: ОДНО каноническое дерево (не три зеркала) + 6 doc-count сайтов
 - #196 Внутренний магазин скиллов не утекает в публичный github.com/Kibertum/tausik-skills
-- #182 IDE-список: два источника правды — IDE_DIRS (discovery) vs SCAFFOLD_IDES (generation)
-- #176 Internal research lives in gitignored docs/research/_internal/ (never name codenames in .gitignore)
 Dead ends (3):
 - #198 Ужесточить `tausik push-ok`: выдавать push-тикет только при наличии зелёного verify-receipt на текущ
 - #191 Chain 'tausik push-ok && git push' in a single Bash tool call to authorize + push atomically
