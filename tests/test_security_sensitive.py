@@ -271,7 +271,8 @@ class TestVerifyFirstRegression:
                 summary TEXT,
                 files_hash TEXT NOT NULL,
                 ran_at TEXT NOT NULL,
-                duration_ms INTEGER
+                duration_ms INTEGER,
+                declared_scope_status TEXT, undeclared_files TEXT
             )
             """
         )

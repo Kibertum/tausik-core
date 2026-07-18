@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS verification_runs (
     files_hash TEXT NOT NULL,
     ran_at TEXT NOT NULL,
     duration_ms INTEGER,
-    receipt_json TEXT
+    receipt_json TEXT,
+    declared_scope_status TEXT, undeclared_files TEXT
 );
 """
 
@@ -963,9 +964,16 @@ class TestRunGatesWithCacheGitDiffIntegration:
         assert status2 == "hit"
 
     def test_cache_refused_when_declared_underreports(self, conn, monkeypatch, tmp_path):
-        """Pre-warm cache for declared=[scripts/foo.py]. Then declare same
-        files BUT git diff shows scripts/auth.py also changed → cache must
-        return status='git-mismatch', not 'hit'."""
+        """Pre-warm cache for declared=[scripts/foo.py]. Then declare the same
+        files BUT git diff shows scripts/bar.py also changed → cache must
+        return status='git-mismatch', not 'hit'.
+
+        l26-verify-git-diff-wire: the undeclared file here is deliberately a
+        NON-security one. Under-declaration on its own stays non-blocking
+        (Decision #138/#139) and only refuses the cache, which is what this
+        test pins. The security-sensitive variant is a different contract and
+        is covered by test_cache_refused_when_undeclared_file_is_security.
+        """
         monkeypatch.setattr("os.path.isdir", lambda p: True)
         import gate_runner
 
@@ -996,7 +1004,7 @@ class TestRunGatesWithCacheGitDiffIntegration:
         monkeypatch.setattr(
             verify_git_diff,
             "changed_files_since",
-            lambda ts, **_kw: {"scripts/foo.py", "scripts/auth.py"},
+            lambda ts, **_kw: {"scripts/foo.py", "scripts/bar.py"},
         )
         passed2, _, status2 = sv.run_gates_with_cache(
             conn,
@@ -1005,6 +1013,42 @@ class TestRunGatesWithCacheGitDiffIntegration:
             task_created_at="2026-04-28T12:00:00Z",
         )
         assert status2 == "git-mismatch"
+        assert passed2 is True  # divergence alone must never fail the run
+
+    def test_cache_refused_when_undeclared_file_is_security(self, conn, monkeypatch):
+        """l26-verify-git-diff-wire: an undeclared *security-sensitive* file is
+        the one case that fails rather than merely refusing the cache.
+
+        Refusing the cache was never enough on its own: the gates that run
+        afterwards are scoped to the declared list, so an undeclared
+        scripts/auth.py would be verified by nothing at all — the half of the
+        v1.3.4 bypass that stayed open until this change.
+        """
+        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        import gate_runner
+        import verify_git_diff
+
+        ran: list[bool] = []
+        monkeypatch.setattr(
+            gate_runner,
+            "run_gates",
+            lambda _trigger, _files, **_kw: (ran.append(True), (True, []))[1],
+        )
+        monkeypatch.setattr(
+            verify_git_diff,
+            "changed_files_since",
+            lambda ts, **_kw: {"scripts/foo.py", "scripts/auth.py"},
+        )
+        passed, results, status = sv.run_gates_with_cache(
+            conn,
+            "task-sec",
+            ["scripts/foo.py"],
+            task_created_at="2026-04-28T12:00:00Z",
+        )
+        assert passed is False
+        assert status == "scope-security-mismatch"
+        assert results[0]["name"] == "scope-declaration"
+        assert ran == []
 
     def test_no_task_created_at_falls_back_to_security_only(self, conn, monkeypatch):
         """Without task_created_at, behavior matches pre-v1.3.4 — no git

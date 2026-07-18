@@ -46,7 +46,7 @@ object only — never over the envelope.
 {
   "envelope": "tausik-signed/v1",
   "receipt": {
-    "schema": "tausik-receipt/v1",
+    "schema": "tausik-receipt/v2",
     "task_slug": "my-feature",
     "git_sha": "0123456789abcdef0123456789abcdef01234567",
     "scope": "standard",
@@ -57,7 +57,10 @@ object only — never over the envelope.
     "passed": true,
     "ran_at": "2026-06-13T10:42:07Z",
     "files_hash": "a1b2c3d4...",
-    "key_fingerprint": "9f3c1a2b4d5e6f70"
+    "key_fingerprint": "9f3c1a2b4d5e6f70",
+    "declared_scope_status": "under-declared",
+    "undeclared_files": ["CHANGELOG.md", "docs/en/receipts.md"],
+    "undeclared_count": 2
   },
   "signature": {
     "algorithm": "ed25519",
@@ -78,6 +81,40 @@ Field notes:
 - `key_fingerprint` — first 16 hex of the SHA-256 of the public key; the same
   value appears in `tausik key show`.
 - `value` — 128 hex chars (64-byte ed25519 signature).
+
+### Scope honesty (schema v2)
+
+A receipt claims that gates passed **over some set of files**. The three fields
+below say whether that set was complete. Without them the receipt stayed silent
+about the very thing that undermines it: an agent declaring
+`relevant_files=[README.md]` during a broad edit still received a signed green
+receipt for `README.md`.
+
+- `declared_scope_status` — one of three values:
+  - `complete` — the declared set covers everything git saw change since the
+    task started;
+  - `under-declared` — git saw changes outside the declared set;
+  - `unknown` — the comparison **could not be made**: outside a git repo, with
+    an empty `relevant_files`, without `task_created_at`, or when the git call
+    failed.
+- `undeclared_files` — sorted list of files git reports as changed that
+  `relevant_files` does not name. Capped at 50 entries.
+- `undeclared_count` — the full count, **never** truncated. When it exceeds the
+  length of the list, the list is showing only part of the picture.
+
+Two properties that matter when reading someone else's receipt:
+
+1. **`unknown` is not `complete`.** A measurement that did not happen is never
+   credited as confirmed coverage. Schema `v1` receipts issued before this
+   change carry no such fields at all — treat their scope as **unverified**,
+   not as complete.
+2. **`under-declared` is not an accusation.** The divergence fires on nearly
+   every honest closure: edits to CHANGELOG, docs, generated constants and
+   badges routinely fall outside the declared set. It is therefore recorded but
+   **does not block**. The one exception is an undeclared file matching the
+   security predicate: gates scoped to the declared list would not have checked
+   it at all, so that run fails with status `scope-security-mismatch` and asks
+   for the file to be added to `relevant_files`.
 
 The receipt is **canonical** (JCS / RFC 8785 spirit): keys sorted at every
 level, no whitespace, ASCII-only, floats rejected. The same logical receipt

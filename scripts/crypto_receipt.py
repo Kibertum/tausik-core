@@ -20,7 +20,13 @@ from __future__ import annotations
 import json
 from typing import Any
 
-RECEIPT_SCHEMA = "tausik-receipt/v1"
+RECEIPT_SCHEMA = "tausik-receipt/v2"
+
+# v1 receipts (pre-l26-verify-git-diff-wire) carry no declared-scope fields.
+# They remain cryptographically valid — verification re-canonicalizes the
+# stored payload rather than rebuilding it from this module — but a reader
+# must treat their scope as UNVERIFIED, not as complete.
+LEGACY_RECEIPT_SCHEMA = "tausik-receipt/v1"
 
 
 class ReceiptError(Exception):
@@ -37,12 +43,21 @@ def build_receipt(
     ran_at: str,
     files_hash: str | None = None,
     key_fingerprint: str | None = None,
+    declared_scope_status: str | None = None,
+    undeclared_files: list[str] | None = None,
+    undeclared_count: int | None = None,
 ) -> dict[str, Any]:
-    """Assemble a schema-v1 receipt dict.
+    """Assemble a schema-v2 receipt dict.
 
     `gates` entries are reduced to the signable triple
     {name, passed, severity}; free-form gate output stays OUT of the
     receipt (it is bulky and non-deterministic).
+
+    v2 adds the declared-scope fields (l26-verify-git-diff-wire). A receipt
+    states what its gates covered, so it must also state whether that coverage
+    was known to be complete. `declared_scope_status` is therefore never
+    omitted: a caller that supplies nothing yields "unknown", never a silent
+    absence that a reader could mistake for full coverage.
     """
     if not task_slug:
         raise ReceiptError("task_slug is required")
@@ -67,6 +82,13 @@ def build_receipt(
         "ran_at": ran_at,
         "files_hash": files_hash,
         "key_fingerprint": key_fingerprint,
+        # Sorted for byte-stable canonical output; the count is the untruncated
+        # total, so a capped listing never understates the divergence.
+        "declared_scope_status": str(declared_scope_status or "unknown"),
+        "undeclared_files": sorted(str(f) for f in (undeclared_files or [])),
+        "undeclared_count": int(
+            undeclared_count if undeclared_count is not None else len(undeclared_files or [])
+        ),
     }
     return receipt
 

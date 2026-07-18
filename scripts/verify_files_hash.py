@@ -16,6 +16,10 @@ import os
 # 4 KiB is enough to catch most edits (function bodies, header changes,
 # imports) without dragging large binaries through the hash on every
 # task_done.
+#
+# l26-verify-git-diff-wire settled the open question about this window:
+# it is a DELIBERATE COMPROMISE, not an unclosed hole. See the "Not a security
+# boundary" note in compute_files_hash below for the reasoning.
 _FILES_HASH_CONTENT_SAMPLE_BYTES = 4096
 
 
@@ -43,6 +47,27 @@ def compute_files_hash(file_paths: list[str], *, root: str | None = None) -> str
     Caveat — mtime resolution AS A SECONDARY SIGNAL: NTFS gives 100ns
     precision; ext4 1μs; HFS+ 1s; FAT32/exFAT 2s. Even on coarse-mtime
     filesystems the content-head check catches edits the mtime missed.
+
+    NOT A SECURITY BOUNDARY (settled by l26-verify-git-diff-wire, AC #6).
+    An edit confined to bytes past the 4 KiB sample that also preserves the
+    file's exact length does not change the content head — so on its own the
+    sample would collide. It is not evaluated on its own: `mtime_ns` and
+    `size` are hashed alongside it, and any ordinary write moves mtime (as
+    does `git checkout`, which stamps it to now). Producing a collision
+    therefore requires deliberately restoring mtime to the nanosecond via
+    `os.utime` — i.e. an actor already executing code in the working tree,
+    who can equally well edit the file the moment after a legitimate verify
+    finishes. No hash computed at verify time defends against that; the
+    10-minute cache TTL bounds the exposure instead.
+
+    Widening the sample would raise the cost on every task_done (large
+    fixtures, binaries, lockfiles) to buy resistance against an attacker who
+    is not blocked by it anyway. Deliberately left at 4 KiB.
+
+    Independently of this window, under-declared scope — the vector that
+    actually mattered — is now recorded on the run row and inside the signed
+    receipt (verify_scope_honesty), so a receipt's honesty no longer rests on
+    files_hash alone.
     """
     base = root or os.getcwd()
     canon: list[tuple[str, int, int, str]] = []

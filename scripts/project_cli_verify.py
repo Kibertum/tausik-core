@@ -24,12 +24,14 @@ def cmd_verify(svc: ProjectService, args: Any) -> None:
 
     from gate_runner import format_results, run_gates
     from service_verification import (
+        STATUS_UNDER_DECLARED,
         compute_files_hash,
+        describe_declared_scope,
         is_cache_allowed,
-        is_declared_consistent_with_git_diff,
         lookup_recent_for_task,
         record_run,
         resolve_gate_signature,
+        security_block_reason,
     )
 
     relevant_files: list[str] = []
@@ -61,9 +63,28 @@ def cmd_verify(svc: ProjectService, args: Any) -> None:
     gate_sig = resolve_gate_signature("verify")
     cache_command = f"trigger=verify|sig={gate_sig}|files={','.join(sorted(relevant_files))}"
 
-    cache_consistent = not (
-        task_created_at and relevant_files
-    ) or is_declared_consistent_with_git_diff(relevant_files, task_created_at)
+    # l26-verify-git-diff-wire: same tri-state description the task-done path
+    # uses, so a receipt minted by `verify` carries the same honesty about its
+    # own coverage as one minted by `task done`.
+    scope_desc = describe_declared_scope(relevant_files, task_created_at)
+    cache_consistent = scope_desc["status"] != STATUS_UNDER_DECLARED
+
+    blocked = security_block_reason(scope_desc)
+    if blocked:
+        print(blocked)
+        record_run(
+            svc.be._conn,
+            task_slug=task_slug or None,
+            scope=scope,
+            command=cache_command,
+            exit_code=1,
+            summary="scope-declaration=FAIL (undeclared security-sensitive files)",
+            files_hash=files_hash,
+            gate_results=[],
+            scope_description=scope_desc,
+        )
+        raise SystemExit(1)
+
     if task_slug and is_cache_allowed(relevant_files) and cache_consistent:
         hit = lookup_recent_for_task(
             svc.be._conn,
@@ -116,7 +137,14 @@ def cmd_verify(svc: ProjectService, args: Any) -> None:
         files_hash=files_hash,
         duration_ms=duration_ms,
         gate_results=results,
+        scope_description=scope_desc,
     )
+    if scope_desc["status"] == STATUS_UNDER_DECLARED:
+        print(
+            f"NOTE: {scope_desc['undeclared_count']} file(s) changed since task "
+            f"start but not declared in relevant_files. The receipt records this "
+            f"— its coverage is narrower than the change."
+        )
     print(
         f"Recorded verification_run (task_slug={task_slug or '-'}, exit={'0' if passed else '1'})."
     )

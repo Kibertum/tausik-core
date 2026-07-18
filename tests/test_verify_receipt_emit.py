@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS verification_runs (
     files_hash TEXT NOT NULL,
     ran_at TEXT NOT NULL,
     duration_ms INTEGER,
-    receipt_json TEXT
+    receipt_json TEXT,
+    declared_scope_status TEXT, undeclared_files TEXT
 );
 """
 

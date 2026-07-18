@@ -9,6 +9,49 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### A receipt now states whether its own scope was complete
+
+The git cross-check has been wired since v1.3.4, and it worked: declare
+`relevant_files=[README.md]` during a broad edit and the verify cache was
+refused. That was the whole of its effect. The gates then ran against the same
+narrow declared list, and `record_run` signed a receipt for that narrow scope.
+The divergence existed only as a return value and a line of free text in the
+task notes — `record_run` had no parameter for it at all. The system detected
+the problem and left it out of the artifact of proof, which is the one place it
+mattered.
+
+Two columns (`declared_scope_status`, `undeclared_files`, schema v38) and three
+receipt fields now carry it. `declared_scope_status` is deliberately tri-state:
+`complete`, `under-declared`, and `unknown` for the cases where the comparison
+could not be made — no git repo, empty `relevant_files`, missing
+`task_created_at`, failed git call. A boolean would have merged "verified
+complete" with "could not check", which is the same silent green in a new
+place. Receipts predating this change (`tausik-receipt/v1`) have no such fields
+and their scope reads as unverified, never as complete.
+
+**Divergence still does not block, and that is measured rather than assumed.**
+Both closures of the previous session diverged from git, and both were honest —
+CHANGELOG, docs, generated constants, README badges and five IDE mirrors edited
+beyond the declared set. A rule firing on essentially every honest closure would
+be switched off on first contact and would leave the project worse off than no
+rule. The one exception is an undeclared file matching the security predicate:
+scoped gates run against the declared list, so an undeclared `scripts/auth.py`
+would be verified by nothing at all. That case now fails with
+`scope-security-mismatch` and names the files to add. The same predicate was
+replayed against the previous session's undeclared set to confirm it stays
+silent on honest work.
+
+The receipt schema moves to `tausik-receipt/v2`. Existing v1 receipts remain
+cryptographically valid — verification re-canonicalizes the stored payload
+rather than rebuilding it from the current code.
+
+Settled alongside: the 4 KiB content window in `compute_files_hash` is a
+deliberate compromise, not an open hole, and now says so in its docstring. The
+sample is hashed together with `mtime_ns` and `size`, so a collision needs a
+same-length edit past 4 KiB *plus* an mtime restored to the nanosecond — an
+actor already running code in the working tree, who can equally edit the file
+one moment after a legitimate verify.
+
 ### Configuration trust tiers — a project may only tighten enforcement
 
 The enforcement switches lived in `.tausik/config.json`, an ordinary file inside

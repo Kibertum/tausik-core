@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 37
+SCHEMA_VERSION = 38
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -202,7 +202,13 @@ CREATE TABLE IF NOT EXISTS verification_runs (
     files_hash TEXT NOT NULL,
     ran_at TEXT NOT NULL,
     duration_ms INTEGER,
-    receipt_json TEXT
+    receipt_json TEXT,
+    -- l26-verify-git-diff-wire: how the declared scope related to git at run
+    -- time. 'complete' | 'under-declared' | 'unknown'; NULL on rows written
+    -- before v38 and read as 'unknown' (never as 'complete').
+    declared_scope_status TEXT,
+    -- JSON array of files git saw change but relevant_files omitted (capped).
+    undeclared_files TEXT
 );
 
 CREATE TABLE IF NOT EXISTS session_usage_metrics (

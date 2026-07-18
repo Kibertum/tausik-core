@@ -16,6 +16,7 @@ from backend_migrations_postseed import run_post_migrations
 from backend_migrations_v35 import MIGRATION_V35
 from backend_migrations_v36 import MIGRATION_V36
 from backend_migrations_v37 import MIGRATION_V37
+from backend_migrations_v38 import MIGRATION_V38
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -330,6 +331,8 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     36: MIGRATION_V36,
     # v37: dedicated snippets store (v15-snippet-table) — SQL in backend_migrations_v37.py
     37: MIGRATION_V37,
+    # v38: declared-scope honesty on verification runs (l26-verify-git-diff-wire)
+    38: MIGRATION_V38,
 }
 
 

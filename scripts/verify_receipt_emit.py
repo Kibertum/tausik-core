@@ -49,6 +49,9 @@ def emit_signed_receipt(
     passed: bool,
     files_hash: str,
     project_dir: str = ".",
+    declared_scope_status: str | None = None,
+    undeclared_files: list[str] | None = None,
+    undeclared_count: int | None = None,
 ) -> tuple[str, str | None]:
     """Build + sign + persist a receipt for an existing verification_run row.
 
@@ -88,6 +91,9 @@ def emit_signed_receipt(
             ran_at=str(ran_at),
             files_hash=files_hash,
             key_fingerprint=fp,
+            declared_scope_status=declared_scope_status,
+            undeclared_files=undeclared_files,
+            undeclared_count=undeclared_count,
         )
         envelope = sign_receipt(project_dir, receipt)
         conn.execute(

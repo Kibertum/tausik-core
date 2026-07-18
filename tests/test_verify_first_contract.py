@@ -339,7 +339,8 @@ class TestRelevantFilesFallback:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 task_slug TEXT, scope TEXT, command TEXT,
                 exit_code INTEGER, summary TEXT, files_hash TEXT,
-                ran_at TEXT, duration_ms INTEGER
+                ran_at TEXT, duration_ms INTEGER,
+                declared_scope_status TEXT, undeclared_files TEXT
             )"""
         )
         # No row → None.
@@ -395,7 +396,8 @@ class TestRelevantFilesFallback:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 task_slug TEXT, scope TEXT, command TEXT,
                 exit_code INTEGER, summary TEXT, files_hash TEXT,
-                ran_at TEXT, duration_ms INTEGER
+                ran_at TEXT, duration_ms INTEGER,
+                declared_scope_status TEXT, undeclared_files TEXT
             )"""
         )
         now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -445,7 +447,8 @@ class TestRelevantFilesFallback:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 task_slug TEXT, scope TEXT, command TEXT,
                 exit_code INTEGER, summary TEXT, files_hash TEXT,
-                ran_at TEXT, duration_ms INTEGER
+                ran_at TEXT, duration_ms INTEGER,
+                declared_scope_status TEXT, undeclared_files TEXT
             )"""
         )
         now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -502,7 +505,8 @@ class TestPipelineEnvelopeRegression:
                 summary TEXT,
                 files_hash TEXT NOT NULL,
                 ran_at TEXT NOT NULL,
-                duration_ms INTEGER
+                duration_ms INTEGER,
+                declared_scope_status TEXT, undeclared_files TEXT
             );
             """
         )

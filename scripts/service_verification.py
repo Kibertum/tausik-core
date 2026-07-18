@@ -14,7 +14,6 @@ hash for the file set being verified.
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timezone
 from typing import Any, Callable
 
 # v1.3.4 git-diff cross-check lives in its own module for filesize compliance;
@@ -22,6 +21,14 @@ from typing import Any, Callable
 from verify_git_diff import (  # noqa: F401
     changed_files_since,
     is_declared_consistent_with_git_diff,
+)
+
+# l26-verify-git-diff-wire: tri-state scope description + the narrow
+# security-only block. Kept in its own module for filesize compliance.
+from verify_scope_honesty import (  # noqa: F401
+    STATUS_UNDER_DECLARED,
+    describe_declared_scope,
+    security_block_reason,
 )
 
 # Single source of truth for the verify-cache TTL; re-exported here so callers
@@ -73,10 +80,6 @@ from security_pattern import (  # noqa: F401, E402
 )
 
 
-def _utcnow_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
 # v1.3.4: compute_files_hash extracted to verify_files_hash.py for filesize
 # compliance. Re-exported so existing callers don't need to change.
 from verify_files_hash import (  # noqa: F401, E402
@@ -89,61 +92,10 @@ from verify_recent_lookup import lookup_recent_for_task  # noqa: E402
 # is_security_sensitive moved to security_pattern.py — re-exported above.
 
 
-def record_run(
-    conn: sqlite3.Connection,
-    *,
-    task_slug: str | None,
-    scope: str,
-    command: str,
-    exit_code: int,
-    summary: str | None,
-    files_hash: str,
-    duration_ms: int | None = None,
-    gate_results: list[dict[str, Any]] | None = None,
-    project_dir: str | None = None,
-) -> int:
-    """Insert a verify run. Returns the new row id.
-
-    With `gate_results` and a `task_slug`, also emits a signed receipt into
-    the row's receipt_json (v15-receipt-emit-on-verify). Emission is
-    best-effort: no project key / signing failure never breaks the run
-    record. `project_dir` defaults to the current working directory (the
-    CLI/MCP convention for key lookup).
-    """
-    cur = conn.execute(
-        """
-        INSERT INTO verification_runs
-            (task_slug, scope, command, exit_code, summary, files_hash,
-             ran_at, duration_ms)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            task_slug,
-            scope,
-            command,
-            exit_code,
-            summary,
-            files_hash,
-            _utcnow_iso(),
-            duration_ms,
-        ),
-    )
-    conn.commit()
-    run_id = int(cur.lastrowid or 0)
-    if task_slug and gate_results is not None:
-        from verify_receipt_emit import emit_signed_receipt
-
-        emit_signed_receipt(
-            conn,
-            run_id,
-            task_slug=task_slug,
-            scope=scope,
-            gate_results=gate_results,
-            passed=exit_code == 0,
-            files_hash=files_hash,
-            project_dir=project_dir or ".",
-        )
-    return run_id
+# l26-verify-git-diff-wire: record_run + _utcnow_iso extracted to
+# verify_run_record.py for filesize compliance when the declared-scope
+# columns were added. Re-exported so every existing caller keeps working.
+from verify_run_record import _utcnow_iso, record_run  # noqa: F401, E402
 
 
 # v14b-filesize-debt-paydown: cache helpers (is_cache_allowed,
@@ -174,7 +126,8 @@ def run_gates_with_cache(
     Returns (passed, results, cache_status) where:
       passed: bool — final gate verdict (True if cache hit OR fresh green)
       results: gate_runner result list (empty when cache hit)
-      cache_status: "hit" / "miss" / "bypass" / "git-mismatch" / None
+      cache_status: "hit" / "miss" / "bypass" / "git-mismatch" /
+                    "no-test-mapped" / "scope-security-mismatch" / None
 
     On a cache miss this records the run on green so future calls can hit.
     Security-sensitive file sets bypass the cache (always re-verify).
@@ -182,12 +135,21 @@ def run_gates_with_cache(
     the caller does not need to know cache details.
 
     `task_created_at` (v1.3.4): when provided, the cache lookup is also
-    gated on `is_declared_consistent_with_git_diff` — if the agent declared
-    a strict subset of files actually changed since task start (per
-    `git log --since` + `git diff HEAD`), the cache is refused (status
-    "git-mismatch") to prevent the bypass where a misreported file scope
-    masks a security-sensitive change. None or empty falls back to the
-    pre-v1.3.4 behavior (security-only bypass).
+    gated on the declared-vs-git comparison — if the agent declared a strict
+    subset of files actually changed since task start (per `git log --since`
+    + `git diff HEAD`), the cache is refused (status "git-mismatch") to
+    prevent the bypass where a misreported file scope masks a
+    security-sensitive change. None or empty falls back to the pre-v1.3.4
+    behavior (security-only bypass).
+
+    l26-verify-git-diff-wire changed what happens to that comparison after
+    the cache decision. It used to be discarded; it is now recorded on the
+    verification_runs row and signed into the receipt, so a proof states
+    whether its own coverage was known to be complete. Divergence still does
+    NOT block (Decision #138 — it fires on nearly every honest closure). The
+    one exception is an undeclared file that is security-sensitive: the
+    scoped gates would run against the declared list and verify it with
+    nothing, so that returns "scope-security-mismatch" and fails.
 
     Concurrency note: two simultaneous `task done` calls for the same slug
     both miss cache, both run gates, both `record_run`. SQLite WAL keeps this
@@ -205,16 +167,41 @@ def run_gates_with_cache(
     cache_command = _build_cache_command(trigger, files)
     cache_ok = is_cache_allowed(files)
 
-    git_diff_consistent = True
-    if cache_ok and task_created_at and files:
-        git_diff_consistent = is_declared_consistent_with_git_diff(files, task_created_at)
-        if not git_diff_consistent and append_notes_fn is not None:
-            append_notes_fn(
-                slug,
-                "WARN: declared relevant_files is a strict subset of files "
-                "changed since task start (git diff). Cache refused — "
-                "running fresh verify to prevent stale-green via misreported scope.",
-            )
+    # l26-verify-git-diff-wire: describe the declared scope ALWAYS, not only
+    # when the cache is in play. A security-sensitive declared set bypasses the
+    # cache (cache_ok=False) — and that is precisely the run where an
+    # undeclared file matters most, so computing this under `cache_ok` would
+    # blind the receipt in the highest-risk path. Cheap when it cannot apply:
+    # describe_declared_scope returns "unknown" without touching git when
+    # task_created_at or the declared list is missing.
+    scope_desc = describe_declared_scope(files, task_created_at)
+    git_diff_consistent = scope_desc["status"] != STATUS_UNDER_DECLARED
+    if not git_diff_consistent and append_notes_fn is not None:
+        append_notes_fn(
+            slug,
+            "WARN: declared relevant_files is a strict subset of files "
+            "changed since task start (git diff). Cache refused — "
+            "running fresh verify to prevent stale-green via misreported scope. "
+            f"Undeclared: {', '.join(scope_desc['undeclared'][:10])}"
+            f"{' …' if scope_desc['undeclared_count'] > 10 else ''}",
+        )
+
+    # The narrow block (Decision #139). Divergence alone is normal and stays
+    # non-blocking; an undeclared *security-sensitive* file is not, because the
+    # scoped gates below would run against the declared list and verify it with
+    # nothing. Refusing the cache never closed this half of the v1.3.4 hole.
+    blocked = security_block_reason(scope_desc)
+    if blocked:
+        if append_notes_fn is not None:
+            append_notes_fn(slug, blocked)
+        synth = {
+            "name": "scope-declaration",
+            "passed": False,
+            "skipped": False,
+            "severity": "block",
+            "output": blocked,
+        }
+        return False, [synth], "scope-security-mismatch"
 
     if cache_ok and git_diff_consistent:
         try:
@@ -351,6 +338,7 @@ def run_gates_with_cache(
                 files_hash=files_hash,
                 duration_ms=duration_ms,
                 gate_results=results,
+                scope_description=scope_desc,
             )
         except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
             import logging

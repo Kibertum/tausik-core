@@ -63,6 +63,9 @@ def test_migration_v32_creates_table_triggers_clean(tmp_path):
         "entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, action TEXT NOT NULL, "
         "actor TEXT, details TEXT, created_at TEXT NOT NULL DEFAULT '2020-01-01T00:00:00Z')"
     )
+    # Same reason as events above: verification_runs is in the v1 baseline on
+    # every real DB, and v38 ALTERs it.
+    conn.execute("CREATE TABLE verification_runs(id INTEGER PRIMARY KEY AUTOINCREMENT)")
 
     new_ver = run_migrations(conn, 31)
     assert new_ver >= 32
