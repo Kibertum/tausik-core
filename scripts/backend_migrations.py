@@ -11,6 +11,7 @@ Legacy migrations (v2-v11) are in backend_migrations_legacy.py.
 from __future__ import annotations
 
 from backend_migrations_legacy import LEGACY_MIGRATIONS, seed_v18_roles
+from backend_schema import SCHEMA_VERSION
 from backend_migrations_postseed import run_post_migrations
 from backend_migrations_v35 import MIGRATION_V35
 from backend_migrations_v36 import MIGRATION_V36
@@ -334,6 +335,32 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
 
 # Merged: legacy + current
 MIGRATIONS: dict[int, list[str]] = {**LEGACY_MIGRATIONS, **_CURRENT_MIGRATIONS}
+
+
+def check_schema_migration_parity(schema_version: int, migrations: dict[int, list[str]]) -> None:
+    """Raise when SCHEMA_VERSION and the highest migration have drifted apart.
+
+    The two live in different files and are bumped by hand, so drift is one
+    copy-paste slip away — and it is silent in *both* directions. A
+    SCHEMA_VERSION ahead of the migrations leaves every database permanently
+    "stale but unmigratable" (``run_migrations`` has nothing to apply, yet the
+    recorded version never reaches the code's). One behind means a migration
+    that was written never runs at all.
+
+    Checked at import so the mistake surfaces on the next command rather than on
+    someone's database. Deliberately not ``assert`` — that vanishes under
+    ``python -O``, which is precisely when you least want the guard gone.
+    """
+    highest = max(migrations)
+    if schema_version != highest:
+        raise RuntimeError(
+            f"schema/migration drift: SCHEMA_VERSION={schema_version} "
+            f"(backend_schema.py) but the highest migration is v{highest} "
+            f"(backend_migrations.py). Bump both together."
+        )
+
+
+check_schema_migration_parity(SCHEMA_VERSION, MIGRATIONS)
 
 
 def run_migrations(conn: "sqlite3.Connection", current_version: int) -> int:  # noqa: F821

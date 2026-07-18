@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import shutil
 import sqlite3
 
@@ -30,6 +31,34 @@ from backend_schema_snippets import SNIPPETS_SQL
 from backend_schema_specs import SPECS_SQL
 
 logger = logging.getLogger("tausik.backend")
+
+# `content='<table>'` in an FTS5 declaration — an external-content index, whose
+# rows live in another table and therefore need an explicit 'rebuild' after a
+# migration touches that table. A contentless index (`content=''`) does not
+# match, and must not: 'rebuild' is invalid for it.
+_FTS_EXTERNAL_CONTENT_RE = re.compile(r"content\s*=\s*'([^']+)'", re.IGNORECASE)
+
+
+def external_content_fts_tables(cur: sqlite3.Cursor) -> list[str]:
+    """Names of every external-content FTS5 table present in this database.
+
+    Derived from ``sqlite_master`` rather than hardcoded. A hardcoded list goes
+    stale the moment a migration adds an FTS table, and does so *silently* —
+    which is exactly how ``fts_task_logs`` and ``fts_reasoning_steps`` came to
+    be created, trigger-maintained, and never rebuilt: search over task logs and
+    RENAR reasoning steps returned stale rows after every migration, with no
+    error anywhere. Deriving the list removes the whole failure class instead of
+    adding two more names to forget.
+    """
+    rows = cur.execute(
+        "SELECT name, sql FROM sqlite_master WHERE type='table' AND sql LIKE '%USING fts5%'"
+    ).fetchall()
+    names = [
+        name
+        for name, sql in rows
+        if sql and (m := _FTS_EXTERNAL_CONTENT_RE.search(sql)) and m.group(1).strip()
+    ]
+    return sorted(names)
 
 
 def init_schema(conn: sqlite3.Connection) -> None:
@@ -93,14 +122,7 @@ def init_schema(conn: sqlite3.Connection) -> None:
                 (str(new_ver),),
             )
             # Rebuild FTS indexes after migration
-            for fts_table in (
-                "fts_tasks",
-                "fts_memory",
-                "fts_decisions",
-                "fts_specs",
-                "fts_adapts",
-                "fts_snippets",
-            ):
+            for fts_table in external_content_fts_tables(cur):
                 try:
                     cur.execute(f"INSERT INTO {fts_table}({fts_table}) VALUES('rebuild')")
                 except Exception as e:  # noqa: BLE001 — best-effort: maintenance/IO, non-fatal to the surrounding op
