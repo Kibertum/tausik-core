@@ -103,6 +103,50 @@ class TestBashFirewall:
                 0,
                 id="commit_message_mentioning_force_push_allowed",
             ),
+            # l26-firewall-quote-regression: the first version of the fix above
+            # blanked quoted spans, treating quoting as proof the text was inert
+            # data. It is not — a quoted argument is still an argument, and bash
+            # expands inside double quotes. Adversarial review found three
+            # bypasses; all three were confirmed allowed before this pin.
+            pytest.param('rm -rf "/"', 2, id="quoted_slash_arg_still_blocked"),
+            pytest.param('rm -rf "."', 2, id="quoted_dot_arg_still_blocked"),
+            pytest.param('git push "--force"', 2, id="quoted_force_flag_still_blocked"),
+            pytest.param(
+                'git push origin main "--force"',
+                2,
+                id="quoted_force_flag_after_args_blocked",
+            ),
+            pytest.param(
+                'timeout 10 bash -c "rm -rf /"',
+                2,
+                id="wrapper_timeout_hiding_shell_blocked",
+            ),
+            pytest.param('exec bash -c "rm -rf /"', 2, id="wrapper_exec_hiding_shell_blocked"),
+            pytest.param('nice -n 10 sh -c "rm -rf /"', 2, id="wrapper_nice_hiding_shell_blocked"),
+            pytest.param(
+                'powershell -Command "rm -rf /"',
+                2,
+                id="windows_shell_payload_blocked",
+            ),
+            pytest.param(
+                'sqlite3 db.db "DROP TABLE users"',
+                2,
+                id="interpreter_double_quoted_sql_blocked",
+            ),
+            # Each sub-command is judged on its own. One interpreter anywhere on
+            # the line used to force a raw scan of the whole line, so a journal
+            # entry sharing a line with a python invocation was blocked again
+            # for a phrase it merely quoted.
+            pytest.param(
+                'tausik task log t1 "never DROP TABLE events"; python -m pytest tests/',
+                0,
+                id="journal_beside_interpreter_on_same_line_allowed",
+            ),
+            pytest.param(
+                'echo "safe" && rm -rf "/"',
+                2,
+                id="dangerous_subcommand_after_separator_still_blocked",
+            ),
         ],
     )
     def test_command(self, command, expected_rc):

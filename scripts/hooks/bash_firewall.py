@@ -96,6 +96,17 @@ _INTERPRETERS = frozenset(
         "fish",
         "csh",
         "tcsh",
+        "cmd",
+        "powershell",
+        "pwsh",
+        "wsl",
+        "exec",
+        "timeout",
+        "nice",
+        "ionice",
+        "taskset",
+        "setsid",
+        "stdbuf",
         "sqlite3",
         "psql",
         "mysql",
@@ -119,38 +130,47 @@ _INTERPRETERS = frozenset(
     }
 )
 
-# Shell operators that put the NEXT token back into command position.
-_SEPARATORS = frozenset({";", "&&", "||", "|", "&"})
+#: Stands in for a token carrying free text rather than command words. Contains
+#: no character used by any BLOCKED or WARN pattern, so substituting it can
+#: never manufacture a match.
+_PAYLOAD = "_"
 
-_SQ_SPAN_RE = re.compile(r"'[^']*'")
-_DQ_SPAN_RE = re.compile(r'"[^"]*"')
+
+#: Operators that end one command and start the next.
+_SEPARATORS = frozenset({";", "&&", "||", "|", "&", "(", ")", "\n"})
 
 
-def _command_position_tokens(tokens: list[str]) -> list[str]:
-    """Tokens that sit where a program name goes (start, or after a separator)."""
-    out: list[str] = []
-    expect_cmd = True
+def _split_subcommands(tokens: list[str]) -> list[list[str]]:
+    """Split a token stream into independent commands on shell operators.
+
+    Each sub-command is judged on its own. Without this, one interpreter
+    anywhere on the line forced a raw scan of the WHOLE line, so a journal entry
+    sharing a line with `python -m pytest` was blocked again for the phrase it
+    merely quoted — the false positive this control was fixed to stop.
+    """
+    out: list[list[str]] = []
+    current: list[str] = []
     for tok in tokens:
         if tok in _SEPARATORS:
-            expect_cmd = True
+            if current:
+                out.append(current)
+                current = []
             continue
-        if expect_cmd:
-            out.append(tok)
-            expect_cmd = False
+        current.append(tok)
+    if current:
+        out.append(current)
     return out
 
 
-def _invokes_interpreter(command: str) -> bool:
-    """True when any program being invoked executes its arguments.
+def _mentions_interpreter(tokens: list[str]) -> bool:
+    """True when ANY token names a program that executes what it is given.
 
-    Unparseable input (unbalanced quotes) returns True: scanning too much is a
-    false positive, scanning too little is a missed dangerous command.
+    Deliberately not limited to command position: a wrapper hides the real
+    interpreter behind itself. A `timeout 10 bash -c "<payload>"` line puts
+    `timeout` in command position and the shell two tokens later, and checking
+    only the former let the payload straight through — a confirmed bypass.
     """
-    try:
-        tokens = shlex.split(command, posix=True)
-    except ValueError:
-        return True
-    for tok in _command_position_tokens(tokens):
+    for tok in tokens:
         base = os.path.basename(tok).lower()
         if base in _INTERPRETERS or base.removesuffix(".exe") in _INTERPRETERS:
             return True
@@ -158,16 +178,43 @@ def _invokes_interpreter(command: str) -> bool:
 
 
 def _scan_target(command: str) -> str:
-    """The part of `command` that is actually a command.
+    """The part of `command` that can actually execute.
 
-    `sqlite3 db "DROP TABLE x"` executes its quoted argument, so the whole line
-    is scanned. `tausik task log "... DROP TABLE ..."` merely stores it, so the
-    quoted spans are blanked before matching. Without this split the firewall
-    blocks its own project's journaling — observed twice while fixing it.
+    The discriminator is TOKEN BOUNDARIES, not quoting. Quoting does not make
+    text inert: a quoted slash argument deletes exactly what a bare one does,
+    and bash still expands inside double quotes. What separates a command from
+    prose is how the words are split — a real command's words arrive as SEPARATE
+    tokens, while a mention inside a quoted argument arrives as ONE token
+    ("note: never DROP TABLE events"). So multi-word tokens become a placeholder
+    and single-word tokens are kept verbatim.
+
+    Anything naming an interpreter is scanned raw: there the quoted blob is the
+    command, so token structure says nothing useful about it.
+
+    An earlier version blanked quoted spans instead. That was unsound: it let a
+    quoted-slash recursive delete, a quoted force flag, and a wrapper-hidden
+    shell payload all pass — each of them blocked before the change and
+    confirmed allowed after it, which is why the rule is token-based now.
     """
-    if _invokes_interpreter(command):
+    try:
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+        lexer.whitespace_split = True
+        tokens = list(lexer)
+    except ValueError:
+        # Unparseable (unbalanced quotes): scan everything. Over-scanning is a
+        # false positive; under-scanning is a missed destructive command.
         return command
-    return _DQ_SPAN_RE.sub(" ", _SQ_SPAN_RE.sub(" ", command))
+    if not tokens:
+        return command
+    parts: list[str] = []
+    for sub in _split_subcommands(tokens):
+        if _mentions_interpreter(sub):
+            # The quoted blob IS this sub-command; join it back so the payload
+            # is scanned. Joining also drops the quoting, which is the point.
+            parts.append(" ".join(sub))
+        else:
+            parts.append(" ".join(_PAYLOAD if len(tok.split()) > 1 else tok for tok in sub))
+    return " ; ".join(parts)
 
 
 def main() -> int:
