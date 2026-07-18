@@ -68,11 +68,16 @@ def prune_db_backups(db_path: str, keep: int = BACKUP_KEEP) -> list[str]:
         return []
     versioned: list[tuple[int, str]] = []
     for name in entries:
-        if not name.startswith(base):
-            continue
         m = _BAK_SUFFIX_RE.search(name)
-        if m:
-            versioned.append((int(m.group(1)), os.path.join(directory, name)))
+        if not m:
+            continue
+        # EXACT name, not a prefix: `db.db2.bak.v1` starts with `db.db`, so a
+        # bare startswith() pooled a *different* database's backups with this
+        # one's. Sorted together by version number, the target database's only
+        # real snapshot could be the entry chosen for deletion.
+        if os.path.normcase(name) != os.path.normcase(f"{base}.bak.v{m.group(1)}"):
+            continue
+        versioned.append((int(m.group(1)), os.path.join(directory, name)))
     if len(versioned) <= keep:
         return []
     versioned.sort(key=lambda pair: pair[0])
@@ -100,7 +105,11 @@ def external_content_fts_tables(cur: sqlite3.Cursor) -> list[str]:
     adding two more names to forget.
     """
     rows = cur.execute(
-        "SELECT name, sql FROM sqlite_master WHERE type='table' AND sql LIKE '%USING fts5%'"
+        # Anchored on the DDL shape, not a bare substring: an ordinary table
+        # whose DDL merely *contains* that phrase (a CHECK constraint, a default
+        # holding the text) must not be probed as an FTS candidate.
+        "SELECT name, sql FROM sqlite_master "
+        "WHERE type='table' AND sql LIKE 'CREATE VIRTUAL TABLE%USING fts5%'"
     ).fetchall()
     names = [
         name

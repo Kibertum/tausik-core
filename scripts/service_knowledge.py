@@ -28,15 +28,20 @@ def build_cq_row(unit: dict[str, Any]) -> dict[str, Any]:
     would be worse — it would make cross-project knowledge indistinguishable
     from this project's own.
     """
-    insight = unit.get("insight", {})
-    conf = unit.get("evidence", {}).get("confidence", 0)
+    # `or {}` rather than a .get() default: a network payload commonly carries
+    # an explicit `"insight": null`, and a default only applies when the key is
+    # ABSENT — so .get("insight", {}) still handed back None and the next
+    # .get() raised AttributeError.
+    insight = unit.get("insight") or {}
+    evidence = unit.get("evidence") or {}
+    conf = evidence.get("confidence") or 0
     return {
         "id": None,
         "source": CQ_SOURCE,
         "type": CQ_SOURCE,
         "title": f"[cq {conf:.0%}] {insight.get('summary', '')}",
         "content": insight.get("detail", ""),
-        "tags": ",".join(unit.get("domain", [])),
+        "tags": ",".join(unit.get("domain") or []),
     }
 
 
@@ -101,7 +106,14 @@ class KnowledgeMixin:
             if client:
                 domains = query.lower().split()[:3]  # Use query words as domains
                 cq_results = client.query(domains, limit=3)
-                local.extend(build_cq_row(u) for u in cq_results)
+                # Per-unit, not a generator under the outer except: a single
+                # malformed unit used to abort the whole remaining batch
+                # silently, dropping legitimate hits that followed it.
+                for u in cq_results:
+                    try:
+                        local.append(build_cq_row(u))
+                    except Exception:  # noqa: BLE001 — one bad unit must not cost the rest
+                        continue
         except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
             pass  # cq unavailable -- graceful degradation
         return local

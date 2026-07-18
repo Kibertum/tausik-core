@@ -434,10 +434,11 @@ class TestFtsRebuildCoverage:
         declared = {
             name
             for name, sql in cur.execute(
-                "SELECT name, sql FROM sqlite_master "
-                "WHERE type='table' AND sql LIKE '%USING fts5%'"
+                "SELECT name, sql FROM sqlite_master WHERE type='table' AND sql LIKE '%USING fts5%'"
             ).fetchall()
-            if sql and "content=" in sql.replace(" ", "") and "content=''" not in sql.replace(" ", "")
+            if sql
+            and "content=" in sql.replace(" ", "")
+            and "content=''" not in sql.replace(" ", "")
         }
         assert declared, "no external-content FTS tables found — schema probe is broken"
         assert declared - derived == set(), (
@@ -500,6 +501,14 @@ class TestSchemaMigrationParity:
     """
 
     def test_live_constants_are_in_parity(self):
+        """Documentation pin, NOT the negative check.
+
+        `check_schema_migration_parity` runs at import of `backend_migrations`,
+        so real drift raises during collection and this test never gets to
+        report it. It stays as an executable statement of the invariant; the
+        actual negative coverage is `test_drift_raises_with_both_values_named`,
+        which calls the function with injected values.
+        """
         from backend_migrations import MIGRATIONS
         from backend_schema import SCHEMA_VERSION
 
@@ -540,9 +549,7 @@ class TestDbBackupPruning:
 
         db = self._make_backups(tmp_path, [1, 2, 3, 9, 10, 11, 12])
         removed = prune_db_backups(db, keep=3)
-        left = sorted(
-            int(p.name.rsplit(".v", 1)[1]) for p in tmp_path.glob("tausik.db.bak.v*")
-        )
+        left = sorted(int(p.name.rsplit(".v", 1)[1]) for p in tmp_path.glob("tausik.db.bak.v*"))
         assert left == [10, 11, 12], f"kept {left}, removed {removed}"
 
     def test_ordering_is_numeric_not_lexical(self, tmp_path):
@@ -578,3 +585,21 @@ class TestDbBackupPruning:
         prune_db_backups(db, keep=1)
         assert (tmp_path / "tausik.db-wal").exists()
         assert (tmp_path / "other.db.bak.v1").exists()
+
+    def test_backups_of_a_prefix_sharing_database_are_untouched(self, tmp_path):
+        """Negative (adversarial review, HIGH): `db.db2.bak.v1` starts with
+        `db.db`, so a bare prefix match pooled a DIFFERENT database's backups
+        with this one's. Sorted together by version number, the target's only
+        real snapshot could be the entry chosen for deletion."""
+        from backend_init import prune_db_backups
+
+        db = tmp_path / "tausik.db"
+        db.write_text("x", encoding="utf-8")
+        (tmp_path / "tausik.db.bak.v1").write_text("mine", encoding="utf-8")
+        for v in (1, 2, 3, 4):
+            (tmp_path / f"tausik.db2.bak.v{v}").write_text("other", encoding="utf-8")
+
+        prune_db_backups(str(db), keep=3)
+
+        assert (tmp_path / "tausik.db.bak.v1").exists(), "own only snapshot was deleted"
+        assert len(list(tmp_path.glob("tausik.db2.bak.v*"))) == 4, "other db touched"

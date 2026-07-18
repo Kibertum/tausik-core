@@ -55,6 +55,19 @@ class TestCqRowShape:
         assert row["id"] is None
         assert row["content"] == ""
 
+    def test_explicit_nulls_do_not_raise(self):
+        """Negative: `"insight": null` is a common network shape and is NOT the
+        same as an absent key — a .get() default only applies when the key is
+        missing, so the old code handed None to the next .get() and raised."""
+        row = build_cq_row({"insight": None, "evidence": None, "domain": None})
+        assert row["id"] is None
+        assert row["content"] == ""
+        assert row["tags"] == ""
+
+    def test_null_confidence_does_not_raise(self):
+        row = build_cq_row({"insight": {"summary": "s"}, "evidence": {"confidence": None}})
+        assert "0%" in row["title"]
+
 
 class TestRenderersTolerateMissingAddress:
     def test_mcp_formatter_omits_address_for_cq(self):
