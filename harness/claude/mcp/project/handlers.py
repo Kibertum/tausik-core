@@ -306,18 +306,25 @@ def _do_memory_lint(svc: Any, args: dict) -> str:
     return "\n".join(lines)
 
 
+def _format_memory_hit(r: dict) -> str:
+    """One line of a memory-search result.
+
+    Rows sourced from cross-project `cq` knowledge carry no id — there is no
+    row in `memory` to address. Printing `#None` would invite exactly the
+    round-trip into `memory_show` that has no target, so the address is omitted
+    entirely for them.
+    """
+    address = "" if r.get("id") is None else f"#{r['id']} "
+    archived = " [archived]" if r.get("archived_at") else ""
+    return f"{address}[{r['type']}]{archived} {r['title']}: {r['content'][:100]}"
+
+
 def _do_memory_search(svc: Any, args: dict) -> str:
     results = svc.memory_search(
         args["query"],
         include_archived=bool(args.get("include_archived", False)),
     )
-    return _handle_list(
-        results,
-        lambda r: (
-            f"#{r['id']} [{r['type']}]{' [archived]' if r.get('archived_at') else ''} {r['title']}: {r['content'][:100]}"
-        ),
-        "No memories found.",
-    )
+    return _handle_list(results, _format_memory_hit, "No memories found.")
 
 
 def _do_memory_block(svc: Any, args: dict) -> str:

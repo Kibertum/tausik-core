@@ -40,7 +40,10 @@ def cmd_memory(svc: ProjectService, args: Any) -> None:
             return
         for r in rows:
             arch = " [archived]" if r.get("archived_at") else ""
-            print(f"  #{r['id']} [{r['type']}] {r['title']}{arch}")
+            # cq rows have no id — cross-project knowledge with no `memory` row
+            # to address. Omit the address rather than print `#None`.
+            addr = "" if r.get("id") is None else f"#{r['id']} "
+            print(f"  {addr}[{r['type']}] {r['title']}{arch}")
     elif c == "show":
         r = svc.memory_show(args.id)
         print(f"#{r['id']} [{r['type']}] {r['title']}")

@@ -8,6 +8,38 @@ from typing import TYPE_CHECKING, Any
 from tausik_utils import ServiceError, validate_content, validate_length
 from project_types import VALID_EDGE_RELATIONS, VALID_MEMORY_TYPES, VALID_NODE_TYPES
 
+#: Marks a row in a memory-search result that came from cross-project `cq`
+#: knowledge rather than this project's `memory` table.
+CQ_SOURCE = "cq"
+
+
+def build_cq_row(unit: dict[str, Any]) -> dict[str, Any]:
+    """Render one cq knowledge unit as a memory-search result row.
+
+    These rows are *display only* — they have no row in `memory` and therefore
+    no address. They used to be emitted with ``id: 0``, which collided across
+    every cq hit and pointed at a record that does not exist; a caller feeding
+    a search result back into ``memory_show``/``memory_link`` got a confusing
+    miss instead of a clear "not addressable". ``id`` is now ``None`` and
+    ``source`` states the provenance, so consumers can branch on it explicitly.
+
+    ``type`` stays ``"cq"`` as a display label. It is deliberately NOT one of
+    ``VALID_MEMORY_TYPES``: nothing persists these rows, and a fake local type
+    would be worse — it would make cross-project knowledge indistinguishable
+    from this project's own.
+    """
+    insight = unit.get("insight", {})
+    conf = unit.get("evidence", {}).get("confidence", 0)
+    return {
+        "id": None,
+        "source": CQ_SOURCE,
+        "type": CQ_SOURCE,
+        "title": f"[cq {conf:.0%}] {insight.get('summary', '')}",
+        "content": insight.get("detail", ""),
+        "tags": ",".join(unit.get("domain", [])),
+    }
+
+
 if TYPE_CHECKING:
     from project_backend import SQLiteBackend
 
@@ -69,18 +101,7 @@ class KnowledgeMixin:
             if client:
                 domains = query.lower().split()[:3]  # Use query words as domains
                 cq_results = client.query(domains, limit=3)
-                for u in cq_results:
-                    insight = u.get("insight", {})
-                    conf = u.get("evidence", {}).get("confidence", 0)
-                    local.append(
-                        {
-                            "id": 0,
-                            "type": "cq",
-                            "title": f"[cq {conf:.0%}] {insight.get('summary', '')}",
-                            "content": insight.get("detail", ""),
-                            "tags": ",".join(u.get("domain", [])),
-                        }
-                    )
+                local.extend(build_cq_row(u) for u in cq_results)
         except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
             pass  # cq unavailable -- graceful degradation
         return local
