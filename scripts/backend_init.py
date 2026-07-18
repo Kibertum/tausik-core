@@ -39,6 +39,55 @@ logger = logging.getLogger("tausik.backend")
 _FTS_EXTERNAL_CONTENT_RE = re.compile(r"content\s*=\s*'([^']+)'", re.IGNORECASE)
 
 
+#: How many `.bak.v<N>` snapshots to keep. One per migration is created and the
+#: old runner never removed any — a long-lived project accumulated 10 backups
+#: (~150 MB) beside a 24 MB database. Three is enough to step back through a bad
+#: migration; older ones are dead weight in everyone's working tree.
+BACKUP_KEEP = 3
+
+_BAK_SUFFIX_RE = re.compile(r"\.bak\.v(\d+)$")
+
+
+def prune_db_backups(db_path: str, keep: int = BACKUP_KEEP) -> list[str]:
+    """Delete all but the `keep` newest `<db>.bak.v<N>` files. Returns removed paths.
+
+    Ordered by the version NUMBER parsed out of the name, not by string sort —
+    lexically ``v9`` sorts after ``v10``, which would delete the newest backups
+    and keep the oldest, i.e. exactly backwards.
+
+    Best-effort by design: this runs inside the migration path, and failing to
+    tidy up must never abort a migration that otherwise succeeded. Every failure
+    is logged rather than swallowed silently.
+    """
+    directory = os.path.dirname(os.path.abspath(db_path))
+    base = os.path.basename(db_path)
+    try:
+        entries = os.listdir(directory)
+    except OSError as e:
+        logger.warning("Backup prune skipped, cannot list %s: %s", directory, e)
+        return []
+    versioned: list[tuple[int, str]] = []
+    for name in entries:
+        if not name.startswith(base):
+            continue
+        m = _BAK_SUFFIX_RE.search(name)
+        if m:
+            versioned.append((int(m.group(1)), os.path.join(directory, name)))
+    if len(versioned) <= keep:
+        return []
+    versioned.sort(key=lambda pair: pair[0])
+    removed: list[str] = []
+    for _ver, path in versioned[: len(versioned) - keep]:
+        try:
+            os.remove(path)
+            removed.append(path)
+        except OSError as e:
+            logger.warning("Backup prune failed for %s: %s", path, e)
+    if removed:
+        logger.info("Pruned %d old DB backup(s), kept newest %d", len(removed), keep)
+    return removed
+
+
 def external_content_fts_tables(cur: sqlite3.Cursor) -> list[str]:
     """Names of every external-content FTS5 table present in this database.
 
@@ -128,4 +177,8 @@ def init_schema(conn: sqlite3.Connection) -> None:
                 except Exception as e:  # noqa: BLE001 — best-effort: maintenance/IO, non-fatal to the surrounding op
                     logger.warning("FTS rebuild failed for %s: %s", fts_table, e)
             logger.info("Schema migrated %d -> %d", current_ver, new_ver)
+            # Only after the migration succeeded — a failed run must keep every
+            # snapshot it might need to roll back to.
+            if db_path:
+                prune_db_backups(db_path)
     conn.commit()

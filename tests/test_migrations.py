@@ -519,3 +519,62 @@ class TestSchemaMigrationParity:
         from backend_migrations import check_schema_migration_parity
 
         check_schema_migration_parity(2, {1: [], 2: []})  # must not raise
+
+
+class TestDbBackupPruning:
+    """One `.bak.v<N>` snapshot is written per migration and none were ever
+    removed — a long-lived project carried 10 backups (~150 MB) beside a 24 MB
+    database. Pruning keeps the newest few; these tests pin the ordering and the
+    best-effort contract."""
+
+    @staticmethod
+    def _make_backups(tmp_path, versions):
+        db = tmp_path / "tausik.db"
+        db.write_text("x", encoding="utf-8")
+        for v in versions:
+            (tmp_path / f"tausik.db.bak.v{v}").write_text(f"backup{v}", encoding="utf-8")
+        return str(db)
+
+    def test_keeps_only_the_newest_by_version_number(self, tmp_path):
+        from backend_init import prune_db_backups
+
+        db = self._make_backups(tmp_path, [1, 2, 3, 9, 10, 11, 12])
+        removed = prune_db_backups(db, keep=3)
+        left = sorted(
+            int(p.name.rsplit(".v", 1)[1]) for p in tmp_path.glob("tausik.db.bak.v*")
+        )
+        assert left == [10, 11, 12], f"kept {left}, removed {removed}"
+
+    def test_ordering_is_numeric_not_lexical(self, tmp_path):
+        """Lexically 'v9' sorts after 'v10'; a string sort would keep the OLDEST
+        backups and delete the newest — exactly backwards."""
+        from backend_init import prune_db_backups
+
+        db = self._make_backups(tmp_path, [8, 9, 10])
+        prune_db_backups(db, keep=1)
+        left = [int(p.name.rsplit(".v", 1)[1]) for p in tmp_path.glob("tausik.db.bak.v*")]
+        assert left == [10]
+
+    def test_no_op_when_at_or_below_keep(self, tmp_path):
+        from backend_init import prune_db_backups
+
+        db = self._make_backups(tmp_path, [1, 2])
+        assert prune_db_backups(db, keep=3) == []
+        assert len(list(tmp_path.glob("tausik.db.bak.v*"))) == 2
+
+    def test_missing_directory_does_not_raise(self, tmp_path):
+        """Negative: pruning is maintenance inside the migration path — it must
+        never abort a migration that otherwise succeeded."""
+        from backend_init import prune_db_backups
+
+        assert prune_db_backups(str(tmp_path / "nope" / "tausik.db")) == []
+
+    def test_unrelated_files_are_untouched(self, tmp_path):
+        from backend_init import prune_db_backups
+
+        db = self._make_backups(tmp_path, [1, 2, 3, 4, 5])
+        (tmp_path / "tausik.db-wal").write_text("wal", encoding="utf-8")
+        (tmp_path / "other.db.bak.v1").write_text("other", encoding="utf-8")
+        prune_db_backups(db, keep=1)
+        assert (tmp_path / "tausik.db-wal").exists()
+        assert (tmp_path / "other.db.bak.v1").exists()
