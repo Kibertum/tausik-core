@@ -15,11 +15,14 @@ shell separator) + optional path prefix + literal subcommand.
 import json
 import os
 import re
+import shlex
 import sys
 
-# Patterns that should ALWAYS be blocked. Substring match is acceptable
-# here because these strings are extremely unlikely to appear inside benign
-# commands or quoted strings worth supporting (no one echoes "rm -rf /").
+# Patterns that should ALWAYS be blocked — matched against the *command*, not
+# against quoted data (see `_scan_target`). The old assumption that these
+# strings "are extremely unlikely to appear inside benign commands" turned out
+# to be false: journaling the fix for this very bug (`tausik task add --goal
+# "... DROP TABLE ..."`) was blocked twice on 2026-07-18.
 BLOCKED_PATTERNS = [
     ("rm -rf /", "Recursive delete from root"),
     ("rm -rf /*", "Recursive delete from root"),
@@ -79,6 +82,94 @@ WARN_PATTERNS_RE = [
 ]
 
 
+# Programs that EXECUTE their arguments rather than consuming them as data.
+# For these, a dangerous phrase inside quotes is still a command and must stay
+# in scope. For everything else, quoted text is payload — a journal entry, a
+# commit message, a grep needle — and matching it is a false positive.
+_INTERPRETERS = frozenset(
+    {
+        "sh",
+        "bash",
+        "zsh",
+        "dash",
+        "ksh",
+        "fish",
+        "csh",
+        "tcsh",
+        "sqlite3",
+        "psql",
+        "mysql",
+        "mariadb",
+        "mongosh",
+        "redis-cli",
+        "python",
+        "python3",
+        "perl",
+        "ruby",
+        "node",
+        "deno",
+        "php",
+        "eval",
+        "ssh",
+        "env",
+        "xargs",
+        "nohup",
+        "sudo",
+        "doas",
+    }
+)
+
+# Shell operators that put the NEXT token back into command position.
+_SEPARATORS = frozenset({";", "&&", "||", "|", "&"})
+
+_SQ_SPAN_RE = re.compile(r"'[^']*'")
+_DQ_SPAN_RE = re.compile(r'"[^"]*"')
+
+
+def _command_position_tokens(tokens: list[str]) -> list[str]:
+    """Tokens that sit where a program name goes (start, or after a separator)."""
+    out: list[str] = []
+    expect_cmd = True
+    for tok in tokens:
+        if tok in _SEPARATORS:
+            expect_cmd = True
+            continue
+        if expect_cmd:
+            out.append(tok)
+            expect_cmd = False
+    return out
+
+
+def _invokes_interpreter(command: str) -> bool:
+    """True when any program being invoked executes its arguments.
+
+    Unparseable input (unbalanced quotes) returns True: scanning too much is a
+    false positive, scanning too little is a missed dangerous command.
+    """
+    try:
+        tokens = shlex.split(command, posix=True)
+    except ValueError:
+        return True
+    for tok in _command_position_tokens(tokens):
+        base = os.path.basename(tok).lower()
+        if base in _INTERPRETERS or base.removesuffix(".exe") in _INTERPRETERS:
+            return True
+    return False
+
+
+def _scan_target(command: str) -> str:
+    """The part of `command` that is actually a command.
+
+    `sqlite3 db "DROP TABLE x"` executes its quoted argument, so the whole line
+    is scanned. `tausik task log "... DROP TABLE ..."` merely stores it, so the
+    quoted spans are blanked before matching. Without this split the firewall
+    blocks its own project's journaling — observed twice while fixing it.
+    """
+    if _invokes_interpreter(command):
+        return command
+    return _DQ_SPAN_RE.sub(" ", _SQ_SPAN_RE.sub(" ", command))
+
+
 def main() -> int:
     if os.environ.get("TAUSIK_SKIP_HOOKS"):
         return 0
@@ -92,7 +183,9 @@ def main() -> int:
     if not command:
         return 0
 
-    cmd_lower = command.lower()
+    # Match against the command, not against quoted data it merely carries.
+    scanned = _scan_target(command)
+    cmd_lower = scanned.lower()
 
     for pattern, reason in BLOCKED_PATTERNS:
         if pattern.lower() in cmd_lower:
@@ -100,7 +193,7 @@ def main() -> int:
             return 2
 
     for regex, reason in WARN_PATTERNS_RE:
-        if regex.search(command):
+        if regex.search(scanned):
             print(
                 f"BLOCKED: {reason}.\n"
                 f"Command: {command}\n"

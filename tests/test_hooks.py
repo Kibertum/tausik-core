@@ -81,6 +81,28 @@ class TestBashFirewall:
                 id="git_with_c_flag_then_push_force_blocked",
             ),
             pytest.param("git push --force", 2, id="git_push_at_line_start_blocked"),
+            # v1.7 (l26-bash-firewall-substring): BLOCKED patterns were matched
+            # as lowercased substrings of the raw line, so a dangerous phrase
+            # carried as DATA tripped the firewall. Filing this very fix was
+            # blocked twice. The split is by whether the invoked program
+            # executes its arguments.
+            pytest.param(
+                '.tausik/tausik task log t1 "note: never DROP TABLE events"',
+                0,
+                id="journal_carrying_sql_phrase_allowed",
+            ),
+            pytest.param(
+                'sqlite3 db.db "DROP TABLE users"',
+                2,
+                id="sqlite3_double_quoted_sql_blocked",
+            ),
+            pytest.param('echo "rm -rf /"', 0, id="echo_quoted_rm_rf_allowed"),
+            pytest.param('bash -c "rm -rf /"', 2, id="bash_c_quoted_rm_rf_blocked"),
+            pytest.param(
+                'git commit -m "do not git push --force here"',
+                0,
+                id="commit_message_mentioning_force_push_allowed",
+            ),
         ],
     )
     def test_command(self, command, expected_rc):
