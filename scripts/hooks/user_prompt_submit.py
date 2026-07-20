@@ -123,6 +123,13 @@ def _read_prompt() -> str:
 
 
 def main() -> int:
+    # hook-stderr-encoding-locale-dependent: this hook's messages contain
+    # non-ASCII, and their readability must not depend on how it was
+    # launched. Local import: hooks/ is sys.path[0] only when run as a script.
+    from _common import force_utf8_io
+
+    force_utf8_io()
+
     if os.environ.get("TAUSIK_SKIP_HOOKS"):
         return 0
 

@@ -192,7 +192,7 @@ def _run_cli(*args, env=None):
     return subprocess.run(
         CLI + list(args),
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         cwd=PROJECT_ROOT,
         env=env,
         timeout=15,

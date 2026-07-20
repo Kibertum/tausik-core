@@ -86,7 +86,7 @@ def _run_hook(cwd: str, payload: dict | None = None) -> subprocess.CompletedProc
         [sys.executable, HOOK_PATH],
         input=json.dumps(payload or {}),
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         cwd=cwd,
         env={**os.environ, "CLAUDE_PROJECT_DIR": cwd},
         timeout=10,

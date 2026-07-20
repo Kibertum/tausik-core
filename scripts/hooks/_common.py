@@ -23,6 +23,46 @@ _TASK_DONE_TOOL_NAMES = (
 _BASH_TASK_DONE_RE = re.compile(r"\btausik(?:\.cmd)?\b[^|;&]*?\btask\s+done\s+([a-z0-9][a-z0-9-]*)")
 
 
+def force_utf8_io() -> None:
+    """Make this hook's stdout/stderr UTF-8 regardless of how it was invoked.
+
+    hook-stderr-encoding-locale-dependent. Hooks emit supervision messages
+    containing non-ASCII — "2× hard cap reached — stop and re-plan". Written
+    through an interpreter that was not started in UTF-8 mode, those go out in
+    the machine's locale encoding: on Windows the line above leaves as
+    ``b'2\\xd7 hard cap reached \\x97'``. A reader expecting UTF-8 either sees
+    mojibake or fails outright, and the failure surfaces nowhere near its
+    cause — a `UnicodeDecodeError` in a subprocess reader thread turns
+    stdout/stderr into ``None``, so the caller reports "argument of type
+    'NoneType' is not iterable".
+
+    The generated host configs (`.claude/settings.json`, `.qwen/settings.json`)
+    do pass ``-X utf8`` on every hook invocation, so production is in fact
+    covered — but by the *launcher*, not by the hook. One line per host profile
+    in `bootstrap/` decides it, and a hook run any other way — a test, a manual
+    invocation, a host profile added later — was never covered at all. The
+    readability of a supervision message must not depend on how the supervisor
+    happened to be launched.
+
+    ``errors="replace"`` is deliberate: this is the mechanism that reports
+    budget overruns and policy blocks, so a character it cannot encode must
+    degrade to a replacement glyph, never raise. A hook that crashes while
+    trying to warn is worse than a hook that warns imperfectly.
+
+    Safe to call more than once, and a no-op on streams that have been
+    replaced by something without ``reconfigure`` (pytest's capture objects,
+    ``io.StringIO``) — the point is to fix real pipes, not to police them.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):  # detached / already-closed stream
+            pass
+
+
 def truncate(s: str | None, n: int = 100) -> str:
     """Truncate a string to at most ``n`` characters.
 

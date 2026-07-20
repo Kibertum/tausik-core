@@ -117,7 +117,7 @@ def _run_import(handlers_path: Path, tail: str = "") -> subprocess.CompletedProc
         [sys.executable, "-c", script],
         env=env,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         timeout=30,
     )
 

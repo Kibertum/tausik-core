@@ -53,7 +53,7 @@ def _collect_count(marker_expr: str | None) -> int:
     if marker_expr is not None:
         cmd += ["-m", marker_expr]
     proc = subprocess.run(
-        cmd, cwd=str(_ROOT), capture_output=True, text=True, errors="replace", timeout=300
+        cmd, cwd=str(_ROOT), capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300
     )
     # The trailing summary line: "N tests collected" (or "N/M tests collected").
     import re

@@ -143,7 +143,7 @@ def _run_hook(payload: dict, env: dict[str, str] | None = None, cwd: str | None 
         [sys.executable, HOOK_PATH],
         input=json.dumps(payload),
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         env=full_env,
         cwd=cwd,
         timeout=10,
@@ -187,7 +187,7 @@ def test_hook_silent_on_empty_stdin(tmp_path):
         [sys.executable, HOOK_PATH],
         input="",
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         cwd=str(tmp_path),
         timeout=10,
     )
@@ -200,7 +200,7 @@ def test_hook_silent_on_malformed_json(tmp_path):
         [sys.executable, HOOK_PATH],
         input="{not json",
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         cwd=str(tmp_path),
         timeout=10,
     )

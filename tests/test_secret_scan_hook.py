@@ -27,7 +27,7 @@ def _run(payload: dict, env_extra: dict | None = None) -> subprocess.CompletedPr
     return subprocess.run(
         [sys.executable, HOOK],
         input=json.dumps(payload),
-        text=True,
+        text=True, encoding="utf-8",
         capture_output=True,
         timeout=5,
         env=env,

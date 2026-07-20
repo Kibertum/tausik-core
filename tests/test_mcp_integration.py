@@ -140,7 +140,7 @@ class TestMCPServerStartup:
         result = subprocess.run(
             [PYTHON, SERVER],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=5,
         )
         assert result.returncode != 0

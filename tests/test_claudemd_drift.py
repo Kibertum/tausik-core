@@ -128,7 +128,7 @@ def test_dry_run_exits_nonzero_when_drift(temp_project, monkeypatch):
         """
     ).format(scripts=str(REPO / "scripts"), bootstrap=str(REPO / "bootstrap"))
     res = subprocess.run(
-        [str(venv_py), "-c", code], capture_output=True, text=True, cwd=str(temp_project), env=env
+        [str(venv_py), "-c", code], capture_output=True, text=True, encoding="utf-8", cwd=str(temp_project), env=env
     )
     assert "EXIT=1" in res.stdout, (res.stdout, res.stderr)
 

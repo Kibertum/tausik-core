@@ -75,7 +75,7 @@ class TestHookIntegration:
             [sys.executable, _HOOK_PATH],
             input=json.dumps(payload),
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=15,
             env=env,
         )
@@ -114,7 +114,7 @@ class TestHookIntegration:
             [sys.executable, _HOOK_PATH],
             input="not-json",
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=15,
             env=env,
         )

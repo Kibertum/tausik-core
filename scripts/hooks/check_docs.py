@@ -29,6 +29,13 @@ def _find_repo_root(start: Path) -> Path | None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # hook-stderr-encoding-locale-dependent: this hook's messages contain
+    # non-ASCII, and their readability must not depend on how it was
+    # launched. Local import: hooks/ is sys.path[0] only when run as a script.
+    from _common import force_utf8_io
+
+    force_utf8_io()
+
     root = _find_repo_root(Path.cwd())
     if root is None:
         # AC-3 negative — friendly skip instead of crash on external clones.

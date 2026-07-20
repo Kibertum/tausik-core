@@ -60,7 +60,7 @@ def _run_hook(project_dir: str, payload: dict | str) -> subprocess.CompletedProc
         [sys.executable, _HOOK_PATH],
         input=body,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         env=env,
         timeout=15,
     )
@@ -227,7 +227,7 @@ class TestEnvOverrides:
             [sys.executable, _HOOK_PATH],
             input=json.dumps({"tool_name": "Read", "tool_response": {}}),
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             env=env,
             timeout=10,
         )
