@@ -78,3 +78,33 @@ def _isolated_config_trust_tiers(tmp_path_factory, monkeypatch):
     monkeypatch.setenv("TAUSIK_USER_CONFIG", str(tier_dir / "user.json"))
     monkeypatch.delenv("TAUSIK_MANAGED_CONFIG", raising=False)
     yield
+
+
+def canonical_ddl(table: str) -> str:
+    """Вырезать CREATE TABLE <table> из backend_schema.SCHEMA_SQL.
+
+    Единственный источник DDL для тестовых фикстур. Рукописные копии схемы
+    verification_runs уже дважды стоили дорого: сначала добавление двух колонок
+    в v38 потребовало ручной правки девяти блоков (задача
+    test-ddl-drift-verification-runs), затем в сессии #119 фикстура без
+    CHECK(scope IN (...)) дала 20 зелёных тестов при фиче, которая падала
+    IntegrityError на КАЖДОЙ записи в живую БД.
+
+    Копия схемы в тесте доказывает соответствие копии, а не продакшену, и
+    расходится молча — поэтому её здесь быть не должно.
+    """
+    import os
+    import sys
+
+    scripts = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts"))
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+    from backend_schema import SCHEMA_SQL
+
+    marker = f"CREATE TABLE IF NOT EXISTS {table}"
+    start = SCHEMA_SQL.index(marker)
+    end = SCHEMA_SQL.index("\n);", start) + len("\n);")
+    return SCHEMA_SQL[start:end]
+
+
+VERIFICATION_RUNS_DDL = canonical_ddl("verification_runs")

@@ -12,6 +12,7 @@ import os
 import sys
 
 import pytest
+from conftest import canonical_ddl
 
 _SCRIPTS = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts"))
 if _SCRIPTS not in sys.path:
@@ -50,10 +51,7 @@ class TestCollector:
         import sqlite3
 
         conn = sqlite3.connect(":memory:")
-        conn.execute(
-            "CREATE TABLE verification_runs (id INTEGER PRIMARY KEY, task_slug TEXT, "
-            "ran_at TEXT, receipt_json TEXT)"
-        )
+        conn.execute(canonical_ddl("verification_runs"))
         monkeypatch.chdir(tmp_path)  # no git repo, no config
         risk = rc.compute_task_risk(
             conn,
@@ -85,10 +83,7 @@ class TestCollector:
         import sqlite3
 
         conn = sqlite3.connect(":memory:")
-        conn.execute(
-            "CREATE TABLE verification_runs (id INTEGER PRIMARY KEY, task_slug TEXT, "
-            "ran_at TEXT, receipt_json TEXT)"
-        )
+        conn.execute(canonical_ddl("verification_runs"))
         monkeypatch.setattr(rc, "_git_numstat_lines", lambda *_a: (_ for _ in ()).throw(OSError))
         risk = rc.compute_task_risk(conn, self._task(), ["scripts/a.py"], project_dir=str(tmp_path))
         assert risk is not None

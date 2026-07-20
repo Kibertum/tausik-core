@@ -17,8 +17,16 @@ adversarial pass pays for itself. Two deliberate softeners:
     live boundary flake at exactly 0.6667 in the full test suite.
   - Opt-out: config risk.l3_block_on_high=false downgrades to a warning.
 
-A recorded L3 review for the task (tausik review record --run-type l3)
-satisfies the gate; run_type matching is case-insensitive ('l3'/'L3').
+A recorded L3 review for the task (tausik review record --type L3)
+satisfies the gate.
+
+Lowercase run_type CANNOT reach the DB: argparse pins --type to
+choices=['L1','L2','L3'] and the reviews schema carries
+CHECK(run_type IN ('L1','L2','L3')). The UPPER() in has_l3_review is
+belt-and-braces for hand-written rows, not a supported input form —
+the previous wording promised a `--run-type l3` flag that does not
+exist, and its test only passed because the fixture declared reviews
+by hand WITHOUT the CHECK (test-ddl-drift-verification-runs).
 """
 
 from __future__ import annotations

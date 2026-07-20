@@ -14,6 +14,7 @@ import subprocess
 import sys
 
 import pytest
+from conftest import canonical_ddl
 
 _SCRIPTS = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts"))
 if _SCRIPTS not in sys.path:
@@ -54,8 +55,14 @@ def _make_db(tmp_path, tasks):
     tausik.mkdir(exist_ok=True)
     db = tausik / "tausik.db"
     conn = sqlite3.connect(str(db))
-    conn.execute("CREATE TABLE tasks (slug TEXT, status TEXT, scope_paths TEXT)")
-    conn.executemany("INSERT INTO tasks VALUES (?, ?, ?)", tasks)
+    conn.execute(canonical_ddl("tasks"))
+    conn.executemany(
+        # Поимённо, а не позиционно: на канонных 42 колонках позиционный
+        # INSERT привязывался бы к их порядку и разъезжался бы молча.
+        "INSERT INTO tasks (slug, title, status, scope_paths, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')",
+        [(slug, slug, status, paths) for slug, status, paths in tasks],
+    )
     conn.commit()
     conn.close()
     return str(db)
@@ -131,7 +138,9 @@ class TestHook:
         tausik = tmp_path / ".tausik"
         tausik.mkdir()
         conn = sqlite3.connect(str(tausik / "tausik.db"))
-        conn.execute("CREATE TABLE tasks (slug TEXT, status TEXT)")  # no scope_paths
+        # ddl-parity: historical — схема ДО v30, без scope_paths: сам предмет
+        # теста в том, как хук ведёт себя на такой БД.
+        conn.execute("CREATE TABLE tasks (slug TEXT, status TEXT)")
         conn.execute("INSERT INTO tasks VALUES ('t1', 'active')")
         conn.commit()
         conn.close()
@@ -142,6 +151,8 @@ class TestHook:
         tausik = tmp_path / ".tausik"
         tausik.mkdir()
         conn = sqlite3.connect(str(tausik / "tausik.db"))
+        # ddl-parity: historical — та же схема ДО v30, здесь для проверки
+        # эскалации TAUSIK_HOOK_FAIL_SECURE на нечитаемой области.
         conn.execute("CREATE TABLE tasks (slug TEXT, status TEXT)")
         conn.execute("INSERT INTO tasks VALUES ('t1', 'active')")
         conn.commit()

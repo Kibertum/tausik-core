@@ -12,6 +12,7 @@ import sqlite3
 import sys
 
 import pytest
+from conftest import canonical_ddl
 
 _SCRIPTS = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts"))
 if _SCRIPTS not in sys.path:
@@ -24,11 +25,7 @@ from risk_model import compute_risk  # noqa: E402
 @pytest.fixture
 def conn():
     c = sqlite3.connect(":memory:")
-    c.execute(
-        "CREATE TABLE reviews (id INTEGER PRIMARY KEY, task_slug TEXT, "
-        "run_type TEXT, critical_findings INTEGER, warnings INTEGER, "
-        "run_at TEXT, notes TEXT)"
-    )
+    c.execute(canonical_ddl("reviews"))
     yield c
     c.close()
 
@@ -72,10 +69,30 @@ class TestCheckL3Required:
         assert blocking is False
         assert "satisfied" in note
 
-    def test_run_type_case_insensitive(self, conn):
+    def test_lowercase_run_type_cannot_be_stored_at_all(self, conn):
+        """Прежний тест здесь утверждал, что 'l3' засчитывается наравне с 'L3'.
+
+        Он был зелёным только потому, что фикстура объявляла reviews своей
+        копией БЕЗ CHECK(run_type IN ('L1','L2','L3')). На канонной схеме
+        такая строка не вставляется вовсе, а argparse не пропускает lowercase
+        ещё раньше (--type choices). То есть тест покрывал ветку, недостижимую
+        в проде, — ровно класс «фикстура беднее прода».
+
+        UPPER() в has_l3_review остаётся как страховка от рукописных строк, но
+        поддерживаемой формой ввода lowercase не является, и тест теперь
+        фиксирует ИМЕННО ЭТО.
+        """
+        with pytest.raises(sqlite3.IntegrityError, match="run_type"):
+            conn.execute(
+                "INSERT INTO reviews (task_slug, run_type, critical_findings, warnings, run_at) "
+                "VALUES ('t1', 'l3', 0, 0, '2026-01-01')"
+            )
+
+    def test_canonical_l3_satisfies_via_upper(self, conn):
+        """Единственная форма, которая может оказаться в БД, гейт снимает."""
         conn.execute(
             "INSERT INTO reviews (task_slug, run_type, critical_findings, warnings, run_at) "
-            "VALUES ('t1', 'l3', 0, 0, '2026-01-01')"
+            "VALUES ('t1', 'L3', 0, 0, '2026-01-01')"
         )
         blocking, _ = t.check_l3_required(conn, "t1", _risk_all_measured(0.9))
         assert blocking is False

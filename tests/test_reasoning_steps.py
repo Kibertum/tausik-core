@@ -58,6 +58,8 @@ def test_migration_v32_creates_table_triggers_clean(tmp_path):
     conn.execute("INSERT INTO meta VALUES('schema_version', '31')")
     conn.execute("CREATE TABLE tasks(slug TEXT PRIMARY KEY)")  # FK target
     # events exists in the v1 baseline on every real DB; v34 ALTERs it.
+    # ddl-parity: historical — форма v31 до migration v34, канон уже содержит
+    # entry_hash/prev_hash, которые этот прогон только собирается добавить.
     conn.execute(
         "CREATE TABLE events(id INTEGER PRIMARY KEY AUTOINCREMENT, "
         "entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, action TEXT NOT NULL, "

@@ -15,6 +15,8 @@ import sqlite3
 import sys
 from pathlib import Path
 
+from conftest import canonical_ddl
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks"))
 
@@ -382,11 +384,7 @@ class TestResolveSessionId:
         tausik = project_dir / ".tausik"
         tausik.mkdir(exist_ok=True)
         conn = sqlite3.connect(str(tausik / "tausik.db"))
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS sessions ("
-            "id INTEGER PRIMARY KEY AUTOINCREMENT,"
-            "started_at TEXT, ended_at TEXT)"
-        )
+        conn.execute(canonical_ddl("sessions"))
         for started, ended in sessions:
             conn.execute(
                 "INSERT INTO sessions(started_at, ended_at) VALUES (?, ?)",
@@ -422,10 +420,7 @@ class TestEndToEndEmitter:
         tausik = tmp_path / ".tausik"
         tausik.mkdir()
         conn = sqlite3.connect(str(tausik / "tausik.db"))
-        conn.execute(
-            "CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, "
-            "started_at TEXT, ended_at TEXT)"
-        )
+        conn.execute(canonical_ddl("sessions"))
         conn.execute(
             "INSERT INTO sessions(started_at, ended_at) VALUES (?, NULL)",
             ("2026-05-06T10:00:00Z",),
