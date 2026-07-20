@@ -9,6 +9,419 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixture-vs-schema drift is now checked for every table, not one
+
+A test that writes its own `CREATE TABLE` proves the code matches *the copy*,
+and the copy drifts silently. That had already cost twice, both times on
+`verification_runs`: adding two columns meant hand-editing nine handwritten
+blocks, and a fixture missing `CHECK(scope IN (...))` let twenty tests pass
+green while the feature raised `IntegrityError` on every write to a real
+database. The gate built in response covered exactly one table out of nineteen.
+The other eighteen had the same failure mode and nothing watching it.
+
+The table list is now derived from `SCHEMA_SQL` rather than written out here —
+enumerating it by hand would be the same defect one floor up (convention #214),
+blind to any table added after the gate was written.
+
+Two exemptions are declared by name rather than skipped silently. Migration
+tests must declare historical schemas: they run v1 → v2 → v3, so an old table
+is the *input*, and migrating from canon to canon would test nothing. A test
+asserts that file still declares a v1 schema, so the exemption cannot outlive
+its reason.
+
+Generalising the check found seven fixtures declaring a table far narrower than
+production — three to seven columns where the schema has eight to forty-two.
+That is the dangerous direction: a narrow fixture accepts inserts production
+would reject on `NOT NULL`, so the test passes and proves nothing.
+
+Taking those seven apart showed they were not one thing. Five were real drift
+and now build their tables from `canonical_ddl`. One of the five was hiding a
+live defect: a test asserted that `run_type='l3'` satisfies the L3 review gate,
+and it passed only because the fixture omitted
+`CHECK(run_type IN ('L1','L2','L3'))`. Production rejects that row twice over —
+argparse pins `--type` to the three uppercase values, and the constraint would
+refuse it anyway — so the test covered a branch unreachable in production, and
+the module docstring promised a `--run-type l3` flag that does not exist. Both
+are corrected; the test now pins what is actually true, that the row cannot be
+stored at all.
+
+The other two were deliberately historical: they build a v31-shaped or pre-v34
+database precisely so there is something to migrate, and canon would destroy
+the test. A file-level exemption list cannot express that, because both files
+mix canonical and historical blocks. Such a block is now exempted where it
+lives, by a `# ddl-parity: historical — <why>` line in its preamble. The reason
+is mandatory and checked: a bare marker exempts nothing, so it cannot become a
+one-line indulgence. The marker binds to the block it adjoins, not to the file,
+and a test plants drift ten lines below a marked block to prove it does not
+leak. The ratchet is gone — there is no remaining debt to ratchet.
+
+### Fixtures matched the fresh schema; real databases are migrated ones
+
+The parity gate above compares fixtures against `SCHEMA_SQL` — the schema of a
+database created from scratch. A live project's database is that shape exactly
+once, at init; thereafter it is a database carried forward by migrations. If
+the two paths diverge, every fixture proves conformance to a shape almost no
+real database has.
+
+They diverge. A new gate builds both — fresh from `SCHEMA_SQL`, migrated from
+the v1 baseline through `run_migrations` — and compares every table. Two
+differences, both real:
+
+`tasks.model_mismatch` is `NOT NULL DEFAULT 0` in the fresh schema and
+nullable on the migration path. On any upgraded database the column can hold
+`NULL`, and `WHERE model_mismatch = 0` silently drops those rows — green where
+it is tested, wrong where it runs. Nothing writes a `NULL` there today, which
+is luck rather than protection. Recorded as a ratchet with a named successor
+task; a test fails if the entry ever goes stale.
+
+Column *order* differs too, for `tasks` and `memory`, because
+`ALTER TABLE ADD COLUMN` appends. That one is not worth fixing — it would mean
+rebuilding tables — but its consequence is: a positional
+`INSERT INTO t VALUES (...)` binds to column order, so it means different
+things on a fresh and an upgraded database. Production code is now checked to
+contain none, and the fixtures converted above list their columns by name.
+
+### A skipped gate no longer reports itself as a pass
+
+`verification_runs.summary` described a skipped gate as `PASS`. The
+`gate_runs` rows of the very same run recorded `skipped=1` honestly — the two
+records of one run contradicted each other. The formula never asked about
+`skipped`, and `run_gates` marks a skipped gate `passed=True` so the verdict
+can be computed from the gates that did run.
+
+The machine guards were never fooled: `has_real_pass`, the `no-test-mapped`
+block and the `noncacheable|` prefix all keep such a run from being reused. But
+they protect the *cache*, not the reader. `summary` is what a human reads and
+what lands in the agent's closing report, and a line saying
+"hadolint=PASS, pytest=PASS" while both gates showed `[SKIP]` is what convinced
+an agent a run was green and kept an open hole alive for an extra session.
+
+Naming a gate's outcome is now one function, `gate_runner.gate_verdict`, with
+`SKIP` as a third state rather than a flavour of `PASS`. It had been written
+six times: three copies lied, three were correct. That the same three words had
+already drifted in *both* directions is the argument against fixing three call
+sites — a seventh copy was only a matter of time — so a gate now fails when any
+module spells a gate verdict itself. It distinguishes a verdict about a *gate*
+from one about an exit code, which is a different question and stays where it
+is.
+
+The sixth copy was found by that gate, not by reading: it renders the signed
+receipt. It could not actually mislabel anything, because receipts carry only
+gates that ran — but its correctness rested on an invariant enforced in another
+module, which is correctness with an expiry date. It goes through the shared
+verdict too.
+
+Historical rows are left exactly as they are. A recorded run is a fact about
+what was written, not a claim to be corrected later; the row that said `PASS`
+about a skip is the evidence that this defect was real, and rewriting it would
+erase the only trace of why an agent once got it wrong.
+
+The change pushed `verify_cached_run.py` past the 400-line filesize gate, so
+the envelope-timeout machinery moved to `verify_envelope.py`. The cut follows a
+responsibility boundary rather than a line count: everything there answers "run
+this with a wall-clock bound and fail legibly if it overruns" and knows nothing
+about the cache, the declared scope or `verification_runs`. `run_gates` is
+handed to it as an argument rather than imported inside it, so the suite's
+patching of that import keeps working (memory #243). The three public names are
+re-exported, so every existing caller and test is unaffected.
+
+### Hook messages read the same everywhere, and a gate keeps them that way
+
+A hook warning about a budget overrun emitted `2× hard cap reached — stop and
+re-plan`. The `×` and `—` left in the machine's locale encoding —
+`b'2\xd7 hard cap reached \x97'` on Windows — because the interpreter running
+the hook had not been started in UTF-8 mode.
+
+The generated host configs do pass `-X utf8` on every hook invocation, so
+production was in fact covered. But it was covered by the *launcher*, not by
+the hook: one line per host profile in `bootstrap/` decided it, and a hook run
+any other way — a test, a manual invocation, a host profile added later — was
+never covered at all. Hooks now call `force_utf8_io()` themselves, so a
+supervision message no longer depends on how the supervisor was launched.
+`errors="replace"` is deliberate: the mechanism that reports budget overruns
+and policy blocks must degrade to a replacement glyph rather than crash while
+trying to warn.
+
+The reading end was wrong too. Tests called `subprocess.run(..., text=True)`
+with no `encoding=`, so they decoded the child's output using whatever the
+parent happened to use. Usually the two matched and everything was green. Under
+`python -X utf8 -m pytest` the parent decoded UTF-8 while the child wrote
+cp1251, and the `UnicodeDecodeError` landed in a reader thread — turning
+stdout/stderr into `None`, so the visible failure was
+`TypeError: argument of type 'NoneType' is not iterable`, which points at
+nothing. 59 call sites across 36 test files now pass `encoding` explicitly.
+
+Fixing 11 hooks by hand would have lasted until the twelfth
+(convention #236), so the sweep is enforced rather than performed.
+`tests/test_hook_encoding.py` fails, naming offenders individually, when a hook
+emits non-ASCII to a stream without forcing UTF-8, when a test decodes a
+subprocess in the parent's encoding, or when a hook invocation loses `-X utf8`
+— checked in both generated host profiles *and* in the `bootstrap/` functions
+that build those commands, so a regression is caught at the source rather than
+one bootstrap run later. Docstrings and comments are excluded via AST, since
+neither ever reaches a stream; pure-ASCII hooks and binary-mode subprocess
+calls are not offenders, and tests assert that they are not — a gate that cries
+wolf gets switched off.
+
+The full suite is now green under both `python -m pytest` and
+`python -X utf8 -m pytest`. It previously passed under one and failed five
+tests under the other, which meant "the tests pass" was a statement about the
+runner, not about the code.
+
+### A verify run whose evidence was not written is no longer green
+
+`verify` could report PASSED while nothing had been recorded. The single write
+point wrapped the insert in `except Exception`, logged a warning, and returned
+`None` — leaving the caller's verdict untouched. What reached `task done`, the
+agent's report and the CLI was a green indistinguishable from a green with
+evidence behind it.
+
+This was worse than an ordinary fail-open. `gate_run_record` is deliberately
+fail-closed and says so in its docstring: *"a write that cannot happen raises …
+a run that looks recorded but is not is expensive, because it is
+indistinguishable from a real one afterwards"*. The `except` above it caught
+precisely the exception that guarantee is built from, so the contract was
+annulled one level up.
+
+It was not theoretical. During the session that fixed the entry below, a write
+failed against a CHECK constraint on a live database and the CLI printed
+`Verify PASSED — NOT recorded.` — the word PASSED standing next to the
+admission that no proof existed. The task was one unrelated debug line away
+from being closed on a run that certified nothing.
+
+`_record_verification` now raises `VerificationRecordError`, and every caller
+turns it into a blocking verdict: `passed=False`, cache status `record-failed`,
+and a synthetic blocking gate result named `verify-record` naming the database
+error. `task done` sees it in `blocking_failures` and refuses to close.
+
+Two branches already blocked for their own reason (`scope-security-mismatch`,
+`no-test-mapped`). There the verdict is not escalated — a different block adds
+no safety — but the lost write is reported alongside the primary reason, since
+convention #242 exists because a verdict that stops a closure has to leave a
+trace, and that is exactly what failed. The `--no-tests-expected` branch is the
+opposite case and does flip to red: it rests *entirely* on the row, because no
+gate executed and `no_tests_declared = 1` is the only thing making the closure
+auditable.
+
+A transient lock is retried — three attempts with backoff — then fails
+honestly. A permanent error (IntegrityError, `no such table`) is not retried:
+that only delays the same failure and buries its cause under a pause. The
+connection is rolled back between attempts, so a retry cannot report a second,
+unrelated error as the reason. A run in which no gate executed at all writes
+nothing and is unaffected: "nothing to record" is not "failed to record".
+
+### A task with no tests can be closed, and saying so leaves a mark
+
+Closing the CLI bypass below turned a hole into a dead end. A run in which every
+gate is `[SKIP]` blocks — correctly, it proves nothing — but documentation,
+config and migration tasks map to no test and never will, so there was no way to
+close them at all. That class is not marginal: most of the remaining
+documentation work in this release sits in it.
+
+`tausik verify --task X --no-tests-expected` declares, for that run, that no
+test is expected. The run is then recorded green under
+`no_tests_declared = 1`. The flag buys visibility, not permission — the
+closure still rests on no executed gate, and the point is that it is now
+countable rather than indistinguishable from a verified one:
+
+```sql
+SELECT task_slug, ran_at FROM verification_runs WHERE no_tests_declared = 1;
+```
+
+No extension allowlist and no inference from file type: an implicit exemption
+would restore exactly the invisibility the entry below removed. Without the flag
+nothing changes, and the flag applies only to *skipped* gates — a failing gate
+stays red.
+
+The block message also named a way out that did not exist. It suggested
+`--no-knowledge`, which governs knowledge capture on `task done` and has no
+effect on gates whatsoever; an agent following it would have gone in a circle.
+It now names `--no-tests-expected`.
+
+Schema goes 39 -> 40: one additive `ALTER TABLE ADD COLUMN` plus its index,
+no rebuild, historical rows default to 0. The first cut tried to avoid the
+migration by encoding the marker as a `scope` value; `scope` is CHECK-
+constrained to the SENAR tiers, so every write raised IntegrityError on a real
+database. Tests missed it because their `verification_runs` DDL is a
+hand-written copy without the constraint, and the failed write was swallowed
+into a log warning while `verify` still printed a pass. Three holes had to line
+up for a broken feature to look green, and they did; the fixture in
+`tests/test_cli_verify_guards.py` now derives its DDL from `backend_schema`.
+
+That one-off is closed as a mechanical gate rather than a one-off edit.
+`tests/conftest.py` exposes `canonical_ddl(table)`, ten fixtures were moved onto
+it, and `tests/test_ddl_fixture_parity.py` fails if any test file declares
+`verification_runs` as a copy that differs from `backend_schema.SCHEMA_SQL`.
+Id-only stubs that exist purely as foreign-key targets stay allowed.
+
+### `tausik verify` no longer has its own, weaker rules
+
+There were two paths that wrote into `verification_runs`. One —
+`service_verification.run_gates_with_cache` — is what `task done` and MCP
+verify use, and it holds the guards: refuse to cache a run in which no gate
+actually executed, block when declared files map to no test at all, refuse to
+cache an empty declared scope. The other was the `tausik verify` CLI, which
+called `run_gates` and `record_run` directly and therefore had none of them.
+
+The consequence was not theoretical. A run in which *every* gate was `[SKIP]`
+was recorded as a fully cacheable green — a skipped gate reports `passed=True`,
+so the summary read `hadolint=PASS, pytest=PASS` and the exit code was 0. For
+any task whose `relevant_files` map to no tests (documentation, config,
+migrations), the CLI minted a certificate that the service path would have
+refused, and the next `task done` closed on it via an exact cache hit.
+
+The CLI is now a presentation layer over `run_verify_for_task`: it formats
+output and decides nothing about what is recorded. That also removed a second
+copy of the `relevant_files` / `started_at` resolution, which had been
+duplicated in both files. Rules that exist in two places drift; the point of
+the fix is that there is now one place, not two agreeing ones.
+
+Two blocking verdicts turn out never to have been recorded at all. Both
+`no-test-mapped` and `scope-security-mismatch` returned before reaching the
+single `record_run` call, so the verdict that *stops* a closure left no trace
+while the permissive runs beside it were written down — the same argument as
+the entry below, in two places it had not been applied. Both now record with
+`exit_code=1` and a `noncacheable|` prefix. The `no-test-mapped` row keeps the
+skipped gates alongside the synthetic failure, because "every gate was skipped"
+is the evidence for the verdict.
+
+Internal layout: `run_gates_with_cache` moved to `scripts/verify_cached_run.py`
+and `_record_verification` — now the single write point — sits next to
+`record_run` in `scripts/verify_run_record.py`. `service_verification` remains
+a facade that re-exports both, so every existing import keeps working. Tests
+that monkeypatch `describe_declared_scope` must now target
+`verify_cached_run`, the module that calls it, rather than the facade that only
+re-exports it.
+
+### Every gate run is now written down, failures included
+
+Gate outcomes used to be transient. A run was recorded only when it was also
+eligible for the cache (`passed and cache_ok and has_real_pass`), which tied
+observability to reuse and meant a blocking failure from the service path was
+never written at all — so "how often does this gate actually block?" was
+unanswerable for exactly the runs that matter most. Recording now happens
+whenever gates actually ran.
+
+What changes for an existing project: every gate failure lands in
+`verification_runs` with `exit_code=1`, security-bypass runs are recorded too,
+and a new `gate_runs` table holds one row per gate execution (name, severity,
+pass/fail, duration) linked to the run that produced it. Expect the database to
+grow faster than before — this is write volume that previously did not exist.
+Two guards keep a recorded run from being replayed as a green: failures carry a
+non-zero exit code and the cache lookup filters on `exit_code = 0`, and a run
+that passed without being cacheable is stamped `noncacheable|`.
+
+The run row and its gate rows are written in one transaction, and nothing on
+that path is best-effort: a write that cannot happen raises and takes the whole
+run down with it, rather than leaving a run that looks recorded but is not
+(convention #221). Losing one verify run is cheap; a claim with no evidence
+behind it is expensive, because afterwards it is indistinguishable from a real
+one.
+
+Schema goes 38 → 39. The migration is additive — it creates one table and three
+indexes, alters nothing, and backfills nothing, because there is no historical
+gate data to recover: the outcomes it records were never written down. Existing
+databases therefore start empty and accumulate from the next verify onward, so
+metrics read immediately after the upgrade legitimately report zero runs for
+every gate, with the configured gate set listed alongside under `never_fired`.
+That is the honest answer rather than a defect.
+
+**On rolling back.** The migration is not reversible, and there is no guard for
+running older code against a newer database: `backend_init` migrates only when
+the stored version is *below* the code's, and takes no branch at all in the
+other direction — a downgraded checkout opens a v39 database without warning.
+A `.tausik/tausik.db.bak.v38` copy is written before the migration runs. Note
+also that the CLI executes the `.claude/` mirror rather than `scripts/`, so any
+schema change leaves the two out of step until `python bootstrap/bootstrap.py`
+is run; that is the repair for a CLI that starts failing right after a
+schema-touching change.
+
+### BREAKING: a verify run with no declared scope no longer certifies anything
+
+`tausik verify --task X` run before the task declared its `relevant_files`
+recorded a green against an empty file set. Two properties combined into a
+hole. `gate_runner` SKIPS the scoped gates when no files are declared, so the
+run proved nothing about any file — and `compute_files_hash([])` returns a
+stable empty-marker that no edit ever moves, so the green stayed valid for the
+whole TTL no matter what changed in the tree afterwards. The sequence verify →
+edit → `task done` therefore passed QG-2 on a green taken before the edit.
+
+An undeclared scope is now treated as "unknown", not "verified empty"
+(convention #226), and a check that could not compute its own coverage does not
+certify (#221). Concretely: an empty-scope run is recorded `noncacheable|` so
+it stays observable but unusable for reuse, and both the strict lookup and
+`run_gates_with_cache` refuse it on the read side as well — the write-side
+stamp alone would leave rows written by earlier versions still honoured.
+
+Two further leaks are closed with it. The relaxed fallback that accepted a
+"manual scope" row as a broad-pass certificate for an explicit file set is
+gone: its premise — that naming no files means a *wider* run — was backwards.
+And the relaxed lookup inside `run_gates_with_cache` was called without a
+`command_prefix`, so it matched rows already stamped `noncacheable|` and rows
+from the `task-done` bucket; the comment a few lines below it claimed neither
+lookup could do that. `lookup_any_fresh_run_for_task` is removed with its last
+caller.
+
+The rule is enforced ahead of the `task_done.auto_verify` opt-out, not after
+it. That path runs the gates inline, so with no declared files `gate_runner`
+skips the scoped ones and a scope-independent gate going green closed the task
+on a run that examined nothing — measured directly: with the check moved back
+after the branch, `auto_verify=true` plus an undeclared scope returns `ok:
+True` and zero blocking failures. `.tausik/config.json` travels with the
+repository, so a legacy opt-out is not a safe place to keep a bypass.
+
+**Migration.** A task must declare `relevant_files` to close on a verify green;
+closing on an undeclared scope now blocks, with a message naming that as the
+reason instead of asking for another `tausik verify` that could never succeed.
+Full-suite `tausik verify` without `--task` is unaffected (it was never
+cached), and no task has to declare its files twice.
+
+### A default gate can no longer be neutered by swapping its command
+
+The executable allow-list answered "is this binary tolerable at all?", never
+"is this still the gate it is named after?". Every entry on the list is
+legitimate, so `gates.ruff.command = "python -c pass"` passed validation and
+left a gate that was enabled, fired on its triggers, and was green forever.
+`.tausik/config.json` travels with the repository, so a clone could neuter the
+framework's own supervision without tripping anything.
+
+An override of a default gate's command must now invoke the same tool as the
+default. Arguments, paths and runner wrappers stay free: `vendor/bin/phpstan
+analyse --level=8` is accepted, and so is `eslint {files}` against a default of
+`npx eslint {files}` — wrappers (`npx`, `npm run`, `python -m`) are seen
+through. Swapping the tool itself is refused: the gate keeps its default
+command and a warning is logged. Built-in gates (`filesize`, `tdd_order`,
+`renar_drift_*`) have no command at all, and an attempt to add one is likewise
+refused.
+
+The residual vector is recorded honestly in the threat surface rather than
+papered over: an inert invocation of the SAME tool (`ruff --version`,
+`pytest --collect-only`) is fundamentally invisible to this check — there is no
+machine-checkable definition of "this command does real work", and a
+default-prefix rule would break both legitimate cases above. See "Limits of
+these guarantees" in `docs/en/security.md`.
+
+### The static audits stopped reporting files git does not track
+
+`audit_stale_docs` reported three candidates and all three were false, for two
+different reasons. One lived under `docs/research/_internal/`, which is
+gitignored: it references nothing by definition and cannot be "fixed", so it
+was permanent noise — and the report printed its filename, which is exactly
+what keeping internal research in a gitignored directory is meant to prevent.
+The other two lived in `docs/research/`, the research home, while the exclude
+list named only its `docs/en/` and `docs/ru/` twins.
+
+The audits walked the filesystem with `rglob` while their own docstrings
+claimed to report on *tracked* files. `scripts/audit_tracked_files.py` now
+answers that question once, from `git ls-files`, for `audit_stale_docs`,
+`audit_orphan_files`, and `audit_unused_python` alike. It returns "unknown"
+rather than an empty set when git cannot be consulted — an empty set would
+make every audit declare the whole tree unreferenced the moment git hiccups.
+On unknown, the audits warn to `stderr` and fall back to the filesystem walk.
+
+An audit whose output is permanently false stops being read, and a real
+finding drowns with it.
+
 ### A receipt now states whether its own scope was complete
 
 The git cross-check has been wired since v1.3.4, and it worked: declare
