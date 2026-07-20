@@ -9,6 +9,30 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### The MCP thread is checked against the primitives the spec deprecates
+
+The MCP specification of 2026-07-28 deprecates sampling, logging and roots
+(SEP-2577) — annotation-only, with at least twelve months before removal. Two
+P0 items of the 2.0 roadmap are built on roots, so the question worth answering
+before spending person-weeks was how much of the tree actually depends on them.
+
+Measured rather than assumed: nineteen Python files across three servers
+(project, brain, codebase-rag), zero uses of the deprecated API, zero
+protocol-level strings, zero advertised capabilities. The servers register
+exactly four handlers — `list_tools`, `list_prompts`, `list_resources`,
+`call_tool` — and since the SDK derives capabilities from registered handlers,
+`get_capabilities()` reports `logging=None`. The spec's own estimate for local
+stdio servers ("close to nothing to migrate") holds here exactly: there is
+nothing to migrate, because nothing uses them.
+
+That answer is now a gate rather than a sentence. A one-off finding is a claim
+about yesterday's tree; without a test it expires at the next commit and the
+next person to ask has to look again. The check parses code with AST instead of
+grepping it, because `create_message` in a docstring and
+`session.create_message(...)` in code are different events — a gate that cannot
+tell them apart would either be blind or fail on its own documentation, and a
+gate that fails on its own documentation gets switched off.
+
 ### Fixture-vs-schema drift is now checked for every table, not one
 
 A test that writes its own `CREATE TABLE` proves the code matches *the copy*,
