@@ -8,7 +8,7 @@ TAUSIK is a discipline layer for AI coding agents. It turns the agent's word —
 
 [![v1.7.0](https://img.shields.io/badge/version-v1.7.0-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
 [![signed receipts: ed25519](https://img.shields.io/badge/signed%20receipts-ed25519-6f42c1.svg)](docs/en/receipts.md)
-[![5266 tests](https://img.shields.io/badge/tests-5266-brightgreen.svg)](#proof-tausik-built-tausik)
+[![5272 tests](https://img.shields.io/badge/tests-5272-brightgreen.svg)](#proof-tausik-built-tausik)
 [![coverage 76%](https://img.shields.io/badge/coverage-76%25-green.svg)](#proof-tausik-built-tausik)
 [![0 dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#whats-inside)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -110,7 +110,7 @@ Both are fail-closed: a gate that can't evaluate blocks rather than waves the ta
 TAUSIK was built with TAUSIK — every feature, refactor, and bug fix went through the gates that ship in the box. Not as a vanity metric, as the strongest test of the contract:
 
 - **Every task closed with a goal + acceptance criteria.** Zero closed without verify evidence.
-- **5266 tests** — the enforcement core is the most-tested part.
+- **5272 tests** — the enforcement core is the most-tested part.
 - **76% line coverage** (baseline, `scripts/`, 4124 selected tests) — refresh with `pytest tests/ --cov=scripts --cov-report=json:coverage.json` and update the badge; CI uploads `coverage.json` as a build artifact on every PR.
 - **0 core dependencies** — Python 3.11+ stdlib only; MCP deps live in an isolated `.tausik/venv/`.
 - **0 phone-home calls** — everything runs and stays on your machine.
@@ -187,7 +187,7 @@ TAUSIK is the reference implementation of [SENAR](https://senar.tech) ([GitHub](
 
 ## v1.7 — pre-2.0, and confident about it
 
-v1.7 continues the hardening on the road to 2.0: signed receipts, fail-closed gates, external adversarial review for high-risk closures, closure-risk scoring, structured root cause, and a skill supply chain that verifies the same way on every platform. The enforcement core is **locked and covered by 5266 tests**, dogfooded daily. On uncommon paths you may still hit doc-vs-behavior drift — if you do, [file an issue](https://github.com/Kibertum/tausik-core/issues) and we'll converge it before 2.0.
+v1.7 continues the hardening on the road to 2.0: signed receipts, fail-closed gates, external adversarial review for high-risk closures, closure-risk scoring, structured root cause, and a skill supply chain that verifies the same way on every platform. The enforcement core is **locked and covered by 5272 tests**, dogfooded daily. On uncommon paths you may still hit doc-vs-behavior drift — if you do, [file an issue](https://github.com/Kibertum/tausik-core/issues) and we'll converge it before 2.0.
 
 ## License
 

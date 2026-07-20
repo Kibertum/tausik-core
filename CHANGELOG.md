@@ -9,6 +9,36 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### The deprecation gate stopped failing on honest text
+
+The gate's own docstring states the principle: documentation *may* mention the
+deprecated primitives, code may not *use* them. Half the file kept that promise
+and half did not.
+
+The AST half was fine. The other half searched for protocol-level strings by
+plain substring match over raw source lines, so an honest comment — `# older
+clients still send "roots/list" over the wire; we ignore it` — failed the build.
+That is the exact outcome the docstring warns about: a gate that fails on its
+own documentation gets switched off, and a switched-off gate is worse than an
+absent one because it still looks like protection. Separately, the AST half
+flagged bare names as well as attribute access, so an unrelated local function
+called `list_roots` — a plausible name generally, and "roots" appears in an MCP
+server for other reasons too — failed with a message about a deprecated API.
+
+The promise was kept and the code brought under it, rather than the reverse.
+Protocol strings are now looked for only where they actually participate in the
+code: comments never enter the AST at all, and docstrings are excluded by
+identity. Attribute access is the only usage form matched.
+
+Narrowing to attribute access would have opened a hole the size of the one it
+closed — `from mcp.server.session import list_roots` contains no attribute
+access — so direct imports are matched by their own branch. Both sides of both
+defects are tested: a comment and a docstring stay silent, a literal in code
+(including inside an f-string) still fires, a bare name stays silent, attribute
+access and direct import still fire. Checking that false positives went away
+without checking that real violations still fire would have traded a noisy gate
+for a blind one.
+
 ### A stack that declares file extensions must have a gate that can run
 
 Flutter was declared a stack — extensions, detection signature, a guide with a
