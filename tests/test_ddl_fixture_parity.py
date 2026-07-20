@@ -28,8 +28,12 @@ backend_schema.SCHEMA_SQL.
 
 from __future__ import annotations
 
+import ast
+import bisect
 import os
 import re
+import sqlite3
+from functools import lru_cache
 
 import pytest
 
@@ -84,6 +88,10 @@ _MIN_REASON_CHARS = 15
 # REFERENCES, в неё никогда не пишут, и полная схема там была бы шумом.
 _STUB_MAX_COLUMNS = 2
 
+# Число колонок неизвестно: DDL не исполнился. НЕ ноль — иначе блок молча
+# получил бы освобождение по правилу заглушки. См. _column_count.
+_COLUMNS_UNKNOWN = -1
+
 
 def _schema_tables() -> list[str]:
     """Имена таблиц, ВЫВЕДЕННЫЕ из SCHEMA_SQL.
@@ -131,36 +139,135 @@ def _iter_ddl_blocks(text: str, table: str):
         yield start, text[start : i + 1]
 
 
+@lru_cache(maxsize=None)
+def _statement_lines(text: str) -> tuple[int, ...] | None:
+    """Строки (1-based) начал ВСЕХ инструкций файла, либо None если он не разбирается.
+
+    None — не «пусто», а «не знаю»: вызывающий обязан трактовать его как отказ
+    в освобождении. Файл, который не является валидным Python, не имеет права
+    молча выключать гейт.
+    """
+    try:
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError):
+        return None
+    return tuple(sorted({n.lineno for n in ast.walk(tree) if isinstance(n, ast.stmt)}))
+
+
+@lru_cache(maxsize=None)
+def _string_line_spans(text: str) -> tuple[tuple[int, int], ...]:
+    """Строчные диапазоны (1-based, включительно) ВСЕХ строковых литералов файла.
+
+    Нужны, чтобы отличить пустую строку в КОДЕ от пустой строки ВНУТРИ DDL.
+    Первая означает, что посреди выражения оказался чужой текст, и привязку
+    пометки рвёт; вторая — просто форматирование SQL, и рвать по ней значило
+    бы завести ложное падение на совершенно законной фикстуре.
+    """
+    try:
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError):
+        return ()
+    return tuple(
+        (n.lineno, n.end_lineno or n.lineno)
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Constant) and isinstance(n.value, str)
+    )
+
+
 def _is_marked_historical(text: str, offset: int) -> bool:
     """Есть ли у блока по смещению объявленная причина быть старой схемой.
 
-    Пометка ищется в НЕПРЕРЫВНОЙ ПРЕАМБУЛЕ блока: вверх от его строки, пока
-    идут комментарии, пустые строки и строка-открытие вызова (`conn.execute(`).
-    Первая же содержательная строка обрывает поиск.
+    ПРИВЯЗКА СТРУКТУРНАЯ, а не текстовая. Прежняя версия шла вверх от блока и
+    считала продолжением ЛЮБУЮ строку, оканчивающуюся на «(». Этого достаточно,
+    чтобы пометка перепрыгнула через несвязанную цепочку `wrap_a(`/`wrap_b(`/
+    `wrap_c(` и освободила ДАЛЬНИЙ, реально расходящийся блок: дрейф есть, гейт
+    молчит. Дефект найден состязательным ревью в аудите #122 — то есть гейт
+    против молчаливого расхождения расходился молча сам.
 
-    Окном в N строк это делать нельзя. Причина занимает две строки, а сам
-    CREATE TABLE обычно лежит внутри conn.execute(...) — то есть расстояние до
-    пометки зависит от форматирования, и любое фиксированное N будет либо
-    слепым, либо дырой, через которую пометка дотянется до чужого блока.
+    Теперь блок сначала сопоставляется с ИНСТРУКЦИЕЙ, внутри которой лежит
+    (ast: последнее начало инструкции на строке блока или выше), и пометка
+    ищется ровно в двух местах:
+
+      1. в собственных строках этой инструкции — от её начала до строки блока;
+      2. в непрерывном ряду комментариев и пустых строк НАД её началом.
+
+    Пустая строка КОДА между началом инструкции и блоком привязку рвёт: у
+    `conn.execute(` с DDL следующей строкой её не бывает, а вот вставленный
+    посреди выражения чужой код читается именно так — это и есть цепочка
+    обёрток из воспроизведения. Пустые строки ВНУТРИ строкового литерала не
+    в счёт: это форматирование самого SQL, и рвать по ним значило бы завести
+    ложное падение вместо закрытого молчания (см. _string_line_spans).
+
+    Фиксированного окна в N строк здесь нет намеренно: расстояние до пометки
+    зависит от форматирования вызова, и любое число было бы либо слепым, либо
+    дырой.
     """
     lines = text.split("\n")
-    line_no = text.count("\n", 0, offset)
-    i = line_no
-    while i >= 0:
-        stripped = lines[i].strip()
-        m = _HISTORICAL_MARKER.search(lines[i])
-        if m and len(m.group(1).strip()) >= _MIN_REASON_CHARS:
-            return True
-        if i == line_no or stripped == "" or stripped.startswith("#") or stripped.endswith("("):
-            i -= 1
-            continue
+    block_line = text.count("\n", 0, offset)  # 0-based
+
+    starts = _statement_lines(text)
+    if starts is None:
+        return False  # fail-closed: неразбираемый файл не освобождает ничего
+    idx = bisect.bisect_right(starts, block_line + 1) - 1
+    if idx < 0:
         return False
+    stmt_line = starts[idx] - 1  # 0-based начало инструкции с блоком
+
+    spans = _string_line_spans(text)
+    for i in range(stmt_line + 1, block_line):
+        if lines[i].strip():
+            continue
+        if any(lo <= i + 1 <= hi for lo, hi in spans):
+            continue  # пустая строка ВНУТРИ литерала — это форматирование SQL
+        return False  # пустая строка в КОДЕ посреди инструкции рвёт привязку
+
+    def _reason(line: str) -> bool:
+        m = _HISTORICAL_MARKER.search(line)
+        return bool(m and len(m.group(1).strip()) >= _MIN_REASON_CHARS)
+
+    if any(_reason(lines[i]) for i in range(stmt_line, block_line + 1)):
+        return True
+
+    for i in range(stmt_line - 1, -1, -1):
+        stripped = lines[i].strip()
+        if stripped and not stripped.startswith("#"):
+            return False  # чужая инструкция обрывает преамбулу
+        if _reason(lines[i]):
+            return True
     return False
 
 
+@lru_cache(maxsize=None)
 def _column_count(block: str) -> int:
-    body = block[block.index("(") + 1 : block.rindex(")")]
-    return len([c for c in re.split(r",(?![^()]*\))", body) if c.strip()])
+    """Число колонок ПО PRAGMA table_info, а не по запятым.
+
+    Разбиение по запятым не исключало SQL-комментарии «--», которыми канон
+    насыщен, и врало ровно там, где от него зависит освобождение: канонический
+    verification_runs давал 18 колонок против 13 настоящих, session_usage_metrics
+    — 10 против 9. Законная двухколоночная заглушка с поясняющим комментарием,
+    содержащим запятую, посчиталась бы четырёхколоночной и дала бы ЛОЖНОЕ
+    падение.
+
+    Источник истины — сам sqlite (тот же довод, по которому список таблиц
+    выводится из SCHEMA_SQL, а не хардкодится, — конвенция #214).
+
+    Неисполнимый DDL даёт _COLUMNS_UNKNOWN, а не ноль: правило заглушки его
+    тогда НЕ освобождает. Молчаливое освобождение при ошибке разбора — ровно
+    тот класс дефекта, против которого написан этот файл.
+    """
+    try:
+        conn = sqlite3.connect(":memory:")
+        try:
+            conn.execute(block)
+            row = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchone()
+            if row is None:
+                return _COLUMNS_UNKNOWN
+            cols = conn.execute(f'PRAGMA table_info("{row[0]}")').fetchall()
+            return len(cols) if cols else _COLUMNS_UNKNOWN
+        finally:
+            conn.close()
+    except (sqlite3.Error, sqlite3.Warning, ValueError):
+        return _COLUMNS_UNKNOWN
 
 
 def _test_files() -> list[str]:
@@ -184,8 +291,8 @@ def _drift(path: str, table: str) -> str | None:
         text = fh.read()
     canonical = _normalize(canonical_ddl(table).rstrip(";").rstrip())
     for offset, block in _iter_ddl_blocks(text, table):
-        if _column_count(block) <= _STUB_MAX_COLUMNS:
-            continue  # заглушка под внешний ключ
+        if 0 <= _column_count(block) <= _STUB_MAX_COLUMNS:
+            continue  # заглушка под внешний ключ (_COLUMNS_UNKNOWN сюда НЕ попадает)
         if _is_marked_historical(text, offset):
             continue  # объявленная старая схема — см. _HISTORICAL_MARKER
         if _normalize(block) != canonical:
@@ -360,7 +467,14 @@ class TestDeclaredExceptions:
                 text = fh.read()
             for m in _HISTORICAL_MARKER.finditer(text):
                 marked.append(f"{os.path.basename(path)}: {m.group(1)[:60]}")
-        assert len(marked) <= 4, (
+        # Порог поднят с 4 до 5 ОСОЗНАННО, в задаче
+        # ddl-parity-marker-leak-and-column-miscount: пятая пометка не новая
+        # индульгенция, а ЛЕГАЛИЗАЦИЯ уже существовавшего освобождения. В
+        # test_reasoning_steps.py стоял комментарий «Same reason as events
+        # above», который читался как объявленное исключение, но пометки не
+        # содержал; блок выживал случайно, по порогу заглушки. Число здесь —
+        # бюджет обхода гейта, и расти оно обязано с объяснением, как это.
+        assert len(marked) <= 5, (
             f"исторических пометок стало {len(marked)} — каждая обязана быть "
             f"осознанной, а не привычкой:\n" + "\n".join(marked)
         )
@@ -378,6 +492,204 @@ class TestDeclaredExceptions:
             "test_migrations.py больше не объявляет историческую схему — "
             "исключение из _HISTORICAL_SCHEMA_FILES надо снять"
         )
+
+
+# --- Регрессия аудита #122: пометка не дотягивается до чужого блока ----------
+
+
+class TestTheMarkerCannotReachAnotherBlock:
+    """Дефект, найденный состязательным ревью в аудите #122.
+
+    Обратный обход преамбулы считал продолжением любую строку, оканчивающуюся
+    на «(», и потому пометка перепрыгивала через несвязанный код к ДАЛЬНЕМУ,
+    реально расходящемуся блоку.
+
+    Тест `test_a_marker_does_not_leak_to_a_distant_block` выше давал ЛОЖНУЮ
+    УВЕРЕННОСТЬ, что дыра закрыта: между пометкой и вторым блоком он клал SQL
+    первого, а на такой строке обход честно обрывался. Цепочку
+    скобко-открывающих строк он не проверял никогда — при том что стиль этот в
+    репозитории обычен (`@pytest.mark.parametrize(`, вложенные конструкторы).
+
+    Поэтому расхождение подсаживается здесь в ХУДШЕЙ форме, а не в первой
+    пришедшей: вопрос не «ловит ли гейт мой пример», а «какой вход мой обход
+    ПРИМЕТ ЗА ПРОДОЛЖЕНИЕ».
+    """
+
+    _MARKER = "# ddl-parity: historical — вход миграционного прогона v31\n"
+
+    def _drifted_epics(self) -> str:
+        block = canonical_ddl("epics").rstrip(";").rstrip()
+        crippled = re.sub(r",\s*description TEXT", "", block, count=1)
+        assert crippled != block, "не удалось изготовить расхождение — тест бессмыслен"
+        return crippled
+
+    def _verdict(self, tmp_path, source: str):
+        f = tmp_path / "test_fake.py"
+        f.write_text(source, encoding="utf-8")
+        return _drift(str(f), "epics")
+
+    def test_a_chain_of_open_parens_does_not_carry_the_marker(self, tmp_path):
+        """ВОСПРОИЗВЕДЕНИЕ ИЗ АУДИТА. Три несвязанные обёртки подряд.
+
+        Файл намеренно НЕ является валидным Python — ровно так выглядел
+        пробник ревьюера. Освобождение здесь недопустимо по двум независимым
+        причинам: обёртки не относятся к блоку, и разбор файла невозможен.
+        """
+        src = self._MARKER + f'wrap_a(\nwrap_b(\nwrap_c(\n\nD = """{self._drifted_epics()};"""\n'
+        assert self._verdict(tmp_path, src) is not None
+
+    def test_the_same_chain_as_valid_python_also_does_not_carry_it(self, tmp_path):
+        """Та же цепочка, но синтаксически корректная и ЗАМКНУТАЯ.
+
+        Без этого теста починка опиралась бы только на отказ разбора, то есть
+        закрывала бы форму пробника, а не сам дефект: цепочку легко записать
+        так, что файл разбирается.
+        """
+        src = (
+            self._MARKER + "wrap_a(\n  wrap_b(\n    wrap_c(\n\n"
+            f'      """{self._drifted_epics()};"""\n    )))\n'
+        )
+        assert self._verdict(tmp_path, src) is not None
+
+    def test_a_single_wrapper_with_a_blank_line_does_not_carry_it(self, tmp_path):
+        """Одиночная обёртка — тот же дефект в минимальной форме.
+
+        Цепочки из трёх недостаточно: если чинить «длинные цепочки», дыра
+        останется на цепочке длиной один.
+        """
+        src = self._MARKER + f'conn.execute(\n\n    """{self._drifted_epics()};"""\n)\n'
+        assert self._verdict(tmp_path, src) is not None
+
+    def test_a_foreign_statement_between_marker_and_block_stops_it(self, tmp_path):
+        src = self._MARKER + f'x = 1\n\nD = """{self._drifted_epics()};"""\n'
+        assert self._verdict(tmp_path, src) is not None
+
+    def test_the_legitimate_shape_still_exempts_its_own_block(self, tmp_path):
+        """НЕГАТИВНЫЙ и обязательный: починка не имеет права запретить всё.
+
+        Гейт, который перестал освобождать законную пометку, вынудит писать
+        исключения списком файлов — то есть вернёт ровно ту грубость, ради
+        отказа от которой пометка и заведена.
+        """
+        src = self._MARKER + f'conn.execute(\n    """{self._drifted_epics()};"""\n)\n'
+        assert self._verdict(tmp_path, src) is None
+
+    def test_a_blank_line_inside_the_ddl_literal_is_not_a_break(self, tmp_path):
+        """Граница правила «пустая строка рвёт привязку», проверенная явно.
+
+        Правило существует ради цепочки обёрток, но пустые строки бывают и
+        внутри самого DDL — это форматирование SQL, а не чужой код. Считать их
+        разрывом значило бы завести ЛОЖНОЕ падение на законной фикстуре, то
+        есть заменить одну молчаливую ошибку другой, громкой и тоже неверной.
+        """
+        src = self._MARKER + f'conn.execute(\n    """\n\n{self._drifted_epics()};\n"""\n)\n'
+        assert self._verdict(tmp_path, src) is None
+
+    def test_an_unparseable_file_exempts_nothing(self, tmp_path):
+        """FAIL-CLOSED (ось «а»): файл не разбирается — освобождений нет.
+
+        Иначе достаточно сломать синтаксис, чтобы выключить гейт.
+        """
+        src = self._MARKER + f'D = """{self._drifted_epics()};"""\ndef (((\n'
+        assert _statement_lines(src) is None
+        assert self._verdict(tmp_path, src) is not None
+
+
+# --- Счётчик колонок: PRAGMA, а не регулярка ---------------------------------
+
+
+class TestColumnCountComesFromSqlite:
+    """Разбиение по запятым врало на SQL-комментариях, которыми канон насыщен.
+
+    От счётчика зависит освобождение по правилу заглушки под внешний ключ —
+    то есть врущий примитив даёт и ложное освобождение, и ложное падение.
+    """
+
+    @pytest.mark.parametrize(
+        "table,expected",
+        [("verification_runs", 13), ("session_usage_metrics", 9)],
+    )
+    def test_the_measured_miscount_is_pinned(self, table, expected):
+        """Замер из карточки закреплён числом: регулярка давала 18 и 10."""
+        block = canonical_ddl(table).rstrip(";").rstrip()
+        assert _column_count(block) == expected
+
+    def test_every_canonical_table_is_countable(self):
+        """Если канон какой-то таблицы перестанет исполняться, счётчик вернёт
+        _COLUMNS_UNKNOWN — и правило заглушки начнёт вести себя иначе. Такое
+        обязано быть громким."""
+        bad = [
+            t for t in _schema_tables() if _column_count(canonical_ddl(t).rstrip(";").rstrip()) < 1
+        ]
+        assert not bad, f"канон этих таблиц не исполняется в sqlite: {bad}"
+
+    def test_a_stub_with_a_comma_inside_a_comment_stays_exempt(self, tmp_path):
+        """ЛОЖНОЕ ПАДЕНИЕ, которое давала регулярка.
+
+        Двухколоночная заглушка законна. Регулярка считала запятую внутри
+        `--` комментария разделителем колонок и насчитывала четыре, лишая
+        заглушку освобождения.
+        """
+        # Имя таблицы подставляется НАМЕРЕННО: записанное литералом рядом с
+        # объявлением таблицы, оно сделало бы этот тест фикстурой-копией схемы,
+        # и гейт поймал бы собственный файл. Он это и сделал при первом
+        # прогоне — то есть заодно доказал, что ловит.
+        stub = (
+            f"CREATE TABLE IF NOT EXISTS {'epics'} (\n"
+            "    id INTEGER PRIMARY KEY,  -- цель REFERENCES, сюда не пишут\n"
+            "    slug TEXT  -- нужен, чтобы связать эпик, задачу и историю\n"
+            ")"
+        )
+        assert _column_count(stub) == 2, "заглушка обязана считаться двухколоночной"
+        f = tmp_path / "test_fake.py"
+        f.write_text(f'S = """{stub};"""\n', encoding="utf-8")
+        assert _drift(str(f), "epics") is None
+
+    def test_the_unparseable_blocks_in_the_suite_stay_a_named_list(self):
+        """ХРАПОВИК с поимённым списком, а не «сегодня и так работает».
+
+        Извлечение блока идёт по тексту файла, поэтому у фикстур, собранных
+        КОНКАТЕНАЦИЕЙ строковых литералов, в блок попадают кавычки и переносы:
+        такой DDL sqlite не исполняет, и счётчик честно отвечает «не знаю».
+
+        Сегодня таких блоков ровно два, и оба ПОМЕЧЕНЫ историческими — то есть
+        освобождены пометкой, а не счётчиком, и ничего не теряют. Опасен
+        ТРЕТИЙ: непомеченная двухколоночная заглушка, записанная тем же стилем,
+        потеряет освобождение и даст ложное падение. Список поимённый, чтобы
+        появление третьего было громким и потребовало решения, а не прошло
+        незамеченным под общим «блоков стало больше».
+        """
+        known = {
+            ("test_reasoning_steps.py", "events"),
+            ("test_v34_hashchain_backfill.py", "events"),
+        }
+        found = set()
+        for path in _test_files():
+            with open(path, encoding="utf-8") as fh:
+                text = fh.read()
+            for table in _schema_tables():
+                for offset, block in _iter_ddl_blocks(text, table):
+                    if _column_count(block) >= 0:
+                        continue
+                    found.add((os.path.basename(path), table))
+                    assert _is_marked_historical(text, offset), (
+                        f"{os.path.basename(path)}: блок {table} не разбирается sqlite И не "
+                        "помечен историческим — он потерял освобождение по правилу заглушки "
+                        "молча. Либо приведи фикстуру к canonical_ddl, либо объяви пометку."
+                    )
+        assert found == known, (
+            f"состав неразбираемых блоков изменился: появились {sorted(found - known)}, "
+            f"исчезли {sorted(known - found)}. Это осознанное решение, а не правка числа."
+        )
+
+    def test_unparseable_ddl_is_not_treated_as_a_stub(self, tmp_path):
+        """FAIL-CLOSED (ось «б»): неисполнимый DDL освобождения НЕ получает.
+
+        Ноль колонок и «не смог посчитать» — разные вещи. Смешать их значит
+        отдать освобождение любому синтаксически битому блоку.
+        """
+        assert _column_count("CREATE TABLE broken (id INTEGER,,,") == _COLUMNS_UNKNOWN
+        assert _COLUMNS_UNKNOWN < 0, "признак «не знаю» обязан не попадать в диапазон заглушки"
 
 
 # --- AC6: гейт не выродился в пустышку ---------------------------------------
