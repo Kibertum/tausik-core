@@ -116,7 +116,30 @@ class BackendQueriesMetricsMixin:
             "session_hours": _session_hours(session_stats),
             "stories": story_counts,
             "session_usage": self.session_usage_summary(),  # type: ignore[attr-defined]
+            "gate_activity": self.gate_activity_summary(),
         }
+
+    def gate_activity_summary(self) -> dict[str, Any]:
+        """Per-gate run/failure counts — how well the enforcement itself works.
+
+        Configured-but-never-run gates are listed with runs=0 rather than left
+        out, so "this gate has never once fired" is visible instead of being
+        rendered as silence (convention #226). Gate config is best-effort: if
+        it cannot be read we still report what the table holds, but the
+        never-fired list is then necessarily incomplete and says so by being
+        derived only from rows that exist.
+        """
+        from gate_run_record import gate_activity
+
+        known: list[str] = []
+        try:
+            from project_config import get_gates_for_trigger
+
+            for trigger in ("verify", "task-done"):
+                known.extend(g["name"] for g in get_gates_for_trigger(trigger))
+        except Exception:  # noqa: BLE001 — metrics are read-only; config trouble must not blank them
+            known = []
+        return gate_activity(self._conn, sorted(set(known)))  # type: ignore[attr-defined]
 
     def session_capacity_summary(self, capacity: int) -> dict[str, Any]:
         from backend_tier_metrics import session_capacity_summary as _s

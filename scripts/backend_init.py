@@ -27,6 +27,7 @@ from backend_schema import (
     SCHEMA_VERSION,
 )
 from backend_schema_adapts import ADAPTS_SQL
+from backend_schema_gate_runs import GATE_RUNS_SQL
 from backend_schema_snippets import SNIPPETS_SQL
 from backend_schema_specs import SPECS_SQL
 
@@ -153,6 +154,7 @@ def init_schema(conn: sqlite3.Connection) -> None:
     cur.executescript(SPECS_SQL)  # RENAR SPEC artifacts (v16r-spec-types)
     cur.executescript(ADAPTS_SQL)  # RENAR ADAPT artifacts (v16r-adapt)
     cur.executescript(SNIPPETS_SQL)  # snippet store (v15-snippet-table)
+    cur.executescript(GATE_RUNS_SQL)  # per-gate outcomes (l26-gate-results-persist)
     row = cur.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()
     if not row:
         cur.execute(
