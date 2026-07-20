@@ -2,164 +2,140 @@
 
 Lives in its own file so project_cli_extra.py stays under the 400-line
 filesize gate. The dispatch in project.py imports `cmd_verify` from here.
+
+cli-verify-bypasses-cache-guards: this module used to run its own gate cycle
+— `run_gates` + `record_run` called directly — and so carried none of
+`run_gates_with_cache`'s guards (`has_real_pass`, the `no-test-mapped` block,
+the refusal to cache an empty declared scope). A run in which every gate was
+SKIPPED was therefore written as a fully cacheable green, and `task done`
+would close on it. It is now a presentation layer over
+`GatesMixin.run_verify_for_task`: it decides nothing about what gets recorded.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from project_service import ProjectService
+
+def _emit_cache_hit(svc: Any, task_slug: str, hit: dict[str, Any]) -> None:
+    """Print the cache-hit line and log the telemetry event (best-effort)."""
+    print(
+        f"Verify cache HIT for '{task_slug}' "
+        f"(verify run #{hit['id']}, ran_at={hit['ran_at']}, "
+        f"scope={hit['scope']}, exit={hit['exit_code']}). "
+        "Skipping gate run."
+    )
+    try:
+        svc.be.event_add(
+            "task",
+            task_slug,
+            "verify_cache_hit",
+            f"verify_run_id={hit['id']} scope={hit['scope']}",
+        )
+    except Exception:  # noqa: BLE001 — best-effort: telemetry, non-fatal to the main flow
+        import logging
+
+        logging.getLogger("tausik.verify").warning(
+            "event_add failed for verify_cache_hit", exc_info=True
+        )
 
 
-def cmd_verify(svc: ProjectService, args: Any) -> None:
+def _emit_receipt(svc: Any, run_id: int | None) -> None:
+    """Report whether the run produced a signed receipt."""
+    from verify_receipt_emit import load_receipt
+
+    if run_id is None:
+        print("Receipt: not emitted — the run was not recorded (see .tausik/tausik.log).")
+        return
+    stored = load_receipt(svc.be._conn, run_id=run_id)
+    if stored is None:
+        print(
+            "Receipt: not emitted — no project key (`tausik key init` to enable signed receipts)."
+        )
+        return
+    sig = stored["envelope"].get("signature") or {}
+    print(f"Receipt: signed (run #{run_id}, key {sig.get('key_fingerprint', '?')}).")
+
+
+def cmd_verify(svc: Any, args: Any) -> None:
     """Scoped per-task verification, recorded in DB.
 
-    With --task: looks up the task's relevant_files and runs gates scoped
-    to them. Without --task: runs gates with no file scope (full suite for
-    pytest). Either way, records a verification_run row so future
-    `task done` calls can reuse the result via cache lookup.
+    With --task: gates are scoped to the task's relevant_files. Without:
+    file scope is empty (full suite for pytest) and nothing is cached.
+
+    All gate-running, cache and recording decisions belong to
+    `run_verify_for_task` → `run_gates_with_cache`. This function formats.
     """
-    import json as _json
-    import time as _time
+    from gate_runner import format_results
+    from project_service import ServiceError
+    from service_verification import RECORD_FAILED_STATUS, STATUS_UNDER_DECLARED
 
-    from gate_runner import format_results, run_gates
-    from service_verification import (
-        STATUS_UNDER_DECLARED,
-        compute_files_hash,
-        describe_declared_scope,
-        is_cache_allowed,
-        lookup_recent_for_task,
-        record_run,
-        resolve_gate_signature,
-        security_block_reason,
-    )
-
-    relevant_files: list[str] = []
     task_slug = getattr(args, "task", None)
-    task_created_at: str | None = None
-    if task_slug:
-        task = svc.be.task_get(task_slug)
-        if task is None:
-            print(f"Task '{task_slug}' not found.")
-            raise SystemExit(2)
-        rf_raw = task.get("relevant_files") or "[]"
-        try:
-            relevant_files = _json.loads(rf_raw) if rf_raw else []
-        except (TypeError, ValueError):
-            relevant_files = []
-        # v1.5: cross-check window starts at started_at (when work actually
-        # began), not created_at — backlog tasks created sessions earlier
-        # would otherwise sweep in every intervening commit and produce a
-        # permanent git-mismatch false positive.
-        task_created_at = task.get("started_at") or task.get("created_at")
-
-    # v1.4 Verify-First Contract: this CLI now runs the "verify" trigger
-    # gates (pytest, tsc, cargo, phpstan, ...) and records the result in the
-    # cache bucket keyed by trigger="verify". `task done` then satisfies its
-    # QG-2 requirement via cache lookup instead of re-running heavy gates
-    # synchronously — fixes "task_done hangs in VS Code Claude Extension".
     scope = getattr(args, "scope", "manual")
-    files_hash = compute_files_hash(relevant_files)
-    gate_sig = resolve_gate_signature("verify")
-    cache_command = f"trigger=verify|sig={gate_sig}|files={','.join(sorted(relevant_files))}"
 
-    # l26-verify-git-diff-wire: same tri-state description the task-done path
-    # uses, so a receipt minted by `verify` carries the same honesty about its
-    # own coverage as one minted by `task done`.
-    scope_desc = describe_declared_scope(relevant_files, task_created_at)
-    cache_consistent = scope_desc["status"] != STATUS_UNDER_DECLARED
-
-    blocked = security_block_reason(scope_desc)
-    if blocked:
-        print(blocked)
-        record_run(
-            svc.be._conn,
-            task_slug=task_slug or None,
-            scope=scope,
-            command=cache_command,
-            exit_code=1,
-            summary="scope-declaration=FAIL (undeclared security-sensitive files)",
-            files_hash=files_hash,
-            gate_results=[],
-            scope_description=scope_desc,
-        )
-        raise SystemExit(1)
-
-    if task_slug and is_cache_allowed(relevant_files) and cache_consistent:
-        hit = lookup_recent_for_task(
-            svc.be._conn,
+    try:
+        report = svc.run_verify_for_task(
             task_slug,
-            files_hash=files_hash,
-            command=cache_command,
+            scope=scope,
+            trigger="verify",
+            no_tests_expected=bool(getattr(args, "no_tests_expected", False)),
         )
-        if hit is not None:
-            print(
-                f"Verify cache HIT for '{task_slug}' "
-                f"(verify run #{hit['id']}, ran_at={hit['ran_at']}, "
-                f"scope={hit['scope']}, exit={hit['exit_code']}). "
-                "Skipping gate run."
-            )
-            try:
-                svc.be.event_add(
-                    "task",
-                    task_slug,
-                    "verify_cache_hit",
-                    f"verify_run_id={hit['id']} scope={hit['scope']}",
-                )
-            except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
-                # Telemetry is best-effort; never block the verify flow.
-                import logging
+    except ServiceError as exc:
+        print(str(exc))
+        raise SystemExit(2) from exc
 
-                logging.getLogger("tausik.verify").warning(
-                    "event_add failed for verify_cache_hit", exc_info=True
-                )
-            return
-
-    t0 = _time.monotonic()
-    passed, results = run_gates("verify", relevant_files)
-    duration_ms = int((_time.monotonic() - t0) * 1000)
+    hit = report.get("cache_hit")
+    if hit is not None:
+        _emit_cache_hit(svc, task_slug, hit)
+        return
 
     print(f"Verify (scope={scope}, task={task_slug or '-'}):")
-    print(format_results(results))
-    print(f"Duration: {duration_ms} ms")
+    print(format_results(report["results"]))
+    duration_ms = report.get("duration_ms")
+    if duration_ms is not None:
+        print(f"Duration: {duration_ms} ms")
 
-    summary = (
-        ", ".join(r["name"] + "=" + ("PASS" if r["passed"] else "FAIL") for r in results)
-        or "(no gates configured)"
-    )
-    run_id = record_run(
-        svc.be._conn,
-        task_slug=task_slug or None,
-        scope=scope,
-        command=cache_command,
-        exit_code=0 if passed else 1,
-        summary=summary,
-        files_hash=files_hash,
-        duration_ms=duration_ms,
-        gate_results=results,
-        scope_description=scope_desc,
-    )
-    if scope_desc["status"] == STATUS_UNDER_DECLARED:
+    if report.get("status") == "no-tests-declared":
+        # Do not let this read as an ordinary green. The run passed because the
+        # caller said no test was expected, not because one ran.
+        print(
+            "NOTE: no gate actually executed — you declared --no-tests-expected. "
+            "Recorded with no_tests_declared=1; this closure rests on a "
+            "declaration, not on a verification."
+        )
+
+    scope_desc = report.get("scope_description") or {}
+    if scope_desc.get("status") == STATUS_UNDER_DECLARED:
         print(
             f"NOTE: {scope_desc['undeclared_count']} file(s) changed since task "
             f"start but not declared in relevant_files. The receipt records this "
             f"— its coverage is narrower than the change."
         )
-    print(
-        f"Recorded verification_run (task_slug={task_slug or '-'}, exit={'0' if passed else '1'})."
-    )
-    if task_slug:
-        from verify_receipt_emit import load_receipt
 
-        stored = load_receipt(svc.be._conn, run_id=run_id)
-        if stored is not None:
-            sig = stored["envelope"].get("signature") or {}
-            print(f"Receipt: signed (run #{run_id}, key {sig.get('key_fingerprint', '?')}).")
-        else:
+    passed = report["passed"]
+    run_id = report.get("run_id")
+    if run_id is None:
+        # verify-record-failure-swallowed: this used to be able to print
+        # "Verify PASSED — NOT recorded", putting the word PASSED next to the
+        # admission that no evidence exists. A failed write now blocks, so
+        # `passed` is False here whenever the write was attempted and failed;
+        # the message names the loss instead of reporting a verdict.
+        if report.get("status") == RECORD_FAILED_STATUS:
             print(
-                "Receipt: not emitted — no project key "
-                "(`tausik key init` to enable signed receipts)."
+                "Verify NOT RECORDED — the gate results could not be written to "
+                "the database, so this run certifies nothing. It is reported as "
+                "FAILED for that reason, not because a gate failed. "
+                "See .tausik/tausik.log for the database error."
             )
+        else:
+            print(f"Verify {'PASSED' if passed else 'FAILED'} — NOT recorded.")
+    else:
+        print(
+            f"Recorded verification_run #{run_id} "
+            f"(task_slug={task_slug or '-'}, exit={'0' if passed else '1'})."
+        )
+    if task_slug:
+        _emit_receipt(svc, run_id)
     if not passed:
         raise SystemExit(1)
 

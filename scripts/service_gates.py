@@ -14,7 +14,6 @@ authoritative — existing callers can still do `from service_gates import …`)
 
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING, Any
 
 from gate_ac_check import (
@@ -39,11 +38,10 @@ if TYPE_CHECKING:
     from project_backend import SQLiteBackend
 
 
-def _block(report: dict[str, Any], gate: str, output: str, remediation: str, files=None):
-    """Record a blocking gate failure. Four call sites repeated this dict."""
-    report["passed"] = False
-    entry = {"gate": gate, "files": list(files or []), "output": output}
-    report["blocking_failures"].append({**entry, "remediation": remediation})
+# Moved to `gate_block` so the extracted `gate_verify_first` can use it without
+# importing this module back (circular). Re-exported: callers and tests that do
+# `from service_gates import _block` keep working.
+from gate_block import _block, extract_files_from_gate_output  # noqa: F401, E402
 
 
 class GatesMixin:
@@ -57,6 +55,7 @@ class GatesMixin:
         relevant_files: list[str] | None = None,
         scope: str = "standard",
         trigger: str = "verify",
+        no_tests_expected: bool = False,
     ) -> dict[str, Any]:
         """Public Verify-First entry point — wraps run_gates_with_cache.
 
@@ -93,6 +92,7 @@ class GatesMixin:
             # cross-check window is "since work started", not "since the
             # backlog entry was created" (permanent false mismatch otherwise).
             task_created_at = task.get("started_at") or task.get("created_at")
+        details: dict[str, Any] = {}
         passed, results, status = run_gates_with_cache(
             self.be._conn,
             task_slug or "",
@@ -101,6 +101,8 @@ class GatesMixin:
             append_notes_fn=(self.be.task_append_notes if task_slug else None),
             task_created_at=task_created_at,
             trigger=trigger,
+            details=details,
+            no_tests_expected=no_tests_expected,
         )
         return {
             "passed": passed,
@@ -109,6 +111,14 @@ class GatesMixin:
             "trigger": trigger,
             "task_slug": task_slug,
             "results": results,
+            "relevant_files": files,
+            # cli-verify-bypasses-cache-guards: presentation data the CLI used
+            # to obtain by running its own gate cycle. Surfaced here so there
+            # is one verify implementation and one write path, not two.
+            "run_id": details.get("run_id"),
+            "duration_ms": details.get("duration_ms"),
+            "cache_hit": details.get("cache_hit"),
+            "scope_description": details.get("scope_description"),
         }
 
     def _check_qg0_start(self, slug: str, task: dict[str, Any]) -> list[str]:
@@ -149,8 +159,8 @@ class GatesMixin:
 
     @staticmethod
     def _extract_files_from_gate_output(output: str) -> list[str]:
-        files = re.findall(r"^\s+([^\s:]+):\s+\d+\s+lines", output or "", re.MULTILINE)
-        return files
+        """Delegates to gate_block — one implementation, two call sites."""
+        return extract_files_from_gate_output(output)
 
     def _run_quality_gates_report(
         self,
@@ -243,137 +253,10 @@ class GatesMixin:
         slug: str,
         relevant_files: list[str] | None,
     ) -> None:
-        """Add a synthetic blocking_failure if no fresh `tausik verify` run
-        exists for this task and the project has verify-trigger gates.
+        """Verify-First Contract — delegates to gate_verify_first."""
+        from gate_verify_first import enforce_verify_first
 
-        Three opt-out paths:
-          - config.task_done.auto_verify = true  →  legacy inline behavior;
-            in that case we run the verify-trigger gates inline right here.
-          - No verify-trigger gates configured (small projects, no pytest
-            etc.) →  nothing to wait on, skip enforcement.
-          - Security-sensitive files →  cache always refused, but we still
-            require an explicit verify run; the agent must call `tausik
-            verify` immediately before `task done` to avoid stale greens.
-        """
-        from service_verification import (
-            DEFAULT_CACHE_TTL_S,
-            has_fresh_verify_run,
-            run_gates_with_cache,
-        )
-
-        try:
-            from project_config import get_gates_for_trigger, load_config
-
-            cfg = load_config()
-            verify_gates = get_gates_for_trigger("verify", cfg)
-        except Exception as e:  # noqa: BLE001 — turned into a blocking failure below
-            # FAIL CLOSED. Swallowing this into `verify_gates = []` reads as
-            # "no verify gates configured", so one malformed `gates` entry
-            # skipped the whole Verify-First Contract in silence.
-            _block(
-                report,
-                "config-load",
-                f"{type(e).__name__}: {e}",
-                "Verify-First cannot tell which gates to enforce: the config failed "
-                "to load. Fix `.tausik/config.json` (`tausik doctor` names the key), "
-                "then retry.",
-            )
-            return
-        if not verify_gates:
-            return  # no heavy gates configured, nothing to enforce
-
-        # `.get(key, {})` yields None when the key is present and explicitly
-        # null — the default never applies. Type-check the value, not `cfg`.
-        td_raw = cfg.get("task_done")
-        td_cfg = td_raw if isinstance(td_raw, dict) else {}
-        auto_verify = bool(td_cfg.get("auto_verify", False))
-        ttl = int(
-            cfg.get("verify_cache_ttl_seconds", DEFAULT_CACHE_TTL_S)
-            if isinstance(cfg, dict)
-            else DEFAULT_CACHE_TTL_S
-        )
-
-        fresh, hit = has_fresh_verify_run(self.be._conn, slug, relevant_files, max_age_s=ttl)
-        if fresh and hit is not None:
-            # v15-receipt-check-on-done: a cached green only counts if its
-            # signed receipt still verifies — tamper-evidence for QG-2.
-            from verify_receipt_check import check_receipt_for_hit
-
-            ok, note = check_receipt_for_hit(self.be._conn, hit["id"], slug)
-            self.be.task_append_notes(
-                slug,
-                f"Verify-First: cache hit (verify run #{hit['id']} at {hit['ran_at']}) | {note}",
-            )
-            if not ok:
-                _block(
-                    report,
-                    "receipt-signature",
-                    note,
-                    f"Re-run `tausik verify --task {slug}` to record a freshly "
-                    f"signed receipt; inspect `tausik receipt show --run "
-                    f"{hit['id']}` and `tausik key show` if it persists.",
-                )
-            return
-
-        if auto_verify:
-            # Legacy CI-style behavior: run the verify trigger inline.
-            self.be.task_append_notes(
-                slug,
-                "Verify-First: auto_verify=true — running verify gates inline "
-                "(legacy behavior; task_done will block until they finish).",
-            )
-            try:
-                passed, results, _status = run_gates_with_cache(
-                    self.be._conn,
-                    slug,
-                    relevant_files,
-                    scope=report.get("scope") or "standard",
-                    append_notes_fn=self.be.task_append_notes,
-                    trigger="verify",
-                )
-            except Exception as e:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
-                _block(
-                    report,
-                    "verify-first",
-                    f"auto_verify run crashed: {e}",
-                    "Fix the failing verify gate or set "
-                    "config.task_done.auto_verify=false and run `tausik verify` "
-                    "manually.",
-                )
-                return
-            if not passed:
-                report["passed"] = False
-                blocking = [
-                    r for r in results if not r.get("passed") and r.get("severity") == "block"
-                ]
-                report["blocking_failures"].extend(
-                    {
-                        "gate": r.get("name"),
-                        "files": self._extract_files_from_gate_output(r.get("output", "")),
-                        "output": r.get("output", ""),
-                        "remediation": (
-                            "Fix gate issues and rerun task_done. "
-                            "(auto_verify=true caused inline run.)"
-                        ),
-                    }
-                    for r in blocking
-                )
-            return
-
-        # Default v1.4 behavior: refuse to close.
-        gate_names = ", ".join(g.get("name", "?") for g in verify_gates)
-        _block(
-            report,
-            "verify-first",
-            f"QG-2: no fresh `tausik verify` run for this task "
-            f"(verify gates configured: {gate_names}). "
-            f"Run `tausik verify --task {slug}` first — it caches; "
-            f"then `task done` closes in milliseconds. To opt out "
-            f"set config.task_done.auto_verify=true (legacy).",
-            f".tausik/tausik verify --task {slug}  &&  "
-            f".tausik/tausik task done {slug} --ac-verified",
-            files=relevant_files,
-        )
+        enforce_verify_first(self, report, slug, relevant_files)
 
     def _run_quality_gates(
         self, slug: str, relevant_files: list[str] | None, progress_fn: Any | None = None

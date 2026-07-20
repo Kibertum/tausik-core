@@ -13,6 +13,7 @@ shim (`_verify_first_autouse_compat_shim` in conftest) leaves
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from unittest.mock import MagicMock, patch
@@ -33,16 +34,43 @@ def svc(tmp_path):
     return ProjectService(be)
 
 
+# verify-cache-empty-scope-hit: the tasks below declare `relevant_files`.
+# They used to leave the scope empty, which was a shortcut — an undeclared
+# scope now blocks on its own (the scoped gates never ran, so nothing was
+# verified), and these tests are about the *generic* Verify-First path, not
+# about that. The empty-scope contract has its own coverage in
+# test_verify_cache_empty_scope.py and TestUndeclaredScopeBlocks below.
+_SCOPE = ["scripts/x.py"]
+
+
 @pytest.fixture
 def task_ready(svc):
-    """Task with goal + AC + started, ready for `task done`."""
+    """Task with goal + AC + declared scope + started, ready for `task done`."""
     svc.epic_add("e", "E")
     svc.story_add("e", "s", "S")
     svc.task_add("s", "t", "Implement X", goal="Implement X", role="developer")
     svc.task_update(
         "t",
         acceptance_criteria="1. X works\n2. Returns error on invalid input",
+        relevant_files=json.dumps(_SCOPE),
     )
+    svc.task_start("t")
+    svc.task_log("t", "AC verified: 1. X works ✓ 2. Returns error on invalid input ✓")
+    return svc
+
+
+@pytest.fixture
+def task_ready_unscoped(svc):
+    """Same, but with NO relevant_files on the task row.
+
+    Only for the recovery path: the scope has to be missing from the DB for
+    the verify-row fallback to be the thing under test. The recovered list is
+    non-empty, so this does not collide with the empty-scope block.
+    """
+    svc.epic_add("e", "E")
+    svc.story_add("e", "s", "S")
+    svc.task_add("s", "t", "Implement X", goal="Implement X", role="developer")
+    svc.task_update("t", acceptance_criteria="1. X works\n2. Returns error on invalid input")
     svc.task_start("t")
     svc.task_log("t", "AC verified: 1. X works ✓ 2. Returns error on invalid input ✓")
     return svc
@@ -113,8 +141,10 @@ class TestVerifyFirstEnforcement:
 
     def test_fresh_verify_run_unblocks(self, task_ready, monkeypatch):
         sv = _stub_verify_only(monkeypatch, auto_verify=False)
-        cache_command = sv._build_cache_command("verify", [])
-        files_hash = sv.compute_files_hash([])
+        # Recorded against the task's declared scope. It used to be files=[],
+        # which no longer certifies anything (verify-cache-empty-scope-hit).
+        cache_command = sv._build_cache_command("verify", _SCOPE)
+        files_hash = sv.compute_files_hash(_SCOPE)
         sv.record_run(
             task_ready.be._conn,
             task_slug="t",
@@ -276,7 +306,8 @@ class TestRelevantFilesFallback:
     reports "no fresh run" despite a green run sitting right there.
     """
 
-    def test_fallback_recovers_files_from_recent_verify(self, task_ready, monkeypatch):
+    def test_fallback_recovers_files_from_recent_verify(self, task_ready_unscoped, monkeypatch):
+        task_ready = task_ready_unscoped
         sv = _stub_verify_only(monkeypatch, auto_verify=False)
         files = ["scripts/foo.py"]
         cmd = sv._build_cache_command("verify", files)
@@ -327,6 +358,68 @@ class TestRelevantFilesFallback:
             with pytest.raises(ServiceError, match="no fresh `tausik verify`"):
                 task_ready.task_done("t", ac_verified=True)
 
+    def test_auto_verify_failure_reports_gate_files(self, task_ready, monkeypatch):
+        """The auto_verify FAILURE branch builds its entries with the file
+        extractor. Extracting `_enforce_verify_first` into `gate_verify_first`
+        left a `self.` reference on exactly this path — every test passed
+        because none of them drove a failing inline run. Ruff caught it; this
+        test is why it will not come back silently.
+        """
+        _stub_verify_only(monkeypatch, auto_verify=True)
+        failing = MagicMock(
+            return_value=(
+                False,
+                [
+                    {
+                        "name": "filesize",
+                        "passed": False,
+                        "skipped": False,
+                        "severity": "block",
+                        "output": "  scripts/big.py:  420 lines\n",
+                    }
+                ],
+            )
+        )
+        with patch.dict("sys.modules", {"gate_runner": MagicMock(run_gates=failing)}):
+            report = task_ready._task_done_report(
+                "t", relevant_files=_SCOPE, ac_verified=True, no_knowledge=False, evidence=None
+            )
+        assert not report["ok"]
+        entry = next(f for f in report["blocking_failures"] if f.get("gate") == "filesize")
+        assert entry["files"] == ["scripts/big.py"]
+
+    def test_unscoped_task_blocks_even_under_auto_verify(self, task_ready_unscoped, monkeypatch):
+        """The empty-scope rule must not be escapable via config.
+
+        auto_verify=true runs the gates inline, and with no declared files
+        `gate_runner` skips the scoped ones — so a scope-independent gate going
+        green would close the task on a run that examined nothing. The check is
+        ahead of the auto_verify branch precisely so `.tausik/config.json`,
+        which travels with the repository, cannot host that bypass.
+        """
+        _stub_verify_only(monkeypatch, auto_verify=True)
+        inline = MagicMock(
+            return_value=(
+                True,
+                [{"name": "filesize", "passed": True, "skipped": False, "severity": "block"}],
+            )
+        )
+        with patch.dict("sys.modules", {"gate_runner": MagicMock(run_gates=inline)}):
+            with pytest.raises(ServiceError, match="declares no relevant_files"):
+                task_ready_unscoped.task_done("t", ac_verified=True)
+
+    def test_unscoped_task_blocks_with_its_own_reason(self, task_ready_unscoped, monkeypatch):
+        """verify-cache-empty-scope-hit: when nothing declares or recovers a
+        scope, the block must say so instead of sending the agent to re-run
+        `tausik verify` in a loop that can never succeed."""
+        _stub_verify_only(monkeypatch, auto_verify=False)
+        with patch.dict(
+            "sys.modules",
+            {"gate_runner": MagicMock(run_gates=MagicMock(return_value=(True, [])))},
+        ):
+            with pytest.raises(ServiceError, match="declares no relevant_files"):
+                task_ready_unscoped.task_done("t", ac_verified=True)
+
     def test_lookup_helper_unit(self, tmp_path):
         """Direct unit test of the helper independent of the service stack."""
         import sqlite3
@@ -335,13 +428,33 @@ class TestRelevantFilesFallback:
         db = sqlite3.connect(":memory:")
         db.row_factory = sqlite3.Row
         db.execute(
-            """CREATE TABLE verification_runs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                task_slug TEXT, scope TEXT, command TEXT,
-                exit_code INTEGER, summary TEXT, files_hash TEXT,
-                ran_at TEXT, duration_ms INTEGER,
-                declared_scope_status TEXT, undeclared_files TEXT
-            )"""
+            """CREATE TABLE IF NOT EXISTS verification_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_slug TEXT,
+    scope TEXT NOT NULL CHECK(scope IN
+        ('lightweight', 'standard', 'high', 'critical', 'manual')),
+    command TEXT NOT NULL,
+    exit_code INTEGER NOT NULL,
+    summary TEXT,
+    files_hash TEXT NOT NULL,
+    ran_at TEXT NOT NULL,
+    duration_ms INTEGER,
+    receipt_json TEXT,
+    -- l26-verify-git-diff-wire: how the declared scope related to git at run
+    -- time. 'complete' | 'under-declared' | 'unknown'; NULL on rows written
+    -- before v38 and read as 'unknown' (never as 'complete').
+    declared_scope_status TEXT,
+    -- JSON array of files git saw change but relevant_files omitted (capped).
+    undeclared_files TEXT,
+    -- verify-no-test-mapped-dead-end: 1 when the caller declared, for this run,
+    -- that its files map to no test on purpose (docs, config, migrations). Such
+    -- a run passes with NO gate executed, so it must stay countable:
+    --   SELECT * FROM verification_runs WHERE no_tests_declared = 1;
+    -- A dedicated column, not a `scope` value — `scope` is a CHECK-constrained
+    -- SENAR tier, and overloading it would have required rebuilding the table
+    -- to widen the constraint.
+    no_tests_declared INTEGER NOT NULL DEFAULT 0
+)"""
         )
         # No row → None.
         assert lookup_relevant_files_from_recent_verify(db, "t") is None
@@ -392,64 +505,33 @@ class TestRelevantFilesFallback:
         db = sqlite3.connect(":memory:")
         db.row_factory = sqlite3.Row
         db.execute(
-            """CREATE TABLE verification_runs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                task_slug TEXT, scope TEXT, command TEXT,
-                exit_code INTEGER, summary TEXT, files_hash TEXT,
-                ran_at TEXT, duration_ms INTEGER,
-                declared_scope_status TEXT, undeclared_files TEXT
-            )"""
-        )
-        now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-
-        # First insert: verify row with empty files (manual scope).
-        db.execute(
-            "INSERT INTO verification_runs (task_slug, scope, command, exit_code, "
-            "summary, files_hash, ran_at) VALUES (?,?,?,?,?,?,?)",
-            ("t", "manual", "trigger=verify|sig=x|files=", 0, "pytest=PASS", "h1", now),
-        )
-        # Then a NEWER task-done row with files in command (filesize PASS).
-        db.execute(
-            "INSERT INTO verification_runs (task_slug, scope, command, exit_code, "
-            "summary, files_hash, ran_at) VALUES (?,?,?,?,?,?,?)",
-            (
-                "t",
-                "standard",
-                "trigger=task-done|sig=y|files=tests/test_a.py,tests/test_b.py",
-                0,
-                "filesize=PASS",
-                "h2",
-                now,
-            ),
-        )
-        db.commit()
-
-        # Pre-fix bug: would return ['tests/test_a.py', 'tests/test_b.py']
-        # from the newer task-done row. Post-fix: ignores task-done, picks
-        # the verify row whose files= is empty → returns None.
-        assert lookup_relevant_files_from_recent_verify(db, "t") is None
-
-    def test_recovery_picks_older_verify_over_newer_task_done(self, tmp_path):
-        """When both fresh rows exist, the verify row wins regardless of id.
-
-        Variant of the above with non-empty verify files — confirms recovery
-        returns the verify row's files, not the task-done row's.
-        """
-        import sqlite3
-        from datetime import datetime, timezone
-
-        from verify_recent_lookup import lookup_relevant_files_from_recent_verify
-
-        db = sqlite3.connect(":memory:")
-        db.row_factory = sqlite3.Row
-        db.execute(
-            """CREATE TABLE verification_runs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                task_slug TEXT, scope TEXT, command TEXT,
-                exit_code INTEGER, summary TEXT, files_hash TEXT,
-                ran_at TEXT, duration_ms INTEGER,
-                declared_scope_status TEXT, undeclared_files TEXT
-            )"""
+            """CREATE TABLE IF NOT EXISTS verification_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_slug TEXT,
+    scope TEXT NOT NULL CHECK(scope IN
+        ('lightweight', 'standard', 'high', 'critical', 'manual')),
+    command TEXT NOT NULL,
+    exit_code INTEGER NOT NULL,
+    summary TEXT,
+    files_hash TEXT NOT NULL,
+    ran_at TEXT NOT NULL,
+    duration_ms INTEGER,
+    receipt_json TEXT,
+    -- l26-verify-git-diff-wire: how the declared scope related to git at run
+    -- time. 'complete' | 'under-declared' | 'unknown'; NULL on rows written
+    -- before v38 and read as 'unknown' (never as 'complete').
+    declared_scope_status TEXT,
+    -- JSON array of files git saw change but relevant_files omitted (capped).
+    undeclared_files TEXT,
+    -- verify-no-test-mapped-dead-end: 1 when the caller declared, for this run,
+    -- that its files map to no test on purpose (docs, config, migrations). Such
+    -- a run passes with NO gate executed, so it must stay countable:
+    --   SELECT * FROM verification_runs WHERE no_tests_declared = 1;
+    -- A dedicated column, not a `scope` value — `scope` is a CHECK-constrained
+    -- SENAR tier, and overloading it would have required rebuilding the table
+    -- to widen the constraint.
+    no_tests_declared INTEGER NOT NULL DEFAULT 0
+)"""
         )
         now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         db.execute(
@@ -472,6 +554,7 @@ class TestRelevantFilesFallback:
         )
         db.commit()
         assert lookup_relevant_files_from_recent_verify(db, "t") == ["src/foo.py"]
+        db.close()
 
 
 @pytest.mark.verify_first
@@ -490,24 +573,37 @@ class TestPipelineEnvelopeRegression:
         import sys as _sys
         import time as _time
 
-        # Real schema (matches backend_migrations.py v16).
         db = sqlite3.connect(str(tmp_path / "regress.db"))
         db.row_factory = sqlite3.Row
         db.executescript(
             """
-            CREATE TABLE IF NOT EXISTS verification_runs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                task_slug TEXT,
-                scope TEXT NOT NULL CHECK(scope IN
-                    ('lightweight', 'standard', 'high', 'critical', 'manual')),
-                command TEXT NOT NULL,
-                exit_code INTEGER NOT NULL,
-                summary TEXT,
-                files_hash TEXT NOT NULL,
-                ran_at TEXT NOT NULL,
-                duration_ms INTEGER,
-                declared_scope_status TEXT, undeclared_files TEXT
-            );
+CREATE TABLE IF NOT EXISTS verification_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_slug TEXT,
+    scope TEXT NOT NULL CHECK(scope IN
+        ('lightweight', 'standard', 'high', 'critical', 'manual')),
+    command TEXT NOT NULL,
+    exit_code INTEGER NOT NULL,
+    summary TEXT,
+    files_hash TEXT NOT NULL,
+    ran_at TEXT NOT NULL,
+    duration_ms INTEGER,
+    receipt_json TEXT,
+    -- l26-verify-git-diff-wire: how the declared scope related to git at run
+    -- time. 'complete' | 'under-declared' | 'unknown'; NULL on rows written
+    -- before v38 and read as 'unknown' (never as 'complete').
+    declared_scope_status TEXT,
+    -- JSON array of files git saw change but relevant_files omitted (capped).
+    undeclared_files TEXT,
+    -- verify-no-test-mapped-dead-end: 1 when the caller declared, for this run,
+    -- that its files map to no test on purpose (docs, config, migrations). Such
+    -- a run passes with NO gate executed, so it must stay countable:
+    --   SELECT * FROM verification_runs WHERE no_tests_declared = 1;
+    -- A dedicated column, not a `scope` value — `scope` is a CHECK-constrained
+    -- SENAR tier, and overloading it would have required rebuilding the table
+    -- to widen the constraint.
+    no_tests_declared INTEGER NOT NULL DEFAULT 0
+);
             """
         )
 

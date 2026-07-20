@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from unittest.mock import MagicMock, patch
@@ -22,15 +23,23 @@ def svc(tmp_path):
     return ProjectService(be)
 
 
+# verify-cache-empty-scope-hit: the task declares a scope. Leaving it empty
+# used to be harmless here; it now blocks on its own (an undeclared scope
+# cannot be certified by any verify run), which would mask what these tests
+# are actually about.
+_SCOPE = ["scripts/x.py"]
+
+
 @pytest.fixture
 def active_task(svc):
-    """Service with an active task ready for task_done tests."""
+    """Service with an active task (with declared scope) for task_done tests."""
     svc.epic_add("e1", "Epic 1")
     svc.story_add("e1", "s1", "Story 1")
     svc.task_add("s1", "t1", "Task 1", goal="Implement feature", role="developer")
     svc.task_update(
         "t1",
         acceptance_criteria="1. Feature works correctly\n2. Returns error on invalid input",
+        relevant_files=json.dumps(_SCOPE),
     )
     svc.task_start("t1")
     svc.task_log(
@@ -97,10 +106,10 @@ class TestRunQualityGates:
     def test_task_done_with_fresh_verify_run_closes(self, active_task, monkeypatch):
         """v1.4: a green `tausik verify` cache row satisfies task_done QG-2."""
         sv = self._stub_verify_gate(monkeypatch)
-        # Pre-record a fresh green verify run for this task with files=[]
-        # (active_task fixture has no relevant_files; files_hash matches empty list).
-        cache_command = sv._build_cache_command("verify", [])
-        files_hash = sv.compute_files_hash([])
+        # Pre-record a fresh green verify run against the task's declared
+        # scope. It used to be files=[], which no longer certifies anything.
+        cache_command = sv._build_cache_command("verify", _SCOPE)
+        files_hash = sv.compute_files_hash(_SCOPE)
         sv.record_run(
             active_task.be._conn,
             task_slug="t1",

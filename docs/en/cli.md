@@ -107,12 +107,31 @@ task unclaim <slug>             # Release a task
 
 ```bash
 verify [--task SLUG] [--scope {lightweight,standard,high,critical,manual}]
+       [--no-tests-expected]
                                 # Run scoped verify-trigger gates ad-hoc; records into verify cache.
                                 # With --task: gates scoped to the task's relevant_files.
                                 # Without --task: gates with empty file scope (full suite for pytest).
                                 # Cache hit (same files_hash, < 10 min) skips the run.
                                 # Security-sensitive files (auth/payment/hooks) bypass the cache.
 ```
+
+**`--no-tests-expected`.** A run in which no gate actually executed (everything
+`[SKIP]`) blocks: it proves nothing, and a green recorded against it would stay
+valid for the whole TTL across arbitrary tree changes. For documentation,
+config and migrations that is a dead end — no test maps to those files and none
+ever will. The flag declares this EXPLICITLY: the run is recorded green under
+`no_tests_declared = 1`.
+
+The flag buys visibility, not permission. The closure still happens with no gate
+executed; what changes is that such closures are now countable with one query
+instead of being indistinguishable from verified ones:
+
+```sql
+SELECT task_slug, ran_at FROM verification_runs WHERE no_tests_declared = 1;
+```
+
+It applies only to SKIPPED gates. A failing gate stays red and `verify` still
+exits 1.
 
 **Verify-first workflow:**
 

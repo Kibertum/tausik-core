@@ -28,9 +28,11 @@ if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
 
 import crypto_keys  # noqa: E402
+from backend_schema_gate_runs import GATE_RUNS_SQL  # noqa: E402
 import crypto_sign  # noqa: E402
 import gate_runner  # noqa: E402
 import service_verification as sv  # noqa: E402
+import verify_cached_run as vcr  # noqa: E402
 import verify_scope_honesty as vsh  # noqa: E402
 
 # Mirrors the verification_runs baseline in backend_schema.py. Hand-rolled here
@@ -49,9 +51,21 @@ CREATE TABLE IF NOT EXISTS verification_runs (
     ran_at TEXT NOT NULL,
     duration_ms INTEGER,
     receipt_json TEXT,
+    -- l26-verify-git-diff-wire: how the declared scope related to git at run
+    -- time. 'complete' | 'under-declared' | 'unknown'; NULL on rows written
+    -- before v38 and read as 'unknown' (never as 'complete').
     declared_scope_status TEXT,
-    undeclared_files TEXT
-);
+    -- JSON array of files git saw change but relevant_files omitted (capped).
+    undeclared_files TEXT,
+    -- verify-no-test-mapped-dead-end: 1 when the caller declared, for this run,
+    -- that its files map to no test on purpose (docs, config, migrations). Such
+    -- a run passes with NO gate executed, so it must stay countable:
+    --   SELECT * FROM verification_runs WHERE no_tests_declared = 1;
+    -- A dedicated column, not a `scope` value — `scope` is a CHECK-constrained
+    -- SENAR tier, and overloading it would have required rebuilding the table
+    -- to widen the constraint.
+    no_tests_declared INTEGER NOT NULL DEFAULT 0
+);;
 """
 
 _GATES = [{"name": "pytest", "passed": True, "severity": "block"}]
@@ -96,6 +110,7 @@ def conn():
     c = sqlite3.connect(":memory:")
     c.row_factory = sqlite3.Row
     c.executescript(_DDL)
+    c.executescript(GATE_RUNS_SQL)  # canonical DDL — record_run also writes gate_runs
     yield c
     c.close()
 
@@ -335,7 +350,10 @@ class TestRunGatesWithCacheIntegration:
     def test_honest_under_declaration_is_not_blocked(self, conn, monkeypatch):
         """AC #3 — reproduces both session #112 closures end-to-end."""
         monkeypatch.setattr(
-            sv,
+            # Патчить надо модуль, который ЗОВЁТ функцию, а не фасад, который
+            # её только реэкспортирует: `from X import Y` связывает имя при
+            # импорте. До извлечения verify_cached_run обе точки совпадали.
+            vcr,
             "describe_declared_scope",
             lambda files, created_at, **kw: {
                 "status": vsh.STATUS_UNDER_DECLARED,
@@ -367,7 +385,10 @@ class TestRunGatesWithCacheIntegration:
     def test_undeclared_security_file_blocks_before_gates_run(self, conn, monkeypatch):
         """AC #4 — the half of the v1.3.4 hole that refusing the cache left open."""
         monkeypatch.setattr(
-            sv,
+            # Патчить надо модуль, который ЗОВЁТ функцию, а не фасад, который
+            # её только реэкспортирует: `from X import Y` связывает имя при
+            # импорте. До извлечения verify_cached_run обе точки совпадали.
+            vcr,
             "describe_declared_scope",
             lambda files, created_at, **kw: {
                 "status": vsh.STATUS_UNDER_DECLARED,
@@ -399,7 +420,10 @@ class TestRunGatesWithCacheIntegration:
     def test_unknown_scope_still_records_a_row(self, conn, monkeypatch):
         """AC #5 — degradation is explicit, not a missing row or a silent 'complete'."""
         monkeypatch.setattr(
-            sv,
+            # Патчить надо модуль, который ЗОВЁТ функцию, а не фасад, который
+            # её только реэкспортирует: `from X import Y` связывает имя при
+            # импорте. До извлечения verify_cached_run обе точки совпадали.
+            vcr,
             "describe_declared_scope",
             lambda files, created_at, **kw: {
                 "status": vsh.STATUS_UNKNOWN,

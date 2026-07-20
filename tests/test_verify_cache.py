@@ -1,15 +1,21 @@
 """Tests for verify_cache.has_fresh_verify_run — Verify-First Contract.
 
-Pins the strict-vs-relaxed lookup symmetry between `has_fresh_verify_run`
-(used by `task_done`) and `run_gates_with_cache.run_gates_with_cache`
-(used by inline gates). Both must accept the same Sharp edge #2 case where
-`tausik verify` was invoked without `--task` (manual scope, files=[])
-and a follow-up `task_done` arrives with explicit `relevant_files`.
+The lookup is strict-only: a green counts for a `task_done` iff it was
+recorded for the same slug, the same file set (by hash), and the same gate
+signature, within the TTL.
 
-Earlier asymmetry: `run_gates_with_cache` accepted manual→explicit, but
-`has_fresh_verify_run` returned strict-miss → `task_done` failed with
-cache_status='git-mismatch' even though heavy gates had just passed.
-That's gotcha #111 — surfaced in three sessions before the structural fix.
+Historical note — this file used to pin the OPPOSITE contract. A relaxed
+fallback accepted any fresh green whose recorded command named no files
+("manual scope", Sharp edge #2 / gotcha #111) as a certificate for an
+arbitrary explicit file set, so that `tausik verify` without `--task` could
+satisfy a follow-up `task_done`. verify-cache-empty-scope-hit removed it: with
+no declared files `gate_runner` SKIPS the scoped gates, so such a run proved
+nothing about the files it was certifying, and `compute_files_hash([])` is a
+stable empty-marker that no edit moves — the green stayed valid for the whole
+TTL across arbitrary tree changes. The convenience was real; what it was
+built on was not.
+
+The empty-scope contract itself is pinned in test_verify_cache_empty_scope.py.
 """
 
 from __future__ import annotations
@@ -37,18 +43,33 @@ def conn(tmp_path):
     c.row_factory = sqlite3.Row
     c.execute(
         """
-        CREATE TABLE verification_runs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            task_slug TEXT,
-            scope TEXT NOT NULL,
-            command TEXT NOT NULL,
-            exit_code INTEGER NOT NULL,
-            summary TEXT,
-            files_hash TEXT NOT NULL,
-            ran_at TEXT NOT NULL,
-            duration_ms INTEGER,
-            declared_scope_status TEXT, undeclared_files TEXT
-        )
+        CREATE TABLE IF NOT EXISTS verification_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_slug TEXT,
+    scope TEXT NOT NULL CHECK(scope IN
+        ('lightweight', 'standard', 'high', 'critical', 'manual')),
+    command TEXT NOT NULL,
+    exit_code INTEGER NOT NULL,
+    summary TEXT,
+    files_hash TEXT NOT NULL,
+    ran_at TEXT NOT NULL,
+    duration_ms INTEGER,
+    receipt_json TEXT,
+    -- l26-verify-git-diff-wire: how the declared scope related to git at run
+    -- time. 'complete' | 'under-declared' | 'unknown'; NULL on rows written
+    -- before v38 and read as 'unknown' (never as 'complete').
+    declared_scope_status TEXT,
+    -- JSON array of files git saw change but relevant_files omitted (capped).
+    undeclared_files TEXT,
+    -- verify-no-test-mapped-dead-end: 1 when the caller declared, for this run,
+    -- that its files map to no test on purpose (docs, config, migrations). Such
+    -- a run passes with NO gate executed, so it must stay countable:
+    --   SELECT * FROM verification_runs WHERE no_tests_declared = 1;
+    -- A dedicated column, not a `scope` value — `scope` is a CHECK-constrained
+    -- SENAR tier, and overloading it would have required rebuilding the table
+    -- to widen the constraint.
+    no_tests_declared INTEGER NOT NULL DEFAULT 0
+)
         """
     )
     return c
@@ -84,24 +105,34 @@ def _record_explicit_verify(conn: sqlite3.Connection, slug: str, files: list[str
     )
 
 
-class TestRelaxedAcceptManualToExplicit:
-    """AC #1: manual-scope verify (files=[]) satisfies explicit task_done."""
+class TestManualScopeCertifiesNothing:
+    """Inverted by verify-cache-empty-scope-hit — see module docstring.
 
-    def test_relaxed_hit_when_strict_misses(self, conn):
+    A manual-scope verify run (files=[]) ran with the scoped gates skipped,
+    so it cannot stand in for a file set it never looked at.
+    """
+
+    def test_manual_row_does_not_satisfy_explicit_task_done(self, conn):
         _record_manual_verify(conn, "t-relaxed")
-        # Strict lookup misses (files_hash differs), relaxed accepts.
         fresh, hit = has_fresh_verify_run(conn, "t-relaxed", ["scripts/foo.py"])
-        assert fresh is True
-        assert hit is not None
-        assert hit["scope"] == "manual"
+        assert fresh is False
+        assert hit is None
 
-    def test_relaxed_hit_with_multiple_explicit_files(self, conn):
+    def test_manual_row_does_not_satisfy_multiple_explicit_files(self, conn):
         _record_manual_verify(conn, "t-multi")
         fresh, hit = has_fresh_verify_run(
             conn, "t-multi", ["scripts/a.py", "scripts/b.py", "scripts/c.py"]
         )
-        assert fresh is True
-        assert hit is not None
+        assert fresh is False
+        assert hit is None
+
+    def test_manual_row_does_not_satisfy_empty_task_done(self, conn):
+        """Nor does it match itself: empty scope is refused on the read side
+        too, independently of the `noncacheable|` stamp the writer applies."""
+        _record_manual_verify(conn, "t-empty")
+        fresh, hit = has_fresh_verify_run(conn, "t-empty", [])
+        assert fresh is False
+        assert hit is None
 
 
 class TestStrictPriorityOverRelaxed:
@@ -150,23 +181,27 @@ class TestReverseDirectionRejected:
         assert hit is None
 
 
-class TestBucketSeparationInterleaved:
-    """Regression: a task-done row recorded BETWEEN the agent's `tausik verify`
-    and the follow-up `task done` must NOT shadow the verify row by being
-    more recent. The relaxed lookup filters by `command LIKE 'trigger=verify|%'`
-    in SQL, so the verify row is selected even when interleaved task-done
-    rows have higher ids."""
+class TestBucketSeparation:
+    """A task-done row must never satisfy the Verify-First lookup.
 
-    def test_verify_row_still_found_with_interleaved_task_done_rows(self, conn):
+    Bucket separation used to need an explicit SQL filter because the relaxed
+    lookup ignored `command`. With the strict-only lookup it falls out of the
+    exact `command` match — the trigger is part of the key — but the property
+    is what matters, so it stays asserted directly.
+    """
+
+    def test_task_done_row_does_not_satisfy_verify_first(self, conn, tmp_path):
+        f = tmp_path / "scripts" / "foo.py"
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text("# foo", encoding="utf-8")
+        os.chdir(tmp_path)
         files = ["scripts/foo.py"]
-        # 1. Agent runs `tausik verify --task slug` (manual scope, files=[]).
-        manual_id = _record_manual_verify(conn, "t-interleaved")
-        # 2. Bootstrap / pre-commit / earlier task_done attempt records a
-        #    task-done bucket row with the explicit files. exit_code=0,
-        #    higher id, would shadow verify in a naive ORDER BY id DESC LIMIT 1.
+        # Bootstrap / pre-commit / an earlier task_done attempt records a
+        # task-done bucket row for exactly these files: exit_code=0, same
+        # files_hash. Only the trigger differs.
         record_run(
             conn,
-            task_slug="t-interleaved",
+            task_slug="t-bucket",
             scope="lightweight",
             command=_build_cache_command("task-done", files),
             exit_code=0,
@@ -174,27 +209,35 @@ class TestBucketSeparationInterleaved:
             files_hash=compute_files_hash(files),
             duration_ms=0,
         )
-        record_run(
-            conn,
-            task_slug="t-interleaved",
-            scope="lightweight",
-            command=_build_cache_command("task-done", files),
-            exit_code=0,
-            summary="filesize=PASS",
-            files_hash=compute_files_hash(files),
-            duration_ms=0,
-        )
-        # 3. `task done <slug> --relevant-files scripts/foo.py` — strict
-        #    lookup misses (verify hash is hash([]), task_done hash differs),
-        #    relaxed must skip the task-done rows and find the verify row.
+        fresh, hit = has_fresh_verify_run(conn, "t-bucket", files)
+        assert fresh is False, "task-done bucket row must not close QG-2"
+        assert hit is None
+
+    def test_verify_row_found_despite_newer_task_done_rows(self, conn, tmp_path):
+        """The verify row still wins when task-done rows are interleaved after
+        it — a newer row in the other bucket must not shadow it."""
+        f = tmp_path / "scripts" / "foo.py"
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text("# foo", encoding="utf-8")
+        os.chdir(tmp_path)
+        files = ["scripts/foo.py"]
+        verify_id = _record_explicit_verify(conn, "t-interleaved", files)
+        for _ in range(2):
+            record_run(
+                conn,
+                task_slug="t-interleaved",
+                scope="lightweight",
+                command=_build_cache_command("task-done", files),
+                exit_code=0,
+                summary="filesize=PASS",
+                files_hash=compute_files_hash(files),
+                duration_ms=0,
+            )
         fresh, hit = has_fresh_verify_run(conn, "t-interleaved", files)
         assert fresh is True
         assert hit is not None
-        assert hit["id"] == manual_id, (
-            "relaxed lookup must filter by trigger=verify| in SQL — "
-            "interleaved task-done rows must not shadow the manual verify"
-        )
-        assert hit["scope"] == "manual"
+        assert hit["id"] == verify_id
+        assert hit["scope"] == "standard"
 
 
 class TestSecurityShortCircuit:

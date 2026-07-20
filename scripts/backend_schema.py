@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 38
+SCHEMA_VERSION = 40
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -208,7 +208,15 @@ CREATE TABLE IF NOT EXISTS verification_runs (
     -- before v38 and read as 'unknown' (never as 'complete').
     declared_scope_status TEXT,
     -- JSON array of files git saw change but relevant_files omitted (capped).
-    undeclared_files TEXT
+    undeclared_files TEXT,
+    -- verify-no-test-mapped-dead-end: 1 when the caller declared, for this run,
+    -- that its files map to no test on purpose (docs, config, migrations). Such
+    -- a run passes with NO gate executed, so it must stay countable:
+    --   SELECT * FROM verification_runs WHERE no_tests_declared = 1;
+    -- A dedicated column, not a `scope` value — `scope` is a CHECK-constrained
+    -- SENAR tier, and overloading it would have required rebuilding the table
+    -- to widen the constraint.
+    no_tests_declared INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS session_usage_metrics (

@@ -122,7 +122,13 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                     f"[gates] {ev.get('index')}/{ev.get('total')} {ev.get('name')} ...\n"
                 )
             elif kind == "gate_done":
-                status = "SKIP" if ev.get("skipped") else ("PASS" if ev.get("passed") else "FAIL")
+                # This spelling was already correct — and that is exactly why it
+                # is routed through the shared one now. Five copies existed and
+                # had drifted in BOTH directions; keeping the right ones private
+                # is what let the wrong ones survive unnoticed.
+                from gate_runner import gate_verdict
+
+                status = gate_verdict(ev)
                 _sys.stderr.write(
                     f"[gates] {ev.get('index')}/{ev.get('total')} "
                     f"{ev.get('name')} {status} "

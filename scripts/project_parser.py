@@ -7,6 +7,7 @@ import argparse
 from project_parser_errors import SelfCorrectingParser
 from project_parser_hierarchy import build_hierarchy_subparsers
 from project_parser_task import add_task
+from project_parser_verify import add_verify_parsers
 from project_types import (
     VALID_EDGE_RELATIONS,
     VALID_MEMORY_TYPES,
@@ -244,38 +245,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     key_sub.add_parser("show", help="Print public key + fingerprint (never the seed)")
 
-    vp = sub.add_parser("verify", help="Run scoped quality gates")
-    vp.add_argument("--task")
-    _scopes = ["lightweight", "standard", "high", "critical", "manual"]
-    vp.add_argument("--scope", choices=_scopes, default="manual")
-
-    # --- receipt (v15-receipt-emit-on-verify) ---
-    rcpt_p = sub.add_parser("receipt", help="Signed verify receipts (ed25519)")
-    rcpt_sub = rcpt_p.add_subparsers(dest="receipt_cmd")
-    rs = rcpt_sub.add_parser(
-        "show",
-        help="Print + re-verify the latest signed receipt",
-        epilog="Example: tausik receipt show --task my-task",
-    )
-    rs.add_argument("--task", help="Latest receipt for this task slug")
-    rs.add_argument("--run", type=int, help="Receipt of a specific verification_run id")
-    rs.add_argument("--json", action="store_true", help="Print the raw signed envelope")
-    re_ = rcpt_sub.add_parser(
-        "export",
-        help="Export a portable, self-verifiable receipt artifact",
-        epilog="Example: tausik receipt export --task my-task",
-    )
-    re_.add_argument("--task", help="Latest receipt for this task slug")
-    re_.add_argument("--run", type=int, help="Receipt of a specific verification_run id")
-    re_.add_argument("--out", help="Output path (default .tausik/receipts/<task>-<sha8>.json)")
-    re_.add_argument("--stdout", action="store_true", help="Print artifact instead of writing")
-    rv = rcpt_sub.add_parser(
-        "verify",
-        help="Verify an exported receipt file offline (no DB/keystore)",
-        epilog="Example: tausik receipt verify .tausik/receipts/my-task-abc12345.json",
-    )
-    rv.add_argument("file", help="Path to a tausik-receipt-export/v1 JSON file")
-    rv.add_argument("--pub", help="Override key: 'ed25519:<64 hex>' from `tausik key show`")
+    # verify + receipt живут в project_parser_verify (filesize gate).
+    add_verify_parsers(sub)
 
     # --- serve (v15-nosdk-verify-endpoint) ---
     srv = sub.add_parser(

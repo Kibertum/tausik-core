@@ -19,6 +19,7 @@ if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
 
 import crypto_keys  # noqa: E402
+from backend_schema_gate_runs import GATE_RUNS_SQL  # noqa: E402
 import crypto_sign  # noqa: E402
 import service_verification as sv  # noqa: E402
 import verify_receipt_emit as vre  # noqa: E402
@@ -36,8 +37,21 @@ CREATE TABLE IF NOT EXISTS verification_runs (
     ran_at TEXT NOT NULL,
     duration_ms INTEGER,
     receipt_json TEXT,
-    declared_scope_status TEXT, undeclared_files TEXT
-);
+    -- l26-verify-git-diff-wire: how the declared scope related to git at run
+    -- time. 'complete' | 'under-declared' | 'unknown'; NULL on rows written
+    -- before v38 and read as 'unknown' (never as 'complete').
+    declared_scope_status TEXT,
+    -- JSON array of files git saw change but relevant_files omitted (capped).
+    undeclared_files TEXT,
+    -- verify-no-test-mapped-dead-end: 1 when the caller declared, for this run,
+    -- that its files map to no test on purpose (docs, config, migrations). Such
+    -- a run passes with NO gate executed, so it must stay countable:
+    --   SELECT * FROM verification_runs WHERE no_tests_declared = 1;
+    -- A dedicated column, not a `scope` value — `scope` is a CHECK-constrained
+    -- SENAR tier, and overloading it would have required rebuilding the table
+    -- to widen the constraint.
+    no_tests_declared INTEGER NOT NULL DEFAULT 0
+);;
 """
 
 _GATES = [
@@ -51,6 +65,7 @@ def conn():
     c = sqlite3.connect(":memory:")
     c.row_factory = sqlite3.Row
     c.executescript(_DDL)
+    c.executescript(GATE_RUNS_SQL)  # canonical DDL — record_run also writes gate_runs
     yield c
     c.close()
 

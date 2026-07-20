@@ -20,11 +20,7 @@ from typing import Any
 from security_pattern import is_security_sensitive
 from verify_constants import DEFAULT_CACHE_TTL_S
 from verify_files_hash import compute_files_hash
-from verify_recent_lookup import (
-    _extract_files_from_cache_command,
-    lookup_any_fresh_run_for_task,
-    lookup_recent_for_task,
-)
+from verify_recent_lookup import lookup_recent_for_task
 
 
 def is_cache_allowed(file_paths: list[str]) -> bool:
@@ -88,8 +84,28 @@ def has_fresh_verify_run(
 
     Security-sensitive file sets always return False — never trust a cached
     green for auth/payment paths even if it would otherwise match.
+
+    verify-cache-empty-scope-hit: the lookup is strict-only. It used to fall
+    back to a relaxed branch that accepted any fresh green row whose recorded
+    command named NO files ("manual scope", Sharp edge #2 / gotcha #111) as a
+    certificate for an arbitrary explicit file set. That premise was wrong:
+    when `relevant_files` is empty, `gate_runner` SKIPS the scoped gates ("No
+    relevant_files passed; gate skipped"), so such a run proves nothing about
+    any file. Worse, `compute_files_hash([])` is a stable empty-marker that no
+    edit ever moves, so the row stayed valid for the whole TTL across
+    arbitrary tree changes — the exact stale-green class this cache exists to
+    prevent. An undeclared scope is "unknown", not "empty" (#226), and a check
+    that could not compute its own coverage must not certify (#221).
     """
     files = relevant_files or []
+    if not files:
+        # Defence in depth, independent of the write side. `run_gates_with_cache`
+        # now stamps empty-scope rows `noncacheable|` so this strict lookup can
+        # no longer match them by command — but rows written before that change
+        # (and any future writer that forgets the prefix) would still carry a
+        # clean command plus the empty-marker hash, and would strict-match here.
+        # An unknown scope must never certify, whichever side is asked.
+        return False, None
     if not is_cache_allowed(files):
         return False, None
     files_hash = compute_files_hash(files)
@@ -101,31 +117,6 @@ def has_fresh_verify_run(
         command=cache_command,
         max_age_s=max_age_s,
     )
-    if hit is not None:
-        return True, hit
-    # v14b-verify-first-relaxed-symmetry: mirror the one-direction relaxed
-    # fallback from `run_gates_with_cache`. Sharp edge #2 (gotcha #111):
-    # verify ran with `files=[]` (manual scope, no CLI args) and `task_done`
-    # arrives with explicit `relevant_files`. Strict miss is acceptable in
-    # that direction only — accept the broad-pass row when its recorded
-    # command had no files. The reverse direction (verify recorded with
-    # specific files → task_done with a different file set) MUST stay strict
-    # so mtime / gate-signature invalidation keeps working. Security-
-    # sensitive paths are short-circuited by the `is_cache_allowed` check
-    # above, so they never reach the relaxed branch.
-    # Cache-bucket separation: only consider rows from the verify trigger.
-    # task-done rows live in a separate bucket and must not satisfy the
-    # verify-first lookup — contract pinned by
-    # test_task_done_bucket_does_not_satisfy_verify_first. The filter must
-    # be in SQL (not a post-hoc rejection) so an interleaved task-done row
-    # between the agent's `tausik verify` and the follow-up `task done`
-    # cannot shadow the verify row by being more recent.
-    relaxed = lookup_any_fresh_run_for_task(
-        conn, slug, max_age_s=max_age_s, command_prefix="trigger=verify|"
-    )
-    if relaxed is None:
+    if hit is None:
         return False, None
-    relaxed_files = _extract_files_from_cache_command(relaxed.get("command", "") or "")
-    if relaxed_files:
-        return False, None
-    return True, relaxed
+    return True, hit

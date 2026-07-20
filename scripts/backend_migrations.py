@@ -17,6 +17,9 @@ from backend_migrations_v35 import MIGRATION_V35
 from backend_migrations_v36 import MIGRATION_V36
 from backend_migrations_v37 import MIGRATION_V37
 from backend_migrations_v38 import MIGRATION_V38
+from backend_migrations_parity import check_schema_migration_parity
+from backend_migrations_v39 import MIGRATION_V39
+from backend_migrations_v40 import MIGRATION_V40
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -333,34 +336,15 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     37: MIGRATION_V37,
     # v38: declared-scope honesty on verification runs (l26-verify-git-diff-wire)
     38: MIGRATION_V38,
+    # v39: per-gate run records (l26-gate-results-persist)
+    39: MIGRATION_V39,
+    # v40: declared "no test expected" on verify runs (verify-no-test-mapped-dead-end)
+    40: MIGRATION_V40,
 }
 
 
 # Merged: legacy + current
 MIGRATIONS: dict[int, list[str]] = {**LEGACY_MIGRATIONS, **_CURRENT_MIGRATIONS}
-
-
-def check_schema_migration_parity(schema_version: int, migrations: dict[int, list[str]]) -> None:
-    """Raise when SCHEMA_VERSION and the highest migration have drifted apart.
-
-    The two live in different files and are bumped by hand, so drift is one
-    copy-paste slip away — and it is silent in *both* directions. A
-    SCHEMA_VERSION ahead of the migrations leaves every database permanently
-    "stale but unmigratable" (``run_migrations`` has nothing to apply, yet the
-    recorded version never reaches the code's). One behind means a migration
-    that was written never runs at all.
-
-    Checked at import so the mistake surfaces on the next command rather than on
-    someone's database. Deliberately not ``assert`` — that vanishes under
-    ``python -O``, which is precisely when you least want the guard gone.
-    """
-    highest = max(migrations)
-    if schema_version != highest:
-        raise RuntimeError(
-            f"schema/migration drift: SCHEMA_VERSION={schema_version} "
-            f"(backend_schema.py) but the highest migration is v{highest} "
-            f"(backend_migrations.py). Bump both together."
-        )
 
 
 check_schema_migration_parity(SCHEMA_VERSION, MIGRATIONS)

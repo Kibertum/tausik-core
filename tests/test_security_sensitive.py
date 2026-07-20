@@ -262,18 +262,33 @@ class TestVerifyFirstRegression:
         c.row_factory = sqlite3.Row
         c.execute(
             """
-            CREATE TABLE verification_runs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                task_slug TEXT,
-                scope TEXT NOT NULL,
-                command TEXT NOT NULL,
-                exit_code INTEGER NOT NULL,
-                summary TEXT,
-                files_hash TEXT NOT NULL,
-                ran_at TEXT NOT NULL,
-                duration_ms INTEGER,
-                declared_scope_status TEXT, undeclared_files TEXT
-            )
+            CREATE TABLE IF NOT EXISTS verification_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_slug TEXT,
+    scope TEXT NOT NULL CHECK(scope IN
+        ('lightweight', 'standard', 'high', 'critical', 'manual')),
+    command TEXT NOT NULL,
+    exit_code INTEGER NOT NULL,
+    summary TEXT,
+    files_hash TEXT NOT NULL,
+    ran_at TEXT NOT NULL,
+    duration_ms INTEGER,
+    receipt_json TEXT,
+    -- l26-verify-git-diff-wire: how the declared scope related to git at run
+    -- time. 'complete' | 'under-declared' | 'unknown'; NULL on rows written
+    -- before v38 and read as 'unknown' (never as 'complete').
+    declared_scope_status TEXT,
+    -- JSON array of files git saw change but relevant_files omitted (capped).
+    undeclared_files TEXT,
+    -- verify-no-test-mapped-dead-end: 1 when the caller declared, for this run,
+    -- that its files map to no test on purpose (docs, config, migrations). Such
+    -- a run passes with NO gate executed, so it must stay countable:
+    --   SELECT * FROM verification_runs WHERE no_tests_declared = 1;
+    -- A dedicated column, not a `scope` value — `scope` is a CHECK-constrained
+    -- SENAR tier, and overloading it would have required rebuilding the table
+    -- to widen the constraint.
+    no_tests_declared INTEGER NOT NULL DEFAULT 0
+)
             """
         )
         return c

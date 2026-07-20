@@ -157,6 +157,10 @@ def run_gates(
 
         if not gate_applies_to(gate, files or []):
             skipped = skipped_result(gate, files or [])
+            # Third result-shaping branch: it needs duration_ms too, or a
+            # stack-mismatch skip persists as NULL while every other outcome
+            # carries a real value.
+            skipped["duration_ms"] = int((time.monotonic() - start_ms) * 1000)
             results.append(skipped)
             if progress_callback:
                 progress_callback(
@@ -203,6 +207,7 @@ def run_gates(
                     "passed": True,
                     "skipped": True,
                     "output": skip_reason,
+                    "duration_ms": int((time.monotonic() - start_ms) * 1000),
                 }
             )
             if progress_callback:
@@ -221,11 +226,16 @@ def run_gates(
                 )
             continue
 
+        # duration_ms and skipped used to reach the progress callback only, so
+        # any caller that did not pass one lost them — including the code that
+        # now persists gate outcomes (l26-gate-results-persist).
         result = {
             "name": name,
             "severity": severity,
             "passed": passed,
             "output": output,
+            "skipped": False,
+            "duration_ms": int((time.monotonic() - start_ms) * 1000),
         }
         results.append(result)
         if progress_callback:
@@ -249,18 +259,46 @@ def run_gates(
     return not has_block_failure, results
 
 
+def gate_verdict(result: dict) -> str:
+    """Name one gate's outcome: ``PASS`` / ``FAIL`` / ``SKIP``.
+
+    verify-summary-reports-skipped-as-pass. This lived in five places, and
+    they had already drifted in both directions: three spelled it
+    ``"PASS" if r["passed"] else "FAIL"`` — which reports a *skipped* gate as
+    a success, because `run_gates` marks a skipped gate ``passed=True`` — and
+    two got it right. The lying version reached the `summary` column of
+    `verification_runs`, so a run whose `gate_runs` rows honestly recorded
+    ``skipped=1`` was described, on the same row, as "hadolint=PASS,
+    pytest=PASS". The machine guards were never fooled; the human reading the
+    line was, and that is what kept an open hole alive for an extra session.
+
+    ``skipped`` is checked first and wins even against ``passed=False``. That
+    combination is not produced by `run_gates` at any of its three skip sites,
+    but the reading must still be unambiguous: a gate that did not execute
+    cannot have failed, so calling it FAIL would be inventing a result.
+    """
+    if result.get("skipped"):
+        return "SKIP"
+    return "PASS" if result.get("passed") else "FAIL"
+
+
+def summarize_results(results: list[dict]) -> str:
+    """One-line ``name=VERDICT`` summary — the `verification_runs.summary` text.
+
+    Order follows the input rather than sorting: the sequence gates ran in is
+    itself information, and reordering it would make two runs of the same set
+    look different for no reason.
+    """
+    return ", ".join(f"{r['name']}={gate_verdict(r)}" for r in results) or "ok"
+
+
 def format_results(results: list[dict]) -> str:
     """Format gate results for display."""
     if not results:
         return "No gates configured for this trigger."
     lines = []
     for r in results:
-        if r.get("skipped"):
-            icon = "SKIP"
-        elif r["passed"]:
-            icon = "PASS"
-        else:
-            icon = "FAIL"
+        icon = gate_verdict(r)
         sev = f" ({r['severity']})" if not r["passed"] else ""
         lines.append(f"  [{icon}] {r['name']}{sev}")
         if not r["passed"] and r["output"]:

@@ -55,9 +55,15 @@ def cmd_receipt(svc, args) -> None:
         receipt = envelope.get("receipt") or {}
         sig = envelope.get("signature") or {}
         gates = receipt.get("gates") or []
-        gate_line = ", ".join(
-            f"{g.get('name', '?')}={'PASS' if g.get('passed') else 'FAIL'}" for g in gates
-        )
+        # A receipt only ever carries gates that RAN (`verify_receipt_emit`
+        # filters skipped ones out), so this line cannot mislabel a skip today.
+        # It is routed through the shared verdict anyway: correctness that
+        # depends on an invariant enforced in a different module is correctness
+        # waiting to expire. verify-summary-reports-skipped-as-pass found this
+        # as the sixth private spelling of the same three words.
+        from gate_runner import gate_verdict
+
+        gate_line = ", ".join(f"{g.get('name', '?')}={gate_verdict(g)}" for g in gates)
         print(
             f"Receipt (run #{stored['run_id']}, {receipt.get('schema', '?')}):\n"
             f"  task:        {receipt.get('task_slug', '?')}\n"

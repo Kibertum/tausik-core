@@ -111,12 +111,30 @@ task unclaim <slug>            # Освободить задачу
 
 ```bash
 verify [--task SLUG] [--scope {lightweight,standard,high,critical,manual}]
+       [--no-tests-expected]
                                 # Запустить scoped verify-trigger gates ad-hoc; пишет в verify cache.
                                 # С --task: гейты scoped по relevant_files задачи.
                                 # Без --task: гейты с пустым file scope (full suite для pytest).
                                 # Cache hit (тот же files_hash, < 10 мин) пропускает запуск.
                                 # Security-sensitive файлы (auth/payment/hooks) обходят cache.
 ```
+
+**`--no-tests-expected`.** Прогон, в котором ни один гейт не выполнился (все
+`[SKIP]`), блокируется: он ничего не доказывает, а записанный зелёный по нему
+жил бы весь TTL при любых правках дерева. Для документации, конфигов и миграций
+это тупик — тестов там нет и не будет. Флаг объявляет это ЯВНО: прогон
+записывается зелёным с `no_tests_declared = 1`.
+
+Флаг покупает видимость, а не разрешение. Закрытие всё равно происходит без
+единого выполненного гейта — разница в том, что теперь такие закрытия можно
+пересчитать одним запросом, а не отличать их от проверенных нельзя вовсе:
+
+```sql
+SELECT task_slug, ran_at FROM verification_runs WHERE no_tests_declared = 1;
+```
+
+Флаг касается только ПРОПУЩЕННЫХ гейтов. Упавший гейт остаётся красным, и
+`verify` по-прежнему выходит с кодом 1.
 
 **Workflow с verify-first:**
 

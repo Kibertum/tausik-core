@@ -69,69 +69,14 @@ def lookup_recent_for_task(
     return run
 
 
-def lookup_any_fresh_run_for_task(
-    conn: sqlite3.Connection,
-    task_slug: str,
-    *,
-    max_age_s: int = _DEFAULT_VERIFY_CACHE_TTL_S,
-    command_prefix: str | None = None,
-) -> dict[str, Any] | None:
-    """Latest fresh green row for `task_slug` regardless of files_hash/command.
-
-    The strict cache lookup (`lookup_recent_for_task`) requires an exact match
-    on `(slug, files_hash, command)` — which misses Sharp edge #2: verify run
-    recorded with files=[] (manual scope, no CLI args), task_done arriving with
-    explicit relevant_files. This relaxed variant returns *any* fresh exit-zero
-    row for the slug; callers MUST gate on `is_security_sensitive(files)` so
-    auth/payment paths never accept a session-level pass without an exact
-    file-hash match.
-
-    `command_prefix` (optional, e.g. ``"trigger=verify|"``): when supplied,
-    restricts the lookup to rows whose recorded `command` starts with that
-    prefix. Used by `has_fresh_verify_run` to enforce cache-bucket separation
-    — a task-done bucket row interleaved between the agent's `tausik verify`
-    and the follow-up `task done` must not shadow the verify row.
-    """
-    if not task_slug:
-        return None
-    if command_prefix is None:
-        row = conn.execute(
-            """
-            SELECT id, task_slug, scope, command, exit_code, summary,
-                   files_hash, ran_at, duration_ms
-            FROM verification_runs
-            WHERE task_slug = ?
-              AND exit_code = 0
-            ORDER BY id DESC
-            LIMIT 1
-            """,
-            (task_slug,),
-        ).fetchone()
-    else:
-        row = conn.execute(
-            """
-            SELECT id, task_slug, scope, command, exit_code, summary,
-                   files_hash, ran_at, duration_ms
-            FROM verification_runs
-            WHERE task_slug = ?
-              AND exit_code = 0
-              AND command LIKE ? || '%'
-            ORDER BY id DESC
-            LIMIT 1
-            """,
-            (task_slug, command_prefix),
-        ).fetchone()
-    if row is None:
-        return None
-    run = dict(row) if not isinstance(row, dict) else row
-    try:
-        ran_at = datetime.fromisoformat(run["ran_at"].replace("Z", "+00:00"))
-    except (TypeError, ValueError):
-        return None
-    age = (datetime.now(timezone.utc) - ran_at).total_seconds()
-    if age > max_age_s:
-        return None
-    return run
+# verify-cache-empty-scope-hit removed `lookup_any_fresh_run_for_task`.
+# It returned the latest fresh green row for a slug regardless of
+# files_hash/command, to serve the relaxed "manual-scope verify certifies an
+# explicit file set" fallback in `verify_cache` and `service_verification`.
+# Both callers are gone: with no declared files the scoped gates are skipped,
+# so such a run never had standing to certify anything. Nothing else read it,
+# and a lookup that deliberately ignores the file hash is not worth keeping
+# around for a future caller to rediscover.
 
 
 def lookup_relevant_files_from_recent_verify(
