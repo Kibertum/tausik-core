@@ -29,6 +29,9 @@ import fnmatch
 import json
 from pathlib import Path
 
+# Module import (not from-import) keeps the lookup monkeypatchable in tests.
+import audit_tracked_files
+
 SCAN_GLOBS: tuple[str, ...] = ("scripts/**/*.py",)
 
 # Globs (relative, forward-slashed) excluded from the SOURCE side
@@ -117,11 +120,13 @@ def _toplevel_defs(path: Path) -> list[tuple[str, int]]:
     return out
 
 
-def _collect_references(repo_root: Path) -> str:
+def _collect_references(repo_root: Path, tracked: frozenset[str] | None = None) -> str:
     chunks: list[str] = []
     seen: set[Path] = set()
     for fname in ROOT_REF_FILES:
         p = repo_root / fname
+        if not audit_tracked_files.is_tracked(fname, tracked):
+            continue
         if p.is_file() and p not in seen:
             seen.add(p)
             try:
@@ -135,6 +140,8 @@ def _collect_references(repo_root: Path) -> str:
         for pattern in REFERENCE_GLOBS:
             for p in sub.rglob(pattern):
                 if p in seen:
+                    continue
+                if not audit_tracked_files.is_tracked(p.relative_to(repo_root).as_posix(), tracked):
                     continue
                 seen.add(p)
                 try:
@@ -150,10 +157,14 @@ def collect_unused(
     source_excludes: tuple[str, ...] = SOURCE_EXCLUDES,
     exempt_modules: frozenset[str] = EXEMPT_MODULES,
 ) -> list[dict[str, object]]:
+    tracked = audit_tracked_files.tracked_files(repo_root)
+
     candidates: list[tuple[str, str, int]] = []  # (rel_path, name, lineno)
     for glob in SCAN_GLOBS:
         for p in repo_root.glob(glob):
             rel = p.relative_to(repo_root).as_posix()
+            if not audit_tracked_files.is_tracked(rel, tracked):
+                continue
             if _is_excluded(rel, source_excludes):
                 continue
             if _module_name(rel) in exempt_modules:
@@ -169,7 +180,7 @@ def collect_unused(
     if not candidates:
         return []
 
-    haystack = _collect_references(repo_root)
+    haystack = _collect_references(repo_root, tracked)
     unused: list[dict[str, object]] = []
     for rel, name, lineno in candidates:
         # A reference is any occurrence of the bare name as a word in any

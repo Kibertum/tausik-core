@@ -23,6 +23,11 @@ import fnmatch
 import json
 from pathlib import Path
 
+# Imported as a module (not `from ... import tracked_files`) so tests can
+# monkeypatch the lookup — a from-import would bind the original function
+# and the patch would silently measure nothing.
+import audit_tracked_files
+
 # Files that are roots / always considered referenced even when nothing
 # links to them (entry points, READMEs, generated artifacts, archives).
 ROOT_DOCS: tuple[str, ...] = (
@@ -38,6 +43,10 @@ ROOT_DOCS: tuple[str, ...] = (
 DEFAULT_EXCLUDES: tuple[str, ...] = (
     "docs/_generated/*",
     "docs/_generated/**/*",
+    # All three research homes, not just the localized pair: research dumps
+    # grow by design and reference nothing (convention #176).
+    "docs/research/*",
+    "docs/research/**/*",
     "docs/en/research/*",
     "docs/ru/research/*",
     "docs/en/release-notes/*",
@@ -83,20 +92,26 @@ def _mirror_partner(rel: str) -> str | None:
     return None
 
 
-def _doc_files(repo_root: Path, excludes: tuple[str, ...]) -> list[str]:
+def _doc_files(
+    repo_root: Path,
+    excludes: tuple[str, ...],
+    tracked: frozenset[str] | None,
+) -> list[str]:
     docs_dir = repo_root / "docs"
     if not docs_dir.is_dir():
         return []
     out: list[str] = []
     for p in docs_dir.rglob("*.md"):
         rel = p.relative_to(repo_root).as_posix()
+        if not audit_tracked_files.is_tracked(rel, tracked):
+            continue
         if _is_excluded(rel, excludes):
             continue
         out.append(rel)
     return sorted(out)
 
 
-def _gather_inbound_text(repo_root: Path) -> str:
+def _gather_inbound_text(repo_root: Path, tracked: frozenset[str] | None) -> str:
     """Concatenate file contents that may reference docs/ paths.
 
     Cheaper to do one big grep-like substring search than per-pair regex.
@@ -107,6 +122,8 @@ def _gather_inbound_text(repo_root: Path) -> str:
         if d == ".":
             for fname in ROOT_FILES:
                 p = repo_root / fname
+                if not audit_tracked_files.is_tracked(fname, tracked):
+                    continue
                 if p.is_file() and p not in seen:
                     seen.add(p)
                     try:
@@ -120,6 +137,8 @@ def _gather_inbound_text(repo_root: Path) -> str:
         for pattern in INBOUND_GLOBS:
             for p in sub.rglob(pattern):
                 if p in seen:
+                    continue
+                if not audit_tracked_files.is_tracked(p.relative_to(repo_root).as_posix(), tracked):
                     continue
                 seen.add(p)
                 try:
@@ -140,11 +159,12 @@ def collect_stale(
     repo_root: Path,
     excludes: tuple[str, ...] = DEFAULT_EXCLUDES,
 ) -> list[str]:
-    docs = _doc_files(repo_root, excludes)
+    tracked = audit_tracked_files.tracked_files(repo_root)
+    docs = _doc_files(repo_root, excludes, tracked)
     if not docs:
         return []
 
-    haystack = _gather_inbound_text(repo_root)
+    haystack = _gather_inbound_text(repo_root, tracked)
     referenced: set[str] = set(ROOT_DOCS)
     for rel in docs:
         if rel in referenced:
@@ -178,6 +198,10 @@ def render_markdown(stale: list[str], excludes: tuple[str, ...]) -> str:
     )
     lines.append("- Mirror partners (EN <-> RU) are reciprocally referenced.")
     lines.append("- Research and release-notes archives are excluded by glob.")
+    lines.append(
+        "- Only git-tracked files are scanned; gitignored paths are skipped "
+        "(a warning is printed if git cannot be consulted)."
+    )
     lines.append("")
     lines.append("## Excluded glob patterns\n")
     for pat in excludes:

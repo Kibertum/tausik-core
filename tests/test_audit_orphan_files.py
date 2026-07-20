@@ -100,7 +100,7 @@ class TestCli:
             [str(py), str(REPO / "scripts" / "audit_orphan_files.py"), "--check"],
             cwd=str(REPO),
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         )
         # Either clean (exit 0) or surfaces real candidates (exit 1) — never crash

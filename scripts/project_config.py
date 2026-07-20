@@ -26,6 +26,7 @@ from gate_command_policy import (  # noqa: E402,F401
     VALID_GATE_SEVERITIES,
     VALID_GATE_TRIGGERS,
     _validate_custom_gate,
+    validate_default_gate_command,
 )
 
 # --- Agent rule pack size (bootstrap templates: CLAUDE.md / AGENTS.md / .cursorrules) ---
@@ -304,7 +305,12 @@ def load_gates(cfg: dict | None = None) -> dict[str, dict]:
             # binary and have the runner execute it. Validate every command an
             # override supplies, built-in or not; on refusal keep the default.
             if "command" in override:
-                error = _validate_custom_gate(name, override)
+                # Two independent checks: allow-list ("is this binary
+                # tolerable at all?"), then identity ("is it still this
+                # gate's tool?"). Rationale in gate_command_policy.
+                error = _validate_custom_gate(name, override) or validate_default_gate_command(
+                    name, override.get("command"), defaults.get("command")
+                )
                 if error:
                     logger.warning("Ignoring command override: %s", error)
                     override = {k: v for k, v in override.items() if k != "command"}

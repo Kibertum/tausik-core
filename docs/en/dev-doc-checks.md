@@ -56,6 +56,14 @@ These are intentionally **review-only** in v1 — none of them deletes
 or rewrites anything. Hook them into CI later once their false-positive
 profile is well understood.
 
+The first three scan **git-tracked files only** (`scripts/audit_tracked_files.py`
+asks `git ls-files`). A gitignored file references nothing by definition, so
+reporting one is noise that can never be actioned — and internal research
+under `docs/research/_internal/` must not have its filenames printed into
+shared reports at all. If git cannot be consulted (not a repository, git
+missing, empty listing), the audits print a warning to `stderr` and fall
+back to the filesystem walk rather than failing.
+
 ## Negative behaviour
 
 - **No `pyproject.toml` ancestor** → the hook prints a SKIP message

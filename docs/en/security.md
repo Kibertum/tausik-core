@@ -143,3 +143,11 @@ Logs must contain: timestamp, actor, action, resource.
 - `memory_pretool_block.py` blocks Write/Edit to `~/.claude/**/memory/` (auto-memory leak prevention)
 - `brain_scrubbing.py` strips private URLs and project names before brain writes
 - Slug validation in role/stack scaffold blocks path traversal
+- A default gate's command cannot be pointed at a different tool: `.tausik/config.json` travels with the repository, so an override of `gates.<name>.command` must keep invoking the default's tool. Arguments, paths and runner wrappers stay free (`vendor/bin/phpstan analyse --level=8` is accepted, and so is `eslint {files}` against a default of `npx eslint {files}` — wrappers are seen through); the tool does not (`python -c pass` in place of `ruff` is refused and the default command is kept)
+
+### Limits of these guarantees
+
+Supervision is machine-checked where a machine can check it. What remains is written down here honestly rather than left implied.
+
+- **Inert arguments to the same tool are NOT detected.** The check compares the tool being invoked, not the meaning of the invocation, so `ruff --version` or `pytest --collect-only` in an override will pass: the tool is the right one, the gate is nominally enabled, and it is green forever. There is no machine-checkable definition of "this command does real work", and a rule requiring the command to start with the default prefix would break both the vendored-path case and the legitimate dropping of an `npx` wrapper. Read gate command overrides in a foreign repository with your own eyes — a gate that goes green suspiciously fast deserves a look at its command.
+- **Built-in gates** (`filesize`, `tdd_order`, `renar_drift_*`) have no command at all; an attempt to add one is refused.
