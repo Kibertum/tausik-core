@@ -5,5 +5,34 @@
     { "file": "Package.swift", "type": "exact" },
     { "file": "*.xcodeproj", "type": "dir-marker" }
   ],
-  "extensions": [".swift"]
+  "extensions": [".swift"],
+  "gates": {
+    "swift-build": {
+      "enabled": false,
+      "severity": "block",
+      "trigger": ["verify", "commit"],
+      "command": "swift build 2>&1 | tail -30",
+      "description": "Compile the SwiftPM package — the compiler is the first static check",
+      "stacks": ["swift"],
+      "timeout": 300
+    },
+    "swiftlint": {
+      "enabled": false,
+      "severity": "warn",
+      "trigger": ["commit"],
+      "command": "swiftlint lint --quiet {files} 2>&1 | tail -20",
+      "description": "SwiftLint style and convention checks",
+      "stacks": ["swift"],
+      "timeout": 120
+    },
+    "swift-test": {
+      "enabled": false,
+      "severity": "block",
+      "trigger": ["verify"],
+      "command": "swift test 2>&1 | tail -30",
+      "description": "Run the XCTest suite for the SwiftPM package",
+      "stacks": ["swift"],
+      "timeout": 300
+    }
+  }
 }

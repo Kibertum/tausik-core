@@ -9,6 +9,74 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### A stack that declares file extensions must have a gate that can run
+
+Flutter was declared a stack — extensions, detection signature, a guide with a
+review checklist — and not one gate in the registry named it. The same was true
+of Swift. For a task touching `.dart` or `.swift` files nothing ran: no linter,
+no compiler, no tests, only the universal built-ins. `task done` reported green.
+
+That is worse than a missing feature. It is a green verdict that means nothing,
+and it is indistinguishable from a real one: when a gate is skipped it at least
+says so, but a gate that was never declared leaves no trace at all in the
+output. Nothing in the report tells you whether the code was checked or whether
+there was nothing to check it with.
+
+The measurement, not the impression: of twenty-five built-in stacks, twelve
+declare no `gates` key — but nine of those are covered by a parent and the
+coverage is legitimate. Django, FastAPI and Flask are caught by `pytest` from
+python; React, Next, Nuxt, Vue and Svelte by eslint/tsc from javascript and
+typescript; Laravel by the php gates; Blade through the `.blade.php` mapping.
+Exactly two were orphans, and both are now declared: `dart analyze`,
+`dart format`, `flutter test` for Flutter; `swift build`, `swiftlint`,
+`swift test` for Swift. All ship disabled by default — the build machine has
+neither toolchain, and a gate enabled by default would fail for everyone.
+
+The point, however, is not the two files. Adding them does nothing to stop stack
+twenty-six arriving with the same hole, so the rule is now mechanical: a stack
+declaring `extensions` must have at least one gate reachable for its files.
+Reachability is computed by the production code path rather than a second copy
+of the rule, and inheritance counts — demanding that every stack own its gates
+would have forced nine pointless edits and made the check the first thing anyone
+switched off.
+
+Checked by introducing an orphan rather than by assertion that it works. A gate
+that has never caught anything is a hypothesis about a gate.
+
+One thing surfaced on the way: `tausik stack lint` validates only user overrides
+in `.tausik/stacks/`. Built-in declarations were never validated against
+`stacks/_schema.json` at all — an invalid one would simply have been skipped on
+load. They are now checked as a suite.
+
+### A drift gate that was hiding drift
+
+The DDL-parity gate exists to make silent divergence loud, and it had gone
+silent itself in two places — both found by adversarial review during the
+periodic audit, both in code written one session earlier.
+
+The exemption marker (`# ddl-parity: historical — <reason>`) was attached to its
+block by walking upwards and treating any line ending in `(` as a continuation.
+That is enough for the marker to jump an unrelated chain of wrapper calls and
+release a *distant* block that genuinely diverged: the drift was there, the gate
+said nothing. The test that was supposed to cover this gave false confidence —
+it placed the first block's SQL between marker and target, and on that line the
+walk honestly stopped. The chain of open parens was never exercised, though the
+style is common in this very repository.
+
+The marker is now bound structurally: the block is matched to the statement
+containing it via AST, and the marker is looked for in that statement's own
+lines or the comment run directly above it. An unparseable file exempts nothing.
+
+The second defect was the column counter, which split on commas without
+excluding SQL comments — and the canonical definitions are full of them. It
+read eighteen columns where `verification_runs` has thirteen. Since the
+foreign-key stub exemption depends on that number, a legitimate two-column stub
+with an explanatory comment containing a comma would have been counted as four
+and failed for no reason. Counting is now done by SQLite itself: execute the DDL
+in `:memory:` and read `PRAGMA table_info`. DDL that will not execute reports
+"unknown" rather than zero, so it cannot slip into the stub range and be
+released silently.
+
 ### The MCP thread is checked against the primitives the spec deprecates
 
 The MCP specification of 2026-07-28 deprecates sampling, logging and roots
