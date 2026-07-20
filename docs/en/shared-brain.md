@@ -240,7 +240,7 @@ Counters:
 - `searches` — every call to `brain_search` / `search_with_fallback`.
 - `hits` — searches that returned ≥1 result (proxy for "did the brain answer the question?").
 - `writes` — successful `try_brain_write_decision` / `try_brain_write_web_cache` operations (Notion ack received). Failed writes are NOT counted.
-- `ignored` — `tausik_memory_quick brain.ignored:<id>` entries written when an agent flags a brain suggestion as irrelevant (next session won't re-surface it).
+- `ignored` — `tausik_memory_add brain.ignored:<id>` entries written when an agent flags a brain suggestion as irrelevant (next session won't re-surface it).
 
 The `hit_rate_pct` is `hits / searches * 100`. A consistently low session hit-rate (<20%) suggests either (a) the brain is empty/stale and needs `tausik brain sync` + new writes, or (b) queries are too project-specific (the classifier should send those to local memory, not brain). The two failure modes look the same in metrics, so investigate by reading recent `brain_events` rows.
 

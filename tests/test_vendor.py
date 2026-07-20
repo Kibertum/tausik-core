@@ -391,7 +391,11 @@ class TestSkillCLI:
 
         result = ProjectService._find_vendor_skill(tmp_dir, "seo-audit")
         assert result is not None
-        assert result.endswith("seo-audit")
+        skill_path, repo_name = result
+        assert skill_path.endswith("seo-audit")
+        # The repo name rides along because activate needs it to look up that
+        # repo's pinned publisher key.
+        assert repo_name == "seo"
 
     def test_find_vendor_skill_missing(self, tmp_dir):
         from project_service import ProjectService

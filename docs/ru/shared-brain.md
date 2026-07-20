@@ -240,7 +240,7 @@ All-time: 142 searches, 87 hits, 18 writes (hit rate: 61.3%)
 - `searches` — каждый вызов `brain_search` / `search_with_fallback`.
 - `hits` — запросы, вернувшие ≥1 результат (прокси для «brain ответил на вопрос?»).
 - `writes` — успешные `try_brain_write_decision` / `try_brain_write_web_cache` (Notion подтвердил). Падения не считаются.
-- `ignored` — записи `tausik_memory_quick brain.ignored:<id>`, когда агент пометил подсказку как нерелевантную (в следующей сессии её не покажут снова).
+- `ignored` — записи `tausik_memory_add brain.ignored:<id>`, когда агент пометил подсказку как нерелевантную (в следующей сессии её не покажут снова).
 
 `hit_rate_pct` = `hits / searches * 100`. Если в сессии стабильно <20% — значит либо (а) brain пустой/устаревший и нужен `tausik brain sync` + новые записи, либо (б) запросы слишком project-specific (classifier должен отправлять их в локальную память, не в brain). По метрикам эти две ситуации не различить — читайте последние строки `brain_events` напрямую.
 

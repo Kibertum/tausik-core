@@ -6,7 +6,6 @@ and maintains .lock files for version tracking. Zero external deps.
 
 from __future__ import annotations
 
-import hashlib
 import io
 import json
 import os
@@ -17,6 +16,13 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from typing import Any
+
+from bootstrap_vendor_integrity import (
+    digest_mismatch,
+    mutable_ref_warning,
+    sha_change_note,
+    tarball_digest,
+)
 
 
 def load_skills_json(lib_dir: str) -> dict[str, Any]:
@@ -58,17 +64,13 @@ def _download_tarball(repo: str, ref: str) -> bytes:
     """Download GitHub tarball for repo@ref. Returns raw bytes."""
     url = f"https://github.com/{repo}/archive/refs/tags/{ref}.tar.gz"
     try:
-        req = urllib.request.Request(
-            url, headers={"User-Agent": "tausik-bootstrap/1.0"}
-        )
+        req = urllib.request.Request(url, headers={"User-Agent": "tausik-bootstrap/1.0"})
         with urllib.request.urlopen(req, timeout=60) as resp:
             return resp.read()
     except urllib.error.HTTPError:
         # Fallback: try as branch/commit ref
         url = f"https://github.com/{repo}/archive/{ref}.tar.gz"
-        req = urllib.request.Request(
-            url, headers={"User-Agent": "tausik-bootstrap/1.0"}
-        )
+        req = urllib.request.Request(url, headers={"User-Agent": "tausik-bootstrap/1.0"})
         with urllib.request.urlopen(req, timeout=60) as resp:
             return resp.read()
 
@@ -173,14 +175,10 @@ def _extract_skill_dirs(
             if data_dirs:
                 for data_src, data_dest in data_dirs.items():
                     data_prefix = data_src.rstrip("/") + "/"
-                    if rel_path.startswith(data_prefix) or rel_path == data_src.rstrip(
-                        "/"
-                    ):
+                    if rel_path.startswith(data_prefix) or rel_path == data_src.rstrip("/"):
                         # Determine target skill (first skill in list, or use data_dest as-is)
                         skill_name = (
-                            os.path.basename(skill_dirs[0].rstrip("/"))
-                            if skill_dirs
-                            else "data"
+                            os.path.basename(skill_dirs[0].rstrip("/")) if skill_dirs else "data"
                         )
                         if rel_path == data_src.rstrip("/"):
                             dest_rel = f"{skill_name}/{data_dest}/"
@@ -230,9 +228,7 @@ def _extract_member(
                     shutil.copyfileobj(src, dst)
 
 
-def _read_plugin_json(
-    tarball_bytes: bytes, max_size: int = 1_000_000
-) -> dict[str, Any] | None:
+def _read_plugin_json(tarball_bytes: bytes, max_size: int = 1_000_000) -> dict[str, Any] | None:
     """Read .claude-plugin/plugin.json from tarball if it exists. Capped at max_size bytes."""
     with tarfile.open(fileobj=io.BytesIO(tarball_bytes), mode="r:gz") as tar:
         members = tar.getmembers()
@@ -240,11 +236,7 @@ def _read_plugin_json(
             return None
         root_prefix = members[0].name.split("/")[0] + "/"
         for member in members:
-            rel = (
-                member.name[len(root_prefix) :]
-                if member.name.startswith(root_prefix)
-                else ""
-            )
+            rel = member.name[len(root_prefix) :] if member.name.startswith(root_prefix) else ""
             if rel == ".claude-plugin/plugin.json" and member.isfile():
                 with tar.extractfile(member) as f:
                     if f:
@@ -279,16 +271,39 @@ def sync_deps(lib_dir: str, vendor_dir: str, force: bool = False) -> dict[str, A
         agents_dir = spec.get("agents_dir")
         data_dirs = spec.get("data_dirs")  # {src_path: dest_subdir}
 
+        expected_sha = spec.get("sha256")
+
         lock = _read_lock(vendor_dir, name)
         if lock and lock.get("ref") == ref and not force:
+            # A sha256 added to an already-vendored dependency is checked
+            # against what is on disk now, not just against the next download
+            # — otherwise declaring a pin is a no-op until someone runs
+            # --force. Free: the digest was recorded at sync time.
+            mismatch = digest_mismatch(name, str(lock.get("sha") or ""), expected_sha)
+            if mismatch:
+                print(f"  {mismatch}")
+                results[name] = {"status": "error", "error": mismatch}
+                continue
             results[name] = {"status": "up-to-date", "ref": ref}
             continue
+
+        warning = mutable_ref_warning(name, repo, ref, expected_sha)
+        if warning:
+            print(warning)
 
         print(f"  Downloading {repo}@{ref}...")
         try:
             tarball = _download_tarball(repo, ref)
         except Exception as e:  # noqa: BLE001 — best-effort: bootstrap step is non-fatal, continue install
             results[name] = {"status": "error", "error": str(e)}
+            continue
+
+        # Verify before unpacking: a mismatched artifact must not reach disk.
+        actual_sha = tarball_digest(tarball)
+        mismatch = digest_mismatch(name, actual_sha, expected_sha)
+        if mismatch:
+            print(f"  {mismatch}")
+            results[name] = {"status": "error", "error": mismatch}
             continue
 
         vendor_skill_dir = os.path.join(vendor_dir, name)
@@ -299,8 +314,14 @@ def sync_deps(lib_dir: str, vendor_dir: str, force: bool = False) -> dict[str, A
         plugin_meta = _read_plugin_json(tarball)
         if plugin_meta:
             _write_plugin_meta(vendor_skill_dir, plugin_meta)
-        _write_lock(vendor_dir, name, ref, hashlib.sha256(tarball).hexdigest())
-        results[name] = {"status": "synced", "ref": ref, **counts}
+        entry: dict[str, Any] = {"status": "synced", "ref": ref, **counts}
+        changed = sha_change_note((lock or {}).get("sha"), actual_sha)
+        if changed:
+            entry["sha_changed"] = changed
+        if warning:
+            entry["warning"] = warning
+        _write_lock(vendor_dir, name, ref, actual_sha)
+        results[name] = entry
         data_count = counts.get("data", 0)
         print(
             f"  {name}: {counts['skills']} skill files, {data_count} data files, {counts['scripts']} scripts, {counts['agents']} agents"

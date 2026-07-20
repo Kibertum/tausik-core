@@ -160,3 +160,28 @@ pip dependencies listed in `requires` are automatically installed into `.tausik/
 ## Legacy: skills.json + bootstrap
 
 The older mechanism using `skills.json` + `bootstrap --update-deps` still works for backward compatibility. See `skills.example.json` for the format. The new `skill repo add` + `skill install` is recommended for new projects.
+
+Do not confuse the two manifests: `tausik-skills.json` (above) lives in a *skill repo* and is read by `skill install`; `skills.json` lives in *this* repo and is read by `bootstrap --update-deps`, which downloads GitHub tarballs and unpacks each repo's `scripts/` into `scripts/vendor_<name>/`. That is third-party Python placed beside your own, so what a spec points at matters.
+
+### Pinning an external dependency
+
+Each entry under `external_skills` accepts an optional `sha256` — the expected digest of the downloaded tarball:
+
+```json
+"external_skills": {
+  "seo": {
+    "repo": "owner/repo",
+    "ref": "v1.5.0",
+    "sha256": "ab12…64 hex chars",
+    "skill_dirs": ["seo"]
+  }
+}
+```
+
+- **Declared and matching** — the tarball is unpacked as usual.
+- **Declared and not matching** — that dependency fails with `integrity check FAILED` and **nothing is written to disk**. The rest of the bootstrap continues; one bad dependency does not abort the run.
+- **Not declared, and `ref` is a branch or tag** — a warning names the repo and the moving ref. Whatever that ref points to at download time gets executed from your `scripts/` tree. Only a full 40-character commit SHA counts as self-pinning.
+
+Adding a `sha256` to a dependency that is already vendored takes effect immediately: the declared digest is checked against the one recorded in `.lock` even on the "up-to-date" fast path, so a new pin is never a silent no-op waiting for `--force`. Comparison is case-insensitive.
+
+`.lock` also stops being write-only: a forced re-sync that brings different bytes than the previous run reports `sha_changed` with the old and new digests, so a branch that moved under you is visible rather than silent.

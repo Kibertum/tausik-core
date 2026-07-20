@@ -224,6 +224,29 @@ def find_skill_source(vendor_dir: str, skill_name: str) -> tuple[str, str, dict[
     return None
 
 
+_SKIP_DIRS = {".claude-plugin", "hooks", ".git", "__pycache__", ".mypy_cache"}
+_SKIP_FILES = {"CLAUDE.md", ".gitignore", ".gitmodules"}
+
+
+def skill_tree_ignore(directory: str, contents: list[str]) -> list[str]:
+    """shutil.copytree ignore-callback: what must never reach a skills tree.
+
+    Shared by both paths that populate it — install (copy_skill) and activate
+    (SkillsMixin.skill_activate). It lives at module level precisely because a
+    second private copy is how the two drifted: activate carried no filter at
+    all and copied the hooks/ directory that install strips.
+    """
+    ignored = []
+    for item in contents:
+        if item in _SKIP_DIRS and os.path.isdir(os.path.join(directory, item)):
+            ignored.append(item)
+        elif item in _SKIP_FILES:
+            ignored.append(item)
+        elif item.startswith(".git"):
+            ignored.append(item)
+    return ignored
+
+
 def copy_skill(
     repo_dir: str,
     skill_info: dict[str, Any],
@@ -233,7 +256,7 @@ def copy_skill(
     """Copy skill from repo to IDE skills directory.
 
     Copies: SKILL.md, references/, scripts/, data/, templates/
-    Skips: .claude-plugin/, hooks/, CLAUDE.md, .git*, __pycache__
+    Skips: whatever skill_tree_ignore strips (plugin manifests, hooks, VCS).
     """
     skill_path = skill_info.get("path", f"{skill_name}/")
     source = os.path.join(repo_dir, skill_path.rstrip("/"))
@@ -250,25 +273,10 @@ def copy_skill(
     if os.path.exists(dst):
         shutil.rmtree(dst)
 
-    # Copy with filter
-    _SKIP_DIRS = {".claude-plugin", "hooks", ".git", "__pycache__", ".mypy_cache"}
-    _SKIP_FILES = {"CLAUDE.md", ".gitignore", ".gitmodules"}
-
-    def _ignore(directory: str, contents: list[str]) -> list[str]:
-        ignored = []
-        for item in contents:
-            if item in _SKIP_DIRS and os.path.isdir(os.path.join(directory, item)):
-                ignored.append(item)
-            elif item in _SKIP_FILES:
-                ignored.append(item)
-            elif item.startswith(".git"):
-                ignored.append(item)
-        return ignored
-
     # v1.3.4 (med-batch-1-hooks #3): symlinks=False — never preserve symlinks,
     # so a hostile vendor repo cannot smuggle absolute paths (e.g.
     # ~/.aws/credentials, /etc/shadow) into the activated skills tree.
-    shutil.copytree(source, dst, ignore=_ignore, symlinks=False)
+    shutil.copytree(source, dst, ignore=skill_tree_ignore, symlinks=False)
     return dst
 
 

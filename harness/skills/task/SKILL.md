@@ -52,7 +52,7 @@ Work on tasks from project DB.
    )
    ```
 
-   Surface up to 3 patterns + 3 gotchas inline before announcing the task. Filter out any page id that appears in `tausik_memory_list type=convention` with title `brain.ignored:<id>` — the user already dismissed it. If a result misleads, mark it ignored via `tausik_memory_quick(type="convention", title="brain.ignored:<page_id>", content="…")` so it does not return next session.
+   Surface up to 3 patterns + 3 gotchas inline before announcing the task. Filter out any page id that appears in `tausik_memory_list type=convention` with title `brain.ignored:<id>` — the user already dismissed it. If a result misleads, mark it ignored via `tausik_memory_add(type="convention", title="brain.ignored:<page_id>", content="…")` so it does not return next session.
 
 4. **Adopt role** from task — follow the role profile's skill modifiers for /task.
 
