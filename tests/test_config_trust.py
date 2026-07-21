@@ -515,3 +515,53 @@ class TestVerifyFirstFailsClosed:
         td = cfg.get("task_done")
         assert td is None
         assert (td if isinstance(td, dict) else {}).get("auto_verify", False) is False
+
+
+class TestGateNameValidator:
+    """The validator must not refuse gates the framework itself registers.
+
+    Found while hoisting an MCP-only copy of this check into the canonical
+    toggle (`mcp-gate-toggle-mutates-real-project-config`): the copy's pattern
+    was `[a-z0-9-]+`, but three registered gates carry underscores. So the MCP
+    server would list `renar_drift_schema` and then answer "Invalid gate name"
+    for that exact string — a refusal with no legitimate input behind it.
+
+    Asserting the current names one by one would rot the moment a gate is
+    added, so the registry is the authority and this walks all of it.
+    """
+
+    def test_validator_accepts_every_registered_gate_name(self):
+        import project_config as pc
+        from default_gates import DEFAULT_GATES
+
+        rejected = [n for n in DEFAULT_GATES if not pc.GATE_NAME_RE.match(n)]
+        assert rejected == [], (
+            f"Gate names the validator refuses: {rejected}. Either the gate was "
+            f"named outside the convention or GATE_NAME_RE is wrong -- but a "
+            f"registered gate that cannot be toggled is a dead switch either way."
+        )
+
+    def test_underscore_names_round_trip_through_the_toggle(self, tmp_path):
+        """Not just the regex: the whole toggle must work for such a name."""
+        import json
+
+        import project_config as pc
+
+        assert "renar_drift_schema" in _registered_gate_names()
+        msg = pc.set_gate_enabled("renar_drift_schema", False, str(tmp_path))
+        assert "Invalid" not in msg
+        written = json.loads((tmp_path / "config.json").read_text(encoding="utf-8"))
+        assert written["gates"]["renar_drift_schema"]["enabled"] is False
+
+    def test_traversal_and_empty_names_are_still_refused(self):
+        """The widening must not have opened what the check exists to close."""
+        import project_config as pc
+
+        for bad in ("../../evil", "a/b", "-leading", "_leading", "", "UPPER", "sp ace"):
+            assert "Invalid" in pc.set_gate_enabled(bad, True), f"accepted {bad!r}"
+
+
+def _registered_gate_names():
+    from default_gates import DEFAULT_GATES
+
+    return set(DEFAULT_GATES)

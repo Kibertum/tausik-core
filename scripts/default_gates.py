@@ -56,6 +56,18 @@ UNIVERSAL_GATES: dict[str, dict] = {
         "command": None,
         "description": "Verify test files were modified (TDD enforcement)",
     },
+    # Blocks task-done when a source edit did not reach the deployed profile that
+    # actually runs (hooks/MCP load from .claude/ etc., tests import from
+    # scripts/). BLOCK, not warn: an edit that did not take effect is not done.
+    # Inert when no profile is installed (fresh clone / CI). See
+    # gate_bootstrap_drift.py and memory #229.
+    "bootstrap_drift": {
+        "enabled": True,
+        "severity": "block",
+        "trigger": ["task-done"],
+        "command": None,
+        "description": "Fail if deployed IDE profiles drift from scripts/ source",
+    },
     # RENAR §3.11 drift detectors (warning-mode). Read-only scans of the RENAR
     # artifact store; ignore `files`. Warn-only by design — see renar_drift.py.
     "renar_drift_schema": {

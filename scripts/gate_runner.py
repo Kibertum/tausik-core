@@ -91,6 +91,7 @@ def run_tdd_order_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
 
 
 from gate_renar_drift import run_renar_drift_gate  # noqa: F401, E402
+from gate_bootstrap_drift import run_bootstrap_drift_gate  # noqa: F401, E402
 from gate_test_resolver import resolve_test_files_for_relevant  # noqa: F401, E402
 
 # v14b-filesize-debt-paydown: run_command_gate + _SCOPED_SKIP_SENTINEL extracted
@@ -184,6 +185,8 @@ def run_gates(
             passed, output = run_tdd_order_gate(gate, files or [])
         elif name in ("renar_drift_schema", "renar_drift_provenance"):
             passed, output = run_renar_drift_gate(name)
+        elif name == "bootstrap_drift":
+            passed, output = run_bootstrap_drift_gate()
         else:
             passed, output = run_command_gate(gate, files or [])
 

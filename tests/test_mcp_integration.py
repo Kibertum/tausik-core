@@ -140,7 +140,8 @@ class TestMCPServerStartup:
         result = subprocess.run(
             [PYTHON, SERVER],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=5,
         )
         assert result.returncode != 0
@@ -322,6 +323,48 @@ class TestMCPNewToolHandlers:
 
         result = handle_tool(svc, "tausik_gates_enable", {"name": "mypy"})
         assert "enabled" in result.lower()
+
+    def test_gate_toggle_writes_into_the_service_project(self, svc, tmp_path):
+        """The toggle must land in the project `svc` speaks for, not the cwd.
+
+        Asserting the return string alone is what let this pass for months: the
+        old handler answered "Gate 'mypy' enabled." while writing the developer's
+        own `.tausik/config.json`. The claim and the effect were checked in two
+        different places, so only the claim was ever checked.
+        """
+        import json
+
+        from handlers import handle_tool
+
+        cfg_path = tmp_path / "config.json"
+        assert not cfg_path.exists()
+
+        handle_tool(svc, "tausik_gates_enable", {"name": "mypy"})
+        assert cfg_path.exists(), "toggle wrote outside the service's own project"
+        assert json.loads(cfg_path.read_text(encoding="utf-8"))["gates"]["mypy"]["enabled"] is True
+
+        handle_tool(svc, "tausik_gates_disable", {"name": "mypy"})
+        assert json.loads(cfg_path.read_text(encoding="utf-8"))["gates"]["mypy"]["enabled"] is False
+
+    def test_gate_toggle_persists_project_tier_only(self, svc, tmp_path, monkeypatch):
+        """A trusted tier's settings must not be copied into the project file.
+
+        The old handler read the EFFECTIVE config (project < user < managed) and
+        saved it back whole, so one MCP toggle silently baked the developer's
+        personal `~/.tausik/config.json` into a file that travels with the repo.
+        """
+        import json
+
+        from handlers import handle_tool
+
+        user_tier = tmp_path / "user.json"
+        user_tier.write_text(json.dumps({"session_max_minutes": 42}), encoding="utf-8")
+        monkeypatch.setenv("TAUSIK_USER_CONFIG", str(user_tier))
+
+        handle_tool(svc, "tausik_gates_enable", {"name": "ruff"})
+
+        written = json.loads((tmp_path / "config.json").read_text(encoding="utf-8"))
+        assert written == {"gates": {"ruff": {"enabled": True}}}
 
     def test_task_list_csv_status(self, svc):
         from handlers import handle_tool

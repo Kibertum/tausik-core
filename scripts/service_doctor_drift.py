@@ -134,29 +134,74 @@ def check_claudemd_drift(project_dir: str) -> int | None:
     return differ
 
 
-def check_scripts_drift(project_dir: str) -> int | None:
-    """Compare deployed .claude/scripts/ against scripts/ source dir.
+# IDE profiles bootstrap deploys `scripts/` into (one dot-dir each: .claude,
+# .cursor, …). Imported from the bootstrapper so this does not become a second,
+# silently-diverging copy of the list (convention #249). The literal fallback is
+# a defensive last resort for when bootstrap/ is not importable across the
+# sys.path boundary — it is annotated so a future editor keeps the two aligned.
+def _scaffold_ides() -> list[str]:
+    try:
+        sys.path.insert(0, os.path.join(os.getcwd(), "bootstrap"))
+        from bootstrap_config import SCAFFOLD_IDES  # noqa: PLC0415
 
-    Counts missing-in-dst as drift; binary compare with line-ending
-    normalisation (CRLF→LF) so cross-platform deploys don't false-positive.
+        return list(SCAFFOLD_IDES)
+    except Exception:  # noqa: BLE001 — bootstrap/ may be absent; fall back, do not crash the check
+        # MIRROR of bootstrap_config.SCAFFOLD_IDES — keep in step with it.
+        return ["claude", "cursor", "qwen", "kilo", "opencode"]
+
+
+def scripts_drift_names(project_dir: str) -> list[str] | None:
+    """Names of source ``scripts/*.py`` that differ from their DEPLOYED copies.
+
+    Returns a sorted list of ``.{ide}/scripts/{name}`` for every file that is
+    missing-in-profile or differs by content, across every IDE profile PRESENT
+    on disk. Binary compare with CRLF→LF normalisation so a cross-platform
+    checkout does not false-positive.
+
+    Two distinct empties, because callers act on them differently:
+      * ``None`` — the source ``scripts/`` dir is missing, so nothing can be
+        compared (a broken checkout, not a clean one).
+      * ``[]`` — comparison ran and found no drift. This INCLUDES the case where
+        no profile is present at all: a fresh clone or CI has the profiles
+        gitignored, and "no deployed copy to fall behind" is clean, not drift.
+        A gate MUST pass here — demanding a profile that need not exist is the
+        first gate an operator disables.
+
+    Why all present profiles and not just ``.claude``: the defect is "a source
+    edit did not reach the copy that actually runs", and any installed IDE
+    profile is such a copy. An absent profile is skipped; a present one is
+    mandatory.
     """
     src = os.path.join(project_dir, "scripts")
-    dst = os.path.join(project_dir, ".claude", "scripts")
-    if not os.path.isdir(src) or not os.path.isdir(dst):
+    if not os.path.isdir(src):
         return None
-    differ = 0
-    for name in os.listdir(src):
-        if not name.endswith(".py"):
-            continue
-        s = os.path.join(src, name)
-        d = os.path.join(dst, name)
-        if not os.path.isfile(d):
-            differ += 1
-            continue
-        try:
-            with open(s, "rb") as f1, open(d, "rb") as f2:
-                if f1.read().replace(b"\r\n", b"\n") != f2.read().replace(b"\r\n", b"\n"):
-                    differ += 1
-        except OSError:
-            pass
-    return differ
+    src_files = [n for n in os.listdir(src) if n.endswith(".py")]
+    drift: list[str] = []
+    for ide in _scaffold_ides():
+        prof_scripts = os.path.join(project_dir, f".{ide}", "scripts")
+        if not os.path.isdir(prof_scripts):
+            continue  # profile not installed → not drift
+        for name in src_files:
+            s = os.path.join(src, name)
+            d = os.path.join(prof_scripts, name)
+            if not os.path.isfile(d):
+                drift.append(f".{ide}/scripts/{name}")
+                continue
+            try:
+                with open(s, "rb") as f1, open(d, "rb") as f2:
+                    if f1.read().replace(b"\r\n", b"\n") != f2.read().replace(b"\r\n", b"\n"):
+                        drift.append(f".{ide}/scripts/{name}")
+            except OSError:
+                pass
+    return sorted(drift)
+
+
+def check_scripts_drift(project_dir: str) -> int | None:
+    """Count of deployed ``scripts/`` files that drift from source, or ``None``.
+
+    Thin adapter over :func:`scripts_drift_names` — kept so the numeric-count
+    callers (doctor's summary line) do not need surgery. ``None`` propagates the
+    "cannot compare" signal; an empty drift list is ``0``.
+    """
+    names = scripts_drift_names(project_dir)
+    return None if names is None else len(names)

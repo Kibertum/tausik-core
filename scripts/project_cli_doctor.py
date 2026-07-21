@@ -224,14 +224,17 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
         _print_fail("Core skills", "no .claude/skills/ — run bootstrap")
         failures += 1
 
-    drift = _check_scripts_drift(project_dir)
-    if drift is None:
-        _print_warn("Bootstrap drift", "could not compare scripts/ vs .claude/scripts/")
+    drift_names = _scripts_drift_names(project_dir)
+    if drift_names is None:
+        _print_warn("Bootstrap drift", "could not compare scripts/ vs deployed profiles")
         warnings += 1
-    elif drift:
+    elif drift_names:
+        shown = ", ".join(drift_names[:8])
+        more = f" (+{len(drift_names) - 8} more)" if len(drift_names) > 8 else ""
         _print_warn(
             "Bootstrap drift",
-            f"{drift} script(s) differ — restart MCP server or re-bootstrap",
+            f"{len(drift_names)} deployed file(s) differ: {shown}{more} — "
+            "run `python bootstrap/bootstrap.py --ide all` to redeploy",
         )
         warnings += 1
     else:
@@ -375,6 +378,7 @@ from service_doctor_drift import (  # noqa: E402,F401
     check_claudemd_drift as _check_claudemd_drift,
     check_scripts_drift as _check_scripts_drift,
     is_trimmed_baseline as _is_trimmed_baseline,
+    scripts_drift_names as _scripts_drift_names,
 )
 
 

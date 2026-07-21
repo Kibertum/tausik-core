@@ -463,3 +463,151 @@ def test_hook_skip_env_returncode(script, command_or_path, env_extra, expected_r
     ticket path can be isolated via TAUSIK_PUSH_TICKET_PATH per-test."""
     r = run_hook(script, {"tool_input": command_or_path}, env_extra=env_extra)
     assert r.returncode == expected_returncode
+
+
+class TestTaskGateJurisdiction:
+    """The gate governs THIS project's files — not every file on the machine.
+
+    Found by dogfooding in session #125: with TAUSIK open as the session project
+    and an edit landing in a sibling repository (which had its own coordinator
+    and its own active task), the gate refused. Its warrant is "no code without a
+    task IN THIS PROJECT"; it has no standing over another repository. The cost
+    of getting this wrong is not friction — it is that the only ways forward are
+    abandoning legitimate work or opening a FICTITIOUS task here, and a gate that
+    is profitable to fake stops protecting this project too.
+
+    Direction matters in every case below: the loosening must apply ONLY to a
+    target proven to be outside, never to one merely not proven inside.
+    """
+
+    @staticmethod
+    def _project(tmp_path):
+        """A directory that looks like a real TAUSIK project with no active task."""
+        proj = tmp_path / "core"
+        (proj / ".tausik").mkdir(parents=True)
+        import sqlite3
+
+        conn = sqlite3.connect(str(proj / ".tausik" / "tausik.db"))
+        conn.execute("CREATE TABLE tasks (slug TEXT, status TEXT)")
+        conn.execute("INSERT INTO tasks VALUES ('idle-task', 'planning')")
+        conn.commit()
+        conn.close()
+        return proj
+
+    def test_outside_file_is_allowed_without_a_task(self, tmp_path):
+        """The reported defect, closed: a sibling repo's file edits freely."""
+        proj = self._project(tmp_path)
+        other = tmp_path / "other-repo" / "app.py"
+        other.parent.mkdir(parents=True)
+        other.write_text("x = 1", encoding="utf-8")
+        r = run_hook(
+            "task_gate.py",
+            {"tool_input": {"file_path": str(other)}},
+            env_extra={"CLAUDE_PROJECT_DIR": str(proj)},
+        )
+        assert r.returncode == 0, r.stderr
+
+    def test_inside_file_is_still_blocked(self, tmp_path):
+        """Protection of this project is NOT weakened — the whole point."""
+        proj = self._project(tmp_path)
+        inside = proj / "scripts" / "thing.py"
+        inside.parent.mkdir(parents=True)
+        inside.write_text("x = 1", encoding="utf-8")
+        r = run_hook(
+            "task_gate.py",
+            {"tool_input": {"file_path": str(inside)}},
+            env_extra={"CLAUDE_PROJECT_DIR": str(proj)},
+        )
+        assert r.returncode == 2, "an in-project edit without a task must be refused"
+
+    def test_prefix_sibling_is_outside_not_inside(self, tmp_path):
+        """`…/core-old` next to `…/core` is a DIFFERENT project.
+
+        A startswith test calls it inside and gates it — wrong, and wrong in the
+        direction that blocks legitimate work. commonpath answers correctly.
+        """
+        proj = self._project(tmp_path)
+        sibling = tmp_path / "core-old" / "app.py"
+        sibling.parent.mkdir(parents=True)
+        sibling.write_text("x = 1", encoding="utf-8")
+        r = run_hook(
+            "task_gate.py",
+            {"tool_input": {"file_path": str(sibling)}},
+            env_extra={"CLAUDE_PROJECT_DIR": str(proj)},
+        )
+        assert r.returncode == 0, r.stderr
+
+    def test_relative_path_resolves_into_the_project_and_is_blocked(self, tmp_path):
+        proj = self._project(tmp_path)
+        r = run_hook(
+            "task_gate.py",
+            {"tool_input": {"file_path": "scripts/thing.py"}},
+            env_extra={"CLAUDE_PROJECT_DIR": str(proj)},
+        )
+        assert r.returncode == 2, "a relative path belongs to the project and stays gated"
+
+    def test_dotdot_escape_from_inside_is_outside(self, tmp_path):
+        """`…/core/../other/app.py` really is outside once normalised."""
+        proj = self._project(tmp_path)
+        (tmp_path / "other").mkdir()
+        r = run_hook(
+            "task_gate.py",
+            {"tool_input": {"file_path": str(proj / ".." / "other" / "app.py")}},
+            env_extra={"CLAUDE_PROJECT_DIR": str(proj)},
+        )
+        assert r.returncode == 0, r.stderr
+
+    @pytest.mark.parametrize(
+        "payload,label",
+        [
+            ({}, "no tool_input at all"),
+            ({"tool_input": {}}, "tool_input without a path"),
+            ({"tool_input": {"file_path": ""}}, "empty path"),
+            ({"tool_input": {"file_path": None}}, "null path"),
+            ({"tool_input": {"file_path": 42}}, "non-string path"),
+            ({"tool_input": "not-a-dict"}, "tool_input of the wrong type"),
+        ],
+    )
+    def test_unclassifiable_input_stays_gated(self, tmp_path, payload, label):
+        """FAIL-CLOSED: what cannot be proven outside is treated as inside.
+
+        This is the half that makes the loosening safe. Without it, any payload
+        the parser trips over becomes a free bypass of the task requirement —
+        which would be a strictly worse defect than the one being fixed.
+        """
+        proj = self._project(tmp_path)
+        r = run_hook("task_gate.py", payload, env_extra={"CLAUDE_PROJECT_DIR": str(proj)})
+        assert r.returncode == 2, f"{label} must keep the gate ON"
+
+    def test_malformed_stdin_stays_gated(self, tmp_path):
+        """Not valid JSON at all — still gated."""
+        proj = self._project(tmp_path)
+        env = os.environ.copy()
+        env["TAUSIK_SKIP_HOOKS"] = ""
+        env["CLAUDE_PROJECT_DIR"] = str(proj)
+        r = subprocess.run(
+            [sys.executable, os.path.join(HOOKS_DIR, "task_gate.py")],
+            input="{not json at all",
+            capture_output=True,
+            text=True,
+            encoding="utf-8",  # never inherit the parent's — the hook prints non-ASCII
+            env=env,
+        )
+        assert r.returncode == 2
+
+    def test_active_task_allows_an_inside_edit(self, tmp_path):
+        """Sanity: the gate still opens the normal way, so the tests above are
+        measuring jurisdiction rather than a gate that blocks unconditionally."""
+        proj = self._project(tmp_path)
+        import sqlite3
+
+        conn = sqlite3.connect(str(proj / ".tausik" / "tausik.db"))
+        conn.execute("UPDATE tasks SET status = 'active'")
+        conn.commit()
+        conn.close()
+        r = run_hook(
+            "task_gate.py",
+            {"tool_input": {"file_path": str(proj / "scripts" / "thing.py")}},
+            env_extra={"CLAUDE_PROJECT_DIR": str(proj)},
+        )
+        assert r.returncode == 0, r.stderr
