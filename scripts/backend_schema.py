@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 40
+SCHEMA_VERSION = 41
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -50,6 +50,14 @@ CREATE TABLE IF NOT EXISTS tasks (
     done_model_id TEXT, done_model_version TEXT,
     model_mismatch INTEGER NOT NULL DEFAULT 0,
     relevant_files TEXT,
+    -- qg2-cannot-close-fileless-task: 1 when the task was closed via
+    -- `task done --no-file-changes` — the third scope state, a task that
+    -- legitimately touched no files (pure planning / a `tausik decide`),
+    -- proven by a clean git scope rather than declared away. Countable so such
+    -- closures can be audited:  SELECT * FROM tasks WHERE no_file_changes_declared = 1;
+    -- A dedicated column, symmetric to verification_runs.no_tests_declared —
+    -- not a `status`/`scope` value, which carry CHECK constraints.
+    no_file_changes_declared INTEGER NOT NULL DEFAULT 0,
     started_at TEXT, completed_at TEXT, blocked_at TEXT,
     archived_at TEXT,
     attempts INTEGER DEFAULT 0,

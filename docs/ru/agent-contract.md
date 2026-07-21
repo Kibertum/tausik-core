@@ -20,8 +20,16 @@ quality gates. Pytest gate использует `{test_files_for_files}` substit
 
 - Если `relevant_files` non-empty но ни один тест не маппится → **gate SKIPPED**
   (раньше fallback на полный suite — defect fixed).
-- Без `relevant_files` (None/empty) — fallback на полный suite остаётся
-  (regression-safe для unscoped вызовов).
+- Без `relevant_files` (None/empty) `task done` **БЛОКИРУЕТ**: необъявленная
+  область — «unknown», а не «verified empty» (verify-cache-empty-scope-hit,
+  сессия #118). Полный suite fallback отменён. Объяви файлы и запусти verify.
+- Задача, которая **законно не трогает файлов** (чистое планирование, `tausik
+  decide`), закрывается флагом `task done --no-file-changes` — третье состояние
+  области. Разрешено ТОЛЬКО когда git подтверждает, что объявленная область
+  (`--relevant-files` как pathspec; всё дерево при пустом списке) не имеет
+  незакоммиченных правок; иначе fail-closed. Счётно:
+  `SELECT * FROM tasks WHERE no_file_changes_declared = 1`
+  (qg2-cannot-close-fileless-task).
 - Verify cache (`verification_runs` table): зелёный run за последние 10 минут с
   тем же `files_hash` → cache hit, gate skipped.
 - Security-sensitive файлы (`scripts/hooks/`, `/auth/`, `/payment/`, `/billing/`)

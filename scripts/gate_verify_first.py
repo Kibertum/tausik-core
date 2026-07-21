@@ -17,9 +17,82 @@ original method had it.
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from gate_block import _block, extract_files_from_gate_output
+
+
+def _enforce_no_file_changes(
+    svc: Any,
+    report: dict[str, Any],
+    slug: str,
+    relevant_files: list[str] | None,
+) -> None:
+    """Prove — via git, not the agent's word — that the declared scope has no
+    uncommitted changes, for a `task done --no-file-changes` close.
+
+    Clean scope → allowed; the countable record is left for _task_done_report
+    to write in the status=done transaction. Dirty scope, unavailable git, or a
+    service with no project directory → blocked, fail-closed: a declaration git
+    cannot back must never close a task (verify_scope_honesty tri-state).
+    """
+    from verify_git_diff import uncommitted_changes
+
+    tausik_dir = getattr(svc, "tausik_dir", None)
+    if not callable(tausik_dir):
+        # Fail-closed: with no way to resolve which project this service speaks
+        # for, falling back to cwd would git-check whatever repo the process
+        # happens to stand in — the read-path defect mcp-config-read-paths, in a
+        # gate. A close we cannot scope to the right tree does not proceed.
+        _block(
+            report,
+            "verify-first",
+            f"QG-2: task '{slug}' declares --no-file-changes, but this service "
+            f"exposes no project directory to scope the git check to. Cannot "
+            f"prove an empty scope — fail-closed.",
+            f".tausik/tausik task done {slug} --ac-verified --relevant-files <paths...>",
+        )
+        return
+    root = os.path.dirname(tausik_dir())
+    dirty = uncommitted_changes(relevant_files, root=root)
+    scope_desc = (
+        "declared paths " + ", ".join(relevant_files) if relevant_files else "the working tree"
+    )
+    remediation = f".tausik/tausik task done {slug} --ac-verified --relevant-files <paths...>"
+    if dirty is None:
+        _block(
+            report,
+            "verify-first",
+            f"QG-2: task '{slug}' declares --no-file-changes, but git could not "
+            f"verify it (not a repo, git missing, or the call failed). An "
+            f"unprovable empty scope is 'unknown', not 'verified empty' — "
+            f"fail-closed. Fix git, or declare the files this task touched.",
+            remediation,
+        )
+        return
+    if dirty:
+        shown = ", ".join(dirty[:10])
+        more = "" if len(dirty) <= 10 else f" (+{len(dirty) - 10} more)"
+        _block(
+            report,
+            "verify-first",
+            f"QG-2: task '{slug}' declares --no-file-changes, but git reports "
+            f"uncommitted changes in {scope_desc}: {shown}{more}. Either these "
+            f"files ARE this task's work — declare them and drop the flag — or "
+            f"they are earlier uncommitted work: commit/stash it, then close.",
+            remediation,
+        )
+        return
+    # Clean scope — the declaration is backed by git. Allow the close; the
+    # countable record (tasks.no_file_changes_declared) is written by
+    # _task_done_report inside the status=done transaction, so a later blocking
+    # stage cannot leave the flag set on a task that never closed.
+    svc.be.task_append_notes(
+        slug,
+        f"Verify-First: --no-file-changes verified — git scope clean "
+        f"({scope_desc}), no gates run (nothing to gate).",
+    )
 
 
 def enforce_verify_first(
@@ -27,6 +100,8 @@ def enforce_verify_first(
     report: dict[str, Any],
     slug: str,
     relevant_files: list[str] | None,
+    *,
+    no_file_changes: bool = False,
 ) -> None:
     """Add a synthetic blocking_failure if no fresh `tausik verify` run
     exists for this task and the project has verify-trigger gates.
@@ -39,6 +114,15 @@ def enforce_verify_first(
       - Security-sensitive files →  cache always refused, but we still
         require an explicit verify run; the agent must call `tausik
         verify` immediately before `task done` to avoid stale greens.
+
+    `no_file_changes` (qg2-cannot-close-fileless-task) selects the THIRD
+    scope state: the caller declares this task touched no files. Unlike the
+    two states this contract had — declared and undeclared — this one is
+    provable, and the proof is git's, not the agent's word: the declared
+    scope (relevant_files as a pathspec, or the whole tree when empty) must
+    have NO uncommitted changes. A dirty scope or an unavailable git blocks,
+    fail-closed. This is symmetric to how no_tests_declared closes a run with
+    no gate executed — here we close with no scope to gate.
     """
     from service_verification import (
         DEFAULT_CACHE_TTL_S,
@@ -64,6 +148,18 @@ def enforce_verify_first(
             "then retry.",
         )
         return
+
+    # qg2-cannot-close-fileless-task: the third scope state. Decided ahead of
+    # every other branch INCLUDING the no-verify-gates early return below —
+    # otherwise a project with no verify-trigger gates would skip the git proof
+    # entirely and `--no-file-changes` would close on a dirty tree, recording a
+    # `no_file_changes_declared=1` flag that git never backed (fail-open found by
+    # review, defect-fileless-close-fail-open-no-verify-gates). The declaration
+    # never closes on its own; git has to back it, gates configured or not.
+    if no_file_changes:
+        _enforce_no_file_changes(svc, report, slug, relevant_files)
+        return
+
     if not verify_gates:
         return  # no heavy gates configured, nothing to enforce
 

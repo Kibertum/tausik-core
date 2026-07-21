@@ -127,6 +127,82 @@ def changed_files_since(
     return changed
 
 
+def uncommitted_changes(
+    paths: list[str] | None = None,
+    *,
+    root: str | None = None,
+    runner: Callable[..., subprocess.CompletedProcess] | None = None,
+) -> list[str] | None:
+    """Return paths with uncommitted changes (`git status --porcelain`).
+
+    Restricted to `paths` (a git pathspec) when given, else the whole tree.
+    An EMPTY list is a positive fact: the scope is provably clean. Untracked
+    files count (they appear as ``??``); gitignored paths do not (so `.tausik/`
+    decisions and the DB never register as changes) — which is exactly right
+    for qg2-cannot-close-fileless-task: a task that only wrote to the framework
+    DB leaves the git scope clean.
+
+    Returns None when the answer cannot be computed:
+      - git executable not found on PATH
+      - `root` has no .git (not a repo)
+      - the git call returns non-zero or raises
+
+    None means "unverifiable" and MUST NOT be read as clean. The fileless-close
+    path fails closed on None — a declaration that git cannot back does not
+    close a task (verify_scope_honesty tri-state, memory #221).
+
+    Why `git status --porcelain` and not `changed_files_since`: the latter
+    unions `git log --since=<task start>`, which sweeps in commits made by
+    OTHER tasks after this one started (the release-accumulation workflow). A
+    fileless task's global change-set is then never empty and it could never
+    close. Porcelain judges only what is uncommitted here and now — the scope
+    the closing agent is actually responsible for. `runner` is injectable for
+    tests (defaults to `subprocess.run`).
+    """
+    base = root or os.getcwd()
+    if runner is None and shutil.which("git") is None:
+        return None
+    if not os.path.isdir(os.path.join(base, ".git")):
+        return None
+    run = runner or subprocess.run
+    pathspec = [_normalize_repo_path(p) for p in (paths or []) if p and p.strip()]
+    cmd = ["git", "status", "--porcelain"]
+    if pathspec:
+        cmd += ["--", *pathspec]
+    try:
+        # stdin=DEVNULL for the same MCP-worker-thread reason as
+        # changed_files_since — inheriting the JSON-RPC pipe can hang git.
+        out = run(
+            cmd,
+            cwd=base,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+            check=False,
+            stdin=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if out.returncode != 0:
+        return None
+    dirty: set[str] = set()
+    for line in (out.stdout or "").splitlines():
+        if not line.strip():
+            continue
+        # Porcelain v1 line: "XY <path>" (XY = 2 status chars + a space).
+        # Renames/copies render as "old -> new"; record the new path (what the
+        # working tree now holds) so the message names a real file.
+        payload = line[3:] if len(line) > 3 else line.strip()
+        if " -> " in payload:
+            payload = payload.split(" -> ", 1)[1]
+        norm = _normalize_repo_path(payload)
+        if norm:
+            dirty.add(norm)
+    return sorted(dirty)
+
+
 def is_declared_consistent_with_git_diff(
     declared_files: list[str],
     task_created_at: str,

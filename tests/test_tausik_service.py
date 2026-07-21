@@ -137,7 +137,9 @@ class TestTaskLifecycle:
         svc.be.task_update("rf-merge", relevant_files=json.dumps(["only/path.py"]))
         captured: list[list[str] | None] = []
 
-        def fake_report(slug, relevant_files, progress_fn=None, trigger="task-done"):
+        def fake_report(
+            slug, relevant_files, progress_fn=None, trigger="task-done", no_file_changes=False
+        ):
             captured.append(relevant_files)
             return {
                 "passed": True,

@@ -142,6 +142,14 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         help="Confirm no knowledge to capture",
     )
     tdone.add_argument("--relevant-files", nargs="*", default=None)
+    tdone.add_argument(
+        "--no-file-changes",
+        action="store_true",
+        dest="no_file_changes",
+        help="Close a task that touched NO files (pure planning / a decision). "
+        "Allowed only when git proves the declared scope (--relevant-files as a "
+        "pathspec, else the whole tree) has no uncommitted changes.",
+    )
     evidence_group = tdone.add_mutually_exclusive_group()
     evidence_group.add_argument(
         "--evidence",

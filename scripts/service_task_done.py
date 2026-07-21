@@ -15,37 +15,10 @@ from typing import TYPE_CHECKING, Any
 from tausik_utils import ServiceError, utcnow_iso
 from model_pinning import model_done_updates
 from service_recording import record_call_actual, record_cost_actual
+from service_task_done_flags import _checklist_hard_enabled, _root_cause_hard_enabled
 
 if TYPE_CHECKING:
     from project_backend import SQLiteBackend
-
-
-def _root_cause_hard_enabled() -> bool:
-    """config task_done.root_cause_hard, default True (fail-closed policy —
-    see docs/ru/research/failclosed-gates-audit.md)."""
-    try:
-        from project_config import load_config
-
-        td = load_config().get("task_done", {})
-        if isinstance(td, dict):
-            return bool(td.get("root_cause_hard", True))
-    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
-        pass
-    return True
-
-
-def _checklist_hard_enabled() -> bool:
-    """config task_done.checklist_hard, default True (SENAR Rule 5 hard gate
-    for substantial/deep planning tiers — v15s-rule5-checklist-hardgate)."""
-    try:
-        from project_config import load_config
-
-        td = load_config().get("task_done", {})
-        if isinstance(td, dict):
-            return bool(td.get("checklist_hard", True))
-    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
-        pass
-    return True
 
 
 def _format_task_done_failures(report: dict[str, Any]) -> str:
@@ -99,6 +72,7 @@ class TaskDoneReportMixin:
         evidence: str | None,
         evidence_json: str | None = None,
         progress_fn: Any | None = None,
+        no_file_changes: bool = False,
     ) -> dict[str, Any]:
         # v14b-token-t15: structured evidence — convert JSON to canonical
         # prose before the existing log path. Mutex with --evidence prose
@@ -164,7 +138,7 @@ class TaskDoneReportMixin:
             report["blocking_failures"].append({"stage": "plan", "message": str(e)})
             return report
         gate_report = self._run_quality_gates_report(  # type: ignore[attr-defined]
-            slug, relevant_files, progress_fn=progress_fn
+            slug, relevant_files, progress_fn=progress_fn, no_file_changes=no_file_changes
         )
         report["gates"] = gate_report.get("results", [])
         report["cache_status"] = gate_report.get("cache_status")
@@ -320,6 +294,11 @@ class TaskDoneReportMixin:
         updates: dict[str, Any] = {"status": "done", "completed_at": utcnow_iso()}
         if relevant_files:
             updates["relevant_files"] = json.dumps(relevant_files)
+        # qg2-cannot-close-fileless-task: record the fileless close countably,
+        # inside the status=done transaction (a blocked gate returned earlier, so
+        # this never marks a task that did not close). See backend_migrations_v41.
+        if no_file_changes:
+            updates["no_file_changes_declared"] = 1
         # v15-risk-compute-on-done: closure risk score — best-effort, never
         # blocks the close. None (total collection failure) just skips the
         # columns; downstream (metrics, L3 trigger) treats NULL as "unknown".

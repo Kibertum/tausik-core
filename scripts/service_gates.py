@@ -168,6 +168,7 @@ class GatesMixin:
         relevant_files: list[str] | None,
         progress_fn: Any | None = None,
         trigger: str = "task-done",
+        no_file_changes: bool = False,
     ) -> dict[str, Any]:
         """Return detailed gate report for MCP/agent-friendly handling.
 
@@ -191,6 +192,13 @@ class GatesMixin:
             "blocking_failures": [],
             "scope": None,
         }
+        # qg2-cannot-close-fileless-task: a fileless close has no scope to gate.
+        # Skip gate execution entirely and run ONLY the git proof — running the
+        # scope-independent gates over an empty file set would substitute `{files}`
+        # to "." and scan the whole tree for a task that touched nothing.
+        if no_file_changes and trigger == "task-done":
+            self._enforce_verify_first(report, slug, relevant_files, no_file_changes=True)
+            return report
         try:
             from service_verification import (
                 is_security_sensitive,
@@ -244,7 +252,9 @@ class GatesMixin:
         # heavy verification was ever expected — small projects are fine),
         # and only when auto_verify is NOT explicitly opted-in.
         if trigger == "task-done":
-            self._enforce_verify_first(report, slug, relevant_files)
+            self._enforce_verify_first(
+                report, slug, relevant_files, no_file_changes=no_file_changes
+            )
         return report
 
     def _enforce_verify_first(
@@ -252,11 +262,13 @@ class GatesMixin:
         report: dict[str, Any],
         slug: str,
         relevant_files: list[str] | None,
+        *,
+        no_file_changes: bool = False,
     ) -> None:
         """Verify-First Contract — delegates to gate_verify_first."""
         from gate_verify_first import enforce_verify_first
 
-        enforce_verify_first(self, report, slug, relevant_files)
+        enforce_verify_first(self, report, slug, relevant_files, no_file_changes=no_file_changes)
 
     def _run_quality_gates(
         self, slug: str, relevant_files: list[str] | None, progress_fn: Any | None = None

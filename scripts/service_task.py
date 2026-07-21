@@ -186,6 +186,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         evidence: str | None = None,
         progress_fn: Any | None = None,
         evidence_json: str | None = None,
+        no_file_changes: bool = False,
     ) -> str:
         report = self._task_done_report(
             slug,
@@ -195,6 +196,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             evidence=evidence,
             evidence_json=evidence_json,
             progress_fn=progress_fn,
+            no_file_changes=no_file_changes,
         )
         if not report.get("ok"):
             raise ServiceError(_format_task_done_failures(report))

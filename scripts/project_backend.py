@@ -58,6 +58,7 @@ _TASK_FIELDS = frozenset(
         "done_model_id",
         "done_model_version",
         "model_mismatch",
+        "no_file_changes_declared",
     }
 )
 

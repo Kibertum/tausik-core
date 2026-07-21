@@ -177,6 +177,10 @@ TOOLS = [
                     "description": "Confirm no knowledge to capture (suppresses warning)",
                 },
                 "relevant_files": {"type": "array", "items": {"type": "string"}},
+                "no_file_changes": {
+                    "type": "boolean",
+                    "description": "Close a task that touched NO files (pure planning / a decision). Allowed only when git proves the declared scope (relevant_files as a pathspec, else the whole tree) has no uncommitted changes; fail-closed otherwise. The third QG-2 scope state, symmetric to no_tests_declared.",
+                },
                 "evidence": {
                     "type": "string",
                     "description": 'Inline AC verification log (e.g. "AC verified: 1. ✓ 2. ✓ ..."). Replaces a separate task_log call.',
