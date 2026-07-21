@@ -29,6 +29,13 @@ from gate_command_policy import (  # noqa: E402,F401
     validate_default_gate_command,
 )
 
+# Gate enable/disable lives in `gate_toggle` (split out at the same 400-line cap).
+# Re-exported because these names have consumers that reach them through THIS
+# module, verified by AST scan rather than assumed: `project_service` imports
+# `set_gate_enabled` from here, and `tests/test_config_trust.py` reaches both
+# `set_gate_enabled` and `GATE_NAME_RE` as attributes of it.
+from gate_toggle import GATE_NAME_RE, set_gate_enabled  # noqa: E402,F401
+
 # --- Agent rule pack size (bootstrap templates: CLAUDE.md / AGENTS.md / .cursorrules) ---
 CONTEXT_TIER_VALUES = frozenset({"minimal", "standard", "full"})
 DEFAULT_CONTEXT_TIER = "standard"
@@ -215,11 +222,21 @@ def get_db_path() -> str:
     return os.path.join(find_tausik_dir(), DB_NAME)
 
 
-def get_config_path() -> str:
-    return os.path.join(find_tausik_dir(), CONFIG_NAME)
+def get_config_path(tausik_dir: str | None = None) -> str:
+    """Path to ``config.json`` inside *tausik_dir*, or the ambient project's.
+
+    ``tausik_dir`` exists because "the project" is not always the one the
+    process happens to stand in. A caller that already holds a project handle
+    (an MCP `ProjectService`, a test fixture on ``tmp_path``) must be able to
+    say which project it means; resolving from the cwd instead made a call
+    declared project-scoped execute globally — see
+    `mcp-gate-toggle-mutates-real-project-config`. Omitted → unchanged
+    `find_tausik_dir` behavior.
+    """
+    return os.path.join(tausik_dir or find_tausik_dir(), CONFIG_NAME)
 
 
-def load_project_config() -> dict:
+def load_project_config(tausik_dir: str | None = None) -> dict:
     """Raw ``.tausik/config.json`` — the project tier alone, no trusted layers.
 
     This is what config *writers* must read: `save_config` persists whatever it
@@ -227,7 +244,7 @@ def load_project_config() -> dict:
     copy the user's and the operator's settings into the repository file.
     Readers want `load_config` instead.
     """
-    path = get_config_path()
+    path = get_config_path(tausik_dir)
     if os.path.exists(path):
         try:
             with open(path, encoding="utf-8") as f:
@@ -245,34 +262,48 @@ def load_project_config() -> dict:
     return {}
 
 
-def load_config_with_rejections() -> tuple[dict, list]:
+def load_config_with_rejections(tausik_dir: str | None = None) -> tuple[dict, list]:
     """Effective config plus the guarded keys the project tier tried to weaken.
 
     Layers merge project < user < managed; on top of that a project-tier value
     for a guarded key applies only if it is at least as strict as what the
     trusted tiers (or the framework default) already establish. See
     `config_trust` for the rule and its honest threat boundary.
+
+    `tausik_dir` scopes ONLY the project tier (mcp-config-read-paths-ignore-
+    project-handle): it selects which `.tausik/config.json` the *project* layer
+    reads, so a service that speaks for one project describes that project and
+    not whichever directory the process happens to stand in. The user and
+    managed tiers are read from `~/.tausik` and `$TAUSIK_MANAGED_CONFIG` by
+    `config_trust.resolve` and are deliberately NOT reparameterised — they are
+    per-machine, not per-project, so making them follow the project directory
+    would be a new defect, not a fix. `None` keeps the ambient-project behaviour
+    every CLI call relies on.
     """
     from config_trust import resolve
 
-    cfg, rejections = resolve(load_project_config())
+    cfg, rejections = resolve(load_project_config(tausik_dir))
     for r in rejections:
         logger.warning("Config trust tier: %s", r.describe())
     return cfg, rejections
 
 
-def load_config() -> dict:
+def load_config(tausik_dir: str | None = None) -> dict:
     """Effective config for readers. Rejections are logged, not returned —
-    use `load_config_with_rejections` when you need to surface them."""
-    return load_config_with_rejections()[0]
+    use `load_config_with_rejections` when you need to surface them.
+
+    `tausik_dir` selects the project whose config to read (project tier only);
+    `None` = ambient project, byte-identical to the pre-parameterisation path.
+    """
+    return load_config_with_rejections(tausik_dir)[0]
 
 
-def save_config(cfg: dict) -> None:
+def save_config(cfg: dict, tausik_dir: str | None = None) -> None:
     """Persist config.json atomically: write to .tmp + os.replace.
 
     Atomicity guards against partial writes if the process is killed mid-write.
     """
-    path = get_config_path()
+    path = get_config_path(tausik_dir)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
@@ -280,14 +311,19 @@ def save_config(cfg: dict) -> None:
     os.replace(tmp, path)
 
 
-def load_gates(cfg: dict | None = None) -> dict[str, dict]:
+def load_gates(cfg: dict | None = None, tausik_dir: str | None = None) -> dict[str, dict]:
     """Load gates config: merge user overrides on top of defaults.
 
     Returns dict of gate_name -> gate_config.
     User can override any field per gate in config.json under "gates" key.
+
+    `tausik_dir` is consulted ONLY when `cfg` is not supplied — it selects which
+    project's config the gate overrides come from (mcp-config-read-paths-ignore-
+    project-handle). When the caller already has a `cfg`, the directory is
+    irrelevant. `None` = ambient project (unchanged behaviour).
     """
     if cfg is None:
-        cfg = load_config()
+        cfg = load_config(tausik_dir)
     user_gates = cfg.get("gates", {})
     if not isinstance(user_gates, dict):
         logger.warning("Config `gates` must be an object — user overrides ignored")
@@ -329,12 +365,15 @@ def load_gates(cfg: dict | None = None) -> dict[str, dict]:
     return merged
 
 
-def get_gates_for_trigger(trigger: str, cfg: dict | None = None) -> list[dict]:
+def get_gates_for_trigger(
+    trigger: str, cfg: dict | None = None, tausik_dir: str | None = None
+) -> list[dict]:
     """Return enabled gates matching a specific trigger.
 
-    Each returned dict includes a 'name' key.
+    Each returned dict includes a 'name' key. `tausik_dir` is forwarded to
+    `load_gates` only when `cfg` is not supplied — same project-scoping rule.
     """
-    all_gates = load_gates(cfg)
+    all_gates = load_gates(cfg, tausik_dir)
     result = []
     for name, gate in all_gates.items():
         if not gate.get("enabled", True):
@@ -343,54 +382,6 @@ def get_gates_for_trigger(trigger: str, cfg: dict | None = None) -> list[dict]:
         if trigger in triggers:
             result.append({**gate, "name": name})
     return result
-
-
-def set_gate_enabled(name: str, enable: bool) -> str:
-    """Toggle a gate in the project tier and report what actually took effect.
-
-    The write always lands in the project file, but it does not always take
-    effect: the trust policy refuses a project-scope disable of a guarded gate,
-    and a trusted tier can hold the opposite value outright. Reporting success
-    in either case would be the silent lie this whole mechanism exists to
-    remove, so the answer is derived from the EFFECTIVE config rather than from
-    the write — in both directions. Shared by the CLI and the MCP handler.
-    """
-    from config_trust import resolve
-
-    cfg = load_project_config()
-    cfg.setdefault("gates", {}).setdefault(name, {})["enabled"] = enable
-    save_config(cfg)
-
-    effective, rejections = resolve(cfg)
-    gate = effective.get("gates", {})
-    gate = gate.get(name, {}) if isinstance(gate, dict) else {}
-    actual = gate.get("enabled") if isinstance(gate, dict) else None
-    if actual is None:
-        actual = DEFAULT_GATES.get(name, {}).get("enabled", True)
-
-    if bool(actual) == bool(enable):
-        return f"Gate '{name}' {'enabled' if enable else 'disabled'}."
-
-    verb = "enabled" if enable else "disabled"
-    for r in rejections:
-        if r.key == f"gates.{name}.enabled":
-            return (
-                f"Gate '{name}' NOT {verb} — {r.reason}. The key was written to "
-                f"{get_config_path()} but the effective config keeps {r.applied!r}. "
-                f"To change it for real, set it in the user tier "
-                f"(~/.tausik/config.json) or in $TAUSIK_MANAGED_CONFIG."
-            )
-    # Backstop. With the present guard set this is unreachable: a project
-    # DISABLE that a trusted tier contradicts produces a rejection above, and a
-    # project ENABLE always wins because tightening wins. It stays because the
-    # answer is derived from the effective config rather than from the guard
-    # table — so if the table grows a case this function has not anticipated,
-    # it reports the truth instead of asserting its own assumptions.
-    return (
-        f"Gate '{name}' NOT {verb} — a trusted config tier sets it to {actual!r} "
-        f"and outranks {get_config_path()}. Change it in ~/.tausik/config.json "
-        f"or in $TAUSIK_MANAGED_CONFIG."
-    )
 
 
 def get_service() -> ProjectService:

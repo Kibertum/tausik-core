@@ -6,6 +6,7 @@ Validates input, enforces business rules, delegates to SQLiteBackend.
 
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING, Any
 
 from tausik_utils import ServiceError
@@ -290,8 +291,14 @@ class ProjectService(
         """Get gates grouped by stack with active stacks info."""
         from project_config import DEFAULT_GATES, load_config, load_gates
 
-        gates = load_gates()
-        cfg = load_config()
+        # mcp-config-read-paths-ignore-project-handle: read against the project
+        # THIS service speaks for, not the process cwd. gates_status is an
+        # instance method — ignoring self.tausik_dir() would describe whichever
+        # project the process stood in, the read-side twin of the write defect
+        # fixed in mcp-gate-toggle-mutates-real-project-config.
+        td = self.tausik_dir()
+        gates = load_gates(tausik_dir=td)
+        cfg = load_config(td)
         active_stacks = cfg.get("bootstrap", {}).get("stacks", [])
 
         # Group gates by stack
@@ -334,16 +341,25 @@ class ProjectService(
             "qg0": qg0_report,
         }
 
-    @staticmethod
-    def gate_enable(name: str) -> str:
+    def tausik_dir(self) -> str:
+        """The `.tausik/` directory of the project THIS service speaks for.
+
+        Derived from the backend's database path rather than from the cwd: a
+        service handed a database is a handle on one specific project, and any
+        sibling state (config.json) must be resolved against the same project.
+        Resolving from the cwd instead is what let MCP gate toggles write into
+        whatever project the process happened to stand in.
+        """
+        return os.path.dirname(os.path.abspath(self.be.db_path))
+
+    def gate_enable(self, name: str) -> str:
         from project_config import set_gate_enabled
 
-        return set_gate_enabled(name, True)
+        return set_gate_enabled(name, True, self.tausik_dir())
 
-    @staticmethod
-    def gate_disable(name: str) -> str:
+    def gate_disable(self, name: str) -> str:
         from project_config import set_gate_enabled
 
-        return set_gate_enabled(name, False)
+        return set_gate_enabled(name, False, self.tausik_dir())
 
     # Skill lifecycle -> inherited from SkillsMixin (service_skills.py)

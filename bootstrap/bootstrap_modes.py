@@ -52,6 +52,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Show what would be done without writing files",
     )
     parser.add_argument(
+        "--check",
+        action="store_true",
+        help=(
+            "Report deployed profiles that drifted from source and exit non-zero "
+            "if any (no writes). Covers the copy-only trees: scripts, mcp, roles, "
+            "subagents, aidd-templates."
+        ),
+    )
+    parser.add_argument(
         "--refresh",
         action="store_true",
         help="Rewrite .tausik/config.json from bootstrap state + env (no IDE skill/script copy)",
@@ -117,6 +126,37 @@ def run_dry_run(
     print("  RAG dir: .tausik/rag/")
     print("  CLI wrapper: .tausik/tausik")
     print("\nNo changes made.")
+
+
+def run_check_mode(lib_dir: str, project_dir: str, ides: list[str]) -> None:
+    """--check: report drift between source and the installed profiles, then exit.
+
+    Combines the two comparators for a complete picture: scripts/ (fast, one-to-one
+    — service_doctor_drift.scripts_drift_names) and the harness fan-out (mcp, roles,
+    subagents, aidd — bootstrap_check.check_deployed_trees, which reuses bootstrap's
+    own copy functions). Exit 0 when clean (or nothing to compare), 1 on any drift.
+    Writes nothing. The gate runs the same two comparators.
+    """
+    from bootstrap_check import check_deployed_trees
+
+    drift = list(check_deployed_trees(lib_dir, project_dir, ides))
+    try:
+        from service_doctor_drift import scripts_drift_names
+
+        scripts = scripts_drift_names(project_dir)
+        if scripts:
+            drift.extend(scripts)
+    except Exception:  # noqa: BLE001 — scripts comparator is best-effort here
+        pass
+    drift = sorted(set(drift))
+    if not drift:
+        print("\n=== CHECK — no bootstrap drift; deployed profiles match source. ===")
+        return
+    print(f"\n=== CHECK — {len(drift)} deployed file(s) drifted from source ===")
+    for path in drift:
+        print(f"  {path}")
+    print("\nFix: python bootstrap/bootstrap.py --ide all")
+    sys.exit(1)
 
 
 def run_refresh_mode(

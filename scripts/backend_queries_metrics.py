@@ -93,6 +93,7 @@ class BackendQueriesMetricsMixin:
             r["status"]: r["cnt"]
             for r in self._q("SELECT status, COUNT(*) as cnt FROM stories GROUP BY status")  # type: ignore[attr-defined]
         }
+        from backend_defect_escape import defect_escape_metrics
         from backend_tier_metrics import calibration_drift, per_tier_metrics
 
         return {
@@ -117,6 +118,10 @@ class BackendQueriesMetricsMixin:
             "stories": story_counts,
             "session_usage": self.session_usage_summary(),  # type: ignore[attr-defined]
             "gate_activity": self.gate_activity_summary(),
+            # l26-defect-escape-rate: der above is the crude aggregate; this is the
+            # principled, sliced outcome metric (escape rate by the escaped task's
+            # own attributes) + a risk_score backtest.
+            "defect_escape": defect_escape_metrics(self._q),  # type: ignore[attr-defined]
         }
 
     def gate_activity_summary(self) -> dict[str, Any]:

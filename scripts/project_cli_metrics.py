@@ -11,6 +11,53 @@ from typing import Any
 from project_service import ProjectService
 
 
+def render_extended_metrics(m: dict[str, Any]) -> None:
+    """Print the per-tier, calibration-drift and defect-escape tail of the metrics
+    summary. Extracted from project_cli_ops._print_metrics so that file stays under
+    the 400-line filesize gate when l26-defect-escape-rate added the escape section.
+    Output is byte-identical to the inline version it replaced."""
+    per_tier = m.get("per_tier") or {}
+    if per_tier:
+        print("\n--- Per-tier (agent-native units) ---")
+        order = ["trivial", "light", "moderate", "substantial", "deep", "unset"]
+        for tier in order:
+            d = per_tier.get(tier)
+            if not d:
+                continue
+            ab = d["avg_budget"] if d["avg_budget"] is not None else "-"
+            aa = d["avg_actual"] if d["avg_actual"] is not None else "-"
+            print(
+                f"  {tier:>11}: count={d['count']:<4} budget={ab:<6} "
+                f"actual={aa:<6} fpsr={d['fpsr_pct']}%"
+            )
+    drift = m.get("calibration_drift")
+    if drift:
+        print(
+            f"\nCalibration drift: {drift['label']} "
+            f"(avg actual/budget = {drift['avg_ratio']}, n={drift['samples']})"
+        )
+    # l26-defect-escape-rate: the outcome metric. DER is the crude aggregate; this
+    # shows whether verification and risk_score actually track escapes.
+    esc = m.get("defect_escape")
+    if esc:
+        ov = esc["overall"]
+        print("\n--- Defect Escape (l26) ---")
+        print(f"Escape rate:   {ov['rate_pct']}% ({ov['escaped']}/{ov['done']} done escaped)")
+        bv = esc.get("by_verification", {})
+        for label in ("verified", "unverified"):
+            d = bv.get(label)
+            if d and d["done"]:
+                print(f"  {label:<11}: {d['rate_pct']}% ({d['escaped']}/{d['done']})")
+        bt = esc.get("risk_backtest", {})
+        if bt.get("escaped_avg_risk") is not None or bt.get("clean_avg_risk") is not None:
+            ea = bt["escaped_avg_risk"] if bt["escaped_avg_risk"] is not None else "-"
+            ca = bt["clean_avg_risk"] if bt["clean_avg_risk"] is not None else "-"
+            print(
+                f"  risk backtest: escaped avg={ea} (n={bt['escaped_n']}) "
+                f"vs clean avg={ca} (n={bt['clean_n']})"
+            )
+
+
 def dispatch_metrics_subcmd(svc: ProjectService, args: Any) -> bool:
     """Handle `metrics <sub>`: record-session, log-usage, cost, tokens.
 

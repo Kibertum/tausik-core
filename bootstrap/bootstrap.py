@@ -3,7 +3,6 @@
 
 Usage:
     python .tausik-lib/bootstrap/bootstrap.py --ide claude --smart
-    python .tausik-lib/bootstrap/bootstrap.py --ide cursor
     python .tausik-lib/bootstrap/bootstrap.py --ide all --smart
 """
 
@@ -35,6 +34,7 @@ from bootstrap_modes import (
     resolve_context_tier_or_exit,
     build_parser,
     load_bootstrap_config,
+    run_check_mode,
     run_dry_run,
     run_post_bootstrap,
     run_refresh_mode,
@@ -85,8 +85,7 @@ def get_lib_commit(lib_dir: str) -> str | None:
         return None
 
 
-# Canonical list lives in bootstrap_config.IDE_DIRS (single source of truth).
-# Kept as a module-level alias for backward compatibility with existing callers.
+# Module-level alias for existing callers; canonical list is bootstrap_config.IDE_DIRS.
 _IDE_DIRS = IDE_DIRS
 
 
@@ -175,12 +174,10 @@ def bootstrap_ide(
     if n_mcp_enums:
         print(f"  MCP stack enums regenerated: {n_mcp_enums} file(s)")
 
-    # output_mode (caveman) compresses agent OUTPUT; orthogonal to tier. Bad value → "off".
-    #
-    # It is read from `full_cfg` — the ROOT of .tausik/config.json, where the docs put it and
-    # where `context_tier` also lives. NOT from `config`, which is only the nested "bootstrap"
-    # section: resolving it from there made the documented key a silent no-op (bootstrap said
-    # "Done!", applied nothing, warned nobody). Keep the two dicts straight.
+    # output_mode (caveman) compresses agent OUTPUT; orthogonal to tier, bad value → "off".
+    # Read from `full_cfg` — the ROOT of .tausik/config.json (where the docs and
+    # `context_tier` put it), NOT the nested "bootstrap" `config`: resolving it from
+    # there made the documented key a silent no-op (gotcha #207). Keep the two dicts straight.
     proj = config.get("project", "my-project")
     output_mode = resolve_output_mode(full_cfg)
 
@@ -203,15 +200,19 @@ def bootstrap_ide(
             print(f"  Kilo commands: {n_cmds} stub(s)")
     elif ide == "opencode":
         scaffold_opencode(
-            project_dir, target_dir, venv_python, lib_dir, config, stacks, context_tier,
+            project_dir,
+            target_dir,
+            venv_python,
+            lib_dir,
+            config,
+            stacks,
+            context_tier,
             output_mode,
         )
 
-    # AGENTS.md for every host EXCEPT OpenCode. OpenCode merges the `instructions`
-    # files INTO AGENTS.md, so shipping both would put the identical rule body in the
-    # context twice — and context bloat is one of the pains this work exists to fix.
-    # Capturing AGENTS.md would be pointless there anyway: OpenCode is
-    # first-matching-file-wins, so a user's own AGENTS.md always beats ours.
+    # AGENTS.md for every host EXCEPT OpenCode: OpenCode merges `instructions`
+    # INTO AGENTS.md (shipping both doubles the rule body — the very context
+    # bloat this work fixes), and its first-match-wins would prefer the user's.
     if ide != "opencode":
         generate_agents_md(project_dir, proj, stacks, context_tier, output_mode)
 
@@ -281,6 +282,10 @@ def main() -> None:
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
+
+    if args.check:
+        run_check_mode(lib_dir, project_dir, ides)
+        return
 
     if args.dry_run:
         run_dry_run(config, stacks, ides, env_profile_slug, project_dir, get_ide_target)

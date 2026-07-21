@@ -132,6 +132,7 @@ def _do_task_done(svc: Any, args: dict) -> str:
         evidence=args.get("evidence"),
         evidence_json=args.get("evidence_json"),
         progress_fn=_progress,
+        no_file_changes=args.get("no_file_changes", False),
     )
     return json.dumps(result, ensure_ascii=False)
 
@@ -588,9 +589,9 @@ _DISPATCH: dict[str, _Handler] = {
     "tausik_audit_check": _do_audit_check,
     "tausik_audit_mark": lambda svc, args: svc.audit_mark(),
     # --- Gates ---
-    "tausik_gates_status": lambda svc, args: _handle_gates_status(),
-    "tausik_gates_enable": lambda svc, args: _handle_gate_toggle(args["name"], True),
-    "tausik_gates_disable": lambda svc, args: _handle_gate_toggle(args["name"], False),
+    "tausik_gates_status": lambda svc, args: _handle_gates_status(svc),
+    "tausik_gates_enable": lambda svc, args: _handle_gate_toggle(svc, args["name"], True),
+    "tausik_gates_disable": lambda svc, args: _handle_gate_toggle(svc, args["name"], False),
     # --- Skills (handlers in handlers_skill.py) ---
     "tausik_skill_list": lambda svc, args: _skill.handle_skill_list(),
     "tausik_skill_activate": lambda svc, args: _skill.handle_skill_activate(svc, args["name"]),
@@ -966,7 +967,10 @@ def _handle_status(svc: Any, args: dict | None = None) -> str:
 
     args = args or {}
     data = svc.get_status()
-    cfg = load_config()
+    # mcp-config-read-paths-ignore-project-handle: session_max_minutes is a
+    # property of THIS project; read it from svc's directory, not the cwd.
+    _td = svc.tausik_dir() if hasattr(svc, "tausik_dir") else None
+    cfg = load_config(_td)
     max_min = cfg.get("session_max_minutes", DEFAULT_SESSION_MAX_MINUTES)
     duration_warning = svc.session_check_duration(max_min)
     # v14b-session-active-time: surface active/wall minutes alongside the
@@ -1227,13 +1231,22 @@ def _handle_events(svc: Any, args: dict) -> str:
     return "\n".join(lines)
 
 
-def _handle_gates_status() -> str:
-    """Gates status via project_config (no DB needed)."""
+def _handle_gates_status(svc: Any = None) -> str:
+    """Gates status via project_config (no DB needed).
+
+    mcp-config-read-paths-ignore-project-handle: read the gates of the project
+    THIS service speaks for. Resolving from the cwd instead described whichever
+    project the MCP process stood in — invisible today (server cwd = project
+    root), a wrong answer the moment `svc` carries project identity (epic
+    v2-global-mcp). `svc is None` keeps the ambient-project fallback so nothing
+    that calls this without a service changes.
+    """
     try:
         from project_config import load_gates, load_config
 
-        gates = load_gates()
-        cfg = load_config()
+        td = svc.tausik_dir() if svc is not None and hasattr(svc, "tausik_dir") else None
+        gates = load_gates(tausik_dir=td)
+        cfg = load_config(td)
         stacks = cfg.get("bootstrap", {}).get("stacks", [])
     except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         return f"Error loading gates: {e}"
@@ -1249,18 +1262,20 @@ def _handle_gates_status() -> str:
     return "\n".join(lines) if lines else "No gates configured."
 
 
-def _handle_gate_toggle(name: str, enable: bool) -> str:
-    import re
+def _handle_gate_toggle(svc, name: str, enable: bool) -> str:
+    """Delegate to the service; hold no toggle logic of its own.
 
-    if not re.match(r"^[a-z0-9][a-z0-9-]*$", name):
-        return f"Invalid gate name '{name}': must be lowercase alphanumeric with hyphens."
+    This used to be a second implementation of `project_config.set_gate_enabled`,
+    and the copy had drifted in all three ways a copy drifts: it round-tripped
+    the EFFECTIVE config back into the project file (copying user- and
+    operator-tier settings into the repository), it reported success regardless
+    of what the trust policy actually applied, and — because it took `svc` and
+    dropped it — it resolved the config from the cwd, so a call declared
+    project-scoped wrote into whatever project the process stood in. Delegation
+    is the fix for all three at once: there is one formula again.
+    """
     try:
-        from project_config import load_config, save_config
-
-        cfg = load_config()
-        cfg.setdefault("gates", {}).setdefault(name, {})["enabled"] = enable
-        save_config(cfg)
-        return f"Gate '{name}' {'enabled' if enable else 'disabled'}."
+        return svc.gate_enable(name) if enable else svc.gate_disable(name)
     except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         return f"Error: {e}"
 
