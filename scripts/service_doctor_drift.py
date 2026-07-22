@@ -87,9 +87,18 @@ def check_claudemd_drift(project_dir: str) -> int | None:
     except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         return None
     try:
-        from project_config import load_config, resolve_context_tier  # noqa: PLC0415
+        from project_config import load_project_config, resolve_context_tier  # noqa: PLC0415
 
-        cfg = load_config() or {}
+        # l26-config-not-repo-state-audit: read the RAW project tier, not the
+        # merged load_config(). This check's subject is "does the tracked
+        # CLAUDE.md match the config it was generated from" — and the generator
+        # (bootstrap load_bootstrap_config) reads the raw .tausik/config.json,
+        # never the user/managed tiers. Judging with the merged config made an
+        # org-wide managed key (e.g. output_mode) silently change "expected", so
+        # the same commit drifted on one machine and not another. Mirror the
+        # producer (oracle rule): same raw file, scoped to THIS project's dir
+        # rather than the ambient cwd.
+        cfg = load_project_config(os.path.join(project_dir, ".tausik")) or {}
         project_name = cfg.get("project_name") or os.path.basename(project_dir)
         stacks = cfg.get("stacks") or []
         tier = resolve_context_tier(cfg)

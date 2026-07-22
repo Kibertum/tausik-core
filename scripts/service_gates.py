@@ -135,6 +135,14 @@ class GatesMixin:
             audit_check_fn=getattr(self, "audit_check", None),
             session_check_duration_fn=getattr(self, "session_check_duration", None),
             renar_advisory_fn=lambda: renar_qg0_advisory(self.be, task, slug),
+            # l26-bypass-telemetry: fires only when qg0.scope_hard_gate=false lets
+            # a medium/complex task start without a scope declaration.
+            on_scope_hard_gate_bypass=lambda: self.be.event_add(
+                "supervision",
+                slug,
+                "bypass_scope_hard_gate",
+                "scope_hard_gate=false — medium/complex task started without scope declaration",
+            ),
         )
 
     def _verify_ac(self, slug: str, task: dict[str, Any], ac_verified: bool) -> list[str]:

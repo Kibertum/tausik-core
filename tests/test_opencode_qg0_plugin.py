@@ -122,15 +122,33 @@ const scenario = JSON.parse(process.argv[2]);
 let calls = 0;
 let state = scenario.steps[0];
 
-const $ = () => ({
-  quiet: () => ({
-    text: async () => {
-      calls++;
-      if (state.cliFails) throw new Error("cli unavailable");
-      return JSON.stringify({ tasks_active: state.active ? 1 : 0 });
-    },
-  }),
-});
+// Reconstruct the command so the fake can tell a `status` query (counted in
+// `calls`, the load-bearing cost the cache tests pin) from a supervision emit
+// (recorded in `emits`, cross-harness telemetry). Conflating them would make
+// every existing exact-`calls` assertion ambiguous.
+const emits = [];
+const $ = (strings, ...values) => {
+  let cmd = "";
+  for (let i = 0; i < strings.length; i++) {
+    cmd += strings[i];
+    if (i < values.length) cmd += String(values[i]);
+  }
+  const isEmit = cmd.includes("emit-supervision");
+  return {
+    quiet: () => ({
+      text: async () => {
+        if (isEmit) {
+          emits.push(cmd.trim());  // the attempt happened, recorded before any failure
+          if (state.cliFails) throw new Error("cli unavailable");
+          return "";
+        }
+        calls++;
+        if (state.cliFails) throw new Error("cli unavailable");
+        return JSON.stringify({ tasks_active: state.active ? 1 : 0 });
+      },
+    }),
+  };
+};
 
 if (scenario.withBun) {
   globalThis.Bun = {
@@ -162,7 +180,7 @@ for (const step of scenario.steps) {
     results.push({ blocked: true, message: e.message, queried: calls > callsBefore });
   }
 }
-console.log(JSON.stringify({ results, calls, warnings }));
+console.log(JSON.stringify({ results, calls, warnings, emits }));
 """
 
 
@@ -190,7 +208,12 @@ def _run(tmp_path, plugin_path: str, steps: list[dict], with_bun=False, env=None
 def _run_hook(tmp_path, plugin_path: str, step: dict, env: dict | None = None) -> dict:
     """Single-step convenience wrapper."""
     out = _run(tmp_path, plugin_path, [step], with_bun=step.get("withBun", False), env=env)
-    return {**out["results"][0], "calls": out["calls"], "warnings": out["warnings"]}
+    return {
+        **out["results"][0],
+        "calls": out["calls"],
+        "warnings": out["warnings"],
+        "emits": out["emits"],
+    }
 
 
 @needs_node
@@ -269,7 +292,75 @@ class TestFailurePolicy:
             env={"TAUSIK_SKIP_HOOKS": "1"},
         )
         assert not res["blocked"]
-        assert res["calls"] == 0
+        assert res["calls"] == 0, "skip must not pay for the active-task status query"
+
+
+@needs_node
+class TestSupervisionTelemetryParity:
+    """l26-bypass-telemetry-opencode-parity: the SAME weakenings the Python hooks
+    record must leave a countable row on THIS harness too, or supervision_bypasses
+    lies by omission. The plugin cannot call the Python emitter in-process (Node),
+    so it shells the CLI `events emit-supervision` — the row's contract stays in
+    one place."""
+
+    def test_skip_hooks_emits_bypass(self, tmp_path, emitted):
+        path, _ = emitted
+        res = _run_hook(
+            tmp_path,
+            path,
+            {"tool": "write", "active": False},
+            env={"TAUSIK_SKIP_HOOKS": "1"},
+        )
+        assert not res["blocked"]
+        assert len(res["emits"]) == 1, res["emits"]
+        cmd = res["emits"][0]
+        assert "events emit-supervision" in cmd
+        assert "--kind bypass" in cmd
+        assert "--vector skip_hooks" in cmd
+        assert "--source opencode_qg0" in cmd
+
+    @pytest.mark.parametrize("tool", ["read", "grep", "todowrite"])
+    def test_read_only_tools_never_emit_under_skip(self, tmp_path, emitted, tool):
+        """Scope parity with task_gate's write-only matcher: a skip on a read must
+        NOT count as a bypass, or the metric wildly over-reports."""
+        path, _ = emitted
+        res = _run_hook(
+            tmp_path, path, {"tool": tool, "active": False}, env={"TAUSIK_SKIP_HOOKS": "1"}
+        )
+        assert not res["blocked"]
+        assert res["emits"] == [], "a read-only tool must not emit bypass telemetry"
+
+    def test_fail_open_emits_degradation(self, tmp_path, emitted):
+        """A silent fail-open is a degradation — recorded under fail_open_%, its own
+        metric bucket, distinct from an intentional bypass."""
+        path, _ = emitted
+        res = _run_hook(tmp_path, path, {"tool": "write", "cliFails": True})
+        assert not res["blocked"]
+        assert len(res["emits"]) == 1, res["emits"]
+        cmd = res["emits"][0]
+        assert "--kind degradation" in cmd
+        assert "--vector cli_unreachable" in cmd
+        assert "--source opencode_qg0" in cmd
+
+    def test_healthy_write_emits_nothing(self, tmp_path, emitted):
+        """No weakening, no row: an active-task write must not spam supervision."""
+        path, _ = emitted
+        res = _run_hook(tmp_path, path, {"tool": "write", "active": True})
+        assert not res["blocked"]
+        assert res["emits"] == []
+
+    def test_fail_secure_blocks_without_emitting_degradation(self, tmp_path, emitted):
+        """FAIL_SECURE flips fail-open to a BLOCK before the degradation path — the
+        guard worked, so there is nothing to record as weakened."""
+        path, _ = emitted
+        res = _run_hook(
+            tmp_path,
+            path,
+            {"tool": "write", "cliFails": True},
+            env={"TAUSIK_HOOK_FAIL_SECURE": "1"},
+        )
+        assert res["blocked"]
+        assert res["emits"] == []
 
 
 @needs_node
@@ -318,3 +409,113 @@ class TestCacheErrsTowardStrictness:
         out = _run(tmp_path, path, steps, with_bun=False)
         assert all(r["blocked"] for r in out["results"])
         assert out["calls"] == 1
+
+
+# --- CLI oracle: the row the JS plugin shells out to write -------------------
+
+import sqlite3  # noqa: E402
+import types  # noqa: E402
+
+_SCRIPTS = os.path.join(REPO, "scripts")
+if _SCRIPTS not in sys.path:
+    sys.path.insert(0, _SCRIPTS)
+
+
+class TestEmitSupervisionCLI:
+    """The `events emit-supervision` command is the single producer both harnesses
+    share. Test it directly (no node) so its row contract is pinned even where
+    node is absent — and so a JS-side change can never quietly redefine the row."""
+
+    def _project(self, tmp_path):
+        from project_backend import SQLiteBackend
+        from project_service import ProjectService
+
+        tdir = tmp_path / ".tausik"
+        tdir.mkdir()
+        be = SQLiteBackend(str(tdir / "tausik.db"))
+        return ProjectService(be), be
+
+    def _rows(self, be):
+        return [
+            tuple(r)
+            for r in be._conn.execute(
+                "SELECT entity_type, entity_id, action, details FROM events "
+                "WHERE entity_type='supervision' ORDER BY id"
+            ).fetchall()
+        ]
+
+    def test_bypass_kind_writes_bypass_action(self, tmp_path):
+        from project_cli_events import cmd_events_emit_supervision
+
+        svc, be = self._project(tmp_path)
+        args = types.SimpleNamespace(
+            kind="bypass", vector="skip_hooks", sup_source="opencode_qg0", details=None
+        )
+        cmd_events_emit_supervision(svc, args)
+        assert self._rows(be) == [("supervision", "opencode_qg0", "bypass_skip_hooks", None)]
+
+    def test_degradation_kind_writes_fail_open_action(self, tmp_path):
+        from project_cli_events import cmd_events_emit_supervision
+
+        svc, be = self._project(tmp_path)
+        args = types.SimpleNamespace(
+            kind="degradation",
+            vector="cli_unreachable",
+            sup_source="opencode_qg0",
+            details="cli unavailable",
+        )
+        cmd_events_emit_supervision(svc, args)
+        assert self._rows(be) == [
+            ("supervision", "opencode_qg0", "fail_open_cli_unreachable", "cli unavailable")
+        ]
+
+    def test_row_is_chain_safe_raw_insert(self, tmp_path):
+        """Parity with the Python emitter: a raw INSERT leaves entry_hash NULL,
+        sealed lazily later — never eagerly hashed by a divergent second path."""
+        from project_cli_events import cmd_events_emit_supervision
+
+        svc, be = self._project(tmp_path)
+        args = types.SimpleNamespace(
+            kind="bypass", vector="skip_hooks", sup_source="opencode_qg0", details=None
+        )
+        cmd_events_emit_supervision(svc, args)
+        row = be._conn.execute(
+            "SELECT entry_hash FROM events WHERE entity_type='supervision'"
+        ).fetchone()
+        assert row[0] is None
+
+    def test_cli_reports_failure_when_write_does_not_land(self, tmp_path, capsys):
+        """s128 review HIGH-1: a best-effort write that fails must NOT be reported
+        as 'Recorded' — the one command the cross-harness parity depends on has to
+        make a swallowed miss distinguishable (stderr WARNING + non-zero exit)."""
+        import pytest
+
+        from project_cli_events import cmd_events_emit_supervision
+
+        svc, be = self._project(tmp_path)
+        be.close()  # release the handle, then corrupt the sink so the write fails
+        (tmp_path / ".tausik" / "tausik.db").write_bytes(b"not a sqlite database")
+        args = types.SimpleNamespace(
+            kind="bypass", vector="skip_hooks", sup_source="opencode_qg0", details=None
+        )
+        with pytest.raises(SystemExit) as ei:
+            cmd_events_emit_supervision(svc, args)
+        assert ei.value.code == 1
+        err = capsys.readouterr().err
+        assert "NOT recorded" in err
+        assert "Recorded supervision event" not in err
+
+    def test_counts_in_bypasses_metric_not_detections(self, tmp_path):
+        """The whole point: the shelled row lands in the SAME metric bucket as the
+        Python-side bypass, so supervision_bypasses is no longer blind on opencode."""
+        from project_cli_events import cmd_events_emit_supervision
+
+        svc, be = self._project(tmp_path)
+        cmd_events_emit_supervision(
+            svc,
+            types.SimpleNamespace(
+                kind="bypass", vector="skip_hooks", sup_source="opencode_qg0", details=None
+            ),
+        )
+        assert be.supervision_bypasses_summary()["by_action"]["bypass_skip_hooks"] == 1
+        assert be.supervision_detections_summary()["total"] == 0

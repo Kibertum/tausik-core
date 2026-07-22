@@ -115,11 +115,18 @@ def main() -> int:
     # hook-stderr-encoding-locale-dependent: this hook's messages contain
     # non-ASCII, and their readability must not depend on how it was
     # launched. Local import: hooks/ is sys.path[0] only when run as a script.
-    from _common import force_utf8_io
+    from _common import (
+        emit_supervision_bypass,
+        emit_supervision_degradation,
+        force_utf8_io,
+    )
 
     force_utf8_io()
 
     if os.environ.get("TAUSIK_SKIP_HOOKS"):
+        emit_supervision_bypass(
+            os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd()), "skip_hooks", "scope_write_gate"
+        )
         return 0
 
     project_dir = os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd())
@@ -152,7 +159,10 @@ def main() -> int:
                 file=sys.stderr,
             )
             return 2
-        return 0  # fail-open: pre-v30 schema / transient DB issue
+        # fail-open: pre-v30 schema / transient DB issue. Count the silently
+        # dropped scope check so the degradation is not invisible.
+        emit_supervision_degradation(project_dir, "db_error", "scope_write_gate", str(e))
+        return 0
 
     # Orchestrator-worker (v15-ow-scope-hardgate): a DELEGATED active task must be
     # scope-bounded — it does NOT inherit the legacy 'undeclared = unrestricted'

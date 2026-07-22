@@ -78,6 +78,25 @@ class TestPureDetectors:
         rows = [_mem(1, content="this mentions ruff and mypy but no file path")]
         assert find_lint_candidates(rows, [], _NONE_EXIST) == []
 
+    def test_url_and_hostname_are_not_flagged_as_stale_files(self):
+        """l26-memory-dedupe-perf: a URL/hostname mentioned in prose is not a
+        repo-relative path — flagging it as a missing file is noise. The FIRST
+        segment being domain-like (example.com) is the tell."""
+        rows = [
+            _mem(1, content="see https://example.com/docs/page.html for the spec"),
+            _mem(2, content="the api at example.com/v2/users.json returns json"),
+            _mem(3, content="cdn.jsdelivr.net/npm/pkg/dist/index.min.js is the bundle"),
+        ]
+        assert find_lint_candidates(rows, [], _NONE_EXIST) == []
+
+    def test_dotfile_dir_path_still_flagged(self):
+        """A leading dotfile dir (.github/) is a real repo path, NOT a host — the
+        refinement keys on an INTERNAL dot, so it must still be checked."""
+        rows = [_mem(1, content="the workflow .github/workflows/ci.yml is gone")]
+        out = find_lint_candidates(rows, [], _NONE_EXIST)
+        assert len(out) == 1 and out[0]["kind"] == "stale_file"
+        assert ".github/workflows/ci.yml" in out[0]["reason"]
+
     def test_broken_edge_does_not_crash(self):
         rows = [_mem(1)]
         bad = [{"source_type": "memory", "target_type": "memory", "relation": "supersedes"}]

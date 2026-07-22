@@ -21,6 +21,7 @@ def cmd_events(svc: Any, args: Any) -> None:
         "verify": cmd_events_verify,
         "anchor": cmd_events_anchor,
         "seal": cmd_events_seal,
+        "emit-supervision": cmd_events_emit_supervision,
     }
     if sub in dispatch:
         dispatch[sub](svc, args)
@@ -34,6 +35,54 @@ def cmd_events(svc: Any, args: Any) -> None:
         print(f"[{ev['created_at']}] {ev['entity_type']}/{ev['entity_id']}: {ev['action']}{actor}")
         if ev.get("details"):
             print(f"  {ev['details']}")
+
+
+def cmd_events_emit_supervision(svc: Any, args: Any) -> None:
+    """`events emit-supervision` — record a supervision bypass/degradation row.
+
+    Cross-harness parity (l26-bypass-telemetry-opencode-parity): the OpenCode JS
+    plugin runs in a Node process and cannot call the in-process Python emitter,
+    so it shells out to this command. Routing through the SAME
+    `hook_supervision` helper the Claude hooks use is deliberate — the row's
+    contract (entity_type/action/chain-safe raw INSERT) is defined in exactly
+    one place, never re-implemented in JS where it would silently diverge.
+
+    project_dir is derived from the service's own `.tausik/` dir (the project
+    THIS service speaks for), never the cwd — same read-path discipline as the
+    gate toggles.
+    """
+    import os
+    import sys
+
+    hooks_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hooks")
+    if hooks_dir not in sys.path:
+        sys.path.insert(0, hooks_dir)
+    from hook_supervision import emit_supervision_bypass, emit_supervision_degradation
+
+    project_dir = os.path.dirname(svc.tausik_dir())
+    if args.kind == "degradation":
+        wrote = emit_supervision_degradation(
+            project_dir, args.vector, args.sup_source, args.details
+        )
+        action = f"fail_open_{args.vector}"
+    else:
+        wrote = emit_supervision_bypass(project_dir, args.vector, args.sup_source, args.details)
+        action = f"bypass_{args.vector}"
+    # Honesty over reassurance (s128 review HIGH-1): the emitter is best-effort
+    # and swallows write failures. Claiming "Recorded" on a swallowed miss makes
+    # a failed telemetry write indistinguishable from a success at the one place
+    # a script/human can check — the opposite of the falsifiability this exists
+    # for. Report the actual outcome; exit non-zero on a miss so a caller (the
+    # JS plugin, CI) can tell.
+    if wrote:
+        print(f"Recorded supervision event: {args.sup_source} / {action}")
+    else:
+        print(
+            f"WARNING: supervision event NOT recorded (best-effort write failed): "
+            f"{args.sup_source} / {action}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
 
 
 def _recomputed_head_map(svc: Any) -> dict[int, str]:

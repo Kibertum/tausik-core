@@ -217,6 +217,38 @@ def _override_model_id(config: dict | None, phase: str, tier: str) -> str | None
     return None
 
 
+def _override_provenance(phase: str, tier: str) -> str:
+    """Name the config tier that actually supplies the model_routing override for
+    (phase, tier), so the rationale points the user at the RIGHT file.
+
+    l26-config-not-repo-state-audit: the merged config an override arrives in
+    carries no tier tag, and the old message hardcoded ``.tausik/config.json``
+    even when the value came from the user or managed tier — sending the user to
+    edit a file that does not hold the setting.
+
+    Called only when an override HAS applied, so the value came from one of the
+    three tiers. The trusted tiers (user, managed) are per-MACHINE, so reading
+    them ambiently is correct and couples to no project directory. The project
+    tier is per-PROJECT — so rather than read it from the ambient cwd (the
+    read-path defect #265 the sibling audit fix closed; s128 review HIGH-2), we
+    attribute to it by ELIMINATION: an applied override absent from both trusted
+    tiers came from this project's own ``.tausik/config.json``. No project state
+    is read here. On failure to inspect the tiers, a neutral phrase that names
+    no false file. Rationale text only — never the pick.
+    """
+    try:
+        from config_trust import raw_layers  # noqa: PLC0415
+
+        user, managed = raw_layers()
+    except Exception:  # noqa: BLE001 — best-effort: rationale text only, never the decision
+        return "a config tier (project/user/managed)"
+    if _override_model_id(managed, phase, tier) is not None:
+        return "the managed tier ($TAUSIK_MANAGED_CONFIG)"
+    if _override_model_id(user, phase, tier) is not None:
+        return "the user tier (~/.tausik/config.json)"
+    return ".tausik/config.json"
+
+
 def _spec_from_model_id(model_id: str, rationale: str) -> dict[str, str]:
     # Honest display (H2 review fix): only use the registered tier label when the
     # id EXACTLY matches that tier's canonical model. A same-family but different
@@ -269,7 +301,8 @@ def suggest_model(
 
     override = _override_model_id(config, ph, tier)
     if override is not None:
-        rationale = f"Config override (.tausik/config.json model_routing.{ph}). {base_rationale}"
+        source = _override_provenance(ph, tier)
+        rationale = f"Config override (model_routing.{ph} from {source}). {base_rationale}"
         return _spec_from_model_id(override, rationale)
 
     rationale = base_rationale if note is None else f"{note} {base_rationale}"

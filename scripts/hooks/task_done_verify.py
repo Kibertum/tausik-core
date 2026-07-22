@@ -130,11 +130,14 @@ def main() -> int:
     # hook-stderr-encoding-locale-dependent: this hook's messages contain
     # non-ASCII, and their readability must not depend on how it was
     # launched. Local import: hooks/ is sys.path[0] only when run as a script.
-    from _common import force_utf8_io
+    from _common import emit_supervision_bypass, force_utf8_io
 
     force_utf8_io()
 
     if os.environ.get("TAUSIK_SKIP_HOOKS"):
+        emit_supervision_bypass(
+            os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd()), "skip_hooks", "task_done_verify"
+        )
         return 0
 
     try:

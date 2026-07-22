@@ -323,6 +323,28 @@ def build_parser() -> argparse.ArgumentParser:
     ev_sub.add_parser("seal", help="Seal pending events into the hash-chain")
     ev_sub.add_parser("verify", help="Verify the audit hash-chain (+ ed25519 anchor)")
     ev_sub.add_parser("anchor", help="Sign the current chain head with the project key")
+    # Cross-harness supervision telemetry (l26-bypass-telemetry-opencode-parity):
+    # a non-Python harness (the OpenCode JS plugin) cannot call the in-process
+    # emit_supervision_* helper, so it shells out here. The row is written by the
+    # SAME Python emitter the Claude hooks use — one producer, one contract.
+    ev_emit = ev_sub.add_parser(
+        "emit-supervision",
+        help="Record a supervision bypass/degradation event (cross-harness parity)",
+    )
+    ev_emit.add_argument(
+        "--kind",
+        choices=["bypass", "degradation"],
+        default="bypass",
+        help="bypass_ (intentional) or fail_open_ (silent degradation)",
+    )
+    ev_emit.add_argument("--vector", required=True, help="e.g. skip_hooks, cli_unreachable")
+    ev_emit.add_argument(
+        "--source",
+        required=True,
+        dest="sup_source",
+        help="the hook/gate that was bypassed, e.g. opencode_qg0",
+    )
+    ev_emit.add_argument("--details", default=None, help="free-text error/context")
 
     # --- db (v14b-junk-audit-pass: backup hygiene) ---
     db_p = sub.add_parser("db", help="Database hygiene helpers")

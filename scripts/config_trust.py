@@ -226,12 +226,23 @@ def managed_config_path() -> str:
     return os.path.abspath(os.path.expanduser(override)) if override else ""
 
 
-def load_trusted_layers() -> dict:
-    """Merge user and managed tiers (managed wins). Absent tiers → ``{}``."""
-    return deep_merge(
+def raw_layers() -> tuple[dict, dict]:
+    """The (user, managed) trusted layers as they sit on disk, UNMERGED.
+
+    For provenance display (l26-config-not-repo-state-audit): once merged,
+    ``load_config`` cannot say which tier supplied a value; a consumer that tells
+    the user WHERE to change a setting must inspect the tiers separately.
+    """
+    return (
         _read_layer(user_config_path(), "user"),
         _read_layer(managed_config_path(), "managed"),
     )
+
+
+def load_trusted_layers() -> dict:
+    """Merge user and managed tiers (managed wins). Absent tiers → ``{}``."""
+    user, managed = raw_layers()
+    return deep_merge(user, managed)
 
 
 # --- Merge + enforcement ----------------------------------------------------

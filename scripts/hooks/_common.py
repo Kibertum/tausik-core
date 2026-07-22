@@ -135,6 +135,16 @@ def current_active_task_slug(project_dir: str) -> str | None:
     return str(rows[0][0])
 
 
+# Supervision audit telemetry lives in `hook_supervision` (extracted when the
+# degradation helper pushed this file past the 400-line filesize gate). Re-
+# exported here so every `from _common import emit_supervision_bypass` keeps
+# working; the canonical home — and its docstrings — is hook_supervision.py.
+from hook_supervision import (  # noqa: E402,F401 — re-export for back-compat
+    emit_supervision_bypass,
+    emit_supervision_degradation,
+)
+
+
 def has_active_task(project_dir: str, timeout: int = 4) -> bool:
     """Check whether TAUSIK has an active task; graceful-True on CLI failure."""
     tausik_cmd = tausik_path(project_dir)

@@ -93,11 +93,18 @@ def main() -> int:
     # hook-stderr-encoding-locale-dependent: this hook's messages contain
     # non-ASCII, and their readability must not depend on how it was
     # launched. Local import: hooks/ is sys.path[0] only when run as a script.
-    from _common import force_utf8_io
+    from _common import (
+        emit_supervision_bypass,
+        emit_supervision_degradation,
+        force_utf8_io,
+    )
 
     force_utf8_io()
 
     if os.environ.get("TAUSIK_SKIP_HOOKS"):
+        emit_supervision_bypass(
+            os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd()), "skip_hooks", "task_gate"
+        )
         return 0
 
     project_dir = os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd())
@@ -134,7 +141,9 @@ def main() -> int:
                 file=sys.stderr,
             )
             return 2
-        # Default: fail-open so a transient DB issue never bricks editing.
+        # Default: fail-open so a transient DB issue never bricks editing — but
+        # a silently-dropped gate must stay countable, not invisible.
+        emit_supervision_degradation(project_dir, "db_error", "task_gate", str(e))
         return 0
     except Exception as e:  # defensive — never bring down the host.  # noqa: BLE001 — best-effort: a hook must never break the tool call it guards
         if fail_secure:
@@ -143,6 +152,7 @@ def main() -> int:
                 file=sys.stderr,
             )
             return 2
+        emit_supervision_degradation(project_dir, "db_error", "task_gate", str(e))
         return 0
 
     if active:

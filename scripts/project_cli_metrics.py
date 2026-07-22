@@ -56,6 +56,33 @@ def render_extended_metrics(m: dict[str, Any]) -> None:
                 f"  risk backtest: escaped avg={ea} (n={bt['escaped_n']}) "
                 f"vs clean avg={ca} (n={bt['clean_n']})"
             )
+    # l26-bypass-telemetry: how many times supervision was switched off. Only
+    # rendered when non-zero — a clean run stays quiet, but a bypass can no
+    # longer hide as silence (the whole point: the count is falsifiable).
+    byp = m.get("supervision_bypasses") or {}
+    if byp.get("total"):
+        print("\n--- Supervision bypasses (l26) ---")
+        print(f"Total: {byp['total']}")
+        for action, cnt in byp.get("by_action", {}).items():
+            print(f"  {action:<26}: {cnt}")
+    # l26-complexity-self-declared: detections are supervision that WORKED —
+    # rendered under their OWN heading so they are never misread as bypasses.
+    det = m.get("supervision_detections") or {}
+    if det.get("total"):
+        print("\n--- Supervision detections (l26) ---")
+        print(f"Total: {det['total']}")
+        for action, cnt in det.get("by_action", {}).items():
+            print(f"  {action:<26}: {cnt}")
+    # hook-fail-open-db-error-telemetry: silent fail-open degradations — a guard
+    # that let an edit through because it could not read the DB. Its OWN heading
+    # so it is never misread as a bypass (nobody switched it off) or a detection
+    # (nothing was caught). Rendered only when non-zero.
+    deg = m.get("supervision_degradations") or {}
+    if deg.get("total"):
+        print("\n--- Supervision degradations / fail-open (l26) ---")
+        print(f"Total: {deg['total']}")
+        for action, cnt in deg.get("by_action", {}).items():
+            print(f"  {action:<26}: {cnt}")
 
 
 def dispatch_metrics_subcmd(svc: ProjectService, args: Any) -> bool:

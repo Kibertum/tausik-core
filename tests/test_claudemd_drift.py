@@ -128,7 +128,12 @@ def test_dry_run_exits_nonzero_when_drift(temp_project, monkeypatch):
         """
     ).format(scripts=str(REPO / "scripts"), bootstrap=str(REPO / "bootstrap"))
     res = subprocess.run(
-        [str(venv_py), "-c", code], capture_output=True, text=True, encoding="utf-8", cwd=str(temp_project), env=env
+        [str(venv_py), "-c", code],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=str(temp_project),
+        env=env,
     )
     assert "EXIT=1" in res.stdout, (res.stdout, res.stderr)
 
@@ -278,3 +283,66 @@ def test_no_false_drift_when_output_mode_matches(temp_project):
     from project_cli_doctor import _check_claudemd_drift
 
     assert _check_claudemd_drift(str(temp_project)) == 0
+
+
+# --- l26-config-not-repo-state-audit: drift is a repo-vs-repo check ----------
+
+
+def test_managed_tier_output_mode_does_not_leak_into_drift(temp_project, monkeypatch, tmp_path):
+    """CLAUDE.md is generated from the RAW project config (bootstrap reads the
+    plain .tausik/config.json). A managed/user tier that flips output_mode
+    org-wide must therefore NOT make the drift check cry wolf — otherwise the
+    same commit drifts on a machine with the managed policy and not on one
+    without it. Regresses the load_config()→load_project_config() fix."""
+    import json
+
+    sys.path.insert(0, str(REPO / "bootstrap"))
+    from bootstrap_templates import build_full_body
+
+    # Project tier: no output_mode → file generated with mode OFF, matching.
+    (temp_project / ".tausik" / "config.json").write_text(
+        json.dumps({"bootstrap": {"project": "temp-project"}}), encoding="utf-8"
+    )
+    body = build_full_body(
+        "temp-project", ["python"], "an AI agent (Claude Code)", ".claude", ide="claude"
+    )
+    (temp_project / "CLAUDE.md").write_text(f"# CLAUDE.md\n\n{body}", encoding="utf-8")
+
+    # Per-machine managed tier flips caveman on org-wide. It must be invisible here.
+    managed = tmp_path / "managed.json"
+    managed.write_text(json.dumps({"output_mode": "caveman"}), encoding="utf-8")
+    monkeypatch.setenv("TAUSIK_MANAGED_CONFIG", str(managed))
+    monkeypatch.setenv("TAUSIK_USER_CONFIG", str(tmp_path / "absent-user.json"))
+
+    from project_cli_doctor import _check_claudemd_drift
+
+    assert _check_claudemd_drift(str(temp_project)) == 0, (
+        "managed-tier output_mode leaked into the drift check — machine-dependent again"
+    )
+
+
+def test_no_trusted_tier_behaviour_is_unchanged(temp_project, monkeypatch, tmp_path):
+    """Negative scenario (AC): with the trusted tiers absent, the check behaves
+    exactly as before — a caveman PROJECT config with a mode-less file still
+    drifts, proving the fix narrowed the SOURCE, not the check's sensitivity."""
+    import json
+
+    monkeypatch.setenv("TAUSIK_MANAGED_CONFIG", str(tmp_path / "absent-managed.json"))
+    monkeypatch.setenv("TAUSIK_USER_CONFIG", str(tmp_path / "absent-user.json"))
+    sys.path.insert(0, str(REPO / "bootstrap"))
+    from bootstrap_templates import build_full_body
+
+    (temp_project / ".tausik" / "config.json").write_text(
+        json.dumps({"output_mode": "caveman", "bootstrap": {"project": "temp-project"}}),
+        encoding="utf-8",
+    )
+    body = build_full_body(
+        "temp-project", ["python"], "an AI agent (Claude Code)", ".claude", ide="claude"
+    )
+    (temp_project / "CLAUDE.md").write_text(f"# CLAUDE.md\n\n{body}", encoding="utf-8")
+
+    from project_cli_doctor import _check_claudemd_drift
+
+    assert _check_claudemd_drift(str(temp_project)), (
+        "a caveman project config with a mode-less file must still drift"
+    )

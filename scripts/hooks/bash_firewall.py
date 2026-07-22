@@ -219,6 +219,11 @@ def _scan_target(command: str) -> str:
 
 def main() -> int:
     if os.environ.get("TAUSIK_SKIP_HOOKS"):
+        from _common import emit_supervision_bypass
+
+        emit_supervision_bypass(
+            os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd()), "skip_hooks", "bash_firewall"
+        )
         return 0
 
     try:

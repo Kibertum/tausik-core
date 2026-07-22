@@ -38,9 +38,7 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("notion_secret", re.compile(r"\b(?:secret|ntn)_[A-Za-z0-9]{32,}\b")),
     (
         "private_key_block",
-        re.compile(
-            r"-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----"
-        ),
+        re.compile(r"-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----"),
     ),
     ("jwt_token", re.compile(r"\beyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\b")),
     (
@@ -75,6 +73,11 @@ def _walk(value, hits: list[tuple[str, str]]) -> None:
 
 def main() -> int:
     if os.environ.get("TAUSIK_SKIP_HOOKS"):
+        from _common import emit_supervision_bypass
+
+        emit_supervision_bypass(
+            os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd()), "skip_hooks", "secret_scan"
+        )
         return 0
     try:
         payload = json.load(sys.stdin)

@@ -24,6 +24,42 @@ import re
 GATE_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 
 
+def _record_gate_disable(name: str, tausik_dir: str | None) -> None:
+    """l26-bypass-telemetry: a gate was genuinely disabled (the disable took
+    EFFECT, not merely written) — leave an audit event so the supervision-off
+    is countable. This is the single chokepoint the CLI, the MCP handler and
+    brain all funnel through, so one instrument covers every call path.
+
+    Chain-safe best-effort raw INSERT (entity_type='supervision',
+    action='bypass_gates_disable'), sealed lazily like the SQL audit triggers.
+    Never raises: telemetry that crashes the toggle it audits is worse than a
+    missing row. The events DB sits next to the resolved config file.
+    """
+    import os
+    import sqlite3
+
+    from project_config import get_config_path
+
+    try:
+        db = os.path.join(os.path.dirname(get_config_path(tausik_dir)), "tausik.db")
+        if not os.path.exists(db):
+            return
+        conn = sqlite3.connect(db, timeout=2)
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+            conn.execute(
+                "INSERT INTO events(entity_type, entity_id, action, details) "
+                "VALUES ('supervision', ?, 'bypass_gates_disable', ?)",
+                (name, f"gate '{name}' disabled via gates_disable"),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception:  # noqa: BLE001 — best-effort telemetry, never blocks
+        pass
+
+
 def set_gate_enabled(name: str, enable: bool, tausik_dir: str | None = None) -> str:
     """Toggle a gate in the project tier and report what actually took effect.
 
@@ -72,6 +108,9 @@ def set_gate_enabled(name: str, enable: bool, tausik_dir: str | None = None) -> 
         actual = DEFAULT_GATES.get(name, {}).get("enabled", True)
 
     if bool(actual) == bool(enable):
+        if not enable:
+            # Disable actually took effect (not rejected by the trust policy).
+            _record_gate_disable(name, tausik_dir)
         return f"Gate '{name}' {'enabled' if enable else 'disabled'}."
 
     verb = "enabled" if enable else "disabled"

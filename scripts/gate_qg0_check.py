@@ -110,6 +110,7 @@ def check_qg0_start(
     audit_check_fn: Callable[[], str | None] | None = None,
     session_check_duration_fn: Callable[[], str | None] | None = None,
     renar_advisory_fn: Callable[[], str | None] | None = None,
+    on_scope_hard_gate_bypass: Callable[[], None] | None = None,
 ) -> list[str]:
     """QG-0 Context Gate: validate goal, AC, scope, negative scenarios, security.
 
@@ -143,7 +144,8 @@ def check_qg0_start(
         task.get("scope_paths")
     )
     if not has_scope_decl:
-        if task.get("complexity") in ("medium", "complex") and _scope_hard_gate_enabled():
+        is_medium_or_complex = task.get("complexity") in ("medium", "complex")
+        if is_medium_or_complex and _scope_hard_gate_enabled():
             raise ServiceError(
                 f"QG-0 Start Gate (SENAR Rule 2): '{slug}' ({task['complexity']}) "
                 f"declares no scope. Define what this task may touch before "
@@ -152,6 +154,15 @@ def check_qg0_start(
                 f"write-enforced) or --scope 'what to change' (free text). "
                 f"Opt out: config qg0.scope_hard_gate=false."
             )
+        if is_medium_or_complex and on_scope_hard_gate_bypass is not None:
+            # l26-bypass-telemetry: config disabled the hard gate for a task it
+            # would otherwise have blocked — record the weakening so it counts.
+            # Best-effort like the sibling callbacks below: a telemetry write
+            # failure must never crash task_start (AC5 fail-open).
+            try:
+                on_scope_hard_gate_bypass()
+            except Exception:  # noqa: BLE001 — best-effort telemetry, never blocks
+                pass
         warnings.append(
             f"WARNING: Task '{slug}' has no scope defined. "
             f"SENAR recommends defining what to change and what NOT to touch."

@@ -113,11 +113,18 @@ class TaskDoneReportMixin:
         # `tausik verify --task X` then `task done X` (no CLI args) hits cache.
         # Security-sensitive paths bypass the fallback — auth/payment/etc. always
         # require an explicit list to avoid stale-green leakage.
+        recovered_for_complexity: list[str] | None = None
         if relevant_files is None:
             from verify_recent_lookup import lookup_relevant_files_from_recent_verify
             from service_verification import is_security_sensitive
 
             recovered = lookup_relevant_files_from_recent_verify(self.be._conn, slug)
+            # Keep the recovered set for the complexity-understatement COUNT even
+            # when it is security-sensitive: the count leaks nothing (only a
+            # number is ever logged/shown), and dropping it would blind the
+            # detector to exactly the highest-risk category — a security task
+            # closed as 'simple' with no explicit file list (l26 review MED).
+            recovered_for_complexity = recovered or None
             if recovered and not is_security_sensitive(recovered):
                 relevant_files = recovered
         if task["status"] == "done":
@@ -291,6 +298,18 @@ class TaskDoneReportMixin:
                 "WARNING: no rollback_plan (SENAR Rule 6). Document how to "
                 "undo this change: task update --rollback-plan '...'"
             )
+        # l26-complexity-self-declared: detect an understated complexity that
+        # dodged the QG-0 scope/rollback gates and make it VISIBLE at close.
+        # Advisory + fail-open (Decision #158); count from the declared list, else
+        # the recovered set (a count leaks nothing, only a number is shown).
+        from complexity_understatement import warn_if_understated
+
+        files_for_complexity = (
+            relevant_files if relevant_files is not None else recovered_for_complexity
+        )
+        complexity_warning = warn_if_understated(
+            self.be, slug, task.get("complexity"), files_for_complexity
+        )
         updates: dict[str, Any] = {"status": "done", "completed_at": utcnow_iso()}
         if relevant_files:
             updates["relevant_files"] = json.dumps(relevant_files)
@@ -360,6 +379,9 @@ class TaskDoneReportMixin:
             if rollback_warning:
                 msgs.append(rollback_warning)
                 report["warnings"].append(rollback_warning)
+            if complexity_warning:
+                msgs.append(complexity_warning)
+                report["warnings"].append(complexity_warning)
             budget_warning = record_call_actual(self.be, slug, task)
             if budget_warning:
                 msgs.append(budget_warning)

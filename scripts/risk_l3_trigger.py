@@ -137,7 +137,50 @@ def check_l3_required(
             f"Opt out: config risk.l3_block_on_high=false."
         )
         if not _block_enabled():
+            # l26-bypass-telemetry: a high-risk closure is being let through by
+            # config instead of blocked — record it so the downgrade is
+            # countable. Written on a SEPARATE short-lived connection (commit +
+            # close), NOT the caller's `conn`: the caller (service_task_done)
+            # issues BEGIN IMMEDIATE right after this, and a bare INSERT on
+            # `conn` would leave an implicit deferred transaction open that
+            # collides with that BEGIN ("cannot start a transaction within a
+            # transaction"), crashing the very close this downgrade exists to
+            # allow. Own try/except so the outer handler cannot swallow a
+            # telemetry error AND suppress this WARNING. Best-effort, never
+            # raises.
+            _emit_l3_downgrade(conn, slug, ms)
             return False, f"WARNING (l3_block_on_high=false): {message}"
         return True, message
     except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         return False, ""
+
+
+def _emit_l3_downgrade(conn: sqlite3.Connection, slug: str, ms: float) -> None:
+    """Record an l3_block_on_high=false downgrade on a fresh connection.
+
+    Derives the DB path from ``conn`` but does NOT write through it — see the
+    call site for why borrowing the caller's connection would crash task_done.
+    """
+    import sqlite3 as _sqlite3
+
+    try:
+        row = conn.execute("PRAGMA database_list").fetchone()
+        db_path = row[2] if row else None
+        if not db_path:
+            return  # e.g. :memory: — nothing durable to write to
+        aux = _sqlite3.connect(db_path, timeout=2)
+        try:
+            aux.execute(
+                "INSERT INTO events(entity_type, entity_id, action, details) "
+                "VALUES ('supervision', ?, 'bypass_l3_block_downgrade', ?)",
+                (
+                    slug,
+                    f"l3_block_on_high=false — high-risk closure (measured {ms}) "
+                    f"downgraded from block to warning",
+                ),
+            )
+            aux.commit()
+        finally:
+            aux.close()
+    except Exception:  # noqa: BLE001 — best-effort telemetry, never blocks
+        pass

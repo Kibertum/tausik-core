@@ -40,6 +40,19 @@ def resolve_gate_signature(trigger: str = "task-done") -> str:
     invalidates stale-green runs that were recorded against the previous
     command. On config-load failure returns a sentinel so verification is
     not blocked.
+
+    l26-config-not-repo-state-audit — verdict: uses the EFFECTIVE `load_config`
+    (merged tiers) deliberately, NOT the repo-only `load_project_config`. Its
+    subject is *the gate set that actually ran*, and gates run from the merged
+    config (`get_gates_for_trigger(..., load_config())`); a signature over the
+    repo tier alone would stop reflecting a user/managed gate-command change and
+    could reuse a stale green across it. Both the write side (recording a run)
+    and the read side (`has_fresh_verify_run`) compute it from the same source,
+    so within one machine's verify→done flow the config is static and the
+    signatures match. The only divergence is an operator editing a trusted tier
+    *between* the two calls — rare, and fail-SAFE (an extra run, never a false
+    green). Pinning to the repo tier would trade that harmless miss for a real
+    stale-green window, so it is intentionally left as-is.
     """
     try:
         from project_config import get_gates_for_trigger, load_config

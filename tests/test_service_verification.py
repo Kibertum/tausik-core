@@ -519,6 +519,26 @@ class TestResolveGateSignature:
         sig_new = sv.resolve_gate_signature("task-done")
         assert sig_old != sig_new
 
+    def test_signature_stable_across_flow_with_trusted_tier_present(self, tmp_path, monkeypatch):
+        """l26-config-not-repo-state-audit verdict (consumer 1, no code change):
+        with a trusted tier present but UNCHANGED, the verify-time and done-time
+        signatures match — no spurious cache miss. The signature intentionally
+        tracks the EFFECTIVE (merged) config; it is stable here because the
+        config is static within one machine's verify→done flow. This pins the
+        reason it is deliberately NOT pinned to the repo-only tier."""
+        import json
+
+        managed = tmp_path / "managed.json"
+        # An unguarded, non-gate key: present in the trusted tier, but it does not
+        # perturb the gate set — the point is that a static tier yields a stable sig.
+        managed.write_text(json.dumps({"verify_cache_ttl_seconds": 600}), encoding="utf-8")
+        monkeypatch.setenv("TAUSIK_MANAGED_CONFIG", str(managed))
+        monkeypatch.setenv("TAUSIK_USER_CONFIG", str(tmp_path / "absent-user.json"))
+        at_verify = sv.resolve_gate_signature("verify")
+        at_done = sv.resolve_gate_signature("verify")
+        assert at_verify == at_done
+        assert at_verify not in ("", "unavailable")
+
 
 class TestCacheInvalidatesOnGateChange:
     """A1 fix end-to-end: changing gate command between runs misses cache."""

@@ -142,6 +142,83 @@ def test_no_config_means_no_override():
     assert "opus" in r["model"].lower()
 
 
+# --- l26-config-not-repo-state-audit: override provenance in the rationale ----
+#
+# The rationale must name the tier that ACTUALLY holds the override, not always
+# ".tausik/config.json" — a value from the user/managed tier lives in a
+# different file, and sending the user to edit the repo file is a dead end.
+
+import json as _json  # noqa: E402
+
+_OVR = {"model_routing": {"implement": {"complex": "claude-fable-5"}}}
+
+
+def _cfg_file(tmp_path, name, cfg):
+    p = tmp_path / name
+    p.write_text(_json.dumps(cfg), encoding="utf-8")
+    return str(p)
+
+
+def test_override_provenance_names_managed_tier(tmp_path, monkeypatch):
+    monkeypatch.setenv("TAUSIK_MANAGED_CONFIG", _cfg_file(tmp_path, "managed.json", _OVR))
+    monkeypatch.setenv("TAUSIK_USER_CONFIG", str(tmp_path / "absent-user.json"))
+    r = suggest_model("complex", "implement", config=_OVR)
+    assert r["model"] == "claude-fable-5"
+    assert "managed tier" in r["rationale"]
+    assert "$TAUSIK_MANAGED_CONFIG" in r["rationale"]
+
+
+def test_override_provenance_names_user_tier(tmp_path, monkeypatch):
+    # managed is checked first; with it absent, the user tier must be named.
+    monkeypatch.setenv("TAUSIK_MANAGED_CONFIG", str(tmp_path / "absent-managed.json"))
+    monkeypatch.setenv("TAUSIK_USER_CONFIG", _cfg_file(tmp_path, "user.json", _OVR))
+    r = suggest_model("complex", "implement", config=_OVR)
+    assert "user tier" in r["rationale"]
+    assert "~/.tausik/config.json" in r["rationale"]
+
+
+def test_override_provenance_names_repo_file_for_project_tier(tmp_path, monkeypatch):
+    """By ELIMINATION (s128 review HIGH-2): an applied override absent from both
+    per-machine trusted tiers came from the project's own .tausik/config.json —
+    determined WITHOUT reading the project config from the ambient cwd (#265)."""
+    monkeypatch.setenv("TAUSIK_MANAGED_CONFIG", str(tmp_path / "absent-managed.json"))
+    monkeypatch.setenv("TAUSIK_USER_CONFIG", str(tmp_path / "absent-user.json"))
+    r = suggest_model("complex", "implement", config=_OVR)
+    assert ".tausik/config.json" in r["rationale"]
+    assert "managed tier" not in r["rationale"] and "user tier" not in r["rationale"]
+
+
+def test_override_provenance_does_not_read_project_config_from_cwd(monkeypatch):
+    """Regression for the #265 violation the review caught: provenance must NOT
+    resolve the project tier from the ambient cwd. If it ever calls
+    load_project_config again, this blows up loudly instead of silently
+    misattributing across projects."""
+    import project_config
+
+    def _boom(*_a, **_k):
+        raise AssertionError("provenance read project config from cwd (#265 regression)")
+
+    monkeypatch.setattr(project_config, "load_project_config", _boom)
+    monkeypatch.delenv("TAUSIK_MANAGED_CONFIG", raising=False)
+    monkeypatch.delenv("TAUSIK_USER_CONFIG", raising=False)
+    r = suggest_model("complex", "implement", config=_OVR)
+    assert "override" in r["rationale"].lower()  # no crash, override still applied
+
+
+def test_override_provenance_neutral_when_tiers_unreadable(monkeypatch):
+    """If the trusted tiers cannot be inspected at all, name NO specific file —
+    a false path is worse than a neutral phrase."""
+    import config_trust
+
+    def _raise():
+        raise OSError("trusted tiers unreadable")
+
+    monkeypatch.setattr(config_trust, "raw_layers", _raise)
+    r = suggest_model("complex", "implement", config=_OVR)
+    assert "a config tier (project/user/managed)" in r["rationale"]
+    assert ".tausik/config.json" not in r["rationale"]
+
+
 # --- format_suggestion -------------------------------------------------------
 
 

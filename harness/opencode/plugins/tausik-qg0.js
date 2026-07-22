@@ -80,6 +80,39 @@ async function _queryActive($, root) {
   return n > 0;
 }
 
+/** Record a supervision bypass/degradation, cross-harness parity with the
+ * Python hooks (l26-bypass-telemetry-opencode-parity). The SAME weakening lives
+ * in this Node harness as in scripts/hooks/task_gate.py, and the metric that
+ * counts switch-offs (supervision_bypasses) is blind here unless we leave a row.
+ *
+ * Routes through the CLI (`events emit-supervision`) so the row is written by
+ * the one Python emitter — identical entity_type/action/chain-safe contract,
+ * never a second copy of it re-implemented in JS (a second producer would drift,
+ * the very thing the metric's oracle rule forbids).
+ *
+ * Best-effort, and awaited so the record actually lands before the hook returns:
+ * a failure to write is a MISSING row, never a thrown error — telemetry must not
+ * brick the editor. In the fail-open case the CLI is already the thing that
+ * broke, so this attempt usually fails too; that is the honest floor (a
+ * degradation this cannot record is undercounted, never overcounted), the same
+ * ceiling the Python side documents.
+ *
+ * @param {Function} $
+ * @param {string} root
+ * @param {"bypass"|"degradation"} kind
+ * @param {string} vector
+ * @param {string} source
+ */
+async function _recordSupervision($, root, kind, vector, source) {
+  try {
+    await $`${_cliPath(root)} events emit-supervision --kind ${kind} --vector ${vector} --source ${source}`
+      .quiet()
+      .text();
+  } catch {
+    // swallow — best-effort telemetry, never blocks or bricks the editor
+  }
+}
+
 /** Cached active-task verdict.
  *
  * The CLI costs 300 ms warm / 1.1 s cold on Windows (measured), which is paid on
@@ -130,8 +163,18 @@ export const TausikQG0 = async ({ $, directory, worktree }) => {
      * @param {{args: Record<string, unknown>}} _output
      */
     "tool.execute.before": async (input, _output) => {
-      if (process.env.TAUSIK_SKIP_HOOKS) return;
+      // WRITE_TOOLS filter FIRST: read-only tools are never gated and must not
+      // emit bypass telemetry either — that keeps the count scoped to the same
+      // write surface Claude Code's task_gate matcher (Write|Edit|MultiEdit)
+      // sees. A skip that fired on every read would wildly over-count.
       if (!WRITE_TOOLS.has(input.tool)) return;
+
+      if (process.env.TAUSIK_SKIP_HOOKS) {
+        // The umbrella skip disables the gate — but never in silence. Record the
+        // bypass so the supervision_bypasses metric is not blind on this harness.
+        await _recordSupervision($, root, "bypass", "skip_hooks", "opencode_qg0");
+        return;
+      }
 
       const failSecure = Boolean(process.env.TAUSIK_HOOK_FAIL_SECURE);
 
@@ -158,6 +201,11 @@ export const TausikQG0 = async ({ $, directory, worktree }) => {
             `Allowing '${input.tool}' WITHOUT an active-task check. ` +
             `Run \`tausik doctor\`; set TAUSIK_HOOK_FAIL_SECURE=1 to block instead of allow.`
         );
+        // A visible warning tells THIS user; the supervision row makes the
+        // degradation countable for an auditor (fail_open_%, a separate metric
+        // bucket from intentional bypasses). Best-effort: the CLI is what broke,
+        // so this often cannot land — an undercount, never a false clean.
+        await _recordSupervision($, root, "degradation", "cli_unreachable", "opencode_qg0");
         return;
       }
 

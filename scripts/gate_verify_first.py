@@ -232,6 +232,19 @@ def enforce_verify_first(
             "Verify-First: auto_verify=true — running verify gates inline "
             "(legacy behavior; task_done will block until they finish).",
         )
+        # l26-bypass-telemetry: auto_verify weakens Verify-First (no signed
+        # cached receipt required) — leave a trace so the bypass is countable.
+        # Best-effort: a telemetry write failure must never crash task_done
+        # (AC5 fail-open) — event_add/_ins do no exception handling of their own.
+        try:
+            svc.be.event_add(
+                "supervision",
+                slug,
+                "bypass_auto_verify",
+                "auto_verify=true — Verify-First cached-receipt requirement bypassed (inline gates)",
+            )
+        except Exception:  # noqa: BLE001 — best-effort telemetry, never blocks
+            pass
         try:
             passed, results, _status = run_gates_with_cache(
                 svc.be._conn,

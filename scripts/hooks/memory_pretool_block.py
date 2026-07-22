@@ -12,7 +12,14 @@ Bypass: if the last user turn in the transcript contains the marker
 cross-project preferences).
 
 Exit codes: 0 = allow, 2 = block.
-Skipped via TAUSIK_SKIP_HOOKS=1.
+
+Skip flags (both honored when set to any non-empty value, matching the rest
+of the hook suite; each leaves a supervision-bypass trace):
+  - TAUSIK_SKIP_HOOKS        umbrella flag, disables every hook in the suite
+  - TAUSIK_SKIP_MEMORY_HOOK  disables just this memory guard
+Weakening a supervision guard is never silent (release-1.8 thesis): each skip
+path emits a distinct `bypass_*` event via `emit_supervision_bypass` so the
+count of switch-offs stays falsifiable.
 """
 
 from __future__ import annotations
@@ -83,10 +90,21 @@ def _bypass_present(transcript_path: str) -> bool:
 
 
 def main() -> int:
-    if os.environ.get("TAUSIK_SKIP_MEMORY_HOOK") == "1":
+    project_dir = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
+
+    # Both skip paths honored and instrumented. The umbrella TAUSIK_SKIP_HOOKS
+    # disables this guard too (parity with the rest of the hook suite); the
+    # specific TAUSIK_SKIP_MEMORY_HOOK disables only this one. Either way the
+    # bypass is recorded — telemetry is the real protection, not flag-selection
+    # (Decision #159). emit_supervision_bypass is best-effort: it never raises,
+    # so a DB error cannot turn a skip into a block.
+    if os.environ.get("TAUSIK_SKIP_HOOKS") or os.environ.get("TAUSIK_SKIP_MEMORY_HOOK"):
+        from _common import emit_supervision_bypass
+
+        vector = "skip_hooks" if os.environ.get("TAUSIK_SKIP_HOOKS") else "skip_memory_hook"
+        emit_supervision_bypass(project_dir, vector, "memory_pretool_block")
         return 0
 
-    project_dir = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
     # v1.3.4 (med-batch-1-hooks #4): detect TAUSIK by .tausik/ dir, not
     # tausik.db file — covers the bootstrap-but-not-init window.
     if not is_tausik_project(project_dir):
