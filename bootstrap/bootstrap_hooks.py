@@ -25,7 +25,10 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
     return {
         "PreToolUse": [
             {
-                "matcher": "Write|Edit",
+                # l26-hook-contract-review: MultiEdit and NotebookEdit also
+                # write files and were ungated by QG-0. bash_write_gate.py (on
+                # the Bash matcher below) covers the shell-write vector.
+                "matcher": "Write|Edit|MultiEdit|NotebookEdit",
                 "hooks": [
                     {
                         "type": "command",
@@ -35,10 +38,12 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 ],
             },
             {
-                # v15-scope-enforce-write (SENAR Rule 2): when every active
-                # task declares scope_paths, writes outside the ACL union
-                # are blocked. Tasks without an ACL keep legacy freedom.
-                "matcher": "Write|Edit|MultiEdit",
+                # v15-scope-enforce-write (SENAR Rule 2): when any active task
+                # declares scope_paths, writes outside the union of declared
+                # ACLs are blocked. l26-hook-contract-review AC3: a co-active
+                # undeclared task no longer nullifies a sibling's ACL; +
+                # NotebookEdit added (it was ungated).
+                "matcher": "Write|Edit|MultiEdit|NotebookEdit",
                 "hooks": [
                     {
                         "type": "command",
@@ -76,6 +81,21 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                     {
                         "type": "command",
                         "command": hook_cmd("bash_firewall.py"),
+                        "timeout": 5,
+                    }
+                ],
+            },
+            {
+                # l26-hook-contract-review (Decision #162): close the Bash-write
+                # bypass of QG-0 + scope-ACL. Parses the command for file-write
+                # targets (redirections, tee/dd/sed -i/cp/mv, python open()) and
+                # applies the SAME verdict the Write gates apply. Documented
+                # residual: obfuscated writes (see docs/ru/agent-contract.md).
+                "matcher": "Bash",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": hook_cmd("bash_write_gate.py"),
                         "timeout": 5,
                     }
                 ],

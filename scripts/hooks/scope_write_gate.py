@@ -30,7 +30,7 @@ sys.path.insert(1, os.path.dirname(_HOOKS_DIR))  # scripts/ — for scope_acl
 
 from _common import is_tausik_project  # noqa: E402
 
-_GATED_TOOLS = ("Write", "Edit", "MultiEdit")
+_GATED_TOOLS = ("Write", "Edit", "MultiEdit", "NotebookEdit")
 
 
 def _read_stdin_json() -> dict:
@@ -111,6 +111,40 @@ def delegated_missing_scope(acls: list[tuple[str, str | None]], delegated: set[s
     return None
 
 
+def has_declared_scope(acls: list[tuple[str, str | None]]) -> bool:
+    """True iff at least one active task carries a scope_paths value.
+
+    A value that is present but parses empty ("[]", corrupt JSON) still
+    counts as *declared* — the task said "these paths and no others", which
+    is enforcement, not abstention. Only an absent (NULL) value is undeclared.
+    """
+    return any(raw is not None for _slug, raw in acls)
+
+
+def declared_acls(acls: list[tuple[str, str | None]]) -> list[tuple[str, list[str]]]:
+    """[(slug, patterns), ...] for the active tasks that declared a scope."""
+    from scope_acl import _parse_list
+
+    return [(slug, _parse_list(raw, "scope_paths")) for slug, raw in acls if raw is not None]
+
+
+def scope_allows(rel: str, acls: list[tuple[str, str | None]]) -> bool:
+    """True iff `rel` is inside the union of every declared task's ACL.
+
+    l26-hook-contract-review AC3: enforcement is the union of DECLARED scopes.
+    A co-active task that declared no scope contributes nothing here — it no
+    longer nullifies a sibling's ACL by merely existing (the old '`any(raw is
+    None)` -> allow everything' escape hatch). The caller applies the legacy
+    freedom only when `has_declared_scope` is False (nobody declared anything).
+    """
+    from scope_acl import match_path
+
+    for _slug, patterns in declared_acls(acls):
+        if match_path(rel, patterns):
+            return True
+    return False
+
+
 def main() -> int:
     # hook-stderr-encoding-locale-dependent: this hook's messages contain
     # non-ASCII, and their readability must not depend on how it was
@@ -139,8 +173,10 @@ def main() -> int:
     event = _read_stdin_json()
     if event.get("tool_name") not in _GATED_TOOLS:
         return 0
-    tool_input = event.get("tool_input") or {}
-    file_path = tool_input.get("file_path") if isinstance(tool_input, dict) else None
+    tool_input = event.get("tool_input") if isinstance(event.get("tool_input"), dict) else {}
+    # NotebookEdit carries its target as `notebook_path`, not `file_path`
+    # (l26-hook-contract-review AC: NotebookEdit was previously ungated).
+    file_path = tool_input.get("file_path") or tool_input.get("notebook_path")
     if not isinstance(file_path, str) or not file_path:
         return 0
 
@@ -179,18 +215,20 @@ def main() -> int:
         )
         return 2
 
-    if not acls or any(raw is None for _slug, raw in acls):
-        return 0  # no active task, or an undeclared task grants legacy freedom
+    # l26-hook-contract-review AC3: legacy 'undeclared task = unrestricted'
+    # freedom applies ONLY when NO active task declared a scope. Once ANY task
+    # declares one, the union of declared ACLs is enforced and a co-active
+    # undeclared task no longer reopens the escape (previously `any(raw is
+    # None)` disabled the ACL globally — a scope-declaring task could be
+    # nullified by an unrelated undeclared sibling, or by keeping one active
+    # on purpose).
+    if not acls or not has_declared_scope(acls):
+        return 0  # no active task, or nobody declared a scope — legacy freedom
 
-    from scope_acl import _parse_list, match_path
+    if scope_allows(rel, acls):
+        return 0
 
-    declared: list[tuple[str, list[str]]] = [
-        (slug, _parse_list(raw, "scope_paths")) for slug, raw in acls
-    ]
-    for _slug, patterns in declared:
-        if match_path(rel, patterns):
-            return 0
-
+    declared = declared_acls(acls)
     acl_lines = "\n".join(f"  {slug}: {patterns}" for slug, patterns in declared)
     first_slug = declared[0][0]
     rel = rel.replace("\\", "/")

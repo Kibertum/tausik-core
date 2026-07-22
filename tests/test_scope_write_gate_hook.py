@@ -113,10 +113,46 @@ class TestHook:
         assert _run_hook(tmp_path, file_path=str(tmp_path / "docs" / "x.md")).returncode == 0
         assert _run_hook(tmp_path, file_path=str(tmp_path / "other" / "x.md")).returncode == 2
 
-    def test_undeclared_active_task_grants_legacy_freedom(self, tmp_path):
+    def test_undeclared_sibling_no_longer_reopens_scope(self, tmp_path):
+        # l26-hook-contract-review AC3: once ANY active task declares a scope,
+        # a co-active UNDECLARED task no longer nullifies it. Was the escape
+        # hatch — keep one undeclared task active and the ACL vanished globally.
         _make_db(tmp_path, [("t1", "active", '["scripts/"]'), ("t2", "active", None)])
+        # outside t1's scope -> now blocked (previously allowed via t2)
+        assert _run_hook(tmp_path, file_path=str(tmp_path / "anywhere" / "x.md")).returncode == 2
+        # inside t1's scope -> still allowed
+        assert _run_hook(tmp_path, file_path=str(tmp_path / "scripts" / "a.py")).returncode == 0
+
+    def test_no_declared_scope_anywhere_grants_legacy_freedom(self, tmp_path):
+        # When NOBODY declares a scope, the conservative legacy freedom holds —
+        # AC3 only removes the mixed declared+undeclared escape, not adoption.
+        _make_db(tmp_path, [("t1", "active", None), ("t2", "active", None)])
         r = _run_hook(tmp_path, file_path=str(tmp_path / "anywhere" / "x.md"))
         assert r.returncode == 0
+
+    def test_notebookedit_gated_on_notebook_path(self, tmp_path):
+        # l26-hook-contract-review: NotebookEdit was ungated; it now enforces
+        # scope, reading its target from notebook_path (not file_path).
+        _make_db(tmp_path, [("t1", "active", '["notebooks/"]')])
+        env = os.environ.copy()
+        env["TAUSIK_SKIP_HOOKS"] = ""
+        env["TAUSIK_HOOK_FAIL_SECURE"] = ""
+        env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+        payload = {
+            "tool_name": "NotebookEdit",
+            "tool_input": {"notebook_path": str(tmp_path / "docs" / "x.ipynb")},
+        }
+        r = subprocess.run(
+            [sys.executable, HOOK],
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            timeout=10,
+        )
+        assert r.returncode == 2, r.stderr
 
     def test_no_active_task_allowed(self, tmp_path):
         _make_db(tmp_path, [("t1", "done", '["scripts/"]')])

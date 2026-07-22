@@ -9,6 +9,43 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Bash file writes no longer bypass QG-0 and scope
+
+`task_gate` (no code without a task) and `scope_write_gate` (SENAR Rule 2 ACL)
+were wired only to `Write|Edit`. A shell write — a `cat > f <<EOF` heredoc,
+`sed -i`, `tee`, `dd of=`, `python -c "open(f,'w')"` — reached neither, so the
+exact content the Write tool refuses landed unchecked. Demonstrated live twice
+(#117, #118): the same file, blocked via Write, created via a heredoc without a
+single objection. The gates held on the family of write tools, not on the act of
+writing.
+
+A new `bash_write_gate` (matcher `Bash`) parses the command for its write
+targets — redirections including heredoc, `tee`, `dd of=`, `sed -i`, `cp`/`mv`,
+`truncate`, `touch`, and a literal `open(…,'w')` in a `python`/`perl`/`ruby -c`
+payload — resolves each against the project root, and applies the SAME QG-0 +
+scope verdict the Write gates apply, by importing their functions rather than
+copying the rule (a second copy would drift from the first). Targets outside the
+tree — scratchpad, `/tmp`, `/dev/null`, another repository — stay allowed, as
+they are for Write. `MultiEdit` and `NotebookEdit`, also previously ungated by
+QG-0, were added to the write matchers.
+
+The boundary is stated, not hidden. Obfuscated writes are not caught — a path
+built in a shell variable, `base64 -d | sh`, a wrapper-hidden `sudo tee`,
+arbitrary interpreter code beyond a literal `open(…)` — because shell is
+Turing-complete and a total gate is impossible. The gate raises the cost of a
+bypass from "a trivial heredoc" to "deliberate obfuscation" and names what
+remains (`docs/ru/agent-contract.md`, `docs/ru/hooks-events.md`). A gate that
+pretended to total coverage would be worse than one that is honest about its
+edge.
+
+Separately, the scope gate's adoption rule was tightened. A co-active task that
+declared no scope no longer nullifies a sibling's ACL: enforcement begins as soon
+as ANY active task declares a scope, and the legacy "undeclared = unrestricted"
+freedom applies only when nobody has declared one at all. Keeping one undeclared
+task active had been a standing escape hatch out of scope enforcement; it is
+closed, while the conservative early-adoption case (no scopes anywhere) is left
+untouched.
+
 ### The deprecation gate stopped failing on honest text
 
 The gate's own docstring states the principle: documentation *may* mention the

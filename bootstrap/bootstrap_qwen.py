@@ -81,7 +81,8 @@ def generate_settings_qwen(
     hooks = {
         "PreToolUse": [
             {
-                "matcher": "Write|Edit",
+                # l26-hook-contract-review parity: MultiEdit/NotebookEdit also write.
+                "matcher": "Write|Edit|MultiEdit|NotebookEdit",
                 "hooks": [
                     {
                         "type": "command",
@@ -92,7 +93,8 @@ def generate_settings_qwen(
             },
             {
                 # v15-scope-enforce-write parity with bootstrap_hooks.py
-                "matcher": "Write|Edit|MultiEdit",
+                # (+ l26-hook-contract-review: NotebookEdit added).
+                "matcher": "Write|Edit|MultiEdit|NotebookEdit",
                 "hooks": [
                     {
                         "type": "command",
@@ -127,6 +129,18 @@ def generate_settings_qwen(
                     {
                         "type": "command",
                         "command": _hook_cmd("bash_firewall.py"),
+                        "timeout": 5,
+                    }
+                ],
+            },
+            {
+                # l26-hook-contract-review parity: close Bash-write bypass of
+                # QG-0 + scope-ACL (see bootstrap_hooks.py for the rationale).
+                "matcher": "Bash",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("bash_write_gate.py"),
                         "timeout": 5,
                     }
                 ],

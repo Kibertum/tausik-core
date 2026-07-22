@@ -104,8 +104,8 @@ overshoot is intentional (audit event + notes line trace it).
 | QG-0 Context Gate | `task start` проверяет goal + AC + negative scenario + scope warning | Hard (CLI + MCP блокирует) |
 | QG-0 Security Surface | Предупреждает для auth/payment/PII задач без security AC | Warning |
 | QG-2 Implementation Gate | `task done` = evidence + --ac-verified + **scoped** gates + verify cache (no bypass) | Hard (CLI + MCP, --force удалён) |
-| Rule 1 Задача перед кодом | CLAUDE.md + skills + `/plan` для старта | Instruction |
-| Rule 2 Scope Boundaries | Поля `scope` + `scope_exclude` в задачах, QG-0 предупреждает | Warning |
+| Rule 1 Задача перед кодом | CLAUDE.md + skills + `/plan`; PreToolUse `task_gate` блокирует Write/Edit/MultiEdit/NotebookEdit без активной задачи, `bash_write_gate` — Bash-запись файлов (heredoc, `sed -i`, `tee`, redirections) | Hard (PreToolUse hook) + Instruction |
+| Rule 2 Scope Boundaries | `scope_paths` ACL + PreToolUse `scope_write_gate`/`bash_write_gate` блокируют запись вне union объявленных областей (Write/Edit/MultiEdit/NotebookEdit **и** Bash) | Hard (PreToolUse hook, если объявлен `scope_paths`) + Warning |
 | Rule 3 Verify Against Criteria | Per-criterion AC evidence парсинг | Hard + Warning |
 | Rule 4 External Validation | Субагент `tausik-external-reviewer` на ДРУГОЙ модели (separation of duties, read-only); требуется при measured-high closure через L3-триггер | Hard (при high-risk) |
 | Rule 5 Verification Checklist | 28-item checklist, 4 тира; **pytest gate scoped по relevant_files**, verify cache reuse в окне 10 мин; v1.4 — структурированный AC-evidence parser (`service_ac_evidence`) сообщает про gaps и отсутствующие test-refs/негативные сценарии | Warning + Hard scope |
@@ -128,6 +128,49 @@ overshoot is intentional (audit event + notes line trace it).
 | Batch Execution | `/run plan.md` — автономное выполнение планов | Instruction |
 | Structured Logs | `task_logs` таблица с phase + FTS5 | Hard (auto) |
 | Fake Test Detection | 10 паттернов в testing review agent | Warning |
+
+---
+
+## Граница принуждения хуков: что покрыто и что нет
+
+Полный разбор событий и покрытия — [`hooks-events.md`](hooks-events.md). Кратко:
+
+QG-0 (Rule 1) и scope-ACL (Rule 2) исторически висели только на `Write|Edit`,
+поэтому **запись файла через Bash обходила обе проверки**: `cat > f <<EOF`,
+`sed -i`, `tee`, `dd of=`, `python -c "open(f,'w')"` создавали и правили файлы
+без активной задачи и вне объявленного `scope_paths` (подтверждено вживую в
+сессиях #117/#118). С 1.8 эту дыру закрывает `bash_write_gate` (matcher `Bash`),
+а `MultiEdit`/`NotebookEdit` добавлены в matcher'ы `task_gate`/`scope_write_gate`.
+
+**Что гейт ловит:** редиректы (`>`, `>>`, `&>`, `N>`, включая heredoc-заголовок),
+`tee`, `dd of=`, `sed -i` (GNU и BSD-форма `-i ''`), `cp`/`mv`/`install`
+(назначение **и** `-t`/`--target-directory=`), `truncate`, `touch`,
+`curl -o`/`--output`, `wget -O`/`--output-document`, `tar -x … -C DIR`,
+`unzip … -d DIR`, а также литеральный `open(path, 'w'|'a'|'x')` внутри
+`python`/`perl`/`ruby -c`. Тело heredoc'а разбором **не** сканируется (иначе
+`->`/`>` в прозе или коде тела давали бы фантомную цель и блокировали честную
+запись). Гейтятся только цели **внутри** дерева проекта — как и у Write; запись в
+scratchpad, `/tmp`, `/dev/null`, чужой репозиторий разрешена.
+
+**Что НЕ ловит (явная остаточная граница).** Shell тьюринг-полон, поэтому
+тотальный гейт невозможен. НЕ перехватываются: путь, собранный или переданный
+через переменную (`f=scripts/x.py; echo >$f`, `echo > $SCRATCH/x` — токен с `$`
+считается неразрешимым и пропускается); `base64 -d | sh` и прочая обфускация;
+писатель за обёрткой (`sudo tee`); `curl -O`/`wget` без `-O` (имя из URL);
+`tar`/`unzip` распаковка в текущий каталог без `-C`/`-d`; `base64 -o`, `xxd -r`;
+произвольный код интерпретатора, пишущий файл иначе, чем литеральным `open(...)`.
+Это осознанное решение (Decision #162): гейт поднимает цену обхода с
+«тривиального heredoc» до «нужно намеренно обфусцировать» и называет остаток
+честно. `TAUSIK_SKIP_HOOKS=1` по-прежнему всё отключает — но этот обход
+телеметрируется (`emit_supervision_bypass`), молчаливого выключения надзора нет.
+
+**Смешанный scope (Rule 2, AC3).** Как только ЛЮБАЯ активная задача объявила
+`scope_paths`, ACL-энфорсмент включается для ВСЕХ co-active задач: параллельная
+задача без объявленного scope теряет legacy-свободу и должна либо объявить свою
+область, либо её запись вне union'а объявленных ACL будет заблокирована (и через
+Write, и через Bash). Это закрывает трюк «держать одну необъявленную задачу
+активной, чтобы обойти scope». Legacy-свобода остаётся только когда scope не
+объявил НИКТО.
 
 ---
 
