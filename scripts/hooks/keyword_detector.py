@@ -157,7 +157,7 @@ def main() -> int:
             "[TAUSIK drift guard] Your last message announced code changes "
             "('I'll implement' / 'сейчас напишу' / similar) but there is no active TAUSIK task. "
             "Before proceeding: run `tausik_task_list --status active` to verify, "
-            "and if no task is active, create one with `/plan` or `/go`. "
+            "and if no task is active, create one with `/plan`. "
             "SENAR Rule 1 (enforced by PreToolUse) will block Write/Edit otherwise."
         )
         print(json.dumps({"decision": "block", "reason": reason}))

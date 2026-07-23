@@ -37,7 +37,7 @@ _HOOKS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HOOKS_DIR)
 sys.path.insert(1, os.path.dirname(_HOOKS_DIR))  # scripts/ — for scope_acl
 
-from _common import is_tausik_project  # noqa: E402
+from _common import cli_invocation, is_tausik_project  # noqa: E402
 from bash_write_parse import write_targets  # noqa: E402,F401 — re-exported for tests
 
 
@@ -125,7 +125,8 @@ def main() -> int:
             "BLOCKED: No active task, but this Bash command writes file(s) inside "
             "the project (SENAR Rule 1 — the same rule the Write tool enforces):\n"
             f"{listed}\n"
-            "Start a task first: say 'начинай работу' and describe it, or use /go.",
+            "Start a task first: /plan to create one, or "
+            f"`{cli_invocation()} task start <slug>` to resume an existing one.",
             file=sys.stderr,
         )
         return 2

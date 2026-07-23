@@ -30,7 +30,7 @@ Run **one** MCP tool — `tausik_session_open` (no args). It returns a JSON enve
 Each section is best-effort: a sub-call failure surfaces as an `error` key inside that section, the other four still render. **Drift fallback**: if `self_check.drift_detected=true`, do NOT trust subsequent MCP results in this session — warn the user and fall back to `.tausik/tausik` CLI (which reloads from disk every call) until IDE restart.
 
 Skip these by default — they bloat context without commensurate signal:
-- `tausik_metrics` — pull only on user request (`/metrics`)
+- `tausik_metrics` — pull only on user request (`tausik metrics`)
 - `tausik_explore_current` — `tausik_session_open.status` already flags open exploration
 - `tausik_audit_check` — `tausik_session_open.status` already shows audit overdue
 - `tausik_memory_block` — content lives in CLAUDE.md "Current State" via `update_claudemd`
@@ -56,7 +56,7 @@ Render in this order, **omit empty sections silently**:
    - blocked → "Investigate blocker on `<slug>`"
    - clean slate → "`/plan` to create the first task"
 
-Do **not** render: planning tasks list (use `/next` on demand), metrics block, audit reminder (status surfaces it), "Memory block loaded" notice (it's in CLAUDE.md).
+Do **not** render: planning tasks list (use `tausik task next` on demand), metrics block, audit reminder (status surfaces it), "Memory block loaded" notice (it's in CLAUDE.md).
 
 ## Brain primer — opt-in only
 

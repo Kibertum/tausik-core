@@ -148,7 +148,7 @@ def main() -> int:
         nudges.append(
             "**[TAUSIK nudge]** This looks like a coding request but no TAUSIK task is active. "
             "Before writing code: run `tausik_task_list --status active` to check, "
-            "or create a task via `/plan` or `/go` (SENAR Rule 1, enforced by PreToolUse hook). "
+            "or create a task via `/plan` (SENAR Rule 1, enforced by PreToolUse hook). "
             "Skipping this step means Write/Edit will be blocked."
         )
 

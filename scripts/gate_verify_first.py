@@ -21,6 +21,14 @@ import os
 from typing import Any
 
 from gate_block import _block, extract_files_from_gate_output
+from tausik_utils import cli_invocation
+
+# Spelled for the reader's shell, resolved once per process: `.tausik/tausik`
+# is not runnable in cmd.exe (which needs a backslash) and the backslash form
+# is not runnable in Git Bash — a remediation line the reader cannot paste is
+# not remediation. See tausik_utils.cli_invocation for the measured table.
+_CLI = cli_invocation()
+
 
 
 def _enforce_no_file_changes(
@@ -51,7 +59,7 @@ def _enforce_no_file_changes(
             f"QG-2: task '{slug}' declares --no-file-changes, but this service "
             f"exposes no project directory to scope the git check to. Cannot "
             f"prove an empty scope — fail-closed.",
-            f".tausik/tausik task done {slug} --ac-verified --relevant-files <paths...>",
+            f"{_CLI} task done {slug} --ac-verified --relevant-files <paths...>",
         )
         return
     root = os.path.dirname(tausik_dir())
@@ -59,7 +67,7 @@ def _enforce_no_file_changes(
     scope_desc = (
         "declared paths " + ", ".join(relevant_files) if relevant_files else "the working tree"
     )
-    remediation = f".tausik/tausik task done {slug} --ac-verified --relevant-files <paths...>"
+    remediation = f"{_CLI} task done {slug} --ac-verified --relevant-files <paths...>"
     if dirty is None:
         _block(
             report,
@@ -197,9 +205,9 @@ def enforce_verify_first(
             f"(gate_runner), and the resulting green is recorded as "
             f"non-cacheable — an undeclared scope is 'unknown', not 'verified "
             f"empty'. Declare the files this task touched, then verify.",
-            f".tausik/tausik task update {slug} --relevant-files <paths...>  &&  "
-            f".tausik/tausik verify --task {slug}  &&  "
-            f".tausik/tausik task done {slug} --ac-verified",
+            f"{_CLI} task update {slug} --relevant-files <paths...>  &&  "
+            f"{_CLI} verify --task {slug}  &&  "
+            f"{_CLI} task done {slug} --ac-verified",
         )
         return
 
@@ -290,6 +298,6 @@ def enforce_verify_first(
         f"Run `tausik verify --task {slug}` first — it caches; "
         f"then `task done` closes in milliseconds. To opt out "
         f"set config.task_done.auto_verify=true (legacy).",
-        f".tausik/tausik verify --task {slug}  &&  .tausik/tausik task done {slug} --ac-verified",
+        f"{_CLI} verify --task {slug}  &&  {_CLI} task done {slug} --ac-verified",
         files=relevant_files,
     )

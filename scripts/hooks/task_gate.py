@@ -33,7 +33,7 @@ import sqlite3
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _common import is_tausik_project  # noqa: E402
+from _common import cli_invocation, is_tausik_project  # noqa: E402
 
 
 def target_is_outside_project(raw_stdin: str, project_dir: str) -> bool:
@@ -158,10 +158,17 @@ def main() -> int:
     if active:
         return 0
 
+    # The most-read message in the framework. It used to point at `/go`, a
+    # skill that does not exist, and otherwise offered only a Russian phrase —
+    # to an audience the README addresses in English. Both are now concrete,
+    # existing commands, and the CLI is spelled for the reader's shell.
+    cli = cli_invocation()
     print(
-        "BLOCKED: No active task. Start a task first:\n"
-        "  Say 'начинай работу' then describe your task, or use /go.\n"
-        "  TAUSIK requires a task before code changes (SENAR Rule 1).",
+        "BLOCKED: No active task. TAUSIK requires a task before code changes "
+        "(SENAR Rule 1).\n"
+        "  Create one:   /plan   (or describe the task and ask to start it)\n"
+        f"  Resume one:   {cli} task list --status planning\n"
+        f"                {cli} task start <slug>",
         file=sys.stderr,
     )
     return 2

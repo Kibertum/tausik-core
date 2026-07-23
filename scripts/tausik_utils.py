@@ -10,6 +10,35 @@ from datetime import datetime, timezone
 from typing import Any
 
 
+def cli_invocation(environ: dict[str, str] | None = None, os_name: str | None = None) -> str:
+    """How to spell the TAUSIK CLI so the reader's shell will accept it.
+
+    Every remediation line in the framework hardcoded `.tausik/tausik`, and on
+    Windows that is not universally runnable. Measured, not assumed:
+
+        shell        .tausik/tausik      .tausik\\tausik
+        cmd.exe      NOT recognized      works
+        PowerShell   works               works
+        Git Bash     works               NOT (backslash is an escape)
+
+    So the extension is irrelevant — PATHEXT resolves `tausik.cmd` on its own —
+    and the separator is what decides. No single string works everywhere, which
+    means the choice is per-SHELL, not per-OS: a Windows developer inside Git
+    Bash needs the opposite of one inside cmd.
+
+    MSYSTEM / MSYS / a POSIX-looking SHELL are set by Git Bash and MSYS2 and by
+    neither cmd nor PowerShell, so they identify the one Windows case that
+    needs forward slashes. When in doubt on Windows the backslash form wins: it
+    is the one the two native shells both accept.
+    """
+    env = os.environ if environ is None else environ
+    name = os.name if os_name is None else os_name
+    if name != "nt":
+        return ".tausik/tausik"
+    posix_shell = bool(env.get("MSYSTEM") or env.get("MSYS")) or "/" in env.get("SHELL", "")
+    return ".tausik/tausik" if posix_shell else ".tausik\\tausik"
+
+
 def tausik_config_path(project_dir: str) -> str:
     """Return the canonical path to the project's `.tausik/config.json`.
 

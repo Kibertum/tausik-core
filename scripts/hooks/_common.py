@@ -9,6 +9,28 @@ import subprocess
 import sys
 
 
+def cli_invocation() -> str:
+    """Shell-correct spelling of the CLI, for remediation lines in hooks.
+
+    The implementation lives in `tausik_utils` — one definition, reached from
+    here rather than copied, because a duplicated "how do I spell the CLI"
+    would drift exactly like the four private copies of "resolve the project
+    root" did. Hooks only put their own directory on `sys.path`, so this adds
+    the parent (`<profile>/scripts`, located from this file, not hardcoded).
+    Falls back to the POSIX form if that import is unavailable — a wrong hint
+    is better than a crashed hook.
+    """
+    try:
+        parent = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if parent not in sys.path:
+            sys.path.append(parent)
+        from tausik_utils import cli_invocation as _impl
+
+        return _impl()
+    except Exception:  # noqa: BLE001 — a hint must never break the gate it explains
+        return ".tausik/tausik"
+
+
 _TASK_DONE_TOOL_NAMES = (
     # v14b-task-done-rename-drop-v2: single MCP tool name. The v2 variant was
     # an interim alias from 1.3.7–1.4 while we proved out the structured-JSON

@@ -246,10 +246,19 @@ def main() -> int:
 
     for regex, reason in WARN_PATTERNS_RE:
         if regex.search(scanned):
+            # The old line said "ask the user for explicit confirmation first",
+            # describing a mechanism that was never built: there is no
+            # post-confirmation path here, so the user says yes and the hook
+            # blocks identically. A remediation that cannot be carried out
+            # teaches the reader that the messages are decorative. Name the
+            # escape that exists — and that leaves a countable trace.
             print(
                 f"BLOCKED: {reason}.\n"
                 f"Command: {command}\n"
-                f"If you really need this, ask the user for explicit confirmation first.",
+                "Confirming with the user does NOT unblock this - the gate has no "
+                "approval path. Use a non-destructive equivalent, or (with the user's "
+                "agreement) re-run that one command with TAUSIK_SKIP_HOOKS=1 set; the "
+                "bypass is recorded as a supervision event.",
                 file=sys.stderr,
             )
             return 2

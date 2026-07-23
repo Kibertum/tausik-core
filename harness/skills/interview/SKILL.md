@@ -81,12 +81,12 @@ If an active task exists:
 .tausik/tausik task log {slug} "Interview: {1-line summary of decisions}"
 ```
 
-If not, and the task is about to be created, pass the Q&A answers into `/plan` or `/go`.
+If not, and the task is about to be created, pass the Q&A answers into `/plan`.
 
-## Interaction with /plan and /go
+## Interaction with /plan and /task
 
 - `/plan` + vague description → should invoke `/interview` before creating the task
-- `/go` + critical/complex task → should invoke `/interview` before `task_start`
+- `/task` on a critical/complex slug → should invoke `/interview` before `task_start`
 
 ## Output Format
 
