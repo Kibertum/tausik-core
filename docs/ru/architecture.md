@@ -116,7 +116,7 @@ harness/
 ├── stacks/           # Руководства по стекам
 ├── overrides/        # Переопределения для конкретных сред (claude/, cursor/, qwen/)
 ├── claude/mcp/       # MCP-серверы (project, brain, codebase-rag) — канон для ВСЕХ сред
-└── opencode/plugins/ # Плагин принуждения QG-0 для OpenCode (tool.execute.before)
+└── opencode/plugins/ # Плагин дисциплины QG-0 для OpenCode (tool.execute.before)
 ```
 
 #### Среда (IDE) × Модель — две ортогональные оси (Решение #119)

@@ -201,6 +201,31 @@ is only as trustworthy as the file it travels in. To anchor origin, compare the
 pinned CI variable, or the PR description — and never trust a fingerprint
 embedded in the very artifact you are verifying.
 
+### What the signature does NOT prove — the key boundary
+
+Be precise about the claim, because the wording is legally load-bearing under
+the EU AI Act (logging obligations for high-risk systems apply from August
+2026). The private seed lives at `.tausik/keys/project.key` **inside the
+working tree** — the same tree the agent whose work the key signs can read
+(`mode 0600` is best-effort on POSIX and a no-op on Windows). Therefore:
+
+- A valid signature is **tamper-evidence against EXTERNAL edits** to
+  `tausik.db`: nobody rewrote the "green" verdict or replayed an old result
+  onto a new commit *without access to the key*. The same holds for the
+  `events_anchor` signature over the event chain.
+- It is **NOT attestation against the agent**. An agent (or anything else) with
+  read access to the working tree can read the seed and produce a signature the
+  key would accept. The receipt proves "someone with filesystem access produced
+  this", not "an independent party attests the agent behaved".
+
+To obtain attestation the agent cannot forge, the signing key must live
+**outside the agent's write (and read) zone** — a managed path, an OS keychain,
+or a separate signer process. That relocation is deliberately deferred (see the
+`tausik decide` record for `l26-signing-key-boundary`): it is a cross-platform
+key-custody design of its own, and the immediate integrity win is stating this
+boundary honestly rather than implying an attestation the current storage
+cannot deliver.
+
 ## Offline / no-SDK verification over HTTP
 
 For agents and CI that cannot use the CLI or MCP, `tausik serve` exposes the

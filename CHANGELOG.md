@@ -9,6 +9,296 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Adversarial review of the batch's own guards closed five holes in them
+
+The three fixes above each shipped a mechanism meant to make its defect
+mechanically unrepeatable. An adversarial pass over those mechanisms — the
+discipline convention #276 names, review the fixes, not only the original —
+found that two of the guards judged their own copy of the data (convention
+#266), the exact failure the batch criticises elsewhere.
+
+The pricing-coverage guard read the built-in `DEFAULT_FAMILIES`, never
+`model_profiles.load_families(config)` — so a project that repointed a rank at
+an unpriced Claude id through the documented config surface, or set a per-phase
+`model_routing` override, kept metering it at $0.00 with the guard green. It now
+reads the effective config and scans the routing overrides, with fail-then-pass
+tests for both. The `.claude`-literal lint anchored its regex on the opening
+quote, so `.claude` anywhere but the start of a string literal
+(`"harness/.claude/foo"`) slipped past the very lint built to forbid hardcoded
+profile paths; the regex now matches the segment wherever it sits, which
+immediately surfaced three legitimate `~/.claude` HOME references (Claude
+Code's own auto-memory, not a project profile) now exempt on the merits.
+
+Three narrower holes closed too. `service_roles` had grown a `project_dir`
+parameter to resolve deployed role profiles IDE-independently, but the caller
+never passed it, so it still read `os.getcwd()` — an MCP server run from
+elsewhere missed a profile that existed; the project directory is now derived
+from the backend's own db path and threaded through, and only from the
+canonical `<root>/.tausik/` layout so a non-standard db falls back rather than
+guesses. `session_start._profile_dir()` located its profile by testing for a
+`scripts/` directory two levels up — which the project ROOT also has, so a hook
+run from source returned the project root as its "profile" and failed safe only
+because that root happened to lack `mcp/`; it now requires a positive marker a
+real profile carries. And the phantom-`/skill` lint scanned only hooks and
+SKILL.md; it now covers all of `scripts/`, restricted via an AST pass to the
+strings a user actually reads (print arguments and raised-exception messages) so
+docstrings, comments, and URL literals like a Notion `/search` endpoint don't
+register as false phantoms.
+
+### Block messages that pointed nowhere: a phantom command and a shell-wrong CLI
+
+The most-read message in the framework — `task_gate`, fired on every Write
+without an active task — told the reader to `use /go`. There is no `/go` skill;
+there never was. Following the framework's single most-common instruction did
+nothing. The same phantom was in three more places, and the English message
+otherwise offered only a Russian phrase as the way forward, to an audience the
+README addresses in English. All four now point at commands that exist (`/plan`
+to create a task, `tausik task start <slug>` to resume one), and a lint fails
+if any `/skill` a hook or SKILL.md names is absent from `harness/skills/` — it
+immediately found three more phantoms nobody had reported (`/go` in a fourth
+hook, `/metrics` and `/next` in the start skill).
+
+Every remediation line spelled the CLI `.tausik/tausik`, which is not
+universally runnable on Windows. The product audit blamed a missing `.cmd`
+extension; measuring it showed that was wrong — `PATHEXT` resolves the
+extension on its own. The **separator** decides: `cmd.exe` rejects
+`.tausik/tausik`, Git Bash rejects `.tausik\tausik` (backslash is an escape),
+and PowerShell accepts either. No single spelling works everywhere, so the
+choice is per-shell, not per-OS — a Windows developer in Git Bash needs the
+opposite of one in cmd. `cli_invocation()` picks the form from the shell, and
+the gate remediation lines use it.
+
+Separately, `bash_firewall`'s `git reset --hard` warning told the reader to
+"ask the user for explicit confirmation first" — describing an approval path
+the hook never had. The user says yes and the block fires identically. It now
+names the escape that exists: a non-destructive equivalent, or a single
+`TAUSIK_SKIP_HOOKS=1`-scoped re-run that is recorded as a supervision bypass.
+
+### `tausik doctor` failed healthy projects on six of seven supported IDEs
+
+`ide_utils` has been a complete IDE abstraction for a long time — seven
+profiles, directory and skills resolution — with almost no callers, while
+`.claude` stayed spelled out as a literal across the engine. The health check
+looked for `.claude/mcp/project/server.py` and `.claude/skills/`, so on a
+Cursor, Qwen, Kilo or OpenCode install — where bootstrap deposits `.cursor/`,
+`.qwen/`, `.kilo/` — a correctly installed project reported FAIL and exited 1,
+taking any CI that ran it down with it. A health check that fails healthy
+projects is worse than none: it teaches people to ignore the one command whose
+whole job is being believed.
+
+`doctor` now resolves the profile it is judging and says which one, so its
+output names the directory it actually inspected rather than always claiming
+`.claude`. When the detected profile is absent but another is deployed, the
+message says so — "detected claude, but a cursor profile is deployed" beats
+"re-run bootstrap", which is advice that repeats the same result. Role
+profiles resolve the same way, and no longer read from the process working
+directory either.
+
+Two file scanners had hand-written skip lists naming `.claude` (one also
+`.cursor`), so on the other profiles they walked a deployed copy of the engine
+— roughly 300 generated files — treating it as project source. Both now derive
+the set from the registry, so a profile added later is skipped the day it is
+added.
+
+Hooks could not use the abstraction at all: `ide_utils` lives in the very
+directory a hook is trying to locate, so importing it presupposes the answer.
+They locate themselves instead — a hook deployed at
+`<profile>/scripts/hooks/x.py` knows its profile two levels up. That fixed a
+silent one: the automatic skill rebuild resolved `.claude/scripts` on every
+install, so on Qwen it imported nothing and did nothing, and the surrounding
+`try/except` swallowed the failure. The same read found a dead loop variable in
+the RAG-server probe, which tested the identical `.claude` path on both
+iterations.
+
+The literal is now linted. `tests/test_doctor_multi_ide.py` fails on a new
+`.claude` in `scripts/`, every remaining exemption is listed with the reason it
+is legitimate, and a second test fails if an exemption goes stale — an
+exemption for a file that no longer contains the literal would silently license
+the next one. The four genuinely-remaining cases are tracked as
+`engine-claude-literals-followup`.
+
+### Cost telemetry reported $0.00 for the model this project runs on
+
+An architecture audit found `claude-opus-4-8` missing from the LLM price table
+while `model_profiles` already routed the `opus` rank to it. `get_pricing`
+returned `None`, `calculate_cost_usd` returned `0.0`, and `tausik metrics
+--cost` reported a confident zero for every session — including this
+repository's own. A silent zero in a cost meter is not a missing feature; it is
+a wrong answer wearing the costume of a right one, which is the exact defect
+class this release is about.
+
+Verifying the fix turned up two more errors in the same table. Opus was carried
+at $15/$75 against a published $5/$25 — a threefold overstatement on every Opus
+session ever recorded — and Haiku 4.5 at $0.80/$4.00 against $1.00/$5.00. The
+`[1m]` rows charged a 2× "long-context premium" extrapolated from a superseded
+Sonnet tier; no such premium exists on the current Opus and Sonnet tiers, where
+1M **is** the standard window at the standard rate. Those rows now sit at
+parity with their base. Sonnet 5 and Fable 5 were added; the table records the
+date it was verified against published pricing.
+
+The existing tests had asserted all of this wrongly — $15/$75, the phantom
+premium — so the suite stayed green over a meter that was wrong in both
+directions and blind to the default model. Correcting expectations is not the
+fix, though: a table maintained by remembering is a table that drifts. Coverage
+is now mechanical — `models_missing_pricing()` reads the three tables that
+actually decide which model runs (`model_profiles`, the routing matrix, the
+delegation default) and a test fails if any Claude id among them has no price.
+Adding a model to routing without pricing it now breaks the build instead of
+quietly zeroing the meter. Non-Claude families are excluded deliberately and
+say so: GLM is not billed at Anthropic rates, and an invented price would be
+worse than an absent one.
+
+### The changelog gate now reads what was written, not whether bytes moved
+
+An adversarial review of the gate shipped hours earlier found it proving the
+wrong thing. Its evidence was `git status --porcelain` — "did these bytes
+change" — which a single appended blank line satisfies. A close could append
+whitespace to both changelog files, pass the gate, and have "Changelog gate:
+verified" written into its own task notes: compliance theatre, with convention
+#275 unmet and the journal asserting otherwise. The proof required is now
+content: at least one ADDED line with characters on it, per configured file.
+
+A product review of the same batch caught the complementary defect from the
+other side. The gate demanded an *uncommitted* diff, while the framework's own
+`/ship` skill commits at step 7 and closes the task at step 8 — so under the
+canonical close path the changelog diff was always already committed, the gate
+always blocked, and `--no-changelog` was the only way through. A rule whose
+sole passable route is its own bypass teaches the bypass. Commits made during
+the task (the window opens at `started_at`) now count, alongside working-tree
+and staged edits and brand-new untracked changelog files. The time window is
+weaker than "this task wrote it" — in a release-accumulation workflow another
+task's commit inside the window can satisfy it — and that is the deliberate
+trade against a gate nobody can legitimately pass.
+
+Two more corrections in the same gate. A malformed `task_done.changelog_gate`
+block — `{"enable": true}`, a bare string where a list belongs, an unreadable
+config — used to fail OPEN, justified in a docstring by a `tausik doctor` check
+that does not exist; a typo therefore retired the policy silently while the
+project believed it enforced. A policy that cannot be read is unknown, not off,
+so it now fails closed and names the defect; an ABSENT block still means a
+quiet, deliberate opt-out. And the gate's config is read for the project the
+service speaks for, not from the process working directory.
+
+### Git worktrees are repositories again
+
+`verify_git_diff` tested for a `.git` DIRECTORY. In a linked worktree or a
+submodule `.git` is a FILE, so both were classified "not a repository" —
+which every consumer treats as unverifiable and then fails closed. An agent
+working in a git worktree, the standard isolation for parallel agents and
+something this harness ships tooling for, could therefore neither close a
+fileless task nor pass the changelog gate at all. Existence, not file type, is
+the question.
+
+### Receipt commands stop resolving keys from the working directory
+
+`tausik receipt show` and `receipt export` looked the project public key up in
+`os.getcwd()`, so running either from a subdirectory reported a validly-signed
+receipt as `UNVERIFIABLE` — the same CWD-dependence closed on the signing side
+in this batch, still open on the reading side, and claimed fixed by the entry
+below. Both now resolve the root from the service handle. Relatedly, the
+signing-failure warning added earlier treated a CORRUPTED key as no key at all
+(`load_public` raises either way), printing the benign "no project key" notice
+for a real failure — the exact silent degradation that change existed to end.
+Key PRESENCE now decides: a key file that exists means the project expects
+signed receipts, and a receipt that then fails to appear is reported.
+
+The four private spellings of "resolve the project root from the handle, never
+from the cwd" are now one (`project_root.root_from_service`), which returns
+`None` rather than guessing when there is no handle — a gate fails closed on
+that, a read-only presentation command may degrade to the cwd, and the choice
+stays with the caller.
+
+### Receipt signing resolves the project root, not the working directory
+
+An adversarial review of this batch caught a defect in the signing-observability
+change: the CLI's key-presence check resolved the project from the database path
+(correct, CWD-independent), but the actual signing call still used `project_dir='.'`
+— the process working directory. Running `tausik verify` or `task done` from a
+**subdirectory** therefore signed against a directory with no key: emission
+silently produced no receipt, and the new observability code then printed a
+*false* `Receipt: WARNING — signing failed` and logged a spurious
+`receipt_sign_failed` event, because the two paths were looking in different
+places. Signing now derives the project root from the database connection's own
+file (`<root>/.tausik/tausik.db`), matching the key check exactly — which also
+fixes the pre-existing latent bug where signing from a subdirectory produced no
+receipt at all. An unreadable DB path falls back to the working directory,
+best-effort. Separately, the continuous-changelog gate's `enabled` flag is now
+read as a real boolean (`is True`), so a hand-edited `"enabled": "false"` string
+no longer coerces to on via `bool("false")`.
+
+### README narrative matches the code: a discipline rail, not a firewall
+
+The README claimed "hard gates it physically cannot skip" and led with
+"enforcement" — while the code's own docstrings were already honest
+(`git_push_gate.py`: "a discipline rail, not a malicious-agent firewall";
+`renar_conformance.py`: a signal it marks vacuously true). An architecture
+review had tabulated the trivial bypasses — a Bash write (since closed),
+declaring `complexity=simple`, narrowing `relevant_files`, self-recording an L3
+review, reading the in-tree signing key — each of which "physically cannot
+skip" contradicts. The narrative is now precise, not retreating: TAUSIK is a
+**discipline rail with tamper-evidence against outside edits**, whose threat
+model is silent drift by an honest agent, not a determined one working around
+the rail. "The difference is one word" changed from *enforcement* to
+*evidence*; both README mirrors and `architecture.md` were aligned, and a grep
+for the overclaiming phrases now returns nothing. The framing matters legally,
+not just editorially — EU AI Act logging obligations for high-risk systems
+(August 2026) make an accurate claim load-bearing.
+
+### Dropped: the Plotly visual cost dashboard (stdlib principle holds)
+
+The long-deferred idea of a `tausik dashboard` — a Plotly/Dash mini-server
+plotting tokens, cost, dead-end rate and throughput — is closed as won't-do
+(`tausik decide` #164). It contradicts the project's declared Python-stdlib
+stack and repeats the reasoning of an earlier dead end (#27, rejecting
+ChromaDB): a heavy external dependency is not worth a visual alternative to a
+capability that already exists. The text-mode `tausik metrics --cost` covers
+the cost-observability need. An opt-in `extras` install was also declined —
+even an isolated dependency carries CI and maintenance weight for a duplicate
+of a working feature.
+
+### Receipt signing: honest boundary, and failures are no longer silent
+
+The signing key lives at `.tausik/keys/project.key` inside the working tree —
+the same tree the agent whose work it signs can read (`0600` is best-effort on
+POSIX, a no-op on Windows). The docs now state precisely what a signature
+proves: **tamper-evidence against EXTERNAL edits** to `tausik.db` and the event
+anchor, but **NOT attestation against the agent**, who can read the seed and
+produce a signature the key accepts. The wording is deliberate — logging
+obligations under the EU AI Act (high-risk systems, August 2026) make the claim
+legally load-bearing. Relocating the key outside the agent's zone (managed path,
+OS keychain, separate signer) is a cross-platform key-custody design of its own
+and is deferred on the record (`tausik decide` #163); naming the boundary
+honestly is the immediate integrity win.
+
+Separately, a signing **failure** used to be invisible: `emit_signed_receipt`
+returned an error status that the CLI dropped, so a project whose signing
+silently broke printed the SAME "no project key" line as one that never had a
+key — degrading to unsigned runs indistinguishably. `tausik verify` now tells
+the two apart: a configured key that failed to sign prints a visible
+`Receipt: WARNING` and records a countable `receipt_sign_failed` event, while a
+genuinely absent key keeps its benign notice.
+
+### Continuous CHANGELOG is now a gate, not a convention
+
+Decision #161 asked every 1.8 task to update `CHANGELOG.md` and its Russian
+mirror `CHANGELOG.ru.md` at close (convention #275). That discipline lived only
+as a line in each task's acceptance criteria — a reviewer could see it skipped,
+but nothing stopped the skip. A new QG-2 gate makes it mechanical: at `task
+done`, git must show uncommitted changes in every configured changelog file, or
+the close is blocked, naming the missing files and the escape flag.
+
+Mechanism is generic, policy is configured. TAUSIK is a framework other projects
+bootstrap; a hardcoded "a Russian and an English changelog must both change"
+would permanently block any project that keeps no changelog, or one language
+only. So the requirement reads from `config.task_done.changelog_gate`
+(`{enabled, files}`), disabled by default; TAUSIK's own config turns it on with
+both files. Fail-closed by the whole-tree-proof pattern (#157): an unavailable
+git or a service that cannot resolve its own project directory blocks rather
+than passes — a claim git cannot back never closes a task. Honest exceptions
+(docs, cleanup, measurement) close with `task done --no-changelog`, which skips
+the check and records a countable `bypass_changelog_gate` supervision event —
+no silent bypass. Fileless closes (`--no-file-changes`) never reach the gate.
+
 ### Bash file writes no longer bypass QG-0 and scope
 
 `task_gate` (no code without a task) and `scope_write_gate` (SENAR Rule 2 ACL)
