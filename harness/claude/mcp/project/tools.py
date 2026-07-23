@@ -181,6 +181,10 @@ TOOLS = [
                     "type": "boolean",
                     "description": "Close a task that touched NO files (pure planning / a decision). Allowed only when git proves the declared scope (relevant_files as a pathspec, else the whole tree) has no uncommitted changes; fail-closed otherwise. The third QG-2 scope state, symmetric to no_tests_declared.",
                 },
+                "no_changelog": {
+                    "type": "boolean",
+                    "description": "Close a task that warrants NO changelog entry (docs/cleanup/measurement). Skips the continuous-changelog gate (convention #275) and logs an explicit bypass reason. Only meaningful when config.task_done.changelog_gate is enabled.",
+                },
                 "evidence": {
                     "type": "string",
                     "description": 'Inline AC verification log (e.g. "AC verified: 1. ✓ 2. ✓ ..."). Replaces a separate task_log call.',

@@ -73,6 +73,7 @@ class TaskDoneReportMixin:
         evidence_json: str | None = None,
         progress_fn: Any | None = None,
         no_file_changes: bool = False,
+        no_changelog: bool = False,
     ) -> dict[str, Any]:
         # v14b-token-t15: structured evidence — convert JSON to canonical
         # prose before the existing log path. Mutex with --evidence prose
@@ -108,22 +109,18 @@ class TaskDoneReportMixin:
                         relevant_files = parsed
                 except (TypeError, ValueError, json.JSONDecodeError):
                     pass
-        # v14-task-done-relevant-files-fallback: when both caller and DB row are
-        # silent, recover the file set from the most recent fresh verify-row so
-        # `tausik verify --task X` then `task done X` (no CLI args) hits cache.
-        # Security-sensitive paths bypass the fallback — auth/payment/etc. always
-        # require an explicit list to avoid stale-green leakage.
+        # v14-task-done-relevant-files-fallback: caller and DB both silent →
+        # recover files from the latest fresh verify-row (no-arg `task done`
+        # after `verify --task X` hits cache). Security-sensitive: explicit only.
         recovered_for_complexity: list[str] | None = None
         if relevant_files is None:
             from verify_recent_lookup import lookup_relevant_files_from_recent_verify
             from service_verification import is_security_sensitive
 
             recovered = lookup_relevant_files_from_recent_verify(self.be._conn, slug)
-            # Keep the recovered set for the complexity-understatement COUNT even
-            # when it is security-sensitive: the count leaks nothing (only a
-            # number is ever logged/shown), and dropping it would blind the
-            # detector to exactly the highest-risk category — a security task
-            # closed as 'simple' with no explicit file list (l26 review MED).
+            # Keep recovered set for the complexity COUNT even if security-sensitive:
+            # a count leaks only a number, and dropping it blinds the detector to the
+            # highest-risk category — a security task closed 'simple' (l26 review MED).
             recovered_for_complexity = recovered or None
             if recovered and not is_security_sensitive(recovered):
                 relevant_files = recovered
@@ -145,7 +142,11 @@ class TaskDoneReportMixin:
             report["blocking_failures"].append({"stage": "plan", "message": str(e)})
             return report
         gate_report = self._run_quality_gates_report(  # type: ignore[attr-defined]
-            slug, relevant_files, progress_fn=progress_fn, no_file_changes=no_file_changes
+            slug,
+            relevant_files,
+            progress_fn=progress_fn,
+            no_file_changes=no_file_changes,
+            no_changelog=no_changelog,
         )
         report["gates"] = gate_report.get("results", [])
         report["cache_status"] = gate_report.get("cache_status")
@@ -250,10 +251,9 @@ class TaskDoneReportMixin:
                 except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
                     root_cause_nudge = ""
 
-        # Knowledge capture warning (SENAR Rule 8).
-        # v1.3.4 (med-batch-2-qg #5): --no-knowledge refused for complex
-        # /defect tasks (SENAR Rule 8 upgrades from warning to refusal —
-        # those are the cases where knowledge capture matters most).
+        # Knowledge capture warning (SENAR Rule 8). v1.3.4 (med-batch-2-qg #5):
+        # --no-knowledge refused for complex/defect tasks (Rule 8 upgrades from
+        # warning to refusal — where knowledge capture matters most).
         _kw = ("dead end", "decided", "decision", "memory", "pattern", "gotcha")
         notes = task.get("notes") or ""
         is_complex = (task.get("complexity") or "").lower() == "complex"

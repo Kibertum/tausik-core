@@ -13,6 +13,22 @@ import os
 import sys
 
 
+def _project_dir(svc) -> str:
+    """Project root for key lookup — from the service, not the cwd.
+
+    `receipt show`/`export` looked the public key up in `os.getcwd()`, so both
+    reported a validly-signed receipt as UNVERIFIABLE whenever they were run
+    from a SUBDIRECTORY of the project — the same CWD-dependence that
+    `verify_run_record._project_dir_from_conn` closed on the signing side
+    (s129-review-fixes). Presentation commands degrade to the cwd rather than
+    refuse when no project handle is available; the read-only verdict they
+    print is not a gate.
+    """
+    from project_root import root_from_service
+
+    return root_from_service(svc) or os.getcwd()
+
+
 def cmd_receipt(svc, args) -> None:
     cmd = getattr(args, "receipt_cmd", None)
     if cmd == "export":
@@ -78,7 +94,7 @@ def cmd_receipt(svc, args) -> None:
     import crypto_sign
 
     try:
-        valid = crypto_sign.verify_receipt(envelope, project_dir=os.getcwd())
+        valid = crypto_sign.verify_receipt(envelope, project_dir=_project_dir(svc))
     except crypto_sign.SignError as e:
         print(f"Signature: UNVERIFIABLE — {e}", file=sys.stderr)
         sys.exit(2)
@@ -110,7 +126,7 @@ def _cmd_export(svc, args) -> None:
         )
         sys.exit(2)
 
-    project_dir = os.getcwd()
+    project_dir = _project_dir(svc)
     try:
         public = crypto_keys.load_public(project_dir)
     except crypto_keys.KeyError_ as e:

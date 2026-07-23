@@ -96,7 +96,7 @@ def _stub_verify_only(monkeypatch, *, auto_verify: bool):
         return real_for_trigger(trigger, cfg)
 
     fake_cfg = {"task_done": {"auto_verify": auto_verify}}
-    monkeypatch.setattr("project_config.load_config", lambda: fake_cfg)
+    monkeypatch.setattr("project_config.load_config", lambda *a, **k: fake_cfg)
     monkeypatch.setattr("project_config.get_gates_for_trigger", fake_get_for_trigger)
     import service_verification
 
@@ -256,7 +256,7 @@ class TestNoVerifyGatesProjectIsExempt:
             return real(trigger, cfg)
 
         monkeypatch.setattr(
-            "project_config.load_config", lambda: {"task_done": {"auto_verify": False}}
+            "project_config.load_config", lambda *a, **k: {"task_done": {"auto_verify": False}}
         )
         monkeypatch.setattr("project_config.get_gates_for_trigger", fake)
         with patch.dict(

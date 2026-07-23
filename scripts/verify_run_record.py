@@ -16,6 +16,7 @@ brain_metrics_log.py, model_routing_session.py and verify_endpoint.py.
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from datetime import datetime, timezone
 from typing import Any
@@ -23,6 +24,37 @@ from typing import Any
 
 def _utcnow_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _project_dir_from_conn(conn: sqlite3.Connection) -> str:
+    """Resolve the project ROOT from the DB connection's own file path.
+
+    The signing key and git scope must be resolved against the project THIS
+    connection speaks for — never the process CWD. The old default
+    (`project_dir or "."`) meant `tausik verify` / `task done` run from a
+    SUBDIRECTORY signed against a directory with no key: a silent no-receipt,
+    and — after l26-signing-key-boundary — a FALSE "signing failed" warning,
+    because the CLI's key-presence check (`_project_has_key`) looked at the real
+    root (`ProjectService.tausik_dir()`, DB-derived) while emission looked at
+    CWD. Deriving from the DB file — always `<root>/.tausik/tausik.db` — makes
+    both agree, mirroring `tausik_dir()` exactly (`dirname(db_path)` is the
+    `.tausik/` dir; one more `dirname` is the root). Falls back to "." only when
+    the path cannot be read (in-memory / detached DB) — best-effort, never
+    raises, so a degraded resolution still closes the run.
+    """
+    try:
+        for row in conn.execute("PRAGMA database_list").fetchall():
+            # Positional indexing only: PRAGMA rows arrive as tuples or
+            # sqlite3.Row depending on `conn.row_factory`, and both index by
+            # position. The former `isinstance(row, dict)` branch was
+            # unreachable — dead defence, removed rather than left to imply a
+            # case that has to be maintained.
+            name, dbfile = row[1], row[2]
+            if name == "main" and dbfile:
+                return os.path.dirname(os.path.dirname(os.path.abspath(str(dbfile))))
+    except Exception:  # noqa: BLE001 — best-effort: fall back to CWD, never break the record
+        pass
+    return "."
 
 
 def record_run(
@@ -113,7 +145,10 @@ def record_run(
             gate_results=gate_results,
             passed=exit_code == 0,
             files_hash=files_hash,
-            project_dir=project_dir or ".",
+            # project_dir resolves to the project ROOT (DB-derived), not the CWD:
+            # signing must find the key at <root>/.tausik/keys regardless of the
+            # directory `tausik verify` was invoked from (s129-review-fixes).
+            project_dir=project_dir or _project_dir_from_conn(conn),
             declared_scope_status=status,
             undeclared_files=undeclared,
             undeclared_count=undeclared_count,

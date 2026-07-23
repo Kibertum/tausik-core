@@ -138,7 +138,12 @@ class TestTaskLifecycle:
         captured: list[list[str] | None] = []
 
         def fake_report(
-            slug, relevant_files, progress_fn=None, trigger="task-done", no_file_changes=False
+            slug,
+            relevant_files,
+            progress_fn=None,
+            trigger="task-done",
+            no_file_changes=False,
+            no_changelog=False,
         ):
             captured.append(relevant_files)
             return {

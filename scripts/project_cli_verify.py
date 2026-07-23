@@ -14,6 +14,7 @@ would close on it. It is now a presentation layer over
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 
@@ -40,21 +41,72 @@ def _emit_cache_hit(svc: Any, task_slug: str, hit: dict[str, Any]) -> None:
         )
 
 
+def _project_has_key(svc: Any) -> bool:
+    """True when this project OPTED INTO signing — key present, loadable or not.
+
+    Presence, not loadability, is the question. Asking `load_public` alone
+    conflated two very different states: a project that never ran `key init`
+    (benign opt-out) and one whose key file is truncated or corrupted (a real
+    failure). Both raised, both read as "no key", so a corrupted key printed
+    the reassuring "no project key" line and recorded nothing — reintroducing,
+    one layer down, the silent degradation l26-signing-key-boundary exists to
+    end. A key file that exists means the project expects signed receipts; if
+    it no longer loads, that IS the failure worth reporting.
+    """
+    import crypto_keys
+    from project_root import root_from_service
+
+    project_dir = root_from_service(svc)
+    if project_dir is None:
+        return False  # no project handle → cannot claim a key exists
+    keys = crypto_keys.keys_dir(project_dir)
+    return os.path.exists(os.path.join(keys, crypto_keys.KEY_FILENAME)) or os.path.exists(
+        os.path.join(keys, crypto_keys.PUB_FILENAME)
+    )
+
+
 def _emit_receipt(svc: Any, run_id: int | None) -> None:
-    """Report whether the run produced a signed receipt."""
+    """Report whether the run produced a signed receipt.
+
+    l26-signing-key-boundary: a signing FAILURE (a project key exists but the
+    receipt could not be signed) previously printed the SAME "no project key"
+    line as having no key at all — so a project whose signing silently breaks
+    degrades to unsigned runs indistinguishably from one that never opted in.
+    The two are now told apart: a present key with no stored receipt is a
+    visible WARNING plus a countable `receipt_sign_failed` event, never the
+    benign no-key notice.
+    """
     from verify_receipt_emit import load_receipt
 
     if run_id is None:
         print("Receipt: not emitted — the run was not recorded (see .tausik/tausik.log).")
         return
     stored = load_receipt(svc.be._conn, run_id=run_id)
-    if stored is None:
-        print(
-            "Receipt: not emitted — no project key (`tausik key init` to enable signed receipts)."
-        )
+    if stored is not None:
+        sig = stored["envelope"].get("signature") or {}
+        print(f"Receipt: signed (run #{run_id}, key {sig.get('key_fingerprint', '?')}).")
         return
-    sig = stored["envelope"].get("signature") or {}
-    print(f"Receipt: signed (run #{run_id}, key {sig.get('key_fingerprint', '?')}).")
+    # No stored receipt. A configured-but-failing key is silent degradation
+    # (the defect this task closes); a genuinely absent key is benign opt-out.
+    if _project_has_key(svc):
+        print(
+            f"Receipt: WARNING — a project key is configured but run #{run_id} was "
+            f"NOT signed (signing failed). Signed receipts are silently degrading "
+            f"to unsigned; see .tausik/tausik.log, then inspect `tausik key show`."
+        )
+        # Countable metric so the degradation is observable off the interactive
+        # path too (best-effort — telemetry must never break the verify report).
+        try:
+            svc.be.event_add(
+                "verify",
+                str(run_id),
+                "receipt_sign_failed",
+                "project key present but receipt emission failed (STATUS_ERROR)",
+            )
+        except Exception:  # noqa: BLE001 — best-effort telemetry, never blocks
+            pass
+        return
+    print("Receipt: not emitted — no project key (`tausik key init` to enable signed receipts).")
 
 
 def cmd_verify(svc: Any, args: Any) -> None:

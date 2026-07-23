@@ -55,6 +55,16 @@ def _verify_first_autouse_compat_shim(request, monkeypatch):
             return None
 
         monkeypatch.setattr(GatesMixin, "_enforce_verify_first", _noop)
+
+        # changelog-continuous-gate: the continuous-CHANGELOG gate is the same
+        # class of task-done-path enforcement as Verify-First — it reads the
+        # live project config (now `changelog_gate.enabled=true`) and would
+        # block every legacy `task_done` test that doesn't happen to leave both
+        # changelog files dirty. Same shim, same opt-out marker.
+        def _noop_changelog(self, report, slug, **kwargs):
+            return None
+
+        monkeypatch.setattr(GatesMixin, "_enforce_changelog", _noop_changelog)
     except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         pass
     yield

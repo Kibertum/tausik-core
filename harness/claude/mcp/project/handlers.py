@@ -133,6 +133,7 @@ def _do_task_done(svc: Any, args: dict) -> str:
         evidence_json=args.get("evidence_json"),
         progress_fn=_progress,
         no_file_changes=args.get("no_file_changes", False),
+        no_changelog=args.get("no_changelog", False),
     )
     return json.dumps(result, ensure_ascii=False)
 

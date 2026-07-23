@@ -21,6 +21,20 @@ import subprocess
 from typing import Callable
 
 
+def _is_repo_root(base: str) -> bool:
+    """True when *base* holds a git repository.
+
+    `.git` is a DIRECTORY in an ordinary clone but a FILE (a gitdir pointer) in
+    a linked worktree or a submodule. Testing only for a directory declared
+    both of those "not a repo" — and since every consumer here treats "not a
+    repo" as unverifiable and then fails closed, an agent working in a git
+    worktree (the standard isolation for parallel agents, and something this
+    harness ships tooling for) could close no fileless task and pass no
+    changelog check at all. Existence is the right question.
+    """
+    return os.path.exists(os.path.join(base, ".git"))
+
+
 def _normalize_repo_path(raw: str) -> str:
     """Normalize a path string for set comparison against git output.
 
@@ -70,7 +84,7 @@ def changed_files_since(
     # so the test can simulate non-git via tmp_path without .git.
     if runner is None and shutil.which("git") is None:
         return None
-    if not os.path.isdir(os.path.join(base, ".git")):
+    if not _is_repo_root(base):
         return None
     run = runner or subprocess.run
     changed: set[str] = set()
@@ -162,7 +176,7 @@ def uncommitted_changes(
     base = root or os.getcwd()
     if runner is None and shutil.which("git") is None:
         return None
-    if not os.path.isdir(os.path.join(base, ".git")):
+    if not _is_repo_root(base):
         return None
     run = runner or subprocess.run
     pathspec = [_normalize_repo_path(p) for p in (paths or []) if p and p.strip()]
@@ -201,6 +215,136 @@ def uncommitted_changes(
         if norm:
             dirty.add(norm)
     return sorted(dirty)
+
+
+def _added_nonblank_paths(diff_text: str) -> set[str]:
+    """Paths in a unified diff that gain at least one NON-BLANK added line."""
+    found: set[str] = set()
+    current: str | None = None
+    for line in (diff_text or "").splitlines():
+        if line.startswith("+++ "):
+            target = line[4:].strip()
+            if target == "/dev/null":
+                current = None
+            else:
+                if target.startswith(("a/", "b/")):
+                    target = target[2:]
+                current = _normalize_repo_path(target) or None
+            continue
+        if line.startswith(("--- ", "@@", "diff ", "index ", "new file", "deleted file")):
+            continue
+        # A real added line: "+" followed by content that is not just spaces.
+        if current and line.startswith("+") and line[1:].strip():
+            found.add(current)
+    return found
+
+
+def files_with_substantive_additions(
+    paths: list[str],
+    *,
+    root: str | None = None,
+    since: str | None = None,
+    runner: Callable[..., subprocess.CompletedProcess] | None = None,
+) -> set[str] | None:
+    """Subset of *paths* whose uncommitted diff ADDS at least one non-blank line.
+
+    `uncommitted_changes` answers "did these bytes change", which is not the
+    question a content policy asks. Appending a blank line to a file makes it
+    dirty without adding anything — enough to satisfy a byte-level check and
+    nothing else. This helper judges the diff CONTENT: a path qualifies only
+    when the patch introduces a line with actual characters on it.
+
+    Covers both tracked edits (`git diff HEAD`, so staged and unstaged alike)
+    and brand-new untracked files (`git ls-files --others`), whose whole
+    content is an addition and which `git diff` therefore never reports.
+
+    `since` (an ISO timestamp, normally the task's `started_at`) additionally
+    counts additions already COMMITTED during the task. Without it, a caller
+    that commits before closing — which is exactly what the `/ship` skill does,
+    commit at step 7 and close at step 8 — sees an empty working tree and reads
+    it as "nothing was written", blocking the canonical path and teaching the
+    escape flag as the normal way to close. Scoped by time rather than by
+    author, so in a release-accumulation workflow another task's commit inside
+    the same window can satisfy the check; that is a deliberately weaker
+    guarantee than "this task wrote it", and far better than a rule whose only
+    passable route is its own bypass.
+
+    Returns None on the same "cannot compute" conditions as `uncommitted_changes`
+    (no git, no repo, non-zero exit, subprocess error). None means UNVERIFIABLE
+    and must not be read as "nothing substantive" — callers fail closed.
+    """
+    base = root or os.getcwd()
+    if runner is None and shutil.which("git") is None:
+        return None
+    if not _is_repo_root(base):
+        return None
+    run = runner or subprocess.run
+    pathspec = [_normalize_repo_path(p) for p in (paths or []) if p and p.strip()]
+    if not pathspec:
+        return set()
+
+    def _git(cmd: list[str]) -> str | None:
+        try:
+            # stdin=DEVNULL for the MCP-worker-thread reason documented on
+            # changed_files_since — an inherited JSON-RPC pipe can hang git.
+            out = run(
+                cmd,
+                cwd=base,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=10,
+                check=False,
+                stdin=subprocess.DEVNULL,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return out.stdout or "" if out.returncode == 0 else None
+
+    diff_text = _git(["git", "diff", "--unified=0", "--no-color", "HEAD", "--", *pathspec])
+    if diff_text is None:
+        # An unborn HEAD (a repo with no commit yet) makes `git diff HEAD` fail
+        # while the staged diff is perfectly readable. Anything else that fails
+        # both ways stays unverifiable.
+        diff_text = _git(["git", "diff", "--unified=0", "--no-color", "--cached", "--", *pathspec])
+        if diff_text is None:
+            return None
+    substantive = _added_nonblank_paths(diff_text)
+
+    if since:
+        log_text = _git(
+            [
+                "git",
+                "log",
+                f"--since={since}",
+                "--unified=0",
+                "--no-color",
+                "--patch",
+                "--format=",
+                "--",
+                *pathspec,
+            ]
+        )
+        if log_text is None:
+            return None
+        substantive |= _added_nonblank_paths(log_text)
+
+    others = _git(["git", "ls-files", "--others", "--exclude-standard", "--", *pathspec])
+    if others is None:
+        return None
+    for line in others.splitlines():
+        rel = _normalize_repo_path(line)
+        if not rel:
+            continue
+        try:
+            with open(os.path.join(base, rel), encoding="utf-8", errors="replace") as fh:
+                if any(chunk.strip() for chunk in fh):
+                    substantive.add(rel)
+        except OSError:
+            # Listed by git but unreadable now — unverifiable, not "empty".
+            return None
+    return substantive
 
 
 def is_declared_consistent_with_git_diff(

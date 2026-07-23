@@ -136,7 +136,7 @@ def _stub_verify_gates(monkeypatch, *, auto_verify: bool = False):
         return real_for_trigger(trigger, cfg)
 
     monkeypatch.setattr(
-        "project_config.load_config", lambda: {"task_done": {"auto_verify": auto_verify}}
+        "project_config.load_config", lambda *a, **k: {"task_done": {"auto_verify": auto_verify}}
     )
     monkeypatch.setattr("project_config.get_gates_for_trigger", fake_get_for_trigger)
 
@@ -213,7 +213,7 @@ class TestFilelessGateBranch:
 
 def _stub_no_verify_gates(monkeypatch):
     """A project with NO verify-trigger gates (registry absent / all disabled)."""
-    monkeypatch.setattr("project_config.load_config", lambda: {"task_done": {"auto_verify": False}})
+    monkeypatch.setattr("project_config.load_config", lambda *a, **k: {"task_done": {"auto_verify": False}})
     monkeypatch.setattr("project_config.get_gates_for_trigger", lambda trigger, cfg=None: [])
 
 

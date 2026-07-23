@@ -150,6 +150,15 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         "Allowed only when git proves the declared scope (--relevant-files as a "
         "pathspec, else the whole tree) has no uncommitted changes.",
     )
+    tdone.add_argument(
+        "--no-changelog",
+        action="store_true",
+        dest="no_changelog",
+        help="Close a task that warrants NO changelog entry (docs / cleanup / "
+        "measurement). Skips the continuous-changelog gate and logs an explicit "
+        "bypass reason. Only meaningful when config.task_done.changelog_gate is "
+        "enabled.",
+    )
     evidence_group = tdone.add_mutually_exclusive_group()
     evidence_group.add_argument(
         "--evidence",

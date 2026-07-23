@@ -177,6 +177,7 @@ class GatesMixin:
         progress_fn: Any | None = None,
         trigger: str = "task-done",
         no_file_changes: bool = False,
+        no_changelog: bool = False,
     ) -> dict[str, Any]:
         """Return detailed gate report for MCP/agent-friendly handling.
 
@@ -263,6 +264,11 @@ class GatesMixin:
             self._enforce_verify_first(
                 report, slug, relevant_files, no_file_changes=no_file_changes
             )
+            # changelog-continuous-gate: convention #275 made mechanical. Runs
+            # after Verify-First so both blocking failures aggregate into one
+            # report (the agent sees every reason to fix at once). No-op unless
+            # config.task_done.changelog_gate.enabled.
+            self._enforce_changelog(report, slug, no_changelog=no_changelog)
         return report
 
     def _enforce_verify_first(
@@ -277,6 +283,18 @@ class GatesMixin:
         from gate_verify_first import enforce_verify_first
 
         enforce_verify_first(self, report, slug, relevant_files, no_file_changes=no_file_changes)
+
+    def _enforce_changelog(
+        self,
+        report: dict[str, Any],
+        slug: str,
+        *,
+        no_changelog: bool = False,
+    ) -> None:
+        """Continuous-CHANGELOG gate — delegates to gate_changelog."""
+        from gate_changelog import enforce_changelog
+
+        enforce_changelog(self, report, slug, no_changelog=no_changelog)
 
     def _run_quality_gates(
         self, slug: str, relevant_files: list[str] | None, progress_fn: Any | None = None

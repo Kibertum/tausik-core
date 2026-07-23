@@ -187,6 +187,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         progress_fn: Any | None = None,
         evidence_json: str | None = None,
         no_file_changes: bool = False,
+        no_changelog: bool = False,
     ) -> str:
         report = self._task_done_report(
             slug,
@@ -197,6 +198,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             evidence_json=evidence_json,
             progress_fn=progress_fn,
             no_file_changes=no_file_changes,
+            no_changelog=no_changelog,
         )
         if not report.get("ok"):
             raise ServiceError(_format_task_done_failures(report))
@@ -231,10 +233,8 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         task = self._require_task(slug)
         if task["status"] != "blocked":
             raise ServiceError(f"Task '{slug}' is not blocked (status: {task['status']})")
-        # v1.3.4 (med-batch-2-qg #4): unblocking returns the task to active
-        # state — same risk as task_start. Without this check, the agent
-        # could block-then-unblock to bypass session capacity limits and
-        # keep coding past the 180-min ACTIVE-time threshold (SENAR Rule 9.2).
+        # v1.3.4 (med-batch-2-qg #4): unblock → active; capacity check stops
+        # block/unblock cycling past the 180-min ACTIVE threshold (SENAR Rule 9.2).
         if not force:
             check_session_capacity(self.be, slug, task)
         self.be.task_update(slug, status="active", blocked_at=None)

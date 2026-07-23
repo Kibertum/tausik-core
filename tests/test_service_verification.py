@@ -836,7 +836,7 @@ class TestChangedFilesSince:
 
     def test_combines_committed_and_uncommitted(self, tmp_path, monkeypatch):
         # Mock os.path.isdir to claim .git exists at tmp_path
-        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        monkeypatch.setattr("verify_git_diff._is_repo_root", lambda base: True)
         runner = _fake_run(
             stdout_log="scripts/a.py\nscripts/b.py\n",
             stdout_diff="scripts/c.py\nscripts/a.py\n",
@@ -854,19 +854,19 @@ class TestChangedFilesSince:
         assert sv.changed_files_since(None) is None  # type: ignore[arg-type]
 
     def test_returns_none_when_git_log_fails(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        monkeypatch.setattr("verify_git_diff._is_repo_root", lambda base: True)
         runner = _fake_run(rc_log=128)
         out = sv.changed_files_since("2026-04-28T12:00:00Z", root=str(tmp_path), runner=runner)
         assert out is None
 
     def test_returns_none_when_git_diff_fails(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        monkeypatch.setattr("verify_git_diff._is_repo_root", lambda base: True)
         runner = _fake_run(stdout_log="x\n", rc_diff=128)
         out = sv.changed_files_since("2026-04-28T12:00:00Z", root=str(tmp_path), runner=runner)
         assert out is None
 
     def test_returns_none_when_subprocess_raises(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        monkeypatch.setattr("verify_git_diff._is_repo_root", lambda base: True)
 
         def boom(*_a, **_kw):
             raise OSError("fork failed")
@@ -875,7 +875,7 @@ class TestChangedFilesSince:
         assert out is None
 
     def test_normalizes_backslashes_and_dot_slash(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        monkeypatch.setattr("verify_git_diff._is_repo_root", lambda base: True)
         runner = _fake_run(
             stdout_log="./scripts/a.py\n",
             stdout_diff="./scripts/b.py\n",  # git emits forward slash; this exercises normalization
@@ -923,7 +923,7 @@ class TestIsDeclaredConsistentWithGitDiff:
     def test_consistency_classification(
         self, tmp_path, monkeypatch, stdout_log, declared, expected
     ):
-        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        monkeypatch.setattr("verify_git_diff._is_repo_root", lambda base: True)
         runner = _fake_run(stdout_log=stdout_log, stdout_diff="")
         ok = sv.is_declared_consistent_with_git_diff(
             declared,
@@ -934,7 +934,7 @@ class TestIsDeclaredConsistentWithGitDiff:
         assert ok is expected
 
     def test_exact_match_returns_true(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        monkeypatch.setattr("verify_git_diff._is_repo_root", lambda base: True)
         runner = _fake_run(stdout_log="scripts/auth.py\n", stdout_diff="")
         ok = sv.is_declared_consistent_with_git_diff(
             ["scripts/auth.py"],
@@ -946,7 +946,7 @@ class TestIsDeclaredConsistentWithGitDiff:
 
     def test_over_declaration_returns_true(self, tmp_path, monkeypatch):
         """Agent declares MORE files than changed — fine, not a bypass."""
-        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        monkeypatch.setattr("verify_git_diff._is_repo_root", lambda base: True)
         runner = _fake_run(stdout_log="scripts/auth.py\n", stdout_diff="")
         ok = sv.is_declared_consistent_with_git_diff(
             ["scripts/auth.py", "scripts/extra.py", "tests/test_auth.py"],
@@ -970,7 +970,7 @@ class TestRunGatesWithCacheGitDiffIntegration:
     def test_cache_hit_when_declared_matches_changes(self, conn, monkeypatch, tmp_path):
         """Pre-warm cache, then re-run with same files + matching git diff →
         cache should HIT (status='hit')."""
-        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        monkeypatch.setattr("verify_git_diff._is_repo_root", lambda base: True)
         # First call: pretend gates ran fresh (mock run_gates to PASS)
         import gate_runner
 
@@ -1023,7 +1023,7 @@ class TestRunGatesWithCacheGitDiffIntegration:
         test pins. The security-sensitive variant is a different contract and
         is covered by test_cache_refused_when_undeclared_file_is_security.
         """
-        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        monkeypatch.setattr("verify_git_diff._is_repo_root", lambda base: True)
         import gate_runner
 
         monkeypatch.setattr(
@@ -1073,7 +1073,7 @@ class TestRunGatesWithCacheGitDiffIntegration:
         scripts/auth.py would be verified by nothing at all — the half of the
         v1.3.4 bypass that stayed open until this change.
         """
-        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        monkeypatch.setattr("verify_git_diff._is_repo_root", lambda base: True)
         import gate_runner
         import verify_git_diff
 

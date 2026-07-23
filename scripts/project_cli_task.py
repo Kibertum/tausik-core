@@ -146,6 +146,7 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                 evidence_json=getattr(args, "evidence_json", None),
                 progress_fn=_stderr_progress,
                 no_file_changes=getattr(args, "no_file_changes", False),
+                no_changelog=getattr(args, "no_changelog", False),
             )
         )
     elif c == "block":

@@ -469,3 +469,97 @@ class TestFixtureMatchesRealSchema:
     def test_fixture_has_the_no_tests_declared_column(self, conn):
         cols = {r[1] for r in conn.execute("PRAGMA table_info(verification_runs)")}
         assert "no_tests_declared" in cols
+
+
+# --- l26-signing-key-boundary: signing failure must be observable ------------
+
+
+def _insert_run(conn, *, receipt_json=None):
+    cur = conn.execute(
+        "INSERT INTO verification_runs (task_slug, scope, command, exit_code, "
+        "summary, files_hash, ran_at, receipt_json) VALUES (?,?,?,?,?,?,?,?)",
+        ("t", "manual", "c", 0, "s", "h", "2026-07-22T00:00:00Z", receipt_json),
+    )
+    conn.commit()
+    return int(cur.lastrowid)
+
+
+class TestReceiptSignFailureIsObservable:
+    """AC3: a signing FAILURE (key present, receipt absent) must be a visible
+    warning + a countable event — never the SAME line as a benign no-key run.
+
+    Pre-fix, `_emit_receipt` printed "no project key" for both, so a project
+    whose signing silently broke degraded to unsigned indistinguishably from
+    one that never opted in. This is the fails-then-passes guard.
+    """
+
+    def test_signing_failure_with_key_is_visible_warning(self, conn, monkeypatch, capsys):
+        from project_cli_verify import _emit_receipt
+
+        monkeypatch.setattr("project_cli_verify._project_has_key", lambda _svc: True)
+        svc = _FakeSvc(conn, DECLARED)
+        run_id = _insert_run(conn, receipt_json=None)  # emission failed → no receipt
+
+        _emit_receipt(svc, run_id)
+
+        out = capsys.readouterr().out
+        assert "WARNING" in out, "a configured key that failed to sign must warn visibly"
+        assert "no project key" not in out, "must NOT be mistaken for the benign no-key case"
+        # countable metric recorded
+        assert any(ev[:1] == ("verify",) and ev[2] == "receipt_sign_failed" for ev in svc.be.events)
+
+    def test_no_key_is_benign_notice_without_event(self, conn, monkeypatch, capsys):
+        from project_cli_verify import _emit_receipt
+
+        monkeypatch.setattr("project_cli_verify._project_has_key", lambda _svc: False)
+        svc = _FakeSvc(conn, DECLARED)
+        run_id = _insert_run(conn, receipt_json=None)
+
+        _emit_receipt(svc, run_id)
+
+        out = capsys.readouterr().out
+        assert "no project key" in out
+        assert "WARNING" not in out
+        assert not svc.be.events, "the benign no-key path must not record a failure event"
+
+    def test_signed_receipt_reports_signed(self, conn, capsys):
+        from project_cli_verify import _emit_receipt
+
+        svc = _FakeSvc(conn, DECLARED)
+        run_id = _insert_run(
+            conn, receipt_json=json.dumps({"signature": {"key_fingerprint": "abcd"}})
+        )
+
+        _emit_receipt(svc, run_id)
+
+        out = capsys.readouterr().out
+        assert "signed" in out and "abcd" in out
+        assert not svc.be.events
+
+    def test_unrecorded_run_reports_not_recorded(self, conn, capsys):
+        from project_cli_verify import _emit_receipt
+
+        _emit_receipt(_FakeSvc(conn, DECLARED), None)
+        assert "not recorded" in capsys.readouterr().out
+
+
+class TestProjectHasKeyDetection:
+    """`_project_has_key` must reflect real key presence — it is the whole
+    basis for telling a signing failure apart from an absent key."""
+
+    def _svc_with_dir(self, conn, project_dir):
+        svc = _FakeSvc(conn, DECLARED)
+        svc.tausik_dir = lambda: os.path.join(project_dir, ".tausik")
+        return svc
+
+    def test_true_when_key_present(self, conn, tmp_path):
+        import crypto_keys
+        from project_cli_verify import _project_has_key
+
+        crypto_keys.init_keys(str(tmp_path))
+        assert _project_has_key(self._svc_with_dir(conn, str(tmp_path))) is True
+
+    def test_false_when_key_absent(self, conn, tmp_path):
+        from project_cli_verify import _project_has_key
+
+        assert _project_has_key(self._svc_with_dir(conn, str(tmp_path))) is False

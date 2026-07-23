@@ -88,7 +88,7 @@ class TestRunQualityGates:
             return real_for_trigger(trigger, cfg)
 
         fake_cfg = {"task_done": {"auto_verify": auto_verify}}
-        monkeypatch.setattr("project_config.load_config", lambda: fake_cfg)
+        monkeypatch.setattr("project_config.load_config", lambda *a, **k: fake_cfg)
         monkeypatch.setattr("project_config.get_gates_for_trigger", fake_get_for_trigger)
         import service_verification
 
