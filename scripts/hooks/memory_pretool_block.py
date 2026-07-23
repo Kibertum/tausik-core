@@ -111,7 +111,24 @@ def _policy(project_dir: str) -> tuple[tuple[SinkRule, ...], tuple[str, ...]]:
 
 
 def _targets(event: dict, project_dir: str) -> list[str]:
-    """Every path this tool call writes, for both vectors."""
+    """Every path this tool call writes, for both vectors.
+
+    A Bash command that did not TOKENIZE yields nothing here, and that is a
+    deliberate difference from `bash_write_gate`. The parser's regex fallback
+    over-detects by design; for QG-0 the worst case is being asked for a task
+    the write needed anyway, but this hook's block accuses the agent of leaking
+    project knowledge and offers only two exits — a `confirm: cross-project`
+    marker that would be a lie, or a permanent config exemption for a one-off
+    command. A guard that fires on a mere quoted MENTION of a sink path teaches
+    the agent to reach for the escape hatch, which costs more than the writes it
+    would have caught. Found by dogfooding: this hook blocked a diagnostic
+    `python -c` over the garbage "path" `.cursor/rules/a.mdc/"',`.
+
+    The gap is not silent and not unbounded: the degradation is recorded as a
+    countable supervision event, and the in-tree half of the deny-list is judged
+    again by the `memory_route` gate and the pre-commit hook before anything can
+    be committed.
+    """
     tool = event.get("tool_name")
     tool_input = event.get("tool_input")
     if not isinstance(tool_input, dict):
@@ -124,10 +141,27 @@ def _targets(event: dict, project_dir: str) -> list[str]:
     command = tool_input.get("command")
     if not isinstance(command, str) or not command.strip():
         return []
-    from bash_write_parse import write_targets  # noqa: PLC0415
+    from bash_write_parse import (  # noqa: PLC0415
+        CONFIDENCE_REGEX_FALLBACK,
+        write_targets_with_confidence,
+    )
+
+    raw_targets, confidence = write_targets_with_confidence(command)
+    if confidence == CONFIDENCE_REGEX_FALLBACK:
+        if raw_targets:
+            from _common import emit_supervision_degradation  # noqa: PLC0415
+
+            emit_supervision_degradation(
+                project_dir,
+                "unparseable_bash",
+                "memory_pretool_block",
+                f"command did not tokenize; {len(raw_targets)} guessed target(s) "
+                f"not judged (over-detection would false-positive)",
+            )
+        return []
 
     out: list[str] = []
-    for raw in write_targets(command):
+    for raw in raw_targets:
         # A shell redirect is relative to the shell's cwd — the project dir —
         # not to wherever this hook process launched. Same resolution
         # bash_write_gate applies, so the two agree on what a target is.

@@ -271,6 +271,39 @@ def _writers_in(sub: list[str]) -> list[str]:
     return targets
 
 
+# How the answer was reached. Consumers have DIFFERENT costs of error, so the
+# parser states its confidence instead of each of them re-deriving it:
+#
+# * PARSED — the command tokenized; a target here was found structurally.
+# * REGEX_FALLBACK — the command did NOT tokenize (unbalanced quotes, a heredoc
+#   body carrying a lone quote), so `_redir_targets_regex` guessed. It
+#   deliberately over-detects, and its "paths" can be visible garbage
+#   (`.cursor/rules/a.mdc/"',` from a quoted mention inside a `python -c`).
+#
+# For QG-0 an over-detection is cheap: the worst case asks for a task the write
+# would have needed anyway. For a guard whose block message accuses the agent of
+# leaking knowledge, and whose only escapes are an untrue marker or a permanent
+# config exemption, a false positive is expensive — it trains the bypass. One
+# parser, two readings, stated here rather than guessed at each call site.
+CONFIDENCE_PARSED = "parsed"
+CONFIDENCE_REGEX_FALLBACK = "regex_fallback"
+
+
+def write_targets_with_confidence(command: str) -> tuple[list[str], str]:
+    """`(targets, confidence)` — see the constants above for what to do with it."""
+    stripped = _strip_heredocs(command)
+    tokens = _tokenize(stripped)
+    if tokens is None:
+        cands = _redir_targets_regex(stripped)
+        confidence = CONFIDENCE_REGEX_FALLBACK
+    else:
+        cands = []
+        for sub in _split_subcommands(tokens):
+            cands += _writers_in(sub)
+        confidence = CONFIDENCE_PARSED
+    return [t for t in cands if _plausible_path(t)], confidence
+
+
 def write_targets(command: str) -> list[str]:
     """Every path this Bash command appears to write. Best-effort by design.
 
@@ -278,13 +311,11 @@ def write_targets(command: str) -> list[str]:
     metacharacter or an unexpanded variable are dropped (unresolvable — the
     documented residual), so a stray `>`/`->`/`$VAR` in prose or a sub-shell
     cannot manufacture a phantom target that blocks a compliant write.
+
+    Confidence-blind on purpose: `bash_write_gate` (QG-0) wants the
+    over-detecting answer, and this signature is what it has always returned.
+    A caller that cannot afford a false positive asks
+    `write_targets_with_confidence` instead.
     """
-    stripped = _strip_heredocs(command)
-    tokens = _tokenize(stripped)
-    if tokens is None:
-        cands = _redir_targets_regex(stripped)
-    else:
-        cands = []
-        for sub in _split_subcommands(tokens):
-            cands += _writers_in(sub)
-    return [t for t in cands if _plausible_path(t)]
+    targets, _confidence = write_targets_with_confidence(command)
+    return targets

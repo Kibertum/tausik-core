@@ -9,6 +9,40 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed: the memory-route hook blocked a mere mention of a sink path
+
+Same-session defect of the change above, found by dogfooding: the hook refused a
+diagnostic `python -c` that only QUOTED `.cursor/rules/a.mdc`, naming the garbage
+"path" `.cursor/rules/a.mdc/"',`. The cause is a shared parser with two
+consumers that have opposite costs of error. When a command does not tokenize,
+`bash_write_parse` falls back to a regex that deliberately over-detects. For
+QG-0 that is cheap — the worst case asks for a task the write needed anyway. For
+a guard whose block accuses the agent of leaking project knowledge, and whose
+only exits are a `confirm: cross-project` marker that would be a lie or a
+permanent config exemption for a one-off command, a false positive costs more
+than the writes it catches: it teaches the escape hatch.
+
+The parser now STATES which reading produced its answer
+(`write_targets_with_confidence` → `parsed` / `regex_fallback`); `write_targets`
+is unchanged, so QG-0's over-detecting contract holds bit-for-bit. The
+memory-route hook declines to judge a fallback answer and records
+`fail_open_unparseable_bash` — the gap is countable, not silent, and the in-tree
+half of the deny-list is judged again by the gate and pre-commit before anything
+can be committed.
+
+### The `bash -c` wrapper defeats the Bash write gate — the boundary was overstated
+
+Found while probing the above. `bash -c 'echo x > scripts/foo.py'` yields NO
+write target: the redirection lives inside a single quoted argument and nothing
+parses into an interpreter payload. So "no code without a task" (Rule 1) and the
+scope ACL (Rule 2) are bypassed by a one-liner of the very class Decision #162
+closed for heredocs. The documented residual claimed the gate raised the cost of
+evasion to "must actively obfuscate"; `bash -c` is an everyday form, not
+obfuscation. `docs/ru/agent-contract.md` now says so, and the hole is filed as
+its own task rather than left under a reassuring description. A test pins the
+current behaviour so the day someone teaches the parser to recurse, it says what
+changed.
+
 ### Fixed: the drift gate could not see the hooks it exists to protect
 
 `bootstrap_drift` blocks a close when a source edit did not reach the deployed

@@ -407,6 +407,72 @@ class TestHook:
             )
             assert r.returncode == 0, f"{owned}: {r.stderr}"
 
+    def test_a_quoted_mention_is_not_a_write(self, repo):
+        # Found by dogfooding: the hook blocked a diagnostic `python -c` that
+        # merely QUOTED a sink path, over the garbage target
+        # `.cursor/rules/a.mdc/"',`. The command does not tokenize, so the
+        # parser's regex fallback guessed — cheap for QG-0, expensive here,
+        # where the block accuses the agent of leaking knowledge and the only
+        # exits are an untrue marker or a permanent config exemption.
+        for cmd in (
+            "python -c \"print('> .cursor/rules/a.mdc')\"",
+            "grep -n '> .clinerules' README.md",
+            "echo 'see .cursor/rules/a.mdc for details'",
+            # Unparseable: an unbalanced quote sends the parser to its
+            # over-detecting fallback, which is what actually fired live.
+            "awk '{print $1} > .clinerules",
+            "sed 's/x/y/ > .cursor/rules/a.mdc",
+        ):
+            r = _run_hook({"tool_name": "Bash", "tool_input": {"command": cmd}}, str(repo))
+            assert r.returncode == 0, f"{cmd!r} blocked: {r.stderr}"
+
+    def test_real_bash_writes_are_still_blocked(self, repo):
+        # The negative half of the same change: dropping the fallback must not
+        # drop anything the parser actually resolved.
+        for cmd in (
+            "printf x > .clinerules",
+            "tee .cursor/rules/a.mdc",
+            "echo x >> .github/copilot-instructions.md",
+        ):
+            r = _run_hook({"tool_name": "Bash", "tool_input": {"command": cmd}}, str(repo))
+            assert r.returncode == 2, f"{cmd!r} not blocked: {r.stdout}"
+
+    def test_qg0_parser_contract_is_unchanged(self):
+        # bash_write_gate has a different cost of error, so its answer — the
+        # over-detecting one — must stay bit-for-bit what it was.
+        sys.path.insert(0, os.path.join(_REPO, "scripts", "hooks"))
+        from bash_write_parse import (
+            CONFIDENCE_PARSED,
+            CONFIDENCE_REGEX_FALLBACK,
+            write_targets,
+            write_targets_with_confidence,
+        )
+
+        # An unbalanced quote shlex cannot close — the shape behind the live
+        # false positive, where the fallback's "path" carried the trailing
+        # quote-and-comma junk of the surrounding source.
+        unparseable = "awk '{print $1} > .clinerules"
+        assert write_targets(unparseable), "QG-0 must still over-detect here"
+        targets, conf = write_targets_with_confidence(unparseable)
+        assert conf == CONFIDENCE_REGEX_FALLBACK and targets == write_targets(unparseable)
+
+        parsed = "printf x > .clinerules"
+        targets, conf = write_targets_with_confidence(parsed)
+        assert conf == CONFIDENCE_PARSED and targets == [".clinerules"] == write_targets(parsed)
+
+    def test_interpreter_wrapper_hides_the_target(self):
+        # NOT fixed here — recorded so the boundary is a stated fact rather than
+        # an assumption, and so the day someone teaches the parser to recurse
+        # into `bash -c` payloads, this test tells them what changed. The
+        # documented residual claims the bar is "must actively obfuscate";
+        # `bash -c 'cmd > file'` is not obfuscation, and QG-0 misses it too.
+        sys.path.insert(0, os.path.join(_REPO, "scripts", "hooks"))
+        from bash_write_parse import write_targets
+
+        assert write_targets("bash -c 'printf x > .clinerules'") == []
+        assert write_targets('sh -c "echo x > .cursor/rules/a.mdc"') == []
+        assert write_targets("printf x > .clinerules") == [".clinerules"]
+
     def test_skip_flag_allows(self, repo):
         r = _run_hook(
             {"tool_name": "Write", "tool_input": {"file_path": str(repo / ".clinerules")}},
