@@ -25,6 +25,24 @@ from pathlib import Path
 
 # Module import (not from-import) keeps the lookup monkeypatchable in tests.
 import audit_tracked_files
+from ide_utils import all_profile_dirs
+
+
+def _profile_excludes() -> tuple[str, ...]:
+    """Deployed-profile globs for every supported IDE, from the ide registry.
+
+    A deployed profile holds a copy of the engine, not project source, so the
+    orphan scan must skip it. Listing three profile names by hand covered 3 of
+    7 IDEs: on the rest the deployed engine was either walked or reported as
+    orphan. Sourcing the names from `ide_utils.all_profile_dirs()` keeps the
+    scan correct as IDEs are added, with no directory literal to maintain here.
+    """
+    out: list[str] = []
+    for d in sorted(all_profile_dirs()):
+        out.append(f"{d}/*")
+        out.append(f"{d}/**/*")
+    return tuple(out)
+
 
 # Excluded path globs (relative to repo root, forward-slashed).
 DEFAULT_EXCLUDES: tuple[str, ...] = (
@@ -32,12 +50,7 @@ DEFAULT_EXCLUDES: tuple[str, ...] = (
     "tests/**/*",
     ".tausik/*",
     ".tausik/**/*",
-    ".claude/*",
-    ".claude/**/*",
-    ".cursor/*",
-    ".cursor/**/*",
-    ".qwen/*",
-    ".qwen/**/*",
+    *_profile_excludes(),
     "docs/_generated/*",
     "docs/_generated/**/*",
     "harness/skills/_*/**/*",

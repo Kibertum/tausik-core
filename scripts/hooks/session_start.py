@@ -15,6 +15,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from _common import profile_dir as _common_profile_dir  # noqa: E402
 from _common import tausik_path as _tausik_path  # noqa: E402
 
 
@@ -38,29 +39,12 @@ def _run_tausik(cmd: str, args: list[str], project_dir: str, timeout: int = 4) -
 def _profile_dir() -> str | None:
     """The IDE profile directory this hook is deployed inside, or None.
 
-    A hook cannot ask `ide_utils` where the profile is — `ide_utils` lives in
-    that very directory, so importing it presupposes the answer. It can locate
-    itself instead: deployed layout is `<profile>/scripts/hooks/<hook>.py`, so
-    two levels up is the profile. That works for `.claude`, `.cursor`, `.qwen`
-    and any profile added later, with no literal to keep in sync — the hard-
-    coded `.claude` it replaces silently disabled skill rebuilds on every
-    non-Claude install (the failures were swallowed by the surrounding
-    try/except, so nothing was ever reported).
+    Delegates to `_common.profile_dir` — the self-location and its marker logic
+    (hardened by s130-review-fixes) live in one place so they cannot drift
+    between the hooks that need them. `_common` sits in the same `hooks/` dir,
+    so it locates the same profile this hook was deployed into.
     """
-    here = os.path.dirname(os.path.abspath(__file__))  # <profile>/scripts/hooks
-    profile = os.path.dirname(os.path.dirname(here))  # <profile>
-    # A deployed profile carries the MCP server and the core skills; the source
-    # tree does NOT. Testing for `scripts/` was wrong — the project ROOT also
-    # has a top-level `scripts/`, so a hook run from source (scripts/hooks/…)
-    # returned the project root as its "profile" and only failed safe because
-    # the root happens to lack `mcp/`/`skills/` (adversarial review,
-    # s130-review-fixes). A positive marker only a real profile has removes the
-    # coincidence.
-    markers = (
-        os.path.join(profile, "mcp", "project", "server.py"),
-        os.path.join(profile, "skills", "start"),
-    )
-    return profile if any(os.path.exists(m) for m in markers) else None
+    return _common_profile_dir()
 
 
 def _rag_server_path(project_dir: str) -> str | None:

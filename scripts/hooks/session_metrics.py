@@ -219,13 +219,30 @@ def record_to_db(metrics: dict, project_root: str | None = None) -> bool:
     """
     import subprocess
 
+    # Locate project.py and the true project root by self-location, not a
+    # miscounted dirname chain. `dirname×3(__file__)` actually yielded the
+    # *profile* dir (…/.claude), so the old first candidate
+    # `<profile>/.claude/scripts/project.py` doubled the profile segment and
+    # never existed, and `cwd=<profile>` made project.py resolve `.tausik/`
+    # under the profile instead of the project root — a silent DB-record miss
+    # that only "worked" through the scripts/ fallback. The shared helper is
+    # the single home for this logic (see _common.profile_dir).
+    hooks_dir = os.path.dirname(os.path.abspath(__file__))
+    if hooks_dir not in sys.path:
+        sys.path.insert(0, hooks_dir)
+    from _common import profile_dir
+    from _common import project_root as _detect_root
+
+    profile = profile_dir()
     if not project_root:
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    script = os.path.join(project_root, ".claude", "scripts", "project.py")
-    if not os.path.isfile(script):
-        # Try root scripts/ (source layout)
-        script = os.path.join(project_root, "scripts", "project.py")
-    if not os.path.isfile(script):
+        project_root = _detect_root()
+
+    candidates: list[str] = []
+    if profile:  # deployed: project.py ships under the profile's scripts/
+        candidates.append(os.path.join(profile, "scripts", "project.py"))
+    candidates.append(os.path.join(project_root, "scripts", "project.py"))  # source tree
+    script = next((c for c in candidates if os.path.isfile(c)), None)
+    if not script:
         print("project.py not found, skipping DB record", file=sys.stderr)
         return False
 

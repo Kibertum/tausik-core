@@ -117,6 +117,41 @@ def tausik_path(project_dir: str) -> str | None:
     return None
 
 
+def profile_dir() -> str | None:
+    """The IDE profile directory a hook is deployed inside, or None (source tree).
+
+    Single home for the self-location that session_start/session_metrics both
+    need — copying it a third time is the "resolve the project root" drift the
+    `cli_invocation` note above warns about. Deployed layout is
+    `<profile>/scripts/hooks/<hook>.py`, so two levels up from this file is the
+    profile. A positive marker only a real profile carries (the MCP server or
+    the core skills) removes the coincidence with the project root's own
+    top-level `scripts/` — the source tree has that dir but neither marker, so
+    it correctly returns None there (adversarial review, s130-review-fixes).
+    """
+    here = os.path.dirname(os.path.abspath(__file__))  # <profile>/scripts/hooks
+    profile = os.path.dirname(os.path.dirname(here))  # <profile>
+    markers = (
+        os.path.join(profile, "mcp", "project", "server.py"),
+        os.path.join(profile, "skills", "start"),
+    )
+    return profile if any(os.path.exists(m) for m in markers) else None
+
+
+def project_root() -> str:
+    """Best-effort project root from a hook's own location, not from cwd.
+
+    Deployed: the parent of the profile dir. Source: two levels above
+    `scripts/hooks`. Used where a hook must run a subprocess with the project
+    as its cwd (e.g. so `project.py` resolves `.tausik/` at the real root).
+    """
+    prof = profile_dir()
+    if prof:
+        return os.path.dirname(prof)
+    here = os.path.dirname(os.path.abspath(__file__))  # <root>/scripts/hooks
+    return os.path.dirname(os.path.dirname(here))  # <root>
+
+
 def is_tausik_project(project_dir: str) -> bool:
     """True iff project_dir looks like a TAUSIK-managed project.
 

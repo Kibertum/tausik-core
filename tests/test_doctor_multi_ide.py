@@ -131,20 +131,18 @@ class TestNoNewClaudeLiterals:
         "hooks/session_start.py": "documented fallback when the hook cannot locate its profile",
         "hooks/session_metrics.py": (
             "~/.claude/projects is Claude Code's own transcript store in the user's HOME, "
-            "not a project profile; the deployed-script path is covered by "
-            "engine-claude-literals-followup"
-        ),
-        "audit_orphan_files.py": (
-            "ignore-globs for the deployed Claude profile; generalising them is "
-            "engine-claude-literals-followup"
+            "not a project profile, so ide_utils does not apply; the deployed-script "
+            "path now self-locates via _common.profile_dir (engine-claude-literals-followup)"
         ),
         "gate_filesize.py": (
             "the .claude/mcp/ exemption the architecture audit flagged as hiding a "
             "1289-line module — owned by l26-filesize-gate-revisit, not this task"
         ),
         "project_cli_extra.py": (
-            "CLAUDE.md lookup candidates; generalising to get_rules_file changes "
-            "behaviour for AGENTS.md/.cursorrules — engine-claude-literals-followup"
+            "the main path already resolves the onboarding file via ide_utils; the "
+            "remaining .claude/CLAUDE.md literal is the documented ide_utils-unimportable "
+            "fallback. Generalising it to get_rules_file would change behaviour for "
+            "AGENTS.md/.cursorrules — a deliberate no-op (engine-claude-literals-followup)"
         ),
         # The following reference ~/.claude in the user's HOME — Claude Code's
         # own auto-memory store, a Claude-specific feature with no .cursor/.qwen
