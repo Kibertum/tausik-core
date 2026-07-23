@@ -65,30 +65,6 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #129 (active) | Branch: release/1.8-batch-s126 | Version: 1.7.0
-Tasks: 1025/1096 done, 0 active, 0 blocked
-
-### Memory tail
-Context (5):
-- #279 Большое ревью сессии #129: четыре аудита релиза 1.8 (diff, архитектура, доки, продукт)
-- #267 Escape-rate #126: risk_score НЕ предсказывает побеги, verified-задачи сбегают ЧАЩЕ (селекция)
-- #255 Спека MCP 2026-07-28: что депрекировано, что выжило и что это значит для TAUSIK
-- #233 Волна роя сессии #117: верифицированные находки по 7 задачам релиза 1.8
-- #229 Зачем нужен TAUSIK: защита от ИСКРЕННЕГО агента, а не от лжеца. Тезис релиза 1.8
-Decisions (5):
-- #165 Changelog-гейт судит СОДЕРЖАНИЕ (добавленная непустая строка) и засчитывает коммиты, сделанные во время задачи (окно sin
-- #164 v14c-visual-cost-dashboard ЗАКРЫТ как won't-do: Plotly/Dash-дашборд НЕ реализуется — противоречит stdlib-принципу проект
-- #163 l26-signing-key-boundary: подписи receipt/anchor документируются как tamper-evidence против ВНЕШНИХ правок tausik.db, но
-- #162 AC2 хук-контракта: закрыть Bash-write дыру НОВЫМ PreToolUse-гейтом (matcher Bash + NotebookEdit), переиспользующим token
-- #161 Релиз 1.8 = эпики {landscape-2026-h2, shared-knowledge} + v14c-visual-cost-dashboard + v14c-skill-web-catalog. v2-global
-Conventions (5):
-- #277 Гейт, шипящийся в чужие проекты: механизм общий, политика в конфиге
-- #276 Adversarial-review запускать НА ФИКСЫ находок, не только на исходную реализацию
-- #275 CHANGELOG ведётся непрерывно: каждая задача 1.8 обновляет [Unreleased] + зеркало ru
-- #274 Best-effort telemetry-писатель обязан возвращать landed/miss bool — иначе caller ложно утверждает ус
-- #273 Кросс-харнесс телеметрия: не-Python харнесс пишет events через CLI-команду к единому Python-эмиттеру
-Dead ends (3):
-- #230 Восстановить тело страницы BRAIN 3a16b6ed-07ff-8141-96b6-c8d7fd22aefa (решение с опровержениями 3 из
-- #198 Ужесточить `tausik push-ok`: выдавать push-тикет только при наличии зелёного verify-receipt на текущ
-- #191 Chain 'tausik push-ok && git push' in a single Bash tool call to authorize + push atomically
+Session: none | Branch: release/1.8-batch-s126 | Version: 1.7.0
+Tasks: 1029/1099 done, 0 active, 0 blocked
 <!-- DYNAMIC:END -->
