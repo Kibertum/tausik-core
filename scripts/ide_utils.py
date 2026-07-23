@@ -142,6 +142,57 @@ def get_skills_dir(project_dir: str, ide: str | None = None) -> str:
     return os.path.join(ide_dir, config["skills_subdir"])
 
 
+def resolve_profile(project_dir: str) -> tuple[str, str]:
+    """Return (ide, config_dir) for *project_dir* — e.g. ("cursor", ".cursor").
+
+    The pair diagnostics need: the IDE name to say WHICH profile was judged,
+    and its directory to look in. Callers that hardcoded `.claude` reported
+    healthy Cursor/Qwen/Kilo installs as broken and exited non-zero, because
+    bootstrap deploys `.cursor/`, `.qwen/`, `.kilo/` — the abstraction to
+    prevent that already existed here and simply was not used.
+    """
+    ide = detect_ide(project_dir)
+    return ide, get_ide_config(ide)["config_dir"]
+
+
+def other_deployed_profile(project_dir: str, ide: str) -> str | None:
+    """Name of a DIFFERENT supported profile deployed in *project_dir*, if any."""
+    for name, config in IDE_REGISTRY.items():
+        if name == ide:
+            continue
+        if os.path.isdir(os.path.join(project_dir, config["config_dir"])):
+            return name
+    return None
+
+
+def all_profile_dirs() -> frozenset[str]:
+    """Every IDE profile directory name (`.claude`, `.cursor`, …).
+
+    For scanners that must skip deployed profiles: those directories hold a
+    copy of the engine, not project source. Listing `.claude` by hand — as the
+    file-walkers did — skipped it on Claude installs and walked ~300 generated
+    files on every other IDE, which is both slow and wrong.
+    """
+    return frozenset(config["config_dir"] for config in IDE_REGISTRY.values())
+
+
+def missing_profile_hint(project_dir: str, ide: str) -> str:
+    """Remediation for "this profile isn't deployed", naming what IS deployed.
+
+    "missing — re-run bootstrap" is useless advice when bootstrap already ran
+    and simply targeted another IDE: the same command produces the same
+    result. When a different profile is present, say which, and give both
+    ways out — deploy the detected one, or point TAUSIK_IDE at the real one.
+    """
+    other = other_deployed_profile(project_dir, ide)
+    if other is None:
+        return "missing — re-run bootstrap"
+    return (
+        f"missing for the detected IDE '{ide}', but a '{other}' profile is deployed "
+        f"— run bootstrap for '{ide}', or set TAUSIK_IDE={other}"
+    )
+
+
 def get_rules_file(project_dir: str, ide: str | None = None) -> str:
     """Get IDE rules file path (CLAUDE.md, .cursorrules, etc.)."""
     config = get_ide_config(ide)

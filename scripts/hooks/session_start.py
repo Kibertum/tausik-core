@@ -35,10 +35,46 @@ def _run_tausik(cmd: str, args: list[str], project_dir: str, timeout: int = 4) -
         return ""
 
 
+def _profile_dir() -> str | None:
+    """The IDE profile directory this hook is deployed inside, or None.
+
+    A hook cannot ask `ide_utils` where the profile is — `ide_utils` lives in
+    that very directory, so importing it presupposes the answer. It can locate
+    itself instead: deployed layout is `<profile>/scripts/hooks/<hook>.py`, so
+    two levels up is the profile. That works for `.claude`, `.cursor`, `.qwen`
+    and any profile added later, with no literal to keep in sync — the hard-
+    coded `.claude` it replaces silently disabled skill rebuilds on every
+    non-Claude install (the failures were swallowed by the surrounding
+    try/except, so nothing was ever reported).
+    """
+    here = os.path.dirname(os.path.abspath(__file__))  # <profile>/scripts/hooks
+    profile = os.path.dirname(os.path.dirname(here))  # <profile>
+    # A deployed profile carries the MCP server and the core skills; the source
+    # tree does NOT. Testing for `scripts/` was wrong — the project ROOT also
+    # has a top-level `scripts/`, so a hook run from source (scripts/hooks/…)
+    # returned the project root as its "profile" and only failed safe because
+    # the root happens to lack `mcp/`/`skills/` (adversarial review,
+    # s130-review-fixes). A positive marker only a real profile has removes the
+    # coincidence.
+    markers = (
+        os.path.join(profile, "mcp", "project", "server.py"),
+        os.path.join(profile, "skills", "start"),
+    )
+    return profile if any(os.path.exists(m) for m in markers) else None
+
+
 def _rag_server_path(project_dir: str) -> str | None:
     """Path to the codebase-rag MCP server.py if installed, else None."""
+    profile = _profile_dir()
+    if profile:
+        p = os.path.join(profile, "mcp", "codebase-rag", "server.py")
+        if os.path.exists(p):
+            return p
     for ide in ("claude", "cursor"):
-        p = os.path.join(project_dir, ".claude", "mcp", "codebase-rag", "server.py")
+        # `ide` was previously unused in this branch — the literal below read
+        # `.claude` on both iterations, so the cursor pass tested the same path
+        # twice and only the harness fallback below ever varied.
+        p = os.path.join(project_dir, f".{ide}", "mcp", "codebase-rag", "server.py")
         if os.path.exists(p):
             return p
         p2 = os.path.join(project_dir, "harness", ide, "mcp", "codebase-rag", "server.py")
@@ -94,7 +130,12 @@ def _auto_rebuild_skills(project_dir: str) -> None:
     disk. Cache hit = no-op (microseconds). Never raises, never blocks.
     """
     try:
-        scripts_dir = os.path.join(project_dir, ".claude", "scripts")
+        profile = _profile_dir()
+        scripts_dir = (
+            os.path.join(profile, "scripts")
+            if profile
+            else os.path.join(project_dir, ".claude", "scripts")
+        )
         if scripts_dir not in sys.path:
             sys.path.insert(0, scripts_dir)
         import json as _json
@@ -125,7 +166,10 @@ def _auto_rebuild_skills(project_dir: str) -> None:
         if state.get("ide") == ide and state.get("model") == model:
             return  # cache hit — disk already merged for this combination
 
-        skills_dst = os.path.join(project_dir, ".claude", "skills")
+        profile = _profile_dir()
+        skills_dst = os.path.join(
+            profile if profile else os.path.join(project_dir, ".claude"), "skills"
+        )
         if not os.path.isdir(skills_dst):
             return
         rebuild_skills(skills_dst, ide=ide, model=model, force=False)

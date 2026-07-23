@@ -22,6 +22,8 @@ except ModuleNotFoundError:  # pragma: no cover - project pins 3.11+
 
 _PLACEHOLDER = "_(not detected — fill in manually)_"
 
+from ide_utils import all_profile_dirs as _all_profile_dirs
+
 # Directories never treated as project source dirs / never walked for languages.
 _DENY_DIRS: frozenset[str] = frozenset(
     {
@@ -36,7 +38,6 @@ _DENY_DIRS: frozenset[str] = frozenset(
         "dist",
         "build",
         ".tausik",
-        ".claude",
         ".idea",
         ".vscode",
         "site-packages",
@@ -50,6 +51,10 @@ _DENY_DIRS: frozenset[str] = frozenset(
         ".eggs",
         "vendor",
     }
+    # Deployed IDE profiles hold a copy of the engine, not project source.
+    # Derived from the registry so a new profile is skipped the day it is
+    # added — the hand-written `.claude` entry skipped one of seven.
+    | set(_all_profile_dirs())
 )
 
 # Code file extension → language label. Non-code extensions are ignored.

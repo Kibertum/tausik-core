@@ -171,8 +171,13 @@ def cmd_status(svc: ProjectService, args: Any) -> None:
 
 
 def _maybe_print_skill_set_warning() -> None:
-    """Warn when .claude/skills/ holds many more skills than v1.4 default."""
-    skills_dir = os.path.join(".claude", "skills")
+    """Warn when the deployed skills dir holds many more skills than v1.4 default."""
+    try:
+        from ide_utils import get_skills_dir
+
+        skills_dir = get_skills_dir(os.getcwd())
+    except Exception:  # noqa: BLE001 — a warning must never break `status`
+        skills_dir = os.path.join(".claude", "skills")
     if not os.path.isdir(skills_dir):
         return
     try:

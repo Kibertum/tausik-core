@@ -123,15 +123,24 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
         _print_fail("Project DB", "not found — run: tausik init")
         failures += 1
 
-    mcp_project = os.path.join(project_dir, ".claude", "mcp", "project", "server.py")
-    mcp_brain = os.path.join(project_dir, ".claude", "mcp", "brain", "server.py")
+    # Which profile directory this project actually runs from. Hardcoding
+    # `.claude` here made `doctor` FAIL and exit 1 on every Cursor / Qwen /
+    # Kilo / OpenCode install — bootstrap deploys `.cursor/mcp`, `.qwen/mcp`
+    # and friends, and the health check declared them missing. A health check
+    # that fails healthy projects trains people to ignore it.
+    from ide_utils import missing_profile_hint, resolve_profile
+
+    ide, ide_rel = resolve_profile(project_dir)
+    mcp_project = os.path.join(project_dir, ide_rel, "mcp", "project", "server.py")
+    mcp_brain = os.path.join(project_dir, ide_rel, "mcp", "brain", "server.py")
     if os.path.isfile(mcp_project):
-        _print_ok("MCP server (project)", ".claude/mcp/project/server.py")
+        _print_ok("MCP server (project)", f"{ide_rel}/mcp/project/server.py")
     else:
-        _print_fail("MCP server (project)", "missing — re-run bootstrap")
+        hint = missing_profile_hint(project_dir, ide)
+        _print_fail("MCP server (project)", f"{ide_rel}/mcp/project/server.py {hint}")
         failures += 1
     if os.path.isfile(mcp_brain):
-        _print_ok("MCP server (brain)", ".claude/mcp/brain/server.py")
+        _print_ok("MCP server (brain)", f"{ide_rel}/mcp/brain/server.py")
     else:
         _print_warn("MCP server (brain)", "missing — bootstrap may have skipped it")
         warnings += 1
@@ -189,7 +198,7 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
         _print_warn("caveman interop", f"could not validate: {e}")
         warnings += 1
 
-    skills_dir = os.path.join(project_dir, ".claude", "skills")
+    skills_dir = os.path.join(project_dir, ide_rel, "skills")
     if os.path.isdir(skills_dir):
         skills = [d for d in os.listdir(skills_dir) if os.path.isdir(os.path.join(skills_dir, d))]
         critical = {
@@ -221,7 +230,7 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
             )
             failures += 1
     else:
-        _print_fail("Core skills", "no .claude/skills/ — run bootstrap")
+        _print_fail("Core skills", f"no {ide_rel}/skills/ — run bootstrap")
         failures += 1
 
     drift_names = _scripts_drift_names(project_dir)
