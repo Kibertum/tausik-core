@@ -9,6 +9,27 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### AGENTS.md dynamic sync finished — no more "marker not found" on every update-claudemd
+
+The AGENTS.md always-on layer (Linux-Foundation-governed, read by 30+ tools) was
+wired but abandoned: `resolve_sibling_targets` mirrors the regenerated DYNAMIC
+section into an AGENTS.md sibling, and the bootstrap template already ships the
+`DYNAMIC:START/END` markers — but this repo's own AGENTS.md predated them and is
+preserved-if-exists, so every `update-claudemd` printed `marker not found in
+AGENTS.md — skipped` and left the file stale. The markers are now present in the
+live file, so the sibling write lands and the warning is gone.
+
+The source-of-truth question is settled and recorded (decision): the static body
+of both files comes from one place — `bootstrap_templates.build_full_body` — with
+CLAUDE.md and AGENTS.md as peer renderings for different audiences (Claude vs the
+30+ other tools), and the dynamic section is generated from the TAUSIK DB and
+mirrored to both. The industry "AGENTS.md is truth, thin CLAUDE.md points at it"
+pattern was deliberately not adopted: each host reads its own file and the sync
+is already solved by the shared template, so a pointer would add indirection for
+no gain. A regression test now asserts both the live files and every context-tier
+of the template carry the markers. CLAUDE.md stays compact (95 lines, well under
+the ~200-line every-session-load guideline).
+
 ### Cost telemetry now works on any model, not only Claude — a project can price its own
 
 The Opus-4.8 fix closed the silent $0.00 for one family and left it open for
