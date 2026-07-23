@@ -251,6 +251,135 @@ class TestPricingCoverage:
         assert not [m for m in routed_claude_model_ids() if not m.startswith("claude")]
 
 
+class TestConfigPricingOverride:
+    """cost-pricing-non-claude-families-silent-zero (A): the project override.
+
+    `llm_pricing_usd_per_million` was normalized on every config load and never
+    read — the consumer it was missing. Wiring it lets a project on GLM / a
+    custom model price its own telemetry instead of recording $0.00.
+    """
+
+    def test_override_prices_a_non_claude_model_flat(self):
+        cfg = {"llm_pricing_usd_per_million": {"glm-4.6": 2.0}}
+        assert get_pricing("glm-4.6", config=cfg) == {"input": 2.0, "output": 2.0}
+
+    def test_override_ignored_without_config(self):
+        """No config in hand → the override is invisible; behaviour is unchanged."""
+        assert get_pricing("glm-4.6") is None
+
+    def test_override_computes_nonzero_cost(self):
+        cfg = {"llm_pricing_usd_per_million": {"glm-4.6": 2.0}}
+        # 1M input @ $2 + 500k output @ $2 = $2.00 + $1.00 = $3.00
+        assert calculate_cost_usd("glm-4.6", 1_000_000, 500_000, config=cfg) == pytest.approx(3.0)
+
+    def test_builtin_table_wins_over_override(self):
+        """A Claude id already in the table is priced from it — the override is a
+        fallback for gaps, not a way to silently reprice a known tier."""
+        cfg = {"llm_pricing_usd_per_million": {"claude-opus-4-8": 999.0}}
+        assert get_pricing("claude-opus-4-8", config=cfg) == {"input": 5.0, "output": 25.0}
+
+    def test_lazy_config_load_when_caller_passes_none(self, monkeypatch):
+        """calculate_cost_usd loads the effective config on a table miss, so a
+        priced GLM model is non-zero even when the caller threads no config."""
+        import cost_pricing
+
+        monkeypatch.setattr(
+            cost_pricing,
+            "_load_config_safe",
+            lambda: {"llm_pricing_usd_per_million": {"glm-4.6": 4.0}},
+        )
+        assert cost_pricing.calculate_cost_usd("glm-4.6", 1_000_000, 0) == pytest.approx(4.0)
+
+    def test_hot_claude_path_does_not_load_config(self, monkeypatch):
+        """A known Claude id must be priced without ever touching the config
+        loader — the override lookup is a miss-only fallback, not a hot path."""
+        import cost_pricing
+
+        def _boom():
+            raise AssertionError("config loaded on the hot Claude path")
+
+        monkeypatch.setattr(cost_pricing, "_load_config_safe", _boom)
+        assert cost_pricing.calculate_cost_usd("opus", 1_000, 1_000) > 0.0
+
+    @pytest.mark.parametrize(
+        "cfg",
+        [
+            pytest.param({"llm_pricing_usd_per_million": {"other": 1.0}}, id="model_absent"),
+            pytest.param({"llm_pricing_usd_per_million": "not-a-dict"}, id="table_not_dict"),
+            pytest.param({}, id="key_absent"),
+            pytest.param(
+                {"llm_pricing_usd_per_million": {"glm-4.6": -5.0}}, id="negative_rejected"
+            ),
+            pytest.param(
+                {"llm_pricing_usd_per_million": {"glm-4.6": float("nan")}}, id="nan_rejected"
+            ),
+        ],
+    )
+    def test_override_absent_or_invalid_yields_none(self, cfg):
+        """NEGATIVE/boundary (a,b): no usable override → None, never a bogus $0/price."""
+        assert get_pricing("glm-4.6", config=cfg) is None
+
+    def test_override_covers_a_claude_gap_in_the_guard(self):
+        """(A) also closes the Claude-class hole: a rank repointed at an unpriced
+        Claude id is NO LONGER flagged once the project prices it via override —
+        fail-then-pass against the same defect cost-pricing-missing-opus-48 hit."""
+        from cost_pricing import models_missing_pricing
+
+        base = {"model_profiles": {"families": {"claude": {"opus": {"model": "claude-opus-99-0"}}}}}
+        assert "claude-opus-99-0" in models_missing_pricing(base)  # unpriced → flagged
+        priced = dict(base, llm_pricing_usd_per_million={"claude-opus-99-0": 5.0})
+        assert "claude-opus-99-0" not in models_missing_pricing(priced)  # override → covered
+
+
+class TestUnpricedWarning:
+    """cost-pricing-non-claude-families-silent-zero (B): unknown must be audible.
+
+    The DB column is `cost_usd REAL NOT NULL`, so the stored cost stays 0.0; the
+    once-per-id stderr warning is what keeps "unknown" from reading as "free".
+    """
+
+    def _reset_warned(self):
+        import cost_pricing
+
+        cost_pricing._WARNED_UNPRICED.clear()
+
+    def test_unpriced_model_warns_once(self, capsys):
+        self._reset_warned()
+        assert calculate_cost_usd("glm-4.6", 1000, 500) == 0.0
+        first = capsys.readouterr().err
+        assert "no price for model 'glm-4.6'" in first
+        assert "unknown is not free" in first
+        # Second call, same id → no repeat noise.
+        assert calculate_cost_usd("glm-4.6", 2000, 100) == 0.0
+        assert "glm-4.6" not in capsys.readouterr().err
+
+    def test_zero_tokens_no_warning(self, capsys):
+        self._reset_warned()
+        assert calculate_cost_usd("glm-4.6", 0, 0) == 0.0
+        assert capsys.readouterr().err == ""
+
+    def test_empty_model_no_warning(self, capsys):
+        """NEGATIVE: nothing to price → no warning (distinct from an unpriced id)."""
+        self._reset_warned()
+        assert calculate_cost_usd(None, 1000, 100) == 0.0
+        assert capsys.readouterr().err == ""
+
+    def test_priced_override_does_not_warn(self, capsys):
+        self._reset_warned()
+        cfg = {"llm_pricing_usd_per_million": {"glm-4.6": 2.0}}
+        assert calculate_cost_usd("glm-4.6", 1000, 500, config=cfg) > 0.0
+        assert capsys.readouterr().err == ""
+
+    def test_explicit_zero_override_is_honoured_not_a_warning(self, capsys):
+        """A genuinely free local model priced at 0.0 is distinct from unpriced:
+        cost is 0.0 AND no 'unknown ≠ free' warning fires (the doc's claim)."""
+        self._reset_warned()
+        cfg = {"llm_pricing_usd_per_million": {"ollama/llama3": 0.0}}
+        assert get_pricing("ollama/llama3", config=cfg) == {"input": 0.0, "output": 0.0}
+        assert calculate_cost_usd("ollama/llama3", 1000, 500, config=cfg) == 0.0
+        assert capsys.readouterr().err == ""
+
+
 class TestNoPhantomLongContextPremium:
     @pytest.mark.parametrize(
         "base",

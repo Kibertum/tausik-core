@@ -37,9 +37,17 @@ honest default — over-reporting during the intro window is the safe direction.
 from __future__ import annotations
 
 import re
+import sys
 
 
 _SUFFIX_RE = re.compile(r"\[[^\[\]]+\]\s*$")
+
+# Models whose cost we have already reported as unpriced this process. The
+# warning below fires ONCE per model id: a per-tool telemetry writer would
+# otherwise repeat it on every event, and the point is to make "unknown ≠ free"
+# audible, not to flood stderr. Process-scoped by design — a fresh hook run
+# re-warns, which is correct: the operator should see it each session.
+_WARNED_UNPRICED: set[str] = set()
 
 _OPUS = {"input": 5.0, "output": 25.0}
 _SONNET = {"input": 3.0, "output": 15.0}
@@ -74,7 +82,7 @@ _MODEL_PRICING: dict[str, dict[str, float]] = {
 }
 
 
-def get_pricing(model_id: str | None) -> dict[str, float] | None:
+def get_pricing(model_id: str | None, config: dict | None = None) -> dict[str, float] | None:
     """Return {input, output} per-1M-token prices for the given model.
 
     Returns None for unknown models so callers can default cost_usd=0.0
@@ -82,6 +90,16 @@ def get_pricing(model_id: str | None) -> dict[str, float] | None:
     `claude-opus-4-7[1m]` are matched explicitly first; if not present,
     the trailing `[...]` group is stripped and lookup falls back to the
     base canonical ID. A bare `[1m]` (no base) returns None.
+
+    `config` opens the project override: when the built-in Claude table has no
+    row, a flat `llm_pricing_usd_per_million[<model_id>]` rate from the effective
+    config is applied to BOTH input and output. That key was normalized on every
+    config load and never read — this is the consumer it was missing, and it is
+    what lets a project on GLM / a custom model price its own telemetry instead
+    of recording $0.00. It would also have priced `claude-opus-4-8` before the
+    table caught up (cost-pricing-missing-opus-48), so it doubles as a guard.
+    Anthropic rates are never invented for a non-Claude family — the project
+    states its own tariff or the meter stays honestly unknown.
     """
     if not model_id:
         return None
@@ -93,20 +111,100 @@ def get_pricing(model_id: str | None) -> dict[str, float] | None:
         stripped = _SUFFIX_RE.sub("", key).strip()
         if stripped and stripped != key:
             found = _MODEL_PRICING.get(stripped)
+    if found is None and config is not None:
+        override = _config_override_rate(config, model_id)
+        if override is not None:
+            # A project-declared flat tariff: same rate for input and output,
+            # because the config schema is one number per model, not a pair.
+            return {"input": override, "output": override}
     # A copy, not the stored row: tiers share one dict across their id and
     # suffix spellings, so handing out the original would let one caller's
     # mutation reprice every model that shares that tier.
     return dict(found) if found is not None else None
 
 
+def _config_override_rate(config: dict | None, model_id: str | None) -> float | None:
+    """Flat USD/1M-token override for `model_id` from the project config, or None.
+
+    `load_config` already runs `normalize_llm_pricing_config` (drops negative /
+    NaN / non-numeric entries), but a caller-supplied dict might not have — so
+    the same guard is repeated here rather than trusted. A price that is not a
+    finite, non-negative number is treated as absent, never as $0.00.
+    """
+    try:
+        from project_config import lookup_llm_usd_per_million_tokens
+
+        rate = lookup_llm_usd_per_million_tokens(config, model_id)
+    except Exception:  # noqa: BLE001 — a missing/broken config just means "no override"
+        return None
+    if rate is None:
+        return None
+    try:
+        r = float(rate)
+    except (TypeError, ValueError):
+        return None
+    if r != r or r < 0:  # NaN or negative
+        return None
+    return r
+
+
+def _load_config_safe() -> dict | None:
+    """Effective project config, or None. Best-effort — never raises."""
+    try:
+        from project_config import load_config
+
+        return load_config()
+    except Exception:  # noqa: BLE001 — no config means "no override", not a failure
+        return None
+
+
+def _warn_unpriced_once(model_id: str | None, tokens_total: int) -> None:
+    """Emit a single stderr warning that `model_id` has no price — once per id.
+
+    The DB column is `cost_usd REAL NOT NULL` (schema forbids NULL), so the
+    stored cost stays 0.0; the warning is what keeps "unknown" from reading as
+    "free". Silent on zero-token events — nothing was going to be billed.
+    """
+    key = str(model_id or "").strip().lower()
+    if not key or tokens_total <= 0 or key in _WARNED_UNPRICED:
+        return
+    _WARNED_UNPRICED.add(key)
+    # ASCII only: this is a library-level message that hooks emit through a
+    # stderr whose encoding is not guaranteed UTF-8 (hook-stderr-encoding-
+    # locale-dependent). A non-ASCII glyph here mojibakes on a cp1252 pipe and
+    # can even break a reader decoding as UTF-8 — the existing session_metrics
+    # warning stays ASCII for the same reason.
+    print(
+        f"cost_pricing: no price for model '{model_id}' and no "
+        f"llm_pricing_usd_per_million override -- recording cost_usd=0.00 for "
+        f"{tokens_total} tokens (unknown is not free). Add "
+        f"llm_pricing_usd_per_million['{model_id}'] to .tausik/config.json to price it.",
+        file=sys.stderr,
+    )
+
+
 def calculate_cost_usd(
     model_id: str | None,
     tokens_input: int,
     tokens_output: int,
+    config: dict | None = None,
 ) -> float:
-    """Compute USD cost for the given token counts. Returns 0.0 for unknown models."""
-    pricing = get_pricing(model_id)
+    """Compute USD cost for the given token counts. Returns 0.0 for unknown models.
+
+    For an unknown Claude id the built-in table answers directly; only when it
+    misses do we consult the project's `llm_pricing_usd_per_million` override
+    (loading the effective config lazily if the caller didn't pass one), so the
+    hot Claude path never touches disk. A non-empty model that is still unpriced
+    after the override warns once — 0.0 is the recorded value, not the whole
+    story.
+    """
+    pricing = get_pricing(model_id, config=config)
+    if pricing is None and config is None and model_id:
+        # Table missed and the caller had no config in hand — give the project's
+        # own pricing table a chance before declaring the model unpriced.
+        pricing = get_pricing(model_id, config=_load_config_safe())
     if not pricing:
+        _warn_unpriced_once(model_id, tokens_input + tokens_output)
         return 0.0
     return round(
         tokens_input * pricing["input"] / 1_000_000 + tokens_output * pricing["output"] / 1_000_000,
@@ -196,6 +294,11 @@ def models_missing_pricing(config: dict | None = None) -> set[str]:
     remembering is a table that drifts.
 
     `config` reaches the effective per-project routing (overrides included);
-    None reads the framework's own.
+    None reads the framework's own. The same config also feeds `get_pricing`,
+    so a Claude id the project priced through its `llm_pricing_usd_per_million`
+    override counts as covered — the guard judges the effective price, not just
+    the built-in table.
     """
-    return {m for m in routed_claude_model_ids(config) if get_pricing(m) is None}
+    if config is None:
+        config = _load_config_safe()
+    return {m for m in routed_claude_model_ids(config) if get_pricing(m, config=config) is None}

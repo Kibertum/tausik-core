@@ -169,7 +169,9 @@ class TestNegativeScenarios:
         assert len(events) == 1
         assert events[0]["model_id"] == "claude-mystery-9-9"
         assert events[0]["cost_usd"] == 0.0
-        assert "unknown model" in result.stderr.lower()
+        # The unpriced-model warning is now owned by cost_pricing.calculate_cost_usd
+        # (once per id, override-aware) rather than an inline posttool check.
+        assert "no price for model 'claude-mystery-9-9'" in result.stderr
 
     @pytest.mark.slow  # v14b-pytest-fast-lane: real lock contention via threading sleeps (~7s)
     def test_d_locked_db_retries_then_succeeds(self, tmp_path):

@@ -9,6 +9,63 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Cost telemetry now works on any model, not only Claude — a project can price its own
+
+The Opus-4.8 fix closed the silent $0.00 for one family and left it open for
+every other: a project running GLM or a custom model still recorded `cost_usd =
+0.00` for every event, because the built-in table prices only Claude tiers and
+nothing else was consulted. That is the same defect the batch fixes for Claude,
+surviving one family over — the "works on any model" line was true for IDE and
+shell but only Claude for the meter.
+
+The config key `llm_pricing_usd_per_million` — normalized on every config load
+and then read by nothing, an abstraction with no consumer — is now that
+consumer. `get_pricing` consults it whenever the built-in table misses, applying
+the flat per-1M rate to input and output alike, so a project states its own
+tariff in `.tausik/config.json` and its telemetry stops reading zero. The same
+override would have priced `claude-opus-4-8` before the table caught up, so it
+also feeds `models_missing_pricing`: a Claude id a project prices through the
+override counts as covered. Anthropic rates are never invented for a non-Claude
+family — the project declares the number or the meter stays honestly unknown.
+
+And unknown is now audible. The DB column is `cost_usd REAL NOT NULL`, so the
+stored cost stays 0.0; what changed is that an unpriced, non-empty model warns
+once per id on stderr (`unknown is not free`, ASCII so it survives a non-UTF-8
+hook pipe) instead of recording a confident zero in silence. The per-event
+"unknown model" line the usage hook printed — which fired on every call and did
+not consult the override — is gone; the once-per-id, override-aware warning in
+`calculate_cost_usd` owns it now. An explicit `0.0` override is honoured (a
+genuinely free local model) and distinct from unpriced. Documented in
+`docs/en/model-providers.md`.
+
+### The `.claude` literal tail in the engine: a metrics hook that worked by accident, an orphan scan blind to four IDEs
+
+The doctor hardening closed the hot path and left a lint standing over an
+explicit remainder; this closes three of those exemptions. `session_metrics`'s
+DB writer computed its project root with `dirname×3(__file__)`, which actually
+lands on the *profile* dir (`…/.claude`), so its first candidate
+`<profile>/.claude/scripts/project.py` doubled the profile segment and never
+existed — the record only ever succeeded through the `scripts/` fallback, and
+worse, it ran the subprocess with `cwd=<profile>`, so `project.py` resolved
+`.tausik/` under the profile instead of the project root: a silent DB-record
+miss dressed as success. It now self-locates and runs with the true root as
+cwd. The orphan-file audit hardcoded ignore-globs for `.claude`/`.cursor`/
+`.qwen` — 3 of 7 profiles — so on the other IDEs the deployed engine copy was
+either walked or reported as an orphan; the globs now come from
+`ide_utils.all_profile_dirs()`.
+
+The self-location both `session_start` and `session_metrics` need now lives
+once in `hooks/_common.profile_dir` (the "resolve the project root" logic that
+`_common`'s own comment warned had drifted across four copies); `session_start`
+delegates to it rather than keeping a private fifth copy. The
+`project_cli_extra` CLAUDE.md fallback was left deliberately unchanged — its
+main path already resolves the onboarding file through `ide_utils`, and
+generalising the remaining literal to a `get_rules_file` would change behaviour
+for `AGENTS.md`/`.cursorrules`; its lint exemption is re-labelled a documented
+fallback rather than deferred work. Three `_ALLOWED` exemptions updated
+accordingly, with fail-then-pass coverage for the deployed/source/missing
+layouts of the metrics writer.
+
 ### Adversarial review of the batch's own guards closed five holes in them
 
 The three fixes above each shipped a mechanism meant to make its defect
