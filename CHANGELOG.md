@@ -9,6 +9,35 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed: the drift gate could not see the hooks it exists to protect
+
+`bootstrap_drift` blocks a close when a source edit did not reach the deployed
+copy that actually runs. Its comparator listed `scripts/` with a non-recursive
+`os.listdir` filtered to `*.py`, while `bootstrap_copy.copy_dir` deploys the
+whole tree — so `scripts/hooks/**` and `scripts/providers/**` were shipped and
+never compared. Session #128 had already made that load-bearing: `_common.py`
+imports `hook_supervision.py`, so a half-landed deploy takes down EVERY hook
+with a module-level `ImportError` on every single tool call — and the one gate
+whose entire job is "the edit did not reach the copy that runs" would have
+reported clean through it.
+
+The comparator now walks `scripts/` recursively and judges every file `copy_dir`
+would deploy, minus exactly what `copy_dir` skips (`__pycache__/`, `.git/`,
+`*.pyc`). Not `*.py`: a comparator applying a narrower rule than the copier it
+checks is the same second-copy-of-the-rule defect one layer down, and
+`scripts/hooks/pre-commit` — a shell file — is a deploy target too. Files that
+exist only in the profile (`vendor_seo/`, leftover `.pyc`) are still not drift;
+the question is whether a source edit failed to land, and an extra file in the
+destination is not an answer to it.
+
+The existing test asserting that a stale non-`.py` file must NOT be reported was
+inverted rather than deleted — it had locked the narrower rule in. A new test
+ties the comparator's ignore rules to `copy_dir` behaviourally: it runs the real
+copier into a temp target and asserts the comparator's file set is exactly what
+landed, so a future change to the copier fails the build instead of silently
+shrinking the check. Five of the new tests fail against the previous
+implementation.
+
 ### Project knowledge stops leaking into other agents' memory
 
 TAUSIK's whole claim is that what an agent learns about a project lands in

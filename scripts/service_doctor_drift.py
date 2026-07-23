@@ -159,13 +159,52 @@ def _scaffold_ides() -> list[str]:
         return ["claude", "cursor", "qwen", "kilo", "opencode"]
 
 
-def scripts_drift_names(project_dir: str) -> list[str] | None:
-    """Names of source ``scripts/*.py`` that differ from their DEPLOYED copies.
+# Mirror of the ignore rules in `bootstrap_copy.copy_dir`, which is what
+# actually deploys `scripts/`. Restated rather than imported because this module
+# must answer without `bootstrap/` on sys.path (a consumer that vendors only
+# `.tausik/`); `tests/test_scripts_drift_recursive` asserts the two agree, so a
+# change to the copier fails the build instead of quietly shrinking the check.
+_IGNORED_DIRS = ("__pycache__", ".git")
+_IGNORED_SUFFIX = ".pyc"
 
-    Returns a sorted list of ``.{ide}/scripts/{name}`` for every file that is
+
+def _deployed_relpaths(src: str) -> list[str]:
+    """Every path under `scripts/` that `copy_dir` would deploy, '/'-separated.
+
+    RECURSIVE, and that is the whole point: the previous `os.listdir` saw only
+    the top level, so `scripts/hooks/**` and `scripts/providers/**` were deployed
+    but never compared. `_common.py` importing `hook_supervision.py` made that a
+    live hazard — a half-landed deploy takes down EVERY hook with a module-level
+    ImportError on every tool call, and the gate whose job is to catch exactly
+    "the edit did not reach the copy that runs" would have reported clean.
+
+    Not filtered to `*.py`. `copy_dir` deploys the whole tree, so a comparator
+    that judged only Python files would be applying a different rule than the
+    copier it exists to check — the second-copy-of-the-rule defect (conv #266)
+    reintroduced one layer down.
+    """
+    out: list[str] = []
+    for root, dirs, files in os.walk(src):
+        dirs[:] = [d for d in dirs if d not in _IGNORED_DIRS]
+        for fname in files:
+            if fname.endswith(_IGNORED_SUFFIX):
+                continue
+            rel = os.path.relpath(os.path.join(root, fname), src)
+            out.append(rel.replace(os.sep, "/"))
+    return out
+
+
+def scripts_drift_names(project_dir: str) -> list[str] | None:
+    """Deployed copies of the source ``scripts/`` tree that differ from source.
+
+    Returns a sorted list of ``.{ide}/scripts/{relpath}`` for every file that is
     missing-in-profile or differs by content, across every IDE profile PRESENT
     on disk. Binary compare with CRLF→LF normalisation so a cross-platform
     checkout does not false-positive.
+
+    Files present only in the profile (`vendor_seo/`, leftover `.pyc`) are NOT
+    drift: the question is "did a source edit fail to land", and an extra file
+    in the destination is not an answer to it.
 
     Two distinct empties, because callers act on them differently:
       * ``None`` — the source ``scripts/`` dir is missing, so nothing can be
@@ -184,22 +223,22 @@ def scripts_drift_names(project_dir: str) -> list[str] | None:
     src = os.path.join(project_dir, "scripts")
     if not os.path.isdir(src):
         return None
-    src_files = [n for n in os.listdir(src) if n.endswith(".py")]
+    src_files = _deployed_relpaths(src)
     drift: list[str] = []
     for ide in _scaffold_ides():
         prof_scripts = os.path.join(project_dir, f".{ide}", "scripts")
         if not os.path.isdir(prof_scripts):
             continue  # profile not installed → not drift
-        for name in src_files:
-            s = os.path.join(src, name)
-            d = os.path.join(prof_scripts, name)
+        for rel in src_files:
+            s = os.path.join(src, *rel.split("/"))
+            d = os.path.join(prof_scripts, *rel.split("/"))
             if not os.path.isfile(d):
-                drift.append(f".{ide}/scripts/{name}")
+                drift.append(f".{ide}/scripts/{rel}")
                 continue
             try:
                 with open(s, "rb") as f1, open(d, "rb") as f2:
                     if f1.read().replace(b"\r\n", b"\n") != f2.read().replace(b"\r\n", b"\n"):
-                        drift.append(f".{ide}/scripts/{name}")
+                        drift.append(f".{ide}/scripts/{rel}")
             except OSError:
                 pass
     return sorted(drift)
