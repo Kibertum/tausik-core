@@ -51,8 +51,17 @@ _DEFAULT_CHANGELOG_FILES = ["CHANGELOG.md", "CHANGELOG.ru.md"]
 
 def _read_changelog_gate_config(
     tausik_dir: str | None = None,
+    cfg: dict | None = None,
 ) -> tuple[bool, list[str], str | None]:
     """Return (enabled, files, config_error) for config.task_done.changelog_gate.
+
+    `cfg`, when supplied, is an already-loaded config layer and `tausik_dir` is
+    then irrelevant. That parameter exists so this stays the ONE function that
+    answers "what is this gate's policy": `gate_post_scope` now decides whether
+    to invoke the gate at all, and if it consulted a second reader the two could
+    disagree — the gate would be listed as enabled and never run, or the reverse.
+    That is the exact defect class this whole task exists to remove, so it must
+    not be reintroduced one layer down.
 
     `tausik_dir` selects WHOSE config is read. A gate holding a project handle
     must not resolve policy from the ambient cwd (memory #265, defect
@@ -77,12 +86,36 @@ def _read_changelog_gate_config(
       intent that cannot be read is UNKNOWN, not "off" → the error is returned
       and the caller fails closed (Decision #157).
     """
-    try:
-        from project_config import load_config
+    if cfg is None:
+        try:
+            from project_config import load_config
 
-        td = load_config(tausik_dir).get("task_done", {})
-    except Exception as e:  # noqa: BLE001 — unreadable config is unknown policy, not absent policy
-        return (False, [], f"config could not be loaded ({type(e).__name__}: {e})")
+            cfg = load_config(tausik_dir)
+        except Exception as e:  # noqa: BLE001 — unreadable config is unknown policy, not absent policy
+            return (False, [], f"config could not be loaded ({type(e).__name__}: {e})")
+    td = cfg.get("task_done", {}) if isinstance(cfg, dict) else None
+    return _parse_changelog_gate_config(td)
+
+
+def changelog_gate_enabled(cfg: dict) -> bool:
+    """Registry `enabled_resolver` — is this gate on for an already-loaded config?
+
+    `gates status` reads `gates.changelog.enabled`, which this gate predates:
+    its switch is `task_done.changelog_gate.enabled`. Without this resolver the
+    status output would call the gate disabled while it blocks every close.
+
+    A MALFORMED block answers True, and that is load-bearing rather than
+    defensive: the answer now decides whether `gate_post_scope` invokes the gate
+    at all, so reading a typo as "off" would skip the very call whose job is to
+    fail closed on it (Decision #157). Unknown policy is not absent policy — the
+    gate runs, sees the error, and blocks with the exact key to repair.
+    """
+    enabled, _files, err = _read_changelog_gate_config(cfg=cfg)
+    return enabled or err is not None
+
+
+def _parse_changelog_gate_config(td: Any) -> tuple[bool, list[str], str | None]:
+    """Shape-check the `task_done.changelog_gate` block. See caller's docstring."""
     if td is None or (isinstance(td, dict) and "changelog_gate" not in td):
         return (False, [], None)  # never adopted — silence is correct
     if not isinstance(td, dict):

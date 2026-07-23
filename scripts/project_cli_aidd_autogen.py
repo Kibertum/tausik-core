@@ -22,7 +22,7 @@ except ModuleNotFoundError:  # pragma: no cover - project pins 3.11+
 
 _PLACEHOLDER = "_(not detected — fill in manually)_"
 
-from ide_utils import all_profile_dirs as _all_profile_dirs
+from ide_utils import all_profile_dirs as _all_profile_dirs  # noqa: E402
 
 # Directories never treated as project source dirs / never walked for languages.
 _DENY_DIRS: frozenset[str] = frozenset(

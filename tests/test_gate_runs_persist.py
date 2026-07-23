@@ -202,3 +202,60 @@ class TestAggregates:
         assert summary["total_runs"] == 0
         assert summary["blocking_failure_rate"] is None
         assert summary["never_fired"] == ["filesize"]
+
+
+class TestKnownSetSpansBothPhases:
+    """gate-activity-blind-to-post-scope.
+
+    `gate_activity_summary` built its known set from `get_gates_for_trigger`,
+    which by design excludes post-scope gates (they take the close context, not
+    `(gate, files)`). Rows those gates had already written still showed up —
+    they come from the table — but a post-scope gate that had never fired was
+    absent entirely, which is the reading convention #226 forbids: the single
+    most useful thing this table can say about a gate guarding every close is
+    that it has never once fired.
+    """
+
+    def _summary(self, conn, monkeypatch, trigger_gates):
+        from backend_queries_metrics import BackendQueriesMetricsMixin
+
+        monkeypatch.setattr(
+            "project_config.get_gates_for_trigger",
+            lambda trigger, *a, **k: [{"name": n} for n in trigger_gates.get(trigger, [])],
+        )
+        holder = BackendQueriesMetricsMixin()
+        holder._conn = conn
+        return holder.gate_activity_summary()
+
+    def test_never_fired_post_scope_gate_is_visible(self, conn, monkeypatch):
+        summary = self._summary(conn, monkeypatch, {"task-done": ["filesize"]})
+        assert "verify_first" in summary["never_fired"]
+        assert "changelog" in summary["never_fired"]
+
+    def test_post_scope_rows_are_counted_and_not_duplicated(self, conn, monkeypatch):
+        record_gate_runs(
+            conn,
+            verification_run_id=None,
+            task_slug="t",
+            trigger="task-done",
+            gate_results=_results(("verify_first", "block", True, False)),
+        )
+        conn.commit()
+        summary = self._summary(conn, monkeypatch, {"task-done": ["filesize"]})
+        rows = [g for g in summary["gates"] if g["gate"] == "verify_first"]
+        assert len(rows) == 1
+        assert rows[0]["runs"] == 1
+        assert "verify_first" not in summary["never_fired"]
+
+    def test_broken_config_cannot_blank_the_registry_half(self, conn, monkeypatch):
+        """The registry is static in memory — it never needed the config."""
+
+        def _boom(*a, **k):
+            raise RuntimeError("config is unreadable")
+
+        monkeypatch.setattr("project_config.get_gates_for_trigger", _boom)
+        from backend_queries_metrics import BackendQueriesMetricsMixin
+
+        holder = BackendQueriesMetricsMixin()
+        holder._conn = conn
+        assert "verify_first" in holder.gate_activity_summary()["never_fired"]

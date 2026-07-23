@@ -164,15 +164,35 @@ TAUSIK разделяет *где* он работает и *какая моде
 ## Шлюзы качества
 
 ```
-default_gates.py        → DEFAULT_GATES (25 гейтов: 5 универсальных + 20 stack-scoped)
-                        → UNIVERSAL_GATES (filesize, tdd_order, ruff, mypy, bandit)
-                        → stack-scoped gates pulled from stack_registry
-gate_runner.py          → run_gates(trigger, files)
-                        → run_command_gate() / run_filesize_gate() / run_tdd_order_gate()
+gate_registry.py        → GATE_REGISTRY: одно объявление на встроенный гейт
+                        → GateSpec(name, phase, default_config, impl)
+                        → phase: scoped | post_scope
+default_gates.py        → DEFAULT_GATES = универсальные (из реестра)
+                                        ∪ stack-scoped (из stack_registry)
+                                        ∪ post-scope (из реестра)
+gate_runner.py          → run_gates(trigger, files)   [только фаза scoped]
+                        → диспетч через GATE_REGISTRY[name].impl,
+                          имя вне реестра → run_command_gate()
+gate_post_scope.py      → run_post_scope_gates()      [фаза post_scope]
+                        → verify_first, changelog + по строке в gate_runs
 service_task.py         → _run_quality_gates() (вызывается из task_done)
 ```
 
-Универсальные гейты (всегда включены): `filesize`, `tdd_order`, `ruff`, `mypy`, `bandit`.
+Добавить встроенный гейт — это один `GateSpec`. До `gate-registry-single-source`
+требовалось четыре правки, а два post-scope гейта жили лишь в одном из четырёх
+мест: `gates status` их не перечислял, `gates enable/disable` до них не доставал,
+и они не писали строку в `gate_runs` — то есть НИЧТО не могло доказать, что
+QG-2-гейт отработал.
+
+**Scoped-гейты** — `(gate_config, files) -> (passed, output)`, судят объявленный
+скоуп задачи. Универсальные (всегда включены): `filesize`, `tdd_order`, `ruff`,
+`mypy`, `bandit`, `bootstrap_drift`, `renar_drift_schema`,
+`renar_drift_provenance`.
+
+**Post-scope гейты** — принимают контекст закрытия и правят QG-2-отчёт:
+`verify_first` (обязателен свежий подписанный зелёный verify) и `changelog`
+(конвенция #275). `get_gates_for_trigger` их отфильтровывает, поэтому
+`run_gates` никогда не вызовет их с чужой сигнатурой.
 
 Stack-scoped гейты: `pytest`, `tsc`, `eslint`, `js-test`, `go-vet`, `go-test`, `golangci-lint`,
 `cargo-check`, `cargo-test`, `clippy`, `phpstan`, `phpcs`, `phpunit`, `javac`, `ktlint`,

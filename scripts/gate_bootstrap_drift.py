@@ -53,6 +53,16 @@ def _harness_drift_names(project_dir: str) -> list[str]:
     return check_deployed_trees(lib_dir, project_dir)
 
 
+def run_bootstrap_drift_gate_for(gate: dict, files: list[str]) -> tuple[bool, str]:
+    """Registry-uniform ``(gate, files)`` entrypoint (gate-registry-single-source).
+
+    Both arguments are ignored: the scan compares the deployed profiles against
+    `scripts/` wholesale, and narrowing it to the task's declared files would
+    let a drifted file outside that scope close a task silently.
+    """
+    return run_bootstrap_drift_gate()
+
+
 def run_bootstrap_drift_gate() -> tuple[bool, str]:
     """Fail iff a present IDE profile's deployed source drifts from `scripts/` or
     the `harness/` fan-out.

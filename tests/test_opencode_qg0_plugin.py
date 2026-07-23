@@ -413,7 +413,6 @@ class TestCacheErrsTowardStrictness:
 
 # --- CLI oracle: the row the JS plugin shells out to write -------------------
 
-import sqlite3  # noqa: E402
 import types  # noqa: E402
 
 _SCRIPTS = os.path.join(REPO, "scripts")

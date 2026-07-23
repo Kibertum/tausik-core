@@ -142,17 +142,26 @@ class BackendQueriesMetricsMixin:
         it cannot be read we still report what the table holds, but the
         never-fired list is then necessarily incomplete and says so by being
         derived only from rows that exist.
+
+        The known set spans BOTH gate phases. Triggers alone would miss the
+        post-scope QG-2 gates, which `get_gates_for_trigger` deliberately
+        excludes (they take the close context, not `(gate, files)`) — and the
+        one thing worth knowing about a gate guarding every close is precisely
+        that it has never fired. The registry is in-memory static, so it is
+        gathered outside the config try-block: a broken config must not be able
+        to blank the half of the answer that never needed the config.
         """
+        from gate_registry import PHASE_POST_SCOPE, specs_for_phase
         from gate_run_record import gate_activity
 
-        known: list[str] = []
+        known: list[str] = [s.name for s in specs_for_phase(PHASE_POST_SCOPE)]
         try:
             from project_config import get_gates_for_trigger
 
             for trigger in ("verify", "task-done"):
                 known.extend(g["name"] for g in get_gates_for_trigger(trigger))
         except Exception:  # noqa: BLE001 — metrics are read-only; config trouble must not blank them
-            known = []
+            pass
         return gate_activity(self._conn, sorted(set(known)))  # type: ignore[attr-defined]
 
     def _supervision_by_action(self, *, category: str) -> dict[str, Any]:

@@ -9,6 +9,81 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed: gate metrics were blind to a post-scope gate that had never fired
+
+Follow-on defect of the gate registry, found while verifying it end-to-end.
+`gate_activity_summary` built its known-gate set from `get_gates_for_trigger`,
+which the registry work deliberately made exclude post-scope gates. Rows those
+gates had already written still appeared — they come from the table — but a
+post-scope gate with *no* rows vanished from the report entirely. That is the
+one reading convention #226 exists to forbid: "this gate guarding every close
+has never once fired" is the most useful thing the table can say, and it was
+being rendered as silence. The known set now spans both phases, and the
+registry half is gathered outside the config `try` — it is static in memory, so
+an unreadable config must not be able to blank the part that never needed it.
+
+### One gate registry — the QG-2 gates the check could not prove had run
+
+Declaring a gate meant landing in four unconnected places: metadata in
+`default_gates.UNIVERSAL_GATES`, dispatch in a chain of `if name == ...` in
+`gate_runner`, "is it built-in?" *inferred* from `command is None` in
+`gate_command_policy`, and — for the two gates that run after the scoped
+pipeline — a hardcoded call in `service_gates`. `verify_first` and `changelog`
+lived in the fourth place only, and the consequences were not cosmetic: `gates
+status` did not list them, `gates enable/disable` could not reach them, and they
+wrote no `gate_runs` row — so nothing downstream could prove that the QG-2 gate
+guarding every close had actually run. A framework that asks every task for
+evidence kept none about its own most load-bearing check.
+
+- **`scripts/gate_registry.py`** — one `GateSpec(name, phase, default_config,
+  impl)` per built-in gate; `phase` is `scoped` (judges the task's files,
+  `(gate, files) -> (passed, output)`) or `post_scope` (takes the close context
+  and edits the QG-2 report). Implementations are addressed by dotted string and
+  resolved lazily — an eager import would close a `default_gates` →
+  `gate_bootstrap_drift` → `project_config` cycle. Post-scope gates use a
+  `svc:method` form so the binding stays late, which is what keeps
+  `GatesMixin` overrides and the pytest Verify-First shim working.
+- **`default_gates`** now projects the registry instead of holding a literal;
+  `UNIVERSAL_GATES` is byte-identical to what it replaced, asserted against a
+  hand-frozen snapshot rather than against the registry itself.
+- **`gate_runner`** dispatches through `GATE_REGISTRY[name].impl`; the `if/elif`
+  chain is gone and a gate outside the registry is a command gate by
+  construction. `run_tdd_order_gate` moved to `gate_tdd_order.py` (re-exported).
+- **`gate_post_scope.py`** runs the post-scope phase in registry order
+  (Verify-First, then changelog, so both blocking reasons reach the agent at
+  once), honours `enabled`, applies the fileless-close exemption declared on the
+  spec, and writes **one `gate_runs` row per gate** with a NULL
+  `verification_run_id` — these belong to a close, not to a verify run. The rows
+  commit immediately: a gate that ran and blocked is precisely the event worth
+  recording, and losing it because the close then failed would erase the
+  evidence in the cases that matter most. If the rows cannot be written the
+  close is blocked, not crashed (convention #221).
+- **`gates status` no longer lies.** Post-scope gates are listed with their real
+  on/off state, including the changelog gate, whose switch is the legacy
+  `task_done.changelog_gate.enabled`. `config_trust` already guards
+  `gates.*.enabled`, so a repository-travelling `.tausik/config.json` can tighten
+  these gates but not turn one off; when a user/managed tier does turn off a gate
+  that ships ON, the skip is a countable supervision-bypass event. Turning off a
+  gate that ships OFF (the opt-in changelog gate) is not a bypass and is not
+  reported as one.
+- **"Built-in" is declared, not inferred.** `ruff` is in the registry *and* is a
+  command gate, so vendored-path and wrapper-dropping overrides stay legal;
+  `filesize` and the post-scope gates take no command override. Previously both
+  answers came from `command is None`, true of the current built-ins only by
+  coincidence of their configs.
+- **A silent PASS removed on the way past.** A gate with no implementation and no
+  command reached `run_command_gate`, which answered `"No command configured."`
+  as a *pass* — a gate that never executed reporting success, the exact reading
+  `gate_verdict` exists to forbid. It is a SKIP with a warning naming the fix.
+
+One defect was found by the suite during the work and fixed rather than tested
+around: routing the changelog gate's on/off through the registry briefly gave
+that question two answers (`gate_post_scope` asking one reader, the gate itself
+asking another) which could disagree in both directions — the same defect class
+this task removes, one layer down. `_read_changelog_gate_config` now takes an
+optional preloaded config and is the single reader. A malformed policy block
+deliberately resolves to ON, so the gate still runs and fails closed on it.
+
 ### AGENTS.md dynamic sync finished — no more "marker not found" on every update-claudemd
 
 The AGENTS.md always-on layer (Linux-Foundation-governed, read by 30+ tools) was

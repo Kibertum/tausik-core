@@ -168,6 +168,7 @@ DEFAULT_SESSION_IDLE_THRESHOLD_MINUTES = 10
 DEFAULT_SESSION_CAPACITY_CALLS = 200
 
 from default_gates import DEFAULT_GATES  # noqa: E402
+from gate_registry import apply_post_scope_enabled  # noqa: E402
 
 
 def _build_stack_gate_map() -> dict[str, list[str]]:
@@ -362,6 +363,9 @@ def load_gates(cfg: dict | None = None, tausik_dir: str | None = None) -> dict[s
                 logger.warning("Skipping gate: %s", error)
                 continue
             merged[name] = ucfg
+    # Post-scope gates own legacy config keys — the registry resolves their
+    # effective on/off (gate-registry-single-source).
+    apply_post_scope_enabled(merged, cfg)
     return merged
 
 
@@ -372,11 +376,16 @@ def get_gates_for_trigger(
 
     Each returned dict includes a 'name' key. `tausik_dir` is forwarded to
     `load_gates` only when `cfg` is not supplied — same project-scoping rule.
+
+    Post-scope gates are excluded — their implementations take the QG-2 close
+    context, not ``(gate, files)``; `gate_post_scope` runs them.
     """
     all_gates = load_gates(cfg, tausik_dir)
     result = []
     for name, gate in all_gates.items():
         if not gate.get("enabled", True):
+            continue
+        if gate.get("phase") == "post_scope":
             continue
         triggers = gate.get("trigger", [])
         if trigger in triggers:

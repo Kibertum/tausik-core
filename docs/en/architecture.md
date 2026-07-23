@@ -164,15 +164,34 @@ so a z.ai GLM session routes to GLM models with no code change. See
 ## Quality Gates
 
 ```
-default_gates.py        -> DEFAULT_GATES (25 gates: 5 universal + 20 stack-scoped)
-                        -> UNIVERSAL_GATES (filesize, tdd_order, ruff, mypy, bandit)
-                        -> stack-scoped gates pulled from stack_registry
-gate_runner.py          -> run_gates(trigger, files)
-                        -> run_command_gate() / run_filesize_gate() / run_tdd_order_gate()
+gate_registry.py        -> GATE_REGISTRY: the one declaration per built-in gate
+                        -> GateSpec(name, phase, default_config, impl)
+                        -> phase: scoped | post_scope
+default_gates.py        -> DEFAULT_GATES = universal (from registry)
+                                         ∪ stack-scoped (from stack_registry)
+                                         ∪ post-scope (from registry)
+gate_runner.py          -> run_gates(trigger, files)   [scoped phase only]
+                        -> dispatch via GATE_REGISTRY[name].impl,
+                           unknown name -> run_command_gate()
+gate_post_scope.py      -> run_post_scope_gates()      [post_scope phase]
+                        -> verify_first, changelog + one gate_runs row each
 service_task.py         -> _run_quality_gates() (called from task_done)
 ```
 
-Universal gates (always on): `filesize`, `tdd_order`, `ruff`, `mypy`, `bandit`.
+Adding a built-in gate is one `GateSpec`. Before `gate-registry-single-source`
+it meant four edits, and the two post-scope gates lived in only one of the four:
+`gates status` did not list them, `gates enable/disable` could not reach them,
+and they wrote no `gate_runs` row — so nothing could prove a QG-2 gate had run.
+
+**Scoped gates** — `(gate_config, files) -> (passed, output)`, run over the
+task's declared scope. Universal (always on): `filesize`, `tdd_order`, `ruff`,
+`mypy`, `bandit`, `bootstrap_drift`, `renar_drift_schema`,
+`renar_drift_provenance`.
+
+**Post-scope gates** — take the close context and edit the QG-2 report:
+`verify_first` (a fresh signed verify green must exist) and `changelog`
+(convention #275). `get_gates_for_trigger` excludes them, so `run_gates` never
+calls one with the wrong signature.
 
 Stack-scoped gates: `pytest`, `tsc`, `eslint`, `js-test`, `go-vet`, `go-test`, `golangci-lint`,
 `cargo-check`, `cargo-test`, `clippy`, `phpstan`, `phpcs`, `phpunit`, `javac`, `ktlint`,

@@ -61,7 +61,10 @@ def _verify_first_autouse_compat_shim(request, monkeypatch):
         # live project config (now `changelog_gate.enabled=true`) and would
         # block every legacy `task_done` test that doesn't happen to leave both
         # changelog files dirty. Same shim, same opt-out marker.
-        def _noop_changelog(self, report, slug, **kwargs):
+        def _noop_changelog(self, report, slug, relevant_files=None, **kwargs):
+            # relevant_files became positional when gate-registry-single-source
+            # gave every post-scope gate one call shape; defaulted so direct
+            # callers that predate it keep working.
             return None
 
         monkeypatch.setattr(GatesMixin, "_enforce_changelog", _noop_changelog)

@@ -163,13 +163,18 @@ def validate_default_gate_command(
 
     Returns None when the override is acceptable, else an error message.
     """
-    if not default_command:
-        # Built-in gate (filesize, tdd_order, renar_drift_*) — implemented
-        # in-process, no command to extend. Accepting one would invent an
-        # executable where the default deliberately has none.
+    from gate_registry import is_builtin
+
+    if is_builtin(name, default_command):
+        # Built-in gate (filesize, tdd_order, renar_drift_*, the post-scope
+        # QG-2 gates) — implemented in-process, no command to extend. Accepting
+        # one would invent an executable where the default deliberately has
+        # none. gate-registry-single-source: the registry states this rather
+        # than it being inferred from `command is None`, which was true of the
+        # current built-ins only by coincidence of their configs.
         return (
             f"Gate '{name}': built-in gate takes no command override "
-            f"(default has no command) — override ignored."
+            f"(framework runs it in-process) — override ignored."
         )
 
     override_tool = gate_command_identity(override_command)

@@ -206,7 +206,7 @@ class GatesMixin:
         # scope-independent gates over an empty file set would substitute `{files}`
         # to "." and scan the whole tree for a task that touched nothing.
         if no_file_changes and trigger == "task-done":
-            self._enforce_verify_first(report, slug, relevant_files, no_file_changes=True)
+            self._run_post_scope_gates(report, slug, relevant_files, no_file_changes=True)
             return report
         try:
             from service_verification import (
@@ -261,23 +261,56 @@ class GatesMixin:
         # heavy verification was ever expected — small projects are fine),
         # and only when auto_verify is NOT explicitly opted-in.
         if trigger == "task-done":
-            self._enforce_verify_first(
-                report, slug, relevant_files, no_file_changes=no_file_changes
+            self._run_post_scope_gates(
+                report,
+                slug,
+                relevant_files,
+                no_file_changes=no_file_changes,
+                no_changelog=no_changelog,
             )
-            # changelog-continuous-gate: convention #275 made mechanical. Runs
-            # after Verify-First so both blocking failures aggregate into one
-            # report (the agent sees every reason to fix at once). No-op unless
-            # config.task_done.changelog_gate.enabled.
-            self._enforce_changelog(report, slug, no_changelog=no_changelog)
         return report
 
-    def _enforce_verify_first(
+    def _run_post_scope_gates(
         self,
         report: dict[str, Any],
         slug: str,
         relevant_files: list[str] | None,
         *,
         no_file_changes: bool = False,
+        no_changelog: bool = False,
+    ) -> None:
+        """QG-2 gates that run after the scoped pipeline — one loop, one registry.
+
+        This was two hardcoded calls (Verify-First, then changelog). Order,
+        the fileless-close exemption, on/off and the `gate_runs` record now come
+        from `gate_registry` via `gate_post_scope`; adding a third such gate is
+        a registry entry, not an edit here.
+        """
+        from gate_post_scope import run_post_scope_gates
+
+        run_post_scope_gates(
+            self,
+            report,
+            slug,
+            relevant_files,
+            no_file_changes=no_file_changes,
+            no_changelog=no_changelog,
+        )
+
+    # The two methods below are the registry's `svc:` implementations for the
+    # post-scope gates (see gate_registry on why the binding stays late: the
+    # pytest shim that neutralises Verify-First for the legacy suite patches
+    # exactly these names). Both take the uniform post-scope call shape and use
+    # the parts they need.
+
+    def _enforce_verify_first(
+        self,
+        report: dict[str, Any],
+        slug: str,
+        relevant_files: list[str] | None = None,
+        *,
+        no_file_changes: bool = False,
+        no_changelog: bool = False,  # noqa: ARG002 — uniform post-scope shape
     ) -> None:
         """Verify-First Contract — delegates to gate_verify_first."""
         from gate_verify_first import enforce_verify_first
@@ -288,8 +321,10 @@ class GatesMixin:
         self,
         report: dict[str, Any],
         slug: str,
+        relevant_files: list[str] | None = None,  # noqa: ARG002 — uniform shape
         *,
         no_changelog: bool = False,
+        no_file_changes: bool = False,  # noqa: ARG002 — uniform post-scope shape
     ) -> None:
         """Continuous-CHANGELOG gate — delegates to gate_changelog."""
         from gate_changelog import enforce_changelog

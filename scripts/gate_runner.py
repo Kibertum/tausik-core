@@ -11,6 +11,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import subprocess  # noqa: F401 — re-exported attr for backwards-compat monkeypatching (`gate_runner.subprocess.run`); the module is `subprocess` itself, so patching it here patches it globally for gate_command_runner too.
 import sys
@@ -35,64 +36,16 @@ from gate_stack_dispatch import (  # noqa: E402,F401
 )
 
 
-def run_tdd_order_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
-    """Check that test files are present among changed files.
-
-    TDD enforcement: if source files were changed, test files should also be changed.
-    Skips if only non-code files were modified.
-    """
-    code_exts = {
-        ".py",
-        ".ts",
-        ".tsx",
-        ".js",
-        ".jsx",
-        ".go",
-        ".rs",
-        ".java",
-        ".kt",
-        ".php",
-    }
-    test_patterns = (
-        "test_",
-        "_test.",
-        ".test.",
-        ".spec.",
-        "Test.",  # Java/Kotlin: FooTest.java, FooTest.kt
-        "Tests.",  # Java/Kotlin: FooTests.java
-        "tests/",
-        "test/",
-        "__tests__/",
-    )
-
-    code_files = []
-    test_files = []
-    for f in files:
-        normalized = f.replace("\\", "/")
-        _, ext = os.path.splitext(f)
-        if ext.lower() not in code_exts:
-            continue
-        if any(p in normalized for p in test_patterns):
-            test_files.append(f)
-        else:
-            code_files.append(f)
-
-    if not code_files:
-        return True, "No source code files changed — TDD check skipped."
-    if test_files:
-        return (
-            True,
-            f"TDD OK: {len(test_files)} test file(s) modified alongside {len(code_files)} source file(s).",
-        )
-    return False, (
-        f"{len(code_files)} source file(s) changed but no test files modified. "
-        "TDD requires tests to be written/updated alongside code changes."
-    )
-
-
+from gate_tdd_order import run_tdd_order_gate  # noqa: F401, E402
 from gate_renar_drift import run_renar_drift_gate  # noqa: F401, E402
 from gate_bootstrap_drift import run_bootstrap_drift_gate  # noqa: F401, E402
 from gate_test_resolver import resolve_test_files_for_relevant  # noqa: F401, E402
+from gate_registry import impl_for  # noqa: E402
+
+# A gate with neither an implementation nor a command. Routed through the same
+# skip path as _SCOPED_SKIP_SENTINEL so it reads as SKIP everywhere, including
+# the persisted `gate_runs` row.
+_NO_IMPL_SENTINEL = "__TAUSIK_GATE_NO_IMPL__"
 
 # v14b-filesize-debt-paydown: run_command_gate + _SCOPED_SKIP_SENTINEL extracted
 # to gate_command_runner.py; re-exported so tests/test_gates.py import path holds.
@@ -179,30 +132,45 @@ def run_gates(
                 )
             continue
 
-        if name == "filesize":
-            passed, output = run_filesize_gate(gate, files or [])
-        elif name == "tdd_order":
-            passed, output = run_tdd_order_gate(gate, files or [])
-        elif name in ("renar_drift_schema", "renar_drift_provenance"):
-            passed, output = run_renar_drift_gate(name)
-        elif name == "bootstrap_drift":
-            passed, output = run_bootstrap_drift_gate()
-        else:
+        # gate-registry-single-source: the chain of `if name == ...` that used
+        # to stand here was the second of four places a gate had to be declared,
+        # and the only one a reader of `default_gates` had no reason to visit.
+        # Dispatch is now a registry lookup; a gate the registry does not know
+        # (stack-declared, user-defined) is a command gate by construction.
+        impl = impl_for(name)
+        if impl is not None:
+            passed, output = impl(gate, files or [])
+        elif gate.get("command"):
             passed, output = run_command_gate(gate, files or [])
+        else:
+            # No implementation and no command: this gate cannot run. It used to
+            # reach `run_command_gate`, which answered "No command configured."
+            # as a PASS — a gate that never executes reporting success, the
+            # exact reading `gate_verdict` exists to forbid. Say SKIP, loudly.
+            passed, output = True, _NO_IMPL_SENTINEL
 
         # Scoped-skip sentinel from run_command_gate: either relevant_files
         # were provided but no test files mapped, OR no relevant_files at
         # all (full-suite fallback removed in v1.3 — burns MCP 10s budget).
-        if output == _SCOPED_SKIP_SENTINEL:
-            skip_reason = (
-                "No test file maps to relevant_files via "
-                "tests/test_<basename>.py heuristic; gate skipped (scoped run)."
-                if files
-                else (
-                    "No relevant_files passed; gate skipped. Pass relevant_files "
-                    "for actual verification (e.g. --relevant-files src/foo.py)."
+        if output in (_SCOPED_SKIP_SENTINEL, _NO_IMPL_SENTINEL):
+            if output == _NO_IMPL_SENTINEL:
+                skip_reason = (
+                    f"Gate '{name}' declares no command and the framework ships no "
+                    f"implementation for it — nothing to run, so it is SKIPPED, not "
+                    f"passed. Give it a `command`, or remove it from `gates` in "
+                    f".tausik/config.json."
                 )
-            )
+                logging.getLogger("tausik.gates").warning(skip_reason)
+            else:
+                skip_reason = (
+                    "No test file maps to relevant_files via "
+                    "tests/test_<basename>.py heuristic; gate skipped (scoped run)."
+                    if files
+                    else (
+                        "No relevant_files passed; gate skipped. Pass relevant_files "
+                        "for actual verification (e.g. --relevant-files src/foo.py)."
+                    )
+                )
             results.append(
                 {
                     "name": name,
