@@ -185,7 +185,7 @@ and they wrote no `gate_runs` row — so nothing could prove a QG-2 gate had run
 
 **Scoped gates** — `(gate_config, files) -> (passed, output)`, run over the
 task's declared scope. Universal (always on): `filesize`, `tdd_order`, `ruff`,
-`mypy`, `bandit`, `bootstrap_drift`, `renar_drift_schema`,
+`mypy`, `bandit`, `bootstrap_drift`, `memory_route`, `renar_drift_schema`,
 `renar_drift_provenance`.
 
 **Post-scope gates** — take the close context and edit the QG-2 report:

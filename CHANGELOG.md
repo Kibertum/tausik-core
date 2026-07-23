@@ -9,6 +9,64 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Project knowledge stops leaking into other agents' memory
+
+TAUSIK's whole claim is that what an agent learns about a project lands in
+`.tausik/tausik.db`, so the *next* agent inherits it. Every host ships its own
+memory instead — Claude `~/.claude/**/memory/`, Cursor `.cursor/rules/`, Copilot
+`.github/copilot-instructions.md`, aider a chat-history file — and an agent
+writing there is not misbehaving, it is doing what its host taught it. The
+knowledge is simply gone the moment the project is opened in a different tool.
+One narrow guard existed (Claude's home memory, Write/Edit only), which meant
+the rule was enforced for exactly one host and one vector.
+
+- **`scripts/memory_sinks.py`** — one deny-list, consumed by all three layers,
+  because a rule spelled twice is a rule that drifts (convention #266). Nine
+  in-tree sinks plus the home one; a `**`-aware segment glob; `sinks_from_config`
+  so a project can *extend* the list (`gates.memory_route.extra_sinks`) or exempt
+  a path (`allow`) — mechanism generic, policy configured (convention #277).
+  Extra sinks append, never replace: naming your in-house agent's memory file
+  must not switch off the ones the framework ships.
+- **`memory_route` gate (blocking, `task-done` + `commit`)** — IDE-agnostic, so
+  it catches a hand edit, a script, and a host TAUSIK has never heard of. Reads
+  `git status --porcelain --untracked-files=all`: with git's *default* mode a
+  brand-new `.cursor/rules/` collapses to a single `.cursor/` entry that matches
+  no pattern, so the first write into a fresh sink directory — the likeliest
+  shape of the defect — would have passed. Not a git repo, or no git: inert, and
+  says so. Inside a repo where git failed: fail-closed, because the answer was
+  computable and we did not get it.
+- **`scripts/hooks/pre-commit`** calls the gate before mypy, honouring the same
+  `gates.memory_route.enabled` switch — a project that turned the gate off must
+  not be blocked by a second, independent reader.
+- **PreToolUse hook now covers `Bash`.** `cat >> ~/.claude/.../memory/x.md <<EOF`
+  wrote exactly what the Write path refused; the parse reuses
+  `bash_write_parse.write_targets`, the same parser QG-0 uses for the identical
+  hole (Decision #162).
+- **Litmus block in the generated rule files** (CLAUDE.md / AGENTS.md /
+  `.cursorrules` / QWEN.md, every tier). This is the only layer that reaches a
+  host whose memory is cloud-side and writes no file for any gate to see — the
+  honest limit, stated rather than implied.
+
+What is deliberately **not** on the deny-list: `.cursorrules`, `.windsurfrules`,
+`CLAUDE.md`, `AGENTS.md`, `QWEN.md` and the `.cursor/` `.qwen/` `.kilo/`
+`.opencode/` trees. `bootstrap --ide all` writes every one of them, so listing
+them would make the framework block its own deployment — and the failure would
+be *invisible here* (this repo gitignores them) while firing in every project
+that tracks them. The carve-out is derived from `ide_utils.IDE_REGISTRY` rather
+than restated, and a test asserts no sink pattern can ever swallow one.
+`.cursor/rules/**` remains foreign despite its TAUSIK-owned parent: an explicit
+sink pattern wins over the carve-out, stated as precedence instead of left to
+the order of two `if`s.
+
+Also: `uncommitted_changes` gained an `untracked=` parameter defaulting to git's
+`normal` — widening a shared query rewrites the question for every existing
+caller (memory #286), so the new mode is opt-in and the changelog / fileless-close
+callers are untouched. And the filesize gate refused this task's own close, so
+`path_glob.py` (the `**` matcher and normalisation — no knowledge of memory,
+agents or policy) and `bootstrap_templates_tiers.py` (the `minimal` / `full`
+bodies, selected by `context_tier`) were extracted along their existing seams,
+relocation only.
+
 ### Fixed: gate metrics were blind to a post-scope gate that had never fired
 
 Follow-on defect of the gate registry, found while verifying it end-to-end.

@@ -122,9 +122,20 @@ _UNIVERSAL_GATES_BEFORE = {
 
 class TestDerivedMetadata:
     def test_universal_gates_unchanged_by_the_refactor(self):
+        """Every gate that predated the registry still has its exact config.
+
+        Subset, not equality: the snapshot's job is to catch a "refactor" that
+        quietly changes a severity or a trigger, and a MISSING key still fails
+        it. Demanding equality would additionally forbid ever ADDING a gate,
+        which is the one thing the registry exists to make easy — the next
+        author would edit the snapshot to match, and the guard would decay into
+        a formality.
+        """
         from default_gates import UNIVERSAL_GATES
 
-        assert UNIVERSAL_GATES == _UNIVERSAL_GATES_BEFORE
+        for name, expected in _UNIVERSAL_GATES_BEFORE.items():
+            assert name in UNIVERSAL_GATES, f"gate '{name}' disappeared from the registry"
+            assert UNIVERSAL_GATES[name] == expected, f"gate '{name}' config changed"
 
     def test_defaults_are_copies_not_registry_aliases(self):
         """A caller mutating a merged gate config must not reach the registry."""

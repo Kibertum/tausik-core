@@ -104,7 +104,9 @@ def generate_settings_qwen(
                 ],
             },
             {
-                "matcher": "Write|Edit|MultiEdit",
+                # memory-route-gate: Bash parity with bootstrap_hooks.py — a
+                # shell heredoc writes what the Write path refuses.
+                "matcher": "Write|Edit|MultiEdit|Bash",
                 "hooks": [
                     {
                         "type": "command",

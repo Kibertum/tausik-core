@@ -9,6 +9,17 @@ from __future__ import annotations
 
 import os
 
+# Tier-specific bodies live in bootstrap_templates_tiers (filesize cap). Imported
+# rather than re-declared, and re-exported so existing `from bootstrap_templates
+# import MINIMAL_MEMORY` call sites keep working.
+from bootstrap_templates_tiers import (  # noqa: F401 — re-exported
+    FULL_TIER_NOTE,
+    MINIMAL_COMMANDS,
+    MINIMAL_MEMORY,
+    MINIMAL_TIER_FOOTER,
+    MINIMAL_WORKFLOW,
+)
+
 
 HARD_CONSTRAINTS = """## Hard Constraints (non-negotiable)
 
@@ -61,6 +72,13 @@ live, paths, service URLs, prior decisions), you MUST `memory_search` /
 `decisions_list` FIRST. Asking the user for something already recorded in
 project memory is a process violation. Record durable environment facts as
 `context` so future sessions inherit them.
+
+**Routing litmus (hard).** *Would another agent, in another tool, need this to work on
+THIS project?* → yes = `memory add`. Never your host's own memory: `~/.claude/**/memory/`,
+`.cursor/rules/`, `.windsurf/rules/`, `.github/copilot-instructions.md`,
+`.github/instructions/`, `.clinerules`, `.roo/rules/`, `.continue/rules/`, `.aider*` are
+blocked by the `memory_route` gate — and a cloud-side memory writes no file for any gate
+to see, so there this line is the only enforcement there is.
 
 Skills that need persistent data respect the `CLAUDE_PLUGIN_DATA` env var when set; otherwise fall back to `.tausik/plugin_data/`.
 """
@@ -216,49 +234,6 @@ def warn_output_mode_not_applied(path: str, output_mode: str) -> bool:
 DYNAMIC_BLOCK = """<!-- DYNAMIC:START -->
 <!-- DYNAMIC:END -->
 """
-
-MINIMAL_WORKFLOW = """## Workflow (minimal tier)
-
-`/start` → `/plan` or `task start` → implement → `.tausik/tausik verify --task <slug>` →
-`task done --ac-verified` → `/end`.
-
-Full diagram: [Workflow](docs/en/workflow.md) (or `docs/ru/workflow.md`).
-"""
-
-MINIMAL_MEMORY = """## Memory (minimal)
-
-- Project patterns / dead ends: TAUSIK `memory add` (SQLite `.tausik/tausik.db`).
-- Host prefs: agent-specific auto-memory (`~/.claude/` is Claude-only — see glossary).
-- **Memory-first:** `memory_search` BEFORE asking the user for / guessing an
-  established project fact (hosts, env, paths, decisions). Store env facts as `context`.
-"""
-
-MINIMAL_COMMANDS = """## Commands (minimal)
-
-```bash
-.tausik/tausik status
-.tausik/tausik verify --task <slug>
-.tausik/tausik task done <slug> --ac-verified
-.tausik/tausik task log <slug> "…"
-```
-
-Full CLI: [docs/en/cli.md](docs/en/cli.md).
-"""
-
-MINIMAL_TIER_FOOTER = """## Rule pack size
-
-This body was generated with **`context_tier: minimal`** (`.tausik/config.json`). Switch to
-`standard` or `full` and re-run TAUSIK bootstrap / refresh for long-form tool routing, full
-SENAR tables, and skill/role sections.
-"""
-
-FULL_TIER_NOTE = """## Deep onboarding (full tier)
-
-Use this only when you routinely change gates, MCP tooling, or bootstrap templates. Read
-[Architecture](docs/en/architecture.md) and [SENAR compliance matrix](docs/en/senar-compliance-matrix.md)
-alongside this file.
-"""
-
 
 def build_header(project_name: str, stacks: list[str], agent_name: str) -> str:
     """Header + project metadata. agent_name goes into the opening sentence."""

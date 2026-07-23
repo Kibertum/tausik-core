@@ -619,7 +619,9 @@ class TestSettingsGeneration:
                 "memory_pretool_block.py" in h["command"] for h in entry["hooks"]
             ):
                 continue
-            assert entry["matcher"] == "Write|Edit|MultiEdit", entry
+            # Bash is on the matcher since memory-route-gate: a shell heredoc
+            # writes exactly what the Write path refuses.
+            assert entry["matcher"] == "Write|Edit|MultiEdit|Bash", entry
             matched = True
         assert matched, "memory_pretool_block.py not registered in Claude PreToolUse"
 
@@ -639,7 +641,9 @@ class TestSettingsGeneration:
                 "memory_pretool_block.py" in h["command"] for h in entry["hooks"]
             ):
                 continue
-            assert entry["matcher"] == "Write|Edit|MultiEdit", entry
+            # Bash is on the matcher since memory-route-gate: a shell heredoc
+            # writes exactly what the Write path refuses.
+            assert entry["matcher"] == "Write|Edit|MultiEdit|Bash", entry
             matched = True
         assert matched, "memory_pretool_block.py not registered in Qwen PreToolUse"
 

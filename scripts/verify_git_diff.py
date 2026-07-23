@@ -145,6 +145,7 @@ def uncommitted_changes(
     paths: list[str] | None = None,
     *,
     root: str | None = None,
+    untracked: str = "normal",
     runner: Callable[..., subprocess.CompletedProcess] | None = None,
 ) -> list[str] | None:
     """Return paths with uncommitted changes (`git status --porcelain`).
@@ -172,6 +173,15 @@ def uncommitted_changes(
     close. Porcelain judges only what is uncommitted here and now — the scope
     the closing agent is actually responsible for. `runner` is injectable for
     tests (defaults to `subprocess.run`).
+
+    `untracked` selects git's `--untracked-files` mode, and it defaults to
+    `normal` — the mode every existing caller was written against — because
+    widening a shared query silently rewrites the question for all of its
+    consumers (memory #286). Under `normal`, git COLLAPSES a wholly-untracked
+    directory to one entry (`?? .cursor/`), so a caller asking "was any file
+    under .cursor/rules/ touched?" gets `.cursor/` and answers "no". The
+    `memory_route` gate needs the individual files and passes `all`; the
+    fileless-close and changelog callers do not, and are unaffected.
     """
     base = root or os.getcwd()
     if runner is None and shutil.which("git") is None:
@@ -181,6 +191,8 @@ def uncommitted_changes(
     run = runner or subprocess.run
     pathspec = [_normalize_repo_path(p) for p in (paths or []) if p and p.strip()]
     cmd = ["git", "status", "--porcelain"]
+    if untracked != "normal":
+        cmd.append(f"--untracked-files={untracked}")
     if pathspec:
         cmd += ["--", *pathspec]
     try:

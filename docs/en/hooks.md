@@ -13,7 +13,7 @@ Hooks are scripts that run automatically with every agent action. They decide wh
 | Hook | When | What It Does |
 |------|------|-------------|
 | `task_gate.py` | Before Write/Edit | Blocks file changes if no active task (SENAR Rule 9.1) |
-| `memory_pretool_block.py` | Before Write/Edit/MultiEdit to auto-memory | Blocks cross-project writes unless prompt contains `confirm: cross-project` |
+| `memory_pretool_block.py` | Before Write/Edit/MultiEdit **and Bash** | Layer 2 of memory-route enforcement: blocks a write into any foreign memory sink from `scripts/memory_sinks.py` (`~/.claude/**/memory/`, `.cursor/rules/`, `.github/copilot-instructions.md`, `.aider*`, …) and redirects to `memory add`. Bash is on the matcher because a heredoc writes what the Write path refuses. Bypass: `confirm: cross-project` in the prompt, or `gates.memory_route.allow` in config. |
 | `secret_scan.py` (v1.4) | Before Write/Edit/MultiEdit | Scans `tool_input` for likely secrets (AWS/GitHub/Slack/Stripe/OpenAI/Anthropic tokens, JWT, private-key blocks, generic `password`/`api_key` literals). Warns by default; set `TAUSIK_SECRET_SCAN_STRICT=1` to block. (SENAR Rule 10.12) |
 | `bash_firewall.py` | Before Bash | Blocks dangerous commands (rm -rf, DROP TABLE, force push, etc.) |
 | `brain_search_proactive.py` | Before WebSearch/WebFetch | Proactively queries shared brain for relevant decisions/patterns before web calls |

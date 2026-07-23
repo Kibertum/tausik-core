@@ -5,6 +5,23 @@
 # Install: cp scripts/hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
 # Or: git config core.hooksPath scripts/hooks
 
+# memory-route gate (layer 1, IDE-agnostic): refuse a commit that carries
+# project knowledge into another agent's memory. Runs FIRST and blocks — it is
+# cheap (one `git status`), and a knowledge leak is not worth type-checking
+# before catching. Honors `gates.memory_route.enabled` in .tausik/config.json,
+# so a project that turned the gate off is not blocked by a second reader.
+# Inert when scripts/ is absent (a consumer that vendors only .tausik/).
+MEMORY_ROUTE_GATE=""
+for p in "scripts/gate_memory_route.py" ".tausik-lib/scripts/gate_memory_route.py"; do
+    [ -f "$p" ] && MEMORY_ROUTE_GATE="$p" && break
+done
+if [ -n "$MEMORY_ROUTE_GATE" ]; then
+    PY=".tausik/venv/Scripts/python.exe"
+    [ -f "$PY" ] || PY=".tausik/venv/bin/python"
+    [ -f "$PY" ] || PY="python"
+    "$PY" "$MEMORY_ROUTE_GATE" || exit 1
+fi
+
 echo "Running mypy type check..."
 
 # Run mypy using project config from pyproject.toml

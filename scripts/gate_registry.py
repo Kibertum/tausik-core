@@ -162,6 +162,23 @@ _SCOPED: tuple[GateSpec, ...] = (
             "description": "Fail if deployed IDE profiles drift from scripts/ source",
         },
     ),
+    # Refuses a close/commit that routes project knowledge into another agent's
+    # memory (~/.claude memory, .cursor/rules, copilot instructions, aider, …).
+    # BLOCK: knowledge that lands there is not "somewhere else", it is gone for
+    # every agent but one. Inert outside a git repository. See memory_sinks.py
+    # for the deny-list and the three enforcement layers.
+    GateSpec(
+        name="memory_route",
+        phase=PHASE_SCOPED,
+        impl="gate_memory_route:run_memory_route_gate",
+        default_config={
+            "enabled": True,
+            "severity": "block",
+            "trigger": ["task-done", "commit"],
+            "command": None,
+            "description": "Block writes that route project knowledge into a foreign agent's memory",
+        },
+    ),
     # RENAR §3.11 drift detectors (warning-mode). Read-only scans of the RENAR
     # artifact store; ignore `files`. Warn-only by design — see renar_drift.py.
     GateSpec(

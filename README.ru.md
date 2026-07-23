@@ -8,7 +8,7 @@ TAUSIK — это discipline-слой для AI-кодинг-агентов. О�
 
 [![v1.7.0](https://img.shields.io/badge/version-v1.7.0-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
 [![signed receipts: ed25519](https://img.shields.io/badge/signed%20receipts-ed25519-6f42c1.svg)](docs/ru/receipts.md)
-[![5648 тестов](https://img.shields.io/badge/tests-5648-brightgreen.svg)](#proof-tausik-собран-на-tausik)
+[![5711 тестов](https://img.shields.io/badge/tests-5711-brightgreen.svg)](#proof-tausik-собран-на-tausik)
 [![покрытие 76%](https://img.shields.io/badge/coverage-76%25-green.svg)](#proof-tausik-собран-на-tausik)
 [![0 зависимостей](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#что-внутри)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -110,7 +110,7 @@ BLOCKED (QG-2): нет валидного verification-receipt для HEAD a1b2c
 TAUSIK создавался самим TAUSIK — каждая фича, рефакторинг и фикс прошли через гейты, которые поставляются в коробке. Не ради красивой цифры, а как самая жёсткая проверка контракта:
 
 - **Каждая задача закрыта с целью + критериями приёмки.** Ни одна не закрыта без verify-доказательств.
-- **5648 тестов** — ядро дисциплины покрыто тестами плотнее всего.
+- **5711 тестов** — ядро дисциплины покрыто тестами плотнее всего.
 - **0 зависимостей в ядре** — только stdlib Python 3.11+; MCP-зависимости живут в изолированном `.tausik/venv/`.
 - **0 обращений наружу** — всё работает и остаётся на вашей машине.
 
@@ -186,7 +186,7 @@ TAUSIK — это эталонная реализация [SENAR](https://senar.
 
 ## v1.7 — pre-2.0, и мы в нём уверены
 
-v1.7 продолжает hardening на пути к 2.0: подписанные receipt'ы, fail-closed гейты, внешнее adversarial-ревью для high-risk закрытий, scoring риска закрытия, структурированный root cause и цепочка поставок скиллов, которая проверяется одинаково на любой платформе. Ядро дисциплины **зафиксировано и покрыто 5648 тестами**, на dogfood'е каждый день. Что доказывает рельс — намеренно ограничено: tamper-evidence против внешних правок, а не attestation против агента, держащего ключ ([receipts](docs/ru/receipts.md)). На редких путях ещё возможен рассинхрон docs ↔ behaviour — наткнётесь, [заведите issue](https://github.com/Kibertum/tausik-core/issues), доедем до 2.0 без regression'ов.
+v1.7 продолжает hardening на пути к 2.0: подписанные receipt'ы, fail-closed гейты, внешнее adversarial-ревью для high-risk закрытий, scoring риска закрытия, структурированный root cause и цепочка поставок скиллов, которая проверяется одинаково на любой платформе. Ядро дисциплины **зафиксировано и покрыто 5711 тестами**, на dogfood'е каждый день. Что доказывает рельс — намеренно ограничено: tamper-evidence против внешних правок, а не attestation против агента, держащего ключ ([receipts](docs/ru/receipts.md)). На редких путях ещё возможен рассинхрон docs ↔ behaviour — наткнётесь, [заведите issue](https://github.com/Kibertum/tausik-core/issues), доедем до 2.0 без regression'ов.
 
 ## Лицензия
 

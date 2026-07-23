@@ -186,7 +186,7 @@ QG-2-гейт отработал.
 
 **Scoped-гейты** — `(gate_config, files) -> (passed, output)`, судят объявленный
 скоуп задачи. Универсальные (всегда включены): `filesize`, `tdd_order`, `ruff`,
-`mypy`, `bandit`, `bootstrap_drift`, `renar_drift_schema`,
+`mypy`, `bandit`, `bootstrap_drift`, `memory_route`, `renar_drift_schema`,
 `renar_drift_provenance`.
 
 **Post-scope гейты** — принимают контекст закрытия и правят QG-2-отчёт:

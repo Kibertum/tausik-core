@@ -150,6 +150,13 @@ class TestNoNewClaudeLiterals:
         # not apply; the tightened regex correctly reaches them and they are
         # exempt on the merits, not by oversight.
         "hooks/memory_pretool_block.py": "guards ~/.claude/**/memory/ (Claude auto-memory in HOME)",
+        "memory_sinks.py": (
+            "the deny-list names ~/.claude/**/memory/ as ONE foreign sink among nine "
+            "hosts' — it is a HOME auto-memory store, not a project profile, and the "
+            "IDE-profile carve-out it needs IS derived from ide_utils.IDE_REGISTRY "
+            "(tausik_owned_paths)"
+        ),
+        "gate_memory_route.py": "docstring names ~/.claude/**/memory/ as the gate's documented blind spot",
         "service_knowledge_aggregates.py": "documents the ~/.claude/*/memory/ auto-memory policy",
         "service_replay.py": "already IDE-agnostic — lists /.claude/, /.cursor/, /.qwen/ together",
     }

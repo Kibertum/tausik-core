@@ -140,7 +140,8 @@ Logs must contain: timestamp, actor, action, resource.
 
 - `bash_firewall.py` blocks `rm -rf /`, `git reset --hard origin`, force-push
 - `git_push_gate.py` requires a fresh, single-use ticket at `.tausik/.push_ticket.json`, written by `tausik push-ok` (60s TTL, bound to HEAD SHA). `/ship` and `/commit` run `tausik push-ok && git push` after user "y". The historical `TAUSIK_ALLOW_PUSH=1` env path was broken-by-design (inline env never reached harness-level hooks) and was removed in v1.4. `TAUSIK_SKIP_PUSH_HOOK=1` remains as a debug-only bypass.
-- `memory_pretool_block.py` blocks Write/Edit to `~/.claude/**/memory/` (auto-memory leak prevention)
+- `memory_pretool_block.py` blocks Write/Edit/MultiEdit **and Bash** writes to any foreign memory sink — `~/.claude/**/memory/`, `.cursor/rules/`, `.windsurf/rules/`, `.github/copilot-instructions.md`, `.clinerules`, `.roo/rules/`, `.continue/rules/`, `.aider*` (deny-list: `scripts/memory_sinks.py`)
+- `memory_route` gate + the `pre-commit` hook enforce the same deny-list IDE-agnostically over the working tree; the litmus block in the generated rule files covers hosts whose memory is cloud-side and writes no file at all
 - `brain_scrubbing.py` strips private URLs and project names before brain writes
 - Slug validation in role/stack scaffold blocks path traversal
 - A default gate's command cannot be pointed at a different tool: `.tausik/config.json` travels with the repository, so an override of `gates.<name>.command` must keep invoking the default's tool. Arguments, paths and runner wrappers stay free (`vendor/bin/phpstan analyse --level=8` is accepted, and so is `eslint {files}` against a default of `npx eslint {files}` — wrappers are seen through); the tool does not (`python -c pass` in place of `ruff` is refused and the default command is kept)

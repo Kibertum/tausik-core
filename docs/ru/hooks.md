@@ -13,7 +13,7 @@ TAUSIK использует хуки Claude Code для автоматическ
 | Хук | Когда | Что делает |
 |------|-------|-----------|
 | `task_gate.py` | Перед Write/Edit | Блокирует изменения файлов, если нет активной задачи (SENAR Rule 9.1) |
-| `memory_pretool_block.py` | Перед Write/Edit/MultiEdit в auto-memory | Блокирует cross-project записи без `confirm: cross-project` в промпте |
+| `memory_pretool_block.py` | Перед Write/Edit/MultiEdit **и Bash** | Слой 2 memory-route: блокирует запись в любой чужой memory-сток из `scripts/memory_sinks.py` (`~/.claude/**/memory/`, `.cursor/rules/`, `.github/copilot-instructions.md`, `.aider*`, …) и перенаправляет на `memory add`. Bash в matcher, потому что heredoc пишет ровно то, что запрещает Write. Обход: `confirm: cross-project` в промпте или `gates.memory_route.allow` в конфиге. |
 | `secret_scan.py` (v1.4) | Перед Write/Edit/MultiEdit | Сканирует `tool_input` на типичные секреты (AWS/GitHub/Slack/Stripe/OpenAI/Anthropic токены, JWT, блоки приватного ключа, generic `password`/`api_key`). По умолчанию warning; `TAUSIK_SECRET_SCAN_STRICT=1` — блокировка. (SENAR Rule 10.12) |
 | `bash_firewall.py` | Перед Bash | Блокирует опасные команды (rm -rf, DROP TABLE, force push, и т.д.) |
 | `brain_search_proactive.py` | Перед WebSearch/WebFetch | Проактивно query'ит shared brain на релевантные decisions/patterns перед web-вызовами |

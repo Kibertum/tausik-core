@@ -53,7 +53,12 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 ],
             },
             {
-                "matcher": "Write|Edit|MultiEdit",
+                # memory-route-gate: Bash is on the matcher because a heredoc
+                # (`cat >> ~/.claude/.../memory/x.md <<EOF`) writes the exact
+                # content the Write path refuses. Same hole l26-hook-contract-review
+                # closed for QG-0; leaving it open here would make the Write
+                # block a formality.
+                "matcher": "Write|Edit|MultiEdit|Bash",
                 "hooks": [
                     {
                         "type": "command",

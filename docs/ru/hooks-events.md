@@ -21,7 +21,7 @@ QG-0 (SENAR Rule 1, «нет кода без задачи») и scope-ACL (Rule 
 
 | Событие | Matcher'ы | Роль |
 |---|---|---|
-| `PreToolUse` | `Write\|Edit\|MultiEdit\|NotebookEdit` | `task_gate` (QG-0), `scope_write_gate` (ACL), `memory_pretool_block`, `secret_scan` |
+| `PreToolUse` | `Write\|Edit\|MultiEdit\|NotebookEdit` | `task_gate` (QG-0), `scope_write_gate` (ACL), `secret_scan`; `memory_pretool_block` — на `Write\|Edit\|MultiEdit\|Bash` |
 | `PreToolUse` | `Bash` | `bash_firewall`, **`bash_write_gate` (QG-0 + ACL для записи из shell)** |
 | `PreToolUse` | `Bash(git push *)` | `git_push_gate` |
 | `PreToolUse` | `WebSearch\|WebFetch` | `brain_search_proactive` |
