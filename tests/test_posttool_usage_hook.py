@@ -60,7 +60,8 @@ def _run_hook(project_dir: str, payload: dict | str) -> subprocess.CompletedProc
         [sys.executable, _HOOK_PATH],
         input=body,
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         env=env,
         timeout=15,
     )
@@ -99,8 +100,10 @@ class TestHappyPath:
         assert row["tool_calls"] == 1
         assert row["source"] == "posttool"
         assert row["tool_name"] == "Read"
-        # Opus 4.7: 1000/1M*15 + 200/1M*75 = 0.015 + 0.015 = 0.03
-        assert row["cost_usd"] == pytest.approx(0.03, rel=1e-3)
+        # Opus 4.7 at the published $5/$25 tier (corrected in
+        # cost-pricing-missing-opus-48 from a carried-over $15/$75):
+        # 1000/1M*5 + 200/1M*25 = 0.005 + 0.005 = 0.01
+        assert row["cost_usd"] == pytest.approx(0.01, rel=1e-3)
 
     def test_empty_payload_still_records_event_with_zero_tokens(self, tmp_path):
         project_dir, db = _seed_project(tmp_path)
@@ -227,7 +230,8 @@ class TestEnvOverrides:
             [sys.executable, _HOOK_PATH],
             input=json.dumps({"tool_name": "Read", "tool_response": {}}),
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             env=env,
             timeout=10,
         )
