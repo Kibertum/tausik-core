@@ -22,7 +22,10 @@ _HOOKS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _HOOKS_DIR not in sys.path:
     sys.path.insert(0, _HOOKS_DIR)
 
-from bash_firewall import _mentions_interpreter, _split_subcommands  # noqa: E402
+# Imported from the scanner module, not from the hook. The hook now imports
+# `shell_channel`, which imports this file — reaching back into it would close
+# that loop into an import cycle.
+from bash_cmd_scan import _mentions_interpreter, _split_subcommands  # noqa: E402
 
 # Redirection operators that create/append to a file. Matched against a single
 # shlex token, so a '>' living inside a quoted argument ("a > b") is one token
@@ -127,8 +130,15 @@ def _positionals(tokens: list[str]) -> list[str]:
     return out
 
 
-def _tokenize(command: str) -> list[str] | None:
-    """shlex tokens (same recipe as bash_firewall), or None when unparseable."""
+def tokenize(command: str) -> list[str] | None:
+    """POSIX tokens, or None when unparseable — this dialect's entry point.
+
+    Public because `shell_channel` routes "tokenize this the way that tool
+    speaks" through the same table it uses for write targets. A consumer that
+    picks a tokenizer itself is choosing a dialect by hand, and that is how the
+    push gate came to read a PowerShell here-string with the POSIX lexer and
+    find a `git push` in the prose of a commit message.
+    """
     try:
         lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
         lexer.whitespace_split = True
@@ -286,22 +296,15 @@ def _writers_in(sub: list[str]) -> list[str]:
     return targets
 
 
-# How the answer was reached. Consumers have DIFFERENT costs of error, so the
-# parser states its confidence instead of each of them re-deriving it:
-#
-# * PARSED — the command tokenized; a target here was found structurally.
-# * REGEX_FALLBACK — the command did NOT tokenize (unbalanced quotes, a heredoc
-#   body carrying a lone quote), so `_redir_targets_regex` guessed. It
-#   deliberately over-detects, and its "paths" can be visible garbage
-#   (`.cursor/rules/a.mdc/"',` from a quoted mention inside a `python -c`).
-#
-# For QG-0 an over-detection is cheap: the worst case asks for a task the write
-# would have needed anyway. For a guard whose block message accuses the agent of
-# leaking knowledge, and whose only escapes are an untrue marker or a permanent
-# config exemption, a false positive is expensive — it trains the bypass. One
-# parser, two readings, stated here rather than guessed at each call site.
-CONFIDENCE_PARSED = "parsed"
-CONFIDENCE_REGEX_FALLBACK = "regex_fallback"
+# How the answer was reached — see `write_confidence` for what each value means
+# and why the vocabulary lives in a module of its own rather than here. Both
+# dialect parsers report in these terms, so a consumer can weigh a PowerShell
+# answer exactly as it weighs a Bash one. Re-exported: callers have always
+# imported these two names from this module.
+from write_confidence import (  # noqa: E402,F401 — re-exported
+    CONFIDENCE_PARSED,
+    CONFIDENCE_REGEX_FALLBACK,
+)
 
 
 def write_targets_with_confidence(command: str) -> tuple[list[str], str]:
@@ -320,7 +323,7 @@ def _parse(command: str, depth: int) -> tuple[list[str], str]:
     the wrong one to hand a consumer that fails closed on uncertainty.
     """
     stripped = _strip_heredocs(command)
-    tokens = _tokenize(stripped)
+    tokens = tokenize(stripped)
     if tokens is None:
         return _redir_targets_regex(stripped), CONFIDENCE_REGEX_FALLBACK
     cands: list[str] = []

@@ -136,24 +136,30 @@ def _targets(event: dict, project_dir: str) -> list[str]:
     if tool in _PATH_TOOLS:
         fp = tool_input.get("file_path")
         return [fp] if isinstance(fp, str) and fp else []
-    if tool != "Bash":
-        return []
-    command = tool_input.get("command")
-    if not isinstance(command, str) or not command.strip():
-        return []
-    from bash_write_parse import (  # noqa: PLC0415
-        CONFIDENCE_REGEX_FALLBACK,
-        write_targets_with_confidence,
-    )
+    # Which shells carry a command is `shell_channel`'s answer. The literal
+    # `!= "Bash"` that stood here covered exactly one of the two shell tools the
+    # agent is handed on win32, so `Set-Content ~/.claude/.../memory/x.md` — the
+    # very write this hook exists to stop — went straight through.
+    import shell_channel  # noqa: PLC0415
 
-    raw_targets, confidence = write_targets_with_confidence(command)
+    command = shell_channel.command_of(event)
+    if command is None:
+        return []
+    from write_confidence import CONFIDENCE_REGEX_FALLBACK  # noqa: PLC0415
+
+    raw_targets, confidence = shell_channel.write_targets_with_confidence(str(tool), command)
     if confidence == CONFIDENCE_REGEX_FALLBACK:
         if raw_targets:
             from _common import emit_supervision_degradation  # noqa: PLC0415
 
+            # The reason names the CHANNEL that failed to parse. `bash` is
+            # preserved verbatim for the Bash tool because it is the string the
+            # docs and the changelog already quote; a PowerShell miss counts
+            # under its own name rather than being filed as a Bash one, or the
+            # telemetry would attribute the gap to the wrong parser.
             emit_supervision_degradation(
                 project_dir,
-                "unparseable_bash",
+                f"unparseable_{str(tool).lower()}",
                 "memory_pretool_block",
                 f"command did not tokenize; {len(raw_targets)} guessed target(s) "
                 f"not judged (over-detection would false-positive)",
@@ -202,7 +208,9 @@ def main() -> int:
         return 0
 
     event = _read_stdin_json()
-    if event.get("tool_name") not in (*_PATH_TOOLS, "Bash"):
+    import shell_channel  # noqa: PLC0415
+
+    if event.get("tool_name") not in (*_PATH_TOOLS, *shell_channel.SHELL_TOOLS):
         return 0
 
     targets = _targets(event, project_dir)

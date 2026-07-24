@@ -136,9 +136,9 @@ secrets/
 
 ## Гарантии TAUSIK
 
-- `bash_firewall.py` блокирует `rm -rf /`, `git reset --hard origin`, force-push
+- `bash_firewall.py` блокирует `rm -rf /`, `Remove-Item -Recurse -Force C:\`, `git reset --hard origin`, force-push — **на обоих оболочечных каналах**, Bash и PowerShell. Полная матрица покрытия каналов: [`enforcement-coverage.md`](enforcement-coverage.md)
 - `git_push_gate.py` требует `TAUSIK_ALLOW_PUSH=1` (выставляется `/ship` после подтверждения)
-- `memory_pretool_block.py` блокирует Write/Edit/MultiEdit **и Bash** в любой чужой memory-сток — `~/.claude/**/memory/`, `.cursor/rules/`, `.windsurf/rules/`, `.github/copilot-instructions.md`, `.clinerules`, `.roo/rules/`, `.continue/rules/`, `.aider*` (deny-list: `scripts/memory_sinks.py`)
+- `memory_pretool_block.py` блокирует Write/Edit/MultiEdit **и Bash/PowerShell** в любой чужой memory-сток — `~/.claude/**/memory/`, `.cursor/rules/`, `.windsurf/rules/`, `.github/copilot-instructions.md`, `.clinerules`, `.roo/rules/`, `.continue/rules/`, `.aider*` (deny-list: `scripts/memory_sinks.py`)
 - Гейт `memory_route` и хук `pre-commit` применяют тот же deny-list IDE-агностично по working tree; литмус-блок в генерируемых rule-файлах закрывает хосты с облачной памятью, которая не пишет файла вообще
 - `brain_scrubbing.py` вырезает приватные URL и имена проектов перед записью в Brain
 - Валидация slug'ов в scaffold ролей/стеков блокирует path traversal

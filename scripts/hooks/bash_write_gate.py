@@ -37,6 +37,7 @@ _HOOKS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HOOKS_DIR)
 sys.path.insert(1, os.path.dirname(_HOOKS_DIR))  # scripts/ — for scope_acl
 
+import shell_channel  # noqa: E402
 from _common import cli_invocation, is_tausik_project  # noqa: E402
 from bash_write_parse import write_targets  # noqa: E402,F401 — re-exported for tests
 
@@ -69,12 +70,16 @@ def main() -> int:
         event = json.load(sys.stdin)
     except (json.JSONDecodeError, EOFError, ValueError, OSError):
         return 0
-    if not isinstance(event, dict) or event.get("tool_name") != "Bash":
+    if not isinstance(event, dict):
         return 0
-    tool_input = event.get("tool_input") if isinstance(event.get("tool_input"), dict) else {}
-    command = tool_input.get("command")
-    if not isinstance(command, str) or not command.strip():
+    # Which shells this gate covers is `shell_channel`'s answer, not a literal
+    # here. The literal `!= "Bash"` that used to stand on this line is precisely
+    # how the PowerShell tool went ungated on the project's primary platform:
+    # the rule was right, the channel list was stale, and nothing said so.
+    command = shell_channel.command_of(event)
+    if command is None:
         return 0
+    tool_name = event.get("tool_name", "")
 
     from scope_write_gate import (
         _active_acls,
@@ -90,7 +95,7 @@ def main() -> int:
     # Write scope gate (out-of-tree paths, /dev/null, scratchpad, other repos
     # are governed elsewhere or not at all).
     in_tree: list[str] = []
-    for raw in write_targets(command):
+    for raw in shell_channel.write_targets(tool_name, command):
         # A Bash redirect/target is relative to the shell's cwd — the project
         # dir — not to wherever this hook process happened to launch. Resolve it
         # against project_dir before deciding jurisdiction (task_gate does the
@@ -121,8 +126,12 @@ def main() -> int:
     # 'no code without a task' the Write gate blocks — same verdict here.
     if not acls:
         listed = "\n".join(f"  {p}" for p in in_tree)
+        # Name the channel the agent actually used. Telling a PowerShell caller
+        # that "this Bash command" was blocked sends it looking for a Bash
+        # command it never ran, and a block whose reason does not match what
+        # happened is read as a malfunction rather than a rule (#282).
         print(
-            "BLOCKED: No active task, but this Bash command writes file(s) inside "
+            f"BLOCKED: No active task, but this {tool_name} command writes file(s) inside "
             "the project (SENAR Rule 1 — the same rule the Write tool enforces):\n"
             f"{listed}\n"
             "Start a task first: /plan to create one, or "
@@ -136,7 +145,7 @@ def main() -> int:
     if offender is not None:
         print(
             f"BLOCKED: delegated task '{offender}' has no scope_paths — a worker "
-            f"must declare its writable surface before writing files (Bash too). "
+            f"must declare its writable surface before writing files ({tool_name} too). "
             f"Set it: `tausik task update {offender} --scope-paths <paths>`.",
             file=sys.stderr,
         )
@@ -155,7 +164,7 @@ def main() -> int:
     outside_norm = [q.replace("\\", "/") for q in outside]
     paths = "\n".join(f"  {p}" for p in outside_norm)
     print(
-        "BLOCKED: this Bash command writes outside the active task's declared "
+        f"BLOCKED: this {tool_name} command writes outside the active task's declared "
         "scope (SENAR Rule 2 — the same rule the Write tool enforces):\n"
         f"{paths}\n"
         f"Active ACL(s):\n{acl_lines}\n"

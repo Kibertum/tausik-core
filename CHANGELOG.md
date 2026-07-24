@@ -9,6 +9,115 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### The primary platform's main shell reached no hook at all
+
+`.claude/settings.json` registered the firewall, the shell-write gate and the
+push gate with `"matcher": "Bash"`. On win32 — the platform CLAUDE.md, the docs
+and the `.cmd` wrapper all call primary — the agent is handed a SECOND shell
+tool, `PowerShell`, and it matched none of them.
+
+Nothing was broken and nothing failed. The rules were correct, the tests were
+green, and the gates simply were never invoked for a large share of the commands
+actually being run. That is the shape worth naming: supervision can be whole by
+RULE and holed by CHANNEL, and the second kind is invisible to a test suite in
+which every test also says "Bash".
+
+What went ungated, measured before anything was changed:
+
+* `Remove-Item -Recurse -Force C:\` — unexamined. `_WIPE_ROOTS` held POSIX roots
+  only, so the root of the disk was the one root the firewall could not name, on
+  the only OS where it exists.
+* Rule 1 (task before code) and Rule 2 (scope ACL) — `Set-Content`, `Out-File`,
+  `New-Item` and `>` bypassed both.
+* `git push --force` — reached NO gate. The push-ticket registration also
+  carried `"if": "Bash(git push *)"`, a second, dialect-specific copy of a
+  decision the hook already makes for itself.
+* Session accounting — `activity_event` and `task_call_counter` did not count
+  the channel, so a session worked through PowerShell reads as idle and the
+  180-minute Rule 9.2 limit quietly stops applying.
+
+Reusing the POSIX tokenizer was not an option: `shlex(posix=True)` treats `\` as
+an escape, so `Remove-Item C:\` either loses its operand or raises. PowerShell's
+escape is a backtick and `\` is an ordinary path character — a dialect needs its
+own reader or it mis-parses exactly the operands that make a command dangerous.
+
+The fix is a split rather than a second copy of the rules, because a second copy
+is how every regression in this directory started:
+
+* `pwsh_cmd_parse` / `pwsh_cmd_norm` — tokenizer, statement model, alias table
+  (`rm`/`del`/`rd`/`ri` → Remove-Item, `sc`/`ac`, `iex`, …), PowerShell's
+  unambiguous-prefix parameter binding (`-Rec`, `-Fo`), cmd's `/s` `/q`
+  spellings, and descent into `powershell -Command` / `cmd /c` / `iex` payloads.
+* `danger_patterns` — WHAT is dangerous, once, for every dialect. Adding a third
+  shell now means writing a scanner, not re-deciding what `git push --force`
+  means. Windows entries (`Format-Volume`, `Clear-Disk`, `Remove-Partition`,
+  `vssadmin delete shadows`) close a channel gap, not a policy change: the POSIX
+  side has blocked `mkfs.` since the first version.
+* `rm_wipe_detect.is_wipe_root` — ONE judge of which places mean "everything",
+  asked by both dialects, with two dialect-specific flag parsers above it.
+* `shell_channel` — the single place that knows which tool speaks which shell.
+  The literal `!= "Bash"` it replaces was written out in every gate, and
+  `bootstrap_hooks.SHELL_MATCHER` is now pinned against it by a test, so a
+  dialect gaining a parser without a matcher fails instead of going ungated.
+
+Differential run over a shared operand corpus (convention #298), old judge
+against new: 0 operands stopped being judged a root, 11 started — exactly the
+volume-root spellings (`C:\`, `C:/`, `D:\`, `C:\*`, …) and nothing else. The
+sentence "POSIX behaviour is unchanged" is written from that output, not from
+belief. `~`, `..` and a bare `*` remain out of the set; that is a policy
+question and it belongs to its own task.
+
+**Follow-up, found by dogfooding within the hour.** The new gate blocked this
+project's own `git commit -m @'…'@` — the commit closing the task above. A
+PowerShell here-string carries DATA, but the tokenizer did not know the
+construct: an apostrophe anywhere in the body ("the hook doesn't know") ended
+the ordinary quote scan, the command failed to tokenize, and the regex fallback
+— which over-detects by design — read a bare `>` in the message's prose as a
+redirection and reported `bypassed` as a write target.
+
+The POSIX twin had carried `_strip_heredocs` against precisely this symptom
+since it was written, with the failure spelled out in its docstring. The new
+dialect inherited the detectors and not the false-positive defences, which is
+channel parity by RULE and a gap by PROTECTION — and the more expensive
+direction: a false BLOCK on the most routine multi-line operation there is,
+whose only exits train the bypass (#291).
+
+`@'…'@` and `@"…"@` are now one token, with PowerShell's own two conditions
+enforced — the opener must end its line, the terminator is recognised only at
+the START of a line. Relaxing either re-exposes the body as live shell, which
+is the same trap the POSIX side hit on an indented pseudo-terminator. A real
+target after a here-string (`@'…'@ | Out-File notes.md`) is still seen, and
+`iex @'…'@` still descends: the body is data until something executes it.
+
+Every other data-carrying construct was then audited rather than assumed —
+quotes (closed), script blocks (deliberately NOT data: they execute), `$(…)`
+and `@(…)` (named residual) — in the coverage doc below.
+
+**And the commit after THAT was blocked too**, by the push gate, for the
+opposite reason. Closing the channel had made it try both tokenizers and block
+if either saw a `git push` — sound against evasion, wrong in practice. The
+POSIX lexer does not know a here-string either, broke out at the apostrophe in
+"PowerShell's", and read the `git push --force` in the message's prose as a
+command. Of two judges, the one that cannot read the language wins every
+disagreement. The dialect now follows the TOOL, through the same
+`shell_channel` table that already routed write targets and scanning; a
+tokenizer chosen by hand at a call site is a dialect chosen by hand.
+
+Deliberately NOT routed through `scan_target`, which joins an interpreter's
+payload back raw and would have blocked an honest `python -c "print('git
+push')"` — trading one false block for another. That case is pinned. The
+resulting residual (an ordinary push inside a wrapper payload is not ticketed;
+`bash_firewall` still catches a force-push there) is named in the coverage doc
+rather than left to be discovered.
+
+`docs/{ru,en}/enforcement-coverage.md` is new — the enforcement-boundary section
+split out of the RU agent contract (it no longer fit under the filesize cap once
+the matrix landed, and the topic stands on its own; the EN mirror did not exist
+at all before). It carries the channel-coverage matrix, including the gap this
+task does NOT close: `secret_scan` covers neither shell channel. That is equal on
+both sides rather than a skew, and closing it on one would put the channels back
+out of step.
+
 ### The Rule 5 checklist gate was cleared by the word "scope"
 
 `checklist_missing` counted vocabulary. The tier tables held words —
