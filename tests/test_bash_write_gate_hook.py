@@ -315,3 +315,70 @@ class TestShellWrapperRecursion:
         # fails closed on uncertainty.
         _t, conf = write_targets_with_confidence("bash -c \"awk '{print $1} > x.py\"")
         assert conf == CONFIDENCE_REGEX_FALLBACK
+
+
+class TestTransparentCommandPrefixes:
+    """`env bash -c '…'` — the wrapper hidden by the word in front of it.
+
+    Found by adversarially reviewing the `bash -c` FIX (convention #276), not
+    the code it replaced: the shell test read `sub[0]`, which is `env`, so the
+    same one-line bypass survived one level further out.
+    """
+
+    def _wt(self):
+        import sys as _sys
+
+        hooks = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "hooks"
+        )
+        if hooks not in _sys.path:
+            _sys.path.insert(0, hooks)
+        from bash_write_parse import write_targets
+
+        return write_targets
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("env bash -c 'echo x > e.py'", ["e.py"]),
+            ("env FOO=1 BAR=2 bash -c 'echo x > f.py'", ["f.py"]),
+            ("sudo bash -c 'echo x > g.py'", ["g.py"]),
+            ("nohup bash -c 'echo x > h.py'", ["h.py"]),
+            ("timeout 5 bash -c 'echo x > i.py'", ["i.py"]),
+            ("timeout 30s sh -c 'echo x > j.py'", ["j.py"]),
+            # The residual boundary named `sudo tee` as an uncaught "writer
+            # behind a wrapper". The writer was never hidden by `tee`.
+            ("sudo tee k.py", ["k.py"]),
+            ("nice -n 5 tee l.py", ["l.py"]),
+            ("sudo sed -i s/a/b/ m.py", ["m.py"]),
+        ],
+    )
+    def test_prefixed_writes_are_found(self, command, expected):
+        assert self._wt()(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "env",
+            "sudo -v",
+            "timeout --help",
+            "nice",
+            "python environment.py",   # a NAME that starts like a prefix
+            "./timeout_test.sh",
+            "env bash -c 'pytest -q'",  # prefix + wrapper, payload writes nothing
+            "exec pytest -q",
+        ],
+    )
+    def test_no_false_positive(self, command):
+        assert self._wt()(command) == []
+
+    def test_remaining_boundary_is_pinned_not_assumed(self):
+        # NOT closed here, and pinned so the day it is, the change announces
+        # itself instead of passing silently (memory #292 — the pattern that
+        # already paid off once this session). `xargs` and `ssh` also carry a
+        # command in their arguments, but their argument grammar is genuinely
+        # different: xargs builds the command line from STDIN, and an ssh
+        # payload runs on another host, where this project's paths mean nothing.
+        wt = self._wt()
+        assert wt("echo f.py | xargs -I{} bash -c 'echo x > {}'") == []
+        assert wt("ssh host 'echo x > /remote/f.py'") == []

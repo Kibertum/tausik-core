@@ -9,6 +9,32 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### A command prefix no longer hides the shell wrapper behind it
+
+Found by adversarially reviewing the FIX above rather than the code it replaced
+(convention #276), minutes after that task closed. `env bash -c 'echo x > e.py'`
+still yielded nothing: the shell test read the sub-command's first token, and
+that token was `env`. The same one-line bypass of Rule 1, one level further out
+— and `env bash -c` is no more obfuscation than `bash -c` was.
+
+`env`, `sudo`, `doas`, `nohup`, `nice`, `ionice`, `stdbuf`, `timeout`, `command`
+and `exec` are now stripped before the command is identified, along with their
+flags, their `VAR=value` assignments, and the one numeric argument `timeout` and
+`nice` take. A token that merely STARTS like a prefix (`environment.py`,
+`timeout_test.sh`) is not one.
+
+This also closes `sudo tee f`, which the residual boundary listed as an uncaught
+"writer behind a wrapper" — the writer was never hidden by `tee`, only by the
+word in front of it. The filesize gate then refused this task's own close, and
+the seam was already obvious: `bash_cmd_norm.py` now holds "what command is this
+really" (prefix stripping, shell-payload extraction, the nesting bound) and
+`bash_write_parse.py` keeps "what does it write". Both bypasses this session
+were a wrong answer to the FIRST question while every write detector was
+correct. What remains genuinely out of reach is pinned by a test
+instead of asserted in prose: a command assembled from STDIN (`xargs -I{} bash
+-c`) and one executed on another host (`ssh host 'cmd'`), where this project's
+paths mean nothing.
+
 ### The `bash -c` wrapper no longer hides a write from Rule 1
 
 Filed one commit ago as its own hole, closed here. `bash -c 'echo x >

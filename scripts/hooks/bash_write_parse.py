@@ -201,41 +201,13 @@ def _sed_files(args: list[str]) -> list[str]:
     return files
 
 
-# Shells whose `-c` argument is a whole command line, not a filename. The
-# redirection inside it lives in ONE quoted token, so every detector above sees
-# a single opaque string: `bash -c 'echo x > scripts/foo.py'` used to yield no
-# target at all, which made Rule 1 and the scope ACL bypassable by a one-liner
-# of the same class Decision #162 closed for heredocs. The residual was
-# documented as "must actively obfuscate"; `bash -c` is an everyday form.
-_SHELLS = frozenset({"bash", "sh", "zsh", "dash", "ksh", "ash", "busybox"})
-
-# A wrapper may nest (`bash -c "sh -c '…'"`). Bounded so a crafted or accidental
-# chain cannot spin: three levels is far past any real invocation, and the limit
-# is a named constant rather than an implicit recursion depth so exceeding it is
-# a decision, not a crash.
-_MAX_WRAPPER_DEPTH = 3
-
-
-def _shell_payloads(sub: list[str]) -> list[str]:
-    """Command strings carried as the `-c` argument of a shell in `sub`.
-
-    `-c` is matched inside combined short flags too (`-lc`, `-ec`), because that
-    is how the form is actually written. A long `--` option is not a short-flag
-    cluster and is skipped, so `--color` does not read as containing `c`.
-    """
-    if not sub:
-        return []
-    base = os.path.basename(sub[0]).lower().removesuffix(".exe")
-    if base not in _SHELLS:
-        return []
-    out: list[str] = []
-    for i, tok in enumerate(sub[1:], start=1):
-        if not tok.startswith("-") or tok.startswith("--") or "c" not in tok:
-            continue
-        if i + 1 < len(sub):
-            out.append(sub[i + 1])
-        break
-    return out
+# The "what command is this really" layer lives in bash_cmd_norm (filesize cap).
+# Re-exported so a future reader of this module still finds the names it uses.
+from bash_cmd_norm import (  # noqa: E402,F401 — re-exported
+    _MAX_WRAPPER_DEPTH,
+    _shell_payloads,
+    _strip_prefixes,
+)
 
 
 def _writers_in(sub: list[str]) -> list[str]:
@@ -247,6 +219,12 @@ def _writers_in(sub: list[str]) -> list[str]:
             nxt = sub[i + 1]
             if not nxt.startswith("&"):  # '&N' is an fd dup, not a file
                 targets.append(nxt)
+    # The redirection scan above ran over the WHOLE sub-command, prefixes and
+    # all — a `>` is a `>` wherever it stands. Identifying the WRITER is what
+    # needs the prefixes gone: `sudo tee f` is a `tee`, and the residual
+    # boundary called it an uncaught "writer behind a wrapper" when the wrapper
+    # was really just the word in front of it.
+    sub = _strip_prefixes(sub)
     if not sub:
         return targets
     base = os.path.basename(sub[0]).lower().removesuffix(".exe")
