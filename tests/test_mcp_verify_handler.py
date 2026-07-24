@@ -110,6 +110,105 @@ class TestMcpHandlerSchemaContract:
         assert "verify" in props["trigger"]["enum"]
 
 
+def _handler_module():
+    """Import the canonical MCP handlers module (one tree, copied per IDE)."""
+    mcp_dir = os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project")
+    sys.path.insert(0, mcp_dir)
+    import handlers  # noqa: PLC0415 — path must be set first
+
+    return handlers
+
+
+class TestMcpVerifyReportsGateVerdicts:
+    """mcp-verify-hides-gate-skip: the MCP answer must say what RAN.
+
+    It used to answer `gates=['hadolint', 'pytest']` — names with no verdicts —
+    so a SKIP read exactly like a PASS. On a task with no declared scope every
+    scoped gate skips, which made "verify passed=True … pytest" the report of a
+    run in which pytest never executed. CLAUDE.md tells the agent to prefer MCP
+    over the CLI, so this was the surface the agent actually read.
+    """
+
+    @staticmethod
+    def _svc_returning(report):
+        """Service stub — these tests are about SERIALISING a report, not
+        producing one. The gate engine already records `skipped` correctly; the
+        defect was that this layer threw it away."""
+
+        class _Stub:
+            def run_verify_for_task(self, **_kwargs):
+                return report
+
+        return _Stub()
+
+    def _report(self, **over):
+        base = {
+            "passed": True,
+            "status": "miss",
+            "trigger": "verify",
+            "results": [
+                {"name": "hadolint", "passed": True, "skipped": False},
+                {"name": "pytest", "passed": True, "skipped": True},
+            ],
+            "relevant_files": ["scripts/foo.py"],
+        }
+        base.update(over)
+        return base
+
+    def test_skipped_gate_is_named_as_skipped(self):
+        handlers = _handler_module()
+
+        out = handlers._handle_verify(self._svc_returning(self._report()), "t")
+
+        assert "SKIP" in out, f"no SKIP verdict in MCP verify output:\n{out}"
+        assert "did NOT execute" in out, f"skip not called out in prose:\n{out}"
+        # The bare-name format that hid the skip must not come back.
+        assert "gates=['" not in out, f"MCP verify regressed to name-only gates:\n{out}"
+
+    def test_all_passed_run_carries_no_skip_note(self):
+        handlers = _handler_module()
+        report = self._report(
+            results=[
+                {"name": "hadolint", "passed": True, "skipped": False},
+                {"name": "pytest", "passed": True, "skipped": False},
+            ]
+        )
+
+        out = handlers._handle_verify(self._svc_returning(report), "t")
+
+        assert "SKIP" not in out
+        assert "did NOT execute" not in out
+
+    def test_empty_scope_is_called_out_with_an_action(self):
+        handlers = _handler_module()
+
+        out = handlers._handle_verify(self._svc_returning(self._report(relevant_files=[])), "t")
+
+        assert "relevant_files" in out, (
+            f"empty scope not surfaced — agent cannot tell this green is hollow:\n{out}"
+        )
+
+    def test_declared_scope_answer_differs_from_empty_scope_answer(self):
+        handlers = _handler_module()
+
+        empty = handlers._handle_verify(self._svc_returning(self._report(relevant_files=[])), "t")
+        declared = handlers._handle_verify(self._svc_returning(self._report()), "t")
+
+        assert empty != declared, (
+            "verify answers identically with and without a declared scope — "
+            "the caller cannot distinguish a verified run from an empty one"
+        )
+
+    def test_real_service_empty_scope_run_is_not_reported_as_verified(self, task_with_files):
+        """End-to-end through the real service: a task with no declared scope."""
+        handlers = _handler_module()
+
+        out = handlers._handle_verify(task_with_files, "t")
+
+        assert "relevant_files" in out, f"hollow run not flagged:\n{out}"
+        assert "gates=['" not in out
+
+
 class TestMcpHandlerNoPrivateAttrAccess:
     """Static check: handlers no longer touch `svc.be._conn`. Catches the
     layering regression that used to happen in `_handle_verify`."""

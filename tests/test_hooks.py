@@ -147,6 +147,120 @@ class TestBashFirewall:
                 2,
                 id="dangerous_subcommand_after_separator_still_blocked",
             ),
+            # bash-firewall-lacks-command-normalization: one raw join undid one
+            # level of quoting, so the SECOND level survived into the scanned
+            # string and the apostrophe in front of `git` broke the command-start
+            # anchor. All four cases below were confirmed rc=0 before the fix;
+            # the `rm -rf /` twin was blocked throughout, because BLOCKED
+            # patterns are anchor-less substrings — that asymmetry is what hid
+            # the hole. A shell payload is now re-scanned as a command line.
+            pytest.param(
+                "bash -c \"sh -c 'git push --force origin main'\"",
+                2,
+                id="nested_shell_wrapper_push_force_blocked",
+            ),
+            pytest.param(
+                "bash -c \"sh -c 'git reset --hard HEAD~1'\"",
+                2,
+                id="nested_shell_wrapper_reset_hard_blocked",
+            ),
+            pytest.param(
+                "bash -c \"sh -c 'git checkout -- .'\"",
+                2,
+                id="nested_shell_wrapper_checkout_dot_blocked",
+            ),
+            pytest.param(
+                "env bash -c \"sudo sh -c 'git push --force origin main'\"",
+                2,
+                id="nested_shell_wrapper_behind_prefixes_blocked",
+            ),
+            # The negative that rules out the cheaper fix. Widening the anchor to
+            # accept a quote would block this line too, and here the quoted text
+            # really is data — descending into the payload keeps the
+            # token-vs-prose rule working one level down.
+            pytest.param(
+                "bash -c 'echo \"git push --force\"'",
+                0,
+                id="nested_echo_of_force_push_still_allowed",
+            ),
+            # firewall-git-clean-alternation-unanchored: `-fd\b|-df\b` sat at the
+            # TOP level of the git-clean pattern, so those two branches ran
+            # without the command-start anchor, without the path prefix and
+            # without the word `git` — any line containing `-fd` was read as a
+            # destructive git clean. All four were confirmed rc=2 before the fix.
+            pytest.param("cat notes-df.txt", 0, id="filename_containing_df_allowed"),
+            pytest.param("ls -df", 0, id="unrelated_program_with_df_flag_allowed"),
+            pytest.param("curl -fd 'a=b' https://example.com", 0, id="curl_fd_flag_allowed"),
+            pytest.param("mycmd --output-fd 3", 0, id="long_flag_ending_in_fd_allowed"),
+            # …and the positives the pattern exists for stay blocked.
+            pytest.param("git clean -df", 2, id="git_clean_df_blocked"),
+            pytest.param("git clean -xfd", 2, id="git_clean_xfd_blocked"),
+            pytest.param("/usr/bin/git clean -fd", 2, id="full_path_git_clean_blocked"),
+            pytest.param(
+                "bash -c \"sh -c 'git clean -fd'\"",
+                2,
+                id="nested_shell_wrapper_git_clean_blocked",
+            ),
+            # firewall-blocked-patterns-substring-fp: `rm -rf /` and `rm -rf .`
+            # were literal substrings, which made them wrong in both directions
+            # at once. Nine ordinary cleanups were confirmed BLOCKED before the
+            # fix because their path merely started the same way…
+            pytest.param("rm -rf .venv", 0, id="rm_rf_dotvenv_allowed"),
+            pytest.param("rm -rf .pytest_cache", 0, id="rm_rf_pytest_cache_allowed"),
+            pytest.param("rm -rf .tausik/tmp", 0, id="rm_rf_dotdir_subpath_allowed"),
+            pytest.param("rm -rf ./build", 0, id="rm_rf_relative_subdir_allowed"),
+            pytest.param("rm -rf /tmp/scratch", 0, id="rm_rf_absolute_subpath_allowed"),
+            pytest.param("rm -rf /home/u/proj/build", 0, id="rm_rf_deep_absolute_path_allowed"),
+            # …and seven spellings of the machine-wipe were confirmed ALLOWED,
+            # because only one spelling was ever listed.
+            pytest.param("rm -fr /", 2, id="rm_fr_swapped_flags_blocked"),
+            pytest.param("rm -r -f /", 2, id="rm_separate_flags_blocked"),
+            pytest.param("rm -f -r /", 2, id="rm_separate_flags_reversed_blocked"),
+            pytest.param("rm -rvf /", 2, id="rm_flag_cluster_with_verbose_blocked"),
+            pytest.param("rm --recursive --force /", 2, id="rm_long_flags_blocked"),
+            pytest.param("sudo rm -fr /", 2, id="rm_swapped_flags_behind_prefix_blocked"),
+            pytest.param("bash -c 'rm -fr /'", 2, id="rm_swapped_flags_in_wrapper_blocked"),
+            pytest.param("rm -rf ./", 2, id="rm_rf_dotslash_blocked"),
+            # `-f` without `-r` deletes nothing recursively.
+            pytest.param("rm -f /", 0, id="rm_force_without_recursive_allowed"),
+            # firewall-rm-exact-match-regression: the first fix swapped three
+            # PREFIX substrings for an EXACT set of the same four spellings, and
+            # an exact match cannot see what a prefix was catching by accident.
+            # All seven below were blocked before that change, allowed after it,
+            # and are blocked again now — confirmed by running both versions.
+            pytest.param("rm -rf .*", 2, id="rm_rf_dot_glob_blocked"),
+            pytest.param("rm -rf ./*", 2, id="rm_rf_dotslash_glob_blocked"),
+            pytest.param("rm -rf /.", 2, id="rm_rf_slash_dot_blocked"),
+            pytest.param("rm -rf //", 2, id="rm_rf_double_slash_blocked"),
+            pytest.param("rm -rf /./", 2, id="rm_rf_slash_dot_slash_blocked"),
+            pytest.param("rm -rf ../*", 2, id="rm_rf_parent_glob_blocked"),
+            pytest.param("rm -rf ./* ./.??*", 2, id="rm_rf_dotfiles_sweep_blocked"),
+            # …and the glob operand the set DID list, which had no test at all.
+            pytest.param("rm -rf /*", 2, id="rm_rf_slash_glob_blocked"),
+            # A glob under a named directory empties that directory, not a root.
+            pytest.param("rm -rf build/*", 0, id="rm_rf_glob_under_named_dir_allowed"),
+            pytest.param("rm -rf ./node_modules/*", 0, id="rm_rf_glob_under_subdir_allowed"),
+            # Command substitution: shlex glues the backtick to the adjacent
+            # word, so `rm` was never isolated and the operand arrived as "/`".
+            pytest.param("echo `rm -rf /`", 2, id="rm_in_backtick_substitution_blocked"),
+            pytest.param("X=$(rm -rf /)", 2, id="rm_in_dollar_substitution_blocked"),
+            # `-f` is no longer required: every command this hook sees runs
+            # non-interactively, where `rm -r /` has no tty to prompt at.
+            pytest.param("rm -r /", 2, id="rm_recursive_without_force_blocked"),
+            pytest.param("rm -R /", 2, id="rm_capital_recursive_blocked"),
+            pytest.param("rm -rf -- /", 2, id="rm_after_end_of_options_blocked"),
+            pytest.param("rm -r --force /", 2, id="rm_mixed_short_long_flags_blocked"),
+            pytest.param("rm --recursive -f /", 2, id="rm_mixed_long_short_flags_blocked"),
+            # `git rm` stages a deletion in the index; `git checkout` undoes it.
+            # Reporting it as "the whole working directory" was simply untrue.
+            pytest.param("git rm -rf .", 0, id="git_rm_is_not_a_filesystem_wipe"),
+            pytest.param("git rm -r --cached .", 0, id="git_rm_cached_allowed"),
+            # git clean with the flags written apart — asserted closed in a
+            # previous task's evidence, actually still open until now.
+            pytest.param("git clean -f -d", 2, id="git_clean_separate_flags_blocked"),
+            # The connector must not reach across a command separator to find
+            # the dangerous argument of a DIFFERENT command.
+            pytest.param("git clean -n ; tar -cf out.tar -fd", 0, id="danger_arg_of_next_cmd"),
         ],
     )
     def test_command(self, command, expected_rc):

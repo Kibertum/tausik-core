@@ -761,14 +761,43 @@ def _handle_verify(
         return f"Error: {e}"
     except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         return f"Error: {e}"
-    gates = [r.get("name", "?") for r in result.get("results", [])]
-    return (
+    from gate_runner import format_results
+
+    results = result.get("results", [])
+    lines = [
         f"verify task='{task_slug or '-'}' "
         f"passed={result['passed']} "
         f"status={result['status']} "
-        f"trigger={result['trigger']} "
-        f"gates={gates}"
-    )
+        f"trigger={result['trigger']}",
+        format_results(results),
+    ]
+
+    # A skipped gate used to be indistinguishable from a passed one here: this
+    # returned `gates=['hadolint', 'pytest']`, a list of NAMES, so an agent read
+    # "pytest" and concluded the tests had run. On a task with no declared
+    # scope, pytest is skipped and the only thing that actually executed was a
+    # Dockerfile linter — and the run was still recorded green and signed. The
+    # same confusion is what `gate_verdict` was extracted to end; this handler
+    # was the copy that extraction did not reach, and it is the copy the agent
+    # reads, because CLAUDE.md tells it to prefer MCP over the CLI.
+    if any(r.get("skipped") for r in results):
+        skipped = ", ".join(r.get("name", "?") for r in results if r.get("skipped"))
+        lines.append(
+            f"NOTE: {skipped} did NOT execute. A SKIP is not a verification — "
+            f"this run says nothing about what those gates cover."
+        )
+    if not result.get("relevant_files"):
+        lines.append(
+            "NOTE: no relevant_files declared for this task, so every scoped gate "
+            "skipped. Declare them (`tausik task update <slug> --relevant-files "
+            "<paths>`) and re-run, or this green rests on nothing."
+        )
+    if result.get("status") == "no-tests-declared":
+        lines.append(
+            "NOTE: no gate actually executed — --no-tests-expected was declared. "
+            "This closure rests on a declaration, not on a verification."
+        )
+    return "\n".join(lines)
 
 
 def _handle_stack_reset(name: str) -> str:

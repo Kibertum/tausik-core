@@ -9,6 +9,185 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### The Rule 5 checklist gate was cleared by the word "scope"
+
+`checklist_missing` counted vocabulary. The tier tables held words —
+`scope`, `secret`, `phantom`, `edge case` — and one occurrence anywhere in a
+task's notes silenced the gate. For substantial and deep planning tiers it was
+not a nudge but a HARD block on closing, so the condition for finishing the most
+expensive tasks in the system was that a word appeared in a text field the agent
+writes itself.
+
+The v1.4 note for `check_verification_checklist` already called the v1.3 keyword
+count "trivial to fool ('scope clean, no secrets' produced 2 hits)" and
+announced the structured AC-evidence parser as its replacement. The parser was
+added on top. The keyword count stayed, and stayed the sole source of the
+verdict.
+
+Measured across the 851 closed tasks that carry acceptance criteria, the two
+disagree on 380 — 44.7%. 320 tasks cleared the keyword scan with no real
+evidence behind any criterion; 60 were warned at while their evidence was real.
+This is also the honest answer to a note carried forward from the previous
+session, that the warning was ignored at every close: there was no action that
+cleared it except guessing the password.
+
+The verdict now comes from the evidence parser that was supposed to own it:
+
+* Warning when no criterion names a test, a manual run or a review. A bare check
+  mark is a claim that verification happened, which is the thing being checked.
+* Hard block (substantial/deep only) when no criterion cites a test file that
+  EXISTS. A path that does not resolve is treated as no evidence — an
+  unresolvable citation and an invented one are the same string, and the
+  adversary for this predicate is an agent writing its own notes.
+
+Two tests in the suite had been pinning the old behaviour in place — one passed
+`notes="scope clean, no secret leak"` and asserted the gate stayed open. They
+now assert the opposite, and that same string is pinned as a case that must NOT
+close a task. On the historical rows the change is stricter almost everywhere:
+27 closed tasks would newly be blocked, and exactly one stops being blocked —
+`release-1-3-docs-sweep`, which cites three test files that all exist and was
+blocked only for lacking a magic word.
+
+Known and filed rather than papered over: the parser credits an evidence line
+only in the `AC-N: …` shape, so 61 of the tasks now called "no evidence" do cite
+a real test, just differently. The gate's message names the working form.
+
+**Correction.** This entry, and the code it describes, overstated how strong the
+new gate was. Adversarial review of the fix demonstrated three ways to clear it
+for free: the `::test_name` was split off and never looked at, so an invented
+function on a real file passed; `tests/../scripts/gate_ac_check.py` escaped the
+test tree and let the gate's own implementation count as a test; and a bare
+basename resolved against any of the ~300 files under `tests/`. The docstring
+had called a resolving citation "the only claim it cannot make cheaply" — it was
+among the cheapest. Separately, the resolution used the process's current
+directory, so the same task with the same genuine evidence was hard-blocked when
+`task done` ran from a subdirectory, with a message that no `task log` line
+could satisfy — precisely the false-positive-trains-the-bypass loop this release
+condemns elsewhere, and the opt-out it points at is quieter than
+`TAUSIK_SKIP_HOOKS` because it records no supervision event.
+
+All three citation holes are now closed (the path must normalise to inside
+`tests/`, and a named function must be defined in the file), and the root is
+resolved from the project, not the cwd. The claim in the code has been narrowed
+to what is actually true, with the things it still does not establish — that the
+test ran, that it passed, that it relates to the task — written down rather than
+implied. One more count moved with the fix: 33 historical closes would now be
+blocked rather than 27, and the single case that stops being blocked is
+unchanged. A related comment claiming "nothing reads a keyword list any more"
+was false and has been corrected in place: the advisory level still accepts
+`manual` / `/review` / `adversarial`, deliberately, which is exactly why the
+hard gate does not.
+
+### `tausik_verify` over MCP said which gates existed, not which ones ran
+
+`verify passed=True … gates=['hadolint', 'pytest']` is what the agent saw. It
+reads as "both gates passed". What it actually meant, on a task with no declared
+`relevant_files`, was: pytest was SKIPPED for lack of scope, and the only thing
+that executed was a Dockerfile linter — on a Python change. The run was still
+recorded in `verification_runs` with exit 0 and signed with a receipt, and
+`task done --ac-verified` accepts exactly such a cached green. The CLI printed
+`[SKIP] pytest` the whole time; the two surfaces disagreed, and CLAUDE.md
+directs the agent to the one that was lying.
+
+This is the same defect `gate_verdict` was extracted to end — the release note
+for that one says it "lived in five places". This handler was the sixth, and it
+was missed because it renders gate NAMES rather than verdicts, so it never
+contained the tell-tale `"PASS" if passed else "FAIL"` the sweep looked for.
+
+The handler now shares the CLI's formatter, so both surfaces answer the same
+thing, and adds what a bare verdict list still would not say: which gates did
+not execute, and — when the scope is empty — the command that fixes it. Pinned
+by tests that were confirmed failing against the old format, including one that
+holds the line in the other direction: a run where everything really did pass
+must NOT carry a skip note.
+
+### The `rm` guard blocked nine safe cleanups and allowed five machine-wipes
+
+`rm -rf /`, `rm -rf /*` and `rm -rf .` were literal substrings, and a substring
+is wrong in both directions at once. Measured against the real hook:
+
+* Blocked, and shouldn't have been: `rm -rf .venv`, `rm -rf .pytest_cache`,
+  `rm -rf .mypy_cache`, `rm -rf .tausik/tmp`, `rm -rf ./build`,
+  `rm -rf /tmp/scratch`, `rm -rf /var/tmp/x`, `rm -rf .git/hooks/tmp`,
+  `rm -rf /home/u/proj/build` — every one of them merely *starts* like the root.
+  The firewall blocked the investigation of this bug twice while it was being
+  written, which is the same incident the file already records from 2026-07-18.
+  There is no approval path on a block, so the only way past a false positive is
+  `TAUSIK_SKIP_HOOKS` — each one trains the agent to switch supervision off.
+* Allowed, and shouldn't have been: `rm -fr /`, `rm -r -f /`, `rm -f -r /`,
+  `rm -rvf /`, `rm --recursive --force /`, and the same behind a prefix or a
+  wrapper (`sudo rm -fr /`, `bash -c 'rm -fr /'`). One spelling was listed;
+  every other spelling of the identical command went through.
+
+Flags are now read as flags — any order, clustered or separate, short or long —
+and operands as operands. What cannot be resolved — an operand that only becomes
+root after expansion, like `$HOME` — is stated in the code as a residual instead
+of left for the next person to discover.
+
+**Correction.** This entry first claimed "the operand set is unchanged from what
+the three substrings covered, so this is a repair and not a policy change". That
+was false, and adversarial review of the fix measured it: the substrings matched
+by PREFIX, so `rm -rf .*`, `rm -rf ./*`, `rm -rf ../*`, `rm -rf /.`, `rm -rf //`,
+`rm -rf /./` and `rm -rf ./* ./.??*` had all been blocked by accident — and the
+exact-match set stopped blocking every one of them. Closing five flag spellings
+opened seven operand spellings, which is the trade this entry was written to end.
+The operand is now normalised before it is judged (a trailing glob resolves to
+the directory it empties, `//` and `/./` resolve to the root), so a spelling that
+names the same tree gets the same verdict; all seven are blocked again and
+pinned by tests. Two further corrections came out of the same review: `-f` is no
+longer required, because every command this hook sees runs non-interactively and
+`rm -r /` has no tty to prompt at, and `git rm -rf .` is no longer treated as a
+filesystem wipe — it stages a deletion in the index and `git checkout` undoes it.
+Whether `~` and a bare `*` belong in the set remains open and filed.
+
+The other blocked phrases (`DROP TABLE`, `mkfs.`, `dd if=/dev/zero`) stay
+substrings, because for those the substring genuinely is the meaning.
+
+### `cat notes-df.txt` is no longer a destructive git command
+
+One missing pair of parentheses. The firewall's git-clean pattern was built from
+`-[a-zA-Z]*f[a-zA-Z]*d\b|-fd\b|-df\b`, and that top-level `|` split the entire
+assembled regex — the last two branches ran with no command-start anchor, no
+path prefix, and no `git` in front of them. Anything containing `-fd` or `-df`
+was blocked: `ls -df`, `curl -fd 'a=b' url`, `mycmd --output-fd 3`, and a file
+named `notes-df.txt`.
+
+The release that introduced this constructor did it to stop
+`mygit-helper push --force` from false-positiving, and reintroduced the same
+illness one line below — which nothing caught, because the only git-clean test
+was `git clean -fd`, a string that matches through either branch and so cannot
+tell a working pattern from a broken one.
+
+Grouping now happens inside the constructor rather than at each call site, so
+the next pattern with an alternation in it cannot repeat this. Four negatives
+and four positives are pinned, including the nested-wrapper form.
+
+### A nested shell wrapper no longer hides a destructive git command
+
+The three sessions above chased this one-liner through the WRITE gate. The
+firewall — the hook that blocks `git push --force`, `git reset --hard` and
+`rm -rf /` — was never checked against it. It turns out its own answer to "what
+is this command really" held for one layer and broke at two:
+`bash -c "sh -c 'git push --force origin main'"` was allowed, and so were the
+`git reset --hard` and `git checkout -- .` forms.
+
+Unquoting the payload was done by joining tokens back together, which strips
+exactly one level of quotes. At two levels the inner apostrophe survived into
+the scanned text, and the character in front of `git` was then `'` — not a line
+start and not a shell separator, so the command-start anchor that makes
+`mygit-helper push --force` safe made the real thing safe too. The `rm -rf /`
+twin kept being blocked throughout, because those patterns are anchor-less
+substrings; that asymmetry is why the hole survived a hook the project has
+audited three times.
+
+A shell `-c` payload is now re-scanned as the command line it is, reusing the
+same bounded descent the write gate got. Widening the anchor to accept a quote
+was the one-character fix and is deliberately not taken: it also blocks
+`bash -c 'echo "git push --force"'`, where the quoted text really is data.
+Descending keeps the token-vs-prose rule working one level down instead of
+trading a missed command for a blocked echo — both directions are pinned by
+tests.
+
 ### A command prefix no longer hides the shell wrapper behind it
 
 Found by adversarially reviewing the FIX above rather than the code it replaced
