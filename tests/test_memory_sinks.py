@@ -460,18 +460,24 @@ class TestHook:
         targets, conf = write_targets_with_confidence(parsed)
         assert conf == CONFIDENCE_PARSED and targets == [".clinerules"] == write_targets(parsed)
 
-    def test_interpreter_wrapper_hides_the_target(self):
-        # NOT fixed here — recorded so the boundary is a stated fact rather than
-        # an assumption, and so the day someone teaches the parser to recurse
-        # into `bash -c` payloads, this test tells them what changed. The
-        # documented residual claims the bar is "must actively obfuscate";
-        # `bash -c 'cmd > file'` is not obfuscation, and QG-0 misses it too.
+    def test_interpreter_wrapper_no_longer_hides_the_target(self):
+        # This test was written one task earlier PINNING the opposite — that a
+        # `bash -c` wrapper yielded nothing — precisely so that the day someone
+        # taught the parser to recurse, the change would announce itself instead
+        # of passing silently. It did exactly that, and is inverted here.
         sys.path.insert(0, os.path.join(_REPO, "scripts", "hooks"))
         from bash_write_parse import write_targets
 
-        assert write_targets("bash -c 'printf x > .clinerules'") == []
-        assert write_targets('sh -c "echo x > .cursor/rules/a.mdc"') == []
+        assert write_targets("bash -c 'printf x > .clinerules'") == [".clinerules"]
+        assert write_targets('sh -c "echo x > .cursor/rules/a.mdc"') == [".cursor/rules/a.mdc"]
         assert write_targets("printf x > .clinerules") == [".clinerules"]
+
+    def test_blocks_write_hidden_behind_a_shell_wrapper(self, repo):
+        r = _run_hook(
+            {"tool_name": "Bash", "tool_input": {"command": "bash -c 'echo x > .clinerules'"}},
+            str(repo),
+        )
+        assert r.returncode == 2, r.stdout + r.stderr
 
     def test_skip_flag_allows(self, repo):
         r = _run_hook(

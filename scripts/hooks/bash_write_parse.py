@@ -201,6 +201,43 @@ def _sed_files(args: list[str]) -> list[str]:
     return files
 
 
+# Shells whose `-c` argument is a whole command line, not a filename. The
+# redirection inside it lives in ONE quoted token, so every detector above sees
+# a single opaque string: `bash -c 'echo x > scripts/foo.py'` used to yield no
+# target at all, which made Rule 1 and the scope ACL bypassable by a one-liner
+# of the same class Decision #162 closed for heredocs. The residual was
+# documented as "must actively obfuscate"; `bash -c` is an everyday form.
+_SHELLS = frozenset({"bash", "sh", "zsh", "dash", "ksh", "ash", "busybox"})
+
+# A wrapper may nest (`bash -c "sh -c '…'"`). Bounded so a crafted or accidental
+# chain cannot spin: three levels is far past any real invocation, and the limit
+# is a named constant rather than an implicit recursion depth so exceeding it is
+# a decision, not a crash.
+_MAX_WRAPPER_DEPTH = 3
+
+
+def _shell_payloads(sub: list[str]) -> list[str]:
+    """Command strings carried as the `-c` argument of a shell in `sub`.
+
+    `-c` is matched inside combined short flags too (`-lc`, `-ec`), because that
+    is how the form is actually written. A long `--` option is not a short-flag
+    cluster and is skipped, so `--color` does not read as containing `c`.
+    """
+    if not sub:
+        return []
+    base = os.path.basename(sub[0]).lower().removesuffix(".exe")
+    if base not in _SHELLS:
+        return []
+    out: list[str] = []
+    for i, tok in enumerate(sub[1:], start=1):
+        if not tok.startswith("-") or tok.startswith("--") or "c" not in tok:
+            continue
+        if i + 1 < len(sub):
+            out.append(sub[i + 1])
+        break
+    return out
+
+
 def _writers_in(sub: list[str]) -> list[str]:
     """Write targets from ONE sub-command (already split on shell operators)."""
     targets: list[str] = []
@@ -291,17 +328,35 @@ CONFIDENCE_REGEX_FALLBACK = "regex_fallback"
 
 def write_targets_with_confidence(command: str) -> tuple[list[str], str]:
     """`(targets, confidence)` — see the constants above for what to do with it."""
+    cands, confidence = _parse(command, 0)
+    return [t for t in cands if _plausible_path(t)], confidence
+
+
+def _parse(command: str, depth: int) -> tuple[list[str], str]:
+    """One pass, plus a bounded descent into any shell `-c` payload it carries.
+
+    A payload that fails to tokenize degrades the WHOLE answer to
+    `regex_fallback`: the caller is being told how much to trust the list, and
+    an uncertain part makes the list uncertain. Reporting `parsed` because the
+    outer command parsed would be the more confident of two readings, which is
+    the wrong one to hand a consumer that fails closed on uncertainty.
+    """
     stripped = _strip_heredocs(command)
     tokens = _tokenize(stripped)
     if tokens is None:
-        cands = _redir_targets_regex(stripped)
-        confidence = CONFIDENCE_REGEX_FALLBACK
-    else:
-        cands = []
-        for sub in _split_subcommands(tokens):
-            cands += _writers_in(sub)
-        confidence = CONFIDENCE_PARSED
-    return [t for t in cands if _plausible_path(t)], confidence
+        return _redir_targets_regex(stripped), CONFIDENCE_REGEX_FALLBACK
+    cands: list[str] = []
+    confidence = CONFIDENCE_PARSED
+    for sub in _split_subcommands(tokens):
+        cands += _writers_in(sub)
+        if depth >= _MAX_WRAPPER_DEPTH:
+            continue
+        for payload in _shell_payloads(sub):
+            inner, inner_conf = _parse(payload, depth + 1)
+            cands += inner
+            if inner_conf == CONFIDENCE_REGEX_FALLBACK:
+                confidence = CONFIDENCE_REGEX_FALLBACK
+    return cands, confidence
 
 
 def write_targets(command: str) -> list[str]:

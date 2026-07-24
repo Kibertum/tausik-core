@@ -9,6 +9,32 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### The `bash -c` wrapper no longer hides a write from Rule 1
+
+Filed one commit ago as its own hole, closed here. `bash -c 'echo x >
+scripts/foo.py'` yielded no write target at all: the redirection sits inside a
+single quoted argument, and nothing parsed into the payload. "No code without a
+task" (Rule 1) and the scope ACL (Rule 2) were therefore bypassable by a
+one-liner of the same class Decision #162 closed for heredocs — while the
+documented residual claimed the gate had raised the cost of evasion to "must
+actively obfuscate". `bash -c` is an everyday form.
+
+`write_targets` now descends into the `-c` payload of `bash`, `sh`, `zsh`,
+`dash`, `ksh`, `ash` and `busybox`, combined short flags (`-lc`, `-ec`)
+included, bounded by a named `_MAX_WRAPPER_DEPTH` so a nested chain terminates
+by decision rather than by RecursionError. A payload that fails to tokenize
+degrades the WHOLE answer to `regex_fallback`: handing back the more confident
+of two readings is the wrong one for a caller that fails closed on uncertainty.
+
+Negatives are pinned too, because a stricter parser earns its strictness only if
+it stays quiet on the ordinary: `bash script.sh` (no `-c` — the argument is a
+file to run), `bash --color=auto -c 'pytest -q'` (a long option is not a
+short-flag cluster), `echo 'bash -c "x > y"'` (a quoted mention is not a write).
+
+The test that pinned the OLD behaviour was written deliberately one task earlier,
+so that teaching the parser to recurse would announce itself rather than pass
+silently. It did, and is inverted here.
+
 ### Fixed: the memory-route hook blocked a mere mention of a sink path
 
 Same-session defect of the change above, found by dogfooding: the hook refused a

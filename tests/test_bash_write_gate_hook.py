@@ -235,3 +235,83 @@ class TestHook:
     def test_no_tausik_dir_allowed(self, tmp_path):
         r = _run_hook(tmp_path, "echo x > scripts/a.py")
         assert r.returncode == 0
+
+
+class TestShellWrapperRecursion:
+    """`bash -c 'cmd > file'` — the wrapper that used to hide every target.
+
+    Rule 1 and the scope ACL were bypassable by a one-liner of the same class
+    Decision #162 closed for heredocs, while the documented residual claimed the
+    bar had been raised to "must actively obfuscate". `bash -c` is an everyday
+    form, not obfuscation.
+    """
+
+    def _wt(self):
+        import sys as _sys
+
+        hooks = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "hooks")
+        if hooks not in _sys.path:
+            _sys.path.insert(0, hooks)
+        from bash_write_parse import write_targets
+
+        return write_targets
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("bash -c 'printf x > scripts/foo.py'", ["scripts/foo.py"]),
+            ('sh -c "echo x > a.py"', ["a.py"]),
+            ("bash -lc 'echo x > b.py'", ["b.py"]),          # combined short flags
+            ("bash -ec 'echo x > c.py'", ["c.py"]),
+            ("zsh -c 'tee d.py'", ["d.py"]),                  # a writer, not a redirect
+            ("dash -c 'sed -i s/a/b/ e.py'", ["e.py"]),
+            ("bash -c \"bash -c 'echo x > f.py'\"", ["f.py"]),  # nested wrapper
+        ],
+    )
+    def test_payload_targets_are_found(self, command, expected):
+        assert self._wt()(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "bash --version",
+            "bash script.sh",                       # no -c: the arg is a file to RUN
+            "bash -c 'pytest -q'",                  # payload writes nothing
+            "echo 'bash -c \"x > y\"'",             # a quoted MENTION is not a write
+            "bash --color=auto -c 'pytest -q'",     # long option is not a short cluster
+            "python -m pytest -q",
+        ],
+    )
+    def test_no_false_positive(self, command):
+        assert self._wt()(command) == []
+
+    def test_recursion_is_bounded(self):
+        # Four levels: the innermost sits past _MAX_WRAPPER_DEPTH and is not
+        # descended into. The bound is a stated constant, so exceeding it is a
+        # decision rather than a RecursionError.
+        import sys as _sys
+
+        hooks = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "hooks")
+        if hooks not in _sys.path:
+            _sys.path.insert(0, hooks)
+        from bash_write_parse import _MAX_WRAPPER_DEPTH
+
+        assert _MAX_WRAPPER_DEPTH >= 2
+        cmd = "echo x > deep.py"
+        for _ in range(_MAX_WRAPPER_DEPTH + 2):
+            cmd = f'bash -c "{cmd}"'
+        self._wt()(cmd)  # must return, not recurse forever
+
+    def test_unparseable_payload_degrades_the_whole_confidence(self):
+        import sys as _sys
+
+        hooks = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "hooks")
+        if hooks not in _sys.path:
+            _sys.path.insert(0, hooks)
+        from bash_write_parse import CONFIDENCE_REGEX_FALLBACK, write_targets_with_confidence
+
+        # Outer tokenizes, payload does not. Answering `parsed` would be the
+        # more confident of two readings — the wrong one for a caller that
+        # fails closed on uncertainty.
+        _t, conf = write_targets_with_confidence("bash -c \"awk '{print $1} > x.py\"")
+        assert conf == CONFIDENCE_REGEX_FALLBACK
