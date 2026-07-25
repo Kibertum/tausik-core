@@ -102,6 +102,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Exit 1 if the renar/ tree is stale vs live DB (CI gate)",
     )
 
+    # --- state (state-git-export): git-native DB→tausik/ projection ---
+    from project_parser_state import build_state_subparsers
+
+    build_state_subparsers(sub)
+
     # --- decide ---
     dec_p = sub.add_parser("decide", help="Record a decision")
     dec_p.add_argument("text")
