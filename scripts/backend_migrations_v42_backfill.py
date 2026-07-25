@@ -111,14 +111,29 @@ def maybe_backfill_v42(conn: sqlite3.Connection) -> int:
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_decisions_slug ON decisions(slug)")
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_memory_slug ON memory(slug)")
         conn.execute("INSERT OR REPLACE INTO meta(key, value) VALUES('v42_slugs_backfilled', '1')")
+        # A prior failed run may have left an error marker; success clears it so a
+        # recovered migration doesn't keep flagging a problem that no longer exists.
+        conn.execute("DELETE FROM meta WHERE key='v42_slugs_backfill_error'")
         conn.commit()
     except sqlite3.Error as e:
-        logger.warning("v42 slug backfill failed: %s", e)
+        # NOT a warning to be lost in the log: a failed identity migration must be
+        # LOUD (zero tolerance for silent errors). The success flag was never
+        # committed, so this re-runs on every DB open — record a durable, queryable
+        # marker so `doctor`/`status` surface it instead of it failing forever unseen.
+        logger.error("v42 slug backfill FAILED (re-runs on next open): %s", e)
         try:
             conn.rollback()
         except sqlite3.Error:
             pass
-        # Rollback undid every UPDATE and the flag was not committed — report 0,
-        # not the in-loop counter, so the caller never believes rows were filled.
+        try:
+            conn.execute(
+                "INSERT OR REPLACE INTO meta(key, value) VALUES('v42_slugs_backfill_error', ?)",
+                (str(e),),
+            )
+            conn.commit()
+        except sqlite3.Error:
+            pass  # if we cannot even record the marker, the ERROR log is the floor
+        # Rollback undid every UPDATE and the success flag was not committed —
+        # report 0, not the in-loop counter, so no caller believes rows were filled.
         return 0
     return filled

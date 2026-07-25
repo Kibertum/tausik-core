@@ -9,6 +9,34 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Slug allocation is race-safe, and a failed backfill is no longer silent
+
+Reviewing the v42 migration surfaced three follow-ups. New rows computed their
+slug by reading the taken set and then INSERTing in a separate statement — a
+TOCTOU race on a connection opened `check_same_thread=False`, where two
+concurrent writers could compute the same base slug. The UNIQUE index is now the
+source of truth: `insert_with_slug` retries on a collision with the next suffix,
+so a raced write is corrected, never crashed and never silently duplicated. The
+v42 backfill caught its errors and only `warning`-logged them while the caller
+discarded the result, so a genuinely failed identity migration re-ran unseen on
+every DB open — it now logs at ERROR and records a queryable `v42_slugs_backfill_error`
+marker that a successful run clears. And the slug helper's table name, previously
+f-string-interpolated, is now checked against a `{decisions, memory}` allowlist.
+The decisions+memory CRUD moved to its own `KnowledgeCrudMixin` to stay under the
+filesize cap.
+
+### QG-0 now recognises a negative scenario written in Russian
+
+The Start Gate requires an AC to name at least one negative scenario, but its
+keyword list knew English `negative` (and `timeout`, `exception`, `crash`,
+`exceed`, `overflow`) with no Russian counterpart — so in a Russian-language
+project a criterion that spelled its negative case as `НЕГАТИВ: …` failed a gate
+it plainly satisfied. Caught by dogfooding: the framework blocked its own author.
+Each missing marker gains its Russian mirror (`негатив`, `таймаут`, `исключени`,
+`паден`, `крах`, `превыш`, `переполн`) — additive, so no positive criterion newly
+passes; the `без`/`without` redaction that keeps "Без ошибок" a non-scenario is
+untouched, and `сбор`/`сборка` deliberately do not match.
+
 ### Decisions and memory get an identity that survives a branch merge
 
 Tasks are addressed by slugs, so two engineers on two branches never collide on

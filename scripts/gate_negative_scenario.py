@@ -52,6 +52,18 @@ NEGATIVE_SCENARIO_KEYWORDS = (
     "break",
     "crash",
     "exception",
+    # Russian parity (qg0-negative-detector-russian-parity, convention #170): the
+    # working language is Russian, but several English markers above had no
+    # Russian counterpart, so a criterion that named its negative case in Russian
+    # ("НЕГАТИВ: ...") failed QG-0. Each of these mirrors an English keyword
+    # already in the list — additive, no new failure mode.
+    "негатив",  # negative
+    "таймаут",  # timeout
+    "исключени",  # exception (исключение/исключения)
+    "паден",  # crash (падение/упал)
+    "крах",  # crash
+    "превыш",  # exceed (превышение/превышен)
+    "переполн",  # overflow (переполнение)
 )
 
 

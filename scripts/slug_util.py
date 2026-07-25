@@ -20,6 +20,7 @@ transliteration table and the dedup order are frozen, never "improved" casually.
 from __future__ import annotations
 
 import re
+import sqlite3
 
 # Frozen practical Russian→Latin transliteration. NOT a place to tinker: every
 # edit re-slugs history and breaks the byte-identical round-trip the whole epic
@@ -128,16 +129,47 @@ def first_line(text: str) -> str:
     return ""
 
 
+# The only tables that carry a slug. `next_slug` interpolates `table` into SQL,
+# so it is an allowlist, not a hint: a caller passing anything else is a bug (or
+# an injection attempt) and fails loudly instead of building arbitrary SQL.
+_SLUG_TABLES = frozenset({"decisions", "memory"})
+
+
 def next_slug(query, table: str, text: str, fallback: str) -> str:
     """A stable slug for a NEW row in `table`, unique against its existing slugs.
 
     `query` is a callable returning row-dicts (a backend's ``_q``). Uses the same
     generator as the v42 backfill, so a row created now and one migrated from
-    history obey one identity rule (state-git-stable-ids).
+    history obey one identity rule (state-git-stable-ids). This is a best-effort
+    PRE-dedup: the UNIQUE index is the real guarantee, enforced via
+    ``insert_with_slug`` (a concurrent writer can still take our slug first).
     """
+    if table not in _SLUG_TABLES:
+        raise ValueError(f"next_slug: unknown table {table!r} (allowed: {sorted(_SLUG_TABLES)})")
     taken = {
         r["slug"]
         for r in query(f"SELECT slug FROM {table} WHERE slug IS NOT NULL AND slug != ''")
         if r.get("slug")
     }
     return make_slug(text, fallback=fallback, taken=taken)
+
+
+def insert_with_slug(query, insert, table: str, text: str, fallback: str, *, retries: int = 5):
+    """Allocate a unique slug and run ``insert(slug)``, retrying on a UNIQUE clash.
+
+    ``next_slug`` reads the taken set and the caller INSERTs in a separate
+    statement, so two concurrent writers (the backend connection is
+    ``check_same_thread=False``) can compute the same base slug and both try to
+    insert it. The UNIQUE index turns the loser's INSERT into an IntegrityError;
+    here we re-query and retry with the next suffix, so the collision is
+    corrected — never a crash, never a silent duplicate. Retries are bounded; the
+    last IntegrityError is re-raised if they run out (loud, not swallowed).
+    """
+    last: sqlite3.IntegrityError | None = None
+    for _ in range(max(1, retries)):
+        slug = next_slug(query, table, text, fallback)
+        try:
+            return insert(slug)
+        except sqlite3.IntegrityError as exc:
+            last = exc
+    raise last if last is not None else RuntimeError("insert_with_slug: no attempt made")

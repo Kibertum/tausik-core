@@ -9,6 +9,7 @@ from typing import Any
 
 from backend_crud import BackendCrudMixin
 from backend_crud_adapts import AdaptsCrudMixin
+from backend_crud_knowledge import KnowledgeCrudMixin
 from backend_crud_reasoning import ReasoningCrudMixin
 from backend_crud_specs import SpecsCrudMixin
 from backend_events_chain import BackendEventsChainMixin
@@ -71,6 +72,7 @@ class SQLiteBackend(
     BackendQueriesMixin,
     BackendGraphMixin,
     BackendCrudMixin,
+    KnowledgeCrudMixin,
     ReasoningCrudMixin,
     SpecsCrudMixin,
     AdaptsCrudMixin,
