@@ -9,6 +9,69 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### State export/import wired into the lifecycle (no manual sync)
+
+The git-native projection now tracks the DB without manual commands. On a durable
+write — task done, `decide`, `memory add` — the changed entity is incrementally
+re-serialized to just its own file (byte-identical to a full export of that
+entity, proven by a pin test), not the whole tree. On session start,
+`tausik_session_open` carries a best-effort `sync_suggested` signal: a content-based
+dry-run import that reports what the `tausik/` tree holds but the DB does not (e.g.
+after a `git pull`), so `/start` can offer `tausik sync`. Every trigger is
+fail-open by construction (gotcha #271): a serialization or IO fault is logged and
+swallowed, never breaking or rolling back the underlying operation — the DB write
+is the source of truth, the file projection is best-effort. The whole mechanism is
+gated behind `state.auto_export` (default off) so a project that has not yet
+un-gitignored `tausik/` never gets surprise files; state-git-roundtrip-gate will
+flip the default. (Refactor note: `service_knowledge`'s cq-row helper moved to
+`service_cq_row` to stay under the filesize cap once the hook landed.)
+
+### The git-native tree can be imported back into the DB cache
+
+`tausik state import` (alias `tausik sync`) is the inverse of `state export`: it
+reads the `tausik/` tree — the canonical source of truth — and rebuilds the SQLite
+working cache, the command an engineer runs after `git pull` / `git checkout` so
+the DB reflects the branch. It is idempotent and delta-based: a file whose parsed
+projection matches its DB row is left untouched, and re-running with no file change
+writes nothing. Git wins on conflict, but never silently — every overwrite of a
+locally-diverged row is reported, `--dry-run` shows the add/update/journal/edge
+plan without touching the DB, and nothing is deleted (an incremental import never
+removes an entity absent from the tree, so a `checkout` of one branch cannot erase
+work not yet merged from another). A malformed file aborts the whole batch inside a
+transaction — never a partially-written DB — and FTS is rebuilt so search sees the
+imported state. The parser is the exact stdlib inverse of the emitter, and the
+round-trip is pinned on real data: re-exporting an imported DB yields a byte-
+identical tree across all ~1950 entities, including two subtleties found by that
+pin — self-referential `defect_of` FKs are deferred to commit so slug-order
+insertion never trips them, and identical journal lines are reconciled as a
+multiset so a genuinely-duplicated log row survives the round-trip instead of
+collapsing to one. Together with the exporter this closes the `team-state-in-git`
+round-trip: state now travels branch-native with the code.
+
+### Project state can be exported to a git-native tree
+
+`tausik state export` serializes durable project state — tasks (with their
+`task_logs` as an append-only Journal), epics, stories, decisions, memory and the
+memory graph — from the SQLite DB to a `tausik/` markdown+frontmatter tree, one
+file per entity keyed by the stable slug from the v42 migration. The whole point
+is byte-determinism: the same DB state yields an identical file on every machine
+and every re-run, so a teammate's `git clone` sees the tasks and decisions a
+binary `tausik.db` hides, and state merges branch-native with the code. The
+serializer hand-rolls a stdlib YAML emitter with a fixed frontmatter key order,
+alphabetical tags, edges sorted by `(relation, target_type, target)`, ordered-list
+dedup, ISO-8601 `Z` dates, explicit `null`, and conservative quoting of any scalar
+a YAML parser could misread as a number/bool/date (`2026-01`, `on`, a bare `n`);
+newlines are LF-only including on Windows. Only live state travels — archived
+memory and invalidated edges are excluded — and an entity without a stable slug
+refuses the export loudly (run the migration first) rather than fabricating an
+ephemeral slug that would diverge between machines. `tausik state export --check`
+fails CI on a stale tree, reading files with universal-newline translation off so
+a CRLF re-save cannot pass as clean; deletion reconciliation is scoped to the five
+entity subdirectories so a hand-written `tausik/README.md` is never swept, and any
+removal is announced. Adversarial review hardened the `--check` CRLF blindness, the
+over-broad deletion, the missing `memory.title`, and the YAML-1.1 `y`/`n`/`inf`/`nan`
+quoting before merge. Import (`state-git-import`) is a separate task.
+
 ### Slug allocation is race-safe, and a failed backfill is no longer silent
 
 Reviewing the v42 migration surfaced three follow-ups. New rows computed their
