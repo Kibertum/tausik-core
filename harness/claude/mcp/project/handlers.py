@@ -1146,6 +1146,17 @@ def _handle_session_open(svc: Any, args: dict | None = None) -> str:
     # 5. Self-check (re-use existing handler — already serialized).
     self_check_data = _section_with_timeout("self_check", lambda: json.loads(_handle_self_check()))
 
+    # 6. Sync suggestion (state-git-triggers): does the tausik/ tree carry state the
+    # DB lacks (e.g. after a git pull)? Content-based dry-run; None when there is no
+    # tree or no divergence. Best-effort + watchdog-bounded like every section above,
+    # and near-zero cost by default (returns None immediately when tausik/ is absent).
+    def _sync_suggested() -> Any:
+        from state_triggers import import_suggested
+
+        return import_suggested(svc)
+
+    sync_suggested = _section_with_timeout("sync_suggested", _sync_suggested)
+
     return json.dumps(
         {
             "session": session_data,
@@ -1153,6 +1164,7 @@ def _handle_session_open(svc: Any, args: dict | None = None) -> str:
             "handoff": handoff,
             "tasks": tasks,
             "self_check": self_check_data,
+            "sync_suggested": sync_suggested,
         },
         indent=2,
         ensure_ascii=False,

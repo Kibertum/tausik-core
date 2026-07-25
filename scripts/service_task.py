@@ -12,10 +12,7 @@ from tausik_utils import (
     validate_length,
     validate_slug,
 )
-from project_types import (
-    COMPLEXITY_SP,
-    VALID_TASK_STATUSES,
-)
+from project_types import COMPLEXITY_SP, VALID_TASK_STATUSES
 from service_cascade import CascadeMixin
 from service_gates import GatesMixin
 from model_pinning import model_start_updates
@@ -205,9 +202,10 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         try:
             from model_routing_adherence import finalize_close
             from project_config import find_tausik_dir
+            from state_triggers import auto_export_entity
 
-            # Routing-adherence telemetry + recommendation cleanup. Best-effort.
-            finalize_close(find_tausik_dir(), slug)
+            finalize_close(find_tausik_dir(), slug)  # routing telemetry (best-effort)
+            auto_export_entity(self, "tasks", slug)  # git-native projection (fail-open)
         except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
             pass
         message = report.get("message")

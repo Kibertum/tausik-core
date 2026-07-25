@@ -8,41 +8,9 @@ from typing import TYPE_CHECKING, Any
 from tausik_utils import ServiceError, validate_content, validate_length
 from project_types import VALID_EDGE_RELATIONS, VALID_MEMORY_TYPES, VALID_NODE_TYPES
 
-#: Marks a row in a memory-search result that came from cross-project `cq`
-#: knowledge rather than this project's `memory` table.
-CQ_SOURCE = "cq"
-
-
-def build_cq_row(unit: dict[str, Any]) -> dict[str, Any]:
-    """Render one cq knowledge unit as a memory-search result row.
-
-    These rows are *display only* — they have no row in `memory` and therefore
-    no address. They used to be emitted with ``id: 0``, which collided across
-    every cq hit and pointed at a record that does not exist; a caller feeding
-    a search result back into ``memory_show``/``memory_link`` got a confusing
-    miss instead of a clear "not addressable". ``id`` is now ``None`` and
-    ``source`` states the provenance, so consumers can branch on it explicitly.
-
-    ``type`` stays ``"cq"`` as a display label. It is deliberately NOT one of
-    ``VALID_MEMORY_TYPES``: nothing persists these rows, and a fake local type
-    would be worse — it would make cross-project knowledge indistinguishable
-    from this project's own.
-    """
-    # `or {}` rather than a .get() default: a network payload commonly carries
-    # an explicit `"insight": null`, and a default only applies when the key is
-    # ABSENT — so .get("insight", {}) still handed back None and the next
-    # .get() raised AttributeError.
-    insight = unit.get("insight") or {}
-    evidence = unit.get("evidence") or {}
-    conf = evidence.get("confidence") or 0
-    return {
-        "id": None,
-        "source": CQ_SOURCE,
-        "type": CQ_SOURCE,
-        "title": f"[cq {conf:.0%}] {insight.get('summary', '')}",
-        "content": insight.get("detail", ""),
-        "tags": ",".join(unit.get("domain") or []),
-    }
+# CQ_SOURCE + build_cq_row live in service_cq_row (filesize cap); re-exported here
+# so `from service_knowledge import CQ_SOURCE, build_cq_row` keeps working.
+from service_cq_row import CQ_SOURCE, build_cq_row  # noqa: F401
 
 
 if TYPE_CHECKING:
@@ -77,6 +45,9 @@ class KnowledgeMixin:
         from brain_universality import emit_universality_hint
 
         emit_universality_hint(f"{title}\n{content}")
+        from state_triggers import auto_export_by_id  # state-git-triggers (fail-open)
+
+        auto_export_by_id(self, "memory", mid)
         return f"Memory #{mid} ({mem_type}) saved."
 
     def memory_list(
@@ -212,6 +183,9 @@ class KnowledgeMixin:
             )
 
         did = self.be.decision_add(text, task_slug, rationale)
+        from state_triggers import auto_export_by_id  # state-git-triggers (fail-open)
+
+        auto_export_by_id(self, "decisions", did)
         reason = decision.reason if decision.target == "local" else "brain not enabled"
         return f"Decision #{did} recorded — saved to local (reason: {reason})."
 
