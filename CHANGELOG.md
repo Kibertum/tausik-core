@@ -9,6 +9,31 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Decisions and memory get an identity that survives a branch merge
+
+Tasks are addressed by slugs, so two engineers on two branches never collide on
+a task id. Decisions and memory were not: they used local autoincrement ids
+(`#171`, `#307`), so both branches mint `#308` and a `git merge` of the exported
+state would duplicate or clobber. This is the load-bearing precondition for the
+whole state-in-git epic — without stable identity the projection cannot merge.
+
+The v42 migration adds a `slug` to both tables and backfills every existing row
+deterministically: a memory's slug from its title, a decision's from its first
+line, in id order so two machines resolve the same collisions to the same
+`-2`/`-3` suffixes. The project's working language is Russian, and a bare
+ASCII-fold would empty every Cyrillic title into a bare `memory-<id>` — so the
+slug is *transliterated* to Latin (`доменная проверка` → `domennaya-proverka`),
+giving a portable, readable `tausik/memory/<slug>.md` that is byte-identical on
+NTFS, ext4 and APFS. The transliteration table and the dedup order are frozen:
+changing either re-slugs history.
+
+Additive and reversible: two nullable columns plus a unique index built *after*
+the backfill, run by the migration runner behind an auto-backup. The 171
+decisions and 300+ memories of this very repo migrated with every row uniquely
+slugged and every memory-graph edge still resolving — validated on a copy of the
+live database before the live one was touched. The integer id stays the primary
+key, so `#171`/`#307` keep displaying exactly as before. See decision `#173`.
+
 ### Reviewing the groundwork found four more holes in the machinery that guards it
 
 An adversarial pass over the state-in-git groundwork surfaced four defects, each

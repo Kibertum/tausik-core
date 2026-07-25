@@ -72,6 +72,13 @@ def test_migration_v32_creates_table_triggers_clean(tmp_path):
     # вовсе. Блок выживал случайно, по порогу заглушки (одна колонка): вторая
     # колонка уронила бы прогон, а комментарий перед глазами обещал обратное.
     conn.execute("CREATE TABLE verification_runs(id INTEGER PRIMARY KEY AUTOINCREMENT)")
+    # ALTER + backfill targets for v42 (slug identity): the chain reaches them too.
+    conn.execute(
+        "CREATE TABLE decisions(id INTEGER PRIMARY KEY AUTOINCREMENT)"
+    )
+    conn.execute(
+        "CREATE TABLE memory(id INTEGER PRIMARY KEY AUTOINCREMENT)"
+    )
 
     new_ver = run_migrations(conn, 31)
     assert new_ver >= 32

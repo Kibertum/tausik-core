@@ -21,6 +21,7 @@ from backend_migrations_parity import check_schema_migration_parity
 from backend_migrations_v39 import MIGRATION_V39
 from backend_migrations_v40 import MIGRATION_V40
 from backend_migrations_v41 import MIGRATION_V41
+from backend_migrations_v42 import MIGRATION_V42
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -343,6 +344,9 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     40: MIGRATION_V40,
     # v41: declared "no file changes" on tasks (qg2-cannot-close-fileless-task)
     41: MIGRATION_V41,
+    # v42: stable slug identity for decisions and memory (state-git-stable-ids).
+    # Columns only; the backfill + UNIQUE index run in backend_migrations_v42_backfill.
+    42: MIGRATION_V42,
 }
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any
 
+from slug_util import first_line, next_slug
 from tausik_utils import utcnow_iso
 
 if TYPE_CHECKING:
@@ -194,9 +195,11 @@ class BackendCrudMixin:
     def decision_add(
         self, text: str, task_slug: str | None = None, rationale: str | None = None
     ) -> int:
+        now = utcnow_iso()
+        slug = next_slug(self._q, "decisions", first_line(text), f"decision-{now}")
         return self._ins(
-            "INSERT INTO decisions(decision,task_slug,rationale,created_at) VALUES(?,?,?,?)",
-            (text, self._resolve_task_slug(task_slug), rationale, utcnow_iso()),
+            "INSERT INTO decisions(decision,task_slug,rationale,created_at,slug) VALUES(?,?,?,?,?)",
+            (text, self._resolve_task_slug(task_slug), rationale, now, slug),
         )
 
     def decision_list(self, n: int = 20) -> list[dict[str, Any]]:
@@ -225,18 +228,13 @@ class BackendCrudMixin:
         task_slug: str | None = None,
     ) -> int:
         now = utcnow_iso()
+        slug = next_slug(self._q, "memory", title, f"memory-{now}")
+        tags_json = json.dumps(tags) if tags else None
+        task = self._resolve_task_slug(task_slug)
         return self._ins(
-            "INSERT INTO memory(type,title,content,tags,task_slug,created_at,updated_at) "
-            "VALUES(?,?,?,?,?,?,?)",
-            (
-                mem_type,
-                title,
-                content,
-                json.dumps(tags) if tags else None,
-                self._resolve_task_slug(task_slug),
-                now,
-                now,
-            ),
+            "INSERT INTO memory(type,title,content,tags,task_slug,created_at,updated_at,slug) "
+            "VALUES(?,?,?,?,?,?,?,?)",
+            (mem_type, title, content, tags_json, task, now, now, slug),
         )
 
     def memory_list(

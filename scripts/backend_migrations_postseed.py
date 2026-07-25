@@ -12,6 +12,7 @@ import sqlite3
 
 from backend_migrations_legacy import seed_v18_roles
 from backend_migrations_v34 import maybe_backfill_v34
+from backend_migrations_v42_backfill import maybe_backfill_v42
 
 
 def run_post_migrations(conn: sqlite3.Connection, current_version: int) -> None:
@@ -54,3 +55,5 @@ def run_post_migrations(conn: sqlite3.Connection, current_version: int) -> None:
                 )
     if current_version >= 34:  # seal historical events into the hash-chain
         maybe_backfill_v34(conn)
+    if current_version >= 42:  # stable slugs for decisions + memory, then UNIQUE index
+        maybe_backfill_v42(conn)
