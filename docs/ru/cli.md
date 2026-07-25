@@ -110,7 +110,8 @@ task unclaim <slug>            # Освободить задачу
 **v1.5 Verify-First Contract.** Тяжёлые гейты (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeval, hadolint, ansible-lint) живут на триггере `verify`, а не `task-done`. Это разделяет «закрытие задачи» (миллисекунды) от «полной проверки» (минуты на больших проектах). Результат `verify` кешируется в таблице `verification_runs` на 10 минут (TTL настраивается через `verify_cache_ttl_seconds` в config.json), и `task done` использует кеш для немедленного закрытия.
 
 ```bash
-verify [--task SLUG] [--scope {lightweight,standard,high,critical,manual}]
+verify [--task SLUG] [--relevant-files PATH ...]
+       [--scope {lightweight,standard,high,critical,manual}]
        [--no-tests-expected]
                                 # Запустить scoped verify-trigger gates ad-hoc; пишет в verify cache.
                                 # С --task: гейты scoped по relevant_files задачи.
@@ -118,6 +119,18 @@ verify [--task SLUG] [--scope {lightweight,standard,high,critical,manual}]
                                 # Cache hit (тот же files_hash, < 10 мин) пропускает запуск.
                                 # Security-sensitive файлы (auth/payment/hooks) обходят cache.
 ```
+
+**`--relevant-files`.** Объявляет область задачи И проверяет её одной командой.
+Требует `--task`: область — свойство задачи, и записывать её больше некуда.
+Пути СОХРАНЯЮТСЯ в задачу, поэтому `task done` читает ту же область и попадает
+в кеш — источник правды один, строка задачи.
+
+Без объявленной области каждый scoped-гейт получает `[SKIP]`, а чек всё равно
+подписывается: он удостоверяет пустоту. До появления этого флага единственный
+рабочий путь (`task update <slug> --relevant-files ...`) не назывался ни в
+одном сообщении, а предупреждение предлагало флаг, которого у `verify` не было
+— поэтому игнорировать предупреждение было РАЗУМНЫМ поведением, а не
+небрежностью.
 
 **`--no-tests-expected`.** Прогон, в котором ни один гейт не выполнился (все
 `[SKIP]`), блокируется: он ничего не доказывает, а записанный зелёный по нему

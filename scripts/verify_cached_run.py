@@ -22,6 +22,7 @@ from typing import Any, Callable
 # formatter and put a MagicMock into the `summary` column. Inject behaviour,
 # not formatting.
 from gate_runner import summarize_results
+from tausik_utils import cli_invocation
 from verify_cache import _build_cache_command, is_cache_allowed
 
 # The envelope-timeout machinery moved to `verify_envelope` when this file
@@ -48,6 +49,9 @@ from verify_scope_honesty import (
     describe_declared_scope,
     security_block_reason,
 )
+
+# How to spell the CLI in a remediation the reader's shell will accept.
+_CLI = cli_invocation()
 
 
 # verify-no-test-mapped-dead-end: the audit query this feature exists to make
@@ -260,7 +264,10 @@ def run_gates_with_cache(
             append_notes_fn(
                 slug,
                 "WARN: no relevant_files passed — scoped gates SKIPPED. "
-                "v1.3 removed full-suite fallback. Pass --relevant-files for verification.",
+                "v1.3 removed full-suite fallback. Declare the scope: "
+                f"`{_CLI} verify --task {slug} --relevant-files <paths...>` "
+                f"(or `{_CLI} task update {slug} --relevant-files <paths...>` "
+                "first). This receipt certifies nothing until you do.",
             )
     # v1.3 blind-review pass: If relevant_files was supplied but EVERY gate was skipped (no
     # test mapped, source-without-test), don't pass as green. Report a synthetic

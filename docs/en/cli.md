@@ -106,7 +106,8 @@ task unclaim <slug>             # Release a task
 **v1.5 Verify-First Contract.** Heavy gates (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeval, hadolint, ansible-lint) live on the `verify` trigger, not `task-done`. This decouples "task closure" (milliseconds) from "full verification" (potentially minutes on large projects). The `verify` result is cached in the `verification_runs` table for 10 minutes (TTL is configurable via `verify_cache_ttl_seconds` in config.json), and `task done` uses the cache for instant closure.
 
 ```bash
-verify [--task SLUG] [--scope {lightweight,standard,high,critical,manual}]
+verify [--task SLUG] [--relevant-files PATH ...]
+       [--scope {lightweight,standard,high,critical,manual}]
        [--no-tests-expected]
                                 # Run scoped verify-trigger gates ad-hoc; records into verify cache.
                                 # With --task: gates scoped to the task's relevant_files.
@@ -114,6 +115,17 @@ verify [--task SLUG] [--scope {lightweight,standard,high,critical,manual}]
                                 # Cache hit (same files_hash, < 10 min) skips the run.
                                 # Security-sensitive files (auth/payment/hooks) bypass the cache.
 ```
+
+**`--relevant-files`.** Declares the task's scope AND verifies it in one step.
+Requires `--task`: the scope is a property of a task, and there is nowhere else
+to record it. The paths are PERSISTED to the task, so `task done` reads the same
+scope and hits the cache — one source of truth, the task row.
+
+Without a declared scope every scoped gate is `[SKIP]` and the receipt is still
+signed: it certifies emptiness. Before this flag the only working move
+(`task update <slug> --relevant-files ...`) was named in no message at all,
+while the warning offered a flag `verify` did not have — which made ignoring the
+warning the RATIONAL response rather than a careless one.
 
 **`--no-tests-expected`.** A run in which no gate actually executed (everything
 `[SKIP]`) blocks: it proves nothing, and a green recorded against it would stay

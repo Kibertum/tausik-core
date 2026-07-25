@@ -79,7 +79,10 @@ def test_match_evidence_partial_coverage_finds_gaps():
 
 def test_match_evidence_unmatched_lines_collected():
     ac = "1. a"
-    notes = "Reviewed code, no specific AC tag"
+    # Genuinely keyword-free: no negative/manual/review/domain marker, no AC tag,
+    # no test ref. ("Reviewed" would now match REVIEW_RE's bare stem — the point
+    # of this case is the marker-LESS line, so it must not contain one.)
+    notes = "Refactored the parser, no specific AC tag"
     rep = build_report(ac, notes)
     assert rep.covered == 0
     assert rep.gaps() == [1]

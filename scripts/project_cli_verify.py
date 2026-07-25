@@ -125,6 +125,33 @@ def cmd_verify(svc: Any, args: Any) -> None:
     task_slug = getattr(args, "task", None)
     scope = getattr(args, "scope", "manual")
 
+    # verify-warn-names-a-flag-verify-does-not-have: declaring the scope IS part
+    # of verifying it — a verify over an undeclared scope skips every gate and
+    # still signs a receipt. The declaration is persisted rather than used
+    # ad-hoc so `task done` reads the same list and hits the cache; one source
+    # of truth, the task row.
+    declared = getattr(args, "relevant_files", None)
+    if declared is not None:
+        if not task_slug:
+            print(
+                "verify --relevant-files needs --task: the scope is a property "
+                "of a task, and there is nowhere to record it otherwise."
+            )
+            raise SystemExit(2)
+        if declared:
+            import json as _json
+
+            svc.task_update(task_slug, relevant_files=_json.dumps(list(declared)))
+            print(f"Scope declared for '{task_slug}': {len(declared)} file(s).")
+        else:
+            # An empty list is almost always a shell glob that matched nothing.
+            # Silently wiping a declared scope would turn it into an unnoticed
+            # unscoped run — the exact state this flag exists to leave.
+            print(
+                "verify --relevant-files was given no paths — keeping the "
+                "scope already declared on the task. Pass paths to change it."
+            )
+
     try:
         report = svc.run_verify_for_task(
             task_slug,
@@ -138,6 +165,12 @@ def cmd_verify(svc: Any, args: Any) -> None:
 
     hit = report.get("cache_hit")
     if hit is not None:
+        if not task_slug:
+            # The cache is keyed per task; a hit without one means the cache
+            # layer changed shape under this caller. Say so instead of printing
+            # "Verify cache HIT for 'None'" and returning as if verified.
+            print("internal error: verify cache hit with no --task; caches are per-task only.")
+            raise SystemExit(2)
         _emit_cache_hit(svc, task_slug, hit)
         return
 

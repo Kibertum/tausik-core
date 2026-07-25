@@ -16,6 +16,11 @@ from tausik_utils import ServiceError, utcnow_iso
 from model_pinning import model_done_updates
 from service_recording import record_call_actual, record_cost_actual
 from service_task_done_flags import _checklist_hard_enabled, _root_cause_hard_enabled
+from task_done_scope import (
+    persist_declared_scope,
+    scope_from_recent_verify,
+    scope_from_task_row,
+)
 
 if TYPE_CHECKING:
     from project_backend import SQLiteBackend
@@ -98,34 +103,23 @@ class TaskDoneReportMixin:
             "message": "",
         }
         task = self._require_task(slug)  # type: ignore[attr-defined]
-        # Verify-First: `tausik verify --task` uses DB relevant_files; `task done`
-        # often omits CLI --relevant-files — merge so cache hash matches verify runs.
-        if relevant_files is None:
-            rf_raw = task.get("relevant_files")
-            if rf_raw:
-                try:
-                    parsed = json.loads(rf_raw)
-                    if isinstance(parsed, list):
-                        relevant_files = parsed
-                except (TypeError, ValueError, json.JSONDecodeError):
-                    pass
-        # v14-task-done-relevant-files-fallback: caller and DB both silent →
-        # recover files from the latest fresh verify-row (no-arg `task done`
-        # after `verify --task X` hits cache). Security-sensitive: explicit only.
-        recovered_for_complexity: list[str] | None = None
-        if relevant_files is None:
-            from verify_recent_lookup import lookup_relevant_files_from_recent_verify
-            from service_verification import is_security_sensitive
-
-            recovered = lookup_relevant_files_from_recent_verify(self.be._conn, slug)
-            # Keep recovered set for the complexity COUNT even if security-sensitive:
-            # a count leaks only a number, and dropping it blinds the detector to the
-            # highest-risk category — a security task closed 'simple' (l26 review MED).
-            recovered_for_complexity = recovered or None
-            if recovered and not is_security_sensitive(recovered):
-                relevant_files = recovered
+        # Refuse an already-closed task BEFORE any write. persist_declared_scope
+        # mutates the row, and a closed task's scope fed its risk_score,
+        # verify-cache hash and receipt — rewriting it from a call that then
+        # fails ('already done') would corrupt a certified task invisibly.
         if task["status"] == "done":
             raise ServiceError(f"Task '{slug}' is already done")
+        # Where the scope comes from — and when it is written down — lives in
+        # `task_done_scope`; this function is about whether the task may CLOSE.
+        if persist_declared_scope(self.be, slug, relevant_files):
+            task = self._require_task(slug)  # type: ignore[attr-defined]
+        if relevant_files is None:
+            relevant_files = scope_from_task_row(task)
+        recovered_for_complexity: list[str] | None = None
+        if relevant_files is None:
+            adoptable, recovered_for_complexity = scope_from_recent_verify(self.be._conn, slug)
+            if adoptable:
+                relevant_files = adoptable
         if evidence:
             self.task_log(slug, evidence)  # type: ignore[attr-defined]
             task = self._require_task(slug)  # type: ignore[attr-defined]

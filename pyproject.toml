@@ -34,6 +34,19 @@ pythonpath = ["scripts"]
 # Run the full battery via `pytest -m ''` or `tausik verify --full` (env:
 # TAUSIK_VERIFY_FULL=1). See docs/{en,ru}/cli.md for the full contract.
 addopts = "-m 'not slow'"
+# full-pytest-hangs-while-scoped-pytest-is-green. The full suite takes ~9-10
+# minutes of wall clock (5759 passed / 554 s measured in session #135) and the
+# cost is FLAT: the 30 slowest tests are 10% of it, the rest is ~0.09 s x 5700.
+# Three sessions read "slower than my timeout" as "hung" and killed the run at
+# 200/420/600 s, then wrote conclusions about a hang that never happened.
+# A stall is now told apart from slowness mechanically instead of by guessing:
+# any single test over 60 s (11x the slowest real one, 5.3 s) dumps the
+# tracebacks of every thread and exits non-zero. Silence therefore MEANS "not
+# stuck, just long" — budget the ten minutes rather than shortening the timeout.
+# `faulthandler_exit_on_timeout` needs pytest >= 9.0; older installs warn about
+# an unknown option and tests/test_pytest_hang_guard.py says so in words.
+faulthandler_timeout = 60
+faulthandler_exit_on_timeout = true
 markers = [
     "verify_first: opt the test in to v1.4 Verify-First Contract enforcement (default conftest fixture sets auto_verify=True for backward compat)",
     "slow: subprocess/integration/e2e/stress tests; skipped by default in interactive verify, run via `pytest -m ''` or `tausik verify --full` / TAUSIK_VERIFY_FULL=1",

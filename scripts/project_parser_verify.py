@@ -18,6 +18,18 @@ def add_verify_parsers(sub: Any) -> None:
     _scopes = ["lightweight", "standard", "high", "critical", "manual"]
     vp.add_argument("--scope", choices=_scopes, default="manual")
     vp.add_argument(
+        "--relevant-files",
+        nargs="*",
+        default=None,
+        help=(
+            "Declare the task's scope AND verify it in one step. Requires "
+            "--task. The paths are written to the task, so `task done` reads "
+            "the same scope and hits the verify cache. Without a declared "
+            "scope every scoped gate is SKIPPED and the receipt certifies "
+            "nothing."
+        ),
+    )
+    vp.add_argument(
         "--no-tests-expected",
         action="store_true",
         help=(

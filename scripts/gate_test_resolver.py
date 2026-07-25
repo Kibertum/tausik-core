@@ -10,6 +10,36 @@ from __future__ import annotations
 import os
 
 
+def build_tests_index(base: str) -> dict[str, list[str]]:
+    """Bucket every `tests/**/test_*.py` under `base` by basename.
+
+    Walk tests/ once; supports nested layouts (tests/integration/test_foo.py).
+    Permission errors / missing tests/ → empty index, callers fall back.
+
+    Public because the pytest gate needs the DENOMINATOR of its own scope: a
+    scoped run that reports "PASS" without saying "2 of 318 test files" reads
+    as a statement about the whole project. See `run_command_gate`.
+    """
+    tests_root = os.path.join(base, "tests")
+    tests_index: dict[str, list[str]] = {}
+    try:
+        for dirpath, _dirnames, filenames in os.walk(tests_root):
+            for fn in filenames:
+                if not (fn.startswith("test_") and fn.endswith(".py")):
+                    continue
+                abs_path = os.path.join(dirpath, fn)
+                rel_path = os.path.relpath(abs_path, base).replace("\\", "/")
+                tests_index.setdefault(fn, []).append(rel_path)
+    except OSError:
+        return {}
+    return tests_index
+
+
+def count_test_files(root: str | None = None) -> int:
+    """How many test files exist in total — the denominator of a scoped run."""
+    return sum(len(paths) for paths in build_tests_index(root or os.getcwd()).values())
+
+
 def resolve_test_files_for_relevant(
     relevant_files: list[str] | None, *, root: str | None = None
 ) -> list[str]:
@@ -36,21 +66,7 @@ def resolve_test_files_for_relevant(
         seen.add(norm)
         found.append(norm)
 
-    tests_root = os.path.join(base, "tests")
-    # Walk tests/ once and bucket by basename; supports nested layouts
-    # (tests/integration/test_foo.py, tests/unit/scoped/test_bar.py, …).
-    tests_index: dict[str, list[str]] = {}
-    try:
-        for dirpath, _dirnames, filenames in os.walk(tests_root):
-            for fn in filenames:
-                if not (fn.startswith("test_") and fn.endswith(".py")):
-                    continue
-                abs_path = os.path.join(dirpath, fn)
-                rel_path = os.path.relpath(abs_path, base).replace("\\", "/")
-                tests_index.setdefault(fn, []).append(rel_path)
-    except OSError:
-        # Permission errors / missing tests/ → empty index, callers fall back.
-        tests_index = {}
+    tests_index = build_tests_index(base)
 
     for raw in relevant_files:
         if not raw or not isinstance(raw, str):

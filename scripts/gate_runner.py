@@ -41,6 +41,10 @@ from gate_renar_drift import run_renar_drift_gate  # noqa: F401, E402
 from gate_bootstrap_drift import run_bootstrap_drift_gate  # noqa: F401, E402
 from gate_test_resolver import resolve_test_files_for_relevant  # noqa: F401, E402
 from gate_registry import impl_for  # noqa: E402
+from tausik_utils import cli_invocation  # noqa: E402
+
+# How to spell the CLI in a remediation the reader's shell will accept.
+_CLI = cli_invocation()
 
 # A gate with neither an implementation nor a command. Routed through the same
 # skip path as _SCOPED_SKIP_SENTINEL so it reads as SKIP everywhere, including
@@ -49,7 +53,12 @@ _NO_IMPL_SENTINEL = "__TAUSIK_GATE_NO_IMPL__"
 
 # v14b-filesize-debt-paydown: run_command_gate + _SCOPED_SKIP_SENTINEL extracted
 # to gate_command_runner.py; re-exported so tests/test_gates.py import path holds.
-from gate_command_runner import _SCOPED_SKIP_SENTINEL, run_command_gate  # noqa: F401, E402
+from gate_command_runner import (  # noqa: F401, E402
+    _SCOPED_SKIP_SENTINEL,
+    SCOPE_PREFIX,
+    run_command_gate,
+    split_scope,
+)
 
 
 def run_gates(
@@ -166,9 +175,14 @@ def run_gates(
                     "No test file maps to relevant_files via "
                     "tests/test_<basename>.py heuristic; gate skipped (scoped run)."
                     if files
+                    # verify-warn-names-a-flag-verify-does-not-have: this
+                    # used to name a bare `--relevant-files` with no command
+                    # attached, and the command a reader would try it on
+                    # (`verify`) did not have the flag. Name the whole line.
                     else (
-                        "No relevant_files passed; gate skipped. Pass relevant_files "
-                        "for actual verification (e.g. --relevant-files src/foo.py)."
+                        "No relevant_files passed; gate skipped. Declare the "
+                        f"scope: `{_CLI} verify --task <slug> --relevant-files "
+                        "<paths...>`."
                     )
                 )
             results.append(
@@ -197,6 +211,13 @@ def run_gates(
                 )
             continue
 
+        # Lift the genuine scope label off the output ONCE, here, at the single
+        # boundary where gate output becomes a result dict. Only a run_command_gate
+        # scoped run carries the private sentinel; everything else (filesize, a
+        # spoofed "SCOPE:" line in tool stdout) yields an empty scope and untouched
+        # body. `output` from here on is the sentinel-free body that gets stored.
+        scope, output = split_scope(output)
+
         # duration_ms and skipped used to reach the progress callback only, so
         # any caller that did not pass one lost them — including the code that
         # now persists gate outcomes (l26-gate-results-persist).
@@ -205,6 +226,7 @@ def run_gates(
             "severity": severity,
             "passed": passed,
             "output": output,
+            "scope": scope,
             "skipped": False,
             "duration_ms": int((time.monotonic() - start_ms) * 1000),
         }
@@ -221,6 +243,7 @@ def run_gates(
                     "skipped": False,
                     "duration_ms": int((time.monotonic() - start_ms) * 1000),
                     "output": output,
+                    "scope": scope,
                 }
             )
 
@@ -264,7 +287,18 @@ def summarize_results(results: list[dict]) -> str:
 
 
 def format_results(results: list[dict]) -> str:
-    """Format gate results for display."""
+    """Format gate results for display.
+
+    A passing gate prints its verdict and nothing else — except the scope line,
+    if it has one. That exception is the whole point: `[PASS] pytest` over two
+    of 318 test files is the reading that costs (session #134 closed on one
+    while the full suite was red), and a pass is exactly where the output used
+    to be dropped.
+
+    The scope line is read from the trusted ``scope`` field (lifted off a private
+    sentinel by `run_gates`), never grepped out of the gate's stdout — a "SCOPE:"
+    line a subprocess printed is just body text, not the framework's disclosure.
+    """
     if not results:
         return "No gates configured for this trigger."
     lines = []
@@ -272,8 +306,14 @@ def format_results(results: list[dict]) -> str:
         icon = gate_verdict(r)
         sev = f" ({r['severity']})" if not r["passed"] else ""
         lines.append(f"  [{icon}] {r['name']}{sev}")
-        if not r["passed"] and r["output"]:
-            for line in r["output"].split("\n")[:5]:
+        scope = r.get("scope") or ""
+        if scope:
+            lines.append(f"         {scope}")
+        output = r.get("output") or ""
+        if not r["passed"] and output:
+            # `output` is already the sentinel-free body — the scope line lives in
+            # the trusted field above and is never duplicated here.
+            for line in output.split("\n")[:5]:
                 lines.append(f"         {line}")
     return "\n".join(lines)
 

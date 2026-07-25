@@ -9,6 +9,197 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Reviewing the groundwork found four more holes in the machinery that guards it
+
+An adversarial pass over the state-in-git groundwork surfaced four defects, each
+a case of a check being weaker, or more forgeable, than it read.
+
+`task done <already-done-slug> --relevant-files X` wrote the new scope to the
+task row *before* the "already done" guard fired — so a call that then failed
+with an error had already overwritten the scope of a closed, certified task: the
+very list that fed its risk score, its verify-cache hash and its signed receipt,
+rewritten invisibly. The guard now refuses the closed task before any write.
+
+The "COMPLEXITY UNDERSTATED" proxy subtracts the files every task touches by
+ceremony, but its hand-written list of them omitted `AGENTS.md` — which
+`update-claudemd` writes on every close as a synced sibling of `CLAUDE.md`. Any
+task that touched it was quietly counted one file more complex than it was, the
+exact overcount the proxy exists to remove. The sibling name now comes from the
+one place that owns it, so the two lists cannot drift.
+
+The scoped-pytest coverage label (`SCOPE: 2 of 318 — NOT the full suite`) was
+recognised by its public `SCOPE:` prefix, grepped straight out of gate stdout —
+so an author-controlled stack command could print the same line and forge a
+full-coverage claim, and a scoped run that *failed to spawn* dropped the label
+entirely. The genuine label now rides a private sentinel a subprocess cannot
+emit, lifted into a trusted field at one boundary; a `SCOPE:` line in tool
+output is just text. Spawn and timeout failures carry the label like any pass.
+
+The AC-evidence detectors claim each marker is equally loose in Russian and
+English, but two had drifted in opposite directions: `review` demanded a phrase
+in English while a bare `ревью` passed in Russian (so an English "code review"
+was hard-blocked where the Russian was not), and `доменн` matched inside
+`поддоменное` (subdomain) where the bounded English `domain` never credited
+`subdomain`. Both are realigned so the two working languages earn the same
+credit for the same evidence.
+
+### Groundwork: project state that travels with the branch, not a server
+
+A teammate who clones the repo sees no TAUSIK state at all — `.tausik/` is
+gitignored and `tausik.db` is a binary SQLite file two people cannot merge. The
+1.8 answer is not a shared server or Notion (both branch-agnostic, both
+decouple state from the code it describes) but a **git-native projection**:
+durable project state — tasks, plan, journal, decisions, project memory —
+serialised one file per entity into `tausik/`, so a decision made on a feature
+branch merges into `main` exactly when that branch's code does.
+
+This first task lays the contract only, no runtime yet: `docs/{ru,en}/team-state-in-git.md`
+and spec `team-state-in-git-format` fix the directory layout, the
+markdown+frontmatter format, the byte-identical round-trip rules (LF, fixed key
+order, deterministic list sorting), the per-table scope (what travels, what
+stays local), and the git merge semantics. The load-bearing follow-up is stable
+identity for decisions and memory, which today use local auto-increment ids that
+would collide across branches. See decision `#172`.
+
+### The one instruction on offer could not be carried out
+
+`tausik verify --task X` over an empty scope skipped every gate, signed a
+receipt anyway, and printed: *"Pass --relevant-files for verification."*
+`verify` had no such flag. The command that did (`task update
+--relevant-files`) was named in no message at all. And `task done
+--ac-verified --relevant-files ...` wrote the scope inside the `status=done`
+transaction, so a close blocked by Verify-First threw the declaration away —
+leaving the task as unscoped as before, to be verified again over nothing.
+
+Three commands pointing at each other with no way through. Ignoring the
+warning was the *rational* response, not a careless one, and a year of
+closures resting on "no relevant_files passed — scoped gates SKIPPED" is what
+that rationality bought.
+
+`verify` now takes `--relevant-files`. It declares the scope *and* verifies it,
+persisting the paths to the task so `task done` reads the same list and hits the
+cache — one source of truth, the task row. Without `--task` it is an explicit
+error rather than a silent no-op, and an empty list (a glob that matched
+nothing) keeps the existing scope instead of quietly wiping it back into the
+state this whole fix removes.
+
+A declaration is not a result, so `task done` now records `--relevant-files`
+the moment it is given, before any gate can block the close. The blocked close
+still blocks; the task keeps the scope it was told about.
+
+Both messages were rewritten to name whole, runnable commands. The tests do not
+compare them against expected strings — they extract the command from the
+message and hand it to the real argparse parser, which is the only check that
+would have caught the original defect.
+
+The ten added lines pushed `service_task_done.py` past the filesize gate, and
+the seam it exposed was real: deciding whether a task may CLOSE is a different
+question from where its declared scope came from and when that gets written
+down. The second now lives in `task_done_scope.py`.
+
+### Seven sessions of "COMPLEXITY UNDERSTATED" were counting the paperwork
+
+The advisory compares declared complexity against the number of files a task
+touched. Six of those files are touched by *every* task regardless of size:
+both CHANGELOGs (mandatory by convention #275), the framework-maintained
+CLAUDE.md, the generated `docs/_generated/constants.json`, and each document
+that exists twice because the project ships a Russian mirror. A one-line fix
+arrived at close carrying +6 files and was told it looked `complex`.
+
+It fired in seven consecutive sessions, and every one of those advisories was
+also written to the supervision log — so the calibration data had been
+accumulating a systematic understatement that never happened. The measurement
+was noisy, not the estimates.
+
+What changed is the measured quantity, not the scale: `_SIMPLE_MAX_FILES` and
+`_MEDIUM_MAX_FILES` are untouched. A file counts when it can carry a behaviour
+change — ceremony files and generated artefacts drop out, and a document
+counts once rather than once per language. A *lone* mirror still counts: the
+canonical key is derived from the path rather than looked up against the set,
+so editing only `README.ru.md` remains one file of work. Dropping it would make
+translation invisible, which is the more insulting error of the two.
+
+Backtested on all seven closures that were flagged: five advisories disappear,
+two survive — including one that declared `simple` while changing four hook
+modules, which is the case the advisory exists for. The warning now names both
+numbers ("9 behaviour-bearing files of 13 declared"), because a warning that
+says nine about a thirteen-file `git status` reads like a broken tool.
+
+### The suite never hung — it was longer than every timeout aimed at it
+
+Three sessions killed the full `pytest` run at 200 s, 420 s and 600 s, saw it
+stop at 38%, 77% and 64%, and concluded it hangs. It does not. Run without a
+timeout it finishes: **5759 passed, 23 skipped, 140 deselected in 554 s**. Two
+measurements say the same thing from the other side — `faulthandler_timeout` of
+60 s and then 120 s produced no dump at all (no single test ran a minute), and
+`--durations=30` puts the slowest test at 5.28 s with the whole top thirty
+adding up to 10% of the total. There is no hot spot to fix: ~0.09 s across 5759
+tests is what nine minutes is made of.
+
+So the change is not a speed-up, it is a way to tell *stuck* from *long*
+without a human guessing. `faulthandler_timeout = 60` plus
+`faulthandler_exit_on_timeout = true` (both stock pytest, no plugin) mean any
+single test over a minute dumps every thread's traceback and exits non-zero.
+Silence from the guard now *means* "not stuck, just long" — budget the ten
+minutes instead of shortening the timeout and re-deriving a hang.
+
+Measuring it also found what three sessions of guessing had not: **the suite
+was red.** `test_check_docs_hook::TestRealRepoSync` failed on doc-constants
+drift — a test file added at the end of session #134 moved `test_count`
+5913 → 5923 and `docs/_generated/constants.json` was never regenerated. The
+closure that introduced it was verified by the scoped pytest gate, which maps
+`relevant_files` to test files by basename; nothing mapped to
+`test_check_docs_hook.py`, so the gate never ran the test that was failing and
+the receipt was green.
+
+That receipt is now harder to over-read. A scoped run prefixes its output with
+one line naming what it covered — `SCOPE: scoped run over 2 of 318 test file(s)
+mapped from relevant_files -- NOT the full suite: …` — on pass, on failure and
+on timeout alike. The verdict and the size of the thing it was earned on travel
+together into the signed receipt, so "PASS pytest" can no longer be read as a
+statement about the project. `gate_command_runner.py` and
+`gate_test_resolver.py` also got test files named after them: neither had one,
+which meant the scoped gate could not verify its own scoping code.
+
+Checked, and cleared: the "full pytest 5744/5750 passed" lines in session
+#134's evidence are honest. A scoped run cannot print four-digit pass counts,
+and the `23 skipped` matches today's full run exactly. Those runs were real and
+green — the suite went red afterwards, in the last closure of the session.
+
+### Of two closure checks printed side by side, only one spoke Russian
+
+QG-2 printed two NOTEs together: "no `Negative:` evidence found" and "domain
+challenge unanswered". The second was satisfiable in the language this
+project's evidence is actually written in; the first was not — `DOMAIN_RE` has
+been bilingual since birth, `NEGATIVE_RE` was `\bnegative\b`. On three real
+closures of session #134 the negative scenarios WERE exercised and pinned by
+tests, and were flagged anyway, because they were described in Russian.
+
+The filed hypothesis — evidence written to notes AFTER the check that reads it
+— is **refuted by the code**: `service_task_done` logs the evidence and
+re-reads the task before every closure check. The verdict depends on the TEXT,
+not on the path it arrived by, so writing the same lines earlier via `task log`
+changes nothing. That is pinned by a test rather than argued.
+
+`MANUAL_RE` and `REVIEW_RE` had the same monolingual gap, and it cost more:
+they feed `checklist_missing`, a HARD block for substantial/deep tiers. A
+manual run described in Russian could block the closure.
+
+The Russian alternatives are deliberately **as loose as** their English
+counterparts (bare stem, not a required phrase). Convention #301: when you port
+a detector to a new dialect, port the false-positive list it already paid for —
+inventing a stricter dialect is how two judges start disagreeing. The known
+weakness "the detector matches a WORD, not a fact" remains, is now symmetric
+across languages, and is not fixed here.
+
+Detectors moved to `scripts/ac_evidence_detectors.py` — the file hit the
+filesize gate and the seam is real: WHAT counts as a marker is not HOW lines
+are segmented and matched to AC items. The producer-side registry
+`PROSE_DETECTORS`/`STRUCTURAL_DETECTORS` moved with them: the parity test reads
+the detector names FROM THE PARSER'S BYTECODE instead of listing them itself,
+so a new English-only detector fails the test instead of quietly reopening the
+gap.
+
 ### The primary platform's main shell reached no hook at all
 
 `.claude/settings.json` registered the firewall, the shell-write gate and the

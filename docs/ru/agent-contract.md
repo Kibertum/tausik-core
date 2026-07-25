@@ -20,6 +20,14 @@ quality gates. Pytest gate использует `{test_files_for_files}` substit
 
 - Если `relevant_files` non-empty но ни один тест не маппится → **gate SKIPPED**
   (раньше fallback на полный suite — defect fixed).
+- Суженный прогон предваряет вывод строкой `SCOPE: scoped run over N of M test
+  file(s) … NOT the full suite: …` — на pass, на fail и на timeout одинаково.
+  Она печатается и для ПРОШЕДШЕГО гейта (у остальных гейтов вывод на успехе не
+  показывается). Знаменатель обязателен: `[PASS] pytest` над двумя файлами из
+  318 читается как утверждение о проекте, и в сессии #134 так и прочитался —
+  задача закрылась зелёным подписанным чеком при красном полном наборе.
+  Прежде чем писать в evidence «полный pytest зелёный», прогони его отдельно:
+  он идёт ~9-10 минут и завершается (память #304), а цифры гейта — не его.
 - Без `relevant_files` (None/empty) `task done` **БЛОКИРУЕТ**: необъявленная
   область — «unknown», а не «verified empty» (verify-cache-empty-scope-hit,
   сессия #118). Полный suite fallback отменён. Объяви файлы и запусти verify.

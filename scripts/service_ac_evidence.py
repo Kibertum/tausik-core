@@ -23,29 +23,19 @@ from dataclasses import dataclass, field
 
 from tausik_utils import ServiceError
 
-CHECK_MARK_RE = re.compile(r"[\u2713\u2714\u2705]|\[v\]")
-AC_NUMBER_PREFIX_RE = re.compile(r"^\s*(?:AC[-\s]*)?(\d+)[\.\):]?\s*(.*)$", re.IGNORECASE)
-TEST_REF_RE = re.compile(
-    r"(tests?/[\w/.\-]+\.py(?:::[\w_]+)?|test_[\w_]+\.py(?:::[\w_]+)?)",
-    re.IGNORECASE,
-)
-NEGATIVE_RE = re.compile(r"\bnegative\b", re.IGNORECASE)
-MANUAL_RE = re.compile(r"\bmanual(?:ly)?\b", re.IGNORECASE)
-REVIEW_RE = re.compile(r"/review|review\s*record|adversarial", re.IGNORECASE)
-# SENAR Rule 4 domain challenge (v15s-rule4-domain-challenge): does the result
-# make sense OUTSIDE the tests? arXiv 2605.30353 — agents pass tests with
-# physically meaningless outputs. An evidence line answering the domain question.
-DOMAIN_RE = re.compile(
-    r"\bdomain\b|\bsanity\b|makes?\s+sense|имеет\s+смысл|доменн|real[\s\-]?world",
-    re.IGNORECASE,
-)
-# Start of a numbered AC item inside a single-line blob: optional "AC-" prefix,
-# a number, a separator (. ) :), then whitespace. Anchored to start-of-text or a
-# preceding whitespace/`;`/`(` so a mid-token number (Python 3.11, SHA-256,
-# v1.4, "returns 0)") cannot start a spurious item.
-AC_ITEM_BOUNDARY_RE = re.compile(
-    r"(?:^|(?<=[\s;(]))(?:AC[-\s]*)?(\d+)\s*[.):]\s",
-    re.IGNORECASE,
+# WHAT counts as a marker lives in `ac_evidence_detectors` — split out when this
+# module hit the 400-line gate, and the split is what gives the language-parity
+# registry a home. This module owns HOW lines are segmented and matched to AC
+# items. Re-exported: callers and tests import these names from here.
+from ac_evidence_detectors import (  # noqa: E402,F401 — re-export for callers
+    AC_ITEM_BOUNDARY_RE,
+    AC_NUMBER_PREFIX_RE,
+    CHECK_MARK_RE,
+    DOMAIN_RE,
+    MANUAL_RE,
+    NEGATIVE_RE,
+    REVIEW_RE,
+    TEST_REF_RE,
 )
 
 

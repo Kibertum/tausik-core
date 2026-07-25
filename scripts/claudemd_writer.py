@@ -13,6 +13,13 @@ import sys
 _MARKER_START = "<!-- DYNAMIC:START -->"
 _MARKER_END = "<!-- DYNAMIC:END -->"
 
+# The agent-instruction sibling that `update-claudemd` keeps in lockstep with
+# CLAUDE.md. The name lives HERE, in the producer, so every consumer that needs
+# to recognise this file as framework-maintained ceremony (e.g. the
+# complexity-understatement proxy, which must NOT count it as behaviour-bearing)
+# reads it from one place instead of hand-listing a copy that can drift.
+CLAUDEMD_SIBLING_BASENAME = "AGENTS.md"
+
 
 def apply_dynamic_section(path: str, dynamic_content: str, dry_run: bool) -> tuple[str, bool]:
     """Replace the DYNAMIC section of `path` with `dynamic_content`.
@@ -69,7 +76,7 @@ def resolve_sibling_targets(primary: str) -> list[str]:
     dir (never a bare cwd-relative 'AGENTS.md', which under an MCP server's cwd
     could hit an unrelated file)."""
     targets = [primary]
-    sibling = os.path.join(os.path.dirname(primary) or ".", "AGENTS.md")
+    sibling = os.path.join(os.path.dirname(primary) or ".", CLAUDEMD_SIBLING_BASENAME)
     if os.path.exists(sibling) and os.path.abspath(sibling) != os.path.abspath(primary):
         targets.append(sibling)
     return targets
