@@ -23,16 +23,25 @@ import risk_compute  # noqa: E402
 _SCRIPTS = pathlib.Path(__file__).resolve().parent.parent / "scripts"
 
 
+class _FakeCompleted:
+    def __init__(self, stdout: str, returncode: int = 0):
+        self.stdout = stdout
+        self.stderr = ""
+        self.returncode = returncode
+
+
 class TestRiskComputeGitStdin:
     def test_git_call_passes_stdin_devnull(self, monkeypatch):
+        # risk_compute now routes through git_exec.run → git_exec.run_git →
+        # subprocess.run; the guard is asserted at that single chokepoint.
         captured: dict = {}
 
-        def fake_check_output(cmd, **kwargs):
+        def fake_run(cmd, **kwargs):
             captured["cmd"] = cmd
             captured["kwargs"] = kwargs
-            return b"1\t2\tscripts/x.py\n"
+            return _FakeCompleted("1\t2\tscripts/x.py\n")
 
-        monkeypatch.setattr(subprocess, "check_output", fake_check_output)
+        monkeypatch.setattr(subprocess, "run", fake_run)
         risk_compute._git_numstat_lines(["diff", "--numstat", "HEAD"], set(), ".")
         assert captured["kwargs"].get("stdin") is subprocess.DEVNULL
 
@@ -41,7 +50,18 @@ class TestRiskComputeGitStdin:
         def boom(cmd, **kwargs):
             raise subprocess.TimeoutExpired(cmd, 10)
 
-        monkeypatch.setattr(subprocess, "check_output", boom)
+        monkeypatch.setattr(subprocess, "run", boom)
+        assert risk_compute._factor_code_churn(["scripts/x.py"], None, ".") is None
+
+    def test_nonzero_git_exit_drops_factor_not_zero(self, monkeypatch):
+        # risk-compute-numstat-fail-open: git_exec.run does NOT raise on nonzero
+        # (check=False), unlike the check_output it replaced. A git failure that
+        # exits nonzero WITHOUT raising must still drop the factor (→ None, then
+        # conservative 1.0), NEVER be read as 0 changed lines (the lowest risk).
+        def nonzero(cmd, **kwargs):
+            return _FakeCompleted("", returncode=128)  # e.g. 'fatal: bad revision HEAD'
+
+        monkeypatch.setattr(subprocess, "run", nonzero)
         assert risk_compute._factor_code_churn(["scripts/x.py"], None, ".") is None
 
 

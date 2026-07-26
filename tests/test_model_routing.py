@@ -301,3 +301,75 @@ def test_model_tier_resolves_glm_via_profiles():
     assert _model_tier("glm-4.6", fams) == 3  # fable rank (highest it fills)
     assert _model_tier("glm-4.6") is None  # without profiles → unknown (back-compat)
     assert _model_tier("claude-opus-4-8") == 2  # claude token path unchanged
+
+
+class TestProfileSlugSingleSource:
+    """model-registry-single-source — the id→slug map must be DERIVED from
+    model_profiles, never hand-maintained, so a rank's canonical id and its
+    reverse lookup can never drift.
+    """
+
+    def test_registry_is_the_reverse_of_default_families(self):
+        # AC1: the derived map equals the reverse of DEFAULT_FAMILIES["claude"].
+        import model_profiles
+        from model_routing_matrix import _PROFILE_SLUG_BY_MODEL_ID
+
+        expected = {
+            model_profiles.normalize_model_id(spec["model"]): rank
+            for rank, spec in model_profiles.DEFAULT_FAMILIES["claude"].items()
+        }
+        assert _PROFILE_SLUG_BY_MODEL_ID == expected
+
+    def test_derivation_tracks_a_hypothetical_point_release_bump(self):
+        # AC2 (drift guard): if a rank's canonical id changed in the source,
+        # the derived reverse map follows — proving it is not a frozen literal.
+        import model_profiles
+        from model_routing_matrix import _derive_profile_slug_by_model_id
+
+        bumped = {r: dict(s) for r, s in model_profiles.DEFAULT_FAMILIES["claude"].items()}
+        original = model_profiles.DEFAULT_FAMILIES["claude"]
+        model_profiles.DEFAULT_FAMILIES["claude"] = {
+            **bumped,
+            "opus": {"model": "claude-opus-4-9", "display": "Opus 4.9"},
+        }
+        try:
+            derived = _derive_profile_slug_by_model_id()
+            assert derived["claude-opus-4-9"] == "opus"
+            assert "claude-opus-4-8" not in derived  # old id no longer a rank
+        finally:
+            model_profiles.DEFAULT_FAMILIES["claude"] = original
+
+    @pytest.mark.parametrize(
+        "model_id,expected_slug",
+        [
+            pytest.param("claude-haiku-4-5", "haiku", id="haiku"),
+            pytest.param("claude-sonnet-4-6", "sonnet", id="sonnet"),
+            pytest.param("claude-opus-4-8", "opus", id="opus_canonical"),
+            pytest.param("claude-opus-4-7", "opus", id="opus_historical_via_family_fallback"),
+            pytest.param("claude-opus-4-9", "opus", id="opus_future_point_release_via_fallback"),
+            pytest.param("claude-fable-5", "fable", id="fable"),
+            pytest.param("Claude-Opus-4-8[1m]", "opus", id="normalized_case_and_suffix"),
+        ],
+    )
+    def test_slug_resolution_unchanged(self, model_id, expected_slug):
+        # AC3: behaviour identical for every previously-mapped id, plus the
+        # family-fallback cases the derived map deliberately omits.
+        from model_routing_matrix import _model_id_to_profile_slug
+
+        assert _model_id_to_profile_slug(model_id) == expected_slug
+
+    @pytest.mark.parametrize(
+        "model_id",
+        [
+            pytest.param("glm-4.6", id="non_claude_no_family_token"),
+            pytest.param("mystery-9", id="unknown_id"),
+            pytest.param("", id="empty"),
+            pytest.param(None, id="none"),
+        ],
+    )
+    def test_unrecognised_id_returns_none(self, model_id):
+        # AC7 NEGATIVE: no family token and not in the registry → None, never a
+        # silent wrong-slug guess.
+        from model_routing_matrix import _model_id_to_profile_slug
+
+        assert _model_id_to_profile_slug(model_id) is None

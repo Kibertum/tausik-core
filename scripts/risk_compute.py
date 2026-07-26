@@ -17,6 +17,8 @@ import sqlite3
 import subprocess
 from typing import Any
 
+import git_exec
+
 _log = logging.getLogger("tausik.risk")
 
 
@@ -43,19 +45,21 @@ def _factor_gate_coverage(conn: sqlite3.Connection, slug: str) -> float | None:
 
 
 def _git_numstat_lines(args: list[str], relevant: set[str], cwd: str) -> int:
-    # stdin=DEVNULL is critical: inside the MCP server, sys.stdin is the
-    # JSON-RPC pipe to the IDE. On Windows git probes stdin (paginator /
-    # credential prompt) and blocks reading it, hanging task_done — the same
-    # defect verify_git_diff.py guards against (v14b-defect-mcp-task-done-stdin-hang).
-    # risk_compute, added later (v15-risk-compute-on-done), reintroduced the
-    # unguarded call; this restores the guard.
-    out = subprocess.check_output(
-        ["git"] + args,
-        stderr=subprocess.DEVNULL,
-        stdin=subprocess.DEVNULL,
-        timeout=10,
-        cwd=cwd,
-    ).decode("utf-8", "replace")
+    # git_exec closes stdin: inside the MCP server sys.stdin is the JSON-RPC pipe;
+    # on Windows git probes it (paginator / credential) and blocks, hanging
+    # task_done (v14b-defect-mcp-task-done-stdin-hang). This call once shipped
+    # unguarded (v15-risk-compute-on-done); the guard now lives in git_exec and
+    # cannot be lost by copy-paste again.
+    result = git_exec.run(args, cwd=cwd, timeout=10)
+    if result.returncode != 0:
+        # git_exec.run does NOT raise on nonzero (check=False), unlike the
+        # check_output this replaced. Re-raise so _factor_code_churn's except
+        # drops the factor → risk_model defaults code_churn to the conservative
+        # 1.0 (fail-VISIBLE). Without this, a git failure (unborn HEAD, bad
+        # revision, corrupt repo) would yield empty stdout → total=0 → the LOWEST
+        # risk reading — a silent fail-OPEN (risk-compute-numstat-fail-open).
+        raise subprocess.CalledProcessError(result.returncode, ["git", *args])
+    out = result.stdout
     total = 0
     for line in out.splitlines():
         parts = line.split("\t")

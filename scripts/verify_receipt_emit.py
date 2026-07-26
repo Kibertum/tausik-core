@@ -16,6 +16,8 @@ import sqlite3
 import subprocess
 from typing import Any
 
+import git_exec
+
 _log = logging.getLogger("tausik.receipt")
 
 # Emission outcome markers, also printed by the verify CLI.
@@ -27,16 +29,13 @@ STATUS_ERROR = "error"
 def current_git_sha(cwd: str | None = None) -> str | None:
     """HEAD sha for receipt binding; None outside a repo / on git failure."""
     try:
-        out = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"],
-            stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL,  # MCP-reachable (verify): never read the JSON-RPC stdin pipe
-            timeout=5,
-            cwd=cwd,
-        )
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+        # git_exec closes stdin (MCP-reachable via verify — never read the JSON-RPC pipe).
+        result = git_exec.run(["rev-parse", "HEAD"], cwd=cwd, timeout=5, binary=True)
+    except (subprocess.TimeoutExpired, OSError):
         return None
-    return out.decode("ascii", "replace").strip() or None
+    if result.returncode != 0:
+        return None
+    return result.stdout.decode("ascii", "replace").strip() or None
 
 
 def emit_signed_receipt(

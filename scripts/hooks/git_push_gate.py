@@ -143,6 +143,14 @@ def _git_head_sha() -> str | None:
         out = subprocess.check_output(
             ["git", "rev-parse", "HEAD"],
             stderr=subprocess.DEVNULL,
+            # stdin=DEVNULL was MISSING here — the one genuinely-unguarded git call
+            # (git-exec-single-wrapper), safe until now only because this hook's
+            # stdin is consumed earlier. This hook runs as an isolated subprocess
+            # with only hooks/ on sys.path (shared utils are duplicated into hooks/,
+            # not imported from scripts/), so it keeps its own guarded call rather
+            # than importing scripts/git_exec — the same standalone reasoning as
+            # bootstrap. See v14b-defect-mcp-task-done-stdin-hang.
+            stdin=subprocess.DEVNULL,
             timeout=3,
         )
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):

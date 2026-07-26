@@ -65,20 +65,34 @@ def _model_tier(
     return None
 
 
-_PROFILE_SLUG_BY_MODEL_ID: dict[str, str] = {
-    "claude-haiku-4-5": "haiku",
-    "claude-sonnet-4-6": "sonnet",
-    "claude-opus-4-7": "opus",
-    "claude-opus-4-8": "opus",
-    "claude-fable-5": "fable",
-}
+def _derive_profile_slug_by_model_id() -> dict[str, str]:
+    """Reverse the canonical Claude rank→id map into {model_id: profile_slug}.
+
+    Single source of truth is ``model_profiles.DEFAULT_FAMILIES["claude"]``.
+    Deriving this reverse map (rather than hand-writing it, as it was before
+    model-registry-single-source) means a point-release bump of a rank's
+    canonical id — e.g. opus 4-8 → 4-9 in DEFAULT_FAMILIES — propagates here for
+    free, so the two can never drift. Ids absent from this map still resolve via
+    the ``_model_family`` token fallback in ``_model_id_to_profile_slug``, so a
+    historical version (claude-opus-4-7) or a future point release needs no
+    explicit entry — the map is a convenience index, not the authority.
+    """
+    idx = model_profiles.reverse_index({"claude": model_profiles.DEFAULT_FAMILIES["claude"]})
+    return {model_id: rank for model_id, (_family, rank) in idx.items()}
+
+
+# Canonical id→slug index, DERIVED from model_profiles (never hand-maintained).
+_PROFILE_SLUG_BY_MODEL_ID: dict[str, str] = _derive_profile_slug_by_model_id()
 
 
 def _model_id_to_profile_slug(model_id: str) -> str | None:
     """Return the model_profile slug `tausik config set` accepts, or None.
 
-    Explicit registry first (the four Claude tiers), then a family fallback so
-    a future point-release id (e.g. claude-opus-4-9) still resolves.
+    Derived registry first (the canonical Claude tiers, reverse-indexed from
+    model_profiles), then a family-token fallback so a historical version or a
+    future point-release id (e.g. claude-opus-4-9) still resolves. An id with no
+    family token that is absent from the registry returns None — never a silent
+    wrong-slug guess.
     """
     slug = _PROFILE_SLUG_BY_MODEL_ID.get(_normalize_model_id(model_id))
     return slug if slug is not None else _model_family(model_id)

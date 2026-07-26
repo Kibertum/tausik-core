@@ -9,6 +9,108 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Closure-risk churn factor no longer fails open on a git error
+
+Adversarial review of the git-wrapper consolidation caught a fail-open regression it
+had introduced. `risk_compute._git_numstat_lines` used to call `subprocess.check_output`,
+which *raised* on a non-zero git exit; that exception propagated to `_factor_code_churn`,
+which dropped the `code_churn` factor so the risk model defaulted it to the conservative
+**1.0** ("fail-visible"). The migration to `git_exec.run` (which returns rather than
+raises on non-zero) silently removed that: on any git failure — unborn HEAD,
+`fatal: bad revision 'HEAD'`, a corrupt repo — stdout came back empty, the line count
+was `0`, and the factor read as **0.0**, the *lowest* possible risk. A closure that
+should have scored conservatively would have scored as trivially safe. The function now
+inspects `returncode` and re-raises on non-zero, restoring the fail-visible path, and a
+new test stubs a non-zero-`returncode` result (not a raised exception — the gap the
+original test missed) and asserts the factor is dropped, not computed as zero.
+
+### Config loader no longer drags the database layer at import
+
+`project_config` — the most-imported module in the tree — pulled `project_backend`
+and `project_service` (the whole SQLite + service layer) at *import time*, purely to
+offer a `get_service()` factory. That import-time edge meant nothing could read
+`.tausik/config.json` without loading the database code, which is the concrete
+blocker for shipping a standalone config loader (the v2 engine-standalone-package
+goal): a package that only parses config must not require the ORM. `get_service()`
+and its two DB imports now live in a new leaf `service_factory.py`; the one importer
+(`project.py`) was repointed. Separately, the session-duration constants, the
+context-tier enum + resolver, and the LLM-pricing normaliser/lookup moved to a new
+dependency-light `tausik_constants.py` — `project_config` re-exports every one of
+them, so all existing `from project_config import X` call sites (MCP handlers,
+`service_session`, `project_cli`, `cost_pricing`, `bootstrap`, tests) are untouched.
+A `test_config_module_boundary` suite pins it: an AST guard plus a subprocess import
+with the DB modules blocked prove `project_config` now stands alone, while
+`service_factory` correctly still fails without them. The remaining concern-splits
+(gate merge/validation out of `project_config`; the `project_cli_ops` /
+`project_cli_extra` multi-concern files) are deliberately deferred to their own steps
+— this change is the architectural edge-break, not the full 9-way carve.
+
+### Version metadata reconciled — the framework stopped misreporting its own version
+
+A discipline framework that misstates its own version undercuts its whole premise.
+`TODO.md` said "Released v1.5.0", the SENAR compliance matrix headers (EN + RU) said
+"TAUSIK v1.5.1", while `pyproject`, `constants.json` and `tausik_version.__version__`
+all said v1.7.0 — three different answers to one question. All now state the coherent
+truth: **v1.7.0 released, v1.8 in flight on `release/1.8`**. The matrix's audit *date*
+(2026-06-13) is deliberately kept, not bumped — refreshing it would fabricate a
+compliance audit that never ran. And `scripts/README.md` no longer hardcodes
+`tausik_version.py`'s version ("1.1.0", itself stale) — it now describes the module as
+the single-source `__version__`, so that line can never drift on a release again. The
+final 1.7→1.8 bump/tag stays a separate release step; this is only the reconciliation.
+
+### One guarded git primitive — the stdin-hang guard can't be copy-pasted away
+
+Seven ad-hoc git wrappers had accreted across the framework, each re-deciding
+whether to close stdin. That mattered because of a real, twice-seen defect: inside
+the MCP server `sys.stdin` is the JSON-RPC pipe to the IDE, and on Windows git
+probes stdin (paginator / credential prompt) and blocks, hanging the worker
+(`v14b-defect-mcp-task-done-stdin-hang`). The guard had been lost once by
+copy-paste (`risk_compute`, then restored) and one gate-reachable site
+(`hooks/git_push_gate._git_head_sha`) shipped **without** it — safe only by luck,
+because its stdin happened to be consumed earlier. New `scripts/git_exec.py` is the
+single chokepoint: `run_git(cmd, **kwargs)` (a `subprocess.run` drop-in that forces
+`stdin=DEVNULL`) and the ergonomic `run(args, *, timeout, …)` on top of it. The five
+importable `scripts/` git call sites route through it, and `verify_git_diff`'s
+injectable-runner seam now defaults to `run_git`, so even future code that forgets
+stdin is guarded. The `git_push_gate` hook stays independent — invoked as an
+isolated subprocess with only `hooks/` on `sys.path` (shared utils are duplicated
+into `hooks/`, not imported from `scripts/`), so it keeps its own call and gains the
+missing `stdin=DEVNULL` in place: the one genuinely-unguarded *reachable* site. The
+`bootstrap/get_lib_commit` installer is deliberately left as-is — it runs only as a
+standalone CLI, never inside the MCP worker, so the JSON-RPC-stdin hang cannot reach
+it, and the file already sits at its 400-line budget; a defence-only line there
+would buy no safety. `timeout` is a required keyword on `run` — no silently-unbounded
+git call can exist. Pinned by `tests/test_git_exec.py` and the
+existing AST anti-regression scan, which now recognises `git_exec` as the one
+sanctioned `subprocess.run` of a git command.
+
+Deliberately **not** done in the same pass: the four "is this a test file?"
+predicates (`gate_test_resolver`, `risk_compute`, `gate_filesize`,
+`gate_tdd_order`) look like duplicates but answer four different questions with
+load-bearing differences — `src/foo.spec.ts` is a test for TDD-order but
+intentionally not filesize-exempt nor risk-test-churn; a root-level `test_x.py`
+isn't filesize-exempt (that gate matches the `tests/` **directory** only); and only
+the risk predicate lowercases. Unifying them would change at least one gate's
+behaviour, so they stay distinct — a difference that is a feature, not drift.
+
+### Model rank↔id reverse map is derived from profiles, not hand-copied
+
+The mapping "which model id fills which capability rank" lived authoritatively in
+`model_profiles.DEFAULT_FAMILIES["claude"]`, yet `model_routing_matrix` carried a
+hand-written `_PROFILE_SLUG_BY_MODEL_ID` literal restating its reverse — with no
+guard forcing the two to agree. A rank's canonical id could bump in one place and
+the reverse map silently keep the old answer. That literal is now *derived* from
+`DEFAULT_FAMILIES` via `reverse_index`, so a point-release bump (opus 4-8 → 4-9)
+propagates for free and the two can never drift; a `TestProfileSlugSingleSource`
+class pins the derivation, the historical/future family-fallback cases
+(`claude-opus-4-7`, `claude-opus-4-9` resolve via the token path with no explicit
+entry), and the negative case (an id with no family token, absent from profiles →
+`None`, never a wrong-slug guess). `cost_pricing._MODEL_PRICING` is deliberately
+left untouched: it is a distinct *pricing* table that must enumerate historical
+ids for old sessions, and it is already mechanically drift-guarded by
+`test_every_routed_claude_model_has_a_price` — folding it into the rank map would
+add coupling, not remove it.
+
 ### Role-count drift now fails the doc-drift check
 
 Adding the sixth built-in role (`devops`) exposed a blind spot: the doc-drift

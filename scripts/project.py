@@ -69,7 +69,7 @@ def main() -> None:
     from project_cli_snippet import cmd_snippet
     from cmd_db import cmd_db
     from project_cli_review import cmd_review
-    from project_config import get_service
+    from service_factory import get_service
     from project_parser import build_parser
     from tausik_utils import ServiceError
 

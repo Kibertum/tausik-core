@@ -2,7 +2,7 @@
 
 # SENAR v1.5 Core — Compliance Matrix
 
-**Date:** 2026-06-13 | **Auditors:** 6+ independent review cycles | **Framework:** TAUSIK v1.5.1
+**Date:** 2026-06-13 | **Auditors:** 6+ independent review cycles | **Framework:** TAUSIK v1.7.0
 
 ## Quality Gates
 

@@ -20,6 +20,8 @@ import shutil
 import subprocess
 from typing import Callable
 
+import git_exec
+
 
 def _is_repo_root(base: str) -> bool:
     """True when *base* holds a git repository.
@@ -86,7 +88,7 @@ def changed_files_since(
         return None
     if not _is_repo_root(base):
         return None
-    run = runner or subprocess.run
+    run = runner or git_exec.run_git  # default git chokepoint forces stdin=DEVNULL
     changed: set[str] = set()
     try:
         # stdin=DEVNULL is critical: when these git calls run inside the MCP
@@ -188,7 +190,7 @@ def uncommitted_changes(
         return None
     if not _is_repo_root(base):
         return None
-    run = runner or subprocess.run
+    run = runner or git_exec.run_git  # default git chokepoint forces stdin=DEVNULL
     pathspec = [_normalize_repo_path(p) for p in (paths or []) if p and p.strip()]
     cmd = ["git", "status", "--porcelain"]
     if untracked != "normal":
@@ -290,7 +292,7 @@ def files_with_substantive_additions(
         return None
     if not _is_repo_root(base):
         return None
-    run = runner or subprocess.run
+    run = runner or git_exec.run_git  # default git chokepoint forces stdin=DEVNULL
     pathspec = [_normalize_repo_path(p) for p in (paths or []) if p and p.strip()]
     if not pathspec:
         return set()

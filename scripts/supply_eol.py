@@ -18,6 +18,8 @@ from __future__ import annotations
 import os
 import subprocess
 
+import git_exec
+
 _GIT_TIMEOUT = 30
 
 
@@ -26,14 +28,8 @@ class WorktreeDriftError(Exception):
 
 
 def _git(cwd: str, *args: str, binary: bool = False):
-    return subprocess.run(
-        ["git", *args],
-        cwd=cwd,
-        capture_output=True,
-        text=not binary,
-        timeout=_GIT_TIMEOUT,
-        stdin=subprocess.DEVNULL,
-    )
+    # git_exec centralises the stdin=DEVNULL guard (single git chokepoint).
+    return git_exec.run(list(args), cwd=cwd, timeout=_GIT_TIMEOUT, binary=binary)
 
 
 def is_git_worktree(path: str) -> bool:
