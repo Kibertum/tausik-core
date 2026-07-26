@@ -86,6 +86,11 @@ def cmd_memory(svc: ProjectService, args: Any) -> None:
             label = rec.get("title", rec.get("decision", ""))[:60]
             print(f"  [{depth} hop] {ntype}#{nid} --[{rel}]--> {label}")
     elif c == "graph":
+        if getattr(args, "format", "table") == "mermaid":
+            from graph_mermaid import render_memory_graph  # graph-mermaid-render
+
+            print(render_memory_graph(svc), end="")
+            return
         edges = svc.memory_graph(
             args.node_type,
             args.node_id,

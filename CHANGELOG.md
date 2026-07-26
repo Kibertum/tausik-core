@@ -9,6 +9,18 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Memory graph renders as Mermaid diagram-as-code (borrowed from cubest)
+
+`tausik memory graph --format mermaid` renders the live memory/decision knowledge
+graph (`memory_edges`) as a Mermaid flowchart — native in artifacts, GitHub and
+Obsidian, for both the agent and a human. Borrowed from cubest's "one cube, many
+projections" idea. Deterministic like the state export (nodes in sorted id order,
+edges by `(source, relation, target)`), so a re-render never churns; labels are
+sanitised to a Mermaid-safe subset so no title or decision first-line can break
+the diagram, and only live state travels (non-archived memory, valid edges,
+slug-bearing nodes that participate in an edge). An empty graph yields a valid,
+empty `graph LR`.
+
 ### State export/import wired into the lifecycle (no manual sync)
 
 The git-native projection now tracks the DB without manual commands. On a durable

@@ -211,6 +211,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     mgraph.add_argument("--include-invalid", action="store_true")
     mgraph.add_argument("--limit", type=int, default=50)
+    mgraph.add_argument("--format", choices=["table", "mermaid"], default="table")
     mblock = mem_sub.add_parser(
         "block",
         help="Print compact memory block (decisions + conventions + dead ends) for re-injection",
