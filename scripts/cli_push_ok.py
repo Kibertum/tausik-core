@@ -44,7 +44,7 @@ def _git(args: list[str]) -> str | None:
         return None
     if result.returncode != 0:
         return None
-    return result.stdout.strip()
+    return str(result.stdout.strip())
 
 
 def write_push_ticket(

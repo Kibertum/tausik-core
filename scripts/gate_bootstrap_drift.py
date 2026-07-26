@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import os
 import sys
+from typing import cast
 
 
 def _harness_drift_names(project_dir: str) -> list[str]:
@@ -50,7 +51,7 @@ def _harness_drift_names(project_dir: str) -> list[str]:
         sys.path.insert(0, boot)
     from bootstrap_check import check_deployed_trees  # noqa: PLC0415
 
-    return check_deployed_trees(lib_dir, project_dir)
+    return cast("list[str]", check_deployed_trees(lib_dir, project_dir))
 
 
 def run_bootstrap_drift_gate_for(gate: dict, files: list[str]) -> tuple[bool, str]:

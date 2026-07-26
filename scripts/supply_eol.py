@@ -38,7 +38,7 @@ def is_git_worktree(path: str) -> bool:
         result = _git(path, "rev-parse", "--is-inside-work-tree")
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         return False
-    return result.returncode == 0 and result.stdout.strip() == "true"
+    return bool(result.returncode == 0 and result.stdout.strip() == "true")
 
 
 def _index_prefix(artifact_dir: str) -> str | None:
@@ -55,7 +55,7 @@ def _index_prefix(artifact_dir: str) -> str | None:
         return None
     if result.returncode != 0:
         return None
-    return result.stdout.strip()
+    return str(result.stdout.strip())
 
 
 def _tracked_files(artifact_dir: str) -> set[str] | None:

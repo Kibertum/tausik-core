@@ -39,12 +39,12 @@ class KnowledgeCrudMixin:
             return task_slug
         return None
 
-    def _add_slugged(self, table, sql, params_of, text, fallback):
+    def _add_slugged(self, table, sql, params_of, text, fallback) -> int:
         """INSERT a slug-bearing row race-safely (UNIQUE index is the guarantee;
         `insert_with_slug` retries on a concurrent clash). `params_of(slug)`
         builds the row's params — recomputed per retry, which is cheap."""
-        return insert_with_slug(
-            self._q, lambda s: self._ins(sql, params_of(s)), table, text, fallback
+        return int(
+            insert_with_slug(self._q, lambda s: self._ins(sql, params_of(s)), table, text, fallback)
         )
 
     # --- Decisions ---

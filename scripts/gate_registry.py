@@ -49,7 +49,7 @@ from __future__ import annotations
 
 import importlib
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 PHASE_SCOPED = "scoped"
 PHASE_POST_SCOPE = "post_scope"
@@ -301,7 +301,7 @@ def is_builtin(name: str, default_command: str | None = None) -> bool:
 def _resolve_dotted(path: str) -> Callable[..., Any]:
     module_name, _, attr = path.partition(":")
     module = importlib.import_module(module_name)
-    return getattr(module, attr)
+    return cast("Callable[..., Any]", getattr(module, attr))
 
 
 def impl_for(name: str) -> Callable[..., Any] | None:
@@ -325,7 +325,7 @@ def bound_impl_for(spec: GateSpec, svc: Any) -> Callable[..., Any]:
     binding must stay late.
     """
     if spec.impl.startswith("svc:"):
-        return getattr(svc, spec.impl.split(":", 1)[1])
+        return cast("Callable[..., Any]", getattr(svc, spec.impl.split(":", 1)[1]))
     return _resolve_dotted(spec.impl)
 
 

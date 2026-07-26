@@ -16,7 +16,7 @@ is indistinguishable from a crash and provokes exactly the wrong recovery.
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 # Default 60s suits interactive MCP hosts; CI can disable the envelope entirely
 # with `verify_pipeline_timeout_seconds=0`, where one long step is fine.
@@ -110,4 +110,4 @@ def run_within_envelope(
         )
     if "e" in exc:
         raise exc["e"]
-    return result["v"]
+    return cast("tuple[bool, list[dict[str, Any]]]", result["v"])
