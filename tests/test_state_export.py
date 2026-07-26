@@ -521,6 +521,7 @@ def test_cli_state_export_writes_tree(tmp_path):
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         cwd=str(db_dir),
         env=env,
     )

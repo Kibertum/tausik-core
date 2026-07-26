@@ -19,13 +19,14 @@
 
 ## Дефолтные профили
 
-После bootstrap в `harness/roles/` есть пять дефолтных профилей:
+После bootstrap в `harness/roles/` есть шесть дефолтных профилей:
 
 - `architect.md` — системный дизайн, trade-off'ы, ADR
 - `developer.md` — реализация, рефакторинг, дебаг
 - `qa.md` — тест-дизайн, coverage, fake-test detection
 - `tech-writer.md` — документация, parity, примеры
 - `ui-ux.md` — interaction design, accessibility, microcopy
+- `devops.md` — доставка, IaC, CI/CD, контейнеры, наблюдаемость
 
 Запустите `tausik role seed`, чтобы сидить строки в БД из этих markdown-файлов плюс из имён ролей, уже использованных на задачах.
 

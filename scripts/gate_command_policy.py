@@ -57,6 +57,7 @@ ALLOWED_GATE_EXECUTABLES = frozenset(
         "tflint",
         "tofu",
         "helm",
+        "kubeconform",
         "kubeval",
         "kube-score",
         "hadolint",

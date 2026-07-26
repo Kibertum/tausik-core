@@ -44,7 +44,7 @@ class TestRegistration:
             ("ansible-lint", "ansible"),
             ("terraform-validate", "terraform"),
             ("helm-lint", "helm"),
-            ("kubeval", "kubernetes"),
+            ("kubeconform", "kubernetes"),
             ("hadolint", "docker"),
         ],
     )
@@ -61,14 +61,40 @@ class TestRegistration:
         assert "ansible-lint" in STACK_GATE_MAP.get("ansible", [])
         assert "terraform-validate" in STACK_GATE_MAP.get("terraform", [])
         assert "helm-lint" in STACK_GATE_MAP.get("helm", [])
-        assert "kubeval" in STACK_GATE_MAP.get("kubernetes", [])
+        assert "kubeconform" in STACK_GATE_MAP.get("kubernetes", [])
         assert "hadolint" in STACK_GATE_MAP.get("docker", [])
+
+    def test_kubeconform_executable_is_allowlisted(self):
+        """Regression: kubeconform must be on the gate executable allow-list.
+
+        The stack replaced archived kubeval with kubeconform, but the allow-list
+        still carried only kubeval — so a user enabling or overriding the
+        kubeconform gate in `.tausik/config.json` hit `_validate_custom_gate:
+        executable 'kubeconform' not in allowed list`, and the gate the stack
+        ships could never run. `_validate_custom_gate` guards config overrides
+        (project_config load path), not the trusted stack default.
+        """
+        from gate_command_policy import (
+            ALLOWED_GATE_EXECUTABLES,
+            _validate_custom_gate,
+            executable_basename,
+        )
+        from project_config import DEFAULT_GATES
+
+        assert "kubeconform" in ALLOWED_GATE_EXECUTABLES
+        assert executable_basename(DEFAULT_GATES["kubeconform"]["command"]) == "kubeconform"
+        # A vendored/enabled override on the kubeconform binary must validate clean.
+        err = _validate_custom_gate(
+            "kubeconform",
+            {"command": "vendor/bin/kubeconform -summary -ignore-missing-schemas {files}"},
+        )
+        assert err is None, err
 
     def test_descriptions_state_lint_only(self):
         """Honest scope: each IaC gate must call out 'NOT policy-as-code'."""
         from project_config import DEFAULT_GATES
 
-        for name in ("ansible-lint", "terraform-validate", "helm-lint", "kubeval"):
+        for name in ("ansible-lint", "terraform-validate", "helm-lint", "kubeconform"):
             desc = DEFAULT_GATES[name]["description"].lower()
             assert "not policy-as-code" in desc or "not vulnerability" in desc
         # hadolint is best-practice/lint, not policy — explicitly disclaims vuln scans
@@ -134,7 +160,7 @@ class TestStackInfo:
             ("ansible", "ansible-lint"),
             ("terraform", "terraform-validate"),
             ("helm", "helm-lint"),
-            ("kubernetes", "kubeval"),
+            ("kubernetes", "kubeconform"),
             ("docker", "hadolint"),
         ],
     )
@@ -166,7 +192,7 @@ class TestCrossStackFiltering:
                 id="terraform_validate_runs_for_tf",
             ),
             pytest.param(
-                "kubeval", ["k8s/deployment.yaml"], True, id="kubeval_runs_for_k8s_manifest"
+                "kubeconform", ["k8s/deployment.yaml"], True, id="kubeconform_runs_for_k8s_manifest"
             ),
         ],
     )

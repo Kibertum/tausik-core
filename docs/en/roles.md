@@ -19,13 +19,14 @@ You don't need to register a role before assigning it — `--role qa-lead` works
 
 ## Default Profiles
 
-After bootstrap, `harness/roles/` ships with five default profiles:
+After bootstrap, `harness/roles/` ships with six default profiles:
 
 - `architect.md` — system design, trade-offs, decision records
 - `developer.md` — implementation, refactoring, debugging
 - `qa.md` — test design, coverage, fake-test detection
 - `tech-writer.md` — documentation, parity, examples
 - `ui-ux.md` — interaction design, accessibility, microcopy
+- `devops.md` — delivery, IaC, CI/CD, containers, observability
 
 Run `tausik role seed` to bootstrap rows in the DB from these markdown files plus any role names already used on tasks.
 

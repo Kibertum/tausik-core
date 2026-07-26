@@ -6,6 +6,7 @@ search. ``type`` is a closed list of 9 enforced by the service + DB CHECK.
 
 from __future__ import annotations
 
+import sys
 from typing import Any
 
 from project_service import ProjectService
@@ -54,8 +55,11 @@ def cmd_spec(svc: ProjectService, args: Any) -> None:
         if cmd == "search":
             return _cmd_search(svc, args)
     except ServiceError as e:
-        print(f"Error: {e}")
-        return None
+        # A CLI invocation IS the flow — a swallowed error that still exits 0 is
+        # a silent failure (CLAUDE.md zero-tolerance). Route to stderr and exit
+        # non-zero, consistent with the top-level handler in project.py.
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
     print(f"Unknown spec subcommand: {cmd!r}")
     return None
 

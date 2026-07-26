@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import sys
 from typing import Any
 
 from project_service import ProjectService
+from tausik_utils import ServiceError
 
 
 def cmd_role(svc: ProjectService, args: Any) -> None:
@@ -43,9 +45,12 @@ def _cmd_show(svc: ProjectService, slug: str) -> None:
 
     try:
         row = role_show(svc.be, slug)
-    except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
-        print(f"Error: {e}")
-        return
+    except ServiceError as e:
+        # A CLI invocation IS the flow — a swallowed error that still exits 0
+        # is a silent failure (CLAUDE.md zero-tolerance). Route to stderr and
+        # exit non-zero, consistent with the top-level handler in project.py.
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
     print(f"Role: {row['slug']}")
     print(f"  title:       {row['title']}")
     print(f"  description: {row.get('description') or '(none)'}")
@@ -63,12 +68,13 @@ def _cmd_create(svc: ProjectService, args: Any) -> None:
 
     try:
         row = role_create(svc.be, args.slug, args.title, args.description, args.extends)
-    except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
-        print(f"Error: {e}")
-        return
-    print(
-        f"Role '{row['slug']}' created (profile at {row.get('profile_path_source')})."
-    )
+    except ServiceError as e:
+        # A CLI invocation IS the flow — a swallowed error that still exits 0
+        # is a silent failure (CLAUDE.md zero-tolerance). Route to stderr and
+        # exit non-zero, consistent with the top-level handler in project.py.
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    print(f"Role '{row['slug']}' created (profile at {row.get('profile_path_source')}).")
 
 
 def _cmd_update(svc: ProjectService, args: Any) -> None:
@@ -76,9 +82,12 @@ def _cmd_update(svc: ProjectService, args: Any) -> None:
 
     try:
         row = role_update(svc.be, args.slug, args.title, args.description)
-    except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
-        print(f"Error: {e}")
-        return
+    except ServiceError as e:
+        # A CLI invocation IS the flow — a swallowed error that still exits 0
+        # is a silent failure (CLAUDE.md zero-tolerance). Route to stderr and
+        # exit non-zero, consistent with the top-level handler in project.py.
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
     print(f"Role '{row['slug']}' updated.")
 
 
@@ -87,9 +96,12 @@ def _cmd_delete(svc: ProjectService, args: Any) -> None:
 
     try:
         msg = role_delete(svc.be, args.slug, args.force)
-    except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
-        print(f"Error: {e}")
-        return
+    except ServiceError as e:
+        # A CLI invocation IS the flow — a swallowed error that still exits 0
+        # is a silent failure (CLAUDE.md zero-tolerance). Route to stderr and
+        # exit non-zero, consistent with the top-level handler in project.py.
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
     print(msg)
 
 

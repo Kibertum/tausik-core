@@ -345,10 +345,18 @@ class TestBootstrapRolesStacks:
         lib_dir = os.path.join(os.path.dirname(__file__), "..")
         target = str(tmp_path / "target")
         os.makedirs(target)
+        # Derive the expected role set from the source tree so this never goes
+        # stale when a role is added or removed (it did: devops landed as the
+        # sixth role and this assertion still said 5).
+        expected_roles = sorted(
+            p[:-3]
+            for p in os.listdir(os.path.join(lib_dir, "harness", "roles"))
+            if p.endswith(".md")
+        )
         n = copy_roles(lib_dir, target, "claude")
-        assert n == 5
+        assert n == len(expected_roles)
         roles_dir = os.path.join(target, "roles")
-        for role in ["developer", "architect", "qa", "tech-writer", "ui-ux"]:
+        for role in expected_roles:
             assert os.path.isfile(os.path.join(roles_dir, f"{role}.md"))
 
 

@@ -15,7 +15,7 @@
 
 ## Verify-First Contract (v1.5)
 
-Тяжёлые quality gates (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeval, hadolint, ansible-lint) живут на отдельном триггере `verify`. MCP workflow:
+Тяжёлые quality gates (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeconform, hadolint, ansible-lint) живут на отдельном триггере `verify`. MCP workflow:
 
 ```
 tausik_task_start(slug=…)                    # QG-0

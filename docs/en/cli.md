@@ -103,7 +103,7 @@ task unclaim <slug>             # Release a task
 
 ## Verification
 
-**v1.5 Verify-First Contract.** Heavy gates (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeval, hadolint, ansible-lint) live on the `verify` trigger, not `task-done`. This decouples "task closure" (milliseconds) from "full verification" (potentially minutes on large projects). The `verify` result is cached in the `verification_runs` table for 10 minutes (TTL is configurable via `verify_cache_ttl_seconds` in config.json), and `task done` uses the cache for instant closure.
+**v1.5 Verify-First Contract.** Heavy gates (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeconform, hadolint, ansible-lint) live on the `verify` trigger, not `task-done`. This decouples "task closure" (milliseconds) from "full verification" (potentially minutes on large projects). The `verify` result is cached in the `verification_runs` table for 10 minutes (TTL is configurable via `verify_cache_ttl_seconds` in config.json), and `task done` uses the cache for instant closure.
 
 ```bash
 verify [--task SLUG] [--relevant-files PATH ...]

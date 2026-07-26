@@ -322,6 +322,7 @@ def test_cli_state_import_roundtrip(tmp_path):
         [sys.executable, os.path.join(scripts, "project.py"), "state", "import"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         cwd=str(proj),
         env=env,
     )

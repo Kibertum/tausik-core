@@ -9,6 +9,84 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Role-count drift now fails the doc-drift check
+
+Adding the sixth built-in role (`devops`) exposed a blind spot: the doc-drift
+scanner counted stacks, hooks and review-agents but never *roles*, so a stale
+"N roles"/"N ролей" reference could drift uncaught — and had. `constants.json`
+now carries `roles_count` (derived by `code_counts.count_roles` from
+`harness/roles/*.md`), and `_CODE_COUNT_PATTERNS` gained EN + RU role patterns
+(fence-blind like the others). The stale literals were reconciled: both
+`architecture.md` trees said "5 roles" (missing devops) — now "6 roles"; the EN
+tree also said "12 core" skills against a live 13 and is reconciled to
+`skills_core_count`. Regression-pinned by five new `TestRolesCount` cases
+(flags stale EN/RU, clean on 6, ignores a fenced tree comment, no false-positive
+on "role-scoped").
+
+### doc-drift scanner split under the filesize cap + hooks regex hardened
+
+`doc_drift_scanners.py` had grown to 524 lines — the one file in `scripts/` over
+the 400-line cap, and (irony) the module that powers the doc-drift gate. Split
+three ways with no duplication and no circular import: `doc_drift_common.py`
+(regex table + line-preserving helpers), `doc_drift_scanners.py` (the `scan_*`
+walkers, 239 lines), `doc_drift_fixes.py` (the auto-fixer). `write_cross_file_fixes`
+is re-exported from the scanners module, so `gen_doc_constants` and existing tests
+are untouched. Separately, the hooks-count pattern was adjacency-anchored
+(`\b(\d+)\s+hooks\b`) and so missed `21 real-time hooks` — an adjective between the
+number and the noun — which had drifted uncaught (README said 21, constants 22).
+It now tolerates an optional real-time qualifier and the RU singular `хук`, still
+ignoring fenced illustrative numbers. README hooks 21→22 and architecture's test
+example reconciled to the live count. (A `4101` inside a ```bash fence stayed
+scanner-invisible by design — the illustrative-number guard — and was fixed as a
+plain literal, not by teaching the scanner to read fences.)
+
+### Kubernetes stack validates with kubeconform, not the archived kubeval
+
+The built-in `kubernetes` stack shipped a `kubeval` gate — a tool its own
+maintainer archived and explicitly superseded with `kubeconform`. It was the only
+deprecated binary among the IaC stacks (docker/helm/terraform/ansible all point at
+maintained linters). The gate is now `kubeconform -summary -ignore-missing-schemas`
+(supports current K8s versions + CRDs; the flag lets CRDs without a published
+schema pass rather than fail a lint). Unchanged by design: still `enabled:false`
+(opt-in, so a project without the binary is never blocked), still `severity:warn`
+(schema typos, not policy — kube-score / OPA / Kyverno remain custom gates), same
+`k8s/` `manifests/` `.kube/` detection. `guide.md` notes kubeval as the deprecated
+predecessor.
+
+### Fixed: `spec` / `adapt` CLI swallowed errors and exited 0 (silent failure)
+
+Sibling of the `role` fix below: the `tausik spec` and `tausik adapt` dispatchers
+caught `ServiceError`, printed it to stdout and returned — so a failing command
+(e.g. `spec show <missing>`) exited 0. Both now route the error to stderr and
+exit non-zero, matching the top-level `project.py` contract and every other
+command. Regression-pinned by new handler tests (`SystemExit(1)` on stderr; happy
+path still exits 0). This closes the class the role fix's note deferred.
+
+### Fixed: `role` CLI swallowed errors and exited 0 (silent failure)
+
+`tausik role show <missing>` (and `role create/update/delete` on their error
+paths) caught the `ServiceError`, printed it to **stdout**, and returned — so the
+process exited **0** on a real failure. A script or CI step checking `$?` saw
+success; the sibling `task show <missing>` correctly exits 1. The handlers now let
+the error reach the top-level dispatcher's contract — message to **stderr**, exit
+**non-zero** — matching every other command. Regression-pinned by three subprocess-
+free handler tests (error → `SystemExit(1)` on stderr; happy path still exits 0).
+The identical swallow in the `spec`/`adapt` handlers is tracked separately.
+
+### DevOps role ships as a sixth default profile
+
+`harness/roles/devops.md` joins architect/developer/qa/tech-writer/ui-ux as a
+built-in role, so delivery work — infrastructure-as-code, CI/CD, containers,
+orchestration, observability — routes and prompt-injects like any other role
+(`task add --role devops`, profile injected on claim). The profile is
+skill-modified the same way the others are (`/review`, `/plan`, `/task`, `/test`,
+`/commit`) with a deployment-safety-first lens: plan the rollback first, prefer
+additive gated changes over big-bang cutovers, treat a green schema-lint as
+"catches typos, not policy". It was not invented on a hunch — seeding surfaced
+that seven pre-existing tasks already carried `devops` as a free-text role, so
+this promotes an organic convention to a first-class registered role. Deployed to
+every IDE tree by bootstrap (`Roles: 6 copied`); `docs/{ru,en}/roles.md` updated.
+
 ### Memory graph renders as Mermaid diagram-as-code (borrowed from cubest)
 
 `tausik memory graph --format mermaid` renders the live memory/decision knowledge

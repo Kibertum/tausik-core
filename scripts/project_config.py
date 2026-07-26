@@ -158,10 +158,10 @@ def lookup_llm_usd_per_million_tokens(cfg: dict | None, model_id: str | None) ->
 # Measured against ACTIVE minutes (gap-based), not wall clock — AFK breaks
 # don't count. See backend_session_metrics.compute_active_minutes.
 DEFAULT_SESSION_MAX_MINUTES = 180
-
-# Gap (in minutes) above which a pause between events is treated as AFK
-# and excluded from active-time totals. Tunable via .tausik/config.json
-# under "session_idle_threshold_minutes".
+# Warn threshold (minutes): a duration nudge fires before the hard cap above.
+DEFAULT_SESSION_WARN_THRESHOLD_MINUTES = 150
+# Gap (minutes) above which a pause is treated as AFK, excluded from active time.
+# Tunable via .tausik/config.json "session_idle_threshold_minutes".
 DEFAULT_SESSION_IDLE_THRESHOLD_MINUTES = 10
 
 # --- Agent-native session capacity (tool calls, not minutes) ---

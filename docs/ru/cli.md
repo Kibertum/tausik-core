@@ -107,7 +107,7 @@ task unclaim <slug>            # Освободить задачу
 
 ## Верификация
 
-**v1.5 Verify-First Contract.** Тяжёлые гейты (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeval, hadolint, ansible-lint) живут на триггере `verify`, а не `task-done`. Это разделяет «закрытие задачи» (миллисекунды) от «полной проверки» (минуты на больших проектах). Результат `verify` кешируется в таблице `verification_runs` на 10 минут (TTL настраивается через `verify_cache_ttl_seconds` в config.json), и `task done` использует кеш для немедленного закрытия.
+**v1.5 Verify-First Contract.** Тяжёлые гейты (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeconform, hadolint, ansible-lint) живут на триггере `verify`, а не `task-done`. Это разделяет «закрытие задачи» (миллисекунды) от «полной проверки» (минуты на больших проектах). Результат `verify` кешируется в таблице `verification_runs` на 10 минут (TTL настраивается через `verify_cache_ttl_seconds` в config.json), и `task done` использует кеш для немедленного закрытия.
 
 ```bash
 verify [--task SLUG] [--relevant-files PATH ...]

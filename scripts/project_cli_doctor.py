@@ -270,16 +270,19 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
     try:
         from project_config import (
             DEFAULT_SESSION_CAPACITY_CALLS,
+            DEFAULT_SESSION_IDLE_THRESHOLD_MINUTES,
             DEFAULT_SESSION_MAX_MINUTES,
+            DEFAULT_SESSION_WARN_THRESHOLD_MINUTES,
             load_config_with_rejections,
         )
+        from verify_constants import DEFAULT_CACHE_TTL_S
 
         cfg, trust_rejections = load_config_with_rejections()
         cap = cfg.get("session_capacity_calls", DEFAULT_SESSION_CAPACITY_CALLS)
         max_min = cfg.get("session_max_minutes", DEFAULT_SESSION_MAX_MINUTES)
-        warn_th = cfg.get("session_warn_threshold_minutes", 150)
-        idle_th = cfg.get("session_idle_threshold_minutes", 10)
-        ttl = cfg.get("verify_cache_ttl_seconds", 600)
+        warn_th = cfg.get("session_warn_threshold_minutes", DEFAULT_SESSION_WARN_THRESHOLD_MINUTES)
+        idle_th = cfg.get("session_idle_threshold_minutes", DEFAULT_SESSION_IDLE_THRESHOLD_MINUTES)
+        ttl = cfg.get("verify_cache_ttl_seconds", DEFAULT_CACHE_TTL_S)
         _print_ok(
             "Config knobs",
             f"max={max_min}m warn={warn_th}m idle={idle_th}m capacity={cap} cache_ttl={ttl}s",

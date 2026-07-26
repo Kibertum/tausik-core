@@ -112,7 +112,7 @@
 ```
 harness/
 ├── skills/           # 13 core auto-deployed + brain условно + 20 в skills-official/ (opt-in через --include-official)
-├── roles/            # 5 ролей (developer, architect, qa, tech-writer, ui-ux)
+├── roles/            # 6 ролей (architect, developer, devops, qa, tech-writer, ui-ux)
 ├── stacks/           # Руководства по стекам
 ├── overrides/        # Переопределения для конкретных сред (claude/, cursor/, qwen/)
 ├── claude/mcp/       # MCP-серверы (project, brain, codebase-rag) — канон для ВСЕХ сред
@@ -196,7 +196,7 @@ QG-2-гейт отработал.
 
 Stack-scoped гейты: `pytest`, `tsc`, `eslint`, `js-test`, `go-vet`, `go-test`, `golangci-lint`,
 `cargo-check`, `cargo-test`, `clippy`, `phpstan`, `phpcs`, `phpunit`, `javac`, `ktlint`,
-`ansible-lint`, `terraform-validate`, `helm-lint`, `kubeval`, `hadolint`.
+`ansible-lint`, `terraform-validate`, `helm-lint`, `kubeconform`, `hadolint`.
 
 ## Адаптация RENAR — advisory-first («лайт»)
 
@@ -293,7 +293,7 @@ Exit code `0` = caching активен (`cache_read_input_tokens > 0`);
 ## Тестирование
 
 ```bash
-pytest tests/ -v                    # все тесты (4101)
+pytest tests/ -v                    # все тесты (6096)
 pytest tests/test_tausik_backend.py   # backend CRUD
 pytest tests/test_tausik_service.py   # service logic
 pytest tests/test_tausik_cli.py       # CLI smoke

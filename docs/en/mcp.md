@@ -15,7 +15,7 @@ There is also an optional `codebase-rag` server documented at the bottom.
 
 ## Verify-First Contract (v1.5)
 
-Heavy quality gates (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeval, hadolint, ansible-lint) live on a dedicated `verify` trigger. The MCP workflow:
+Heavy quality gates (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeconform, hadolint, ansible-lint) live on a dedicated `verify` trigger. The MCP workflow:
 
 ```
 tausik_task_start(slug=…)        # QG-0
