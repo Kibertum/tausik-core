@@ -9,6 +9,27 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Command firewall now catches find-driven filesystem wipes
+
+`find / -delete`, `find . -delete`, `find / -exec rm -rf {} \;`, and
+`find / -type f -exec rm -f {} +` all passed the firewall (rc=0). The wipe
+detector judged the operands of `rm` itself, but in the `-exec` form `rm`'s
+operand is the placeholder `{}` and the root is an argument to `find` — and
+`-delete` invokes no `rm` at all. This was a documented, unclosed gap:
+`rm_wipe_detect.py`'s own header filed `find` as "a different detector … its own
+task". That task is now done. A `find` deleting-detector in `danger_patterns.py`
+routes through the **same** `is_wipe_root` / `normalise_operand` the `rm` detector
+uses — no second definition of "what is root", so the two can't drift (the failure
+mode this directory's history keeps reproducing). A hard root (`/`, a drive, `..`)
+blocks whenever the find deletes, even name-filtered (a filtered slice of the whole
+filesystem is never a legitimate wipe); the cwd `.` blocks only when the delete is
+NOT name/path-scoped, so the routine `find . -name '*.pyc' -delete` stays allowed
+while `find . -delete` does not. Pinned by a `TestFindBasedWipes` class covering
+both the block side (11 idioms) and the allow side (8, incl. named subdirs and
+non-deleting finds). Stated residual (not silent): deletes driven through a wrapper
+— `find … | xargs rm`, `find … -exec sh -c 'rm …'` — and exec verbs beyond
+rm/rmdir/unlink/shred are not covered.
+
 ### Closure-risk churn factor no longer fails open on a git error
 
 Adversarial review of the git-wrapper consolidation caught a fail-open regression it

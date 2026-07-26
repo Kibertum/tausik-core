@@ -211,6 +211,62 @@ class TestOneJudgeTwoDialects:
         assert danger_patterns.wiped_root_any("Remove-Item -Recurse -Force C:" + BS) is not None
 
 
+class TestFindBasedWipes:
+    """`find` carries the recursion itself, so `rm`'s operand is `{}` (or absent
+    for `-delete`) and the root is a find START PATH. Judged by the SAME
+    `is_wipe_root` as `rm` (firewall-find-exec-delete-uncovered) — the gap
+    rm_wipe_detect.py's header filed to this task.
+    """
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "find / -delete",
+            "find . -delete",
+            "find -delete",  # default search path is '.'
+            "find / -exec rm -rf {} \\;",
+            "find / -type f -exec rm -f {} +",
+            "find / -execdir rm {} +",
+            "find / -name '*.log' -delete",  # hard root blocks even name-scoped
+            "find .. -delete",
+            "find -L / -delete",  # leading option before the path
+            "find / -exec /bin/rm -rf {} ;",  # rm named by full path
+            "find /* -delete",  # glob folds to '/'
+        ],
+    )
+    def test_deleting_find_at_a_root_is_blocked(self, command):
+        import danger_patterns
+
+        assert danger_patterns.wiped_root_any(command, command) is not None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "find . -name '*.pyc' -delete",  # routine dev idiom — scoped in cwd
+            "find . -name x.py -delete",
+            "find ./build -delete",  # named subdir, not a root
+            "find src -exec rm {} +",
+            "find /var/log/app -name '*.log' -exec rm {} +",
+            "find / -type f -name qq",  # no deleting action
+            "find . -type d",  # no deleting action
+            "find ./node_modules -delete",
+        ],
+    )
+    def test_scoped_or_non_root_find_is_allowed(self, command):
+        import danger_patterns
+
+        assert danger_patterns.wiped_root_any(command, command) is None
+
+    def test_find_and_rm_share_one_root_judge(self):
+        """No second 'what is root' ruleset — the find detector routes through
+        the same is_wipe_root, so a spelling either both catch or neither does."""
+        import danger_patterns
+
+        for root in ("/", "..", "/./", "//"):
+            assert is_wipe_root(root)
+            assert danger_patterns.wiped_root_any(f"find {root} -delete") is not None
+
+
 class TestOneDialectTableNotTwo:
     """`shell_channel` keys two tables — parsers and scanners. Two tables of the
     same set is the shape this whole task is about, so they are pinned to each

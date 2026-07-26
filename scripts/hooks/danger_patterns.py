@@ -30,7 +30,11 @@ if _HOOKS_DIR not in sys.path:
     sys.path.insert(0, _HOOKS_DIR)
 
 from pwsh_write_parse import wiped_root as _pwsh_wiped_root  # noqa: E402
-from rm_wipe_detect import wiped_root as _posix_wiped_root  # noqa: E402
+from rm_wipe_detect import (  # noqa: E402
+    is_wipe_root,
+    normalise_operand,
+    wiped_root as _posix_wiped_root,
+)
 
 # Patterns that should ALWAYS be blocked — matched against the *command*, not
 # against quoted data (see the dialect scanners). The old assumption that these
@@ -139,6 +143,101 @@ def _posix_rm_wipes_a_root(scanned: str) -> str | None:
     return None
 
 
+# `find` carries the recursion itself: `find / -delete` deletes the whole tree
+# with no `rm` operand to inspect, and `find / -exec rm -rf {} \;` hands `rm`
+# only the placeholder `{}`. So the root is a START PATH of `find`, judged by the
+# SAME `is_wipe_root` the rm detector uses — a second "what is root" would be the
+# drift conventions #266/#289 warn against. Documented as this detector's job in
+# rm_wipe_detect.py's header and _posix_rm_wipes_a_root above.
+_FIND_RE = re.compile(
+    rf"{_CMD_START}{_OPT_PATH}find\b(?P<rest>[^\n;&|]*)",
+    re.IGNORECASE,
+)
+# Leading options that precede the path list (`find -L / -delete`).
+_FIND_LEADING_OPTS = frozenset({"-h", "-l", "-p", "-d", "-o", "-o0", "-o1", "-o2", "-o3"})
+# Actions whose next word is a command; a deleting command there makes the find destructive.
+_FIND_EXEC_ACTIONS = frozenset({"-exec", "-execdir", "-ok", "-okdir"})
+_DELETING_CMDS = frozenset({"rm", "rmdir", "unlink", "shred"})
+# NAME/PATH filters that scope a delete to a named subset. ONLY these downgrade a
+# cwd (`.`) delete to "routine" (`find . -name '*.pyc' -delete`). A weaker filter
+# (`-type f`, `-mtime`, `-size`) still matches ~everything, so it does NOT — for a
+# security verdict, uncertain scoping fails toward blocking (the TAUSIK_SKIP_HOOKS
+# escape is recorded). A HARD root (`/`, a drive, `..`) blocks regardless of any
+# filter: a filtered subset of the whole filesystem is never a legitimate wipe.
+_FIND_NAME_FILTERS = frozenset(
+    {
+        "-name",
+        "-iname",
+        "-path",
+        "-ipath",
+        "-wholename",
+        "-iwholename",
+        "-regex",
+        "-iregex",
+        "-lname",
+        "-ilname",
+        "-samefile",
+    }
+)
+
+
+def _find_start_paths(tokens: list[str]) -> list[str]:
+    """The path operands of a `find`: leading non-expression tokens after any
+    `-H/-L/-P` options, before the first test/action/`(`. Empty → ['.'] (find's
+    default search path), so `find -delete` is judged as a cwd wipe."""
+    i = 0
+    while i < len(tokens) and tokens[i].lower() in _FIND_LEADING_OPTS:
+        i += 1
+    paths: list[str] = []
+    while i < len(tokens):
+        tok = tokens[i]
+        if tok.startswith("-") or tok in ("(", "!", ")", ";"):
+            break
+        paths.append(tok)
+        i += 1
+    return paths or ["."]
+
+
+def _find_is_deleting(tokens: list[str]) -> bool:
+    """True if the find deletes: `-delete`, or `-exec[dir]/-ok[dir] <rm-like> …`."""
+    for idx, tok in enumerate(tokens):
+        low = tok.lower()
+        if low == "-delete":
+            return True
+        if low in _FIND_EXEC_ACTIONS and idx + 1 < len(tokens):
+            cmd = tokens[idx + 1].replace("\\", "/").rsplit("/", 1)[-1].lower()
+            if cmd in _DELETING_CMDS:
+                return True
+    return False
+
+
+def _posix_find_wipes_a_root(scanned: str) -> str | None:
+    """The root start-path of a deleting `find`, or None.
+
+    Root judged by `is_wipe_root` (shared with rm). Hard roots (`/`, a drive,
+    `..`) block whenever the find deletes; the cwd `.` blocks only when the
+    delete is NOT scoped by a name/path filter — `find . -name '*.pyc' -delete`
+    is the routine dev idiom and stays allowed, mirroring the leniency rm grants
+    a non-root operand.
+
+    NOT covered (stated, not silent): a delete driven through a wrapper —
+    `find … | xargs rm`, `find … -exec sh -c 'rm …' _ {} +` — where the deleting
+    command is behind a pipe or shell, and exec verbs outside rm/rmdir/unlink/shred.
+    """
+    for match in _FIND_RE.finditer(scanned):
+        tokens = match.group("rest").split()
+        if not _find_is_deleting(tokens):
+            continue
+        name_scoped = any(t.lower() in _FIND_NAME_FILTERS for t in tokens)
+        for path in _find_start_paths(tokens):
+            if not is_wipe_root(path):
+                continue
+            if normalise_operand(path) == "." and name_scoped:
+                continue  # `find . -name '*.pyc' -delete` — routine, not a wipe
+            return path
+    return None
+
+
 def wiped_root_any(scanned: str, command: str | None = None) -> str | None:
     """The tree-root operand of a recursive delete in EITHER dialect, or None.
 
@@ -174,6 +273,7 @@ def wiped_root_any(scanned: str, command: str | None = None) -> str | None:
     """
     return (
         _posix_rm_wipes_a_root(scanned)
+        or _posix_find_wipes_a_root(scanned)
         or _pwsh_wiped_root(scanned)
         or (_pwsh_wiped_root(command) if command is not None and command != scanned else None)
     )
