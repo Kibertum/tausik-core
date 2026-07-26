@@ -34,12 +34,20 @@ from __future__ import annotations
 import posixpath
 import re
 
-# Operands that mean "the whole tree", after normalisation. `..` is included
-# because the old prefix match covered `../*` and dropping it would be a silent
-# narrowing; `~` and a bare `*` are NOT, which is a real inconsistency
-# (`rm -rf ./*` is blocked while `rm -rf *` is not) and is left to the policy
-# task rather than decided inside a regression fix.
-_WIPE_ROOTS = frozenset({"/", ".", ".."})
+# Operands that mean "the whole tree", after normalisation. `..` is here because
+# the old prefix match covered `../*` and dropping it would be a silent narrowing.
+# `~` was added by the policy task (decision #177): `rm -rf ~` wipes the whole
+# home directory — every project, every SSH/GPG key, every credential — which is
+# not milder than `/`, and unlike a bare `*` there is no routine operation that
+# legitimately deletes all of home. It is a literal tilde in the command BEFORE
+# the shell expands it, so it is catchable here without resolving anything.
+# A bare `*` is NOT listed and does not need to be: `normalise_operand` already
+# reduces a trailing glob to its directory, so `*`, `./*` and `.*` all resolve to
+# `.` and are judged the same as `rm -rf .` — the earlier docstring claim that
+# `rm -rf *` was allowed was wrong about the code, which the policy task confirmed
+# by test. `$HOME` and `${X:-/}` stay OUT: they need environment/parameter
+# expansion, and resolving those would mean running a shell (see `is_wipe_root`).
+_WIPE_ROOTS = frozenset({"/", ".", "..", "~"})
 
 # A Windows volume root, after normalisation: `C:\` and `C:/` both reduce to
 # `C:` (posixpath.normpath drops the trailing separator). This is NOT the policy
@@ -61,11 +69,26 @@ def is_wipe_root(operand: str) -> bool:
 
     The single judge both channels ask. `operand` is raw as written; the
     normalisation that makes `./*`, `/.`, `//` and `C:\\` answer the same as `.`
-    and `/` happens here, so no caller can get it half-right.
+    and `/` happens here, so no caller can get it half-right. `~`, `~/` and `~/*`
+    all resolve to home and answer True (decision #177).
+
+    Residual, by design: an operand that only becomes root-ish after SHELL
+    expansion (`$HOME`, `${X:-/}`) reads as itself and answers False — resolving
+    it would mean running a shell. `~` is the exception because tilde-expansion is
+    a fixed literal that needs no environment, so it is judged here directly.
     """
     normalised = normalise_operand(operand)
     if not normalised:
         return False
+    if normalised == "~":
+        # A tilde is the shell's home only when it LEADS the word: `~`, `~/`,
+        # `~/*` expand to $HOME, but `./~`, `dir/~`, `a/../~` name a literal file
+        # called `~` and the shell never touches home for them. `posixpath.normpath`
+        # is blind to that — it collapses all of them to `~` — so the leading test
+        # is done on the raw operand, or `rm -rf ./~` false-blocks as a home wipe
+        # (review s126, supersedes the `./~` note in decision #177).
+        cleaned = operand.strip().strip(_LEADING_JUNK).rstrip(_TRAILING_JUNK).replace("\\", "/")
+        return cleaned.startswith("~")
     return normalised in _WIPE_ROOTS or bool(_DRIVE_ROOT_RE.match(normalised))
 
 

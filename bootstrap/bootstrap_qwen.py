@@ -124,7 +124,10 @@ def generate_settings_qwen(
                 ],
             },
             {
-                "matcher": "Write|Edit|MultiEdit",
+                # secret-scan-covers-no-shell-channel (Decision #178): shell
+                # parity with bootstrap_hooks.py — a heredoc or `Set-Content
+                # -Value 'AKIA...'` carries the secret the Write path warns on.
+                "matcher": f"Write|Edit|MultiEdit|{SHELL_MATCHER}",
                 "hooks": [
                     {
                         "type": "command",

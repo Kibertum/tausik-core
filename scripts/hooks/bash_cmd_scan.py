@@ -15,7 +15,7 @@ from __future__ import annotations
 import os
 import shlex
 
-from bash_cmd_norm import _MAX_WRAPPER_DEPTH, _shell_payloads
+from bash_cmd_norm import _MAX_WRAPPER_DEPTH, _interpreter_payloads
 
 # Programs that EXECUTE their arguments rather than consuming them as data.
 # For these, a dangerous phrase inside quotes is still a command and must stay
@@ -140,12 +140,23 @@ def scan_target(command: str, depth: int = 0) -> str:
     hit — which is why the hole showed up on `git push --force` but not on
     `rm -rf /`, and why nobody noticed. Confirmed allowed (rc=0) before this fix.
 
-    So a shell payload is now RE-SCANNED as the command line it is, bounded by
+    So a wrapper payload is RE-SCANNED as the command line it is, bounded by
     `_MAX_WRAPPER_DEPTH`. Widening `_CMD_START` to accept a quote was the
     cheaper edit and is deliberately NOT taken: it also blocks
     `bash -c 'echo "git push --force"'`, where the quoted text really is data.
     Descending keeps the token-vs-prose rule intact one level down instead of
     trading a missed command for a blocked echo.
+
+    WHICH wrappers are descended is `_interpreter_payloads`' answer: the 7 POSIX
+    shells plus PowerShell (`-c` / `-Command`) and `cmd` (`/c` / `/k`) — the
+    command-carrying interpreters, brought to parity with the PowerShell
+    scanner's `payloads`, which already descends its whole set. Named residuals,
+    the same on both channels: `ssh host '<cmd>'` runs on a remote host this
+    firewall cannot reason about; `wsl` has no `-c` form; a language
+    interpreter's `-c` (`python -c '<code>'`) is code, not a shell line. For
+    those the OUTERMOST layer is still raw-joined and judged, but an inner layer
+    hidden behind a surviving quote is not descended into. `-EncodedCommand`
+    (base64) is likewise a residual — it is not decoded here.
     """
     try:
         lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
@@ -166,7 +177,7 @@ def scan_target(command: str, depth: int = 0) -> str:
             # …but only the OUTERMOST layer of it. A shell `-c` argument is a
             # command line, not a word: scan it as one.
             if depth < _MAX_WRAPPER_DEPTH:
-                for payload in _shell_payloads(sub):
+                for payload in _interpreter_payloads(sub):
                     parts.append(scan_target(payload, depth + 1))
         else:
             parts.append(" ".join(_PAYLOAD if len(tok.split()) > 1 else tok for tok in sub))

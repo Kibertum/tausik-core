@@ -171,14 +171,14 @@ class TaskDoneReportMixin:
         checklist_nudge = ""
         from gate_ac_check import checklist_hard_block, checklist_missing
 
-        _cl_block, _cl_msg = checklist_hard_block(task)
-        if _cl_msg:
+        cl_block, cl_msg = checklist_hard_block(task)
+        if cl_block:
             if _checklist_hard_enabled():
                 report["blocking_failures"].append(
-                    {"stage": "checklist", "gate": "rule5-checklist", "message": _cl_msg}
+                    {"stage": "checklist", "gate": "rule5-checklist", "message": cl_msg}
                 )
                 return report
-            checklist_nudge = f"WARNING (checklist_hard=false): {_cl_msg}"
+            checklist_nudge = f"WARNING (checklist_hard=false): {cl_msg}"
         else:
             try:
                 from nudge_escalation import escalate, reset

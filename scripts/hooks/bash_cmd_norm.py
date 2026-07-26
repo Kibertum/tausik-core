@@ -105,11 +105,17 @@ def _is_duration(tok: str) -> bool:
 
 
 def _shell_payloads(sub: list[str]) -> list[str]:
-    """Command strings carried as the `-c` argument of a shell in `sub`.
+    """Command strings carried as the `-c` argument of a POSIX shell in `sub`.
 
     `-c` is matched inside combined short flags too (`-lc`, `-ec`), because that
     is how the form is actually written. A long `--` option is not a short-flag
     cluster and is skipped, so `--color` does not read as containing `c`.
+
+    Deliberately POSIX-shells-only: this is the descent `bash_write_parse` uses,
+    and that parser feeds the BLOCKING scope/write gate (exit 2, no approval
+    path). Widening it to other dialects would re-parse, say, a PowerShell
+    payload as POSIX and risk a false BLOCK there. The DANGER scanner, whose
+    posture is over-detect-then-WARN, asks `_interpreter_payloads` instead.
     """
     sub = _strip_prefixes(sub)
     if not sub:
@@ -125,3 +131,61 @@ def _shell_payloads(sub: list[str]) -> list[str]:
             out.append(sub[i + 1])
         break
     return out
+
+
+# Non-POSIX-shell interpreters whose command-carrying argument the DANGER
+# scanner descends into. `_shell_payloads` covers the 7 POSIX shells; the
+# scanner's `_INTERPRETERS` raw-joins 34 names, and for the gap between the two
+# a nested command hidden behind an INNER quote survived unscanned
+# (`powershell -c "powershell -c 'git push --force'"` reached the firewall as
+# rc=0). The PowerShell scanner's `payloads` already descends its whole
+# interpreter set; this brings the POSIX side to the same parity rather than
+# inventing a second rule (conventions #266/#289).
+#
+# `ssh` and `wsl` are intentionally NOT here: `ssh host '<cmd>'` runs on a
+# remote host whose paths and git remotes this firewall cannot reason about,
+# and `wsl` has no `-c` form (its payload is a positional Linux command). Both
+# are residuals on the PowerShell side too, so leaving them out keeps the two
+# channels in step. A language interpreter's `-c` (`python -c '<code>'`) is
+# code, not a shell command line, and is likewise left as a named residual.
+_DASH_C_INTERPRETERS = frozenset({"powershell", "pwsh"})
+_SLASH_C_INTERPRETERS = frozenset({"cmd"})
+
+
+def _interpreter_payloads(sub: list[str]) -> list[str]:
+    """Command strings `sub` hands to another interpreter to run — the DANGER
+    scanner's descent, a superset of `_shell_payloads`.
+
+    Covers a POSIX shell's `-c` (via `_shell_payloads`), PowerShell's `-c` /
+    `-Command`, and `cmd`'s `/c` / `/k`. The argument is the token that follows.
+    Over-detection is the safe direction here: re-scanning a payload that turns
+    out to be inert costs a WARN a `TAUSIK_SKIP_HOOKS` escape can clear, while
+    missing it is the confirmed bypass this closes.
+    """
+    payloads = list(_shell_payloads(sub))
+    stripped = _strip_prefixes(sub)
+    if not stripped:
+        return payloads
+    base = os.path.basename(stripped[0]).lower().removesuffix(".exe")
+    is_dash_c = base in _DASH_C_INTERPRETERS
+    is_slash_c = base in _SLASH_C_INTERPRETERS
+    if not (is_dash_c or is_slash_c):
+        return payloads
+    for i, tok in enumerate(stripped[1:], start=1):
+        low = tok.lower()
+        # PowerShell binds `-Command` by any non-empty prefix of the WORD
+        # "command" (`-c`, `-co`, …, `-command`). Testing `startswith("-c")`
+        # instead swept in real, unrelated `-C*` switches — `-ConfigurationName`,
+        # `-CustomPipeName`, `-Credential` — and grabbed THEIR value as the
+        # payload, so the true `-Command` argument later in the line was never
+        # descended into (review s126, HIGH). `-EncodedCommand` starts with `-e`
+        # and never matched anyway; base64 stays a stated residual. `cmd` takes
+        # `/c` or `/k`.
+        hit = (
+            is_dash_c and low.startswith("-") and len(low) > 1 and "command".startswith(low[1:])
+        ) or (is_slash_c and low in ("/c", "/k"))
+        if hit:
+            if i + 1 < len(stripped):
+                payloads.append(stripped[i + 1])
+            break
+    return payloads

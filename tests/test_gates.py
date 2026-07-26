@@ -1088,3 +1088,27 @@ class TestPytestGateScopeSubstitution:
         """Regression: default pytest gate command uses the new substitution token."""
         cmd = DEFAULT_GATES["pytest"]["command"]
         assert "{test_files_for_files}" in cmd
+
+
+class TestGateRunnerCliVerdict:
+    """verify-surfaces-skip-notes-residue: `python gate_runner.py` must not print
+    `All gates passed.` after a `[SKIP]` — the same lie `gate_verdict` was
+    extracted to end, in the neighbour file the extraction did not reach."""
+
+    def test_all_skipped_run_does_not_claim_pass(self):
+        import subprocess
+
+        runner = os.path.join(SCRIPTS_DIR, "gate_runner.py")
+        proc = subprocess.run(
+            [sys.executable, runner, "review", "--files", "scripts/no_such_file_zzz.py"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        assert proc.returncode == 0
+        assert "[SKIP] pytest" in proc.stdout
+        assert "All gates passed." not in proc.stdout, (
+            f"claimed a pass after a skip:\n{proc.stdout}"
+        )
+        assert "no gate actually executed" in proc.stdout

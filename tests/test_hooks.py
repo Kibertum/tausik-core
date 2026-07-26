@@ -201,6 +201,55 @@ class TestBashFirewall:
                 2,
                 id="nested_shell_wrapper_git_clean_blocked",
             ),
+            # nested-wrapper-non-shell-interpreters (Decision #179): the descent
+            # covered only the 7 POSIX shells while the raw-join fired for 34
+            # interpreters, so a command hidden behind an inner quote in a
+            # PowerShell/cmd wrapper survived — the char before the inner command
+            # was an apostrophe, which the WARN anchor rejects. Confirmed rc=0
+            # before the fix; now the POSIX scanner descends the command-carrying
+            # interpreters at parity with the PowerShell scanner.
+            pytest.param(
+                "powershell -c \"powershell -c 'git push --force'\"",
+                2,
+                id="nested_powershell_wrapper_push_force_blocked",
+            ),
+            pytest.param(
+                "pwsh -Command \"sh -c 'git reset --hard HEAD~1'\"",
+                2,
+                id="nested_pwsh_command_reset_hard_blocked",
+            ),
+            pytest.param(
+                "cmd /c \"sh -c 'rm -rf /'\"",
+                2,
+                id="nested_cmd_slashc_rm_blocked",
+            ),
+            pytest.param(
+                "powershell -c \"sh -c 'git clean -fd'\"",
+                2,
+                id="nested_powershell_wrapper_git_clean_blocked",
+            ),
+            # Named residuals, symmetric with the PowerShell scanner: `ssh` runs
+            # on a remote host this firewall cannot reason about, and `wsl` has no
+            # `-c` form — the OUTERMOST layer is still judged, but an inner layer
+            # behind a surviving quote is not descended into. Pinned so the
+            # boundary is a decision, not an unremarked gap.
+            pytest.param(
+                "ssh host \"sh -c 'git push --force'\"",
+                0,
+                id="ssh_remote_nested_payload_residual_allowed",
+            ),
+            pytest.param(
+                "wsl bash -c \"sh -c 'git push --force'\"",
+                0,
+                id="wsl_nested_payload_residual_allowed",
+            ),
+            # A PowerShell wrapper around genuine data must still pass — the
+            # token-vs-prose rule holds one level down, exactly as for bash -c.
+            pytest.param(
+                "powershell -c 'Write-Host \"git push --force is risky\"'",
+                0,
+                id="powershell_echo_of_force_push_still_allowed",
+            ),
             # firewall-blocked-patterns-substring-fp: `rm -rf /` and `rm -rf .`
             # were literal substrings, which made them wrong in both directions
             # at once. Nine ordinary cleanups were confirmed BLOCKED before the
@@ -240,6 +289,28 @@ class TestBashFirewall:
             # A glob under a named directory empties that directory, not a root.
             pytest.param("rm -rf build/*", 0, id="rm_rf_glob_under_named_dir_allowed"),
             pytest.param("rm -rf ./node_modules/*", 0, id="rm_rf_glob_under_subdir_allowed"),
+            # firewall-rm-wipe-targets-policy (decision #177). `~` is home — all
+            # projects, all keys, all creds — not milder than `/`, and a literal
+            # tilde in the line BEFORE the shell expands it, so it is catchable.
+            pytest.param("rm -rf ~", 2, id="rm_rf_home_blocked"),
+            pytest.param("rm -rf ~/", 2, id="rm_rf_home_slash_blocked"),
+            pytest.param("rm -rf ~/*", 2, id="rm_rf_home_glob_blocked"),
+            # A subdirectory of home is not a home wipe (mirrors build/* leniency).
+            pytest.param("rm -rf ~/proj/build", 0, id="rm_rf_home_subpath_allowed"),
+            # review s126: a tilde is home ONLY when it LEADS the word. `./~` and
+            # `dir/../~` name a literal file called `~`; a real shell never touches
+            # $HOME for them, so blocking them was a false positive.
+            pytest.param("rm -rf ./~", 0, id="rm_rf_dotslash_tilde_literal_allowed"),
+            pytest.param("rm -rf dir/../~", 0, id="rm_rf_nonleading_tilde_literal_allowed"),
+            # Bare `*` empties the cwd exactly as `rm -rf .` and `rm -rf ./*` do —
+            # one operation, three spellings, one verdict. Was UNTESTED, and the
+            # old docstring wrongly claimed it was allowed.
+            pytest.param("rm -rf *", 2, id="rm_rf_bare_star_blocked"),
+            # Stated residue: an operand that only becomes root-ish after SHELL
+            # expansion is judged as itself — resolving it would mean running a
+            # shell. Pinned so the boundary is a decision, not a silent gap.
+            pytest.param("rm -rf $HOME", 0, id="rm_rf_dollar_home_unresolved_residue"),
+            pytest.param("rm -rf ${X:-/}", 0, id="rm_rf_param_default_unresolved_residue"),
             # Command substitution: shlex glues the backtick to the adjacent
             # word, so `rm` was never isolated and the operand arrived as "/`".
             pytest.param("echo `rm -rf /`", 2, id="rm_in_backtick_substitution_blocked"),
@@ -266,6 +337,40 @@ class TestBashFirewall:
     def test_command(self, command, expected_rc):
         r = run_hook("bash_firewall.py", {"tool_input": {"command": command}})
         assert r.returncode == expected_rc
+
+
+class TestInterpreterPayloadFlagMatch:
+    """review s126 (HIGH): `_interpreter_payloads` must extract the `-Command`
+    argument, not the value of an unrelated `-C*` PowerShell switch that merely
+    shares the `-c` prefix. `startswith('-c')` grabbed `-ConfigurationName`'s
+    value and broke the descent contract even though the raw-join masked it."""
+
+    def _payloads(self, tokens):
+        import os as _os
+        import sys as _sys
+
+        hooks = _os.path.join(_os.path.dirname(__file__), "..", "scripts", "hooks")
+        if hooks not in _sys.path:
+            _sys.path.insert(0, hooks)
+        from bash_cmd_norm import _interpreter_payloads
+
+        return _interpreter_payloads(tokens)
+
+    def test_decoy_c_flag_before_command_does_not_steal_the_payload(self):
+        got = self._payloads(["powershell", "-ConfigurationName", "Foo", "-Command", "rm -rf /"])
+        assert got == ["rm -rf /"], f"decoy -ConfigurationName stole the payload: {got}"
+
+    def test_custompipename_is_not_command(self):
+        got = self._payloads(["pwsh", "-CustomPipeName", "p", "-Command", "git push --force"])
+        assert got == ["git push --force"], got
+
+    def test_bare_dash_c_still_matches_command(self):
+        assert self._payloads(["powershell", "-c", "rm -rf /"]) == ["rm -rf /"]
+        assert self._payloads(["powershell", "-Command", "rm -rf /"]) == ["rm -rf /"]
+
+    def test_cmd_slash_c_and_slash_k(self):
+        assert self._payloads(["cmd", "/c", "rm -rf /"]) == ["rm -rf /"]
+        assert self._payloads(["cmd", "/k", "rm -rf /"]) == ["rm -rf /"]
 
     def test_rm_rf_root_blocked_emits_marker(self):
         """`rm -rf /` blocked AND emits BLOCKED marker on stderr."""

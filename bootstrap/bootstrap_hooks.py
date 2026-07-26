@@ -88,7 +88,12 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 # SENAR Rule 10.12 (r14-senar-context-hygiene):
                 # Warn (or block under TAUSIK_SECRET_SCAN_STRICT=1) when
                 # the agent is about to write a likely secret to disk.
-                "matcher": "Write|Edit|MultiEdit",
+                # Shell tools are on the matcher for the same reason
+                # memory_pretool_block is (secret-scan-covers-no-shell-channel,
+                # Decision #178): a heredoc or a `Set-Content -Value 'AKIA...'`
+                # carries the exact secret the Write path would warn on, and
+                # leaving it off one channel re-splits the two.
+                "matcher": f"Write|Edit|MultiEdit|{SHELL_MATCHER}",
                 "hooks": [
                     {
                         "type": "command",

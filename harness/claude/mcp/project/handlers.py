@@ -786,16 +786,21 @@ def _handle_verify(
             f"NOTE: {skipped} did NOT execute. A SKIP is not a verification — "
             f"this run says nothing about what those gates cover."
         )
-    if not result.get("relevant_files"):
+    # The "declare relevant_files" scolding only makes sense for a SCOPED run.
+    # In full-suite mode (task_slug omitted — documented CLI parity) the service
+    # returns files=[] by design, not because a task under-declared, so the old
+    # unconditional NOTE fired the widest verification the tool offers with an
+    # unactionable "`tausik task update <slug>`" that names no real task.
+    if task_slug and not result.get("relevant_files"):
         lines.append(
-            "NOTE: no relevant_files declared for this task, so every scoped gate "
-            "skipped. Declare them (`tausik task update <slug> --relevant-files "
-            "<paths>`) and re-run, or this green rests on nothing."
+            f"NOTE: no relevant_files declared for '{task_slug}', so every scoped "
+            f"gate skipped. Declare them (`tausik task update {task_slug} "
+            "--relevant-files <paths>`) and re-run, or this green rests on nothing."
         )
-    if result.get("status") == "no-tests-declared":
+    elif task_slug is None:
         lines.append(
-            "NOTE: no gate actually executed — --no-tests-expected was declared. "
-            "This closure rests on a declaration, not on a verification."
+            "NOTE: full-suite run (no task scope). Not recorded to the verify "
+            "cache — pass a task_slug to cache a scoped green for task_done."
         )
     return "\n".join(lines)
 

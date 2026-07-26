@@ -208,6 +208,27 @@ class TestMcpVerifyReportsGateVerdicts:
         assert "relevant_files" in out, f"hollow run not flagged:\n{out}"
         assert "gates=['" not in out
 
+    # verify-surfaces-skip-notes-residue: the empty-scope NOTE is a SCOPED-run
+    # message; on the full-suite (taskless) path the service returns files=[] by
+    # design, and the old unconditional NOTE scolded the widest verification the
+    # tool offers with a literal "<slug>" that named no task.
+    def test_taskless_full_suite_has_no_scoped_scolding(self):
+        handlers = _handler_module()
+
+        out = handlers._handle_verify(self._svc_returning(self._report(relevant_files=[])), None)
+
+        assert "<slug>" not in out, f"unactionable literal <slug> on taskless run:\n{out}"
+        assert "so every scoped gate" not in out, f"scoped scolding on full-suite run:\n{out}"
+        assert "full-suite" in out, f"taskless path not distinguished:\n{out}"
+
+    def test_scoped_empty_names_the_real_task(self):
+        handlers = _handler_module()
+
+        out = handlers._handle_verify(self._svc_returning(self._report(relevant_files=[])), "t")
+
+        assert "<slug>" not in out, f"placeholder not substituted:\n{out}"
+        assert "tausik task update t --relevant-files" in out, f"real slug not named:\n{out}"
+
 
 class TestMcpHandlerNoPrivateAttrAccess:
     """Static check: handlers no longer touch `svc.be._conn`. Catches the

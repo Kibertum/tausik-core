@@ -367,10 +367,26 @@ def main() -> None:
     if not all_passed:
         print("\nBLOCKED: Fix blocking gate failures before proceeding.")
         sys.exit(1)
-    elif any(not r["passed"] for r in results):
+    elif any(not r["passed"] and not r.get("skipped") for r in results):
         print("\nWARNINGS: Non-blocking issues found. Consider fixing.")
     else:
-        print("\nAll gates passed.")
+        # "All gates passed." after a `[SKIP]` is the same lie `gate_verdict`
+        # was extracted to end (verify-summary-reports-skipped-as-pass): a
+        # skipped gate is marked passed=True, so the naive else read it as a
+        # clean pass. Name the skips instead — an all-skipped run verified
+        # nothing, and a partly-skipped one verified less than it looks.
+        skipped = [r for r in results if r.get("skipped")]
+        if skipped and len(skipped) == len(results):
+            names = ", ".join(r["name"] for r in skipped)
+            print(
+                f"\nNOTE: no gate actually executed — every gate SKIPPED ({names}). "
+                "A skip is not a verification."
+            )
+        elif skipped:
+            names = ", ".join(r["name"] for r in skipped)
+            print(f"\nGates passed, but these did NOT execute (SKIP, not verified): {names}.")
+        else:
+            print("\nAll gates passed.")
 
 
 if __name__ == "__main__":

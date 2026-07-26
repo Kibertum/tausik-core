@@ -9,6 +9,106 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Verify output no longer scolds a full-suite run or claims a pass after a skip
+
+Four residuals left by the MCP-verify skip-visibility fix. (1) The
+"no relevant_files declared for this task … `tausik task update <slug>`" NOTE
+fired on EVERY full-suite (task-less) verify — the widest verification the tool
+offers — with a literal `<slug>` that named no task; it is now gated on a real
+`task_slug` and names the actual slug, and the task-less path gets its own
+accurate line (full-suite run, not cached). (2) `python scripts/gate_runner.py`
+still printed `All gates passed.` right after `[SKIP] pytest` — the exact
+verify-summary-reports-skipped-as-pass lie `gate_verdict` was extracted to end,
+in the neighbour file the extraction never reached; it now names the skipped
+gates, and an all-skipped run says no gate executed. (3) The `no-tests-declared`
+NOTE branch in `_handle_verify` was dead (the handler never passes
+`no_tests_expected`, its only trigger) and is removed. (4) `service_task_done`
+unpacked a `_cl_block` flag it never used and keyed the branch on the message
+string instead; it now uses the block flag directly.
+
+### A missed supervision-audit write no longer vanishes silently
+
+`emit_supervision_bypass` / `emit_supervision_degradation` return a bool so a
+caller can tell a landed row from a swallowed miss, but the four PreToolUse hooks
+that call them (`task_gate`, `scope_write_gate`, `bash_write_gate`,
+`memory_pretool_block`) ignore it — so when the DB write missed (no DB yet in the
+bootstrap→init window, or a locked/corrupt DB under concurrent WAL access), a
+`TAUSIK_SKIP_HOOKS` weakening was applied and left no countable trace, which makes
+the release-1.8 enforcement claim unfalsifiable. The fix is central, in the
+EMITTER rather than in each hook: on a miss `_emit_supervision` now appends the
+event to a file fallback-sink, `.tausik/supervision_pending.jsonl` — a sink that
+does not share the DB's failure mode, so it survives exactly the moments the DB
+does not — and reconciles the backlog into `events` (with each event's ORIGINAL
+timestamp) on the next successful write, where the metric then counts it. Because
+the guarantee lives in the emitter, every present and future caller is covered
+without having to remember the bool. Concurrency-safe: each pending file is
+claimed atomically with `os.replace`, and a crashed drain's leftover is recovered
+on the next pass. The one accepted edge is a possible OVERcount if a crash lands
+between commit and unlink — the safe direction, since the whole point is to never
+HIDE a weakening, and inflating a count never does that. If even the file sink is
+unwritable, a last-resort stderr line keeps the weakening visible in the moment.
+
+### Command firewall descends nested PowerShell / cmd wrappers, not just POSIX shells
+
+The POSIX command scanner raw-joined 34 interpreters but descended into the
+`-c` payload of only 7 POSIX shells, so a command hidden behind an INNER quote
+in a non-shell wrapper — `powershell -c "powershell -c 'git push --force'"`,
+`cmd /c "sh -c 'rm -rf /'"` — survived: after the outer quote layer is stripped
+the inner command is anchored by an apostrophe, which the WARN patterns' command
+-start anchor rejects, and no descent re-scanned it cleanly. All such forms were
+confirmed rc=0 (allowed) before this fix. The PowerShell scanner's `payloads`
+already descended its whole interpreter set; this brings the POSIX side to the
+same parity via `_interpreter_payloads`, which now also reads PowerShell's
+`-c`/`-Command` and `cmd`'s `/c`/`/k`. Scope is deliberate: only the DANGER
+scanner descends further — `bash_write_parse`, which feeds the BLOCKING scope
+gate, is untouched, so no new false blocks there. Named residuals, symmetric on
+both channels: `ssh host '<cmd>'` runs on a remote host this firewall cannot
+reason about, `wsl` has no `-c` form, a language interpreter's `-c` is code not a
+shell line, and `-EncodedCommand` is not decoded — for those the outermost layer
+is still judged but an inner layer behind a surviving quote is not descended
+into. The overclaiming docstring ("a shell payload is now RE-SCANNED") is
+narrowed to say which wrappers descend and which do not.
+
+### secret-scan now covers the shell channels
+
+`secret_scan` (SENAR Rule 10.12) was registered only on `Write|Edit|MultiEdit`,
+so a secret written by a shell — an AWS key in a `cat > .env <<EOF` heredoc body,
+or `Set-Content -Path .env -Value 'AKIA...'` — reached the exact content the Write
+path would have warned on, and the hook never ran. It is now on `SHELL_MATCHER` in
+both bootstraps and admits the shell tools via `shell_channel.is_shell_tool` (not a
+literal `("Bash","PowerShell")` list — a second copy of that set is how the
+PowerShell tool went ungated in the first place), so the gap closes on both channels
+at once rather than re-splitting them. The whole command string is scanned, a strict
+superset of extracting the written value: it catches the heredoc body and `-Value`,
+plus `export KEY=AKIA...` — the secret literal in context, which Rule 10.12 also
+covers — with zero new shell parsing (the one thing that has produced every
+regression in this directory). Default stays WARN; `TAUSIK_SECRET_SCAN_STRICT=1`
+blocks on the shell channel too. A secret passed by variable or env
+(`--token "$TOKEN"`) is not a literal anywhere and is not flagged — the stated
+residual, and the correct way to pass it. The hook now also forces UTF-8 stderr
+itself instead of relying on the launcher's `-X utf8`, so a non-ASCII warning
+survives a test or manual invocation.
+
+### `rm -rf ~` now blocked — the home directory is a wipe root
+
+The command firewall's wipe-root set (`rm_wipe_detect._WIPE_ROOTS`) recognised
+`/`, `.`, `..` and a Windows drive root, but not `~`. So `rm -rf ~` — which deletes
+the entire home directory, every project, every SSH/GPG key, every stored credential
+— passed untouched, though its consequence is not milder than `rm -rf /` (and in
+practice worse: `/` is usually root-owned and write-protected, `~` is all user-owned
+and deletes cleanly). `~` is a literal tilde in the command line BEFORE the shell
+expands it, so it is catchable here without resolving anything; it is now in the set,
+covering `~`, `~/` and `~/*` (all normalise to `~`) across both the POSIX `rm` and
+PowerShell `Remove-Item` channels, which share the one judge. A subdirectory of home
+(`rm -rf ~/proj`) stays allowed, mirroring the leniency a named subdirectory already
+gets. Decision #177 also settled the two operands the parent regression fix left
+open: `..` stays blocked (unchanged), and a bare `*` needs no new entry —
+`normalise_operand` already reduces `*`, `./*` and `.*` to `.`, so they were blocked
+all along, and the previous docstring claim that `rm -rf *` was allowed was simply
+wrong about the code (now corrected and pinned by test). `$HOME` and `${X:-/}` remain
+a stated residue: resolving them would mean running a shell, so they are judged as
+themselves (not a wipe) and pinned so the boundary is a decision, not a silent gap.
+
 ### Two hooks stopped reading config behind the trust tiers' back
 
 `session_cleanup_check` (session-warn threshold) and `tool_output_truncation_nudge`

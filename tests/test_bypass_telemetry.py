@@ -59,11 +59,13 @@ class TestEmitHelper:
         rows = _supervision_rows(_db_of(be))
         assert rows == [("task_gate", "bypass_skip_hooks", "detail")]
 
-    def test_no_db_is_silent(self, tmp_path):
+    def test_no_tausik_dir_is_silent(self, tmp_path):
         from _common import emit_supervision_bypass
 
-        # No .tausik/tausik.db under this dir — must be a no-op, not a crash.
+        # No .tausik/ at all — not the emitter's jurisdiction. A no-op, not a
+        # crash, and nothing to fall back into.
         emit_supervision_bypass(str(tmp_path), "skip_hooks", "task_gate")
+        assert not (tmp_path / ".tausik").exists()
 
     def test_broken_db_never_raises(self, tmp_path):
         from _common import emit_supervision_bypass
@@ -88,6 +90,142 @@ def _db_of(be: SQLiteBackend) -> str:
     """Resolve the on-disk path of a backend's connection."""
     row = be._conn.execute("PRAGMA database_list").fetchone()
     return row[2]  # (seq, name, file)
+
+
+# --- File fallback-sink: a missed DB write still leaves a countable trace -----
+# hook-bypass-telemetry-silent-miss (Decision #180).
+
+
+def _read_pending(tdir) -> list[dict]:
+    import glob
+    import json
+
+    recs: list[dict] = []
+    # Each miss is its own atomically-published file (review s126).
+    for p in sorted(glob.glob(os.path.join(str(tdir), "supervision_pending.*.jsonl"))):
+        with open(p, encoding="utf-8") as fh:
+            recs.extend(json.loads(line) for line in fh if line.strip())
+    return recs
+
+
+class TestFileFallbackSink:
+    def test_missing_db_writes_pending(self, tmp_path):
+        """Bootstrap→init window: `.tausik/` exists, DB does not. The miss must
+        land in the file sink, not vanish."""
+        from hook_supervision import emit_supervision_bypass
+
+        tdir = tmp_path / ".tausik"
+        tdir.mkdir()  # no tausik.db
+        wrote = emit_supervision_bypass(str(tmp_path), "skip_hooks", "task_gate", "d")
+        assert wrote is False  # not in the DB…
+        recs = _read_pending(tdir)  # …but recorded in the file sink
+        assert len(recs) == 1
+        assert recs[0]["entity_id"] == "task_gate"
+        assert recs[0]["action"] == "bypass_skip_hooks"
+        assert recs[0]["details"] == "d"
+        assert recs[0]["created_at"]
+
+    def test_broken_db_writes_pending(self, tmp_path):
+        from hook_supervision import emit_supervision_bypass
+
+        tdir = tmp_path / ".tausik"
+        tdir.mkdir()
+        (tdir / "tausik.db").write_bytes(b"not a sqlite db")
+        wrote = emit_supervision_bypass(str(tmp_path), "skip_hooks", "task_gate")
+        assert wrote is False
+        assert [r["action"] for r in _read_pending(tdir)] == ["bypass_skip_hooks"]
+
+    def test_pending_reconciled_on_next_success(self, tmp_path):
+        """A later successful write folds the backlog into `events`, so the
+        earlier miss becomes countable in the metric."""
+        from hook_supervision import emit_supervision_bypass
+
+        tdir = tmp_path / ".tausik"
+        tdir.mkdir()
+        # Miss (no DB yet) → pending.
+        emit_supervision_bypass(str(tmp_path), "skip_hooks", "task_gate", "early")
+        assert len(_read_pending(tdir)) == 1
+
+        # DB now exists; the next successful emit reconciles the backlog.
+        be = SQLiteBackend(str(tdir / "tausik.db"))
+        emit_supervision_bypass(str(tmp_path), "auto_verify", "gate_verify_first")
+
+        rows = _supervision_rows(_db_of(be))
+        actions = sorted(r[1] for r in rows)
+        assert actions == ["bypass_auto_verify", "bypass_skip_hooks"]
+        # The reconciled miss carries its ORIGINAL details, and the pending file
+        # is drained empty.
+        assert any(r == ("task_gate", "bypass_skip_hooks", "early") for r in rows)
+        assert _read_pending(tdir) == []
+
+        # And it counts in the metric — the whole point of the trace.
+        s = be.supervision_bypasses_summary()
+        assert s["by_action"]["bypass_skip_hooks"] == 1
+        assert s["by_action"]["bypass_auto_verify"] == 1
+
+    def test_reconciliation_preserves_original_timestamp(self, tmp_path):
+        import json
+
+        from hook_supervision import emit_supervision_bypass
+
+        tdir = tmp_path / ".tausik"
+        tdir.mkdir()
+        # Hand-write a pending record with a fixed, old timestamp.
+        old = "2020-01-02T03:04:05Z"
+        with open(tdir / "supervision_pending.manual.jsonl", "w", encoding="utf-8") as fh:
+            fh.write(
+                json.dumps(
+                    {
+                        "entity_id": "task_gate",
+                        "action": "bypass_skip_hooks",
+                        "details": None,
+                        "created_at": old,
+                    }
+                )
+                + "\n"
+            )
+        be = SQLiteBackend(str(tdir / "tausik.db"))
+        emit_supervision_bypass(str(tmp_path), "auto_verify", "src")  # triggers drain
+
+        conn = sqlite3.connect(_db_of(be))
+        try:
+            ts = conn.execute(
+                "SELECT created_at FROM events WHERE action='bypass_skip_hooks'"
+            ).fetchone()[0]
+        finally:
+            conn.close()
+        assert ts == old  # dated when it happened, not when it was folded in
+
+    def test_orphaned_draining_file_recovered(self, tmp_path):
+        """A drain that crashed after claiming leaves a `.draining.*` file; the
+        next success must still recover it (no miss stranded forever)."""
+        import json
+
+        from hook_supervision import emit_supervision_bypass
+
+        tdir = tmp_path / ".tausik"
+        tdir.mkdir()
+        # A claim left behind by a drain that crashed mid-fold (matches _CLAIM_GLOB).
+        orphan = tdir / "supervision_pending.99999.0.draining"
+        with open(orphan, "w", encoding="utf-8") as fh:
+            fh.write(
+                json.dumps(
+                    {"entity_id": "task_gate", "action": "bypass_skip_hooks", "details": None}
+                )
+                + "\n"
+            )
+        be = SQLiteBackend(str(tdir / "tausik.db"))
+        emit_supervision_bypass(str(tmp_path), "auto_verify", "src")
+
+        rows = _supervision_rows(_db_of(be))
+        assert sorted(r[1] for r in rows) == ["bypass_auto_verify", "bypass_skip_hooks"]
+        assert not orphan.exists()
+
+    def test_no_tausik_dir_no_pending_file(self, tmp_path):
+        from hook_supervision import emit_supervision_bypass
+
+        emit_supervision_bypass(str(tmp_path), "skip_hooks", "task_gate")
+        assert not (tmp_path / ".tausik").exists()
 
 
 # --- Audit hash-chain survives raw inserts -----------------------------------

@@ -91,16 +91,22 @@ TWO shell tools, `Bash` and `PowerShell`, and until
 | `bash_firewall` (dangerous commands) | n/a | ✅ | ✅ |
 | `git_push_gate` (push ticket) | n/a | ✅ | ✅ |
 | `memory_pretool_block` (memory-route) | ✅ | ✅ | ✅ |
-| `secret_scan` (Rule 10.12) | ✅ | ❌ ² | ❌ ² |
+| `secret_scan` (Rule 10.12) | ✅ | ✅ ² | ✅ ² |
 
 ¹ Not a gap: the shell vector is judged by `bash_write_gate`, which IMPORTS
 `scope_write_gate`'s decisions rather than copying them. A shell event carries no
 `file_path`, so there is nothing for those two hooks to read.
 
-² **A real gap, named rather than left silent.** `secret_scan` covers NEITHER
-shell channel — not Bash, not PowerShell. This is not a skew between channels but
-an equal gap in both; closing it on one shell would put the channels back out of
-step. Filed as its own task.
+² **Gap closed** (`secret-scan-covers-no-shell-channel`, Decision #178).
+`secret_scan` is now on `SHELL_MATCHER` in both bootstraps and admits the shell
+tools via `shell_channel.is_shell_tool` — on both channels at once, because
+closing it on one shell would put the channels back out of step. The whole
+command string is scanned (a strict superset of extracting the written value: it
+catches a heredoc body and `Set-Content -Value`, plus `export KEY=…` — the secret
+literal in context, which Rule 10.12 also covers) with no new shell parsing. The
+residual is the same as for paths: a secret passed by variable/env
+(`--token "$TOKEN"`) is not a literal anywhere, so it is not resolved and not
+flagged — the correct way to pass it, not a gap.
 
 ### PowerShell data-carrying constructs: closed, or named
 
