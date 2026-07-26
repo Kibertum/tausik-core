@@ -23,7 +23,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from tausik_utils import tausik_config_path  # noqa: E402
+from tausik_utils import load_effective_config  # noqa: E402
 
 DEFAULT_THRESHOLD = 250
 WATCHED_TOOLS = {"Read", "Grep", "Bash", "Glob"}
@@ -44,16 +44,17 @@ def _load_payload() -> dict:
 
 
 def _resolve_threshold(project_dir: str) -> int:
-    cfg_path = tausik_config_path(project_dir)
-    if os.path.isfile(cfg_path):
-        try:
-            with open(cfg_path, encoding="utf-8") as f:
-                cfg = json.load(f)
-            v = cfg.get("tool_output_truncation_threshold")
-            if isinstance(v, int) and v > 0:
-                return v
-        except (OSError, json.JSONDecodeError, ValueError):
-            pass
+    # Was a raw json.load of the project file, ignoring the user/managed tiers
+    # (hooks-bypass-config-trust-tiers). load_effective_config merges the tiers so
+    # an operator's machine-wide threshold is honoured. Lookup order unchanged:
+    # config key first, then env, then the hard default.
+    try:
+        cfg = load_effective_config(project_dir)
+        v = cfg.get("tool_output_truncation_threshold")
+        if isinstance(v, int) and v > 0:
+            return v
+    except (OSError, ValueError, TypeError):
+        pass
     env = os.environ.get("TAUSIK_OUTPUT_TRUNCATION_THRESHOLD", "")
     if env.strip():
         try:

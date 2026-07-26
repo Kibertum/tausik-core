@@ -9,6 +9,27 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Two hooks stopped reading config behind the trust tiers' back
+
+`session_cleanup_check` (session-warn threshold) and `tool_output_truncation_nudge`
+(output-line threshold) each did a raw `json.load` of the project's
+`.tausik/config.json` — so the two settings an operator is most likely to set
+machine-wide, via the user (`~/.tausik`) or managed (`$TAUSIK_MANAGED_CONFIG`)
+tier, silently did nothing in these hooks. A tier exists only insofar as every
+consumer reads it; these two didn't, which undercuts the trust model in principle,
+not just in detail. Both now go through a new `tausik_utils.load_effective_config`,
+which reads the project file and merges the user + managed tiers via
+`config_trust.resolve`. It lives in `tausik_utils` (not `config_trust`, which is at
+its size cap) with a lazy `config_trust` import, so a bare `import tausik_utils`
+stays cheap and there is no cycle — important because the truncation hook is a
+PostToolUse hook that spawns fresh on every Read/Grep/Bash. Any read problem
+degrades the project tier to `{}` and never crashes. Regression tests pin all three
+cases per hook — user-tier value now takes effect, project-only unchanged, malformed
+config falls back safely — with an autouse fixture isolating the trusted tiers so the
+suite never reads the developer's real `~/.tausik/config.json`. The adjacent items
+the finding lumped in (unifying the config-path helpers, the three `.tausik` dir
+resolvers, the `TAUSIK_DIR` push-ticket divergence) are deferred to their own steps.
+
 ### Command firewall now catches find-driven filesystem wipes
 
 `find / -delete`, `find . -delete`, `find / -exec rm -rf {} \;`, and

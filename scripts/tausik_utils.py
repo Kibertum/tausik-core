@@ -49,6 +49,44 @@ def tausik_config_path(project_dir: str) -> str:
     return os.path.join(project_dir, ".tausik", "config.json")
 
 
+def load_effective_config(project_dir: str) -> dict:
+    """Effective `.tausik/config.json` for *project_dir*, merged through the trust
+    tiers (project < user < managed) — the value a consumer should actually act on.
+
+    Import-light home for consumers — chiefly the hooks — that MUST honour the
+    user (`~/.tausik`) and managed (`$TAUSIK_MANAGED_CONFIG`) tiers but run as a
+    fresh subprocess on every invocation and cannot afford `project_config`'s gate
+    machinery. `config_trust` is stdlib-only and imported lazily here, so a bare
+    `import tausik_utils` stays cheap and there is no import cycle (config_trust
+    itself only imports tausik_utils lazily). Reading raw `json.load` on the
+    project file alone — the bug this closes (`hooks-bypass-config-trust-tiers`) —
+    silently ignored a user/managed operator setting; routing through
+    `config_trust.resolve` makes the tier a tier for these consumers too.
+
+    Any read problem degrades the PROJECT tier to `{}` (never a crash); the trusted
+    tiers are still applied. Rejections (a project trying to weaken a guarded key)
+    are logged, not returned — a hook wants the value, not the audit trail.
+    """
+    import logging
+
+    from config_trust import resolve  # lazy: keep this module import-light, avoid a cycle
+
+    cfg_path = tausik_config_path(project_dir)
+    project: dict = {}
+    if os.path.isfile(cfg_path):
+        try:
+            with open(cfg_path, encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                project = data
+        except (OSError, json.JSONDecodeError, ValueError):
+            project = {}
+    merged, rejections = resolve(project)
+    for r in rejections:
+        logging.getLogger("tausik.config").warning("Config trust tier: %s", r.describe())
+    return merged
+
+
 def fix_stdio_encoding() -> None:
     """Ensure stdout/stderr use UTF-8 on Windows (cp1251/cp1252 can't encode Unicode symbols).
 
