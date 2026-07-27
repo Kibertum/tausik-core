@@ -23,6 +23,9 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 BOOTSTRAP = REPO / "bootstrap"
+
+# Cross-cutting: guards claude/qwen hook parity across the bootstrap generators.
+CROSSCUTTING_SCOPE = ["bootstrap/"]
 sys.path.insert(0, str(BOOTSTRAP))
 
 

@@ -29,19 +29,37 @@ def _is_test_file(path: str) -> bool:
 
 
 def _factor_gate_coverage(conn: sqlite3.Connection, slug: str) -> float | None:
-    """Gates that actually ran (from the signed receipt) vs configured."""
-    from project_config import get_gates_for_trigger, load_config
+    """Gates that actually ran vs configured — both from the signed receipt.
+
+    The configured count is read from `configured_gates_count`, captured in the
+    receipt at VERIFY time (risk-gate-coverage-configured-count-in-check). The old
+    code recomputed the denominator from `get_gates_for_trigger(load_config())` at
+    task-done, so a trust-tier flip between verify and done compared two different
+    gate sets and made the factor machine-dependent.
+
+    Legacy receipts (written before this field existed) have no count, so the
+    old recompute path is preserved as a FALLBACK — old closes reproduce exactly,
+    and a missing field never becomes a crash or a divide-by-zero.
+    """
     from verify_receipt_emit import load_receipt
 
-    configured = get_gates_for_trigger("verify", load_config())
-    if not configured:
-        return None  # nothing to cover — let the model default conservatively
     stored = load_receipt(conn, task_slug=slug)
     if stored is None:
         return None
-    ran_gates = (stored["envelope"].get("receipt") or {}).get("gates") or []
+    receipt = stored["envelope"].get("receipt") or {}
     # Receipts exclude skipped gates by design — len() is the "ran" count.
-    return round(1.0 - min(len(ran_gates), len(configured)) / len(configured), 4)
+    ran_gates = receipt.get("gates") or []
+    configured = receipt.get("configured_gates_count")
+    if not isinstance(configured, int) or configured <= 0:
+        # Legacy receipt (no verify-time count) or an unusable value: fall back to
+        # the prior behaviour — recompute from the current config. Trust-tier
+        # sensitivity returns here, but only for receipts too old to know better.
+        from project_config import get_gates_for_trigger, load_config
+
+        configured = len(get_gates_for_trigger("verify", load_config()))
+        if configured <= 0:
+            return None  # nothing to cover — let the model default conservatively
+    return round(1.0 - min(len(ran_gates), configured) / configured, 4)
 
 
 def _git_numstat_lines(args: list[str], relevant: set[str], cwd: str) -> int:

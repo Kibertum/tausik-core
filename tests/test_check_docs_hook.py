@@ -22,6 +22,10 @@ if not PYTHON.is_file():
     PYTHON = REPO / ".tausik" / "venv" / "bin" / "python"
 HOOK = REPO / "scripts" / "hooks" / "check_docs.py"
 
+# Cross-cutting: runs the doc-check hook, which compares docs/ against constants
+# derived from scripts/ — a drift in either tree can flip its verdict.
+CROSSCUTTING_SCOPE = ["scripts/", "docs/"]
+
 
 def _run(cwd: Path, env_extra: dict[str, str] | None = None) -> subprocess.CompletedProcess:
     env = {**os.environ, "PYTHONIOENCODING": "utf-8"}

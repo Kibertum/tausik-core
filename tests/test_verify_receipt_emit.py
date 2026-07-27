@@ -125,6 +125,19 @@ class TestEmission:
         assert "hadolint" not in names
         assert crypto_sign.verify_receipt(env, project_dir=keyed_project)
 
+    def test_configured_gates_count_is_the_full_run(self, conn, keyed_project):
+        """risk-gate-coverage-configured-count-in-check: the receipt records the
+        FULL configured-gate count of the verify run (ran + skipped), while
+        `gates` still lists only the ones that ran. The risk model reads both from
+        this one signed source, so its gate_coverage denominator is the verify-time
+        config, not a task-done recompute that a trust-tier flip could change."""
+        gates = _GATES + [{"name": "hadolint", "passed": True, "skipped": True}]
+        run_id = _record(conn, keyed_project, gates=gates)
+        env = _stored_envelope(conn, run_id)
+        assert env["receipt"]["configured_gates_count"] == 3  # 2 ran + 1 skipped
+        assert len(env["receipt"]["gates"]) == 2  # only the ran gates listed
+        assert crypto_sign.verify_receipt(env, project_dir=keyed_project)
+
     def test_receipt_binds_gates_and_fingerprint(self, conn, keyed_project):
         run_id = _record(conn, keyed_project)
         env = _stored_envelope(conn, run_id)

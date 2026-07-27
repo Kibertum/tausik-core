@@ -21,9 +21,11 @@ AC7 задачи test-ddl-drift-verification-runs. Гейт паритета ф�
      обновлённой БД.
 
   2. tasks.model_mismatch: в свежей схеме NOT NULL DEFAULT 0, на пути миграции
-     — nullable. То есть в обновлённой БД колонка может быть NULL, и любой
-     `WHERE model_mismatch = 0` такие строки пропустит. Это НЕ порядок, это
-     разная строгость, и она чинится. Вынесено в задачу-преемника.
+     — nullable. ИСПРАВЛЕНО миграцией v43 (schema-model-mismatch-nullable-on-
+     upgrade): перестройка tasks довела колонку до NOT NULL DEFAULT 0 на обоих
+     путях. Перестройка ПОБОЧНО выровняла и порядок колонок tasks, поэтому tasks
+     ушёл и из расхождения порядка (осталась только memory). Оба храповика ниже
+     сокращены соответственно.
 
 Список известных расхождений — храповик: новое расхождение красит гейт.
 """
@@ -47,13 +49,12 @@ from backend_schema import SCHEMA_SQL, SCHEMA_VERSION  # noqa: E402
 
 # Известные и объяснённые расхождения (таблица, колонка). Каждая запись обязана
 # иметь причину в докстринге модуля. Список может только сокращаться.
-_KNOWN_CONSTRAINT_DRIFT = {
-    ("tasks", "model_mismatch"),  # NOT NULL в свежей, nullable на пути миграции
-}
+_KNOWN_CONSTRAINT_DRIFT: set[tuple[str, str]] = set()  # tasks.model_mismatch fixed by v43
 
 # Таблицы, чей ПОРЯДОК колонок расходится из-за ALTER TABLE ADD COLUMN. Это
-# неизбежно и не чинится; фиксируется, чтобы список не рос молча.
-_KNOWN_ORDER_DRIFT = {"tasks", "memory"}
+# неизбежно и не чинится перестройкой, если нет иной причины её делать; фиксируется,
+# чтобы список не рос молча. tasks выбыл: v43 перестроил его и в каноническом порядке.
+_KNOWN_ORDER_DRIFT = {"memory"}
 
 
 def _schema_tables() -> list[str]:
@@ -63,6 +64,32 @@ def _schema_tables() -> list[str]:
 def _columns(conn: sqlite3.Connection, table: str) -> list[tuple]:
     """(имя, тип, notnull, default) в порядке объявления."""
     return [(r[1], r[2], r[3], r[4]) for r in conn.execute(f"PRAGMA table_info({table})")]
+
+
+def _table_ddl(conn: sqlite3.Connection, table: str) -> str:
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name=?", (table,)
+    ).fetchone()
+    return row[0] if row else ""
+
+
+def _norm_ddl(sql: str) -> str:
+    """Canonicalise a CREATE TABLE for comparison ACROSS the fresh/migrated paths.
+
+    PRAGMA table_info only exposes (name, type, notnull, default) — it is BLIND to
+    CHECK, FOREIGN KEY and UNIQUE. Those live only in the stored DDL text. A rebuild
+    migration (v43 on tasks) hand-writes a frozen DDL snapshot, and a CHECK/FK/UNIQUE
+    that silently drifts from SCHEMA_SQL would pass the column-set test yet ship a
+    subtly-wrong central table. Normalising away the incidental differences —
+    `IF NOT EXISTS`, the `"tasks"`/`tasks_new` name forms a rebuild leaves behind,
+    comments, and whitespace — lets a direct DDL compare catch exactly those
+    constraints the column check cannot see."""
+    sql = re.sub(r"--[^\n]*", "", sql)  # strip line comments
+    sql = re.sub(r"\bIF NOT EXISTS\b", "", sql, flags=re.I)
+    sql = sql.replace('"tasks"', "tasks").replace("tasks_new", "tasks")
+    sql = re.sub(r"\s+", " ", sql)  # collapse whitespace
+    sql = re.sub(r"\s*([(),])\s*", r"\1", sql)  # strip space around punctuation
+    return sql.strip().lower()
 
 
 @pytest.fixture(scope="module")
@@ -134,6 +161,19 @@ class TestUpgradePathMatchesFreshSchema:
         assert len(_KNOWN_CONSTRAINT_DRIFT) <= 1, (
             f"расхождений стало {len(_KNOWN_CONSTRAINT_DRIFT)} — каждое обязано "
             "быть объяснено в докстринге модуля и заведено задачей"
+        )
+
+    def test_rebuilt_tasks_ddl_matches_including_constraints(self, fresh, migrated):
+        """Полный DDL tasks, а не только (имя,тип,notnull,default).
+
+        v43 перестраивает tasks по РУКОПИСНОМУ снимку DDL. Тест колонок выше слеп
+        к CHECK/FK/UNIQUE — они есть только в тексте DDL. Прямое сравнение
+        нормализованных CREATE ловит именно тот дрейф ограничений между снимком
+        v43 и SCHEMA_SQL, который PRAGMA table_info пропустил бы — зелено там, где
+        проверяют, subtly-wrong на центральной таблице там, где работают."""
+        assert _norm_ddl(_table_ddl(fresh, "tasks")) == _norm_ddl(_table_ddl(migrated, "tasks")), (
+            "DDL tasks на пути миграции разошёлся со свежей схемой по ограничению "
+            "(CHECK/FK/UNIQUE) — снимок v43 _CREATE_TASKS_NEW отстал от SCHEMA_SQL"
         )
 
 

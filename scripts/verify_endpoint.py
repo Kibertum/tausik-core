@@ -93,6 +93,12 @@ def handle_verify(body: dict[str, Any], project_dir: str) -> dict[str, Any]:
                 body.get("files_hash") if isinstance(body.get("files_hash"), str) else None
             ),
             key_fingerprint=crypto_keys.fingerprint(public),
+            # The posted `gates` are the full configured set (ran + skipped); `ran`
+            # above dropped the skipped ones for the receipt's gate list. Record the
+            # full count so a receipt from this HTTP path carries the same
+            # verify-time denominator the CLI/MCP path does
+            # (risk-gate-coverage-configured-count-in-check).
+            configured_gates_count=len(gates),
         )
         envelope = sign_receipt(project_dir, receipt)
     except ReceiptError as e:

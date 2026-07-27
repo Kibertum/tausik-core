@@ -81,6 +81,12 @@ def emit_signed_receipt(
         # A receipt attests gates that actually RAN — a skipped gate carries
         # passed=True for the verdict but proves nothing, so it stays out.
         ran_gates = [g for g in gate_results if not g.get("skipped")]
+        # The CONFIGURED count is the full run: run_gates() appends one result per
+        # gate scheduled for the trigger (ran AND skipped), so len(gate_results) is
+        # exactly the denominator the risk model's gate_coverage factor wants —
+        # captured here, at verify time, alongside its numerator (ran_gates). The
+        # old recompute-at-task-done read a DIFFERENT config if the trust tier had
+        # flipped in between (risk-gate-coverage-configured-count-in-check).
         receipt = build_receipt(
             task_slug=task_slug,
             git_sha=current_git_sha(project_dir),
@@ -93,6 +99,7 @@ def emit_signed_receipt(
             declared_scope_status=declared_scope_status,
             undeclared_files=undeclared_files,
             undeclared_count=undeclared_count,
+            configured_gates_count=len(gate_results),
         )
         envelope = sign_receipt(project_dir, receipt)
         conn.execute(

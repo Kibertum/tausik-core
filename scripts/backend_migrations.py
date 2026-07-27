@@ -22,6 +22,7 @@ from backend_migrations_v39 import MIGRATION_V39
 from backend_migrations_v40 import MIGRATION_V40
 from backend_migrations_v41 import MIGRATION_V41
 from backend_migrations_v42 import MIGRATION_V42
+from backend_migrations_v43 import MIGRATION_V43
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -347,6 +348,9 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     # v42: stable slug identity for decisions and memory (state-git-stable-ids).
     # Columns only; the backfill + UNIQUE index run in backend_migrations_v42_backfill.
     42: MIGRATION_V42,
+    # v43: rebuild tasks so model_mismatch is NOT NULL DEFAULT 0 on the upgrade path
+    # (schema-model-mismatch-nullable-on-upgrade). Also aligns tasks column order.
+    43: MIGRATION_V43,
 }
 
 

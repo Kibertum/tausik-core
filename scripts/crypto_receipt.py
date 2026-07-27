@@ -46,6 +46,7 @@ def build_receipt(
     declared_scope_status: str | None = None,
     undeclared_files: list[str] | None = None,
     undeclared_count: int | None = None,
+    configured_gates_count: int | None = None,
 ) -> dict[str, Any]:
     """Assemble a schema-v2 receipt dict.
 
@@ -58,6 +59,26 @@ def build_receipt(
     was known to be complete. `declared_scope_status` is therefore never
     omitted: a caller that supplies nothing yields "unknown", never a silent
     absence that a reader could mistake for full coverage.
+
+    `configured_gates_count` (risk-gate-coverage-configured-count-in-check) is
+    the number of gates CONFIGURED for the trigger at verify time — the
+    denominator the risk model's gate_coverage factor needs. `gates` above lists
+    only the gates that RAN (skipped ones are excluded by design), so without
+    this the denominator had to be recomputed from the CURRENT config at
+    task-done — and a trust-tier flip between verify and done made it a different
+    number, i.e. the factor compared two different gate sets. Capturing it here
+    binds numerator and denominator to the same verify-time source.
+
+    This does NOT bump RECEIPT_SCHEMA. The declared-scope fields warranted a
+    v1->v2 bump because they changed what a receipt ASSERTS (a v1 receipt's scope
+    is UNVERIFIED, not complete). This field asserts nothing new about coverage
+    completeness — it is auxiliary telemetry for the risk model, and a receipt
+    lacking it is not "wrong", it just has no verify-time count and the reader
+    falls back to a recompute. Verification is version-agnostic (it
+    re-canonicalizes the stored bytes, never branching on the schema string or
+    field set), so old v2 receipts without the field stay valid and new v2
+    receipts carrying it verify identically. A None value is included in the
+    canonical form exactly like `files_hash`.
     """
     if not task_slug:
         raise ReceiptError("task_slug is required")
@@ -88,6 +109,11 @@ def build_receipt(
         "undeclared_files": sorted(str(f) for f in (undeclared_files or [])),
         "undeclared_count": int(
             undeclared_count if undeclared_count is not None else len(undeclared_files or [])
+        ),
+        # int|None — never a float (canonical bytes reject those). None marks a
+        # receipt built without a verify-time count; the risk model falls back.
+        "configured_gates_count": (
+            int(configured_gates_count) if configured_gates_count is not None else None
         ),
     }
     return receipt

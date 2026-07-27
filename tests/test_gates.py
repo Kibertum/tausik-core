@@ -1099,8 +1099,13 @@ class TestGateRunnerCliVerdict:
         import subprocess
 
         runner = os.path.join(SCRIPTS_DIR, "gate_runner.py")
+        # A path OUTSIDE every guarded tree: a file under scripts/ (or harness/,
+        # docs/, bootstrap/) now maps to the cross-cutting tests that declare
+        # CROSSCUTTING_SCOPE for that tree (scoped-pytest-blind-to-crosscutting-tests),
+        # so it would no longer be an all-skipped run. This unmapped top-level path
+        # maps to nothing — basename or cross-cutting — which is what this test needs.
         proc = subprocess.run(
-            [sys.executable, runner, "review", "--files", "scripts/no_such_file_zzz.py"],
+            [sys.executable, runner, "review", "--files", "zzz_unmapped_dir/no_such_file.py"],
             capture_output=True,
             text=True,
             encoding="utf-8",

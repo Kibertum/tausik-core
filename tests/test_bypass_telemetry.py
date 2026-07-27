@@ -19,6 +19,10 @@ import pytest
 
 _SCRIPTS = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts"))
 _HOOKS = os.path.join(_SCRIPTS, "hooks")
+
+# Cross-cutting: pins that EVERY supervision-weakening vector across the hooks
+# leaves a countable row — relevant to any change under scripts/hooks/.
+CROSSCUTTING_SCOPE = ["scripts/hooks/"]
 for _p in (_SCRIPTS, _HOOKS):
     if _p not in sys.path:
         sys.path.insert(0, _p)

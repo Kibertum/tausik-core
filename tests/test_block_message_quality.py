@@ -43,6 +43,10 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _HOOKS = _REPO_ROOT / "scripts" / "hooks"
 _SKILLS_SRC = _REPO_ROOT / "harness" / "skills"
 
+# Cross-cutting: rglobs all of scripts/ for block-message quality and cross-checks
+# engine references against harness/skills/ — relevant to any change in either.
+CROSSCUTTING_SCOPE = ["scripts/", "harness/skills/"]
+
 
 def _existing_skills() -> set[str]:
     return {p.name for p in _SKILLS_SRC.iterdir() if p.is_dir()}

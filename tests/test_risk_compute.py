@@ -90,6 +90,80 @@ class TestCollector:
         assert "code_churn" in risk["defaulted"]
 
 
+class TestGateCoverageReadsVerifyTimeCount:
+    """risk-gate-coverage-configured-count-in-check: _factor_gate_coverage used to
+    compare the receipt's ran-gate count (verify time) against a denominator
+    recomputed from load_config() at task-done. A trust-tier flip between the two
+    moments changed the denominator, making the factor machine-dependent — a
+    comparison of two DIFFERENT gate sets. The count is now captured IN the signed
+    receipt, so numerator and denominator come from the same verify-time source."""
+
+    def _conn(self):
+        import sqlite3
+
+        conn = sqlite3.connect(":memory:")
+        conn.execute(canonical_ddl("verification_runs"))
+        return conn
+
+    def _insert_receipt(self, conn, slug, *, ran_gate_names, configured=None):
+        """Fabricate a stored envelope. The factor reads the receipt dict via
+        load_receipt — it never verifies the signature — so an unsigned envelope
+        with just the fields the factor reads is a faithful stand-in."""
+        gates = [{"name": n, "passed": True, "severity": "block"} for n in ran_gate_names]
+        receipt: dict = {"task_slug": slug, "gates": gates}
+        if configured is not None:
+            receipt["configured_gates_count"] = configured
+        envelope = {"envelope": "tausik-signed/v1", "receipt": receipt}
+        conn.execute(
+            "INSERT INTO verification_runs (task_slug, scope, command, exit_code, "
+            "summary, files_hash, ran_at, receipt_json) "
+            "VALUES (?, 'standard', 'c', 0, 'ok', 'h', '2026-01-01T00:00:00Z', ?)",
+            (slug, json.dumps(envelope)),
+        )
+        conn.commit()
+
+    def test_uses_receipt_count_not_current_config(self, monkeypatch):
+        """The load-bearing test: 5 gates configured at verify, 2 ran -> 0.6, and
+        it stays 0.6 even though the CURRENT config would report 10. The trust-tier
+        flip can no longer move the factor."""
+        from project_config import get_gates_for_trigger  # noqa: F401
+
+        conn = self._conn()
+        self._insert_receipt(conn, "t", ran_gate_names=["a", "b"], configured=5)
+        # If the recompute path were taken, this would drive the denominator to 10.
+        monkeypatch.setattr("project_config.get_gates_for_trigger", lambda *_a, **_k: [{}] * 10)
+        assert rc._factor_gate_coverage(conn, "t") == round(1.0 - 2 / 5, 4)  # 0.6
+
+    def test_legacy_receipt_without_count_falls_back_to_recompute(self, monkeypatch):
+        """NEGATIVE SCENARIO / back-compat: a pre-fix receipt has no
+        configured_gates_count, so the old behavior (recompute from current
+        config) is preserved rather than crashing on a missing field."""
+        conn = self._conn()
+        self._insert_receipt(conn, "t", ran_gate_names=["a", "b"], configured=None)
+        monkeypatch.setattr("project_config.get_gates_for_trigger", lambda *_a, **_k: [{}] * 4)
+        assert rc._factor_gate_coverage(conn, "t") == round(1.0 - 2 / 4, 4)  # 0.5
+
+    def test_legacy_receipt_no_config_returns_none(self, monkeypatch):
+        """Legacy receipt AND no gates configured -> None (nothing to cover), the
+        exact pre-fix outcome — never a ZeroDivisionError or a None-deref."""
+        conn = self._conn()
+        self._insert_receipt(conn, "t", ran_gate_names=["a"], configured=None)
+        monkeypatch.setattr("project_config.get_gates_for_trigger", lambda *_a, **_k: [])
+        assert rc._factor_gate_coverage(conn, "t") is None
+
+    def test_zero_or_bad_count_falls_back(self, monkeypatch):
+        """A non-positive / non-int count is unusable as a denominator, so it drops
+        to the recompute fallback instead of dividing by zero."""
+        conn = self._conn()
+        self._insert_receipt(conn, "t", ran_gate_names=["a"], configured=0)
+        monkeypatch.setattr("project_config.get_gates_for_trigger", lambda *_a, **_k: [{}] * 4)
+        assert rc._factor_gate_coverage(conn, "t") == round(1.0 - 1 / 4, 4)  # 0.75
+
+    def test_no_receipt_returns_none(self):
+        conn = self._conn()
+        assert rc._factor_gate_coverage(conn, "ghost") is None
+
+
 @pytest.fixture
 def svc(tmp_path, monkeypatch):
     from project_backend import SQLiteBackend

@@ -62,6 +62,25 @@ class TestBuildReceipt:
         with pytest.raises(ReceiptError):
             _sample(ran_at="")
 
+    def test_configured_gates_count_included(self):
+        """risk-gate-coverage-configured-count-in-check: the receipt carries the
+        number of gates configured at VERIFY time, so the risk model's
+        gate_coverage denominator is captured with its numerator instead of being
+        recomputed from a possibly-changed config at task-done."""
+        r = _sample(configured_gates_count=5)
+        assert r["configured_gates_count"] == 5
+
+    def test_configured_gates_count_defaults_none(self):
+        """Absent -> None (a legacy receipt has no verify-time count). It is an
+        int|None, never a float — canonical bytes reject floats."""
+        r = _sample()
+        assert r["configured_gates_count"] is None
+        canonical_bytes(r)  # must not raise on the None value
+
+    def test_configured_gates_count_is_signable_int(self):
+        r = _sample(configured_gates_count=3)
+        canonical_bytes(r)  # int is canonicalizable; no ReceiptError
+
 
 class TestCanonicalBytes:
     def test_key_order_irrelevant(self):

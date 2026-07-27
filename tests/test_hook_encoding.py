@@ -31,6 +31,10 @@ _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 _HOOKS_DIR = os.path.join(_ROOT, "scripts", "hooks")
 _SETTINGS = os.path.join(_ROOT, ".claude", "settings.json")
 
+# Cross-cutting: guards every hook's -X utf8 and every generated host profile, so
+# any hook change or bootstrap change is relevant to it (scoped-pytest resolver).
+CROSSCUTTING_SCOPE = ["scripts/hooks/", "bootstrap/"]
+
 if _HOOKS_DIR not in sys.path:
     sys.path.insert(0, _HOOKS_DIR)
 

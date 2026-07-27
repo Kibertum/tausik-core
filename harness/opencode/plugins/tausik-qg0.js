@@ -135,12 +135,52 @@ async function _verdict($, root) {
   const sig = await _dbSignature(root);
   const now = Date.now();
   if (_cache && now - _cache.ts < CACHE_TTL_MS) {
-    const usable = sig !== null ? _cache.sig === sig : _cache.active === false;
-    if (usable) return _cache.active;
+    if (_cache.unreachable) {
+      // A broken CLI is a STABLE condition. The pre-fix code let _queryActive's
+      // exception escape before _cache was assigned, so every write re-spawned the
+      // 300ms/1.1s probe AND re-shelled the (same broken) supervision emit — two
+      // slow subprocesses per write, exactly what the cache exists to prevent. So
+      // cache the unreachable verdict too, under the SAME signature guard as an
+      // active verdict: reuse only while a real DB signature is unchanged. No
+      // signature (no Bun) => don't reuse — reusing a fail-open verdict is the
+      // LENIENT direction, forbidden without a signature to justify it (mirrors the
+      // active-`true` rule). The reused throw carries freshProbe:false so the caller
+      // records the degradation once per real probe, not once per write.
+      if (sig !== null && _cache.sig === sig) {
+        throw _unreachableError(_cache.reason, false);
+      }
+    } else {
+      const usable = sig !== null ? _cache.sig === sig : _cache.active === false;
+      if (usable) return _cache.active;
+    }
   }
-  const active = await _queryActive($, root);
+  let active;
+  try {
+    active = await _queryActive($, root);
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : String(e);
+    _cache = { sig, unreachable: true, reason, ts: now };
+    throw _unreachableError(reason, true);
+  }
   _cache = { sig, active, ts: now };
   return active;
+}
+
+/** Build the throw that signals "CLI unreachable" to tool.execute.before.
+ *
+ * `freshProbe` distinguishes a real, just-observed probe failure (record the
+ * degradation) from a reused cached verdict within the TTL window (the SAME
+ * episode — do NOT re-shell the broken emit on every write). Undercount stays the
+ * honest floor: one outage records one degradation per probe window, never zero.
+ *
+ * @param {string} reason
+ * @param {boolean} freshProbe
+ */
+function _unreachableError(reason, freshProbe) {
+  const err = new Error(reason);
+  err.cliUnreachable = true;
+  err.freshProbe = freshProbe;
+  return err;
 }
 
 // NOTE: this module exports exactly ONE symbol, and that is deliberate. OpenCode's docs
@@ -201,10 +241,18 @@ export const TausikQG0 = async ({ $, directory, worktree }) => {
             `Allowing '${input.tool}' WITHOUT an active-task check. ` +
             `Run \`tausik doctor\`; set TAUSIK_HOOK_FAIL_SECURE=1 to block instead of allow.`
         );
-        // A visible warning tells THIS user; the supervision row makes the
-        // degradation countable for an auditor (fail_open_%, a separate metric
-        // bucket from intentional bypasses). Best-effort: the CLI is what broke,
-        // so this often cannot land — an undercount, never a false clean.
+        // A visible warning tells THIS user on EVERY ungated write — it is a cheap
+        // console.warn, not a subprocess, so per-write loudness has no cost and the
+        // "never in silence" doctrine holds for each hole punched.
+        //
+        // The supervision row, by contrast, shells the (broken) CLI — a slow spawn.
+        // Emit it only on a FRESH probe: a reused cached-unreachable verdict is the
+        // SAME degradation episode within the TTL window, already recorded. Emitting
+        // per write would re-spawn the broken CLI on every keystroke (the second
+        // slow subprocess this task removes) and inflate one outage into N rows.
+        // e.freshProbe===false only for a reused verdict; unknown errors (undefined)
+        // are treated as fresh so an unexpected failure is never silently uncounted.
+        if (e && e.freshProbe === false) return;
         await _recordSupervision($, root, "degradation", "cli_unreachable", "opencode_qg0");
         return;
       }

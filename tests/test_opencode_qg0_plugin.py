@@ -411,6 +411,92 @@ class TestCacheErrsTowardStrictness:
         assert out["calls"] == 1
 
 
+@needs_node
+class TestUnreachableCliIsThrottled:
+    """opencode-qg0-negative-cache-broken-cli: a broken CLI is a stable condition,
+    but the pre-fix `_verdict` let the exception escape BEFORE `_cache` was
+    assigned — so every single write re-spawned `status --compact` (300 ms warm /
+    1.1 s cold on Windows) AND awaited `_recordSupervision`, which shells the SAME
+    broken CLI (`events emit-supervision`) and usually fails too. Two slow
+    subprocesses per write with no throttling, while the CLI stays broken — the
+    exact sluggishness the CACHE_TTL/db-signature machinery exists to prevent.
+
+    The fix caches the unreachable verdict (same signature+TTL guard as the active
+    verdict) and emits the degradation only on a FRESH probe. These tests pin both
+    the speedup AND its safe direction — the fail-open/fail-secure policy is
+    unchanged, only the number of slow spawns is."""
+
+    def test_repeated_writes_while_cli_broken_probe_and_emit_once(self, tmp_path, emitted):
+        """AC1+AC2. 3 writes, broken CLI, unchanged DB signature -> ONE probe and
+        ONE degradation row, not three of each. The console warning stays loud on
+        every write (it is a cheap console.warn, not a subprocess), so fail-open is
+        never silent even while the telemetry is de-duplicated to one row/episode."""
+        path, _ = emitted
+        steps = [{"tool": "write", "cliFails": True, "dbMtime": 1000}] * 3
+        out = _run(tmp_path, path, steps, with_bun=True)
+        assert [r["blocked"] for r in out["results"]] == [False, False, False]
+        assert out["calls"] == 1, "broken CLI was re-probed on every write instead of once"
+        assert [r["queried"] for r in out["results"]] == [True, False, False]
+        assert len(out["emits"]) == 1, f"degradation spammed once per write: {out['emits']}"
+        assert "--kind degradation" in out["emits"][0]
+        assert "--vector cli_unreachable" in out["emits"][0]
+        assert len(out["warnings"]) == 3, "fail-open must stay loud on every write"
+        assert all("DEGRADED" in w for w in out["warnings"])
+
+    def test_db_signature_move_reprobes_and_reemits(self, tmp_path, emitted):
+        """AC3. A moved DB signature (dbMtime) invalidates the cached-unreachable
+        verdict — the CLI may have recovered (or a task may have started), so a
+        fresh probe (and a fresh degradation, if still broken) is mandatory. Bound
+        to the exact same signature guard as the active verdict."""
+        path, _ = emitted
+        steps = [
+            {"tool": "write", "cliFails": True, "dbMtime": 1000},
+            {"tool": "write", "cliFails": True, "dbMtime": 2000},  # signature moved
+        ]
+        out = _run(tmp_path, path, steps, with_bun=True)
+        assert [r["blocked"] for r in out["results"]] == [False, False]
+        assert out["calls"] == 2, "a moved DB signature must force a re-probe"
+        assert [r["queried"] for r in out["results"]] == [True, True]
+        assert len(out["emits"]) == 2, "a fresh probe is a fresh degradation observation"
+
+    def test_broken_cli_recovers_within_window_is_seen_on_signature_move(self, tmp_path, emitted):
+        """AC3 (recovery). The cached unreachable verdict must not outlive a real
+        recovery signalled by a signature move: once the CLI answers 'active', the
+        write is allowed via the normal path, not blocked by a stale unreachable."""
+        path, _ = emitted
+        steps = [
+            {"tool": "write", "cliFails": True, "dbMtime": 1000},  # broken -> fail-open
+            {"tool": "write", "active": True, "dbMtime": 2000},  # recovered, task active
+        ]
+        out = _run(tmp_path, path, steps, with_bun=True)
+        assert [r["blocked"] for r in out["results"]] == [False, False]
+        assert out["calls"] == 2
+        assert len(out["emits"]) == 1, "recovery must not emit a second degradation"
+
+    def test_without_signature_broken_cli_reprobes_every_write(self, tmp_path, emitted):
+        """AC4. No Bun -> no DB signature -> the unreachable verdict is the LENIENT
+        direction under fail-open, so it is never reused without a signature to
+        justify it — mirroring `test_without_a_signature_an_allow_is_never_reused`.
+        Each write re-probes and re-records."""
+        path, _ = emitted
+        steps = [{"tool": "write", "cliFails": True}] * 3
+        out = _run(tmp_path, path, steps, with_bun=False)
+        assert [r["blocked"] for r in out["results"]] == [False, False, False]
+        assert out["calls"] == 3, "unreachable verdict reused without a signature"
+        assert len(out["emits"]) == 3
+
+    def test_fail_secure_broken_cli_probes_once_and_never_emits(self, tmp_path, emitted):
+        """AC5. Under FAIL_SECURE a broken CLI BLOCKS — the probe is still cached
+        (one spawn, not three) but the degradation path is never reached, so no row
+        is written (the guard worked, nothing was weakened)."""
+        path, _ = emitted
+        steps = [{"tool": "write", "cliFails": True, "dbMtime": 1000}] * 3
+        out = _run(tmp_path, path, steps, with_bun=True, env={"TAUSIK_HOOK_FAIL_SECURE": "1"})
+        assert all(r["blocked"] for r in out["results"])
+        assert out["calls"] == 1, "fail-secure must still cache the unreachable probe"
+        assert out["emits"] == [], "a fail-secure block weakens nothing — no degradation row"
+
+
 # --- CLI oracle: the row the JS plugin shells out to write -------------------
 
 import types  # noqa: E402
