@@ -89,7 +89,7 @@ def enabled_root(monkeypatch, tmp_path):
     """Enable auto-export and point the tree root at a tmp dir (isolated config)."""
     root = tmp_path / "tausik"
     monkeypatch.setattr(state_triggers, "_auto_export_enabled", lambda: True)
-    monkeypatch.setattr(state_triggers, "_tree_root", lambda: str(root))
+    monkeypatch.setattr(state_triggers, "_tree_root", lambda _svc: str(root))
     return str(root)
 
 
@@ -97,7 +97,7 @@ def test_auto_export_disabled_writes_nothing(svc, monkeypatch, tmp_path):
     _seed(svc)
     root = tmp_path / "tausik"
     monkeypatch.setattr(state_triggers, "_auto_export_enabled", lambda: False)
-    monkeypatch.setattr(state_triggers, "_tree_root", lambda: str(root))
+    monkeypatch.setattr(state_triggers, "_tree_root", lambda _svc: str(root))
     assert state_triggers.auto_export_entity(svc, "tasks", "exp") is False
     assert not root.exists()  # disabled → no surprise files
 
@@ -170,7 +170,7 @@ def test_import_suggested_flags_divergence(monkeypatch, tmp_path):
         src.be.close()
     write_tree(root, tree, managed_dirs=set(ENTITY_DIRS))
     fresh = ProjectService(SQLiteBackend(str(tmp_path / "fresh.db")))
-    monkeypatch.setattr(state_triggers, "_tree_root", lambda: root)
+    monkeypatch.setattr(state_triggers, "_tree_root", lambda _svc: root)
     try:
         sug = state_triggers.import_suggested(fresh)  # empty DB, populated tree
         assert sug is not None and sug["added"] > 0

@@ -27,7 +27,7 @@ def _utcnow_iso() -> str:
 def record_gate_runs(
     conn: sqlite3.Connection,
     *,
-    verification_run_id: int,
+    verification_run_id: int | None,
     task_slug: str | None,
     trigger: str | None,
     gate_results: list[dict[str, Any]],

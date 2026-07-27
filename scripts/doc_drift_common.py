@@ -71,6 +71,19 @@ MCP_COUNT_EXTRA_TARGETS: tuple[str, ...] = (
     "docs/README.md",
 )
 
+# Extra files scanned for CODE-STATE counts ONLY (hooks / stacks / review agents /
+# roles), never version/test/MCP. hooks.md hardcodes the registered-hook count in
+# its header ("22 Python hooks + 1 shell") and drifted silently (a stale "20
+# Python hooks / = 21" sat there across 1.8) because it was outside every scan
+# list — scan_code_counts only walked CROSS_FILE_SCAN_TARGETS. It carries
+# legitimate historical version refs (title "# Hooks (v1.4)", "ship with v1.4")
+# that would false-positive the version scanner, so — exactly like
+# MCP_COUNT_EXTRA_TARGETS — it is guarded by the code-count scanner alone.
+CODE_COUNT_EXTRA_TARGETS: tuple[str, ...] = (
+    "docs/en/hooks.md",
+    "docs/ru/hooks.md",
+)
+
 # RU/EN word for "tool" in MCP-count contexts. Matches singular + plural genitive
 # forms: tools, tool, инструмент, инструмента, инструментов.
 _TOOL_WORD = r"(?:tools?|инструмент(?:а|ов)?)"
@@ -154,11 +167,15 @@ _TEST_COUNT_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
 #   - skills is intentionally absent — docs say "38 skills" (full vendor set)
 #     while skills_core_count tracks the 12 core dirs, so a generic pattern
 #     would false-positive. Skills drift is covered by constants.json itself.
-#   - hooks: an OPTIONAL "real-time"/"realtime" qualifier is allowed between the
-#     number and "hooks"/"хук…". "21 real-time hooks" (README bullet) evaded the
-#     old adjacency-anchored `\b(\d+)\s+hooks\b` and drifted uncaught (21 vs 22).
-#     RU side matches the singular "хук" plus genitive/plural forms (хука/хуки/
-#     хуков), which the old `хуков`-only pattern missed.
+#   - hooks: an OPTIONAL qualifier is allowed between the number and
+#     "hooks"/"хук…" — "real-time" (README bullet "21 real-time hooks"), "Python"
+#     and "active"/"активн…" (hooks.md header "22 Python hooks", "21 активный
+#     хук"). All three evaded the old adjacency-anchored `\b(\d+)\s+hooks\b` and
+#     drifted uncaught. The qualifier is an explicit allow-list, not `\w+`, so it
+#     never swallows an unrelated noun ("3 tests where hooks fire"). RU side
+#     matches the singular "хук" plus genitive/plural forms (хука/хуки/хуков) and
+#     a hyphen-attached prefix ("Python-хука"), which the old `хуков`-only
+#     pattern missed.
 _CODE_COUNT_PATTERNS: tuple[tuple[re.Pattern[str], str, str], ...] = (
     (re.compile(r"\b(\d+)\s+stacks\b", re.IGNORECASE), "stacks_count", "stacks count"),
     (
@@ -167,12 +184,15 @@ _CODE_COUNT_PATTERNS: tuple[tuple[re.Pattern[str], str, str], ...] = (
         "stacks count (ru)",
     ),
     (
-        re.compile(r"\b(\d+)\s+(?:real[-\s]?time[-\s])?hooks\b", re.IGNORECASE),
+        re.compile(r"\b(\d+)\s+(?:real[-\s]?time[-\s]|python\s+|active\s+)?hooks\b", re.IGNORECASE),
         "hooks_count",
         "hooks count",
     ),
     (
-        re.compile(r"\b(\d+)\s+(?:real[-\s]?time[-\s])?хук(?:а|ов|и)?\b", re.IGNORECASE),
+        re.compile(
+            r"\b(\d+)\s+(?:real[-\s]?time[-\s]|python[-\s]|активн\w+\s+)?хук(?:а|ов|и)?\b",
+            re.IGNORECASE,
+        ),
         "hooks_count",
         "hooks count (ru)",
     ),

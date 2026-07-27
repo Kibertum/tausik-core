@@ -37,8 +37,18 @@ def _auto_export_enabled() -> bool:
         return False
 
 
-def _tree_root() -> str | None:
+def _tree_root(svc: ProjectService) -> str | None:
+    """The `tausik/` projection dir for THIS svc's project.
+
+    Derived from ``svc.tausik_dir()``, NOT the ambient ``find_tausik_dir()`` (the
+    process cwd): keying on the cwd is the mcp-config-read-paths-ignore-project-
+    handle defect — a mutation on one project's DB while cwd is another (e.g. a
+    test with an isolated temp DB) would write the projection into the WRONG
+    tree. Falls back to find_tausik_dir only if the svc cannot answer.
+    """
     try:
+        if hasattr(svc, "tausik_dir"):
+            return os.path.join(os.path.dirname(os.path.abspath(svc.tausik_dir())), "tausik")
         from project_config import find_tausik_dir
 
         return os.path.join(os.path.dirname(find_tausik_dir()), "tausik")
@@ -62,7 +72,7 @@ def auto_export_entity(svc: ProjectService, kind: str, slug: str) -> bool:
         if result is None:
             return False
         rel, content = result
-        root = _tree_root()
+        root = _tree_root(svc)
         if not root:
             return False
         path = os.path.join(root, rel.replace("/", os.sep))
@@ -102,7 +112,7 @@ def import_suggested(svc: ProjectService) -> dict[str, Any] | None:
     can suggest `tausik sync`. Returns a compact {added,updated,journal,edges}
     count dict when a sync is worth offering, else None. Fail-open → None."""
     try:
-        root = _tree_root()
+        root = _tree_root(svc)
         if not root or not os.path.isdir(root):
             return None
         from state_import import import_tree

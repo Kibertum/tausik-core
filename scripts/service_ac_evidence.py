@@ -28,15 +28,27 @@ from tausik_utils import ServiceError
 # registry a home. This module owns HOW lines are segmented and matched to AC
 # items. Re-exported: callers and tests import these names from here.
 from ac_evidence_detectors import (  # noqa: E402,F401 — re-export for callers
+    AC_HEADER_PREFIX_RE,
     AC_ITEM_BOUNDARY_RE,
     AC_NUMBER_PREFIX_RE,
     CHECK_MARK_RE,
     DOMAIN_RE,
     MANUAL_RE,
     NEGATIVE_RE,
+    PYTEST_SUMMARY_RE,
     REVIEW_RE,
     TEST_REF_RE,
+    TIMESTAMP_PREFIX_RE,
+    VERIFICATION_RUN_RE,
 )
+
+
+def _strip_log_prefixes(unit: str) -> str:
+    """Strip a leading `[timestamp]` + `AC …:` header (project-authored) so a
+    start-anchored AC-number match sees the number behind them. Index detection
+    only — never stored as `raw` (ac-evidence-parser-format-strict)."""
+    stripped = TIMESTAMP_PREFIX_RE.sub("", unit, count=1)
+    return AC_HEADER_PREFIX_RE.sub("", stripped, count=1)
 
 
 @dataclass
@@ -49,11 +61,17 @@ class EvidenceLine:
     is_negative: bool = False
     is_review: bool = False
     is_domain: bool = False
+    is_measurement: bool = False
+    # verification_runs id from a `verification_run #NNNN` line (None for a bare
+    # pytest-summary), so the GATE layer can fact-check it (exists/same-task/green).
+    measurement_run_id: int | None = None
 
     @property
     def evidence_type(self) -> str:
         if self.test_refs:
             return "test_ref"
+        if self.is_measurement:
+            return "measurement"
         if self.is_manual:
             return "manual"
         if self.is_review:
@@ -215,9 +233,20 @@ def _evidence_lines_for_unit(unit: str) -> list[EvidenceLine]:
     is_negative = bool(NEGATIVE_RE.search(unit))
     is_review = bool(REVIEW_RE.search(unit))
     is_domain = bool(DOMAIN_RE.search(unit))
+    run_m = VERIFICATION_RUN_RE.search(unit)
+    measurement_run_id: int | None = None
+    if run_m:
+        try:
+            measurement_run_id = int(run_m.group(1))
+        except (TypeError, ValueError):
+            measurement_run_id = None
+    is_measurement = bool(run_m) or bool(PYTEST_SUMMARY_RE.search(unit))
 
     ac_indices: list[int] = []
-    m = AC_NUMBER_PREFIX_RE.match(unit)
+    # Match the AC number at the START of the unit, tolerating the task_log
+    # timestamp + an "AC …:" header (both project-authored) in front of it.
+    # Same strict regex → a numberless line still binds to no AC.
+    m = AC_NUMBER_PREFIX_RE.match(_strip_log_prefixes(unit))
     if m and m.group(2).strip():
         try:
             ac_indices.append(int(m.group(1)))
@@ -241,6 +270,8 @@ def _evidence_lines_for_unit(unit: str) -> list[EvidenceLine]:
             is_negative=is_negative,
             is_review=is_review,
             is_domain=is_domain,
+            is_measurement=is_measurement,
+            measurement_run_id=measurement_run_id,
         )
         if (
             ev.ac_index is not None
@@ -250,6 +281,7 @@ def _evidence_lines_for_unit(unit: str) -> list[EvidenceLine]:
             or ev.is_negative
             or ev.is_review
             or ev.is_domain
+            or ev.is_measurement
         ):
             out.append(ev)
     return out

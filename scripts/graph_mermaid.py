@@ -89,6 +89,6 @@ def render_memory_graph(svc: ProjectService) -> str:
     label_by_id = {nid: lbl for nid, lbl in nodes.values()}
     for nid in sorted(used):
         lines.append(f'  {nid}["{label_by_id[nid]}"]')
-    for src, rel, tgt in sorted(set(edge_rows)):
-        lines.append(f"  {src} -->|{rel}| {tgt}")
+    for esrc, rel, etgt in sorted(set(edge_rows)):
+        lines.append(f"  {esrc} -->|{rel}| {etgt}")
     return "\n".join(lines) + "\n"

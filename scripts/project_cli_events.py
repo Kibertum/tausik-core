@@ -30,6 +30,20 @@ def cmd_events(svc: Any, args: Any) -> None:
     if not events:
         print("No events found.")
         return
+    from output_rollup import render_rollup, should_rollup
+
+    if should_rollup(len(events), full=getattr(args, "full", False)):
+        # Audit logs grow with the project; a per-entity/action rollup keeps the
+        # agent's read bounded. --full restores the exact per-event dump below.
+        for line in render_rollup(
+            events,
+            ["entity_type", "action"],
+            title="Events",
+            top_n=getattr(args, "top_n", None),
+            max_lines=getattr(args, "max_lines", None),
+        ):
+            print(line)
+        return
     for ev in events:
         actor = f" by {ev['actor']}" if ev.get("actor") else ""
         print(f"[{ev['created_at']}] {ev['entity_type']}/{ev['entity_id']}: {ev['action']}{actor}")

@@ -1,7 +1,7 @@
 ---
 slug: l26-mcp-spec
 title: "Готовность к спеке MCP 2026-07-28"
-status: active
+status: done
 epic: landscape-2026-h2
 ---
 

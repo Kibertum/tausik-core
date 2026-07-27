@@ -24,6 +24,7 @@ from doc_drift_common import (
     _MCP_COUNT_PATTERNS,
     _TEST_COUNT_PATTERNS,
     _VERSION_RE,
+    CODE_COUNT_EXTRA_TARGETS,
     CROSS_FILE_SCAN_TARGETS,
     VERSION_SCAN_TARGETS,
     _is_foreign_version,
@@ -115,7 +116,12 @@ def write_cross_file_fixes(repo_root: Path, payload: dict[str, object]) -> list[
         if isinstance(val, int):
             count_specs.append(("count", pattern, val))
 
-    for rel in CROSS_FILE_SCAN_TARGETS:
+    # CODE_COUNT_EXTRA_TARGETS (hooks.md) carry historical version refs, so they
+    # are repaired for counts only — never versions. That is already enforced
+    # structurally: hooks.md is absent from VERSION_SCAN_TARGETS, so the version
+    # branch below skips it. Detection (scan_code_counts) and repair therefore
+    # stay in lockstep.
+    for rel in (*CROSS_FILE_SCAN_TARGETS, *CODE_COUNT_EXTRA_TARGETS):
         path = repo_root / rel
         if not path.is_file():
             continue

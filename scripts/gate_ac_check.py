@@ -166,13 +166,30 @@ def _task_tier(task: dict[str, Any]) -> str:
     return determine_checklist_tier(task, relevant_files=rf)
 
 
-def _evidence_strength(task: dict[str, Any]) -> tuple[int, int, int]:
+def _measurement_verified(item: Any, verified_run_ids: set[int] | None) -> bool:
+    """True if the AC item cites a verification_run that FACT-checks out: its id
+    is in `verified_run_ids` (the green runs for THIS task, gathered from the DB
+    by the caller). A bare pytest summary carries no run id and so is never
+    'verified' here — it reads as evidence by form (counted in report.covered)
+    but cannot clear the fact-based activity gate. This is what stops
+    `verification_run #1` (a wrong/red/foreign run) from being a free pass:
+    the detector reads the form, this reads the fact."""
+    if not verified_run_ids:
+        return False
+    return any(e.is_measurement and e.measurement_run_id in verified_run_ids for e in item.evidence)
+
+
+def _evidence_strength(
+    task: dict[str, Any], verified_run_ids: set[int] | None = None
+) -> tuple[int, int, int]:
     """`(with_real_test, with_any_activity, total_ac)` for a task's AC evidence.
 
-    * `with_real_test` — AC items citing a test file that EXISTS on disk.
-    * `with_any_activity` — AC items whose evidence names a test, a manual run
-      or a review. A bare check mark is not activity; it is a claim that some
-      happened, which is the thing being verified.
+    * `with_real_test` — AC items citing a test file that EXISTS on disk OR a
+      verification_run that fact-checks out (a signed green run of the real
+      gates is at least as strong as a resolvable test citation).
+    * `with_any_activity` — AC items whose evidence names a test, a manual run,
+      a review, or a verified measurement. A bare check mark is not activity; it
+      is a claim that some happened, which is the thing being verified.
     """
     from service_ac_evidence import build_report
 
@@ -182,14 +199,15 @@ def _evidence_strength(task: dict[str, Any]) -> tuple[int, int, int]:
     with_activity = 0
     for item in report.items:
         real_test = any(ref for e in item.evidence for ref in e.test_refs if _test_ref_exists(ref))
-        if real_test:
+        verified_run = _measurement_verified(item, verified_run_ids)
+        if real_test or verified_run:
             with_real_test += 1
-        if real_test or any(e.is_manual or e.is_review for e in item.evidence):
+        if real_test or verified_run or any(e.is_manual or e.is_review for e in item.evidence):
             with_activity += 1
     return with_real_test, with_activity, report.total_ac
 
 
-def checklist_missing(task: dict[str, Any]) -> bool:
+def checklist_missing(task: dict[str, Any], verified_run_ids: set[int] | None = None) -> bool:
     """True when NO acceptance criterion cites an actual verification activity.
 
     This used to count vocabulary. `_TIER_KEYWORDS` held words like `scope`,
@@ -210,7 +228,7 @@ def checklist_missing(task: dict[str, Any]) -> bool:
     also why the warning was ignored at every close of session #132 — there was
     no honest action that cleared it.
     """
-    _real_test, with_activity, total = _evidence_strength(task)
+    _real_test, with_activity, total = _evidence_strength(task, verified_run_ids)
     if not total:
         # No parsable AC — nothing to have evidence FOR. QG-0 requires AC before
         # a task can start, so this is legacy rows, not a live path.
@@ -218,12 +236,15 @@ def checklist_missing(task: dict[str, Any]) -> bool:
     return with_activity == 0
 
 
-def checklist_hard_block(task: dict[str, Any]) -> tuple[bool, str]:
+def checklist_hard_block(
+    task: dict[str, Any], verified_run_ids: set[int] | None = None
+) -> tuple[bool, str]:
     """(blocking, message) for the Rule 5 hard gate.
 
     Blocks only when the task's PLANNING tier is substantial/deep AND no
-    acceptance criterion cites a test file that exists. Lower tiers return
-    (False, "") — the caller downgrades those to an escalating nudge.
+    acceptance criterion cites a test file that exists OR a verification_run
+    that fact-checks out. Lower tiers return (False, "") — the caller downgrades
+    those to an escalating nudge.
 
     The hard tier is deliberately stricter than `checklist_missing`, which also
     accepts a manual run or a review — those are cleared by a word, and a level
@@ -239,13 +260,14 @@ def checklist_hard_block(task: dict[str, Any]) -> tuple[bool, str]:
     tier = (task.get("tier") or "").strip().lower()
     if tier not in _HARD_CHECKLIST_TIERS:
         return False, ""
-    real_test, _activity, total = _evidence_strength(task)
+    real_test, _activity, total = _evidence_strength(task, verified_run_ids)
     if total and real_test:
         return False, ""
     return True, (
         f"QG-2 SENAR Rule 5: planning tier '{tier}' requires at least one "
-        f"acceptance criterion backed by a test that EXISTS — none found. Log it "
-        f'as `task log <slug> "AC-3: ✓ tests/test_foo.py::test_bar"` and re-run '
+        f"acceptance criterion backed by a test that EXISTS (or a green "
+        f"verification_run #NNNN for this task) — none found. Log it as "
+        f'`task log <slug> "AC-3: ✓ tests/test_foo.py::test_bar"` and re-run '
         f"task done. A bare check mark does not count, and a path that does not "
         f"resolve is treated as no evidence at all. If this task legitimately "
         f"has no test to cite, close it with the state that says so rather than "
@@ -253,7 +275,9 @@ def checklist_hard_block(task: dict[str, Any]) -> tuple[bool, str]:
     )
 
 
-def check_verification_checklist(task: dict[str, Any]) -> str:
+def check_verification_checklist(
+    task: dict[str, Any], verified_run_ids: set[int] | None = None
+) -> str:
     """SENAR Core Rule 5: Verification checklist (28 items, 4 tiers).
 
     Returns warning string (empty if OK). Advisory — not a hard gate.
@@ -275,12 +299,12 @@ def check_verification_checklist(task: dict[str, Any]) -> str:
     tier = _task_tier(task)
 
     warnings: list[str] = []
-    if checklist_missing(task):
+    if checklist_missing(task, verified_run_ids):
         warnings.append(
             f"NOTE: Verification checklist ({tier}, {_TIER_COUNT[tier]} items) — "
-            "no acceptance criterion names a test, a manual run or a review. "
-            "A check mark on its own is a claim, not evidence. Log e.g. "
-            "'AC-2: ✓ tests/test_foo.py::test_bar' via `task log`."
+            "no acceptance criterion names a test, a manual run, a review or a "
+            "green verification_run. A check mark on its own is a claim, not "
+            "evidence. Log e.g. 'AC-2: ✓ tests/test_foo.py::test_bar' via `task log`."
         )
 
     ac_text = task.get("acceptance_criteria") or ""

@@ -279,11 +279,15 @@ def build_tree(svc: ProjectService) -> tuple[dict[str, str], list[str]]:
         t = {**t, "_journal": logs_by_task.get(t["slug"], [])}
         tree[f"tasks/{t['slug']}.md"] = _task_doc(t, story_slug, epic_slug)
     for d in sorted(decisions, key=lambda r: r["slug"]):
-        rows = _edge_rows(edges, "decision", d["id"], id_to_slug, warnings, f"decision/{d['slug']}")
-        tree[f"decisions/{d['slug']}.md"] = _decision_doc(d, rows)
+        edge_rows = _edge_rows(
+            edges, "decision", d["id"], id_to_slug, warnings, f"decision/{d['slug']}"
+        )
+        tree[f"decisions/{d['slug']}.md"] = _decision_doc(d, edge_rows)
     for m in sorted(memory, key=lambda r: r["slug"]):
-        rows = _edge_rows(edges, "memory", m["id"], id_to_slug, warnings, f"memory/{m['slug']}")
-        tree[f"memory/{m['slug']}.md"] = _memory_doc(m, rows)
+        edge_rows = _edge_rows(
+            edges, "memory", m["id"], id_to_slug, warnings, f"memory/{m['slug']}"
+        )
+        tree[f"memory/{m['slug']}.md"] = _memory_doc(m, edge_rows)
 
     # Reproducible diagnostics: the edges query has no ORDER BY, so sort the
     # dangling-edge warnings by content (not SQLite row order) before returning.

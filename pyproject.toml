@@ -94,15 +94,15 @@ disable_error_code = "attr-defined"
 [[tool.mypy.overrides]]
 module = "service_task"
 # Mixin — _require_task, _require_story resolved via ProjectService.
-# arg-type: auto_export_entity typed for ProjectService, called on a Mixin —
-# tracked debt (mypy-residual-argtype-untangle), not a runtime error.
-disable_error_code = ["attr-defined", "arg-type"]
+# arg-type debt cleared (mypy-residual-argtype-untangle): auto_export_entity is
+# now called through cast("ProjectService", self) at the facade boundary.
+disable_error_code = "attr-defined"
 
 [[tool.mypy.overrides]]
 module = "service_knowledge"
-# arg-type: auto_export_by_id(ProjectService) called on KnowledgeMixin — same
-# Mixin-vs-facade typing debt as service_task (mypy-residual-argtype-untangle).
-disable_error_code = ["attr-defined", "arg-type"]
+# Mixin facade (same as service_task). arg-type debt cleared: auto_export_by_id
+# is called through cast("ProjectService", self).
+disable_error_code = "attr-defined"
 
 [[tool.mypy.overrides]]
 module = "backend_queries"
@@ -119,13 +119,12 @@ module = "project_config"
 warn_return_any = false
 
 # --- mypy-baseline-debt-precommit-hook-lies -------------------------------
-# Two groups. (1) hooks/ modules imported from scripts/ by runtime sys.path
-# injection — mypy cannot follow them statically (same reason as memory_markers
-# above), so the import is ignored, not the code. (2) real arg-type/assignment
-# mismatches deferred to a follow-up (mypy-residual-argtype-untangle): each
-# names the SPECIFIC error code, so mypy still catches every OTHER error class
-# in the module — narrower than a blanket `ignore_errors`, and un-picking one
-# code at a time is the tracked path back to zero.
+# hooks/ modules imported from scripts/ by runtime sys.path injection — mypy
+# cannot follow them statically (same reason as memory_markers above), so the
+# import is ignored, not the code. The real arg-type/assignment mismatches that
+# once sat here (state_import, state_export, gate_post_scope, service_gates,
+# graph_mermaid + the arg-type on service_task/service_knowledge) were fixed at
+# the type level in mypy-residual-argtype-untangle — no disable_error_code left.
 [[tool.mypy.overrides]]
 module = [
     "bootstrap_venv",
@@ -137,32 +136,6 @@ module = [
     "_common",
 ]
 ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "state_import"
-# arg-type: node/edge ids read as Any|None from a parsed doc, passed where str
-# is expected — tracked debt (mypy-residual-argtype-untangle).
-disable_error_code = ["arg-type"]
-
-[[tool.mypy.overrides]]
-module = "state_export"
-# assignment/arg-type: doc-row builders typed loosely — tracked debt.
-disable_error_code = ["assignment", "arg-type"]
-
-[[tool.mypy.overrides]]
-module = "gate_post_scope"
-# arg-type: verification_run_id Optional passed where int expected — tracked debt.
-disable_error_code = ["arg-type"]
-
-[[tool.mypy.overrides]]
-module = "service_gates"
-# arg-type: on_scope_hard_gate_bypass callback return-type mismatch — tracked debt.
-disable_error_code = ["arg-type"]
-
-[[tool.mypy.overrides]]
-module = "graph_mermaid"
-# assignment: a name reused with two types — tracked debt.
-disable_error_code = ["assignment"]
 
 [tool.ruff]
 target-version = "py311"

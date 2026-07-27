@@ -1,8 +1,8 @@
 [English](/docs/hooks) | **Русский**
 
-# Хуки (v1.4)
+# Хуки
 
-TAUSIK использует хуки Claude Code для автоматического контроля качества. Хуки перехватывают действия агента **до** и **после** выполнения — это шлюзы, не инструкции. **20 Python-хуков + 1 shell `pre-commit` = 21 активный хук** идут с v1.4 (1.3.7 имел 16 + 1 = 17; v1.4 добавляет `secret_scan.py`, `posttool_usage.py`, `tool_output_truncation_nudge.py`, `task_cost_budget_check.py`).
+TAUSIK использует хуки Claude Code для автоматического контроля качества. Хуки перехватывают действия агента **до** и **после** выполнения — это шлюзы, не инструкции. **22 Python-хука + 1 shell `pre-commit`** идут с TAUSIK — всего 23 шлюза (v1.4 добавил `secret_scan.py`, `posttool_usage.py`, `tool_output_truncation_nudge.py`, `task_cost_budget_check.py`; 1.8 добавил `scope_write_gate.py` и `bash_write_gate.py`).
 
 ## Что такое хуки
 
@@ -13,6 +13,7 @@ TAUSIK использует хуки Claude Code для автоматическ
 | Хук | Когда | Что делает |
 |------|-------|-----------|
 | `task_gate.py` | Перед Write/Edit | Блокирует изменения файлов, если нет активной задачи (SENAR Rule 9.1) |
+| `scope_write_gate.py` | Перед Write/Edit/MultiEdit/NotebookEdit | Scope-ACL (SENAR Rule 2, Walko-паттерн): блокирует запись вне объединения объявленных `scope_paths` активных задач. Именно этот вердикт переиспользует `bash_write_gate` для оболочечных записей. Консервативно: хоть одна активная задача без `scope_paths` → доступ открыт (legacy, необъявленное = без ограничений); цель вне корня проекта → открыт; pre-v30 БД или любая ошибка БД → fail-open, кроме `TAUSIK_HOOK_FAIL_SECURE=1`. |
 | `memory_pretool_block.py` | Перед Write/Edit/MultiEdit **и Bash/PowerShell** | Слой 2 memory-route: блокирует запись в любой чужой memory-сток из `scripts/memory_sinks.py` (`~/.claude/**/memory/`, `.cursor/rules/`, `.github/copilot-instructions.md`, `.aider*`, …) и перенаправляет на `memory add`. Оболочки в matcher, потому что heredoc и `Set-Content` пишут ровно то, что запрещает Write. Обход: `confirm: cross-project` в промпте или `gates.memory_route.allow` в конфиге. |
 | `secret_scan.py` (v1.4) | Перед Write/Edit/MultiEdit | Сканирует `tool_input` на типичные секреты (AWS/GitHub/Slack/Stripe/OpenAI/Anthropic токены, JWT, блоки приватного ключа, generic `password`/`api_key`). По умолчанию warning; `TAUSIK_SECRET_SCAN_STRICT=1` — блокировка. (SENAR Rule 10.12). **Оболочечные каналы не покрывает** — ни Bash, ни PowerShell; см. матрицу покрытия в [`enforcement-coverage.md`](enforcement-coverage.md). |
 | `bash_firewall.py` | Перед Bash **и PowerShell** | Блокирует опасные команды (`rm -rf /`, `Remove-Item -Recurse C:\`, DROP TABLE, `Format-Volume`, force push, …). Диалект выбирается по `tool_name`: POSIX-лексер не умеет читать PowerShell, где `\` — обычный символ пути, а не экранирование. |

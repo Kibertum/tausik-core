@@ -72,7 +72,7 @@ def _cmd_state_import(svc: ProjectService, args: Any) -> None:
         print(f"state import refused (no changes written): {e}")
         raise SystemExit(1) from e
 
-    for kind in ("added", "updated", "journal", "edges"):
+    for kind in ("added", "updated", "journal", "edges", "skipped_edges"):
         for item in report.get(kind, []):
             print(f"  {kind}: {item}")
     added, updated = len(report.get("added", [])), len(report.get("updated", []))

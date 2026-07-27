@@ -61,6 +61,7 @@ task add <title> [--story STORY_SLUG] [--slug SLUG] [--stack STACK]
 task quick <title> [--goal TEXT] [--role ROLE] [--stack STACK]
 task next [--agent AGENT_ID]    # Выбрать следующую planning-задачу (по score)
 task list [--status STATUS] [--story STORY] [--epic EPIC] [--role ROLE] [--stack STACK] [--limit N]
+          [--full] [--top-n N] [--max-lines N]   # >25 строк — свёртка по статусу/роли; --full = полная таблица
 task show <slug>                # Полная информация: план, заметки, решения, defect_of, AC
 task start <slug> [--force]     # planning → active (QG-0: требует goal + AC + negative scenario)
                                 # --force байпасит session capacity gate (audit event + note)
@@ -236,6 +237,29 @@ mandatory clause → `pre_adoption: true` + `level: null` (паттерн kai, �
 drift-1) подтверждаются capability; data-клаузы (`adapt-per-tz`) — только при
 наличии артефактов.
 
+## Состояние в git (state / sync)
+
+Проекция durable-состояния БД (`.tausik/tausik.db`) в git-native дерево `tausik/` —
+одно детерминированное .md-файл на сущность (задачи, task_logs, эпики, стори,
+решения, память, рёбра памяти). БД — рабочий кэш; дерево `tausik/` — канонический,
+привязанный к ветке источник истины. Round-trip: `export` (БД → файлы), `import`
+(файлы → БД, git выигрывает при расхождении). `sync` — короткий алиас `state import`,
+команда после `git pull` / `git checkout`.
+
+```bash
+state export [--out DIR] [--check]   # Сериализовать БД → дерево tausik/ (по файлу на сущность).
+                                     # --check: exit 1 если дерево устарело против live-БД (CI-гейт,
+                                     # тот же контракт, что renar export --check).
+state import [--out DIR] [--dry-run] # Пересобрать кэш БД из дерева tausik/ (идемпотентная дельта).
+                                     # --dry-run: показать план add/update/journal/edge без записи в БД.
+sync [--out DIR] [--dry-run]         # Алиас `state import`. Запусти после git pull/checkout.
+```
+
+Пример: `.tausik/tausik state export` перед коммитом ветки; `.tausik/tausik sync`
+сразу после `git pull`, чтобы локальный кэш БД догнал дерево. Автоматизация
+round-trip (экспорт при durable-записи, детекция расхождения при старте сессии)
+гейтится конфигом `state.auto_export`.
+
 ## Стеки
 
 ```bash
@@ -296,7 +320,8 @@ memory unlink <edge_id> [--replacement EDGE_ID]   # Soft-invalidate (никог�
 memory related <node_type> <node_id> [--hops N] [--include-invalid]
 memory graph [--type {memory,decision}] [--id N]
              [--relation {supersedes,caused_by,relates_to,contradicts}]
-             [--include-invalid] [--limit N]
+             [--include-invalid] [--limit N] [--format {table,mermaid}]
+             # --format mermaid: граф в Mermaid-нотации (для рендера в доках), default table
 
 # Агрегаторы
 memory block [--max-decisions N] [--max-conventions N] [--max-deadends N] [--max-lines N]
@@ -450,7 +475,14 @@ Opt-in: требует `markitdown` и Python ≥3.11.
 
 ```bash
 events [--entity {task,epic,story}] [--id SLUG] [--limit N]
+       [--full] [--top-n N] [--max-lines N]
 ```
+
+Выше 25 строк вывод сворачивается по типу сущности и действию (компактный
+детерминированный агрегат) вместо дампа каждого события; `--top-n` / `--max-lines`
+ограничивают строки групп, а футер называет, сколько скрыто. `--full` печатает
+построчный дамп без изменений. `task list` принимает те же три флага (свёртка по
+статусу и роли).
 
 ## Сниппеты / детекция клонов (v15-snippet)
 

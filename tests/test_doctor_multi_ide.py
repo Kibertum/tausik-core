@@ -126,7 +126,10 @@ class TestNoNewClaudeLiterals:
         "service_doctor_caveman.py": "reads .claude/settings.json; Claude-specific by design",
         "service_doctor_drift.py": "builds the expected CLAUDE.md body for the claude profile",
         "project_cli_skill.py": "documented fallback when ide_utils is unimportable",
-        "project_cli.py": "documented fallback when ide_utils is unimportable",
+        "status_view.py": (
+            "documented fallback when ide_utils is unimportable — the skill-set "
+            "warning moved here from project_cli.py (status-cli-mcp-divergence)"
+        ),
         "service_roles.py": "DEPLOYED_ROLES_DIR_REL is the last-resort fallback constant",
         "hooks/session_start.py": "documented fallback when the hook cannot locate its profile",
         "hooks/session_metrics.py": (

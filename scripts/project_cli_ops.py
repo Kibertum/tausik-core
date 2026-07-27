@@ -81,11 +81,14 @@ def cmd_metrics(svc: ProjectService, args: Any) -> None:
         adh = aggregate_adherence(find_tausik_dir())
     except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         adh = None
-    if adh and adh.get("n"):
-        print("\n--- Routing Adherence (v1.5) ---")
-        print(f"Recommended == actual: {adh['pct']}% (n={adh['n']})")
-        for d in adh.get("top_deviations", []):
-            print(f"  deviation {d['shift']}: {d['count']}")
+    # routing-adherence-metric-measures-nothing (decision #183): recommendation
+    # FIT, not compliance — the formatter names the manual-choice caveat and
+    # prints nothing when there is no data.
+    from model_routing_adherence import format_recommendation_fit
+
+    fit_block = format_recommendation_fit(adh)
+    if fit_block:
+        print(f"\n{fit_block}")
     try:
         rm = svc.be.review_metrics()  # type: ignore[attr-defined]
     except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive

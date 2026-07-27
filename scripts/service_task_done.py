@@ -163,7 +163,13 @@ class TaskDoneReportMixin:
             ]
             return report
 
-        checklist_warning = self._check_verification_checklist(slug, task)  # type: ignore[attr-defined]
+        # A `verification_run #NNNN` evidence line is only real if the run is
+        # green and belongs to this task — gather those ids so the AC gate reads
+        # the fact, not the form (ac-evidence-parser-cannot-see-a-measurement).
+        verified_run_ids = self._green_verification_run_ids(slug)  # type: ignore[attr-defined]
+        checklist_warning = self._check_verification_checklist(  # type: ignore[attr-defined]
+            slug, task, verified_run_ids
+        )
         # SENAR Rule 5 (v15s-rule5-checklist-hardgate): a missing checklist is a
         # HARD block for substantial/deep planning tiers; lower tiers escalate
         # through the nudge framework (silent→hint→warning→strong) and reset on
@@ -171,7 +177,7 @@ class TaskDoneReportMixin:
         checklist_nudge = ""
         from gate_ac_check import checklist_hard_block, checklist_missing
 
-        cl_block, cl_msg = checklist_hard_block(task)
+        cl_block, cl_msg = checklist_hard_block(task, verified_run_ids)
         if cl_block:
             if _checklist_hard_enabled():
                 report["blocking_failures"].append(
@@ -183,7 +189,7 @@ class TaskDoneReportMixin:
             try:
                 from nudge_escalation import escalate, reset
 
-                if checklist_missing(task):
+                if checklist_missing(task, verified_run_ids):
                     checklist_nudge = escalate(
                         self.be._conn,
                         "checklist",

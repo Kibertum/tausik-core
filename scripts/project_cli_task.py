@@ -61,7 +61,21 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
             limit=getattr(args, "limit", None),
             include_archived=getattr(args, "include_archived", False),
         )
-        _print_table(tasks, ["slug", "title", "status", "story_slug", "role", "stack"])
+        from output_rollup import render_rollup, should_rollup
+
+        if should_rollup(len(tasks), full=getattr(args, "full", False)):
+            # A large epic's task list rolls up by status/role; --full prints the
+            # per-task table below, byte-identical to the pre-rollup output.
+            for line in render_rollup(
+                tasks,
+                ["status", "role"],
+                title="Tasks",
+                top_n=getattr(args, "top_n", None),
+                max_lines=getattr(args, "max_lines", None),
+            ):
+                print(line)
+        else:
+            _print_table(tasks, ["slug", "title", "status", "story_slug", "role", "stack"])
     elif c == "show":
         task = svc.task_show(args.slug)
         _print_task_detail(task)

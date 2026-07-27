@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 
+from output_rollup import add_rollup_flags
 from project_parser_errors import SelfCorrectingParser
 from project_parser_hierarchy import build_hierarchy_subparsers
 from project_parser_task import add_task
@@ -325,6 +326,7 @@ def build_parser() -> argparse.ArgumentParser:
     ev_p.add_argument("--entity", default=None, help="Filter by entity type (task, epic, story)")
     ev_p.add_argument("--id", default=None, dest="entity_id", help="Filter by entity ID/slug")
     ev_p.add_argument("--limit", type=int, default=50)
+    add_rollup_flags(ev_p)
     ev_sub = ev_p.add_subparsers(dest="events_cmd")
     ev_sub.add_parser("seal", help="Seal pending events into the hash-chain")
     ev_sub.add_parser("verify", help="Verify the audit hash-chain (+ ed25519 anchor)")

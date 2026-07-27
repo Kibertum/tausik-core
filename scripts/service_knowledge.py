@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
-from tausik_utils import ServiceError, validate_content, validate_length
+from tausik_utils import (
+    MAX_DECISION,
+    ServiceError,
+    validate_content,
+    validate_length,
+)
 from project_types import VALID_EDGE_RELATIONS, VALID_MEMORY_TYPES, VALID_NODE_TYPES
 
 # CQ_SOURCE + build_cq_row live in service_cq_row (filesize cap); re-exported here
@@ -15,6 +20,7 @@ from service_cq_row import CQ_SOURCE, build_cq_row  # noqa: F401
 
 if TYPE_CHECKING:
     from project_backend import SQLiteBackend
+    from project_service import ProjectService
 
 
 class KnowledgeMixin:
@@ -47,7 +53,10 @@ class KnowledgeMixin:
         emit_universality_hint(f"{title}\n{content}")
         from state_triggers import auto_export_by_id  # state-git-triggers (fail-open)
 
-        auto_export_by_id(self, "memory", mid)
+        # `self` is a KnowledgeMixin here but always a composed ProjectService at
+        # runtime (the mixins only exist assembled) — cast the facade, don't widen
+        # the helper's honest ProjectService signature.
+        auto_export_by_id(cast("ProjectService", self), "memory", mid)
         return f"Memory #{mid} ({mem_type}) saved."
 
     def memory_list(
@@ -133,7 +142,12 @@ class KnowledgeMixin:
     # --- Decisions ---
 
     def decide(self, text: str, task_slug: str | None = None, rationale: str | None = None) -> str:
-        validate_length("decision", text)
+        # decision + rationale get the wider MAX_DECISION symbol limit (not the
+        # task-title MAX_TITLE=512) — a decision headline is legitimately longer,
+        # and the limit is in CHARACTERS so Cyrillic is not penalised (#324).
+        validate_length("decision", text, MAX_DECISION)
+        if rationale is not None:
+            validate_length("rationale", rationale, MAX_DECISION)
 
         # Task-linked decisions are inherently project-specific — never route to brain.
         if task_slug is not None:
@@ -185,7 +199,7 @@ class KnowledgeMixin:
         did = self.be.decision_add(text, task_slug, rationale)
         from state_triggers import auto_export_by_id  # state-git-triggers (fail-open)
 
-        auto_export_by_id(self, "decisions", did)
+        auto_export_by_id(cast("ProjectService", self), "decisions", did)
         reason = decision.reason if decision.target == "local" else "brain not enabled"
         return f"Decision #{did} recorded — saved to local (reason: {reason})."
 

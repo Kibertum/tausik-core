@@ -99,6 +99,14 @@ def main():
     server = Server("tausik-project")
     svc = _get_service(args.project)
 
+    # mcp-scope-tools-exposure: expose only the tools the active task's
+    # scope_tools ACL allows (∪ always-safe-core). Fail-open by construction —
+    # feature off / no active task / nobody declared scope_tools / any error →
+    # all tools. Hiding is a UX+token optimization, NOT the security barrier:
+    # call_tool and the write-gate are untouched, so a hidden tool called
+    # directly still passes existing enforcement.
+    from mcp_tool_scope import expose_tools
+
     @server.list_tools()
     async def list_tools():
         return [
@@ -107,7 +115,7 @@ def main():
                 description=t["description"],
                 inputSchema=t["inputSchema"],
             )
-            for t in TOOLS
+            for t in expose_tools(TOOLS, svc)
         ]
 
     # TAUSIK exposes no prompts and no resources — only tools. Some hosts (OpenCode)

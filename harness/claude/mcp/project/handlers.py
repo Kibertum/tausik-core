@@ -997,82 +997,20 @@ def _handle_self_check() -> str:
 
 
 def _handle_status(svc: Any, args: dict | None = None) -> str:
-    from project_config import DEFAULT_SESSION_MAX_MINUTES, load_config
+    # status-cli-mcp-divergence: both channels render from the shared
+    # status_view so the CLI and the MCP handler surface the SAME signal set
+    # (this handler used to hide risk / RENAR / epics / calibration / capacity
+    # that the CLI showed). build_status_view already reads config scoped to
+    # svc.tausik_dir() — the mcp-config-read-paths-ignore-project-handle fix.
+    from status_view import build_status_view, render_status_mcp
     from tausik_utils import format_status_compact_json
 
     args = args or {}
-    data = svc.get_status()
-    # mcp-config-read-paths-ignore-project-handle: session_max_minutes is a
-    # property of THIS project; read it from svc's directory, not the cwd.
-    _td = svc.tausik_dir() if hasattr(svc, "tausik_dir") else None
-    cfg = load_config(_td)
-    max_min = cfg.get("session_max_minutes", DEFAULT_SESSION_MAX_MINUTES)
-    duration_warning = svc.session_check_duration(max_min)
-    # v14b-session-active-time: surface active/wall minutes alongside the
-    # session id. Active is the SENAR Rule 9.2 metric (sum of bounded
-    # inter-tool-call deltas, capped at idle threshold per gap); wall is
-    # informational. active_seconds carries sub-minute precision for callers
-    # that aggregate deltas over short bursts (e.g. capacity dashboards).
-    session = data.get("session")
-    active_min = wall_min = 0
-    active_sec = 0
-    if session:
-        try:
-            active_sec = svc.session_active_seconds()
-            active_min = svc.session_active_minutes()
-            wall_min = svc.session_wall_minutes()
-        except Exception:  # noqa: BLE001 — never fail status on metric calc
-            active_sec = active_min = wall_min = 0
-        data["active_minutes"] = active_min
-        data["active_seconds"] = active_sec
-        data["wall_minutes"] = wall_min
-    data["session_max_minutes"] = max_min
-    # v14b-status-exploration-audit-signals: enrich data with SENAR 5.1
-    # (open exploration) and 9.5 (audit overdue) so /start Phase 1 batch
-    # can drop the dedicated MCP calls. Both lookups are best-effort.
-    exp: dict | None = None
-    try:
-        exp = svc.exploration_current()
-    except Exception:  # noqa: BLE001 — never fail status on metric calc
-        exp = None
-    if exp:
-        data["exploration"] = exp
-    audit_overdue = 0
-    try:
-        audit_overdue = int(svc.audit_overdue_sessions())
-    except (AttributeError, ValueError, TypeError):
-        audit_overdue = 0
-    if audit_overdue:
-        data["audit_overdue_sessions"] = audit_overdue
-    if args.get("compact"):
-        return format_status_compact_json(data, duration_warning)
-    counts = data["task_counts"]
-    total = sum(counts.values())
-    done = counts.get("done", 0)
-    parts = [f"Tasks: {done}/{total} done"]
-    for st in ("planning", "active", "blocked", "review"):
-        if counts.get(st):
-            parts.append(f"{counts[st]} {st}")
-    if session:
-        sess_part = f"Session: #{session['id']} (active {active_min}m / {max_min}m"
-        if args.get("verbose"):
-            sess_part += f", wall {wall_min}m"
-        sess_part += ")"
-        parts.append(sess_part)
-    else:
-        parts.append("Session: none")
-    result = ", ".join(parts)
-    if duration_warning:
-        result += f"\n⚠ {duration_warning}"
-    if exp:
-        elapsed = exp.get("elapsed_min", "?")
-        over = " — OVER LIMIT" if exp.get("over_limit") else ""
-        result += (
-            f"\n⚠ Open exploration #{exp.get('id')}: {exp.get('title', '')} ({elapsed}m{over})"
-        )
-    if audit_overdue:
-        result += f"\n⚠ SENAR Rule 9.5: {audit_overdue} sessions since last audit. Run /review then audit mark."
-    return result
+    compact = bool(args.get("compact"))
+    view = build_status_view(svc, verbose=bool(args.get("verbose")), include_rich=not compact)
+    if compact:
+        return format_status_compact_json(view["data"], view["duration_warning"])
+    return render_status_mcp(view)
 
 
 def _section_with_timeout(label: str, fn: Callable[[], Any], timeout: float = 6.0) -> Any:

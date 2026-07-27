@@ -122,13 +122,26 @@ _PATH_RE = re.compile(r"(?<![\w./\\])((?:[\w.\-]+/)+[\w.\-]+\.[A-Za-z0-9]{1,6})\
 # positives from URLs/hostnames mentioned in prose).
 _HOSTLIKE_FIRST_SEG = re.compile(r"^[\w-]+\.[\w.-]+$")
 
+# Placeholder basenames — conventional EXAMPLE filenames that appear in memory
+# prose describing a format ("cite tests/test_x.py::test_y"), never a real repo
+# file (memory-lint-stale-file-mostly-false-positives). A single-letter stem
+# (`x.py`), or `foo/bar/baz`, or `test_<placeholder>.py`. Kept deliberately
+# narrow so a genuine one-word module name is not swallowed.
+_PLACEHOLDER_BASENAME_RE = re.compile(
+    r"^(?:[a-z]|foo|bar|baz|qux|test_(?:[a-z]|foo|bar|baz|file|name|thing|func|module))"
+    r"\.[a-z0-9]{1,6}$",
+    re.IGNORECASE,
+)
+
 
 def _extract_paths(content: str) -> list[str]:
     """Return unique repo-relative path-like tokens mentioned in ``content``.
 
     Tokens whose FIRST segment is domain-like (``example.com/page.html``) are
     dropped: those are URLs/hostnames in prose, not repo-relative paths, and
-    flagging them as ``stale_file`` (the file "does not exist") is noise.
+    flagging them as ``stale_file`` (the file "does not exist") is noise. So are
+    tokens whose basename is a conventional PLACEHOLDER (``x.py``,
+    ``tests/test_x.py``) — an example in prose, not a claim about a real file.
     """
     seen: dict[str, None] = {}
     for m in _PATH_RE.finditer(content or ""):
@@ -136,8 +149,26 @@ def _extract_paths(content: str) -> list[str]:
         first_seg = token.split("/", 1)[0]
         if _HOSTLIKE_FIRST_SEG.match(first_seg):
             continue  # domain-like head → a URL/host mention, not a repo path
+        if _PLACEHOLDER_BASENAME_RE.match(token.rsplit("/", 1)[-1]):
+            continue  # example filename in prose, not a real path
         seen.setdefault(token, None)
     return list(seen)
+
+
+def _parent_dir_exists(path: str, file_exists: Any) -> bool:
+    """True if the path's parent directory exists in the repo.
+
+    The stale_file detector must only speak about paths that are genuinely
+    repo-relative — where the DIRECTORY is real and only the file is missing.
+    A memory writes prose full of slashes that are alternation separators, not
+    paths (`lru_cache/functools.cache`, `release/1.8`, `ru/senar.md`); none of
+    those has an existing parent dir, so requiring one removes the noise while
+    still catching a real deletion inside a live directory. ``file_exists``
+    defaults to ``os.path.exists`` (true for directories), so it doubles as the
+    dir resolver.
+    """
+    parent = path.rsplit("/", 1)[0] if "/" in path else ""
+    return bool(parent) and file_exists(parent)
 
 
 def find_lint_candidates(
@@ -198,7 +229,10 @@ def find_lint_candidates(
         if rid is None:
             continue
         for path in _extract_paths(r.get("content") or ""):
-            if not file_exists(path):
+            # Only a path whose DIRECTORY exists but whose FILE is gone is a real
+            # stale reference; a token whose parent dir does not exist is prose
+            # that merely looks path-shaped (see `_parent_dir_exists`).
+            if not file_exists(path) and _parent_dir_exists(path, file_exists):
                 findings.append(
                     {
                         "id": int(rid),

@@ -96,6 +96,9 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Include soft-archived tasks (archived_at IS NOT NULL). Off by default.",
     )
+    from output_rollup import add_rollup_flags
+
+    add_rollup_flags(tl)
 
     ts = task_sub.add_parser("show")
     ts.add_argument("slug")

@@ -31,6 +31,7 @@ from doc_drift_common import (
     _PY_VERSION_RE,
     _TEST_COUNT_PATTERNS,
     _VERSION_RE,
+    CODE_COUNT_EXTRA_TARGETS,
     CROSS_FILE_SCAN_TARGETS,
     MCP_COUNT_EXTRA_TARGETS,
     PY_VERSION_SCAN_TARGETS,
@@ -190,6 +191,12 @@ def scan_test_counts(repo_root: Path, payload: dict[str, object]) -> list[str]:
     expected = payload.get("test_count")
     if not isinstance(expected, int):
         return []
+    # test_count is a LOWER BOUND ("N+ tests"), not an exact pin (decision #182):
+    # a doc that claims N tests is honest as long as the suite has AT LEAST N.
+    # So growth (found <= expected) is never drift — only an OVERCLAIM (a doc
+    # asserting MORE tests than the live suite actually has) is flagged. This is
+    # what closes the "add tests -> every doc number goes red" trap while still
+    # catching a genuinely false claim.
     messages: list[str] = []
     for rel in CROSS_FILE_SCAN_TARGETS:
         path = repo_root / rel
@@ -199,13 +206,13 @@ def scan_test_counts(repo_root: Path, payload: dict[str, object]) -> list[str]:
         for pattern, label in _TEST_COUNT_PATTERNS:
             for m in pattern.finditer(text):
                 found = int(m.group(1))
-                if found == expected:
+                if found <= expected:
                     continue
                 line_no = text[: m.start()].count("\n") + 1
                 messages.append(
-                    f"{rel}:{line_no}: test-count drift '{m.group(0)}' "
-                    f"({label}, found={found}) does not match "
-                    f"constants.json test_count={expected}"
+                    f"{rel}:{line_no}: test-count OVERCLAIM '{m.group(0)}' "
+                    f"({label}, found={found}) exceeds live suite size "
+                    f"test_count={expected} — docs claim more tests than exist"
                 )
     return messages
 
@@ -213,12 +220,14 @@ def scan_test_counts(repo_root: Path, payload: dict[str, object]) -> list[str]:
 def scan_code_counts(repo_root: Path, payload: dict[str, object]) -> list[str]:
     """Return drift messages for cross-file repo-state count refs.
 
-    Walks :data:`CROSS_FILE_SCAN_TARGETS`, strips fenced code blocks, and flags
-    every :data:`_CODE_COUNT_PATTERNS` match whose captured int does not equal
-    the corresponding ``constants.json`` count (stacks / hooks / review agents).
+    Walks :data:`CROSS_FILE_SCAN_TARGETS` plus :data:`CODE_COUNT_EXTRA_TARGETS`
+    (hooks.md — version-ref-bearing, so scanned for counts only, like
+    MCP_COUNT_EXTRA_TARGETS), strips fenced code blocks, and flags every
+    :data:`_CODE_COUNT_PATTERNS` match whose captured int does not equal the
+    corresponding ``constants.json`` count (stacks / hooks / review agents).
     """
     messages: list[str] = []
-    for rel in CROSS_FILE_SCAN_TARGETS:
+    for rel in (*CROSS_FILE_SCAN_TARGETS, *CODE_COUNT_EXTRA_TARGETS):
         path = repo_root / rel
         if not path.is_file():
             continue

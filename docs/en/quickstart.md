@@ -168,7 +168,10 @@ create a landing page with the title "My Project" and a "Get Started" button
 
 The agent will:
 1. Create a task in the database
-2. Formulate a goal and acceptance criteria (what counts as "done")
+2. Formulate a goal and acceptance criteria (what counts as "done") — **including at
+   least one error or boundary case**. TAUSIK's Context Gate (QG-0) requires it, and
+   the agent supplies it for you (e.g. "the button stays disabled until the title is
+   filled"). You don't have to write it; just know the agent will add one.
 3. Start working — write code, create files
 
 You'll see the agent working: creating files, writing code, verifying everything works.

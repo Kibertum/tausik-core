@@ -110,7 +110,7 @@ def check_qg0_start(
     audit_check_fn: Callable[[], str | None] | None = None,
     session_check_duration_fn: Callable[[], str | None] | None = None,
     renar_advisory_fn: Callable[[], str | None] | None = None,
-    on_scope_hard_gate_bypass: Callable[[], None] | None = None,
+    on_scope_hard_gate_bypass: Callable[[], object] | None = None,
 ) -> list[str]:
     """QG-0 Context Gate: validate goal, AC, scope, negative scenarios, security.
 

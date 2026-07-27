@@ -339,7 +339,18 @@ def _apply_edges(ap: _Applier, parsed: dict, id_maps: dict[str, dict], now: str)
                 if not isinstance(e, dict):
                     continue
                 tgt_type = e.get("target_type")
+                relation = e.get("relation")
+                if not isinstance(tgt_type, str) or not isinstance(relation, str):
+                    # Malformed edge FM (non-string target_type/relation). Dropping
+                    # it is correct, but never silently: a partially-corrupted file
+                    # would otherwise lose real relationships on import with no
+                    # signal. Surface it in the report so the operator sees it.
+                    ap.report.setdefault("skipped_edges", []).append(
+                        f"{src_type}/{rec['slug']}: malformed edge "
+                        f"(target_type={tgt_type!r}, relation={relation!r})"
+                    )
+                    continue
                 tgt_id = id_maps.get(tgt_type, {}).get(e.get("target"))
                 if tgt_id is None:
                     continue
-                ap.edge(src_type, src_id, tgt_type, tgt_id, e.get("relation"), now)
+                ap.edge(src_type, src_id, tgt_type, tgt_id, relation, now)

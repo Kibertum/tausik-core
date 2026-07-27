@@ -47,10 +47,33 @@ import re
 
 CHECK_MARK_RE = re.compile(r"[✓✔✅]|\[v\]")
 AC_NUMBER_PREFIX_RE = re.compile(r"^\s*(?:AC[-\s]*)?(\d+)[\.\):]?\s*(.*)$", re.IGNORECASE)
+# The two prefixes an evidence line legitimately carries in front of its AC
+# number, both authored by the project's own tooling — so the start-anchored
+# AC_NUMBER_PREFIX_RE fails to see the number behind them
+# (ac-evidence-parser-format-strict, measured session #133):
+#   * task_log ALWAYS prepends "[<iso-timestamp>] " to every note line;
+#   * agents/fixtures write an "AC verified:" / "AC:" header before "1. ...".
+# Stripped ONLY for index detection — never widening what counts as a marker:
+# after stripping, the SAME strict regex runs, so a numberless prose line still
+# earns no credit. The header strip is colon-anchored so it can never eat an
+# "AC-1:" token (which carries the number itself and is matched elsewhere).
+TIMESTAMP_PREFIX_RE = re.compile(r"^\s*\[[^\]]*\]\s*")
+AC_HEADER_PREFIX_RE = re.compile(r"^\s*AC(?:\s+[a-zA-Z]+)?\s*:\s*", re.IGNORECASE)
 TEST_REF_RE = re.compile(
     r"(tests?/[\w/.\-]+\.py(?:::[\w_]+)?|test_[\w_]+\.py(?:::[\w_]+)?)",
     re.IGNORECASE,
 )
+# MEASUREMENT — the strongest evidence in the project (a real gate run) was the
+# ONLY kind the parser could not see (ac-evidence-parser-cannot-see-a-measurement):
+# a criterion proven by `5778 passed ... in 564s` / `verification_run #1285`
+# scored as "no evidence", so a bare check mark was the cheaper path. Two forms,
+# both read by NUMBER, not by a word:
+#   * a signed run citation `verification_run #NNNN` — the run id is captured so
+#     the GATE layer can fact-check it against the verification_runs table (exists,
+#     same task, green); the detector reads form, the gate reads fact.
+#   * a pytest summary `N passed ... in T s` — recognised by the passed-count shape.
+VERIFICATION_RUN_RE = re.compile(r"verification[_\s]run\s*#?(\d+)", re.IGNORECASE)
+PYTEST_SUMMARY_RE = re.compile(r"\b(\d+)\s+passed\b", re.IGNORECASE)
 NEGATIVE_RE = re.compile(r"\bnegative\b|негативн\w*|отрицательн\w*", re.IGNORECASE)
 MANUAL_RE = re.compile(r"\bmanual(?:ly)?\b|\bвручную\b|\bручн\w+\b", re.IGNORECASE)
 # A bare `review` stem, symmetric with the Russian bare `ревью`: English used to
@@ -96,4 +119,7 @@ STRUCTURAL_DETECTORS: dict[str, re.Pattern[str]] = {
     "TEST_REF_RE": TEST_REF_RE,
     "AC_NUMBER_PREFIX_RE": AC_NUMBER_PREFIX_RE,
     "AC_ITEM_BOUNDARY_RE": AC_ITEM_BOUNDARY_RE,
+    # Measurement forms — structural (read by number, language-independent).
+    "VERIFICATION_RUN_RE": VERIFICATION_RUN_RE,
+    "PYTEST_SUMMARY_RE": PYTEST_SUMMARY_RE,
 }

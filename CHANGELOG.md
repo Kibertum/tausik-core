@@ -9,6 +9,402 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### A committed baseline for memory retrieval, before the knowledge-layer rework
+
+The knowledge-layer rework (decision #143) consolidates flat memory entries into
+topics, and no public evidence says that helps answer quality — so before any
+change we now have a number to regress against. `scripts/eval_memory_retrieval.py`
+runs a committed, content-keyed set of 49 questions through the same FTS5 search
+an agent uses and prints ONE accuracy figure: the current flat store scores 100%
+at top-5 (98% at top-1) over 325 entries. The questions key on distinctive
+content phrases, never on record ids, so the number survives a reindex or id
+shift — a test proves the score is identical after the same content is inserted
+at different ids.
+
+The honest reading, recorded with the number: this is a ceiling for
+keyword-anchored facts — TAUSIK's memory titles are keyword-rich, so a
+distinctive-term search retrieves them near-perfectly. That supports, rather than
+undercuts, decision #143: the rework cannot claim accuracy gains here (there is
+no headroom), so its justification stays command-merge and smaller injected
+context. The harness is fail-safe — an empty or unreadable store yields 0.0 with
+a note, and a query that matches nothing is a miss, never a crash.
+
+### A gate holds every SKILL.md to the cross-vendor agentskills.io canon
+
+The SKILL.md format left Anthropic and became the cross-vendor agentskills.io
+spec (OpenAI, Google, Microsoft, Cursor, JetBrains, Mistral, AWS and others
+implement it). A reference validator exists but is not vendored here; instead a
+built-in gate (`skill_spec_conformance`) enforces the same machine-checkable
+rules in-process: a skill `name` is 1–64 chars of `a-z0-9` with single hyphens —
+no leading, trailing, or doubled hyphen — and must equal its directory name; a
+`description` is 1–1024 chars. Under progressive disclosure the name is the
+~100-token metadata loaded for every skill at startup, so a malformed one breaks
+dispatch across every vendor. The gate is inert unless a `SKILL.md` is among the
+changed files, and local scaffolds whose directory starts with `_` or `.` (the
+non-deployed `_profile-demo` reference) are skipped. All 15 shipped skills pass.
+
+The spec is deliberately treated as hygiene, not trust: it is not versioned and
+carries no security provisions whatsoever, and both the gate and the docs say so
+plainly — conformance keeps progressive disclosure working, it is never a trust
+signal.
+
+### The MCP tool surface has a measured cost and a ratchet that keeps it cheap
+
+TAUSIK ships 124 tools over MCP — about 51 KB of tool definitions, ~12.8k
+estimated tokens loaded before the user says a word. That number now has a test
+behind it (`tests/test_mcp_tool_token_cost.py`): it measures the surface, caps it
+so a careless doubling reddens CI, and enforces the two properties Claude Code's
+deferred loading (`ENABLE_TOOL_SEARCH`) depends on — no single description exceeds
+the 2 KB the host keeps (a longer one is silently truncated, hiding its tail), and
+every tool name is unique and carries a searchable domain token so name-based
+dispatch still resolves at this scale. Measurement only; no tool or schema
+changed, and every current description already fits under 2 KB (largest 483 B).
+
+### Verbose command output rolls up instead of dumping every line
+
+`events` and `task list` printed one or two lines per row. On a mature project
+that is hundreds of lines the agent re-reads constantly — pure token cost that
+grows with the project. Borrowing cubest's aggregate view, both commands now
+collapse a large result into a compact, deterministic rollup: `events` groups by
+entity-type and action, `task list` by status and role, each line a count, the
+groups ordered most-frequent-first with ties broken by key so the same input
+always prints the same lines. Budget knobs `--top-n` and `--max-lines` cap how
+many group lines print, and whenever anything is dropped a footer names the
+denominator — how many groups and rows are not shown — so the shorter view can
+never hide the tail silently.
+
+It only collapses when it actually saves: below a 25-row threshold the output is
+printed in full, byte-for-byte as before, so small lists and every existing
+fixture are untouched. `--full` always bypasses the rollup to the exact prior
+output on any size. The change is presentation only — no data, schema, or
+semantics move, and a test proves `--full` is byte-identical to the pre-rollup
+render on a large sample.
+
+### The MCP tool-list narrows to what the active task is allowed to use
+
+A task already carries a `scope_tools` ACL (SENAR Rule 2), but it was enforced
+only on writes — the MCP server advertised all 117 tools to the agent no matter
+what the active task declared. Borrowing onyx's curated-surface idea, the server
+now exposes to the agent only the union of the active task's declared
+`scope_tools` and an always-safe core (the whole `tausik_task_*` and
+`tausik_session_*` families plus status / search / verify / doctor / self-check /
+update-claudemd); every other tool is hidden from the tool-list. For a typical
+single-extra-tool scope that is a 56% cut in the tool-definitions the host loads
+into the system prompt (117 tools/43.7 KB → 40/19.3 KB, measured), and a
+correspondingly smaller attack surface.
+
+It is fail-open by construction, symmetric to the write-gate's legacy freedom:
+the feature is off by default (opt in with `mcp.scope_tools_exposure: true`), and
+even when on, all tools are exposed whenever no task is active, no active task
+declared a non-empty `scope_tools`, or anything goes wrong resolving the scope —
+the saving never silently strands a project that never opted in. When two tasks
+are active it restricts to the union of the declared ones; an undeclared
+co-active task contributes nothing and does not, by itself, restore full freedom
+once a sibling has declared a scope.
+
+Hiding is a UX and token optimization, not the security barrier. `call_tool` and
+the write-gate are untouched, so a hidden tool invoked directly still passes the
+existing scope enforcement — the gate remains the barrier, the shorter list is
+only what the agent sees first. The scoped list is computed at `list_tools` time,
+so the agent gets it whenever the host (re)fetches the tool-list — on every
+server connect with a task already active; re-scoping the instant a task starts
+mid-session (via a `tools/list_changed` notification) is left to the
+deferred-loading track and does not conflict with this shaping.
+
+### Scoped pytest can see the tests that guard a whole tree, not just one basename
+
+The pytest gate scopes a run to the tests that map to the changed files, via a
+`tests/test_<basename>.py` heuristic. A whole class of tests is built the other
+way round: they iterate a TREE — every hook, every skill, every generated
+profile — and are therefore relevant to any change inside that tree without being
+tied to a single basename. A task that changed one hook, scoped its pytest, and
+went green could still have broken three such tests the scope could not, even in
+principle, find. The heuristic's boundary was real but nowhere declared. Now a
+cross-cutting test opts in by declaring a module-level `CROSSCUTTING_SCOPE` — the
+path prefixes it guards, e.g. `["scripts/hooks/", "bootstrap/"]` — and the
+resolver adds it to a scoped run whenever a changed file falls under one of those
+prefixes, matched by path, not basename. It stays additive: a change matching no
+prefix still pulls nothing, so the "no full-suite fallback" promise holds. The
+mechanism refuses to become a registry people forget to maintain: a ratchet gate
+detects any test that iterates a source tree and requires it to either declare a
+scope, opt out visibly with `CROSSCUTTING_SCOPE = []`, or sit in a frozen,
+shrink-only baseline — so a NEW tree-iterating test that would silently escape the
+scope reddens CI instead. The six trees the original incident touched
+(hook-encoding, bootstrap-hook parity, block-message quality, the single-canonical
+MCP tree, the doc-check hook, and bypass telemetry) now declare their scopes, and
+declared prefixes are checked to still exist so a binding cannot rot.
+
+### `tasks.model_mismatch` is NOT NULL on every DB now, not just fresh ones
+
+The fresh schema declares `model_mismatch INTEGER NOT NULL DEFAULT 0`, but the
+migration that introduced it (v33) added it with `ALTER TABLE ... ADD COLUMN ...
+DEFAULT 0` and no NOT NULL — SQLite rejects NOT NULL on `ADD COLUMN`. So a
+freshly-initialised DB had `notnull=1` while every DB carried forward by
+migrations had `notnull=0`: the column could hold NULL, and a NULL is matched by
+neither `WHERE model_mismatch = 0` nor `WHERE model_mismatch = 1`. A query for
+"tasks without a model mismatch" would silently drop such a row — green on CI
+(fresh schema), wrong in the field (migrated schema), the exact class the schema
+fixture-parity gate exists to catch. It has not fired yet only because every write
+path fills the column explicitly; that is luck, not a guarantee. SQLite cannot
+tighten a column in place, so migration v43 rebuilds the central `tasks` table:
+it backfills any NULL to 0, recreates the table with the column NOT NULL and in
+the canonical column order, copies every row by explicit column name (never
+positionally — the migrated column order differs), and recreates all six indexes,
+all seven triggers, and the external-content `fts_tasks` index. Row ids are
+preserved, so the defect_of self-reference, the incoming foreign keys from
+decisions/memory, and the full-text index all stay intact; `PRAGMA
+foreign_key_check` runs clean afterward. The rebuild is a guarded, idempotent
+step: it no-ops unless it finds a real, fully-migrated `tasks` whose
+`model_mismatch` is still nullable, so a fresh DB, a re-run, or a partial test
+fixture is left untouched. The upgrade also retires the column from both the
+constraint-drift and the column-order ratchets in the fixture-parity gate.
+
+### The closure-risk gate_coverage factor no longer changes if the trust tier flips
+
+`risk_compute._factor_gate_coverage` measured how much of the configured gate set
+a task actually verified — but it took its numerator (gates that ran) from the
+signed verify receipt and its denominator (gates configured) from
+`get_gates_for_trigger(load_config())` recomputed at *task-done*. Those are two
+different moments, and if the trusted config tier changed between verify and done
+the denominator moved, so the same verify run scored a different risk on a
+different machine or a different day — a comparison of two different gate sets
+dressed up as a coverage ratio. The configured-gate count is now captured *in the
+receipt at verify time* (`configured_gates_count`), right beside the ran-gate
+list it is divided against, so both come from one signed verify-time source and
+the factor is reproducible. The count is `len(gate_results)` — the runner emits
+one result per gate scheduled for the trigger, ran or skipped, so it is exactly
+the configured total. Receipts written before this field existed carry no count,
+so the reader falls back to the old recompute for them: legacy closes reproduce
+exactly, a missing field is never a crash or a divide-by-zero. The field is
+additive telemetry, not a new attestation about coverage completeness, so it does
+*not* bump the receipt schema — verification re-canonicalizes the stored bytes and
+never branches on the schema string, so old and new v2 receipts verify identically.
+
+### A broken CLI no longer costs the OpenCode gate two slow subprocesses per write
+
+The OpenCode QG-0 plugin caches its active-task verdict precisely because the CLI
+probe costs 300 ms warm / 1.1 s cold on Windows and is paid on every write. But
+when the CLI was *unreachable*, `_verdict` let the probe's exception escape before
+`_cache` was assigned — so the degraded state was never cached. Every subsequent
+write re-spawned the probe, and the fail-open branch then awaited a supervision
+emit that shells the *same* broken CLI: two slow subprocesses on every keystroke
+for as long as the CLI stayed broken, exactly the sluggishness the cache exists to
+prevent. The unreachable verdict is now cached under the same DB-signature + TTL
+guard as an active one — one probe per window, re-probed the moment the signature
+moves (a recovered CLI or a started task) or when no signature is available (no
+Bun → the lenient direction is never reused). The degradation stays countable but
+is recorded only on a *fresh* probe, so one outage leaves one row per window
+instead of one per write; the user-facing DEGRADED warning stays loud on every
+ungated write (it is a cheap `console.warn`, not a spawn). Fail-open and
+fail-secure policy are unchanged — only the number of slow spawns is.
+
+### "Routing Adherence" was measuring an unenforceable rule — it's a recommendation fit now
+
+`tausik metrics` reported *Routing Adherence 1.6%* over n=10909, with
+`deviation sonnet->opus: 10739`. A metric that reports a rule broken 98.4% of the
+time is not measuring a violation — it is measuring that the rule cannot be
+followed: the harness does not switch models programmatically (the bootstrap
+WORKFLOW says so), the session model is the user's manual choice, and every task
+that runs on Opus while the matrix suggested Sonnet was logged as a deviation. The
+metric is reframed from compliance to calibration: it is now *Model Recommendation
+Fit*, the presentation names the manual per-session choice, and a low match rate
+reads as "the matrix recommends models people don't run", not as indiscipline. The
+recorded data is unchanged — the same rows still feed the routing matrix — only the
+framing that made a non-violation look like a release-metric failure is gone.
+(decision #183)
+
+### `memory lint` stops crying wolf — stale_file is a path anchor now, not a slash
+
+The stale-file detector flagged any `segment/segment.ext` token whose file did
+not resolve, but memory is prose where a slash is more often an alternation
+separator than a path: `lru_cache/functools.cache`, `release/1.8`, `HEAD/v1.6.1`,
+`ru/senar.md` (a fragment of `docs/{ru,en}/senar.md`), plus placeholder examples
+like `tests/test_x.py`. On the live memory set the report was 90% noise — 53
+findings, and a report that is mostly noise is one people stop reading, so a real
+stale path drowns. A token is now flagged only when its PARENT DIRECTORY actually
+exists (a real deletion inside a live directory) and its basename is not a
+conventional placeholder (`x.py`, `test_file.py`). Same run: 53 → 6 findings, all
+six paths inside directories that exist; every listed false positive is gone, and
+a genuine deletion in a live dir is still reported.
+
+### QG-0 and the evidence detector now agree on the word "negative"
+
+The framework carries two negativity detectors — `NEGATIVE_RE` reads task-done
+evidence, `has_negative_scenario` gates task start — and they had drifted apart:
+the evidence side matched the whole family `negative | негативн | отрицательн`,
+but QG-0 knew only the first two. A criterion that named its negative case as
+"отрицательный результат" therefore counted as evidence at close yet was HARD
+blocked at start, and the fix was to reword to the detector's vocabulary — the
+keyword theatre the project punishes elsewhere. QG-0 now knows `отрицательн` too,
+and a producer-derived parity test reads the negative-word forms from
+`NEGATIVE_RE` itself and fails if either detector learns a form the other does
+not — so the split cannot silently reopen. A differential run over all 963 closed
+ACs changed zero verdicts: this widens what QG-0 accepts, it does not re-judge
+past work.
+
+### The AC-evidence parser can finally read a measurement — the strongest evidence there is
+
+A criterion proven the strongest way the project has — a full gate run
+(`5778 passed … in 564s`, `verification_run #1285`) — scored as "no evidence",
+because the parser only knew four evidence types (test ref, manual, review,
+check mark). Measurement was not among them, so the cheapest way to clear the
+Rule 5 checklist was to add a check mark: the gate rewarded decoration over
+proof. There is now a fifth type, `measurement`, and it is the one detector in
+the set that checks a FACT rather than a word: a `verification_run #NNNN` line is
+counted as real verification activity only when that run exists, belongs to the
+task being closed, and is green (`exit_code == 0`) — the id is fact-checked
+against the `verification_runs` table. A decorative `verification_run #1` (a
+nonexistent, foreign, or red run) clears nothing. A pytest summary is recognised
+as a measurement by its passed-count shape (a number, not a keyword) and counts
+toward per-criterion coverage, but — carrying no run id — cannot by itself clear
+the fact-based activity gate. The upshot: the strongest evidence is now also the
+cheapest to write honestly, and the check mark stops being the shortest path.
+
+### `test_count` is a lower bound now, so adding a test no longer reds the whole suite
+
+The doc-constants check pinned `test_count` to an exact match, but that number is
+a *measurement* that moves with almost every task — add a test, close green, and
+the full suite turns red on `test_check_docs_hook` until someone regenerates
+`constants.json` (often unseen until the next nine-minute full run). test_count is
+now treated as a **lower bound**: the recorded value is a floor, a suite that GREW
+(`recorded ≤ live`) is never drift, and the cross-file doc numbers ("6227 tests")
+are read as honest "N+" claims. The only failures left are the ones that mean
+something — a suite that SHRANK below the recorded floor, and a doc that OVERCLAIMS
+more tests than the code actually has. Version, MCP-tool, and code counts stay
+exact-pinned: those are *declared* intent, not measurements. `--skip-test-count`
+still exists for the orthogonal CI case where optional-dependency modules
+`importorskip` themselves out of collection. (decision #182)
+
+### The AC-evidence parser stops penalising the log format its own tooling writes
+
+SENAR Rule 5 credits a criterion only when an evidence line binds a resolvable
+test to a numbered AC. The binder was start-anchored, so the `[timestamp]` prefix
+that `task_log` prepends to *every* note — and an `AC verified:` / `AC:` header the
+agents and fixtures write in front of the number — hid the number from it. A line
+like `[2026-…] AC verified: 1. ✓ tests/test_x.py::test_a` bound to nothing and the
+test ref fell into "unmatched". Measured across the closed backlog, 41 tasks cited
+a *resolvable* test the gate refused to credit purely on form. The parser now
+strips exactly those two project-authored prefixes **before index detection only**
+(the stored evidence keeps its timestamp), then runs the *same* strict regex — so a
+numberless `- pytest tests/x.py: 15/15` or a stray `see section 3.` still earns no
+credit. Re-measured on the live DB: mis-scored closures fell 41 → 21 (the residual
+21 genuinely lack a criterion number on the test line), while the "no resolvable
+ref at all" population did not grow — the fix binds, it does not loosen.
+
+### `tausik_self_check` now asks the producer which modules to watch, not a hand list
+
+The MCP stale-module detector snapshotted mtimes for a hard-coded tuple of
+eleven service modules. The server imports dozens more (`complexity_understatement`,
+`service_task_done`, `ac_evidence_detectors`, …), and any of them going stale was
+invisible by construction — the check answered "in sync" while the server ran old
+bytecode, once even writing a false `complexity_understated` calibration event
+against a module outside the list. The watch set is now derived from the **producer**:
+every module in `sys.modules` whose file lives under the deployed server tree
+(`<profile>/scripts` and `<profile>/mcp`). Stdlib and site-packages fall outside
+those roots by construction, so a `pip install` can never masquerade as drift.
+Modules imported *lazily* after startup — the permanent blind spot, since they
+never appeared in the boot snapshot — are now flagged when their file mtime
+postdates the server boot. The eleven-name tuple survives only as an eager-import
+list (force-load critical modules so their file is resolvable at snapshot time),
+a responsibility now named as such in the code. The `sys.modules` walk costs
+~6 ms per call over ~900 modules.
+
+### A decision headline is measured in characters, and now gets 1024 of them
+
+`tausik decide` capped the `decision` field at the shared 512-character `MAX_TITLE`
+— the same budget as a task title, though a decision headline legitimately states
+both a choice and its shape. The limit was always in **characters**, not bytes
+(`len(str)` counts code points), so the folk belief that Cyrillic was penalised
+2× was never true; the real friction was simply that 512 symbols runs out on a
+verbose Russian headline. Decisions now have their own `MAX_DECISION = 1024`
+symbol budget, and `rationale` is validated against the same limit (previously
+unbounded), so the wider headline does not just move the pain into the rationale.
+Task titles are untouched — they keep the 512-character `MAX_TITLE`.
+
+### Git-native state is now guarded by a round-trip gate — the `tausik/` tree must equal the DB
+
+`state-git-export` made the DB serializable to a deterministic `tausik/` markdown
+tree; this closes the loop and makes that projection trustworthy. A new
+`state_roundtrip` gate re-serializes the live DB and byte-compares it to the tree
+on disk, so a commit can no longer carry state that disagrees with its source of
+truth — it catches the three drift modes head-on: forgot to `tausik state export`
+before committing, hand-edited a file past the DB, or a non-deterministic
+serializer. It runs on the **commit** trigger, not task-done: closing a task
+mutates the DB (and can auto-close its parent story/epic), so a task-done-time
+check would flag its own in-flight write as drift — the commit boundary is where
+"the files that enter git must equal the DB" actually matters. It is opt-in and
+fail-open: a project that never ran `tausik state export` has no tree and the
+gate skips rather than inventing a red, and any internal fault passes rather than
+crashing the commit. The durable tree lives in the NON-dotted `tausik/` (the
+runtime `.tausik/` — DB cache, venv, keys, receipts — stays ignored), and
+`state.auto_export` keeps the tree in step with the DB as work lands.
+
+> **Upgrade note.** The gate is a hard block on the commit trigger. A project
+> that has already adopted git-native state (has a `tausik/` tree) should run
+> `tausik state export` and `git add tausik/` once before its next commit — a
+> tree that drifted or was left unstaged will otherwise block that commit with
+> the exact fix in the message. Projects with no `tausik/` tree are unaffected
+> (the gate skips).
+
+### The seven deferred mypy `disable_error_code` overrides are gone — the types are fixed, not silenced
+
+`mypy-baseline-debt` reached zero by deferring seven modules' real
+`arg-type`/`assignment` errors behind per-module `disable_error_code`. Each is
+now fixed at the type level and the override removed: `record_gate_runs` takes
+`verification_run_id: int | None` (the FK column is nullable — post-scope gates
+have no verification run); `check_qg0_start`'s bypass-telemetry callback is typed
+`Callable[[], object] | None` (its return was already discarded — not a defect,
+a too-narrow annotation); `state_import` guards `target_type`/`relation` to `str`
+before building an edge (a malformed edge is now skipped, not force-fed); the
+reused variable names in `state_export` and `graph_mermaid` are disambiguated;
+and the `auto_export_*` calls in `service_task`/`service_knowledge` go through
+`cast("ProjectService", self)` at the mixin-facade boundary rather than widening
+the helpers' honest `ProjectService` signature. `mypy` is `Success` over all 279
+files with no `arg-type`/`assignment` suppression left — only the two structural
+`attr-defined` mixin-facade overrides remain, tracked separately.
+
+### `tausik status` showed a different project on the CLI than over MCP
+
+Two presenters formatted the same `svc.get_status()` and surfaced
+non-overlapping signal sets: the CLI gave closure risk, RENAR conformance, epics,
+calibration drift, session capacity and a skill-set warning but hid open
+explorations and audit-overdue; the MCP handler showed exactly the reverse. A
+human reading the CLI and an agent reading MCP saw two different dashboards —
+which defeats the point of a shared status. Both channels now render from one
+`status_view.build_status_view`, so any signal present on one is present on the
+other; the two `render_status_*` functions differ only in output shape. The
+compact-JSON hot path stays cheap via `include_rich=False` (it enriches the data
+the compact formatter reads but skips the rich-only DB queries and skills scan).
+On the way through, `cmd_status` stopped resolving `load_config()` three times
+off the process cwd and now threads `svc.tausik_dir()` once — the CLI's own copy
+of the `mcp-config-read-paths-ignore-project-handle` defect the MCP side already
+fixed — and `handlers.py` shed ~60 lines of inline formatting.
+
+### The SENAR docs described protection weaker than the code enforces — and the drift scanner was blind to it
+
+A fresh agent reading the contract would have concluded there was no gate where
+one exists. The compliance matrix called Rule 2 (scope) and Rule 5 (verification
+checklist) "Warning" — both are hard blocks (`scope_write_gate`/`bash_write_gate`
+on writes; `checklist_hard_block` for substantial/deep tiers) — and omitted
+Rules 4 and 6 entirely though both ship enforced (`risk_l3_trigger` gates
+high-risk closures behind an L3 review; QG-0 blocks a medium/complex start with
+no `rollback_plan`). Its header said "v1.5" while the footer said "v1.3".
+`docs/ru/senar.md` flatly contradicted `docs/en/senar.md` — the RU note claimed
+Rules 4–5 "are not yet enforced as hard blocks" while EN (correctly) said they
+are as of v1.5; the code is on the EN side. `hooks.md` still advertised
+"20 Python hooks + 1 shell = 21" (actual: 22 + 1) and never listed
+`scope_write_gate` at all.
+
+All fixed, and the reason it drifted uncaught is fixed with it: `hooks.md` was
+outside every scan list, so `scan_code_counts` never read the header — it is now
+a `CODE_COUNT_EXTRA_TARGET` (counts only, never versions, so its historical
+"v1.4" refs survive). The hooks-count patterns tolerated only a `real-time`
+qualifier, so "22 Python hooks" / "22 Python-хука" / "21 активный хук" slipped
+through — the qualifier is now an explicit allow-list (real-time / Python /
+active / активн…), still not `\w+`, so it never swallows an unrelated noun. The
+auto-fixer repairs `hooks.md` too. A regression test drops a stale "20 Python
+hooks" into a `hooks.md` fixture and asserts the scanner now reports it.
+
 ### mypy is clean again — the documented pre-commit hook no longer lies
 
 `python -m mypy` reported 28 errors on a clean tree, while the pre-commit hook

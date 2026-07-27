@@ -76,3 +76,51 @@ class TestRedactionRegressionStillHolds:
         # None of the new stems fire on ordinary prose (guards against a stem that
         # matches an unrelated word — e.g. 'сбор'/'сборка' were deliberately NOT added).
         assert has_negative_scenario("1. Сборка проходит. 2. Сбор метрик работает.") is False
+
+
+class TestNegativeWordParityWithEvidenceDetector:
+    """qg0-negative-detector-does-not-know-the-word-negative (#301).
+
+    The framework has TWO negativity detectors answering the same question at
+    two lifecycle points: `NEGATIVE_RE` (task-done evidence) and
+    `has_negative_scenario` (QG-0 start). They diverged — QG-0 knew `negative`
+    and `негативн` but not `отрицательн`, so a criterion naming its negative
+    case as "отрицательный" passed the evidence check yet was BLOCKED at start.
+    These pin the single-source invariant EXECUTABLY: the negative-WORD forms
+    are read from `NEGATIVE_RE` itself, so adding a form there without teaching
+    QG-0 fails this test instead of silently reopening the split.
+    """
+
+    def _neg_word_stems(self) -> list[str]:
+        # Producer-derived: parse NEGATIVE_RE's alternation into base stems so a
+        # new form added there is picked up here automatically (session #134
+        # warning: a test that enumerates the set it guards cannot see it grow).
+        from ac_evidence_detectors import NEGATIVE_RE
+
+        stems = []
+        for part in NEGATIVE_RE.pattern.split("|"):
+            s = part.replace(r"\b", "").replace(r"\w*", "").strip()
+            if s:
+                stems.append(s)
+        return stems
+
+    def test_the_previously_missing_russian_form_now_passes(self):
+        # AC1: the exact form the task named — was False before the fix.
+        assert has_negative_scenario("1. отрицательный результат обрабатывается") is True
+
+    def test_every_evidence_negative_word_is_a_qg0_scenario(self):
+        from ac_evidence_detectors import NEGATIVE_RE
+
+        stems = self._neg_word_stems()
+        assert stems, "NEGATIVE_RE alternation parse produced no stems — scan broke"
+        for stem in stems:
+            # A concrete criterion using this negative word. The stem is a
+            # substring of the sample, so both detectors should fire on it.
+            sample = f"1. Проверяется {stem}ый случай и обрабатывается"
+            if stem == "negative":
+                sample = "1. A negative case is exercised and handled"
+            assert NEGATIVE_RE.search(sample), f"NEGATIVE_RE lost its own form {stem!r}"
+            assert has_negative_scenario(sample) is True, (
+                f"QG-0 does not recognise the negative-word form {stem!r} that the "
+                "evidence detector NEGATIVE_RE does — the two detectors diverged."
+            )

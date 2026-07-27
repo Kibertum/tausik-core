@@ -145,6 +145,11 @@ class ServiceError(Exception):
 
 
 MAX_TITLE = 512
+# A decision headline legitimately runs longer than a task title (it states a
+# choice AND its shape). validate_length counts CHARACTERS, not bytes, so this
+# is a symbol limit — Cyrillic is not penalised 2x (dead-end #324 disproved the
+# byte-penalty theory: len(str) has been code-point based since v1.0.0).
+MAX_DECISION = 1024
 MAX_CONTENT = 100_000
 
 

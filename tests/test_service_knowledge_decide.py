@@ -317,3 +317,60 @@ def test_try_brain_write_decision_swallows_exceptions(monkeypatch):
     assert ok is False
     # Either we return the structured error OR the exception branch.
     assert "notion_error" in detail or "exception" in detail or "boom" in detail
+
+
+# --- decide-field-limit-cyrillic-unfair: symbol-based limit, no byte penalty ---
+
+
+def test_decision_limit_counts_symbols_not_bytes_cyrillic_not_penalised(svc):
+    """AC1/AC4 (dead-end #324): the limit is in CHARACTERS. A 1000-symbol
+    Cyrillic headline is 2000 UTF-8 bytes yet must be accepted — the old
+    'byte penalty' theory is false. Below MAX_DECISION=1024 → stored."""
+    from tausik_utils import MAX_DECISION
+
+    assert MAX_DECISION == 1024
+    cyr = "ы" * 1000  # 1000 code points, 2000 UTF-8 bytes
+    assert len(cyr.encode("utf-8")) == 2000
+    msg = svc.decide(cyr)
+    assert "saved to local" in msg
+    assert len(svc.decisions()) == 1
+
+
+def test_decision_over_symbol_limit_rejected_with_symbol_message(svc):
+    """AC4: >MAX_DECISION symbols is rejected, and the message speaks in
+    CHARACTERS (not bytes), so the agent knows the real budget."""
+    from tausik_utils import MAX_DECISION, ServiceError
+
+    with pytest.raises((ValueError, ServiceError)) as exc:
+        svc.decide("ы" * (MAX_DECISION + 1))
+    assert "char" in str(exc.value).lower()
+    assert str(MAX_DECISION) in str(exc.value)
+
+
+def test_rationale_also_gets_wide_symbol_limit(svc):
+    """AC3: rationale is validated symmetrically against MAX_DECISION so a
+    verbose Cyrillic rationale is not the new pain point."""
+    from tausik_utils import MAX_DECISION
+
+    svc.decide("Short decision", rationale="ю" * 1000)
+    decs = svc.decisions()
+    assert len(decs) == 1
+    assert len(decs[0]["rationale"]) == 1000
+    from tausik_utils import ServiceError
+
+    with pytest.raises((ValueError, ServiceError)):
+        svc.decide("Short decision 2", rationale="ю" * (MAX_DECISION + 1))
+
+
+def test_task_title_still_capped_at_max_title_not_widened(svc):
+    """AC5 NEGATIVE: widening the decision limit must NOT touch the task-title
+    limit — task titles stay at MAX_TITLE=512."""
+    from tausik_utils import MAX_DECISION, MAX_TITLE, ServiceError, validate_length
+
+    assert MAX_TITLE == 512
+    assert MAX_DECISION > MAX_TITLE
+    # A title between the two limits is fine for a decision but not a task title.
+    mid = "t" * 800
+    validate_length("decision", mid, MAX_DECISION)  # no raise
+    with pytest.raises((ValueError, ServiceError)):
+        validate_length("title", mid)  # default MAX_TITLE → raises

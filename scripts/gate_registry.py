@@ -205,6 +205,39 @@ _SCOPED: tuple[GateSpec, ...] = (
             "description": "RENAR drift-7: stale TC↔requirement (task↔SPEC) provenance",
         },
     ),
+    # Fails a commit when the durable `tausik/` projection drifts from a fresh DB
+    # export — the git-native state must equal its source of truth before it
+    # enters a commit. COMMIT trigger, not task-done: a close mutates the DB (and
+    # can auto-close its parent), so a task-done check would flag its own write.
+    # Read-only; SKIPS (passes) when no `tausik/` tree exists (opt-in). See
+    # gate_state_roundtrip.py and state-git-roundtrip-gate.
+    GateSpec(
+        name="state_roundtrip",
+        phase=PHASE_SCOPED,
+        impl="gate_state_roundtrip:run_state_roundtrip_gate_for",
+        default_config={
+            "enabled": True,
+            "severity": "block",
+            "trigger": ["commit"],
+            "command": None,
+            "description": "Fail if the tausik/ git-native state drifts from the DB export",
+        },
+    ),
+    # Fails a close/commit when a changed SKILL.md breaks the agentskills.io canon
+    # (name/dir + sizes). INERT unless a SKILL.md changed; hygiene, not trust.
+    GateSpec(
+        name="skill_spec_conformance",
+        phase=PHASE_SCOPED,
+        impl="skill_spec_conformance:run_skill_conformance_gate",
+        default_config={
+            "enabled": True,
+            "severity": "block",
+            "trigger": ["task-done", "commit"],
+            "command": None,
+            "description": "Fail if a changed SKILL.md violates the agentskills.io name/size canon",
+            "file_extensions": [".md"],
+        },
+    ),
 )
 
 

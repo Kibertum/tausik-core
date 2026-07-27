@@ -161,9 +161,22 @@ class GatesMixin:
         """Tier auto-detect — delegates to gate_ac_check.determine_checklist_tier."""
         return determine_checklist_tier(task, relevant_files)
 
-    def _check_verification_checklist(self, slug: str, task: dict[str, Any]) -> str:
+    def _check_verification_checklist(
+        self, slug: str, task: dict[str, Any], verified_run_ids: set[int] | None = None
+    ) -> str:
         """SENAR Rule 5 checklist — delegates to gate_ac_check.check_verification_checklist."""
-        return check_verification_checklist(task)
+        return check_verification_checklist(task, verified_run_ids)
+
+    def _green_verification_run_ids(self, slug: str) -> set[int]:
+        """The ids of GREEN (exit_code==0) verification runs recorded for this
+        task — the fact behind a `verification_run #NNNN` evidence citation.
+        Built from the DB so the AC gate can distinguish a real green run from a
+        decorative `verification_run #1` (foreign / red / nonexistent)."""
+        try:
+            runs = self.be.verification_runs_for_task(slug)
+        except Exception:  # noqa: BLE001 — evidence fact-check must never crash task done
+            return set()
+        return {int(r["id"]) for r in runs if r.get("exit_code") == 0 and r.get("id") is not None}
 
     @staticmethod
     def _extract_files_from_gate_output(output: str) -> list[str]:

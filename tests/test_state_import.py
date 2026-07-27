@@ -333,3 +333,30 @@ def test_cli_state_import_roundtrip(tmp_path):
         assert chk.be._q1("SELECT slug FROM tasks WHERE slug='exp'") is not None
     finally:
         chk.be.close()
+
+
+def test_malformed_edge_is_reported_not_silently_dropped(tmp_path):
+    """Review MED-4: a hand-edited/corrupted edge (non-string relation or
+    target_type) reaching `_apply_edges` is dropped, but the drop is surfaced in
+    report['skipped_edges'] — a relationship must not vanish in silence.
+
+    Exercised at the `_apply_edges` layer directly: the stdlib frontmatter parser
+    already filters shape-broken edge items upstream, so this guard is the LAST
+    line of defense (a future parser change, or a caller that hands a raw dict).
+    We feed it an edge dict with the `relation` key absent — `e.get('relation')`
+    is then None, which the isinstance guard must reject AND record."""
+    import sqlite3
+
+    from state_import import _apply_edges, _Applier
+
+    ap = _Applier(sqlite3.connect(":memory:"), dry=False)
+    parsed = {
+        "memory": [{"slug": "mm", "fm": {"edges": [{"target_type": "memory", "target": "mm"}]}}],
+        "decisions": [],
+    }
+    id_maps = {"memory": {"mm": 1}, "decision": {}}
+    _apply_edges(ap, parsed, id_maps, "2026-07-27T00:00:00Z")
+    skipped = ap.report.get("skipped_edges", [])
+    assert skipped, "malformed edge dropped with no report entry"
+    assert any("mm" in s for s in skipped)
+    assert ap.report.get("edges", []) == []  # nothing valid applied

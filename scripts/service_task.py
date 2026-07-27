@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from tausik_utils import (
     ServiceError,
@@ -23,6 +23,7 @@ from service_task_done import TaskDoneReportMixin, _format_task_done_failures  #
 
 if TYPE_CHECKING:
     from project_backend import SQLiteBackend
+    from project_service import ProjectService
 
 _LIFECYCLE_STATUSES = frozenset({"done", "active", "blocked", "review"})
 
@@ -205,7 +206,8 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             from state_triggers import auto_export_entity
 
             finalize_close(find_tausik_dir(), slug)  # routing telemetry (best-effort)
-            auto_export_entity(self, "tasks", slug)  # git-native projection (fail-open)
+            # cast: mixin is a composed ProjectService at runtime (see service_knowledge)
+            auto_export_entity(cast("ProjectService", self), "tasks", slug)
         except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
             pass
         message = report.get("message")

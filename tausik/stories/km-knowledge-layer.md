@@ -1,7 +1,7 @@
 ---
 slug: km-knowledge-layer
 title: "Переработка слоя знаний: идентичность, темы, путь записи"
-status: open
+status: active
 epic: shared-knowledge
 ---
 

@@ -300,6 +300,32 @@ When `brain.enabled=true` in `.tausik/config.json`, ALL of the following must be
 
 These are not part of the main 124 count — they belong to the optional `codebase-rag` server.
 
+## Scoped tool surface (`mcp.scope_tools_exposure`)
+
+Off by default. When you set `mcp.scope_tools_exposure: true` in `config.json`,
+the server narrows the advertised tool-list to what the **active task** is
+allowed to use: the union of the task's declared `scope_tools` (SENAR Rule 2 ACL)
+and an always-safe core — the whole `tausik_task_*` and `tausik_session_*`
+families plus `tausik_status`, `tausik_verify`, `tausik_doctor`,
+`tausik_self_check`, `tausik_update_claudemd` and the `*_search` tools. Every
+other tool is hidden from the list, cutting both the token cost of the tool
+definitions and the attack surface.
+
+It is **fail-open**: all tools are exposed whenever no task is active, no active
+task declared a non-empty `scope_tools`, or the scope cannot be resolved — so
+turning it on never strands a project that never declared a scope. Hiding is a
+UX/token optimization, **not** the security barrier: a hidden tool called
+directly still passes the existing scope enforcement, and the write-gate is
+untouched. The scoped list is recomputed each time the host fetches
+`list_tools` — i.e. on every server connect with a task already active.
+
+**Measured cost.** The full authored surface is 124 tools ≈ 51 KB of tool
+definitions (~12.8k estimated tokens; `tests/test_mcp_tool_token_cost.py` pins
+this and ratchets it). Under Claude Code deferred loading (`ENABLE_TOOL_SEARCH`)
+only tool names load eagerly and each description is truncated to 2 KB — a ratchet
+test keeps every TAUSIK description under that limit so none is silently cut, and
+asserts names stay unique and searchable so name-based dispatch still resolves.
+
 ## Launching the Tausik MCP Server
 
 The bootstrap step generates IDE-specific MCP launchers under `harness/<ide>/mcp/`. Claude Code reads `.claude/settings.json` (auto-generated). To regenerate IDE assets and MCP wiring, run `python bootstrap/bootstrap.py` from your TAUSIK checkout (or `python .tausik-lib/bootstrap/bootstrap.py` when using the submodule layout). Use **`python bootstrap/bootstrap.py --refresh`** only to rewrite `.tausik/config.json` (e.g. after setting **`TAUSIK_MODEL_PROFILE`**) without copying skills/scripts — it does **not** regenerate `.mcp.json` files.
