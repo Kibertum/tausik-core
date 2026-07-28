@@ -9,6 +9,57 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — the closure risk score stops presenting itself as evidence (session #152)
+
+Backtested against this project's own 374 scored closures, 56 of which a defect
+later escaped from. The inversion that opened the investigation — escaped
+closures averaging *lower* risk — turns out not to be significant (permutation
+p = 0.3848). The measured answer is duller and worse: **AUC 0.4820**. The
+composite does not separate closures a defect escaped from those it did not, and
+it was printed as a quality verdict at every single close.
+
+Per factor, with the weights that were assigned a priori and never checked:
+
+| factor | weight | AUC | p | |
+|---|---|---|---|---|
+| `gate_coverage` | **0.25** | 0.409 | 0.0098 | significantly INVERTED |
+| `test_delta` | 0.20 | 0.495 | 0.7666 | no signal |
+| `ac_evidence` | 0.20 | 0.499 | 0.5287 | no signal |
+| `security_hits` | 0.20 | 0.467 | 0.2515 | no signal |
+| `code_churn` | 0.15 | **0.617** | 0.0098 | the only correctly-signed one |
+
+Sixty percent of the weight rests on factors with no measurable signal, the
+heaviest one points the wrong way, and the only working predictor is the
+lightest. A composite averaging that into a coin flip is the expected result, not
+bad luck.
+
+The `gate_coverage` inversion is not complexity in disguise — the obvious
+confound, since complex tasks both run more gates and escape more. Stratifying
+kills that explanation: the effect grows inside strata rather than vanishing
+(complex: AUC 0.293, p = 0.0170; all 11 escaped complex closures had every gate
+run). No mechanism is claimed for it — n is 11, and asserting the plausible story
+is the exact error this change exists to correct.
+
+Two more things the numbers say. Risk is **blind to complexity**: nearly flat
+across simple/medium/complex (0.3330 / 0.2905 / 0.3147) while the escape rate
+varies fourfold (6.8% / 18.1% / 27.5%) — so complexity alone scores **AUC 0.6327**
+(p = 0.0016), beating the whole five-factor model. And `complexity_understated`,
+the most common escape precursor, moves the score **down**: flagged closures
+escape at 25.8% against 14.0%, with a *lower* average risk (0.2464 vs 0.3198).
+
+What changes: the closure line now reads `Risk profile: … — descriptive, not
+predictive`. `tausik metrics` prints AUC beside the two averages, plus
+complexity's AUC on the same population, so the number's standing is visible
+where it is read rather than only in a research note. The mandatory L3 review on
+`high` stays — it is noisy, but the asymmetry favours keeping it: a noisy prompt
+to look harder costs time, a noisy reassurance costs defects.
+
+No re-weighting, deliberately. With 56 escapes and two significant factors,
+fitting weights on the same data would buy a flattering coefficient and the same
+blindness; there is no held-out sample at this size to falsify it on. Introducing
+complexity as a factor waits for the same reason. Full measurement:
+`docs/ru/research/risk-model-backtest-2026-07.md`.
+
 ### Fixed — `decide` judged a decision by its headline and shipped its rationale (session #152)
 
 The router classified `text` alone. The publish payload also carried `rationale`

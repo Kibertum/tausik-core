@@ -332,7 +332,18 @@ class TaskDoneReportMixin:
             updates["risk_score"] = risk["score"]
             updates["risk_json"] = json.dumps(risk, ensure_ascii=False)
             report["risk"] = risk
-            risk_note = f"Risk: {risk['score']} ({risk['level']})"
+            # DESCRIPTIVE, not predictive. Backtested on this project's own 374
+            # scored closures: AUC 0.4820 — the composite does not separate
+            # closures a defect escaped from those it did not. `Risk: 0.24 (low)`
+            # read as a quality verdict at every close, which is worse than no
+            # number: it draws attention away from the closures that deserve it.
+            # The wording says what it is; the trigger below is left in place
+            # because it only ever ADDS review, and a noisy prompt to look harder
+            # costs time, while a noisy reassurance costs defects. See
+            # docs/ru/research/risk-model-backtest-2026-07.md.
+            risk_note = (
+                f"Risk profile: {risk['score']} ({risk['level']}) — descriptive, not predictive"
+            )
             if risk.get("defaulted"):
                 risk_note += f" — unmeasured: {', '.join(risk['defaulted'])}"
             # v15-l3-risk-trigger: measured-high closures need an L3 review.

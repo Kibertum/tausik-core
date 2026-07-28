@@ -192,14 +192,20 @@ class TestTaskDoneIntegration:
             True,
             evidence="AC-1: ✓ tests/test_a.py::test_ok AC-2: ✓ negative",
         )
-        assert "Risk:" in result
+        # "Risk profile", not "Risk:" — the wording was demoted deliberately
+        # (decision #206). The composite scores AUC 0.4820 against this project's
+        # own escapes, so presenting it as a verdict at closure was a reassurance
+        # nothing had earned. The caveat is asserted too: dropping it would
+        # restore exactly the reading that was removed.
+        assert "Risk profile:" in result
+        assert "descriptive, not predictive" in result
         task = svc.be.task_get("t-risk")
         assert task["risk_score"] is not None
         assert 0.0 <= task["risk_score"] <= 1.0
         risk = json.loads(task["risk_json"])
         assert risk["level"] in ("low", "medium", "high")
         assert risk["score"] == task["risk_score"]
-        assert "Risk:" in (task["notes"] or "")
+        assert "Risk profile:" in (task["notes"] or "")
 
     def test_done_survives_risk_crash(self, svc, monkeypatch):
         import risk_compute

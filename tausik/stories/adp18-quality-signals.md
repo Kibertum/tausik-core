@@ -1,7 +1,7 @@
 ---
 slug: adp18-quality-signals
 title: "Достоверность сигналов качества, которые фреймворк показывает при закрытии"
-status: open
+status: active
 epic: arch-debt-post-18
 ---
 

@@ -204,6 +204,17 @@ def render_extended_metrics(m: dict[str, Any]) -> None:
                 f"  risk backtest: escaped avg={ea} (n={bt['escaped_n']}) "
                 f"vs clean avg={ca} (n={bt['clean_n']})"
             )
+            # Two averages invite "escaped is lower, so the score is inverted".
+            # The measured answer is duller and worse: it separates nothing.
+            # Printing AUC next to them stops the averages from being read as a
+            # verdict, and complexity_auc shows what the comparison is against.
+            if bt.get("auc") is not None:
+                cauc = bt.get("complexity_auc")
+                verdict = "no discriminative power" if abs(bt["auc"] - 0.5) < 0.05 else "check sign"
+                line = f"    AUC={bt['auc']} (0.5 = coin flip) — {verdict}"
+                if cauc is not None:
+                    line += f"; complexity alone AUC={cauc}"
+                print(line)
     # l26-bypass-telemetry: how many times supervision was switched off. Only
     # rendered when non-zero — a clean run stays quiet, but a bypass can no
     # longer hide as silence (the whole point: the count is falsifiable).

@@ -68,6 +68,30 @@ def _done_rows(q: QueryFn) -> list:
         return q(base.format(verified="0"))
 
 
+def _auc(pos: list[float], neg: list[float]) -> float | None:
+    """P(a random escaped closure scores above a random clean one), ties at half.
+
+    0.5 is a coin flip, above 0.5 means the score points the right way, below
+    means it points the wrong way. Two group averages cannot say this: they show
+    a gap without saying whether the gap separates anything, which is how a score
+    with NO discriminative power reads as merely "slightly inverted". Returns
+    None when either side is empty — an undefined comparison, not 0.5.
+    """
+    if not pos or not neg:
+        return None
+    wins = ties = 0
+    for x in pos:
+        for y in neg:
+            if x > y:
+                wins += 1
+            elif x == y:
+                ties += 1
+    return round((wins + 0.5 * ties) / (len(pos) * len(neg)), 4)
+
+
+_COMPLEXITY_RANK = {"simple": 0.0, "medium": 0.5, "complex": 1.0}
+
+
 def defect_escape_metrics(q: QueryFn) -> dict[str, Any]:
     """Escape rate overall and sliced, plus a risk_score backtest.
 
@@ -106,5 +130,31 @@ def defect_escape_metrics(q: QueryFn) -> dict[str, Any]:
             else None,
             "escaped_n": len(escaped_scores),
             "clean_n": len(clean_scores),
+            # The averages alone were misread as "slightly inverted" when the
+            # real finding is that the composite separates nothing. AUC says so
+            # directly, and `complexity_auc` gives it something to be compared
+            # against: one field the model ignores, scored the same way.
+            "auc": _auc(escaped_scores, clean_scores),
+            # Restricted to SCORED closures on purpose. Computed over all done
+            # rows it would answer a different question on a different
+            # denominator, and the two AUCs print side by side — a comparison
+            # between numbers built from different populations is the failure
+            # this whole measurement is about.
+            "complexity_auc": _auc(
+                [
+                    _COMPLEXITY_RANK[r["complexity"]]
+                    for r in rows
+                    if r["escaped"]
+                    and r["risk_score"] is not None
+                    and r["complexity"] in _COMPLEXITY_RANK
+                ],
+                [
+                    _COMPLEXITY_RANK[r["complexity"]]
+                    for r in rows
+                    if not r["escaped"]
+                    and r["risk_score"] is not None
+                    and r["complexity"] in _COMPLEXITY_RANK
+                ],
+            ),
         },
     }
