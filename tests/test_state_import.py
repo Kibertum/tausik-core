@@ -271,6 +271,149 @@ def test_body_heading_in_prose_does_not_forge_journal(tmp_path):
     assert any(r["message"] == "первый шаг" for r in real)
 
 
+# --- the standing self-divergence gate (state-roundtrip-regression-sync-corrupts) ---
+#
+# Every test above imports into a FRESH db, so both sides already speak the file's
+# canonical dialect and agree trivially. The direction that actually broke — and
+# the one `sync_suggested` runs on every session start — is exporting a LIVE db and
+# dry-run importing back into THAT SAME db. The projection canonicalizes as it
+# writes (flatten_line for the journal, sorted() for tags, normalize_ts for
+# timestamps), so comparing a raw db value against an already-canonical file value
+# reports the canonicalization itself as a change. These pin that a db is never
+# reported as diverging from its own export.
+
+
+def _seed_canonicalization_traps(svc):
+    """Rows whose db form differs from their canonical file form in every known way."""
+    svc.be._ex(
+        "INSERT INTO task_logs(task_slug, message, phase, created_at) VALUES(?,?,?,?)",
+        # multi-line: the emitter flattens it to one line by design
+        (
+            "exp",
+            "AC-1: ok\nAC-2: ok\n- не маркер списка, а часть сообщения",
+            "review",
+            "2026-07-24T17:00:00Z",
+        ),
+    )
+    # offset-form timestamp: the emitter normalizes to the Z form
+    svc.be.task_update("exp", completed_at="2026-03-14T15:23:42+00:00")
+    # unsorted tags: the emitter sorts them
+    svc.be.memory_add("convention", "Память гамма", "тело C", ["zeta", "alpha", "mu"], "exp")
+    return svc
+
+
+def test_live_db_does_not_diverge_from_its_own_export(tmp_path):
+    """THE GATE: export a db, dry-run import back into it → nothing to change.
+
+    A non-empty report here means `tausik sync` would rewrite rows that did not
+    actually change — and for the journal, would APPEND a flattened duplicate of
+    every multi-line message. Covers every entity type, Cyrillic, multi-line
+    journal, unsorted tags, both timestamp forms and absent frontmatter keys.
+    """
+    svc = _seed_canonicalization_traps(_seed_rich(_svc(tmp_path / "live.db")))
+    try:
+        tree, _ = build_tree(svc)
+        out = str(tmp_path / "tausik")
+        write_tree(out, tree, managed_dirs=set(ENTITY_DIRS))
+
+        report = import_tree(svc, out, dry=True)
+        assert report["added"] == [], f"phantom inserts: {report['added']}"
+        assert report["updated"] == [], f"phantom updates: {report['updated']}"
+        assert report["journal"] == [], f"phantom journal lines: {report['journal']}"
+        assert report.get("edges", []) == [], f"phantom edges: {report.get('edges')}"
+    finally:
+        svc.be.close()
+
+
+def test_absent_frontmatter_key_does_not_null_the_column(tmp_path):
+    """AC-4: a key the file omits is not a request to clear the column."""
+    svc = _seed_rich(_svc(tmp_path / "live.db"))
+    try:
+        tree, _ = build_tree(svc)
+        # simulate a projection written before relevant_files was ever set
+        doc = tree["tasks/exp.md"]
+        tree["tasks/exp.md"] = "\n".join(
+            ln for ln in doc.split("\n") if not ln.startswith("relevant_files:")
+        )
+        out = str(tmp_path / "tausik")
+        write_tree(out, tree, managed_dirs=set(ENTITY_DIRS))
+
+        assert import_tree(svc, out, dry=True)["updated"] == []
+        import_tree(svc, out)  # for real
+        kept = svc.be._q1("SELECT relevant_files FROM tasks WHERE slug='exp'")["relevant_files"]
+        assert kept == '["scripts/x.py"]', "an omitted key silently nulled the column"
+    finally:
+        svc.be.close()
+
+
+def test_explicit_empty_value_still_clears_the_column(tmp_path):
+    """AC-4 negative: git-wins is intact — an EXPLICIT empty value does clear."""
+    svc = _seed_rich(_svc(tmp_path / "live.db"))
+    try:
+        tree, _ = build_tree(svc)
+        tree["tasks/exp.md"] = tree["tasks/exp.md"].replace(
+            'relevant_files:\n  - "scripts/x.py"', "relevant_files: []"
+        )
+        out = str(tmp_path / "tausik")
+        write_tree(out, tree, managed_dirs=set(ENTITY_DIRS))
+
+        assert "tasks/exp" in import_tree(svc, out, dry=True)["updated"]
+        import_tree(svc, out)
+        cleared = svc.be._q1("SELECT relevant_files FROM tasks WHERE slug='exp'")["relevant_files"]
+        assert cleared is None
+    finally:
+        svc.be.close()
+
+
+def test_genuine_divergence_is_still_reported(tmp_path):
+    """The canonicalizing comparison must not blind the detector to real changes."""
+    svc = _seed_canonicalization_traps(_seed_rich(_svc(tmp_path / "live.db")))
+    try:
+        tree, _ = build_tree(svc)
+        tree["tasks/exp.md"] = tree["tasks/exp.md"].replace(
+            'completed_at: "2026-03-14T15:23:42Z"', 'completed_at: "2026-03-15T15:23:42Z"'
+        )
+        tree["memory/pamyat-gamma.md"] = tree["memory/pamyat-gamma.md"].replace(
+            "  - zeta", "  - omega"
+        )
+        tree["tasks/exp.md"] = tree["tasks/exp.md"].rstrip("\n") + (
+            "\n- 2026-07-24T18:00:00Z [review] — genuinely new line\n"
+        )
+        out = str(tmp_path / "tausik")
+        write_tree(out, tree, managed_dirs=set(ENTITY_DIRS))
+
+        report = import_tree(svc, out, dry=True)
+        assert "tasks/exp" in report["updated"], "a real timestamp change went unreported"
+        assert any("gamma" in u for u in report["updated"]), "a real tag change went unreported"
+        assert len(report["journal"]) == 1, f"expected exactly the new line: {report['journal']}"
+    finally:
+        svc.be.close()
+
+
+def test_forged_journal_line_inside_a_message_is_not_a_separate_entry(tmp_path):
+    """AC-9(a): the tree is untrusted input — a pulled file must not forge history.
+
+    The message seeded by _seed_canonicalization_traps contains a line starting
+    with `- `; canonicalizing the COMPARISON must not loosen the per-line anchor
+    that keeps such prose from becoming its own journal row.
+    """
+    svc = _seed_canonicalization_traps(_seed_rich(_svc(tmp_path / "live.db")))
+    try:
+        tree, _ = build_tree(svc)
+    finally:
+        svc.be.close()
+    _fm, body = split_file(tree["tasks/exp.md"])
+    rows = parse_journal(
+        parse_sections(body, ["Goal", "Acceptance Criteria", "Plan", "Rollback", "Journal"])[
+            "Journal"
+        ]
+    )
+    assert all(
+        "не маркер списка" not in r["message"] or r["message"].startswith("AC-1") for r in rows
+    )
+    assert not any(r["message"].startswith("не маркер списка") for r in rows)
+
+
 # --- state_parse units -------------------------------------------------------
 
 

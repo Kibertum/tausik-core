@@ -104,13 +104,56 @@ def auto_export_by_id(svc: ProjectService, kind: str, entity_id: int) -> bool:
         return False
 
 
+def prewarm(svc: ProjectService) -> bool:
+    """Pay `import_suggested`'s first-touch cost OFF the request path. Never raises.
+
+    The check itself is cheap once warm (~0.6s over 2024 files here), but the
+    FIRST call after process start also imports state_import/state_parse and
+    cold-reads every file in the tree — which on Windows blew past the 6s
+    section watchdog in `session_open`. That mattered more than it sounds: /start
+    makes exactly ONE session_open call, and it is always the cold one, so the
+    signal degraded to a timeout every single session and hid a real divergence
+    for five of them.
+
+    Called from a daemon thread at MCP startup: by the time a tool call arrives
+    the modules are imported and the tree is in the page cache. Deliberately
+    caches NO RESULT — divergence depends on both the tree AND the DB, so a
+    memoized verdict would go stale on the next write. Warming I/O is always
+    safe; remembering an answer is not.
+    """
+    try:
+        root = _tree_root(svc)
+        if not root or not os.path.isdir(root):
+            return False
+        from state_import import parse_tree, read_tree
+
+        parse_tree(read_tree(root))
+        return True
+    except Exception as e:  # noqa: BLE001 — fail-open: a warm-up must never matter
+        _log.warning("state prewarm failed (non-fatal): %s", e)
+        return False
+
+
 def import_suggested(svc: ProjectService) -> dict[str, Any] | None:
     """Detect a `tausik/` tree that diverged from the DB (e.g. after `git pull`).
 
-    Content-based (not mtime): a dry-run import reports what WOULD change; a
-    non-empty plan means the files carry state the DB does not, so session start
-    can suggest `tausik sync`. Returns a compact {added,updated,journal,edges}
-    count dict when a sync is worth offering, else None. Fail-open → None."""
+    Content-based (not mtime): a dry-run import reports what WOULD change.
+    Returns a compact {added,updated,journal,edges} count dict plus a `direction`
+    when the tree and the DB disagree, else None. Fail-open → None.
+
+    DIRECTION IS NOT INFERRED FROM DIVERGENCE. This used to read "a non-empty plan
+    means the files carry state the DB does not, so suggest `tausik sync`" — an
+    unsound step: a non-empty plan proves only that the two sides DIFFER, never
+    which one is newer. The tree can just as easily be BEHIND (a projection not
+    re-exported after a CLI close), and `sync` resolves file-wins, so acting on
+    that advice would revert the DB to stale content — reopening closed tasks and
+    undoing recorded decisions. Only what the counts actually prove is reported:
+      * added/journal/edges > 0 — the tree holds entities, log lines or edges the
+        DB has no row for. That IS one-directional: import can only add them.
+      * updated alone — a field-level disagreement with no direction attached.
+        The caller must offer BOTH `tausik sync` (tree is right) and
+        `tausik state export` (DB is right) and let a human pick.
+    """
     try:
         root = _tree_root(svc)
         if not root or not os.path.isdir(root):
@@ -119,7 +162,19 @@ def import_suggested(svc: ProjectService) -> dict[str, Any] | None:
 
         report = import_tree(svc, root, dry=True)
         counts = {k: len(report.get(k, [])) for k in ("added", "updated", "journal", "edges")}
-        return counts if any(counts.values()) else None
+        if not any(counts.values()):
+            return None
+        tree_has_extra = bool(counts["added"] or counts["journal"] or counts["edges"])
+        return {
+            **counts,
+            "direction": "tree-has-rows-db-lacks" if tree_has_extra else "field-divergence-only",
+            "resolve": (
+                "`tausik sync` imports the tree into the DB (files win). "
+                "`tausik state export` rewrites the tree from the DB. "
+                "Which is correct depends on WHICH SIDE IS NEWER — the counts alone "
+                "do not establish that, so confirm before running either."
+            ),
+        }
     except Exception as e:  # noqa: BLE001 — fail-open: never block session start
         _log.warning("import-suggested check failed (non-fatal): %s", e)
         return None

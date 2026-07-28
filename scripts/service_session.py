@@ -48,10 +48,12 @@ class SessionMixin:
 
         return _f(self.be, session_id)
 
-    def session_check_duration(self, max_minutes: int | None = None) -> str | None:
+    def session_check_duration(
+        self, max_minutes: int | None = None, *, effective_limit: int | None = None
+    ) -> str | None:
         from service_session_metrics import session_overrun_warning
 
-        return session_overrun_warning(self.be, max_minutes)
+        return session_overrun_warning(self.be, max_minutes, effective_limit=effective_limit)
 
     def session_extend(self, minutes: int = 60) -> str:
         """Extend session active-time limit by N minutes (SENAR Rule 9.2)."""

@@ -1,7 +1,7 @@
 ---
 slug: borrow-cubest-onyx
 title: "Заимствования из ландшафта H2'2026: cubest (token-эргономика) + onyx (RAG/MCP-паттерны)"
-status: active
+status: done
 epic: landscape-2026-h2
 ---
 

@@ -96,7 +96,7 @@ Pre-1.4 there was a parallel `tausik_task_done_v2` alias for the structured-JSON
 | `tausik_session_list` | List sessions | — |
 | `tausik_session_handoff` | Save handoff data | `handoff` (object) |
 | `tausik_session_last_handoff` | Get handoff from previous session | — |
-| `tausik_session_open` (v1.5) | Compound RPC: session start + status + handoff + active/blocked tasks + self_check in one envelope. Powers `/start` Phase 1. | — |
+| `tausik_session_open` (v1.5) | Compound RPC: session start + status + handoff + active/blocked tasks + self_check in one envelope. Powers `/start` Phase 1. The `session` and `self_check` sections are projected to the rendered fields only (no `watched_modules`/`current_mtimes`, no duplicated handoff) — use `tausik_self_check` for full telemetry. | — |
 
 Session limit is gap-based **active time** (paused after 10-min idle gap), not wall clock. See `session-active-time.md`.
 
@@ -195,7 +195,7 @@ Relation types: `supersedes`, `caused_by`, `relates_to`, `contradicts`.
 | `tausik_gates_disable` | Disable gate | `name` |
 | `tausik_verify` | v1.5 Verify-First: run heavy gates (pytest, tsc, …) and cache green in `verification_runs`. After that `tausik_task_done` reads the cache and closes instantly. | `task_slug` |
 
-Available gates: `pytest`, `ruff`, `mypy`, `bandit`, `tsc`, `eslint`, `go-vet`, `golangci-lint`, `cargo-check`, `clippy`, `phpstan`, `phpcs`, `javac`, `ktlint`, `filesize`, `tdd_order`. Stack-scoped gates auto-enable based on detected stack; universal gates (`filesize`, `tdd_order`) apply to all stacks.
+Available gates: `pytest`, `ruff`, `mypy`, `bandit`, `tsc`, `eslint`, `go-vet`, `golangci-lint`, `cargo-check`, `clippy`, `phpstan`, `phpcs`, `javac`, `ktlint`, `filesize`, `class_surface`, `tdd_order`. Stack-scoped gates auto-enable based on detected stack; universal gates (`filesize`, `class_surface`, `tdd_order`) apply to all stacks. `class_surface` is repo-wide rather than scoped: it caps a class's composed public surface after inheritance, which a per-file line cap cannot see.
 
 `tdd_order` is disabled by default. Enable with `tausik_gates_enable name=tdd_order`.
 

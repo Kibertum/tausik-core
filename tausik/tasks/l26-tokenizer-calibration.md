@@ -1,7 +1,7 @@
 ---
 slug: l26-tokenizer-calibration
 title: "Поправка на смену токенизатора в калибровке бюджетов"
-status: planning
+status: done
 epic: landscape-2026-h2
 story: l26-arch-debt
 complexity: medium
@@ -10,14 +10,26 @@ stack: python
 tier: null
 call_budget: null
 defect_of: null
-scope: null
-scope_exclude: null
-relevant_files: []
-scope_paths:
+scope: "scripts/token_accounting.py tests/test_token_accounting.py scripts/hooks/session_metrics.py tests/test_session_metrics_parse.py scripts/backend_tier_metrics.py CHANGELOG.md CHANGELOG.ru.md"
+scope_exclude: "scripts/service_recording.py scripts/service_task_done.py scripts/backend_queries_metrics.py scripts/project_cli_metrics.py .tausik/tausik.db backend_schema.py"
+relevant_files:
+  - "scripts/token_accounting.py"
+  - "tests/test_token_accounting.py"
+  - "scripts/hooks/session_metrics.py"
+  - "tests/test_session_metrics_parse.py"
   - "scripts/backend_tier_metrics.py"
-  - "scripts/session_metrics.py"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
+scope_paths:
+  - "scripts/token_accounting.py"
+  - "tests/test_token_accounting.py"
+  - "scripts/hooks/session_metrics.py"
+  - "tests/test_session_metrics_parse.py"
+  - "scripts/backend_tier_metrics.py"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
 scope_tools: []
-completed_at: null
+completed_at: "2026-07-27T15:23:19Z"
 ---
 
 ## Goal
@@ -36,6 +48,8 @@ CHANGELOG.md [Unreleased] и зеркало CHANGELOG.ru.md обновлены �
 
 ## Rollback
 
-git revert; калибровка считается без поправки как раньше
+git revert the commit; new module scripts/token_accounting.py is additive (delete file + revert the ~6-line parse_transcript wiring in session_metrics.py + docstring note in backend_tier_metrics.py). No schema/migration, no DB writes — pure library + reporting layer.
 
 ## Journal
+
+- 2026-07-27T15:23:17Z [implementation] — AC verified: 1. ✓ tokenizer_era() classifies model ids by exact boundary; label_usage_rows() marks records via derived era (no schema column). tests/test_token_accounting.py::TestTokenizerEraBoundary (opus-4-6=old vs opus-4-7=new, sonnet-4-6=old vs sonnet-5=new, fable-5/mythos-5=new) + TestLabelUsageRows, all green in scoped verify 2. ✓ normalized_token_count()+era_normalized_total() apply +30% ONLY across the era boundary; same-era total is byte-identical to naive sum. Fails-then-passes shape: TestEraNormalizedTotal.test_single_era_total_undistorted (==naive) vs test_cross_era_total_corrected (>naive). Green in scoped verify 3. ✓ Hypothesis tested and REJECTED: calibration_drift = call_actual/call_budget (tool-call counts, tokenizer-independent) → 0% of drift attributable to tokenizer. Number recorded in decision #188 + calibration_drift docstring + CHANGELOG EN/RU 4. ✓ sum_usage_tokens() folds usage.iterations[*] (server-side compaction) back into parse_transcript totals which previously omitted them. tests/test_session_metrics_parse.py::TestParseTranscriptCompactionBilling (1000/500 + iter 300/100 → 1300/600) + test_token_accounting.py::TestSumUsageTokens. Green 5. ✓ CHANGELOG.md + CHANGELOG.ru.md [Unreleased] each carry a prose subsection 'Tokenizer-era correction, and the calibration hypothesis it disproved'

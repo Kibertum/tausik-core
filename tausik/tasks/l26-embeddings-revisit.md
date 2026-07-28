@@ -1,7 +1,7 @@
 ---
 slug: l26-embeddings-revisit
 title: "Ревизия brainh-semantic-search: embeddings дают меньше, чем ожидается"
-status: planning
+status: done
 epic: landscape-2026-h2
 story: l26-arch-debt
 complexity: medium
@@ -12,10 +12,14 @@ call_budget: null
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
-scope_paths: []
+relevant_files:
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
+scope_paths:
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
 scope_tools: []
-completed_at: null
+completed_at: "2026-07-27T17:27:00Z"
 ---
 
 ## Goal
@@ -27,6 +31,7 @@ completed_at: null
 AC1. ТЗ brainh-semantic-search пересмотрено и решение зафиксировано через tausik decide: вложение соразмерено с реальным размером целевых репозиториев (эффект embeddings <3% и сконцентрирован в базах >1000 файлов по онлайн-A/B Cursor 2025-11-06).
 AC2. Рассмотрены и оценены более дешёвые альтернативы: лексический BM25F, структурный ast-grep/tree-sitter и LSP-адресация по символьному пути вместо номеров строк; вердикт по каждой назван в карточке.
 AC3. Учтён провал семантики на коротких ключевых запросах (nDCG@10 около 0) — доминирующей форме агентского запроса; обновлённое ТЗ отражает гибридный подход (вывод CORE-Bench июнь 2026: выигрывает гибрид, ни один метод не доминирует).
+AC4 (негативный/граничный сценарий). Обновлённое ТЗ явно фиксирует деградацию: при ОТСУТСТВИИ embeddings-провайдера ИЛИ на коротком ключевом запросе система обязана без ошибки и без пустого результата откатиться к чистому FTS5 — semantic это re-rank поверх, а не замена keyword-поиска.
 CHANGELOG.md [Unreleased] и зеркало CHANGELOG.ru.md обновлены прозаической записью об этом изменении.
 
 ## Plan
@@ -36,3 +41,5 @@ CHANGELOG.md [Unreleased] и зеркало CHANGELOG.ru.md обновлены �
 решение документируется; при отказе от ревизии план brainh-semantic-search остаётся прежним
 
 ## Journal
+
+- 2026-07-27T17:26:53Z [implementation] — AC verified: AC1 ✓ решение #191 записано (tausik decide, linked) — pure embeddings отклонены, brainh-semantic-search goal+AC пересмотрены в FTS5-first гибрид (соразмерено с <3% эффектом в базах >1000 файлов, Cursor A/B 2025-11-06); AC2 ✓ вердикт по каждой альтернативе в решении+goal: BM25F=keep/усилить field-weighting, ast-grep/tree-sitter=для кода не brain (codebase-RAG), LSP symbol-path=km-цепочка вне scope; AC3 ✓ провал на коротких keyword (nDCG@10≈0) учтён — semantic это re-rank поверх, гибрид (CORE-Bench июнь 2026); AC4 ✓ негативный сценарий в revised AC — degrade к чистому FTS5 без ошибки/пустого при отсутствии провайдера ИЛИ коротком keyword. CHANGELOG EN+RU обновлены. verify #1524 exit=0. Domain: решение опирается на онлайн-A/B (продовое удержание), не офлайн-точность — реалистично для целевых репо TAUSIK (в основном <1000 файлов). Closing via CLI (stale-MCP).

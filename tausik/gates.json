@@ -1,0 +1,36 @@
+{
+  "_comment": "COMMITTED, branch-coupled gate configuration. Lives in the non-dotted tausik/ projection (NOT the gitignored .tausik/) so a fresh clone carries it. Read by scripts/gate_filesize.py::_resolve_exempts, which MERGES these over the hardcoded fallbacks (union). Edit exemptions HERE, not in gate_filesize.py source. See decision #190 / task l26-filesize-gate-revisit.",
+  "filesize": {
+    "max_lines_note": "The runtime cap (500) is set in the gate default_config in scripts/gate_registry.py — that is the canonical source. It is intentionally NOT read from this file to keep a single precedence for the numeric cap; this file governs EXEMPTS only.",
+    "_exempt_dirs_comment": "harness/claude/mcp/ and .claude/mcp/ were BLANKET-exempt, which hid handlers.py (1289 lines, ~80 handlers) and tools.py from the gate entirely. Removed by task filesize-mro-exempt-mcp: a whole tree is never the right exemption unit. Only the literal dispatch tables are exempt now, by NAME, in exempt_basenames — so a new non-dispatch module under mcp/ is caught, and widening the exemption takes an explicit named entry rather than happening by default.",
+    "exempt_dirs": [
+      "tests/",
+      "docs/content/",
+      "docs/architecture/",
+      "backend/configs/",
+      "docs/en/research/",
+      "docs/ru/research/"
+    ],
+    "exempt_basenames": [
+      "CHANGELOG.md",
+      "CHANGELOG.ru.md",
+      "cli.md"
+    ],
+    "_exempt_files_comment": "EXACT repo-relative paths, read by gate_filesize._resolve_exempt_files. File-precise on purpose: a directory exemption also covers every file added there later, which is how the blanket harness/claude/mcp/ entry came to hide the repo's two largest modules. Each entry below states WHY, and a temporary one names the task that retires it. Adding an entry is a reviewable diff, not a default.",
+    "exempt_files": [
+      "harness/claude/mcp/project/tools.py"
+    ],
+    "_exempt_files_reasons": {
+      "harness/claude/mcp/project/tools.py": "PERMANENT. 988 lines of which 968 (97%) are one module-level literal: the MCP tool schema table. Zero functions. The line cap asks 'is this too long to read as logic' and a declarative schema table is not logic — splitting it would only scatter one table across files. The class_surface gate covers the real risk here (it declares no classes)."
+    }
+  },
+  "class_surface": {
+    "_comment": "Caps the COMPOSED public surface of a class after inheritance, which the line gate structurally cannot see: a god-object built from mixins keeps every file under the line cap while the class they compose has 129 public members. Complements the line cap, does not replace it — 'this class does too much' and 'this file is too long to read' are different defects. Read by scripts/gate_class_surface.py. See task filesize-mro-exempt-mcp.",
+    "max_public_members": 60,
+    "_baseline_comment": "RATCHET, may only shrink. These two predate the gate; they fail only if they GROW, so the gate blocks any NEW god-object today while these come down over time. A gate that turns red on everything the day it lands gets switched off. tests/test_gate_class_surface.py::test_baseline_only_ratchets_down pins that these never rise. Removing a name once it is under the cap is the goal.",
+    "baseline": {
+      "SQLiteBackend": 129,
+      "ProjectService": 118
+    }
+  }
+}

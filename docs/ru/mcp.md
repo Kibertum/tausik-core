@@ -96,7 +96,7 @@ tausik_task_done(slug=…, ac_verified=True)   # лёгкое: lookup в кеш�
 | `tausik_session_list` | Список сессий | — |
 | `tausik_session_handoff` | Сохранить handoff data | `handoff` (object) |
 | `tausik_session_last_handoff` | Получить handoff из предыдущей сессии | — |
-| `tausik_session_open` (v1.5) | Compound RPC: session start + status + handoff + active/blocked задачи + self_check в одном envelope. Питает Phase 1 в `/start`. | — |
+| `tausik_session_open` (v1.5) | Compound RPC: session start + status + handoff + active/blocked задачи + self_check в одном envelope. Питает Phase 1 в `/start`. Секции `session` и `self_check` спроецированы только до рендерящихся полей (без `watched_modules`/`current_mtimes`, без дубля хендоффа) — полная телеметрия через `tausik_self_check`. | — |
 
 Лимит сессии — gap-based **active time** (паузится после 10-min idle gap), не wall clock. См. `session-active-time.md`.
 
@@ -192,7 +192,7 @@ RENAR-подложка: формальные требования (**SPEC**) и 
 | `tausik_gates_disable` | Выключить gate | `name` |
 | `tausik_verify` | v1.5 Verify-First: запустить heavy gates (pytest, tsc, …) и закешировать green в `verification_runs`. После этого `tausik_task_done` использует кеш и закрывается мгновенно. | `task_slug` |
 
-Доступные gates: `pytest`, `ruff`, `mypy`, `bandit`, `tsc`, `eslint`, `go-vet`, `golangci-lint`, `cargo-check`, `clippy`, `phpstan`, `phpcs`, `javac`, `ktlint`, `filesize`, `tdd_order`. Stack-scoped gates авто-включаются по обнаруженному стеку; universal gates (`filesize`, `tdd_order`) применяются ко всем стекам.
+Доступные gates: `pytest`, `ruff`, `mypy`, `bandit`, `tsc`, `eslint`, `go-vet`, `golangci-lint`, `cargo-check`, `clippy`, `phpstan`, `phpcs`, `javac`, `ktlint`, `filesize`, `class_surface`, `tdd_order`. Stack-scoped gates авто-включаются по обнаруженному стеку; universal gates (`filesize`, `class_surface`, `tdd_order`) применяются ко всем стекам. `class_surface` работает по всему репозиторию, а не по скоупу: он ограничивает составную публичную поверхность класса после наследования, которую пофайловый строковый лимит видеть не может.
 
 `tdd_order` отключён по умолчанию. Включите через `tausik_gates_enable name=tdd_order`.
 

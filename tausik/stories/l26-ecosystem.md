@@ -1,7 +1,7 @@
 ---
 slug: l26-ecosystem
 title: "Соответствие экосистеме: AGENTS.md, спека скиллов, threat-model магазина"
-status: active
+status: done
 epic: landscape-2026-h2
 ---
 

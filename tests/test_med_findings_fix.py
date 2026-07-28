@@ -149,10 +149,21 @@ class TestOverflowDocs:
         with open(path, encoding="utf-8") as f:
             text = f.read()
         # The 4096B static cap (claude-md-trim-reference-line task) trimmed the
-        # verbose ">400 lines / deep file" prose. Contract now: the cap value
+        # verbose ">N lines / deep file" prose. Contract now: the cap value
         # and the gate name must remain mentioned in CLAUDE.md so the agent
         # still sees the rule.
-        assert "400" in text
+        #
+        # The number is READ FROM THE GATE, never spelled here: this pin used to
+        # hardcode "400" and silently went stale the moment decision #190 raised
+        # the cap to 500 — CLAUDE.md was updated correctly and the test failed
+        # anyway, which is a doc-drift guard drifting from the thing it guards.
+        from gate_registry import GATE_REGISTRY
+
+        cap = GATE_REGISTRY["filesize"].default_config["max_lines"]
+        assert str(cap) in text, (
+            f"CLAUDE.md must state the current filesize cap ({cap}); "
+            "update the prose when the gate's max_lines changes"
+        )
         assert "filesize" in text.lower()
 
     def test_tools_py_mentions_overflow(self):

@@ -44,14 +44,14 @@ def main() -> None:
     from project_cli_hygiene import cmd_hygiene
     from project_cli_role import cmd_role
     from project_cli_verify import cmd_verify
+    from project_cli_audit import cmd_audit
+    from project_cli_metrics import cmd_metrics
     from project_cli_ops import (
-        cmd_audit,
         cmd_brain,
         cmd_dead_end,
         cmd_doc,
         cmd_explore,
         cmd_hud,
-        cmd_metrics,
         cmd_run,
         cmd_search,
         cmd_suggest_model,

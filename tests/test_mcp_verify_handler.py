@@ -111,12 +111,16 @@ class TestMcpHandlerSchemaContract:
 
 
 def _handler_module():
-    """Import the canonical MCP handlers module (one tree, copied per IDE)."""
+    """Import the verification handlers module (one tree, copied per IDE).
+
+    `_handle_verify` moved out of the 1345-line handlers.py into the domain
+    module that owns doctor/verify/gates (mcp-handlers-god-module-split).
+    """
     mcp_dir = os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project")
     sys.path.insert(0, mcp_dir)
-    import handlers  # noqa: PLC0415 — path must be set first
+    import handlers_verification  # noqa: PLC0415 — path must be set first
 
-    return handlers
+    return handlers_verification
 
 
 class TestMcpVerifyReportsGateVerdicts:
@@ -245,7 +249,7 @@ class TestMcpHandlerNoPrivateAttrAccess:
             "claude",
             "mcp",
             "project",
-            "handlers.py",
+            "handlers_verification.py",
         )
         with open(path, encoding="utf-8") as f:
             src = f.read()

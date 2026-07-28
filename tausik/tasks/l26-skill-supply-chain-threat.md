@@ -1,7 +1,7 @@
 ---
 slug: l26-skill-supply-chain-threat
 title: "Threat-model магазина скиллов (горящий рынок атак 2026)"
-status: planning
+status: done
 epic: landscape-2026-h2
 story: l26-ecosystem
 complexity: complex
@@ -11,13 +11,22 @@ tier: null
 call_budget: null
 defect_of: null
 scope: null
-scope_exclude: null
-relevant_files: []
+scope_exclude: "Не переписывать существующий supply_verify_install.py (ed25519 подпись at-install уже есть — только credit в threat-model); не трогать config_trust.py / trust-tier механизм; не менять brain_scrubbing.py (его _ZERO_WIDTH_RE для brain-контента, дополняем, не дублируем); не реализовывать OMS/Sigstore (отклонён владельцем); не строить post-install re-verify (Orca-вектор — задокументировать как accepted/deferred, не кодить)."
+relevant_files:
+  - "scripts/skill_content_scan.py"
+  - "scripts/skill_manager.py"
 scope_paths:
-  - "scripts/skill_install.py"
-  - "scripts/skill_repo.py"
+  - "scripts/skill_content_scan.py"
+  - "scripts/skill_manager.py"
+  - "tests/test_skill_content_scan.py"
+  - "docs/en/skill-supply-chain-threat-model.md"
+  - "docs/ru/skill-supply-chain-threat-model.md"
+  - "docs/en/security.md"
+  - "docs/ru/security.md"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
 scope_tools: []
-completed_at: null
+completed_at: "2026-07-27T17:14:36Z"
 ---
 
 ## Goal
@@ -39,3 +48,6 @@ CHANGELOG.md [Unreleased] и зеркало CHANGELOG.ru.md обновлены �
 git revert; установка скиллов возвращается к прежнему поведению
 
 ## Journal
+
+- 2026-07-27T17:00:12Z [implementation] — Drafted invisible-Unicode detector (scan_invisible_unicode): U+E0000-E007F tag block (primary), zero-width (200B/C/D/2060/FEFF), bidi overrides (202A-E/2066-9, Trojan Source CVE-2021-42574), soft-hyphen. Awaiting surface-map (Explore agent) to finalize module placement + install-hook wiring + CVE-2025-59536 trust-tier verdict.
+- 2026-07-27T17:14:26Z [implementation] — AC verified: AC1 ✓ threat-model 5 векторов задокументирована (docs/{en,ru}/skill-supply-chain-threat-model.md) с оценкой применимости к TAUSIK по каждому; AC2 ✓ CVE-2025-59536 разобран — вердикт «не применим по дизайну» (.claude/ gitignored+генерится bootstrap, project-config untrusted), 2 остаточных пути диспозиционированы; AC3 ✓ статус по каждому вектору (митигировано/принято/неприменимо/отложено), пустых строк нет, OMS/Sigstore-отклонение учтено; AC4 ✓ scripts/skill_content_scan.py + вшит в copy_skill, tests/test_skill_content_scan.py 10 тестов PASS включая U+E0000-образец и copy_skill-блок отравленного SKILL.md. ruff+mypy clean. verify run #1522 exit=0 (pytest over test_skill_content_scan + test_skill_manager). CHANGELOG EN+RU обновлены. Closing via CLI (stale-MCP gate_registry).

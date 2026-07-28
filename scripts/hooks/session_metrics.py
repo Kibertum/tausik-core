@@ -19,6 +19,7 @@ from glob import glob
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from cost_pricing import calculate_cost_usd  # noqa: E402
+from token_accounting import sum_usage_tokens  # noqa: E402
 
 
 def parse_transcript(path: str) -> dict:
@@ -58,11 +59,15 @@ def parse_transcript(path: str) -> dict:
             if msg_type in ("human", "assistant"):
                 messages += 1
 
-            # Extract usage from API response
+            # Extract usage from API response. sum_usage_tokens folds in
+            # server-side compaction billed under usage.iterations[*], which the
+            # top-level input/output_tokens omit — a top-level-only sum here
+            # understated the real (billed) token count (l26-tokenizer-calibration).
             usage = entry.get("usage") or entry.get("message", {}).get("usage") or {}
             if usage:
-                tokens_input += usage.get("input_tokens", 0)
-                tokens_output += usage.get("output_tokens", 0)
+                ti, to = sum_usage_tokens(usage)
+                tokens_input += ti
+                tokens_output += to
 
             # Extract model
             entry_model = entry.get("model") or entry.get("message", {}).get("model") or ""
@@ -180,6 +185,16 @@ def write_metrics(metrics: dict, output_path: str | None = None) -> str:
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=2, ensure_ascii=False)
     return output_path
+
+
+def _load_config_safe() -> dict | None:
+    """Effective project config, or None. Best-effort — never raises."""
+    try:
+        from project_config import load_config
+
+        return load_config()
+    except Exception:  # noqa: BLE001 — no config just means "export stays off"
+        return None
 
 
 # Token-row extraction and the token_metrics.jsonl writer moved to
@@ -328,6 +343,18 @@ def main():
         f"{metrics['tool_calls']} tool calls, model={metrics['model']}"
     )
     print(f"Written to: {output}")
+
+    # Optional OTLP/JSON export — an ADDITIONAL output, off unless enabled. When
+    # disabled session_otlp_document() returns {} and nothing here runs, so the
+    # events/metrics path above is unchanged (l26-otel-export, AC1).
+    from otel_export import session_otlp_document
+
+    otlp = session_otlp_document(metrics, _load_config_safe())
+    if otlp:
+        otlp_path = os.path.join(os.path.dirname(output), "session-otlp.json")
+        with open(otlp_path, "w", encoding="utf-8") as f:
+            json.dump(otlp, f, indent=2, ensure_ascii=False)
+        print(f"OTLP trace: {otlp_path}")
 
     if record:
         record_to_db(metrics)

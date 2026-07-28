@@ -1,7 +1,7 @@
 ---
 slug: v14b-followup-subagent-remeasure-quant
-title: "Quantitative sub-agent token remeasure (≥10 sessions accumulated)"
-status: planning
+title: "Gate B: контрфактуал саб-агентов невосстановим — абсолютный замер вместо сравнения с baseline"
+status: done
 epic: landscape-2026-h2
 story: l26-provable
 complexity: medium
@@ -12,25 +12,43 @@ call_budget: null
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
-scope_paths: []
+relevant_files:
+  - "scripts/service_token_metrics.py"
+  - "scripts/service_doctor_backlog.py"
+  - "scripts/project_cli_doctor.py"
+  - "tests/test_doctor_deferred_ac.py"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
+scope_paths:
+  - "scripts/"
+  - "tests/"
+  - "docs/"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
 scope_tools: []
-completed_at: null
+completed_at: "2026-07-28T15:15:14Z"
 ---
 
 ## Goal
 
-After ≥10 real sessions with sub-agents enabled accumulate in token_metrics.jsonl post-1.4.0 release, run `tausik metrics tokens`, compute input-token reduction % vs pre-sub-agent baseline.json, record Gate B FINAL decision via tausik_decide. If reduction ≥15%: confirm KEEP. If <15%: prepare 1.4.x revert (.claude/agents/*.md removal + /review revert to inline) per the original Gate B rollback recipe.
+ПЕРЕСПЕЦИФИЦИРОВАНА (решение #197). Исходная формулировка требовала посчитать сокращение input-токенов ОТНОСИТЕЛЬНО .tausik/baselines/baseline.json. Замером установлено, что это неисполнимо: саб-агенты приземлились 2026-04-10..04-17, а телеметрия token_metrics.jsonl начинается только 2026-06-15 (7616 записей, все до одной пост-саб-агентные: 2026-06 -> 724, 2026-07 -> 7138). Файла baseline.json нет на диске нигде; AC-3 родительской v14b-baseline-token-metrics был помечен DEFERRED 2026-05-06 и не выполнен никогда. Пре-саб-агентного среза не существует и восстановить его неоткуда. Задача переводится с РАЗНОСТНОГО замера на АБСОЛЮТНЫЙ: какова текущая доля саб-агентных вызовов в input-токенах и оправдывает ли она себя сама по себе. Плюс задача обязана оставить в фреймворке след, чтобы дефер замера больше не мог тихо пережить релиз.
 
 ## Acceptance Criteria
 
-AC1. После накопления ≥10 реальных сессий с sub-agents в token_metrics.jsonl (post-1.4.0) выполнен `tausik metrics tokens`; сокращение input-токенов относительно baseline.json посчитано и зафиксировано числом.
-AC2. Финальное решение Gate B зафиксировано через tausik decide: KEEP при сокращении ≥15%, иначе — курс на откат 1.4.x.
-AC3. Ветка <15%: подготовлен рецепт отката по исходному Gate B rollback recipe — удаление .claude/agents/*.md + возврат /review к inline.
-CHANGELOG.md [Unreleased] и зеркало CHANGELOG.ru.md обновлены прозаической записью об этом изменении.
+AC1. Из token_metrics.jsonl посчитана и зафиксирована ЧИСЛОМ текущая доля саб-агентных вызовов (tausik-reviewer, tausik-gate-fixer, tausik-external-reviewer, агенты /review) в суммарных input-токенах, с разбивкой по инструментам и p50/p90. Никаких сравнений с несуществующим baseline.
+AC2. Решение Gate B FINAL записано через tausik decide на АБСОЛЮТНЫХ основаниях (несёт ли саб-агентная схема свою стоимость сейчас), с явной записью в тексте решения, что разностная ветка мертва и почему.
+AC3. Невосстановимость контрфактуала задокументирована там, где её увидит читатель метрик, а не только в БД задач: `tausik metrics tokens` (или его док) честно сообщает, что данные начинаются 2026-06-15 и пре-саб-агентного среза нет.
+AC4. НЕГАТИВНЫЙ/системный: дефер AC внутри закрытой задачи больше не может тихо пережить релиз — проверка (тест или гейт) обнаруживает закрытые задачи с AC, помеченными DEFERRED, и предъявляет их. Именно этот механизм отказал: v14b-baseline-token-metrics закрыта 2026-05-06 с двумя отложенными AC, и никто не заметил 2.5 месяца.
+AC5. НЕГАТИВНЫЙ: замер на пустом/битом token_metrics.jsonl даёт внятное 'нет данных', а не деление на ноль и не выдуманный процент.
+AC6. Гейты зелёные: ruff, mypy, pytest, filesize. CHANGELOG.md [Unreleased] и зеркало CHANGELOG.ru.md обновлены прозаической записью.
 
 ## Plan
 
 ## Rollback
 
+git revert коммита задачи. Изменения аддитивные (новый агрегатор доли + проверка отложенных AC); откат возвращает прежний вывод `tausik metrics tokens` и снимает новую проверку. Данные не мигрируются, схема БД не меняется — откат без потерь.
+
 ## Journal
+
+- 2026-07-28T15:15:07Z [implementation] — AC-1: ✓ доля посчитана и зафиксирована числом, НО с обнаружением, что число ничего не значит: Agent 40 вызовов, 76 входных токенов суммарно, p50=p90=2, доля 0.07% от input и 0.50% от вызовов. Расследование показало почему: input_tokens равен 2 у 7116 строк из 8046, то есть это message-level величина, а не поинструментная стоимость. Расход саб-агента этой телеметрией НЕ наблюдается вовсе. AC-2: ✓ решение #201 — Gate B закрыт без количественного вердикта на качественных основаниях, с явной записью, что разностная ветка мертва И что прибор не атрибутирует стоимость ни в ту, ни в другую сторону. AC-3: ✓ невосстановимость и неатрибутируемость видит читатель метрик, а не только БД задач: `tausik metrics tokens` печатает оговорку ПЕРЕД таблицей (service_token_metrics._attribution_caveat) — что это message-level величины, что in_total отслеживает количество вызовов, что сумма cache_read пересчитывает один кэш на каждом вызове, и что атрибуция по инструментам требует парсера транскрипта. AC-4: ✓ tests/test_doctor_deferred_ac.py (12 проверок) + новая проверка doctor «Deferred AC». Отложенный AC в закрытой задаче внутри ОТКРЫТОГО эпика теперь предъявляется. Найдено на живых данных: 1 настоящая находка (v14b-rag-first-nudges, AC 8 replay benchmark), погашена законным действием — заведена v14b-rag-nudge-replay-benchmark и записан маркер «AC-8 CARRIED BY», после чего doctor снова «OK All clean». AC-5: ✓ пустой/битый JSONL даёт внятное «No token metrics recorded yet», а не деление на ноль — проверено прогоном format_table на нулевом агрегате. AC-6: ✓ ruff clean, mypy Success 314 файлов, filesize exit 0, срез 372 теста doctor/token/backlog/metrics зелёный, bootstrap --ide all прогнан, doctor «OK All clean», verification_run #1569 подписан, CHANGELOG EN+RU обновлены. Domain: результат осмыслен вне тестов. Проверка запускалась на НАСТОЯЩЕЙ базе 1145 закрытых задач и прошла два круга самокоррекции, которые стоит запомнить: (1) первая, свободная версия шаблона (60 символов слака между AC и словом) дала 4 находки, из которых 3 ЛОЖНЫЕ — «deferred loading» здесь название фичи MCP, а «G8+G18 deferred per rollback policy then closed» описывает уже решённое; проверка с 75% ложных срабатываний хуже отсутствующей, поэтому шаблон ужесточён до «маркер идёт СРАЗУ за критерием» и покрыт тестами на все три ложных случая; (2) обнаружено, что предупреждение принципиально НЕГАСИМО, поскольку текст отсрочки живёт в ЗАКРЫТОЙ задаче и совпадать не перестанет — это ровно дефект doctor-claudemd-drift-warn-never-actionable, закрытый мной этим же релизом, и я едва не воспроизвёл его; добавлен законный выход «AC-N CARRIED BY <slug>», после которого находка гаснет. Область также сужена до открытых эпиков: из 10 отложенных критериев проекта 6 принадлежат давно отгруженной работе и являются археологией, а не задачей.
+- 2026-07-28T15:16:00Z [done] — Negative: негативные сценарии прогнаны и покрыты тестами, а не только заявлены. (1) Пустой/битый источник данных — format_table на нулевом агрегате печатает «No token metrics recorded yet» с указанием, что делать, вместо деления на ноль или выдуманного процента; проверено прогоном. (2) Недоступный epic_list — tests/test_doctor_deferred_ac.py::test_missing_epic_list_degrades_quietly_rather_than_crashing_doctor: проверка обязана деградировать молча, а не уронить весь doctor, потому что health-check, падающий на собственной ошибке, лишает читателя ВСЕХ остальных строк. (3) Ложные срабатывания как негативный сценарий детектора — три отдельных теста на реальные строки из базы: ::test_deferred_loading_is_a_feature_name_not_a_parked_criterion, ::test_marker_far_from_the_criterion_does_not_count, ::test_deferred_then_resolved_in_the_same_note_does_not_count. Это и есть главный негативный сценарий для проверки такого рода: детектор, срабатывающий не на том, обесценивает весь отчёт. (4) Негасимость предупреждения — ::test_handing_the_criterion_to_an_owner_clears_the_finding в паре с ::test_the_same_note_without_the_hand_off_still_reports доказывают, что законное действие гасит находку, а его отсутствие — нет. (5) Археология — ::test_closed_epic_is_archaeology_not_a_warning: отложенный критерий в давно закрытом эпике не предъявляется.

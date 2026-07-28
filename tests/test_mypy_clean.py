@@ -38,15 +38,21 @@ def _mypy_available() -> bool:
 
 
 @pytest.mark.skipif(not _mypy_available(), reason="mypy not installed in this environment")
-def test_scripts_tree_is_mypy_clean():
-    """`scripts/` must type-check with ZERO errors — not "no new errors".
+def test_declared_tree_is_mypy_clean():
+    """The declared tree must type-check with ZERO errors — not "no new errors".
 
     A pre-existing error in an untouched module is invisible to the per-task
     mypy gate (it only checks the task's files); this repo-wide run is what
     makes the zero real.
+
+    Invoked with NO path argument on purpose, so the scope is whatever
+    `[tool.mypy] files` declares and there is exactly one place to widen it.
+    This test used to pass `scripts/` explicitly, which made the config's scope
+    and the test's scope two separate lists — so adding the MCP package to the
+    config would have left it unenforced here, silently.
     """
     proc = subprocess.run(
-        [sys.executable, "-m", "mypy", "scripts/"],
+        [sys.executable, "-m", "mypy"],
         cwd=str(_REPO),
         capture_output=True,
         text=True,
@@ -54,7 +60,22 @@ def test_scripts_tree_is_mypy_clean():
         errors="replace",
     )
     assert proc.returncode == 0, (
-        "mypy found type errors in scripts/ — the tree is no longer clean.\n"
-        "Fix the error (do NOT add a per-module ignore; the bar is zero):\n"
+        "mypy found type errors in the declared tree — it is no longer clean.\n"
+        "Fix the error at the type level (a per-module ignore is for a STRUCTURAL\n"
+        "reason that carries a written justification, not for silencing a bug):\n"
         f"{proc.stdout}\n{proc.stderr}"
+    )
+
+
+def test_declared_scope_covers_the_agent_facing_mcp_package():
+    """The MCP package must stay in scope — it is the surface the agent uses.
+
+    `scripts/` was the whole scope for two releases while `harness/` — which
+    CLAUDE.md tells the agent to prefer over the CLI — was never type-checked at
+    all. Narrowing the scope back would be a silent regression, so it is pinned.
+    """
+    config = (_REPO / "pyproject.toml").read_text(encoding="utf-8")
+    assert '"harness/claude/mcp/project"' in config, (
+        "the MCP project package dropped out of [tool.mypy] files — the code the "
+        "agent talks to would stop being type-checked"
     )

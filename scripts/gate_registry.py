@@ -118,7 +118,34 @@ _SCOPED: tuple[GateSpec, ...] = (
             "trigger": ["task-done", "commit"],
             "command": None,
             "description": "Warn if files exceed max_lines threshold",
-            "max_lines": 400,
+            # Interim cap raised 400→500 (task l26-filesize-gate-revisit,
+            # decision #190): the 400 cap deformed architecture (~30 wrapper
+            # modules split only to pass; 5 core files written to exactly 400).
+            # 500 absorbs every documented wrapper-merge with margin while a
+            # genuinely 2× file still blocks. The real fix (measure post-MRO
+            # public class surface, not raw lines) is a deferred follow-up.
+            "max_lines": 500,
+        },
+    ),
+    GateSpec(
+        name="class_surface",
+        phase=PHASE_SCOPED,
+        impl="gate_class_surface:run_class_surface_gate",
+        default_config={
+            "enabled": True,
+            "severity": "block",
+            "trigger": ["task-done", "commit"],
+            "command": None,
+            "description": "Cap a class's composed public surface after inheritance",
+            # Complements `filesize`, never replaces it (task filesize-mro-exempt-mcp).
+            # The line gate counts raw lines per FILE, so a god-object assembled from
+            # mixins is structurally invisible to it: every mixin sits under the cap
+            # while the composed class exposes 129 public members. Worse, the line cap
+            # CAUSED the split — module sizes pile up just under the old 400 boundary
+            # (26 modules at 350-399 vs 22 at 300-349, then 6 above 400), so files were
+            # cut to fit and the composed surface grew as each file looked healthier.
+            # Cap + ratchet baseline live in the committed tausik/gates.json.
+            "max_public_members": 60,
         },
     ),
     GateSpec(

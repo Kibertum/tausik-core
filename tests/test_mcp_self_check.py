@@ -178,9 +178,11 @@ def test_handler_returns_json_envelope(self_check_mod):
     )
     if handlers_dir not in sys.path:
         sys.path.insert(0, handlers_dir)
-    if "handlers" in sys.modules:
-        importlib.reload(sys.modules["handlers"])
-    import handlers as handlers_mod  # type: ignore[import-not-found]
+    # `_handle_self_check` moved into the status domain module by
+    # mcp-handlers-god-module-split; handlers.py now only dispatches.
+    if "handlers_status" in sys.modules:
+        importlib.reload(sys.modules["handlers_status"])
+    import handlers_status as handlers_mod  # type: ignore[import-not-found]
 
     raw = handlers_mod._handle_self_check()
     parsed = json.loads(raw)
@@ -452,3 +454,87 @@ def test_enumerate_excludes_parent_pid_venv_launcher(self_check_mod, monkeypatch
     assert self_pid not in out["pids"]
     assert real_sibling_pid in out["pids"]
     assert out["count"] == 1
+
+
+# --- v2-stale-mcp-reaping: TTL-cached enumeration + report-only warning -------
+
+
+def _put_scripts_on_path() -> None:
+    """Make scripts/mcp_reaper.py importable (source tree has no
+    harness/claude/scripts, so self_check's own path helper no-ops here)."""
+    scripts = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "scripts"))
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+
+
+def test_sibling_enumeration_is_ttl_cached(self_check_mod, monkeypatch):
+    """AC3: the expensive enumeration is not re-run on every collect() call.
+
+    On Win11 26200 each enumeration spawns a fresh PowerShell Get-CimInstance
+    (~1s); paying that on every self_check made /start look like a hang. Within
+    the TTL window a second collect() must reuse the cached result.
+    """
+    _put_scripts_on_path()
+    self_check_mod._SIBLING_ENUM_CACHE.clear()
+    calls = {"n": 0}
+
+    def counting_enum(pid, project):
+        calls["n"] += 1
+        return {"count": 0, "pids": [], "error": None}
+
+    monkeypatch.setattr(self_check_mod, "_enumerate_sibling_mcps", counting_enum)
+
+    self_check_mod.collect()
+    self_check_mod.collect()
+    assert calls["n"] == 1, "enumeration ran more than once inside the TTL window"
+
+
+def test_sibling_count_over_threshold_reports_warning(self_check_mod, monkeypatch):
+    """AC2: an accumulation above threshold surfaces a report-only warning that
+    is prepended to remediation — and never claims the framework killed anything.
+    """
+    _put_scripts_on_path()
+    self_check_mod._SIBLING_ENUM_CACHE.clear()
+
+    monkeypatch.setattr(
+        self_check_mod,
+        "_enumerate_sibling_mcps",
+        lambda pid, project: {"count": 5, "pids": [11, 22, 33, 44, 55], "error": None},
+    )
+    report = self_check_mod.collect()
+    assert report["sibling_mcp_count"] == 5
+    assert report["sibling_warning"], "count 5 (>3) should raise a warning"
+    assert "5" in report["sibling_warning"]
+    assert "will not kill" in report["sibling_warning"].lower()
+    # The warning leads the remediation string the agent surfaces.
+    assert report["remediation"].startswith(report["sibling_warning"])
+
+
+def test_sibling_count_within_threshold_no_warning(self_check_mod, monkeypatch):
+    """NEGATIVE (AC2): a normal sibling count raises no warning and leaves
+    remediation untouched."""
+    _put_scripts_on_path()
+    self_check_mod._SIBLING_ENUM_CACHE.clear()
+
+    monkeypatch.setattr(
+        self_check_mod,
+        "_enumerate_sibling_mcps",
+        lambda pid, project: {"count": 2, "pids": [11, 22], "error": None},
+    )
+    report = self_check_mod.collect()
+    assert report["sibling_mcp_count"] == 2
+    assert report["sibling_warning"] == ""
+
+
+def test_enumeration_exception_degrades_to_unknown(self_check_mod, monkeypatch):
+    """s146 review LOW: if the cached enumeration itself raises, collect() must
+    degrade to count == -1 (unknown), never crash the MCP diagnostic (AC5)."""
+    _put_scripts_on_path()
+
+    def boom(pid, project):
+        raise RuntimeError("enumeration blew up")
+
+    monkeypatch.setattr(self_check_mod, "_enumerate_sibling_mcps_cached", boom)
+    report = self_check_mod.collect()
+    assert report["sibling_mcp_count"] == -1
+    assert report["drift_detected"] is False

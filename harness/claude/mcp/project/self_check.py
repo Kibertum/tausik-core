@@ -26,6 +26,7 @@ from __future__ import annotations
 import datetime as _dt
 import os
 import sys
+import time
 from typing import Any
 
 # --- Eager-import critical modules ----------------------------------------
@@ -366,6 +367,33 @@ def _enumerate_sibling_mcps(self_pid: int, project_dir: str) -> dict[str, Any]:
     }
 
 
+# Process-scoped TTL cache for the sibling enumeration. The enumeration spawns a
+# PowerShell Get-CimInstance on modern Windows (wmic is gone from Win11 26200),
+# ~0.6-1s over 100+ processes — paying that on EVERY self_check made /start look
+# like a hang. Memoized per project_dir so repeated checks in a session reuse it.
+_SIBLING_ENUM_CACHE: dict[str, tuple[float, Any]] = {}
+
+
+def _enumerate_sibling_mcps_cached(self_pid: int, project_dir: str) -> dict[str, Any]:
+    """TTL-cached wrapper over `_enumerate_sibling_mcps` (AC3, decision #189).
+
+    Falls back to a direct (uncached) call if the reaper helper is unavailable —
+    correctness before latency, and the MCP server must never crash on a tool
+    call because an optional helper failed to import.
+    """
+    try:
+        from mcp_reaper import SIBLING_ENUM_TTL_SECONDS, cached_enumerate
+    except Exception:  # noqa: BLE001 — helper missing → just enumerate directly
+        return _enumerate_sibling_mcps(self_pid, project_dir)
+    return cached_enumerate(
+        os.path.normpath(project_dir),
+        lambda: _enumerate_sibling_mcps(self_pid, project_dir),
+        ttl=SIBLING_ENUM_TTL_SECONDS,
+        now=time.monotonic(),
+        cache=_SIBLING_ENUM_CACHE,
+    )
+
+
 def collect() -> dict[str, Any]:
     """Return diagnostic snapshot for `tausik_self_check`.
 
@@ -384,7 +412,13 @@ def collect() -> dict[str, Any]:
         _MODULE_MTIMES_AT_STARTUP, _STARTUP_TIME_EPOCH, loaded, os.path.getmtime
     )
     project_dir = os.getcwd()  # MCP server.main() pins cwd to --project
-    siblings = _enumerate_sibling_mcps(os.getpid(), project_dir)
+    # Defensive, like _loaded_our_module_paths above: the diagnostic must never
+    # crash the MCP server on a tool call, so any failure in the (cached)
+    # enumeration degrades to "unknown" (count == -1), not an exception (AC5).
+    try:
+        siblings = _enumerate_sibling_mcps_cached(os.getpid(), project_dir)
+    except Exception:  # noqa: BLE001 — enumeration failure → "unknown", never crash
+        siblings = {"count": -1, "pids": [], "error": "sibling enumeration raised"}
     sibling_count = siblings["count"]
     # Three remediation states:
     #   - drift OR confirmed sibling leak (count > 0) → "Restart IDE"
@@ -406,6 +440,18 @@ def collect() -> dict[str, Any]:
         )
     else:
         remediation = "MCP modules in sync; no action needed."
+    # Report-only accumulation warning (decision #189): above a threshold, the
+    # sibling count is an actionable "close old sessions" signal — the framework
+    # never kills a process, since a live sibling can't be told from a stale one.
+    sibling_warning_msg = ""
+    try:
+        from mcp_reaper import sibling_warning
+
+        sibling_warning_msg = sibling_warning(sibling_count)
+    except Exception:  # noqa: BLE001 — a missing helper must not break the diagnostic
+        sibling_warning_msg = ""
+    if sibling_warning_msg:
+        remediation = f"{sibling_warning_msg} {remediation}"
     return {
         "server": "tausik-project",
         "pid": os.getpid(),
@@ -418,6 +464,7 @@ def collect() -> dict[str, Any]:
         "sibling_mcp_count": sibling_count,
         "sibling_mcp_pids": siblings["pids"],
         "sibling_introspection_error": siblings["error"],
+        "sibling_warning": sibling_warning_msg,
         "remediation": remediation,
     }
 

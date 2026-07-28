@@ -33,7 +33,7 @@ Quality gates (`.tausik/tausik gates status`) enforce these automatically.
 - **Don't guess CLI arguments.** Run `.tausik/tausik <cmd> --help` or read the CLI reference.
 - **MCP-first.** Prefer MCP tools (`tausik_*`) over CLI when equivalent.
 - **Git: ask before commit/push.** Always request user confirmation.
-- **Max 400 lines per file.** Filesize gate warns. Exceptions: tests, generated code.
+- **Max 500 lines per file.** Filesize gate warns. Exceptions: tests, generated code.
 - **Continuous logging.** Run `task log <slug> "message"` after every meaningful step. (SENAR Rule 9.4)
 - **Document dead ends.** Run `.tausik/tausik dead-end "approach" "reason"` on failed approaches. (SENAR Rule 9.4)
 - **Checkpoint every 30-50 tool calls.** Save context periodically. (SENAR Rule 9.3)
@@ -127,7 +127,7 @@ Gates run on three triggers:
 - **`verify`** — heavy (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeval, hadolint, ansible-lint). Run via `.tausik/tausik verify --task <slug>`. Result cached for 10 min; `task done` reads the cache.
 - **`commit`** — local lint (ruff, eslint, phpcs, golangci-lint).
 
-Stack-specific gates auto-enable by detected stack. Filesize gate warns on files >400 lines.
+Stack-specific gates auto-enable by detected stack. Filesize gate warns on files >500 lines.
 
 Check status: `.tausik/tausik gates status`. Fix blocking failures before committing. Verify-First Contract opt-out: `.tausik/config.json` → `{ "task_done": { "auto_verify": true } }` runs the heavy gates inside `task done` instead of as a separate step.
 """
@@ -234,6 +234,7 @@ def warn_output_mode_not_applied(path: str, output_mode: str) -> bool:
 DYNAMIC_BLOCK = """<!-- DYNAMIC:START -->
 <!-- DYNAMIC:END -->
 """
+
 
 def build_header(project_name: str, stacks: list[str], agent_name: str) -> str:
     """Header + project metadata. agent_name goes into the opening sentence."""

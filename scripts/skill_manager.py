@@ -267,6 +267,20 @@ def copy_skill(
     if not os.path.isfile(skill_md):
         raise SkillManagerError(f"SKILL.md not found in {source}")
 
+    # l26-skill-supply-chain-threat: the publisher signature proves WHO shipped
+    # the skill, not WHAT is hidden inside its prose. Scan the source tree for
+    # invisible-Unicode instructions (U+E0000 tag block, zero-width, bidi) BEFORE
+    # any file lands in the activated skills tree — a signed-but-compromised
+    # publisher, or the unsigned warn-path, must not smuggle agent-directed text
+    # past a human reviewer who cannot see it. Shared guard so the activate path
+    # cannot diverge (review s146, finding C1).
+    from skill_content_scan import SkillContentScanError, assert_skill_tree_clean
+
+    try:
+        assert_skill_tree_clean(source, skill_name)
+    except SkillContentScanError as e:
+        raise SkillManagerError(str(e)) from e
+
     dst = os.path.join(skills_dst, skill_name)
 
     # Remove existing (stub or old version)

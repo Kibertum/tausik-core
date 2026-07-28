@@ -9,6 +9,740 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — `metrics tokens` presented per-tool cost it had never measured (session #150)
+
+The table said "per-tool aggregates" and sorted tools by total input tokens. It
+could not have measured that: API usage is reported per MESSAGE, not per tool
+call — a limitation the capture hook states about itself ("PostToolUse payload
+carried per-tool API usage. It does not"). What the file holds is a
+message-level figure stamped onto whichever tool happened to run. In practice
+`in_p50` and `in_p90` came out as **2 for every tool**, `in_total` was that
+number times the call count — a call counter wearing a cost label, and the
+column the table was ranked by — and summing `cache_read` re-counted one cached
+conversation on every call, which is how a single tool appeared to have read
+568 million tokens across 26 sessions.
+
+The numbers stay, because call volume is genuinely useful. What changes is that
+the output now says what they are before showing them, instead of letting a
+reader take a ranking of call counts for a ranking of spend.
+
+This closes Gate B without a quantitative verdict, and the reason is worth
+recording: the decision about sub-agents was never measurable. There is no
+pre-sub-agent baseline (agents landed 2026-04-10..17; telemetry starts
+2026-06-15), and the instrument does not attribute cost per tool in either
+direction — `Agent` invocations are recorded as 2 input tokens, so a sub-agent's
+own consumption is invisible.
+
+### Added — `doctor` reports acceptance criteria parked at closure (session #150)
+
+A criterion marked DEFERRED when a task closes is a promise with no owner and
+no due date, and an epic can close over it. That is not hypothetical: two
+criteria deferred on 2026-05-06 went unexamined for two and a half months, and
+by the time the follow-up needed them the data they were meant to produce had
+never been captured.
+
+The check is deliberately narrow in two ways, both learned by getting them
+wrong first. It only reads a criterion as parked when the marker follows the
+criterion directly — a looser first cut matched four tasks of which three were
+false, because "deferred loading" is a feature name here and "deferred … then
+closed" is already resolved. And it only looks inside epics that are still
+open, because six of this project's ten parked criteria belong to work that
+shipped long ago.
+
+It is also clearable, which matters more than it sounds. The deferral text
+lives in a closed task and can never stop matching, so the warning would have
+stood forever no matter what anyone did — the same unclearable-warning defect
+fixed in `doctor` earlier this release. Recording who now owns the criterion
+(`AC-N CARRIED BY <slug>`) clears it.
+
+### Added — contextual headers make mid-file passages findable (session #150)
+
+A chunk cut out of a file stops carrying what the file was about, so a query
+phrased in the document's terms cannot reach a passage phrased in its own. Each
+indexed chunk now carries a short header — path words, the symbol it defines
+(or the one it sits inside, for a continuation chunk), and the file's own
+summary line. This is the contextual-retrieval technique from onyx / Anthropic
+with the model taken out of it: the header is built from metadata the indexer
+already has, so the same input yields the same bytes and indexing stays
+reproducible and offline.
+
+The header lives in its own indexed column, never in the chunk's content.
+Search returns the source exactly as written; a word that exists only in the
+header still matches, and still does not appear in what comes back.
+
+Measured, not asserted — `scripts/rag_retrieval_bench.py` derives its queries
+mechanically from the corpus and samples deterministically, so the set cannot
+be tuned toward a flattering answer. Over 353 files, 115 queries per set,
+recall of the specific target chunk:
+
+| K | context set | control set |
+|---|---|---|
+| 3 | 0.4870 → 0.8348 (+0.348) | 0.5739 → 0.6435 (+0.070) |
+| 5 | 0.7043 → 0.9739 (+0.270) | 0.6870 → 0.7391 (+0.052) |
+| 10 | 0.8783 → 1.0000 (+0.122) | 0.8087 → 0.8348 (+0.026) |
+
+The control set asks only for words already inside the target chunk, where the
+header should not help and above all must not hurt — adding text to an index
+dilutes term frequency. It does not: the gain is positive on both sets at every
+K, and largest at K=3, which is what an agent actually reads.
+
+An existing index grows into the new layout on first open: the column is added
+and the FTS table rebuilt from the chunks, which are the source of truth.
+Chunks keep an empty header until the next reindex, degrading to the previous
+behaviour rather than to a broken one.
+
+### Fixed — skill bundles were unreachable for every user (session #150)
+
+`tausik skill bundle` resolved its manifest from a `skills-official/` directory
+beside the core checkout. That directory exists while developing the framework
+itself and never in a bootstrapped project, so the command failed with "no
+bundles manifest" for everyone actually using TAUSIK.
+
+Bundle composition now belongs to the store that ships the skills:
+`bundles.json` travels inside a tausik-skills-format repo, next to its
+`tausik-skills.json`, and resolution scans the cloned repos. The core-adjacent
+directory remains only as a development fallback.
+
+The alternative — keeping the bundle list in the core with `repo:skill`
+references — was rejected on a boundary, not a preference. The core is
+publicly mirrored, so a core-side list of every bundle's members would require
+naming private skills in a published file. Bundles that share a name across
+stores therefore union their skill lists: a public store can declare a bundle
+and leave it empty while a private store fills it, and neither manifest ever
+names the other's contents. A bundle stops being a placeholder the moment any
+store fills it.
+
+Two failure modes are now told apart, because they need different advice: no
+store provides a `bundles.json` at all (add a repo) versus one store's manifest
+being unreadable (the offending repo is named).
+
+### Changed — two CLI commands moved back into the module named for their domain (session #150)
+
+An audit of every module in the 360–400 line band asked one question of each:
+can its boundary be named in one word? Thirty-one of thirty-three could —
+`trust`, `vendor`, `parser`, `migrations`, `conformance`, `export`, and six
+that are a single mixin class. Two could not, and both were in the CLI family:
+`project_cli_ops.py` ("ops" names nothing) and `project_cli_extra.py` ("extra"
+means whatever did not fit). Their docstrings enumerated ten and four unrelated
+commands instead of naming a domain.
+
+That family already has a convention — 24 of its 26 modules are named after the
+command they implement. The measurable defect was not the naming but a tear:
+`project_cli_metrics.py` held the metrics *dispatcher* while `cmd_metrics`
+itself sat in `_ops`, and `project_cli_audit_extra.py` held the audit
+*subcommands* while `cmd_audit` sat in `_ops` too. A module named for a domain
+did not contain that domain's command.
+
+`cmd_metrics` and its cost-rollup helper moved into `project_cli_metrics.py`;
+`cmd_audit` moved into `project_cli_audit.py`, which is `_audit_extra` renamed
+— nothing in it is extra. The remaining twelve commands were deliberately left
+alone: shattering the CLI dispatch surface days before the 1.8 documentation
+capstone buys tidiness at the price of regression risk. `project_cli_ops.py`
+now says plainly that it is residue rather than a domain, and the split is
+tracked separately.
+
+That the band is a fossil rather than live pressure is visible in the
+distribution: modules pile up at 350–399 (35 of them) while the cap has been
+500 since decision #190, and only eleven sit anywhere between 400 and 499. The
+boundaries were placed under the old 400 cap and have not moved since — three
+modules say so in their own docstrings ("extracted from project_cli_ops for
+filesize gate", "kept out of project_cli_ops.py (400-line gate)").
+
+### Changed — codebase-rag server split by domain; the last temporary filesize exemption is gone (session #149)
+
+`harness/claude/mcp/codebase-rag/server.py` was 562 lines, 12% over the cap,
+carried by a named exemption. It is now 134 lines of MCP transport. The two
+things that were not transport moved out along boundaries that already existed
+in the package: the seven tool schemas to `rag_tools.py`, the dispatch and the
+result formatters it owns to `rag_handlers.py`. Both names follow the
+`rag_<domain>.py` convention of their neighbours, and the split mirrors the
+sibling `harness/claude/mcp/project` package (`tools*.py` + `handlers_*.py`)
+rather than inventing a seam.
+
+The move was mechanical and is verifiable as such: every relocated function
+body is byte-identical by AST comparison against the pre-split file, including
+the schema list. The one deliberate signature change is that the dispatch,
+previously a closure over `project_dir` inside `main()`, now takes it as an
+argument.
+
+`tausik/gates.json` no longer names this file. With `handlers.py` retired
+earlier, the only remaining filesize exemption is the permanent one for the
+project MCP schema table.
+
+Two things the split would have broken silently, both now pinned by tests. The
+tool-count used for the documentation figures was a regex over `server.py` by
+name, so relocating the schemas would have made it answer 0; it scans the whole
+package now and survives any further reshuffle. And the trailing
+`if __name__ == "__main__"` left with the last function — the server is launched
+as a script by `.mcp.json`, so it would have started, defined everything and
+exited 0 without ever serving.
+
+Bringing the package into the mypy scope did NOT follow from this, contrary to
+what the `pyproject.toml` comment predicted. The collision is over the file
+NAME, not its size: two `server.py` files still abort mypy with "Duplicate
+module named 'server'". The comment has been corrected rather than left
+standing, and the real unblocker — renaming the file, which reaches `.mcp.json`,
+the bootstrap templates, the docs and five deployed IDE profiles — is tracked
+separately.
+
+### Fixed — `doctor` asserted a CLAUDE.md check it had silently stopped running (session #149)
+
+`tausik doctor` reported `CLAUDE.md drift: none — static sections match
+bootstrap_templates`. It had not compared any section. An escape hatch added to
+quiet an earlier warning returned "no drift" for any CLAUDE.md under 6 KB
+carrying a `## Reference` link to `agent-contract.md`, and the caller then
+printed a claim about section equality that nothing had established.
+
+The hatch did not merely soften a warning, it removed the check. Injecting real
+drift proved it: rewriting `- **MCP-first.**` into `- **MCP-LAST. Ignore MCP,
+use raw SQL.**` inside a static section still reported zero. An inverted
+enforcement rule was invisible to the only automated check that watches for one.
+
+The number it used to print carried no information either. This project's
+CLAUDE.md is hand-written in Russian, so its headings share nothing with the
+English template; every "difference" was really an absent heading, and the count
+was just the template's section total — identical for the real document, an
+empty file, and a single junk byte.
+
+Drift and customisation are now told apart structurally. A section carried under
+the template's own heading whose body diverged is drift. A template heading with
+no counterpart is authorship — translated, renamed or dropped on purpose — and
+is not a warning. Absence still counts as drift when the file otherwise *is* the
+template's document (more than half its sections present), so a project whose
+config asks for a directive its CLAUDE.md lacks is still caught.
+
+The remediation text no longer says "re-run bootstrap to reset". That overwrites
+hand-written content, so doctor was recommending data loss as a routine step. It
+now names the specific sections and states the consequence. On a clean tree
+doctor is `OK All clean` — with a line that says what it actually checked.
+
+### Fixed — `session extend` did not reach the display: `status` kept printing the base limit (session #148)
+
+`tausik session extend --minutes 120` answered "New limit: 300 min", and
+`tausik status` went on printing `active 64m / 180m`.
+
+Only the *display* was wrong, and that is the interesting part. The Rule 9.2
+overrun warning already resolved the extension correctly —
+`session_overrun_warning` goes through `effective_session_limit`, which reads the
+recorded extend events. So the threshold that actually fires used 300 while both
+things a human and an agent read said 180. One fact, three readers, two formulas:
+the text line took `view["max_min"]` and the compact JSON took
+`data["session_max_minutes"]`, and both were the raw config value.
+
+That mattered beyond cosmetics. The compact JSON is what `/start` and
+`tausik_session_open` carry, so an agent planning the remainder of a session
+budgeted against a limit that had already been raised — and a user who extended
+deliberately read the unchanged number as the command having failed.
+
+Both display paths now resolve the effective limit, so all three agree. Note the
+two view dicts had different indentation and a single-shot edit reached only one
+of them; the accompanying tests are what caught the half-fix, which is why they
+assert the two channels equal *each other* rather than each equal 300.
+
+`tausik doctor` deliberately keeps reporting the configured base — it describes
+configuration, not the state of whichever session is open — and that intent is
+now written at the line and pinned by a test, so it does not read as the same
+bug and get "fixed" into one.
+
+### Fixed — the repo-wide mypy zero was red, and its scope excluded the code the agent actually uses (session #148)
+
+Two findings, one root: nobody had re-measured what `mypy` covered.
+
+**The zero was already red.** `tests/test_mypy_clean.py` exists specifically to
+turn "no new errors" into an enforced zero. It was failing — `mypy scripts/`
+reported two `import-untyped` errors for PyYAML. Verified against a clean
+`git worktree` of the previous commit with the same venv, so it predates this
+session's work and is unrelated to any uncommitted change. A prior session had
+reported the full suite green; it was not.
+
+PyYAML is an *optional* RENAR dependency, lazily imported inside
+`except ModuleNotFoundError` so the CLI works without it. It ships no stubs, and
+the obvious fix — `pip install types-PyYAML` — is unavailable here: the venv is
+deliberately lean and `tausik doctor` asserts nothing third-party leaked into
+it, so installing a stub package to satisfy one check would break another. It is
+now an `ignore_missing_imports` override on the `yaml` module, with the
+distinction written down: nothing in this repo's own code is being excused, only
+the absence of type information in a dependency we deliberately do not require.
+
+**The scope excluded `harness/`.** `[tool.mypy] files` was `["scripts"]`, so the
+entire MCP package — the surface `CLAUDE.md` tells the agent to prefer over the
+CLI — had never been type-checked. Not a decision; nobody had looked. It is now
+in scope, and the 21 errors that surfaced were all `no-any-return`. Twenty of
+them were one shape: handlers that take `svc: Any` and return
+`svc.some_method(...)`. That one is structural rather than debt — the handler
+package must not import `ProjectService`, which is the dependency the
+standalone-package split exists to prevent — so it carries a per-module override
+with that reasoning, and the contract the `Any` hides (every entry returns `str`
+for a `(svc, args)` call) is pinned by `tests/test_mcp_dispatch_surface.py`
+instead. Everything else in the package is now checked. The twenty-first error
+was not that shape and was not suppressed: `mcp_reaper.cached_enumerate` declared
+`-> Any`, flattening its caller's type at the cache boundary, and it is now
+generic over what it memoizes — a real bug the widened scope surfaced.
+
+`harness/claude/mcp/codebase-rag/` stays out for a concrete reason, not a
+preference: it holds a second `server.py`, and two files mapping to one
+top-level module name make mypy abort before checking anything. That
+restructuring is `mcp-rag-server-module-split`, and the config names it.
+
+The test itself no longer passes a path. It invokes `mypy` with no argument, so
+the enforced scope *is* the declared scope — previously the two were separate
+lists, which is why widening the config would have left the new code unenforced
+without a word.
+
+### Changed — the MCP handlers god-module was cut along the boundaries it already documented (session #148)
+
+`harness/claude/mcp/project/handlers.py` was 1345 lines and 77 handler
+functions covering every domain the framework has, with no literal data to
+excuse the length. It was the reason the file-size gate carried a **temporary
+named exemption**: removing the blanket `harness/claude/mcp/` directory
+exemption had made it visible, and the refactor was too large to bundle into
+that task.
+
+The cut needed no new taxonomy. The module already carried section comments —
+`--- Tasks ---`, `--- Sessions ---`, `--- Knowledge (Memory) ---`,
+`--- Hierarchy (Epics & Stories) ---`, `--- Roles (CRUD) ---` — and the
+package already had the pattern for acting on them: `handlers_spec.py` and
+`handlers_adapt.py` each export a `<DOMAIN>_HANDLERS` dict that `handlers.py`
+merges. The split extended that convention rather than inventing a second one.
+Nine new domain modules — `task`, `session`, `status`, `knowledge`,
+`hierarchy`, `stack`, `role`, `verification`, `cq` — plus `handlers_render.py`
+for the one shared primitive (list rendering, where the point is that an empty
+result must read as "No tasks found." rather than as an empty string).
+
+`handlers.py` is now **174 lines** and holds only what is genuinely dispatch:
+the tool-call counter, `handle_tool`, the merged table, and the three
+single-handler surfaces (exploration, audit, FTS maintenance) that have no
+domain to be the second member of. Largest resulting module: 250 lines. The
+temporary exemption is **removed** — the gate passes on merit, not by name.
+
+Two things the diff cannot show are now pinned by
+`tests/test_mcp_dispatch_surface.py`, asserted against the tool **schema**
+rather than a hardcoded count:
+
+- every declared tool still resolves to a handler and no handler routes a tool
+  the schema never declares — a tool lost in the move would have surfaced as
+  `Unknown tool: ...` at call time, not at import;
+- no two domain modules claim the same name. `dict.update` resolves a collision
+  silently in favour of whichever merged last, so a duplicate would have routed
+  to an arbitrary one of two handlers with no error anywhere.
+
+Behaviour is unchanged: handler bodies moved verbatim. Tests that reached into
+`handlers` for a moved private now import from the domain module that owns it,
+which also documents where each one lives.
+
+### Added — `doctor` names open tasks that no epic can reach (session #148)
+
+The release boundary of this project is mechanical: "everything in epic X".
+Both `tausik roadmap` and `task list --epic` reach a task only through
+story → epic, so a task attached to neither is invisible to both — and a
+release-scope question answers "that task does not exist" instead of "that
+task is unaccounted for". The error runs in the direction of *under*-reporting,
+which is the direction nobody re-checks.
+
+It had already happened once: four orphans were reattached by hand and the fix
+recorded as a decision, with no signal added. Roughly twenty sessions later
+exactly four more had accumulated — including the release capstone
+(`redoc-1-8-final`) and a task the gate config names by slug
+(`mcp-handlers-god-module-split`, whose temporary `exempt_files` entries are
+supposed to be removed when it closes). Both had silently dropped out of the
+1.8 count.
+
+`tausik doctor` now carries a ninth check, **Backlog hygiene**. It warns when
+an open task (`planning`/`active`/`blocked`/`review`) cannot be reached from
+any epic, names up to three slugs inline, and prints the exact repair —
+`tausik task move <slug> <story>`. The invariant checked is epic
+*reachability*, not story attachment, so a task hanging off a story whose epic
+is gone counts too. Closed tasks are ignored: an orphan that moves no scope
+number is history, not a finding. WARN and never FAIL — `task_add` documents a
+standalone task as legitimate, so the check has authority to surface, not to
+block.
+
+### Fixed — `tausik_session_open` shipped 90% noise and outgrew the tool-result ceiling (session #147)
+
+`/start` Phase 1 makes exactly one call, so every byte `tausik_session_open`
+returns is paid at the start of every session. Measured on a real session, the
+envelope was **49 165 chars** — past the host's tool-result cap, so the compound
+RPC built to collapse five calls into one degraded into a file dump that cost
+**more** than the five it replaced.
+
+Only ~5 KB of it was signal. The rest was two independent leaks, both from
+composing full-fidelity producers verbatim:
+
+- **26 022 chars of module telemetry.** `self_check.collect()` returns
+  `watched_modules` (12 385) and `current_mtimes` (13 637) — 108 absolute paths
+  and their mtimes. The dashboard reads `drift_detected` and `stale_modules`
+  and nothing else.
+- **15 480 chars of duplicated handoff.** `session_current()` returns the whole
+  row, `handoff` column included — the same handoff this envelope already
+  returns *parsed* under its own key (4 720 chars). The nested copy is a JSON
+  string inside JSON, so `\u`-escaping inflated the Cyrillic **3.3×**.
+
+`_handle_session_open` now projects both sections down to what Phase 3 renders.
+Same payload: **36 989 → 3 017 chars (−91.8%)**.
+
+- **Allowlists, not denylists.** The bug was a producer changing under a
+  consumer that forwarded everything. A denylist would let the next heavy field
+  added upstream re-inflate the payload silently.
+- **Error sections pass through unprojected.** A section that failed carries
+  only `{"error": ...}`; narrowing that to an allowlist would erase the one
+  diagnostic the degraded-dashboard design exists to show.
+- **`tausik_self_check` keeps full fidelity.** Full telemetry is the explicit
+  diagnostic's whole purpose; the narrowing applies to the automatic call only.
+- **Also a data-minimisation boundary.** `/start` runs unattended every session,
+  so the dropped fields were a standing export of the developer's directory
+  layout (client names included in the paths) and machine mtime fingerprints to
+  the model transcript. `stale_modules` now names the culprit by basename —
+  enough for "restart your IDE" — and the envelope carries no absolute host
+  path at all.
+- **The ceiling has teeth.** `tests/test_session_open_handler.py` asserts a
+  realistic envelope (120 watched modules, 4 KB Cyrillic handoff) stays under
+  8 000 chars, *and* separately proves each dropped blob alone exceeds that
+  budget — so the guard cannot pass vacuously if a blob returns.
+
+### Added — `class_surface` gate: the line cap was measuring the wrong unit (session #147)
+
+The filesize gate counts raw lines per **file**, which makes one whole class of
+defect structurally invisible: a god-object assembled from mixins keeps every
+file comfortably under the cap while the class they compose does not. Measured
+here, `SQLiteBackend` exposes **129** public members inherited from 8 bases and
+`ProjectService` **118** from 9 — the next-largest class in the repo has 28.
+Neither has ever tripped a gate.
+
+The line cap also **caused** the split it was hiding. Module sizes across
+`scripts/` decay monotonically from 60 modules at 100–149 lines down to 22 at
+300–349, then **rise** to 26 at 350–399 and collapse to 6 above 400: a pile-up
+against the old 400 boundary and a cliff past it. Files were cut to fit, so each
+one looked healthier while the composed surface grew. Several modules say so
+outright — `service_verification.py` carries the comment *"lives in its own
+module for filesize compliance."*
+
+New `class_surface` gate (`scripts/gate_class_surface.py`) caps a class's
+composed public surface after inheritance. It **complements** the line cap rather
+than replacing it: "this class does too much" and "this file is too long to read"
+are different defects and neither implies the other.
+
+- **AST, never import.** A gate must be able to measure a branch nobody has read
+  yet, so it never executes repo code. The cost is that dynamically attached
+  members are invisible, so counts are reported as a **lower bound** — a derived
+  measurement must not be dressed up as a declared one (convention #325).
+- **Whole-repo, not per-file** (0.65s). A scoped gate only sees what someone
+  edited, so a class that drifts past the cap *through its bases* stays green
+  forever — the same blindness that let `service_knowledge` reach 406 lines
+  without blocking anyone.
+- **Ratchet baseline.** The two known oversized classes are recorded at their
+  current size and fail only if they **grow**; a gate that reddens everything on
+  day one gets switched off. A test pins that the baseline matches reality
+  exactly, so it can never become a licence to grow back up to it.
+- Parse failures **fail** the gate rather than being footnoted onto a pass:
+  coverage cannot be claimed over a file that was never read (convention #305).
+
+**The blanket `harness/claude/mcp/` exemption is gone.** A whole *tree* is never
+the right exemption unit — it also covers every file added there later, and it
+had been hiding the two largest modules in the repo. Exemptions are now
+file-precise, each with a written reason:
+
+| File | Verdict |
+|---|---|
+| `mcp/project/tools.py` (988) | **permanent** — 97% is one literal schema table, 0 functions; a declarative table is not logic |
+| `mcp/project/handlers.py` (1281, 77 handlers) | **temporary**, named owner `mcp-handlers-god-module-split` |
+| `mcp/codebase-rag/server.py` (562) | **temporary**, same owner |
+
+Note the direction of the config merge: committed config *unions over* the
+hardcoded defaults, so an exemption can be added from config but never removed
+there. Retiring the blanket entry required a deliberate source edit — which is
+the safer default, but worth knowing before assuming a config change took effect.
+
+**Measured, not assumed:** the follow-up premise that ~30 modules were mechanical
+wrappers to be stitched back did **not** survive measurement. Of the 25 modules in
+the 360–400 band, one has zero own definitions (and it is DDL data, not a shim),
+eight are single-class mixin modules, and the rest carry 2–20 definitions each.
+The one genuine re-export facade cannot be merged at all: its nine constituents
+total ~1763 lines, 3.5× the cap. So zero modules were stitched, and the follow-up
+task was re-specified to the question that survives — whether specific split
+boundaries are defensible — rather than left pointing at a disproved premise.
+
+### Fixed — `tausik sync` would have corrupted the journal and nulled fields (session #147)
+
+The DB↔tree round-trip regressed after `state-git-import` pinned it, and nothing
+caught it: that pin was a one-time live measurement, not a standing gate. On this
+repo a dry-run import of the tree reported **336 rows to update and 437 journal
+lines to add** — meaning `tausik sync`, the command an engineer runs after
+`git pull`, was not idempotent but *destructive*.
+
+Root cause, shared by three of the four defects: the projection is a **lossy,
+canonicalizing** view — the emitter sorts memory tags, dedups task path lists,
+reformats timestamps to the `Z` form and flattens multi-line journal messages onto
+one line. The divergence detector compared *raw DB values* against *already-
+canonical file values*, so the canonicalization itself read as a change.
+Comparison now runs in the canonical space, through the emitter's own helpers
+(imported, not re-implemented, so the two cannot drift apart). The emitter is
+untouched — the 2024 committed files keep their bytes.
+
+- **Journal duplication.** `_journal_section` flattens a multi-line message by
+  design (an entry must stay one line so two branches merge as added lines), so
+  the raw multiset key never matched a multi-line DB row: every sync would append
+  a flattened duplicate of all 437. Keyed canonically now.
+  *Known limitation, unchanged:* importing into an **empty** DB still stores the
+  flattened message. What is fixed is duplication on re-import, not the design's
+  lossiness.
+- **Tag order** (239 rows) and **timestamp form** (`+00:00` vs `Z`, 94 rows) no
+  longer read as changes.
+- **An absent key is no longer a request to clear the column** *(policy change)*.
+  `fm.get()` collapsed "the file never mentioned this key" into `None`, so a
+  projection written before a field was set would silently `UPDATE … SET col=NULL`
+  on the next sync. Absent keys are now dropped from the delta entirely. An
+  **explicit** empty value (`key: []`, `key: null`) still clears — git-wins holds
+  for divergence, but the tree, which arrives from `git pull` as untrusted input,
+  can no longer null a column by mere omission.
+- **`sync_suggested` no longer claims a direction it has not established.** It
+  documented a non-empty plan as "the files carry state the DB does not, so
+  suggest `tausik sync`" — but divergence proves only that the sides *differ*. On
+  this repo the direction is the opposite (the DB is newer), and following that
+  advice would have reverted a recorded decision and reopened a closed task. It
+  now separates what the counts do prove (`added`/`journal`/`edges` — rows the DB
+  has no entry for) from an ambiguous field-level difference, and offers both
+  `tausik sync` and `tausik state export` rather than naming one as *the* fix.
+- **The signal was invisible, which is why this survived five sessions.** The
+  `sync_suggested` section is watchdog-bounded at 6s, and its cold first call —
+  the only call `/start` ever makes — overran that budget on a 2024-file tree.
+  The projection is now warmed in a daemon thread at MCP startup (I/O only; no
+  memoized verdict, which would go stale on the next DB write), and the section
+  gets a 20s bound as it is inherently O(tree). The bound stays hard and the
+  section is computed last, so the hang the watchdog exists to prevent does not
+  return.
+
+Live tree after the fix: `{added: 0, updated: 2, journal: 0, edges: 0}` — and both
+remaining entries are *genuine* staleness (a task respecced by decision #191 and
+one closed via the CLI while the MCP held stale modules), not phantoms.
+
+Guarding it now: a standing test exports a live DB and dry-run imports it back
+into *that same DB*, asserting all four counters are empty, over a tree covering
+every entity type, Cyrillic, multi-line journals, unsorted tags, both timestamp
+forms and omitted keys. Every prior test imported into a *fresh* DB, where both
+sides already speak the file's dialect and agree trivially — which is exactly why
+none of them caught this.
+
+### Review fixes (session #146) — skill-activate scan bypass + fail-open decode + gate matching
+
+An adversarial review of this batch's code caught five real defects — three
+critical — in the skill supply-chain and filesize work just shipped:
+
+- **`skill activate` bypassed the invisible-Unicode scan (critical).** The scan
+  added this batch lived only in the install path (`copy_skill`); `skill_activate`
+  copied vendor skills into the activated tree with a signature check but *no
+  content scan* — a signed-but-compromised or unsigned-warn skill went in
+  unscanned. The exact install/activate drift the `skill_tree_ignore` docstring
+  warns about, recurring (the signature check had the same bug earlier). Fixed by
+  a shared guard `skill_content_scan.assert_skill_tree_clean` that *both* paths
+  call; regression-tested on the activate path.
+- **Fail-open on invalid UTF-8 (critical).** `scan_skill_tree` decoded `strict`
+  and silently skipped any file that wasn't valid UTF-8 — yet `copytree` lands it
+  byte-for-byte, so one stray invalid byte beside a U+E0000 payload defeated the
+  scan. Now decodes `errors="replace"`; only a real IO error skips a file.
+- **Scan was markdown-only (critical).** Only `.md/.markdown/.txt` were scanned;
+  a payload in `references/notes.py` or `data/config.json` (files a SKILL.md can
+  tell the agent to open or run) sailed through. Coverage broadened to the prose,
+  config and script extensions skills ship.
+- **Filesize gate hardening (medium×2).** The committed-config lookup now stops
+  at the repo's `.git` root instead of climbing unboundedly from cwd (no adopting
+  a foreign `tausik/gates.json` from a monorepo/CI ancestor); and exempt dirs
+  match on path-segment boundaries instead of raw substring, so `tests/` no longer
+  exempts `unittests/` — a pre-existing flaw whose blast radius grew once the
+  exempt list became externally editable.
+
+### Embeddings revisit — `brainh-semantic-search` respecced to FTS5-first hybrid
+
+Sobering industry data was weighed against the planned local-embeddings feature
+(task `l26-embeddings-revisit`, decision #191). Cursor's online A/B (2025-11-06)
+is the most trustworthy measure because it includes production retention, not
+just offline accuracy: +12.5 % offline but only +0.3 % code-retention overall
+and +2.6 % on repos over 1 000 files — a sub-3 % effect concentrated in large
+bases. Sourcegraph *removed* embeddings for BM25F over a code graph; short
+keyword queries (the dominant agent query form) collapse semantic models to
+~0 nDCG@10, which is why grep survived; CORE-Bench (Jun 2026) concludes no method
+dominates — hybrids win.
+
+`brainh-semantic-search` is **respecced, not closed**: pure local embeddings →
+an FTS5-first **hybrid** where semantic is an *optional re-rank on top of*
+keyword search, gated on (a) a provider being present, (b) the query being
+natural-language rather than a short keyword, and (c) the base being large enough
+to clear the sub-3 % bar — always degrading gracefully to plain FTS5. Effect must
+be measured on *our own traffic* (LoCoMo is discredited: a no-memory baseline beat
+Mem0 73:68), not vendor benchmarks. Per-alternative verdict recorded: **BM25F** —
+already have FTS5, strengthen field-weighting (cheapest, keep); **ast-grep /
+tree-sitter** — for *code*, not brain prose (belongs to the codebase-RAG, not
+here); **LSP symbol-path addressing** — for code-citation stability (the `km-*`
+chain), out of scope for brain semantic search.
+
+### Skill supply-chain threat model + invisible-Unicode install guard
+
+The dominant 2026 attack vector is the markdown skill, not the MCP server: the
+payload is *prose the agent reads verbatim*, so a signature over the bytes proves
+*who* published but not *what* is hidden in the text (Snyk ToxicSkills 2026-02-05:
+36.8 % of 3 984 skills problematic, 91 % of malicious ones used prompt injection).
+Task `l26-skill-supply-chain-threat` models TAUSIK's own store against the known
+primitives and adds the one missing mitigation.
+
+- **Threat model documented** (`docs/en/skill-supply-chain-threat-model.md` + RU
+  mirror, cross-referenced from `security.md`). Each 2026 vector gets an explicit
+  status: post-verification swap (Orca) — *mitigated at install, accepted for
+  already-installed*; silent same-name overwrite — *mitigated* (gated by
+  signature + content scan); scanner-bloat (Unit 42, 22 MB README) — *accepted*
+  (our scan has no skip-large-file escape hatch, so the evasion doesn't apply);
+  install-count gaming — *not applicable* (no popularity surface exists to game).
+  OMS/Sigstore stays rejected by the owner — TAUSIK holds its ed25519 line.
+- **CVE-2025-59536 analysed** (repo-supplied `.claude/settings.json` hooks
+  executing before consent). Verdict: **does not apply to a cloned TAUSIK
+  project** — `.claude/` is gitignored and hooks are generated locally by
+  bootstrap (the user-initiated bootstrap *is* the consent boundary), and the
+  project config tier is untrusted so a committed config can only tighten, never
+  redirect a hook. Two residual paths (tampered vendored framework, config
+  redirection) are named and dispositioned rather than left implied.
+- **Invisible-Unicode detector implemented** (`scripts/skill_content_scan.py`,
+  wired into `copy_skill` before any file lands). It refuses a skill hiding
+  agent-directed instructions in the U+E0000 tag block, zero-width formatting, or
+  bidi overrides (Trojan Source). It complements `brain_scrubbing`'s zero-width
+  *stripping* — here we *detect and block*, and additionally cover the U+E0000
+  tag block the brain regex predates. Ten tests, including a poisoned SKILL.md
+  that fails to install.
+
+### Filesize gate: cap 400→500 (interim) + exemptions move to a committed config
+
+The 400-line filesize cap was deforming architecture more than it protected. A
+direct re-measure confirmed the #129 audit: **six** core files sit at *exactly*
+400 lines (`service_task`, `service_task_done`, `project_parser`,
+`project_cli_doctor`, `gate_registry`, `config_trust`) and ~10 more crowd the
+390–399 band — writing to the limit, not to the concept. Roughly 30 modules in
+`scripts/` document themselves as split *only* to pass the gate. Two changes
+(decision #190, task `l26-filesize-gate-revisit`):
+
+- **Interim cap 400 → 500.** Chosen (of the three offered variants) as an
+  interim measure, with the number calibrated from evidence: 500 absorbs every
+  documented wrapper-merge with margin (`gate_runner` 393 + `gate_filesize` 97 =
+  485; `service_knowledge` 394 + `service_cq_row` 48 = 437) while a genuinely 2×
+  file still blocks — a fails-then-passes boundary test covers the protection
+  regression. The real fix — measuring a class's **public surface after MRO
+  assembly** instead of raw file lines (the gate is blind to god-objects
+  assembled from ≤400-line mixins: `ProjectService` = 117 methods across 9,
+  `SQLiteBackend` = 129 across 12, and it exempts `handlers.py` at 1289) — is
+  deferred to a dedicated follow-up, since it needs class-graph analysis and
+  touches core objects.
+- **Exemptions are now config-driven from a committed file.** Exempt dirs and
+  basenames are read from the branch-coupled `tausik/gates.json` — the
+  non-dotted projection a fresh clone actually carries, since `.tausik/` is
+  gitignored and never arrives on a clone — and merged over the hardcoded
+  fallbacks in `gate_filesize.py` as a union that can never silently drop a
+  baseline exemption. Adding an exemption no longer means editing gate source. A
+  malformed config degrades to the fallbacks rather than crashing the gate
+  (convention #226). `TAUSIK_GATES_CONFIG` overrides the path for CI/tests.
+
+Downstream factual drift from the cap change was fixed in the same commit
+(`CLAUDE.md`, the bootstrap CLAUDE.md template); the full `docs/` sweep is left
+to `redoc-1-8-final`. Nine tests added; two stale `400` golden assertions in
+`test_gate_registry.py` moved to 500.
+
+### Review fixes (session #146 batch) — two correctness bugs the tests missed
+
+An adversarial review of the three telemetry/process modules added this batch
+caught two real bugs that shipped green because the suites never exercised the
+offending inputs, plus a few hardening items:
+
+- **Tokenizer era read a date as the minor version.** `tokenizer_era`'s regex
+  accepted any digit run after the major version as the minor, so a real
+  bare-major dated id like `claude-opus-4-20250514` parsed as `(4, 20250514)`
+  and was labelled NEW — flipping a genuine Opus-4 (old-tokenizer) id to the
+  wrong era and applying the ~30% correction backwards on real cost telemetry.
+  The minor is now capped at 1–2 digits with a digit-boundary guard; such an id
+  parses as major-only → OLD.
+- **`sum_usage_tokens` could crash the metrics hook.** Its docstring promised
+  "zero-safe", but bare `int()` on a non-numeric token field (a stray `"N/A"`
+  in a transcript) raised `ValueError` — and `parse_transcript` calls it per
+  line unguarded, so one bad value lost the whole session's metrics. Conversions
+  are now wrapped; a malformed field yields 0.
+- **OTLP spans can no longer run backwards.** A negative `duration_sec`
+  (out-of-order/clock-skewed transcript timestamps) could put a span's start
+  after its end; the session wrapper now clamps the duration and the builder
+  rejects any `end < start` document, symmetric with its id validation.
+- Hardening: the `gen_ai.*` lint now also catches the split-string evasion
+  (`"gen_ai" + ".x"`); `TAUSIK_OTEL_EXPORT` honours an explicit falsy value as
+  an ops kill switch over config; and the sibling-enumeration call site in
+  `self_check` degrades to "unknown" on any exception instead of crashing.
+
+### Optional OTLP/JSON trace export — additive, opt-in, and honest about churn
+
+TAUSIK has its own event and metric format; the industry converges on
+OpenTelemetry as the transport (any vendor ingests OTLP). Session metrics can
+now ALSO be emitted as an OTLP/JSON trace span — an additional output; the
+internal events remain the source of truth. It is off by default and enabled
+per project via `otel_export.enabled` or the `TAUSIK_OTEL_EXPORT` env var; when
+off, the SessionEnd metrics path is byte-for-byte unchanged. The exporter is
+stdlib-only — it writes OTLP/JSON (the JSON encoding of the OTLP trace protobuf)
+that any OTLP receiver accepts, rather than depend on the OpenTelemetry SDK — so
+the practical payoff (compatibility with EU AI Act audit stacks and existing
+observability platforms) costs no new dependency.
+
+An important honesty note, verified against the source on 2026-07-18: the GenAI
+semantic conventions are NOT stable — they live in
+`open-telemetry/semantic-conventions-genai` with ZERO published releases, status
+Development. Blog claims of "stable OTel GenAI" conflate the semconv release
+train with GenAI maturity. So every `gen_ai.*` attribute name lives in one
+mapper module (`scripts/otel_semconv.py`), which self-declares the instability,
+and a lint test fails if any `gen_ai.*` literal appears elsewhere in `scripts/`.
+When these names churn, the change touches one file — and it is expected, not a
+regression.
+
+### Sibling-MCP: report and warn, never kill — and stop the per-call PowerShell probe
+
+The recurring "MCP feels hung or drifting" class (#77/#79/#80) traces to sibling
+tausik-project MCP servers accumulating — each Claude Code session in a window
+spawns its own `server.py`, and old ones live as long as their owning
+`claude.exe`. The 2026-07-18 forensics (Win11 build 26200) settled the design
+question: there were no ORPHANS to reap — every sibling sat under a LIVE
+`claude.exe` in the same window, and a stale-but-alive session cannot be told
+apart from an active one by the process tree. An automatic reaper would
+therefore risk tearing down a live session (its WAL connection and in-flight
+work). The chosen contract (decision #189) is **report and warn, never kill**:
+`self_check` now surfaces a `sibling_warning` — a hard, threshold-crossing
+"close old sessions" message that explicitly states the framework will not kill
+a process — which makes "live siblings are never killed" true by construction,
+with no killer code to misfire.
+
+The actual latency pain was not the missing reaper: `_enumerate_sibling_mcps`
+spawned a fresh PowerShell `Get-CimInstance` on EVERY self_check call (wmic was
+removed from the Win11 26200 base image, so the wmic path always fell through),
+~0.6-1s over 100+ processes — which is what made `/start` look like a hang. New
+module `scripts/mcp_reaper.py` memoizes the enumeration behind a 30s
+process-scoped TTL, so repeated checks in a session reuse it instead of
+re-probing.
+
+### Tokenizer-era correction, and the calibration hypothesis it disproved
+
+The 2026 model generation (Opus 4.7+, Fable 5, Mythos 5, Sonnet 5) ships a new
+tokenizer that emits roughly 30% more tokens for the same text than the prior
+one (Sonnet 4.6 / Opus 4.6 / Haiku 4.5 and older). Token and dollar comparisons
+that straddle that boundary are invalid without a correction. New module
+`scripts/token_accounting.py` places any model id on one side of the boundary
+(`tokenizer_era`, returning an honest "unknown" for a bare rank alias or a
+foreign family rather than a guessed factor), expresses counts on a common
+era's scale (`normalized_token_count`), and sums usage rows with the ~30%
+correction applied only to off-era rows (`era_normalized_total`) — a single-era
+total is byte-identical to the naive sum, so within-era comparisons are never
+distorted.
+
+The task's own hypothesis — that part of the framework's observed budget
+underestimation is a tokenizer artifact — was tested against the actual
+calibration signal and **rejected**. `calibration_drift` is computed over
+`call_actual / call_budget`, which are TOOL-CALL COUNTS: integers that carry no
+tokens and are unaffected by any tokenizer. The recorded number is 0% — none of
+that drift is attributable to the tokenizer change; the correction belongs only
+where tokens or dollars cross the boundary (usage rollups, token budgets), and
+`calibration_drift`'s docstring now says so.
+
+Separately, server-side compaction is billed under `usage.iterations[*]`, which
+the top-level `input_tokens` / `output_tokens` do not include. `parse_transcript`
+(session metrics) summed only the top level and so understated the real billed
+count; `sum_usage_tokens` now folds the iterations back in.
+
 ### A committed baseline for memory retrieval, before the knowledge-layer rework
 
 The knowledge-layer rework (decision #143) consolidates flat memory entries into

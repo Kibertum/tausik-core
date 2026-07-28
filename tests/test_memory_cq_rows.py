@@ -74,14 +74,14 @@ class TestRenderersTolerateMissingAddress:
         sys.path.insert(
             0, os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project")
         )
-        from handlers import _format_memory_hit
+        from handlers_knowledge import _format_memory_hit
 
         line = _format_memory_hit(build_cq_row(_UNIT))
         assert "#None" not in line
         assert line.startswith("[cq]")
 
     def test_mcp_formatter_keeps_address_for_local(self):
-        from handlers import _format_memory_hit
+        from handlers_knowledge import _format_memory_hit
 
         local = {"id": 42, "type": "pattern", "title": "T", "content": "C"}
         assert _format_memory_hit(local).startswith("#42 [pattern]")

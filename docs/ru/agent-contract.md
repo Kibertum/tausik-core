@@ -289,7 +289,7 @@ Coverage (% done defect-задач со структурой) выводится
 { "custom_stacks": ["ruby", "elixir", "scala", "csharp"] }
 ```
 
-После этого `task add --stack ruby` принимается. Stack-scoped gates (pytest, go-test и т.д.) автоматически НЕ применяются к custom стэкам — для них нужно зарегистрировать custom gate в `gates` секции `config.json`. Universal gates (filesize, tdd_order) работают для всех стэков. `tausik stack list` показывает custom стэки с пометкой `(custom)`.
+После этого `task add --stack ruby` принимается. Stack-scoped gates (pytest, go-test и т.д.) автоматически НЕ применяются к custom стэкам — для них нужно зарегистрировать custom gate в `gates` секции `config.json`. Universal gates (filesize, class_surface, tdd_order) работают для всех стэков. `tausik stack list` показывает custom стэки с пометкой `(custom)`.
 
 Гайды в `harness/stacks/{stack}.md`.
 

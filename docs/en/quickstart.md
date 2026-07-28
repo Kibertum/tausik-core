@@ -238,6 +238,39 @@ Two or three messages per task. Everything else — automatic.
 
 ---
 
+## Working With a Team
+
+`.tausik/` is gitignored — the database is yours. What your teammates need is
+the project's *knowledge*, and that travels in git as text: tasks, decisions
+and memory are exported to a readable `tausik/` tree that you commit alongside
+the code.
+
+```bash
+tausik state export      # DB → tausik/ (runs automatically on task close)
+git add tausik/ && git commit
+```
+
+After pulling someone else's work, bring it into your database:
+
+```bash
+git pull
+tausik sync              # tausik/ → DB, files win
+```
+
+A teammate who clones the repository gets the project's history rather than an
+empty database, and no external store has to exist for that to work.
+
+`tausik status` tells you when the tree and the database disagree. It reports
+the counts and names both directions — `tausik sync` (tree → DB) and
+`tausik state export` (DB → tree) — without recommending either, because the
+counts prove the two sides *differ*, not which one is newer. Rows the tree has
+and the database lacks are the one unambiguous signal, and that is what you see
+after a `git pull`.
+
+**[Full round-trip contract →](team-state-in-git.md)**
+
+---
+
 ## Troubleshooting
 
 **"command not found: .tausik/tausik"**

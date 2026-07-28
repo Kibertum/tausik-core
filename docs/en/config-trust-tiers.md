@@ -72,6 +72,19 @@ Deliberately outside the perimeter (decision #137):
   (generated directories, research dumps) are project-specific by nature and
   have no sensible home in a per-machine user tier. Handled separately in
   `l26-filesize-gate-revisit`.
+
+  Since `filesize-mro-exempt-mcp` this narrowing arrives from TWO sources, and
+  both matter here: the gitignored project-scope `config.json` (as before) and
+  the **committed** `tausik/gates.json`, read by
+  `gate_filesize._resolve_exempt_files`. The second travels with the branch, so
+  it survives a fresh clone and shows up in code review — which strengthens the
+  conclusion above rather than weakening it. Two mechanics are worth knowing
+  before editing exemptions: (1) the committed config is UNIONED over the
+  hardcoded defaults, so an exemption can be added there but never removed —
+  retiring one takes a deliberate source edit; (2) the search for
+  `tausik/gates.json` stops at the `.git` boundary, so an unrelated ancestor's
+  file (a monorepo parent, a leftover clone) cannot silently widen what bypasses
+  the cap for THIS project.
 - `verify_cache_ttl_seconds` — a parameter, not a switch. The real freshness
   control is `files_hash`: the cache is invalidated when files change, and
   different tasks have different `relevant_files` and therefore different

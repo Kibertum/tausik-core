@@ -80,7 +80,7 @@ _UNIVERSAL_GATES_BEFORE = {
         "trigger": ["task-done", "commit"],
         "command": None,
         "description": "Warn if files exceed max_lines threshold",
-        "max_lines": 400,
+        "max_lines": 500,  # interim cap raised 400→500 (decision #190)
     },
     "bandit": {
         "enabled": False,
@@ -143,7 +143,7 @@ class TestDerivedMetadata:
         first["filesize"]["max_lines"] = 1
         first["ruff"]["trigger"].append("review")
         second = reg.defaults_for_phase(reg.PHASE_SCOPED)
-        assert second["filesize"]["max_lines"] == 400
+        assert second["filesize"]["max_lines"] == 500
         assert second["ruff"]["trigger"] == ["commit"]
 
     def test_every_spec_impl_resolves(self):

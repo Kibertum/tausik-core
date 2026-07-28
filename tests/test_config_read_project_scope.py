@@ -110,7 +110,7 @@ class TestHandlerThreadsSvcDir:
             os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"
         )
         sys.path.insert(0, mcp_dir)
-        from handlers import _handle_gates_status
+        from handlers_verification import _handle_gates_status
 
         td = _write_project_config(
             tmp_path, {"bootstrap": {"stacks": [MARKER]}, "gates": {"mypy": {"enabled": True}}}

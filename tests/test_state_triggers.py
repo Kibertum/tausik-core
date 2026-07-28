@@ -174,5 +174,49 @@ def test_import_suggested_flags_divergence(monkeypatch, tmp_path):
     try:
         sug = state_triggers.import_suggested(fresh)  # empty DB, populated tree
         assert sug is not None and sug["added"] > 0
+        # the tree genuinely holds rows the DB has none of — the ONE direction the
+        # counts do establish
+        assert sug["direction"] == "tree-has-rows-db-lacks"
     finally:
         fresh.be.close()
+
+
+def test_stale_tree_is_not_reported_as_carrying_new_state(svc, enabled_root):
+    """AC-10: the tree being BEHIND must not read as the tree being AHEAD.
+
+    Divergence proves the two sides differ, never which is newer. Here the DB is
+    newer (the projection predates a status change), so calling this "files carry
+    state the DB does not" — and suggesting `tausik sync` on it — would revert a
+    closed task back to planning.
+    """
+    from state_export import ENTITY_DIRS
+    from state_serialize import write_tree
+
+    _seed(svc)
+    tree, _ = build_tree(svc)
+    write_tree(enabled_root, tree, managed_dirs=set(ENTITY_DIRS))
+    svc.be.task_update("exp", status="done")  # DB moves on; projection does not
+
+    sug = state_triggers.import_suggested(svc)
+    assert sug is not None, "a real divergence must still be reported"
+    assert sug["updated"] > 0
+    assert sug["added"] == 0 and sug["journal"] == 0 and sug["edges"] == 0
+    assert sug["direction"] == "field-divergence-only"
+    # and the guidance must not name sync as the unconditional resolution
+    assert "tausik state export" in sug["resolve"]
+
+
+def test_prewarm_is_safe_without_a_tree(svc, monkeypatch):
+    """A warm-up must never matter: no tree → False, no raise."""
+    monkeypatch.setattr(state_triggers, "_tree_root", lambda _svc: None)
+    assert state_triggers.prewarm(svc) is False
+
+
+def test_prewarm_reads_the_tree_when_present(svc, enabled_root):
+    from state_export import ENTITY_DIRS
+    from state_serialize import write_tree
+
+    _seed(svc)
+    tree, _ = build_tree(svc)
+    write_tree(enabled_root, tree, managed_dirs=set(ENTITY_DIRS))
+    assert state_triggers.prewarm(svc) is True

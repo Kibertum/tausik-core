@@ -135,6 +135,51 @@ class TestParseTranscriptModelHandling:
         assert result["cost_usd"] == 0.0
 
 
+class TestParseTranscriptCompactionBilling:
+    """AC4 (l26-tokenizer-calibration): server-side compaction billed under
+    usage.iterations must be counted, not dropped by a top-level-only sum.
+    """
+
+    def test_iterations_are_added_to_top_level_tokens(self, tmp_path):
+        sm = _import_module()
+        path = _write_transcript(
+            tmp_path,
+            [
+                {
+                    "type": "assistant",
+                    "model": "claude-opus-4-8",
+                    "usage": {
+                        "input_tokens": 1000,
+                        "output_tokens": 500,
+                        # Separately-billed compaction pass — omitted from the
+                        # top-level counts; a naive sum would report 1000/500.
+                        "iterations": [{"input_tokens": 300, "output_tokens": 100}],
+                    },
+                }
+            ],
+        )
+        m = sm.parse_transcript(path)
+        assert m["tokens_input"] == 1300
+        assert m["tokens_output"] == 600
+        assert m["tokens_total"] == 1900
+
+    def test_no_iterations_unchanged(self, tmp_path):
+        """Regression guard: a plain usage block still sums exactly as before."""
+        sm = _import_module()
+        path = _write_transcript(
+            tmp_path,
+            [
+                {
+                    "type": "assistant",
+                    "model": "claude-opus-4-8",
+                    "usage": {"input_tokens": 1000, "output_tokens": 500},
+                }
+            ],
+        )
+        m = sm.parse_transcript(path)
+        assert (m["tokens_input"], m["tokens_output"]) == (1000, 500)
+
+
 class TestParseTranscriptViaCLI:
     """End-to-end smoke through the CLI entrypoint — exercises the real path."""
 

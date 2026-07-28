@@ -102,6 +102,17 @@ tausik task show v14c-token-budget-task
 
 ## Limitations
 
+- **`tausik metrics tokens` does not attribute cost per tool, and says so before
+  it shows you anything.** API usage is reported per *message*, not per tool
+  call — the capture hook states this about itself. What reaches
+  `.tausik/token_metrics.jsonl` is a message-level figure stamped onto whichever
+  tool happened to run, so `in_p50` and `in_p90` come out near-identical for
+  every tool, `in_total` tracks the call count, and summing `cache_read`
+  re-counts one cached conversation on every call. Read the table as **call
+  volume**, which it measures honestly. Attributing spend per tool needs a
+  transcript-level parser that does not exist yet. This is also why the
+  sub-agent token question was never answerable: `Agent` invocations record ~2
+  input tokens, so a sub-agent's own consumption is invisible here.
 - Token counts only land when the harness actually exposes `tool_response.usage`. Claude Code currently emits this for some tools but not all; rows without usage still get written with `tokens=0` so the call count is preserved.
 - Multi-active-task projects (rare) lose per-task attribution — `task_slug` is `NULL` and the event survives in `metrics cost --no-task-only` style queries (TODO).
 - Migration v24 rebuilds `usage_events` via a temp table to extend the `source` CHECK and add `tool_name`. Existing rows survive but back-fill `tool_name=NULL`.

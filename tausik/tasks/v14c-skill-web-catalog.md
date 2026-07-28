@@ -2,8 +2,8 @@
 slug: v14c-skill-web-catalog
 title: "C3: Web каталог скиллов (static GH Pages)"
 status: planning
-epic: landscape-2026-h2
-story: l26-ecosystem
+epic: vscode-extension
+story: ext-program
 complexity: null
 role: developer
 stack: python

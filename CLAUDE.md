@@ -26,7 +26,7 @@ Stack: Python 3.11+ stdlib | CLI `.tausik/tausik` | DB SQLite+FTS5 | Tests pytes
 - **Исходники в корне** (`scripts/`, `docs/`, `harness/`, `bootstrap/`). Не редактируй `.claude/` напрямую.
 - **MCP-first.** MCP > CLI когда equivalent.
 - **Git: спроси перед commit/push.**
-- **Макс. 400 строк/файл.** Filesize gate. Исключения: тесты, generated.
+- **Макс. 500 строк/файл.** Filesize gate (промежуточный лимит, decision #190). Исключения: тесты, generated.
 - **Непрерывное журналирование.** `task log <slug> "msg"` после каждого шага.
 - **Документируй dead ends.** `tausik dead-end "approach" "reason"`.
 - **Checkpoint каждые 30-50 tool calls.** `/checkpoint`, `/end`.
@@ -65,6 +65,6 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: none | Branch: release/1.8-batch-s126 | Version: 1.7.0
-Tasks: 1122/1175 done, 0 active, 0 blocked
+Session: #151 (active) | Branch: release/1.8-batch-s126 | Version: 1.7.0
+Tasks: 1147/1194 done, 0 active, 0 blocked
 <!-- DYNAMIC:END -->

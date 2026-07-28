@@ -133,7 +133,7 @@ class TestMemoryBlockMcp:
             0,
             os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"),
         )
-        from handlers import _do_memory_block
+        from handlers_knowledge import _do_memory_block
 
         result = _do_memory_block(svc, {})
         assert "MCP handler test" in result
@@ -144,7 +144,7 @@ class TestMemoryBlockMcp:
             0,
             os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"),
         )
-        from handlers import _do_memory_block
+        from handlers_knowledge import _do_memory_block
 
         result = _do_memory_block(svc, {})
         assert "empty" in result.lower()

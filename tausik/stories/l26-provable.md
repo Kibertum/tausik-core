@@ -1,7 +1,7 @@
 ---
 slug: l26-provable
 title: "Доказуемость: телеметрия гейтов, обходов, escape rate"
-status: active
+status: done
 epic: landscape-2026-h2
 ---
 

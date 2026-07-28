@@ -12,10 +12,26 @@ from pathlib import Path
 
 
 def count_rag_tool_defs(repo_root: Path) -> int:
-    """Count ``Tool(`` definitions in codebase-rag ``server.py``."""
-    rag_server = repo_root / "harness" / "claude" / "mcp" / "codebase-rag" / "server.py"
-    text = rag_server.read_text(encoding="utf-8")
-    return len(re.findall(r"^\s+Tool\(", text, re.MULTILINE))
+    """Count ``Tool(`` definitions across the whole codebase-rag package.
+
+    Scans the PACKAGE, not one named file. The schemas used to live in
+    ``server.py`` and moved to ``rag_tools.py`` when that module was split by
+    domain; a counter pinned to a filename answers 0 the moment a declaration
+    is relocated, and then the doc-count test demands the docs be edited to
+    match a number that is simply wrong. Counting the directory makes the
+    count survive any further reshuffle inside the package, which is the whole
+    reason the package exists.
+
+    Regex rather than importing the module: the schemas are ``mcp.types.Tool``
+    instances, and doc generation must not require the ``mcp`` package to be
+    installed. ``project``/``brain`` can use ``len(TOOLS)`` because their tables
+    are plain data.
+    """
+    pkg = repo_root / "harness" / "claude" / "mcp" / "codebase-rag"
+    total = 0
+    for path in sorted(pkg.glob("*.py")):
+        total += len(re.findall(r"^\s+Tool\(", path.read_text(encoding="utf-8"), re.MULTILINE))
+    return total
 
 
 def count_mcp_tool_totals(repo_root: Path) -> tuple[int, int, int]:

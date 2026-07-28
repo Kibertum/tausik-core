@@ -25,7 +25,9 @@ import json
 import os
 from typing import TYPE_CHECKING, Any
 
+from state_export import _dedup_preserve, _json_list  # emitter's own list canonicalizers
 from state_parse import ParseError, parse_frontmatter, parse_journal, parse_sections, split_file
+from state_serialize import flatten_line, normalize_body, normalize_ts
 from tausik_utils import utcnow_iso
 
 if TYPE_CHECKING:
@@ -35,9 +37,92 @@ ENTITY_DIRS = ("epics", "stories", "tasks", "decisions", "memory")
 TASK_SECTIONS = ["Goal", "Acceptance Criteria", "Plan", "Rollback", "Journal"]
 
 
+class _Absent:
+    """The file did not declare this key AT ALL — distinct from declaring it empty.
+
+    `fm.get(key)` collapses both into None, which made an omitted key read as a
+    request to clear the column: a projection written before a field was set would
+    silently revert the DB on the next `sync`. Columns carrying this sentinel are
+    dropped from the delta entirely — never compared, never written. An EXPLICIT
+    empty value (`key: []`, `key: null`) is untouched and still clears, so the
+    git-wins policy holds for divergence while absence stops being a command.
+    """
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:  # pragma: no cover — debugging aid
+        return "ABSENT"
+
+
+ABSENT = _Absent()
+
+
+def _fm(fm: dict, key: str) -> Any:
+    """A frontmatter scalar, or ABSENT when the file never mentions the key."""
+    return fm[key] if key in fm else ABSENT
+
+
 def _json_or_none(value: Any) -> str | None:
     """A parsed list → its canonical JSON, or None for empty (undeclared)."""
     return json.dumps(value, ensure_ascii=False) if value else None
+
+
+def _fm_list(fm: dict, key: str) -> Any:
+    """`_json_or_none` for a frontmatter list, preserving the ABSENT distinction."""
+    return _json_or_none(fm[key]) if key in fm else ABSENT
+
+
+# --- canonical comparison space ----------------------------------------------
+#
+# The projection is a LOSSY, CANONICALIZING view: the emitter sorts memory tags,
+# dedups task path lists, reformats timestamps to the `Z` form and flattens
+# multi-line journal messages onto one line. Comparing a raw DB value against an
+# already-canonical file value therefore reports the canonicalization ITSELF as a
+# change — which is how `sync` came to want 336 phantom row rewrites and 437
+# truncated duplicate journal lines on this repo. The detector has to speak the
+# dialect the file is written in, so both sides are pushed through the emitter's
+# OWN helpers (imported, never re-implemented, so the two cannot drift apart).
+#
+# This governs comparison only. What gets WRITTEN on a real divergence is still
+# the file's value: git wins, unchanged.
+
+_SORTED_LIST_COLS = frozenset({"tags"})  # _memory_doc: sorted()
+_ORDERED_LIST_COLS = frozenset({"relevant_files", "scope_paths", "scope_tools"})  # _dedup_preserve
+_TS_COLS = frozenset({"completed_at"})  # normalize_ts
+_PROSE_COLS = frozenset(  # render_file/section → normalize_body
+    {
+        "goal",
+        "plan",
+        "acceptance_criteria",
+        "rollback_plan",
+        "description",
+        "content",
+        "decision",
+        "rationale",
+    }
+)
+
+
+def _canon(col: str, value: Any) -> Any:
+    """The value as the emitter would have written it — for COMPARISON only."""
+    if col in _SORTED_LIST_COLS:
+        return json.dumps(sorted(_json_list(value)), ensure_ascii=False)
+    if col in _ORDERED_LIST_COLS:
+        return json.dumps(_dedup_preserve(_json_list(value)), ensure_ascii=False)
+    if col in _TS_COLS:
+        return normalize_ts(value)
+    if col in _PROSE_COLS:
+        return normalize_body(value)
+    return value
+
+
+def _journal_key(row: dict) -> tuple[str, str, str | None]:
+    """Multiset key for one journal line, in the emitter's canonical dialect."""
+    return (
+        normalize_ts(row.get("created_at")) or "",
+        flatten_line(row.get("message")),
+        (row.get("phase") or "").strip() or None,
+    )
 
 
 def _require_slug(fm: dict, rel: str) -> str:
@@ -88,8 +173,8 @@ def parse_tree(tree: dict[str, str]) -> dict[str, list[dict]]:
 
 def _epic_cols(rec: dict) -> dict:
     return {
-        "title": rec["fm"].get("title"),
-        "status": rec["fm"].get("status"),
+        "title": _fm(rec["fm"], "title"),
+        "status": _fm(rec["fm"], "status"),
         "description": rec["body"] or None,
     }
 
@@ -97,8 +182,8 @@ def _epic_cols(rec: dict) -> dict:
 def _story_cols(rec: dict, epic_id: int | None) -> dict:
     return {
         "epic_id": epic_id,
-        "title": rec["fm"].get("title"),
-        "status": rec["fm"].get("status"),
+        "title": _fm(rec["fm"], "title"),
+        "status": _fm(rec["fm"], "status"),
         "description": rec["body"] or None,
     }
 
@@ -107,24 +192,24 @@ def _task_cols(rec: dict, story_id: int | None) -> dict:
     fm, secs = rec["fm"], parse_sections(rec["body"], TASK_SECTIONS)
     return {
         "story_id": story_id,
-        "title": fm.get("title"),
-        "status": fm.get("status"),
-        "stack": fm.get("stack"),
-        "complexity": fm.get("complexity"),
-        "role": fm.get("role"),
-        "tier": fm.get("tier"),
+        "title": _fm(fm, "title"),
+        "status": _fm(fm, "status"),
+        "stack": _fm(fm, "stack"),
+        "complexity": _fm(fm, "complexity"),
+        "role": _fm(fm, "role"),
+        "tier": _fm(fm, "tier"),
         "goal": secs["Goal"] or None,
         "plan": secs["Plan"] or None,
         "acceptance_criteria": secs["Acceptance Criteria"] or None,
         "rollback_plan": secs["Rollback"] or None,
-        "scope": fm.get("scope"),
-        "scope_exclude": fm.get("scope_exclude"),
-        "scope_paths": _json_or_none(fm.get("scope_paths")),
-        "scope_tools": _json_or_none(fm.get("scope_tools")),
-        "relevant_files": _json_or_none(fm.get("relevant_files")),
-        "defect_of": fm.get("defect_of"),
-        "call_budget": fm.get("call_budget"),
-        "completed_at": fm.get("completed_at"),
+        "scope": _fm(fm, "scope"),
+        "scope_exclude": _fm(fm, "scope_exclude"),
+        "scope_paths": _fm_list(fm, "scope_paths"),
+        "scope_tools": _fm_list(fm, "scope_tools"),
+        "relevant_files": _fm_list(fm, "relevant_files"),
+        "defect_of": _fm(fm, "defect_of"),
+        "call_budget": _fm(fm, "call_budget"),
+        "completed_at": _fm(fm, "completed_at"),
     }
 
 
@@ -132,7 +217,7 @@ def _decision_cols(rec: dict) -> dict:
     secs = parse_sections(rec["body"], ["Decision", "Rationale"])
     return {
         "decision": secs["Decision"] or "",
-        "task_slug": rec["fm"].get("task"),
+        "task_slug": _fm(rec["fm"], "task"),
         "rationale": secs["Rationale"] or None,
     }
 
@@ -140,11 +225,11 @@ def _decision_cols(rec: dict) -> dict:
 def _memory_cols(rec: dict) -> dict:
     fm = rec["fm"]
     return {
-        "type": fm.get("type"),
-        "title": fm.get("title"),
+        "type": _fm(fm, "type"),
+        "title": _fm(fm, "title"),
         "content": rec["body"] or "",
-        "tags": _json_or_none(fm.get("tags")),
-        "task_slug": fm.get("task"),
+        "tags": _fm_list(fm, "tags"),
+        "task_slug": _fm(fm, "task"),
     }
 
 
@@ -168,7 +253,14 @@ class _Applier:
         self, table: str, slug: str, cols: dict, current: dict | None, insert_extra: dict
     ) -> int | None:
         """INSERT (with insert_extra: slug + synthesized created_at/…) or UPDATE the
-        changed durable columns. Returns the row id (queried) for FK/edge wiring."""
+        changed durable columns. Returns the row id (queried) for FK/edge wiring.
+
+        Columns the file never declared (ABSENT) are dropped before anything else:
+        an omitted key is not a request to clear the column. What remains is
+        compared in the emitter's canonical space (`_canon`) so the projection's
+        own normalization never reads as a change — but written verbatim, so a
+        genuine divergence still resolves file-wins."""
+        cols = {c: v for c, v in cols.items() if v is not ABSENT}
         if current is None:
             allcols = {**cols, **insert_extra, "slug": slug}
             self.report["added"].append(f"{table}/{slug}")
@@ -179,7 +271,7 @@ class _Applier:
                     tuple(allcols.values()),
                 )
         else:
-            changed = {c: v for c, v in cols.items() if current.get(c) != v}
+            changed = {c: v for c, v in cols.items() if _canon(c, current.get(c)) != _canon(c, v)}
             if changed:
                 self.report["updated"].append(f"{table}/{slug}")
                 if not self.dry:
@@ -194,25 +286,35 @@ class _Applier:
     def journal(self, task_slug: str, rows: list[dict], now: str) -> None:
         """Reconcile the journal to the file as a MULTISET (append-only).
 
-        Keyed on (created_at, message, phase) with COUNTS, not mere presence: the
-        DB must end with exactly as many copies of each line as the file has, so a
-        task with two genuinely-identical log rows round-trips both — while a
-        re-import (counts already equal) still adds nothing (idempotent)."""
+        Keyed with COUNTS, not mere presence: the DB must end with exactly as many
+        copies of each line as the file has, so a task with two genuinely-identical
+        log rows round-trips both — while a re-import (counts already equal) still
+        adds nothing (idempotent).
+
+        The key is the emitter's CANONICAL form (`_journal_key`), not the raw text.
+        `_journal_section` flattens a multi-line message onto one line by design —
+        a journal entry must stay one line so two branches merge as added lines —
+        so a raw comparison never matches a multi-line DB row and would append a
+        flattened duplicate of it on every single sync. Canonical keying makes the
+        multiset comparable; the row still INSERTs verbatim from the file."""
         from collections import Counter
 
         cur = self.conn.execute(
             "SELECT created_at, message, phase FROM task_logs WHERE task_slug=?", (task_slug,)
         )
-        db_counts = Counter((r["created_at"], r["message"], r["phase"]) for r in cur.fetchall())
-        file_counts = Counter((r["created_at"], r["message"], r["phase"]) for r in rows)
-        for (created_at, message, phase), want in file_counts.items():
-            for _ in range(want - db_counts.get((created_at, message, phase), 0)):
+        db_counts = Counter(_journal_key(dict(r)) for r in cur.fetchall())
+        file_rows: dict[tuple, list[dict]] = {}
+        for row in rows:
+            file_rows.setdefault(_journal_key(row), []).append(row)
+        for key, group in file_rows.items():
+            for row in group[: max(0, len(group) - db_counts.get(key, 0))]:
+                message = row.get("message") or ""
                 self.report["journal"].append(f"{task_slug}: {message[:40]}")
                 if not self.dry:
                     self.conn.execute(
                         "INSERT INTO task_logs(task_slug, message, phase, created_at) "
                         "VALUES(?,?,?,?)",
-                        (task_slug, message, phase, created_at or now),
+                        (task_slug, message, row.get("phase"), row.get("created_at") or now),
                     )
 
     def edge(

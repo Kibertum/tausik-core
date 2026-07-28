@@ -67,9 +67,10 @@ def main():
     args = parser.parse_args()
 
     # Pin cwd to --project so handlers that resolve paths relative to cwd
-    # (e.g. _project_dir() in handlers.py, cq_client config lookup) read the
-    # right project regardless of the host's launch directory. Mirrors
-    # tausik-brain server.py behavior — keeps the two MCP servers symmetric.
+    # (_project_dir() in handlers_skill.py, the config lookup in handlers_cq.py,
+    # the user-override path in handlers_stack.py) read the right project
+    # regardless of the host's launch directory. Mirrors tausik-brain
+    # server.py behavior — keeps the two MCP servers symmetric.
     if not os.path.isdir(args.project):
         print(
             f"Error: --project {args.project!r} is not a directory.",
@@ -98,6 +99,18 @@ def main():
 
     server = Server("tausik-project")
     svc = _get_service(args.project)
+
+    # state-roundtrip-regression-sync-corrupts: warm the git-native projection off
+    # the request path. session_open's `sync_suggested` section is watchdog-bounded,
+    # and its FIRST call is the only one /start ever makes — cold module import plus
+    # a cold read of the whole tree overran that budget every session, so the signal
+    # was permanently invisible. Daemon thread: nothing waits on it, and it only
+    # warms I/O (no memoized verdict — that would go stale on the next DB write).
+    import threading
+
+    from state_triggers import prewarm
+
+    threading.Thread(target=prewarm, args=(svc,), name="state-prewarm", daemon=True).start()
 
     # mcp-scope-tools-exposure: expose only the tools the active task's
     # scope_tools ACL allows (∪ always-safe-core). Fail-open by construction —

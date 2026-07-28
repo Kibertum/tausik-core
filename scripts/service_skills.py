@@ -191,6 +191,19 @@ class SkillsMixin:
         # path copied hooks and plugin manifests straight into the tree.
         from skill_manager import skill_tree_ignore
 
+        # review s146 (finding C1): activate must run the SAME invisible-Unicode
+        # content scan as install (`copy_skill`). The signature check above proves
+        # WHO shipped the skill, not WHAT is hidden in its prose; without this,
+        # `tausik skill activate` was a fully-signature-checked but content-
+        # UNSCANNED path into the activated tree — the install/activate drift the
+        # skill_tree_ignore docstring warns about, recurring.
+        from skill_content_scan import SkillContentScanError, assert_skill_tree_clean
+
+        try:
+            assert_skill_tree_clean(source, name)
+        except SkillContentScanError as e:
+            raise ServiceError(str(e)) from e
+
         if os.path.exists(dst):
             shutil.rmtree(dst)
         shutil.copytree(source, dst, ignore=skill_tree_ignore, symlinks=False)

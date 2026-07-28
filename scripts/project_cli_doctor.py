@@ -198,6 +198,26 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
         _print_warn("caveman interop", f"could not validate: {e}")
         warnings += 1
 
+    # Backlog hygiene — open tasks no epic can reach. The release boundary is a
+    # mechanical "everything in epic X", so such a task is silently absent from
+    # every scope count. Warn, never fail: a standalone task is legitimate.
+    # Deferred AC — a criterion parked at closure inside work still in flight.
+    # Scoped to open epics so the signal stays clearable; a warning that names
+    # long-shipped history is one a reader learns to skip.
+    try:
+        from service_doctor_backlog import check_backlog_hygiene, check_deferred_acs
+
+        for check in (check_backlog_hygiene, check_deferred_acs):
+            for severity, label, detail in check(svc):
+                if severity == "warn":
+                    _print_warn(label, detail)
+                    warnings += 1
+                else:
+                    _print_ok(label, detail)
+    except Exception as e:  # noqa: BLE001 — best-effort: a check bug must not crash doctor
+        _print_warn("Backlog hygiene", f"could not validate: {e}")
+        warnings += 1
+
     skills_dir = os.path.join(project_dir, ide_rel, "skills")
     if os.path.isdir(skills_dir):
         skills = [d for d in os.listdir(skills_dir) if os.path.isdir(os.path.join(skills_dir, d))]
@@ -249,23 +269,12 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
     else:
         _print_ok("Bootstrap drift", "none — deployed scripts match source")
 
-    md_drift = _check_claudemd_drift(project_dir)
-    if md_drift is None:
-        _print_warn(
-            "CLAUDE.md drift",
-            "could not compare CLAUDE.md vs bootstrap_templates output",
-        )
-        warnings += 1
-    elif md_drift:
-        _print_warn(
-            "CLAUDE.md drift",
-            f"{md_drift} static section(s) differ from bootstrap template "
-            "(likely project customisation; re-run bootstrap to reset). "
-            "`tausik update-claudemd` only refreshes the DYNAMIC block.",
-        )
+    md_is_warn, md_detail = _format_claudemd_drift_line(_claudemd_drift_report(project_dir))
+    if md_is_warn:
+        _print_warn("CLAUDE.md drift", md_detail)
         warnings += 1
     else:
-        _print_ok("CLAUDE.md drift", "none — static sections match bootstrap_templates")
+        _print_ok("CLAUDE.md drift", md_detail)
 
     try:
         from project_config import (
@@ -279,6 +288,11 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
 
         cfg, trust_rejections = load_config_with_rejections()
         cap = cfg.get("session_capacity_calls", DEFAULT_SESSION_CAPACITY_CALLS)
+        # DELIBERATELY the configured base, not the extended limit `tausik status`
+        # shows. This line reports CONFIGURATION, not the state of whichever
+        # session happens to be open — a `session extend` is a fact about one
+        # session, and folding it in here would make doctor describe a knob nobody
+        # set. The divergence from `status` is intended; do not "fix" it.
         max_min = cfg.get("session_max_minutes", DEFAULT_SESSION_MAX_MINUTES)
         warn_th = cfg.get("session_warn_threshold_minutes", DEFAULT_SESSION_WARN_THRESHOLD_MINUTES)
         idle_th = cfg.get("session_idle_threshold_minutes", DEFAULT_SESSION_IDLE_THRESHOLD_MINUTES)
@@ -389,7 +403,8 @@ def _print_fail(label: str, detail: str) -> None:
 from service_doctor_drift import (  # noqa: E402,F401
     check_claudemd_drift as _check_claudemd_drift,
     check_scripts_drift as _check_scripts_drift,
-    is_trimmed_baseline as _is_trimmed_baseline,
+    claudemd_drift_report as _claudemd_drift_report,
+    format_claudemd_drift_line as _format_claudemd_drift_line,
     scripts_drift_names as _scripts_drift_names,
 )
 

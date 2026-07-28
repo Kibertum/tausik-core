@@ -95,8 +95,30 @@ def build_status_view(
     max_min = cfg.get("session_max_minutes", DEFAULT_SESSION_MAX_MINUTES)
     cap = cfg.get("session_capacity_calls", DEFAULT_SESSION_CAPACITY_CALLS)
 
-    duration_warning = svc.session_check_duration(max_min)
     session = data.get("session")
+
+    # Report the limit this session is ACTUALLY held to, not the configured base.
+    # `session extend` records its new limit as an event; the Rule 9.2 warning
+    # resolved it that way, the DISPLAY did not — so a user who extended to 300
+    # kept reading "61m / 180m" while the threshold that actually fires used 300.
+    # Same number, two formulas.
+    #
+    # Resolved ONCE here and handed to the warning, rather than each side
+    # resolving it for itself: `effective_session_limit` scans the session's
+    # events, and this function runs on the compact hot path behind `/start`,
+    # where a duplicate scan is exactly the kind of cost this codebase keeps
+    # taking back out.
+    effective_max = max_min
+    if session:
+        try:
+            from service_session_metrics import effective_session_limit
+
+            effective_max = effective_session_limit(svc.be, session["id"], max_min)
+        except Exception:  # noqa: BLE001 — never fail status on limit resolution
+            effective_max = max_min
+    data["session_max_minutes"] = effective_max
+
+    duration_warning = svc.session_check_duration(max_min, effective_limit=effective_max)
 
     # Session active/wall minutes (SENAR Rule 9.2 metric is active; wall is
     # informational). Enrich `data` so the compact JSON carries them too.
@@ -111,7 +133,6 @@ def build_status_view(
         data["active_minutes"] = active_min
         data["active_seconds"] = active_sec
         data["wall_minutes"] = wall_min
-    data["session_max_minutes"] = max_min
 
     # SENAR 5.1 open exploration + 9.5 audit overdue — enrich `data` so the
     # compact path emits them (previously only the MCP handler did this, so the
@@ -138,7 +159,7 @@ def build_status_view(
         return {
             "data": data,
             "verbose": verbose,
-            "max_min": max_min,
+            "max_min": effective_max,
             "duration_warning": duration_warning,
             "session_metrics": (
                 {"active_min": active_min, "wall_min": wall_min, "active_sec": active_sec}
@@ -196,7 +217,11 @@ def build_status_view(
     return {
         "data": data,
         "verbose": verbose,
-        "max_min": max_min,
+        # The EFFECTIVE limit, same as `data["session_max_minutes"]` above — the
+        # text renderer prints this one, and printing the base here while the
+        # compact JSON carried the effective value would just move the
+        # contradiction rather than fix it.
+        "max_min": effective_max,
         "duration_warning": duration_warning,
         "session_metrics": (
             {"active_min": active_min, "wall_min": wall_min, "active_sec": active_sec}
