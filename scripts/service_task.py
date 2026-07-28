@@ -41,6 +41,21 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
 
     be: SQLiteBackend
 
+    def _project_task(self, slug: str) -> None:
+        """Re-serialize ONE task to `tausik/`. Fail-open — never raises.
+
+        Called from every task mutator. Only `task_done` used to export, so a
+        task created, re-specced, started, blocked or journalled on a branch did
+        not travel with it; the tree only caught up on the next full
+        `tausik state export`, which is why `status` reported no divergence.
+        Claim/unclaim are deliberately absent: `claimed_by` is not one of the
+        columns `state_export.export_one` serializes, so they cannot change the
+        projection.
+        """
+        from state_triggers import auto_export_entity
+
+        auto_export_entity(cast("ProjectService", self), "tasks", slug)
+
     def task_add(
         self,
         story_slug: str | None,
@@ -90,6 +105,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             self.be.task_set_cost_budget(slug, float(cost_budget_usd))
         if token_budget is not None:
             self.be.task_set_token_budget(slug, int(token_budget))
+        self._project_task(slug)
         msg = f"Task '{slug}' created."
         if not goal or not goal.strip():
             msg += "\n⚠ QG-0 warning: missing goal."
@@ -154,6 +170,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         except Exception:
             self.be.rollback_tx()
             raise
+        self._project_task(slug)
         msgs = [f"Task '{slug}' started (attempt #{updates['attempts']})."]
         msgs.extend(qg0_warnings)
         if capacity_audit:
@@ -227,6 +244,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         self.be.task_update(slug, **updates)
         if reason:
             self.be.task_append_notes(slug, f"BLOCKED: {reason}")
+        self._project_task(slug)
         return f"Task '{slug}' blocked."
 
     def task_unblock(self, slug: str, *, force: bool = False) -> str:
@@ -238,6 +256,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         if not force:
             check_session_capacity(self.be, slug, task)
         self.be.task_update(slug, status="active", blocked_at=None)
+        self._project_task(slug)
         return f"Task '{slug}' unblocked."
 
     def task_review(self, slug: str) -> str:
@@ -245,6 +264,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         if task["status"] == "done":
             raise ServiceError(f"Cannot move '{slug}' to review — task is already done")
         self.be.task_update(slug, status="review")
+        self._project_task(slug)
         return f"Task '{slug}' moved to review."
 
     def task_update(self, slug: str, **fields: Any) -> str:
@@ -273,7 +293,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             if tier is not None:
                 notice = f"\nNote: tier '{tier}' overridden by call_budget."
             if not fields:
-                return f"Task '{slug}' updated.{notice}"
+                return self._task_updated(slug, notice)
         cost_b = fields.pop("cost_budget_usd", _MISSING)
         if cost_b is not _MISSING and cost_b is not None:
             try:
@@ -286,7 +306,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
                 raise ServiceError(f"Invalid cost_budget_usd '{cost_b}'; must be >=0")
             self.be.task_set_cost_budget(slug, cost_val)
             if not fields:
-                return f"Task '{slug}' updated.{notice}"
+                return self._task_updated(slug, notice)
         tok_b = fields.pop("token_budget", _MISSING)
         if tok_b is not _MISSING and tok_b is not None:
             try:
@@ -299,7 +319,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
                 raise ServiceError(f"Invalid token_budget '{tok_b}'; must be >=0")
             self.be.task_set_token_budget(slug, tok_val)
             if not fields:
-                return f"Task '{slug}' updated.{notice}"
+                return self._task_updated(slug, notice)
         from scope_acl import ACL_FIELDS, normalize_acl_json
 
         for f in ACL_FIELDS:
@@ -314,7 +334,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             if fields.get(f) is not None:
                 fields[f] = safe_single_line(fields[f]) or fields[f]
         self.be.task_update(slug, **fields)
-        return f"Task '{slug}' updated.{notice}"
+        return self._task_updated(slug, notice)
 
     def task_delete(self, slug: str) -> str:
         self._require_task(slug)
@@ -322,6 +342,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         from service_delegate import clear_delegation_state
 
         clear_delegation_state(self.be, slug)  # drop stale OW meta on slug reuse
+        self._project_task(slug)  # export_one -> None -> drops the file
         return f"Task '{slug}' deleted."
 
     def task_plan(self, slug: str, steps: list[str]) -> str:
@@ -333,6 +354,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         self._require_task(slug)
         plan_data = [{"step": s, "done": False} for s in steps]
         self.be.task_update(slug, plan=json.dumps(plan_data))
+        self._project_task(slug)
         return f"Plan set for '{slug}' ({len(steps)} steps)."
 
     def task_step(self, slug: str, step_num: int) -> str:
@@ -347,6 +369,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             raise ServiceError(f"Step {step_num} out of range (1-{len(steps)})")
         steps[step_num - 1]["done"] = True
         self.be.task_update(slug, plan=json.dumps(steps))
+        self._project_task(slug)
         done_count = sum(1 for s in steps if s.get("done"))
         return f"Step {step_num} done ({done_count}/{len(steps)})."
 
@@ -376,6 +399,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             }
             phase = status_to_phase.get(task["status"])
         self.be.task_log_add(slug, message, phase=phase, diff_stats=diff_stats)
+        self._project_task(slug)  # the journal is part of the task doc
         return f"Logged to '{slug}'."
 
     def task_logs(self, slug: str, phase: str | None = None) -> list[dict]:
@@ -395,6 +419,17 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         self._require_task(slug)
         story = self._require_story(new_story_slug)
         self.be.task_update(slug, story_id=story["id"])
+        self._project_task(slug)
         return f"Task '{slug}' moved to story '{new_story_slug}'."
 
     # _cascade_start, _cascade_done -> inherited from CascadeMixin (service_cascade.py)
+
+    def _task_updated(self, slug: str, notice: str) -> str:
+        """Single exit for `task_update`: project, then report.
+
+        The method has four return points (call_budget-only, cost-budget-only,
+        token-budget-only, and the general field write). Routing them through one
+        helper is why a fifth cannot silently skip the projection.
+        """
+        self._project_task(slug)
+        return f"Task '{slug}' updated.{notice}"

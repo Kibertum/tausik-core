@@ -9,6 +9,7 @@ serialization error must not break the underlying operation) and the disable fla
 from __future__ import annotations
 
 import os
+import shutil
 import sys
 
 import pytest
@@ -105,6 +106,11 @@ def test_auto_export_disabled_writes_nothing(svc, monkeypatch, tmp_path):
 def test_auto_export_writes_byte_identical_single_file(svc, enabled_root):
     _seed(svc)
     tree, _ = build_tree(svc)
+    # Seeding now projects as it goes (every mutator exports, not just three), so
+    # the tree is wiped here to isolate what THIS call writes. The claim under
+    # test is incrementality — one entity in, one file out — and that claim used
+    # to be read off a tree that was empty only because seeding did not export.
+    shutil.rmtree(enabled_root, ignore_errors=True)
     assert state_triggers.auto_export_entity(svc, "tasks", "exp") is True
     p = os.path.join(enabled_root, "tasks", "exp.md")
     with open(p, encoding="utf-8", newline="") as fh:

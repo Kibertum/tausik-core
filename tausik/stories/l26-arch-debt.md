@@ -1,7 +1,7 @@
 ---
 slug: l26-arch-debt
 title: "Архитектурный долг: filesize, dedupe, токенизатор, ревизия embeddings"
-status: active
+status: done
 epic: landscape-2026-h2
 ---
 

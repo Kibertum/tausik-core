@@ -27,13 +27,15 @@ from typing import TYPE_CHECKING, Any
 
 from state_export import _dedup_preserve, _json_list  # emitter's own list canonicalizers
 from state_parse import ParseError, parse_frontmatter, parse_journal, parse_sections, split_file
+from state_serialize import ENTITY_DIRS as _CANONICAL_ENTITY_DIRS
 from state_serialize import flatten_line, normalize_body, normalize_ts
 from tausik_utils import utcnow_iso
 
 if TYPE_CHECKING:
     from project_service import ProjectService
 
-ENTITY_DIRS = ("epics", "stories", "tasks", "decisions", "memory")
+# Re-exported for readers that walk the tree; declared in state_serialize.
+ENTITY_DIRS = _CANONICAL_ENTITY_DIRS
 TASK_SECTIONS = ["Goal", "Acceptance Criteria", "Plan", "Rollback", "Journal"]
 
 

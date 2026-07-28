@@ -1,9 +1,19 @@
 """Lifecycle triggers for the git-native projection (state-git-triggers).
 
-Ties export/import to the task lifecycle so the `tausik/` files track the DB
-without manual commands: a durable write (task done / decide / memory add)
-incrementally re-serializes JUST that entity, and session start detects a tree
-that diverged from the DB (after a `git pull`) and suggests `tausik sync`.
+Ties export/import to the lifecycle so the `tausik/` files track the DB without
+manual commands: a durable write incrementally re-serializes JUST the entity that
+changed, and session start detects a tree that diverged from the DB (after a
+`git pull`) and suggests `tausik sync`.
+
+"A durable write" means EVERY mutation of the five projected kinds
+(`state_import.ENTITY_DIRS`), not a chosen few. This once read "task done /
+decide / memory add" and the code matched that prose: 18 of ~20 mutating service
+methods never exported, so a decision recorded WITH a task_slug — the common
+case — reached the DB and never the tree. A periodic full `tausik state export`
+papered over it, which is why `status` reported no divergence. The property that
+must hold is checked by test, not by counting call sites:
+`build_tree(db)` == the tree on disk, after any sequence of mutations, with no
+manual command in between.
 
 FAIL-OPEN by construction (gotcha #271): every trigger swallows its own errors —
 a serialization or IO fault must NEVER break or roll back the underlying
@@ -59,22 +69,28 @@ def _tree_root(svc: ProjectService) -> str | None:
 def auto_export_entity(svc: ProjectService, kind: str, slug: str) -> bool:
     """Best-effort: re-serialize ONE changed entity to its file. NEVER raises.
 
-    Returns True iff a file was actually (re)written. A slug-less/absent/archived
-    entity (export_one → None) is skipped silently — unlike the full export, the
-    incremental trigger must be fail-open, not refuse. Idempotent: an unchanged
-    file is left untouched (no mtime churn)."""
+    Returns True iff the projection was actually changed — a file (re)written OR
+    removed. Idempotent: an unchanged file is left untouched (no mtime churn).
+
+    ``export_one → None`` means the entity is NOT in the projection any more:
+    deleted, or (for memory) archived. That case used to return False and leave
+    the stale file behind, so a delete produced a GHOST — a file describing a row
+    the DB no longer has. A full `state export` never showed it (it rebuilds the
+    whole tree from scratch); only the incremental path accumulated them. The
+    projection must be able to shrink, so None now removes the file.
+    """
     try:
         if not _auto_export_enabled():
             return False
         from state_export import export_one
 
-        result = export_one(svc, kind, slug)
-        if result is None:
-            return False
-        rel, content = result
         root = _tree_root(svc)
         if not root:
             return False
+        result = export_one(svc, kind, slug)
+        if result is None:
+            return _remove_projection(root, kind, slug)
+        rel, content = result
         path = os.path.join(root, rel.replace("/", os.sep))
         if os.path.exists(path):
             with open(path, encoding="utf-8", newline="") as fh:
@@ -87,6 +103,25 @@ def auto_export_entity(svc: ProjectService, kind: str, slug: str) -> bool:
     except Exception as e:  # noqa: BLE001 — FAIL-OPEN: telemetry, never propagate
         _log.warning("auto-export %s/%s failed (non-fatal): %s", kind, slug, e)
         return False
+
+
+def _remove_projection(root: str, kind: str, slug: str) -> bool:
+    """Drop the projection file for an entity that left the projection. True iff removed.
+
+    The path is derived from (kind, slug) rather than from export_one, which by
+    definition can no longer answer for a row that is gone. Kind is checked
+    against the import-side registry so a typo cannot make this unlink an
+    arbitrary path.
+    """
+    from state_import import ENTITY_DIRS
+
+    if kind not in ENTITY_DIRS:
+        return False
+    path = os.path.join(root, kind, f"{slug}.md")
+    if not os.path.isfile(path):
+        return False
+    os.remove(path)
+    return True
 
 
 def auto_export_by_id(svc: ProjectService, kind: str, entity_id: int) -> bool:

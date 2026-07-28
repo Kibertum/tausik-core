@@ -9,6 +9,30 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a decision published to the brain was never recorded in the project (session #152)
+
+`decide` routed: content with no project-specific marker went to the shared brain,
+and the function returned before writing the row. Notion was then the only carrier
+— no DB row, no `tausik/` file, absent from `tausik decisions` and from the memory
+block injected at session start. The mechanism that exists to stop an agent losing
+project context could lose it.
+
+This was not an oversight but a specified contract: the test suite asserted
+`len(svc.decisions()) == 0` after a brain-routed decision, justified by "otherwise
+the decision is double-written". That premise was wrong. `brain_sync.open_brain_db`
+opens a SEPARATE cross-project mirror file and never touches the project DB, so a
+row in each is the project's record plus the shared one, not a duplicate. The two
+stores were conflated, and exclusive routing grew out of it.
+
+The brain is now a **mirror, never a destination** (decision #203): routing decides
+where a decision is ALSO published, never whether the project records it. Every
+`decide` path funnels through one local write that also projects to `tausik/`. The
+success message changes from `saved to brain` to `saved to local and mirrored to
+brain` — anything parsing that string needs updating.
+
+Found by using it: the decision recording this release's own scope went to Notion
+and left no trace in the project.
+
 ### Fixed — `metrics tokens` presented per-tool cost it had never measured (session #150)
 
 The table said "per-tool aggregates" and sorted tools by total input tokens. It
@@ -1494,9 +1518,27 @@ empty `graph LR`.
 ### State export/import wired into the lifecycle (no manual sync)
 
 The git-native projection now tracks the DB without manual commands. On a durable
-write — task done, `decide`, `memory add` — the changed entity is incrementally
-re-serialized to just its own file (byte-identical to a full export of that
-entity, proven by a pin test), not the whole tree. On session start,
+write — **every** mutation of the five projected kinds, from `epic add` through
+`task log` to `decide` — the changed entity is incrementally re-serialized to just
+its own file (byte-identical to a full export of that entity, proven by a pin
+test), not the whole tree. An entity that leaves the projection (deleted, or
+memory archived) has its file removed, so the tree can shrink as well as grow.
+
+The coverage is checked as a property, not as a list of call sites: after any
+sequence of mutations with no manual command in between, the files on disk equal
+`build_tree(db)` byte for byte. That test is why this reads "every" — the first
+cut wired three call sites by hand and the prose said "task done, decide, memory
+add", while 18 of ~20 mutating methods silently skipped the export. A decision
+recorded WITH a task_slug, the common case, reached the DB and never the tree; a
+periodic full `tausik state export` rebuilt it, which is why `status` reported no
+divergence. Counting call sites could not have caught that, and neither could a
+test that asserts the call sites someone remembered to list.
+
+Worst-case cost, measured rather than assumed: `task log` on the project's
+longest journal (21 entries, a 40 KB document) goes from 5.3 ms to 26.6 ms per
+call — the whole task doc is re-rendered to compare it against the file on disk.
+
+On session start,
 `tausik_session_open` carries a best-effort `sync_suggested` signal: a content-based
 dry-run import that reports what the `tausik/` tree holds but the DB does not (e.g.
 after a `git pull`), so `/start` can offer `tausik sync`. Every trigger is

@@ -28,6 +28,7 @@ import json
 from typing import TYPE_CHECKING, Any
 
 from state_serialize import (
+    ENTITY_DIRS as _CANONICAL_ENTITY_DIRS,
     flatten_line,
     join_sections,
     normalize_ts,
@@ -46,7 +47,8 @@ class ExportError(Exception):
 # The top-level subdirectories this exporter OWNS. Deletion reconciliation is
 # scoped to these so a hand-written file elsewhere under tausik/ (a root
 # README.md, a NOTES/ dir) is never swept — see state_serialize._managed_on_disk.
-ENTITY_DIRS = frozenset({"epics", "stories", "tasks", "decisions", "memory"})
+# Derived, not re-declared — see state_serialize.ENTITY_DIRS for why.
+ENTITY_DIRS = frozenset(_CANONICAL_ENTITY_DIRS)
 
 
 # --- small pure helpers ------------------------------------------------------

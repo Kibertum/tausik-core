@@ -27,6 +27,15 @@ from typing import Any
 # suffix so pointing --out at a populated dir can never nuke unrelated files.
 MANAGED_SUFFIX = ".md"
 
+# THE registry of projected kinds — one definition, both directions. The export
+# and the import each used to declare their own copy of this list (a frozenset
+# there, a tuple here), with nothing comparing them: a kind added to one side and
+# forgotten on the other would be written and never read back, or read and never
+# written, and the round-trip gate would only notice once real data hit it.
+# Order is load-bearing for the importer (parents before children), so the
+# canonical form is the tuple; the export derives its set from it.
+ENTITY_DIRS: tuple[str, ...] = ("epics", "stories", "tasks", "decisions", "memory")
+
 # A string safe to emit as a YAML *plain* scalar: starts with a letter, then only
 # letters/digits/`_.-`. Everything else (leading digit, spaces, punctuation,
 # Cyrillic, YAML indicators) is double-quoted. Slugs and enum statuses match;

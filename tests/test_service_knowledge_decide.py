@@ -114,10 +114,15 @@ def test_clean_content_brain_enabled_routes_brain(svc):
         msg = svc.decide("Prefer context managers for file I/O in Python")
 
     mock_brain.assert_called_once()
-    assert "saved to brain" in msg
+    assert "mirrored to brain" in msg
     assert "page-abc-123" in msg
-    # Local fallback did NOT fire.
-    assert len(svc.decisions()) == 0
+    # The local write is UNCONDITIONAL (decision #203). This used to assert
+    # `len(svc.decisions()) == 0` — the data loss was the specified contract, not
+    # an oversight: a brain-routed decision existed only as a Notion page, absent
+    # from `tausik decisions`, from tausik/, and from the memory block injected at
+    # session start. Routing picks where a decision is ALSO published, never
+    # whether the project records it.
+    assert len(svc.decisions()) == 1
 
 
 # --- v14b: brain enabled but misconfigured → loud warning, not silent fallback ---
@@ -232,8 +237,16 @@ def test_brain_scrub_blocked_falls_back_local(svc, monkeypatch):
 
 
 def test_brain_ok_not_mirrored_treated_as_success(svc, monkeypatch):
-    """AC1: status='ok_not_mirrored' (Notion ok, local mirror lagged) must
-    NOT trigger local decision_add — otherwise decision is double-written."""
+    """status='ok_not_mirrored' (Notion ok, the brain's own mirror lagged) still
+    counts as a successful publish — and the project row is written regardless.
+
+    The original version of this test demanded the opposite, on the grounds that a
+    local write would mean the decision was "double-written". That premise was
+    wrong (decision #203): `brain_sync.open_brain_db` opens a SEPARATE
+    cross-project mirror file and never touches the project DB, so a row in each
+    is the project's record plus the shared one — not a duplicate. Conflating the
+    two stores is what made the routing exclusive and lost decisions.
+    """
     brain_cfg = {
         "enabled": True,
         "notion_integration_token_env": "TEST_TOKEN",
@@ -256,9 +269,9 @@ def test_brain_ok_not_mirrored_treated_as_success(svc, monkeypatch):
     ):
         msg = svc.decide("Prefer async context managers for network I/O")
 
-    assert "saved to brain" in msg
+    assert "mirrored to brain" in msg
     assert "page-partial-xyz" in msg
-    assert len(svc.decisions()) == 0  # NOT written locally
+    assert len(svc.decisions()) == 1  # the project keeps its own record
 
 
 # --- AC6: empty/whitespace text routes to local with "empty content" reason ---

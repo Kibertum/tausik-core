@@ -116,16 +116,36 @@ class KnowledgeMixin:
         return row
 
     def memory_delete(self, mid: int) -> str:
-        if not self.be.memory_get(mid):
+        row = self.be.memory_get(mid)
+        if not row:
             raise ServiceError(f"Memory #{mid} not found")
+        # Read the slug BEFORE the delete: the projection is keyed by slug, and
+        # after the row is gone there is nothing left to derive it from. Skipping
+        # this left a ghost file describing a row the DB no longer had.
+        slug = row.get("slug")
         self.be.memory_delete(mid)
+        if slug:
+            from state_triggers import auto_export_entity  # fail-open
+
+            auto_export_entity(cast("ProjectService", self), "memory", slug)
         return f"Memory #{mid} deleted."
 
     def memory_archive(self, before: str, confirm: bool = False) -> dict[str, Any]:
-        """Thin delegator — real logic lives in service_knowledge_hygiene."""
+        """Thin delegator — real logic lives in service_knowledge_hygiene.
+
+        The projection excludes archived memory, so an applied archive must REMOVE
+        those files. `archive_memory` reports which rows it took (by id, read
+        before the write — afterwards the candidate query no longer returns them).
+        """
         from service_knowledge_hygiene import archive_memory
 
-        return archive_memory(self.be, before, confirm)
+        result = archive_memory(self.be, before, confirm)
+        if result.get("applied"):
+            from state_triggers import auto_export_by_id  # fail-open
+
+            for mid in result.get("archived_ids") or []:
+                auto_export_by_id(cast("ProjectService", self), "memory", mid)
+        return result
 
     def memory_dedupe(self, threshold: float = 0.85, n: int = 200) -> list[dict[str, Any]]:
         """Thin delegator — real logic lives in service_knowledge_hygiene."""
@@ -151,7 +171,7 @@ class KnowledgeMixin:
 
         # Task-linked decisions are inherently project-specific — never route to brain.
         if task_slug is not None:
-            did = self.be.decision_add(text, task_slug, rationale)
+            did = self._decision_local(text, task_slug, rationale)
             return (
                 f"Decision #{did} recorded — saved to local (reason: linked to task {task_slug})."
             )
@@ -171,7 +191,7 @@ class KnowledgeMixin:
             # that should have been mirrored to Notion.
             cfg_errors = validate_brain()
             if cfg_errors:
-                did = self.be.decision_add(text, task_slug, rationale)
+                did = self._decision_local(text, task_slug, rationale)
                 error_lines = "\n".join(f"  - {e}" for e in cfg_errors)
                 return (
                     f"⚠ Decision #{did} saved LOCALLY ONLY — brain mirror BLOCKED.\n\n"
@@ -186,22 +206,40 @@ class KnowledgeMixin:
             from brain_runtime import try_brain_write_decision
 
             ok, detail = try_brain_write_decision(text, rationale, cfg)
+            # The local write happens EITHER WAY. This used to return on a
+            # successful brain write BEFORE decision_add, which made Notion the
+            # only carrier: no DB row, no tausik/ file, invisible to `tausik
+            # decisions` and to the memory block injected at session start. A
+            # decision the project cannot read back is not recorded, however well
+            # it is published — so the brain is a MIRROR, never a destination.
+            did = self._decision_local(text, task_slug, rationale)
             if ok:
                 return (
-                    f"Decision recorded — saved to brain "
+                    f"Decision #{did} recorded — saved to local and mirrored to brain "
                     f"(reason: {decision.reason}). Page: {detail}"
                 )
-            did = self.be.decision_add(text, task_slug, rationale)
             return (
                 f"Decision #{did} recorded — saved to local (reason: brain write failed: {detail})."
             )
 
+        did = self._decision_local(text, task_slug, rationale)
+        reason = decision.reason if decision.target == "local" else "brain not enabled"
+        return f"Decision #{did} recorded — saved to local (reason: {reason})."
+
+    def _decision_local(self, text: str, task_slug: str | None, rationale: str | None) -> int:
+        """The ONE local write for a decision: DB row + git projection. Returns the id.
+
+        Every `decide` path funnels through here. Three of the four call sites
+        used to call `decision_add` directly and skip the projection, so a
+        decision recorded WITH a task_slug — the common case — reached the DB and
+        never `tausik/`. Funnelling beats remembering: a new branch gets the
+        projection by construction rather than by review.
+        """
         did = self.be.decision_add(text, task_slug, rationale)
         from state_triggers import auto_export_by_id  # state-git-triggers (fail-open)
 
         auto_export_by_id(cast("ProjectService", self), "decisions", did)
-        reason = decision.reason if decision.target == "local" else "brain not enabled"
-        return f"Decision #{did} recorded — saved to local (reason: {reason})."
+        return did
 
     def decisions(self, n: int = 20) -> list[dict[str, Any]]:
         return self.be.decision_list(n)
@@ -242,6 +280,9 @@ class KnowledgeMixin:
         title = approach[:100]
         content = f"Approach: {approach}\nReason: {reason}"
         mid = self.be.memory_add("dead_end", title, content, tags, task_slug)
+        from state_triggers import auto_export_by_id  # fail-open
+
+        auto_export_by_id(cast("ProjectService", self), "memory", mid)
         # Suggest cq publish if configured
         cq_hint = ""
         try:
@@ -310,6 +351,9 @@ class KnowledgeMixin:
             for old_edge in existing:
                 if old_edge["source_type"] == target_type and old_edge["source_id"] == target_id:
                     self.be.edge_invalidate(old_edge["id"], eid)
+            # 'supersedes' also invalidates edges where the TARGET is the source,
+            # so that entity's `edges:` block changed too.
+            self._export_node(target_type, target_id)
         else:
             eid = self.be.edge_add(
                 source_type,
@@ -320,7 +364,20 @@ class KnowledgeMixin:
                 confidence,
                 created_by,
             )
+        self._export_node(source_type, source_id)
         return f"Edge #{eid} created: {source_type}#{source_id} --[{relation}]--> {target_type}#{target_id}"
+
+    def _export_node(self, node_type: str, node_id: int) -> None:
+        """Re-project the file of a graph node whose outgoing edges changed.
+
+        `edges:` in a memory/decision file is a projection of the edges where that
+        entity is the SOURCE, so an edge write changes the source's file — not the
+        target's. Fail-open like every trigger.
+        """
+        kind = "memory" if node_type == "memory" else "decisions"
+        from state_triggers import auto_export_by_id  # fail-open
+
+        auto_export_by_id(cast("ProjectService", self), kind, node_id)
 
     def memory_unlink(self, edge_id: int, replacement_id: int | None = None) -> str:
         """Soft-invalidate an edge (never deletes -- Graphiti approach)."""
@@ -332,6 +389,7 @@ class KnowledgeMixin:
         rows = self.be.edge_invalidate(edge_id, replacement_id)
         if rows == 0:
             raise ServiceError(f"Edge #{edge_id} could not be invalidated")
+        self._export_node(edge["source_type"], edge["source_id"])
         return f"Edge #{edge_id} invalidated."
 
     def memory_related(

@@ -222,6 +222,51 @@ Property for the gate (`state-git-roundtrip-gate`): `export(current_db)` yields
 files **byte-equal** to those in git; and `import(export(db))` yields a DB
 equivalent to the original across entity set, fields, and graph edges.
 
+## When the projection updates
+
+The projection follows the DB **on its own**, with no manual command. ANY mutation
+of an entity in one of the five projected kinds triggers it. That list is declared
+once, in `state_serialize.ENTITY_DIRS`; both sides (export and import) derive from
+it rather than keeping their own copy:
+
+| Kind | What triggers it |
+|---|---|
+| `epics` | `epic add`, `epic done`, `epic delete` |
+| `stories` | `story add`, `story done`, `story delete` |
+| `tasks` | `task add/quick`, `update`, `start`, `log`, `plan`, `step`, `block`, `unblock`, `review`, `move`, `done`, `delete` |
+| `decisions` | `decide` — every branch, including task-linked and brain-mirrored |
+| `memory` | `memory add`, `dead-end`, `memory delete`, `memory link/unlink`, `memory archive` |
+
+An entity that leaves the projection (deleted, or memory archived) **loses its
+file**: the tree has to shrink as well as grow, or ghost files accumulate that
+describe rows the DB no longer has.
+
+Deliberately not triggering: `task claim` / `task unclaim`. `claimed_by` is not
+among the columns `state_export.export_one` serializes, so they cannot change the
+projection. That is the only exception, and it is checkable — the property below
+would fail if it were wrong.
+
+**How this is guaranteed.** Not by a list of call sites — that is exactly how the
+first cut was built, and 18 of ~20 mutating methods skipped the export. The
+guarantee is a property, checked by `tests/test_state_projection_tracks_db.py`:
+
+> after any sequence of mutations, with no manual command in between, the files on
+> disk equal `build_tree(db)` byte for byte
+
+The property is indifferent to HOW the export happens, so a new mutator that
+forgets to project fails the test, while a refactor that moves the export
+elsewhere does not. Plus a coverage ratchet: the set of kinds the test exercises
+is compared against `ENTITY_DIRS`, so a sixth kind cannot enter the registry
+without extending the run.
+
+**Cost.** The export re-renders the entity's whole document in order to compare it
+with the file on disk. On the hottest mutator (`task log`) and the project's
+longest journal — 21 entries, a 40 KB document — that is 26.6 ms against 5.3 ms
+without the export. Measured, not estimated.
+
+The whole mechanism sits behind `state.auto_export`; with the flag off nothing is
+written and the tree only updates on an explicit `tausik state export`.
+
 ## Merging in git
 
 - **Different entities** (A edited task X, B edited task Y) -> different files ->
