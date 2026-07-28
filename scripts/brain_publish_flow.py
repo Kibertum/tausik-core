@@ -11,7 +11,7 @@ from typing import Any, Literal, Mapping
 
 from brain_classifier import classify
 
-_CLASSIFIER_CATEGORY = {"patterns": "pattern", "gotchas": "gotcha"}
+_CLASSIFIER_CATEGORY = {"patterns": "pattern", "gotchas": "gotcha", "decisions": "decision"}
 
 _TEXT_KEYS_PATTERNS = (
     "name",
@@ -30,6 +30,19 @@ _TEXT_KEYS_GOTCHAS = (
     "artifact_taxonomy_kind",
 )
 
+_TEXT_KEYS_DECISIONS = ("name", "decision", "rationale")
+
+# Keyed, not branched. This used to be `PATTERNS if category == "patterns" else
+# GOTCHAS`, which silently read any third category with gotcha keys — a blob of
+# empty strings, classified as "empty content" → local → high risk → every
+# publish blocked. A lookup makes an unregistered category say so instead of
+# guessing, which is what let `decisions` be added at all.
+_TEXT_KEYS_BY_CATEGORY: dict[str, tuple[str, ...]] = {
+    "patterns": _TEXT_KEYS_PATTERNS,
+    "gotchas": _TEXT_KEYS_GOTCHAS,
+    "decisions": _TEXT_KEYS_DECISIONS,
+}
+
 _TAGS_STACK = ("tags", "stack")
 
 
@@ -40,8 +53,20 @@ def _stringify(v: Any) -> str:
 
 
 def artifact_blob_for_classifier(category: str, fields: Mapping[str, Any]) -> str:
-    """Concatenate classify-relevant text like scrub_inputs does for markers."""
-    keys = _TEXT_KEYS_PATTERNS if category == "patterns" else _TEXT_KEYS_GOTCHAS
+    """Concatenate classify-relevant text like scrub_inputs does for markers.
+
+    Every key a category publishes must be listed for it: the blob is what the
+    risk assessment sees, and a field left out of it is a field that cannot
+    influence the verdict — the same shape of gap that let `decide` judge a
+    decision by its headline while shipping its rationale.
+    """
+    keys = _TEXT_KEYS_BY_CATEGORY.get(category)
+    if keys is None:
+        raise KeyError(
+            f"no classifier text keys registered for category {category!r}; "
+            f"add them to _TEXT_KEYS_BY_CATEGORY rather than letting the blob "
+            f"fall back to another category's fields"
+        )
     lines = [_stringify(fields.get(k)) for k in keys]
     lines.extend(_stringify(fields.get(k)) for k in _TAGS_STACK)
     return "\n".join(lines)

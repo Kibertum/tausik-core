@@ -136,6 +136,24 @@ def open_brain_deps() -> tuple[sqlite3.Connection | None, Any | None, dict]:
     return conn, client, cfg
 
 
+def decision_publish_fields(text: str, rationale: str | None) -> dict[str, Any]:
+    """EXACTLY what a decision sends to the brain — one source, two readers.
+
+    The router used to classify `text` alone while this payload also carried
+    `rationale`, so the decision about what counts as project-internal was taken
+    on strictly less material than what left the machine. A good rationale is by
+    definition dense with project detail, and it was the part not consulted.
+
+    Deriving both the publish and the classifier blob from this function is what
+    makes that class of gap structural rather than remembered: a fourth field
+    added here reaches the classifier on the same commit.
+    """
+    fields: dict[str, Any] = {"name": text[:60], "decision": text}
+    if rationale:
+        fields["rationale"] = rationale
+    return fields
+
+
 def try_brain_write_decision(text: str, rationale: str | None, cfg: dict) -> tuple[bool, str]:
     """Attempt a brain write for a decision.
 
@@ -162,9 +180,7 @@ def try_brain_write_decision(text: str, rationale: str | None, cfg: dict) -> tup
         # silently drop the user's `local_mirror_path`. Call with no arg so
         # load_config() is consulted fresh. See task brain-config-mirror-path-contract.
         conn = brain_sync.open_brain_db(get_brain_mirror_path())
-        fields: dict[str, Any] = {"name": text[:60], "decision": text}
-        if rationale:
-            fields["rationale"] = rationale
+        fields = decision_publish_fields(text, rationale)
         result = brain_mcp_write.store_record(client, conn, "decisions", fields, cfg)
         status = result.get("status", "")
         if status in ("ok", "ok_not_mirrored"):

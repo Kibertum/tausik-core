@@ -9,6 +9,44 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — `decide` judged a decision by its headline and shipped its rationale (session #152)
+
+The router classified `text` alone. The publish payload also carried `rationale`
+— which, being a good rationale, is where the project detail lives. So the
+question "is this internal?" was answered on strictly less material than what
+left the machine.
+
+The marker rule was not at fault. `memory_markers` drops two-segment slugs
+(`shared-knowledge`, `doc-swarm`) as indistinguishable from English kebab
+compounds unless a three-segment slug corroborates them in the same text. In the
+decision that escaped, the headline held only two-segment slugs while the
+corroborating ones (`redoc-1-8-final`, `l26-memory-decay`) sat in the rationale:
+`classify(text)` returns brain, `classify(text + rationale)` returns local with
+four markers. Right rule, half the evidence.
+
+Both the publish payload and the classifier blob now derive from one function, so
+a fourth field reaches the classifier on the same commit that adds it. Two more
+holes closed alongside:
+
+- **Decisions were outside the publish risk gate.** `maybe_block_high_risk_publish`
+  began with `if category not in _CLASSIFIER_CATEGORY: return False`, and
+  `decisions` was not in it — between a rationale and Notion stood only the
+  scrubber. Routing does not cover this: `brain move --to-brain` and the brain MCP
+  handler publish decisions without passing through it. Now gated (decision #205).
+  Fixing that surfaced a latent bug in the same file — the blob picked keys as
+  `PATTERNS if category == "patterns" else GOTCHAS`, so any third category was
+  silently read with gotcha keys, yielding empty strings that classify as "empty
+  content" and would have blocked every publish of that category for a reason no
+  message explains. It is a keyed lookup now, and an unregistered category raises.
+
+- **An external publish could fire from a throwaway context.** The brain write did
+  not care which DB the service held: calling `decide` on a temp DB created a live
+  page in the user's Notion — a side effect escaping into production from a
+  context whose whole premise is that nothing outside it changes. `decide` now
+  publishes only when bound to the project's own DB, and fails closed when it
+  cannot tell. The message says which of the reasons applied instead of reporting
+  "brain not enabled" for all of them.
+
 ### Fixed — a decision published to the brain was never recorded in the project (session #152)
 
 `decide` routed: content with no project-specific marker went to the shared brain,

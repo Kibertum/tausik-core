@@ -21,9 +21,22 @@ def svc(tmp_path, monkeypatch):
     """Isolated service fixture. v1.3.2: also stub brain_config.load_brain
     so decide() doesn't read the real project's enabled brain (which would
     cause writes to a live Notion). Tests that need brain enabled override.
+
+    The DB now lives at `<tmp>/.tausik/tausik.db` and `find_tausik_dir` points at
+    it, which makes this tmp DB genuinely THE project DB for the duration of the
+    test. `decide` refuses to publish from a service bound to anything else — the
+    hazard this fixture's comment described is now enforced rather than avoided
+    by remembering to stub, so a test that wants the brain path must say so by
+    being a well-formed project, not by being lucky.
     """
-    be = SQLiteBackend(str(tmp_path / "test.db"))
+    tausik_dir = tmp_path / ".tausik"
+    tausik_dir.mkdir(parents=True, exist_ok=True)
+    be = SQLiteBackend(str(tausik_dir / "tausik.db"))
     s = ProjectService(be)
+
+    import project_config
+
+    monkeypatch.setattr(project_config, "find_tausik_dir", lambda *a, **k: str(tausik_dir))
 
     # Force brain disabled by default — individual tests can re-monkeypatch.
     import brain_config

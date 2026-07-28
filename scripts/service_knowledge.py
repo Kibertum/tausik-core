@@ -178,11 +178,21 @@ class KnowledgeMixin:
 
         from brain_classifier import classify
         from brain_config import load_brain, validate_brain
+        from brain_runtime import decision_publish_fields
 
         cfg = load_brain()
-        decision = classify(text, "decision", cfg=cfg)
+        # Classify what would be PUBLISHED, not the headline alone. Judging by
+        # `text` only was unsound by construction: the rationale ships too, and it
+        # is where the project detail lives. Observed live — a release-scope
+        # decision whose headline held only two-segment slugs
+        # (`shared-knowledge`, `doc-swarm`) scored "no project-specific markers"
+        # and went out, while the rationale carried the three-segment slugs
+        # (`redoc-1-8-final`, `l26-memory-decay`) that corroborate them. The
+        # marker rule was right; it was fed the smaller half.
+        blob = "\n".join(str(v) for v in decision_publish_fields(text, rationale).values())
+        decision = classify(blob, "decision", cfg=cfg)
 
-        if decision.target == "brain" and cfg.get("enabled"):
+        if decision.target == "brain" and cfg.get("enabled") and self._is_working_project_db():
             # Defect v14b-defect-brain-decisions-empty: when brain.enabled=true
             # but database_ids/token are empty, store_record silently returns
             # status=config_error and the local-fallback path runs with a quiet
@@ -223,8 +233,45 @@ class KnowledgeMixin:
             )
 
         did = self._decision_local(text, task_slug, rationale)
-        reason = decision.reason if decision.target == "local" else "brain not enabled"
-        return f"Decision #{did} recorded — saved to local (reason: {reason})."
+        return f"Decision #{did} recorded — saved to local (reason: {self._local_reason(decision, cfg)})."
+
+    def _local_reason(self, decision: Any, cfg: dict[str, Any]) -> str:
+        """Why this decision stayed local — the actual cause, not a stand-in.
+
+        This used to collapse every non-local-classified case to "brain not
+        enabled", which became a false statement the moment a second reason
+        existed: a decision skipped because the service is bound to a throwaway
+        DB would report the brain as disabled when it is enabled and fine.
+        """
+        if decision.target == "local":
+            return str(decision.reason)
+        if not cfg.get("enabled"):
+            return "brain not enabled"
+        return (
+            "brain skipped — this service is not bound to the project DB, "
+            "so an external publish would escape from a throwaway context"
+        )
+
+    def _is_working_project_db(self) -> bool:
+        """True iff this service is bound to the project's real DB.
+
+        Publishing to the brain is an effect on a SHARED, external store, and it
+        used to fire from whatever DB the service happened to hold. Reproduced:
+        calling `decide` on a throwaway temp DB created a live page in the user's
+        Notion — a side effect escaping into production from a context (a test, a
+        one-off copy) whose whole premise is that nothing outside it changes.
+
+        Fail-CLOSED: any error answering the question means no publish. The cost
+        of a false negative is a decision kept local; the cost of a false
+        positive is an irreversible write to someone's shared workspace.
+        """
+        try:
+            from project_config import find_tausik_dir
+
+            expected = os.path.join(find_tausik_dir(), "tausik.db")
+            return os.path.abspath(self.be.db_path) == os.path.abspath(expected)
+        except Exception:  # noqa: BLE001 — unknown provenance is not permission
+            return False
 
     def _decision_local(self, text: str, task_slug: str | None, rationale: str | None) -> int:
         """The ONE local write for a decision: DB row + git projection. Returns the id.
