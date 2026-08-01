@@ -9,6 +9,44 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — a shared knowledge database, one file per person rather than per project
+
+Knowledge learned in one repository was trapped there. A pattern paid for once,
+a gotcha found the hard way, a decision worth carrying — each lived in exactly
+one project's `.tausik/tausik.db`, and the next project started from nothing.
+There is now `~/.tausik/knowledge.db` (overridable with `TAUSIK_HOME`), holding
+memory, decisions and snippets with FTS over all three.
+
+What it deliberately does NOT hold is the project schema. Tasks, sessions,
+events and verification runs stay where they belong; nothing here reads or
+writes a project database. A shared store that also tracked work would be a
+second source of truth for the thing that already has one.
+
+It is multi-writer by construction, not by accident: a person has several
+editors open on several projects and all of them point at this one file. So WAL
+and a non-zero busy timeout are requirements rather than tuning, and long
+transactions are out — a writer holding the file makes every other project's
+search hang, which reads as "the tool is slow" instead of as a lock.
+
+Creation is lazy, and that took a deliberate guard. `sqlite3.connect()` creates
+whatever file it is handed, so a read path that simply opened the store would
+bring an empty one into existence on every status call in every project,
+including for people who never opted in — a defect invisible by construction,
+since the result looks exactly like an empty store. Existence is therefore
+settled on the filesystem before connecting, and only a write may create.
+
+Every row is born with a UUID, which no acceptance criterion asked for. A
+project row is identified by its rowid, and a rowid is a fact about one
+machine's database; the moment two machines exchange knowledge — the entire
+point of the file — rowids collide and "the same entry" becomes
+indistinguishable from "a different entry in the same slot". Adding identity
+afterwards means reconciling records that already exist. It costs one column
+today, and today is the cheapest it will ever be.
+
+`origin_project` and `origin_slug` are free text rather than foreign keys: a
+shared record must outlive the project it came from, so it may name its origin
+but must never depend on it.
+
 ### Fixed — three claims from session #154 that outran their code (session #155)
 
 Same theme as the two entries below, one size down: prose asserting more than the
