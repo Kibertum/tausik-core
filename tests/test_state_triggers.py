@@ -187,13 +187,20 @@ def test_import_suggested_flags_divergence(monkeypatch, tmp_path):
         fresh.be.close()
 
 
-def test_stale_tree_is_not_reported_as_carrying_new_state(svc, enabled_root):
+def test_stale_tree_is_not_reported_as_carrying_new_state(svc, enabled_root, monkeypatch):
     """AC-10: the tree being BEHIND must not read as the tree being AHEAD.
 
     Divergence proves the two sides differ, never which is newer. Here the DB is
     newer (the projection predates a status change), so calling this "files carry
     state the DB does not" — and suggesting `tausik sync` on it — would revert a
     closed task back to planning.
+
+    HOW THE TREE IS MADE STALE MATTERS. This used to rely on `be.task_update`
+    not projecting at all, which was the cascade-projection defect, not a
+    scenario: once the write layer started projecting, the premise evaporated and
+    there was nothing left to diverge. The staleness is now produced the way it
+    actually occurs — `state.auto_export` is opt-in and OFF by default, so a
+    project that never enabled it accumulates exactly this drift.
     """
     from state_export import ENTITY_DIRS
     from state_serialize import write_tree
@@ -201,7 +208,9 @@ def test_stale_tree_is_not_reported_as_carrying_new_state(svc, enabled_root):
     _seed(svc)
     tree, _ = build_tree(svc)
     write_tree(enabled_root, tree, managed_dirs=set(ENTITY_DIRS))
+    monkeypatch.setattr(state_triggers, "_auto_export_enabled", lambda: False)
     svc.be.task_update("exp", status="done")  # DB moves on; projection does not
+    monkeypatch.setattr(state_triggers, "_auto_export_enabled", lambda: True)
 
     sug = state_triggers.import_suggested(svc)
     assert sug is not None, "a real divergence must still be reported"

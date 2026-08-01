@@ -337,10 +337,14 @@ class TaskDoneReportMixin:
             # closures a defect escaped from those it did not. `Risk: 0.24 (low)`
             # read as a quality verdict at every close, which is worse than no
             # number: it draws attention away from the closures that deserve it.
-            # The wording says what it is; the trigger below is left in place
-            # because it only ever ADDS review, and a noisy prompt to look harder
-            # costs time, while a noisy reassurance costs defects. See
-            # docs/ru/research/risk-model-backtest-2026-07.md.
+            # The wording says what it is. The trigger below is left in place —
+            # but NOT on the defence this comment used to give, which was false
+            # about its own mechanism: it does not "only ADD review", it appends
+            # a blocking failure and RETURNS, refusing the close. What justifies
+            # a refusal is not prediction (there is none) but description: above
+            # the threshold, most of the evidence we could measure is at its
+            # worst value, which is true by construction whatever the AUC says.
+            # Decision #212; docs/ru/research/risk-model-backtest-2026-07.md.
             risk_note = (
                 f"Risk profile: {risk['score']} ({risk['level']}) — descriptive, not predictive"
             )

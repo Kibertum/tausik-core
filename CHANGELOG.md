@@ -9,6 +9,222 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a rejected `task update` really writes nothing now (session #154)
+
+The entry below from session #153 described a narrower repair than it claimed.
+Validating the three budget fields against each other stopped one interleaving —
+and the very next block in the same method still raised after those budgets had
+been written. `task update --call-budget 40 --scope-paths '{not-json'` stored the
+call budget AND a tier derived from it, reported failure, and left by exception
+past the projection, so the row and `tausik/tasks/<slug>.md` disagreed silently.
+Same shape, one validator further down; the earlier fix removed the failure
+someone had hit rather than the shape that produced it.
+
+All validation and normalization now completes before any write, and the writes
+themselves run in a transaction. The transaction is not belt-and-braces: it
+covers the refusals no amount of up-front validation can pre-empt — the backend
+rejecting an unknown column, SQLite rejecting a bad `story_id`, a full disk —
+each of which lands between the budget setters (raw auto-committing writes) and
+the field write. The deferred-projection queue was already rollback-aware, so a
+discarded write discards its queued file with it.
+
+The tests now pair a valid budget with a refusal from each distinct point in the
+method rather than budget-with-budget, which is the combination that had just
+been fixed and therefore could not detect this.
+
+### Fixed — a drive-letter difference no longer disables brain publishing and blames your project (session #154)
+
+The guard that decides whether this service speaks for the project compared two
+path strings. On Windows and macOS `d:\...` and `D:\...` are one file and two
+strings, so a project reached through the other spelling failed the check. The
+guard is fail-closed, which made the consequence worse than a missed publish:
+`decide` then reported "this service is not bound to the project DB, so an
+external publish would escape from a throwaway context" — telling a user working
+inside their own project that their context was disposable. That message had been
+rewritten one release earlier precisely so it would stop naming a reason that was
+not the reason.
+
+The comparison now asks whether the two paths name the same FILE: `realpath`
+first, then `normcase`. `state_serialize.assert_export_target` already folded case
+before comparing and its comment names this exact hazard; this guard was written
+later and did not follow the pattern. Both normalizations can only merge two
+spellings of one file — two genuinely distinct files cannot share a realpath — so
+the guard is not loosened in the direction that matters: a different directory
+stays foreign, and unresolvable provenance still fails closed.
+
+The symlink case is decided rather than left implicit: a link to the project's
+database IS the project's database, and refusing it would be the same
+over-refusal one indirection further out.
+
+### Changed — the L3 escalation says what actually justifies it (session #154)
+
+Decision #206 demoted the closure-risk composite to descriptive, and the line
+`task done` prints was changed to match. The trigger underneath was not: it still
+fed the same composite — AUC 0.4820 over 374 closures, no power to separate
+closures a defect escaped from those it did not — into a check that appends a
+blocking failure and returns. The comment defending that arrangement said the
+trigger "only ever ADDS review". It does not. It refuses the close.
+
+The block is kept, and the three candidate outcomes were weighed on the record
+(decision #212). What changed is the justification, because the old one was not
+available: above the threshold, most of the evidence that could be measured sits
+at its worst value, and that is a description true by construction whatever the
+AUC says — "there is almost no evidence this close was verified" is a reason to
+ask for a second reader on its own terms. So the message no longer calls the
+closure "high-risk"; it calls it under-evidenced, states outright that this is
+not a prediction, and cites the measurement. The remaining gap is named in the
+module rather than papered over: the SELECTOR is still the a-priori weighting
+nobody validated, and fixing that needs a held-out sample this project does not
+have yet.
+
+Switching the threshold to complexity was rejected, not overlooked. Complexity
+alone backtests at AUC 0.6327, p = 0.0016 — better than the whole five-factor
+formula — but the backtest refused to re-weight on the same 374 rows for a
+reason that applies with more force to a blocking threshold: it would buy a
+validated-looking coefficient and the same blindness.
+
+Two claims that contradicted the measurement were removed from the source. The
+`gate_coverage` weight no longer calls itself "the strongest closure-risk signal
+we have" next to a backtest measuring it at AUC 0.409, p = 0.0098 — significantly
+inverted. And `tausik status` now carries the same "descriptive, not predictive"
+caveat `task done` does; one composite presented with two different degrees of
+confidence in two places is how it came to be read as a quality verdict.
+
+### Changed — the projection property is checked over generated sequences (session #154)
+
+The test that carried the guarantee "after any sequence of mutations the tree
+equals `build_tree(db)`" checked one hand-written sequence, five functions long,
+in registry order. Three live defects walked past it green, and none of that was
+luck: the script closed a story before any task in it started, so the
+`status == "open"` cascade branch was dead code; every delete in it was a leaf, so
+`ON DELETE CASCADE` never fired; and the invariant was sampled once per group, so
+"the projection fell behind and caught up" was indistinguishable from "it never
+fell behind".
+
+The sequence is now generated — 80 steps per seed over six fixed seeds, drawn from
+27 operations by precondition, so order, nesting and which entity an operation
+lands on all vary — and the invariant is taken after every single mutation. The
+coverage ratchet counts write paths instead of the five entity kinds: the tables
+`build_tree` actually reads (traced, which is how `task_logs` and `memory_edges`
+got included) crossed with the three DML verbs, compared for equality. The
+observation point is the SQLite trace callback rather than a scan of function
+bodies for literal DML — that approach was dead-ended because nearly every write
+here goes through a shared helper, and a trace callback sits below the helper.
+
+### Fixed — a memory leaving the projection no longer strands the files that linked to it (session #154)
+
+`memory_edges` is polymorphic — `source_type`/`target_type` columns rather than a
+foreign key — so the cascade machinery, which reads `PRAGMA foreign_key_list`, is
+structurally unable to see it. Deleting or archiving an entry left every file whose
+`edges:` block named it describing an edge to nothing, while a full `state export`
+dropped that edge; the two disagreed about a file neither had any reason to
+re-render.
+
+The departure itself — `export_one` answering `None`, the one signal delete and
+archive share — now re-serializes whoever is left holding a dangling edge. The
+sweep asks a question of the data ("which live edges point outside the projection
+now") rather than of the departed row, because after a `DELETE` the id can no
+longer be recovered from the slug; the same phrasing picks up an edge orphaned by
+any earlier means.
+
+### Fixed — `export_one` and `build_tree` rendered the same entity differently (session #154)
+
+`export_one` promises bytes identical to `build_tree`'s, and the incremental
+projection is built on that promise. `build_tree` resolves edge targets against
+the live projection only (`memory ... WHERE archived_at IS NULL`), so an edge to an
+archived entry is dropped there; the single-entity renderer looked the target up
+without that filter and kept the edge. Same entity, two renderers, different
+bytes — which `state export --check` would report as drift with nothing to point
+at. The filter is now applied in both.
+
+### Fixed — a rejected `task update` no longer half-applies (session #153)
+
+`task update` validated its three budget fields one after another and wrote each
+as soon as it passed: `--call-budget 5 --cost-budget-usd not-a-number` stored the
+call budget, then raised on the cost budget. The call reported failure, the row
+had changed, and the function left by exception without reaching the projection —
+so the DB and `tausik/tasks/<slug>.md` disagreed, silently, until the next
+`state export --check` called it "drift".
+
+All three are now validated before any is written. That is the shape `task_add`
+already used (`validate_task_add_inputs`); the fix is to apply it here rather than
+to compensate afterwards in a `finally`, which would record the half-write instead
+of preventing it. The cost-only and token-only paths had no test at all and now do.
+
+### Fixed — deleting a parent no longer leaves its children on disk (session #153)
+
+`stories.epic_id` and `tasks.story_id` are `ON DELETE CASCADE` and every connection
+runs with `PRAGMA foreign_keys=ON`, so SQLite deleted the children itself and
+Python never learned which rows went. Deleting an epic removed the epic's file and
+left every story and task beneath it behind — files describing rows the DB has
+never heard of, committed into a tree teammates clone. A full `state export` hid
+this (it rebuilds from scratch); only the incremental path accumulated them.
+
+The descendants are now collected before the delete and re-asked afterwards, which
+also fixes the quieter half: `decisions.task_slug` is `ON DELETE SET NULL`, so
+deleting a task left the decision's file still naming it. One mechanism covers
+both, because `export_one` answers `None` for a row that is gone and fresh bytes
+for a row that merely changed.
+
+Which children exist is read out of the schema (`PRAGMA foreign_key_list`), not
+listed in the code. Both previous fixes in this area shipped a list, and each list
+was missing whatever broke next; a projected kind with a cascading foreign key is
+now covered by the migration that adds it.
+
+### Fixed — the projection follows the write, not the caller's memory (session #153)
+
+Starting a task auto-activates its parent story; closing the last task auto-closes
+the story and the epic. All four of those writes went straight through the backend
+in `service_cascade`, and none of them projected: the DB said `active`, the tree
+said `open`, and an epic could finish in SQLite while `tausik/epics/*.md` still
+showed it running — on the tree a teammate clones. Only `state export --check`
+ever noticed, and it reported "drift", not "the cascade never exported".
+
+This is the third time this leak has been patched. The export was wired into two
+service methods, then eight, then fourteen; the cascade was never on any of those
+lists. So the hook moved to where the writes already meet — `SQLiteBackend._update`,
+the single choke point for `epic_update`/`story_update`/`task_update` — and asks
+the export registry (`ENTITY_DIRS`) whether the written table is projected, rather
+than consulting a table list kept alongside it that would drift the same way. A
+mutator nobody remembers to wire is now covered on the commit that introduces it.
+
+Projection is deferred while a transaction is open and flushed on commit, because
+`task done` runs its status change and the cascade inside one: an eager write
+would leave a file describing state a rollback discards — the same divergence with
+the sign flipped. A rollback drops the queue; the flush de-duplicates, so
+`state import` updating thousands of rows re-renders each entity once.
+
+Also corrected: `test_stale_tree_is_not_reported_as_carrying_new_state` produced
+its stale tree by relying on `be.task_update` not projecting — the defect itself
+standing in for a scenario. It now turns `state.auto_export` off, which is how the
+drift actually arises (the flag is opt-in and off by default).
+
+### Fixed — the state tree survives a Windows checkout (session #153)
+
+`.gitattributes` now pins `tausik/**` to `text eol=lf`, the same rule the `renar/`
+tree has carried since June. The projection is written LF-only and `state export
+--check` reads it back with universal-newline translation deliberately off, so a
+CRLF re-save cannot pass as clean — which means a CRLF *checkout* reads as
+corruption too. With `core.autocrlf=true`, git's default on Windows, every fresh
+clone converted all ~2100 files and started life with a red `state export --check`
+and a red `gate_state_roundtrip` on a tree nobody had touched — on the headline
+feature of this release, at the first thing a new user does.
+
+The pin is asserted from the exporter's own registry rather than from a list
+retyped in a test: `tests/test_state_tree_eol_pin.py` derives the covered
+directories from `state_serialize.ENTITY_DIRS` and the tree root from the
+resolver the CLI uses, so a sixth projected entity kind fails loudly instead of
+landing quietly outside the rule. It is proven against real git, not against the
+attribute string — a temporary repo is cloned with `autocrlf=true` and a control
+file outside the tree must come back CRLF, so a green result cannot come from a
+sandbox where the conversion never fired. The rule is also asserted NOT to reach
+outside the tree: a blanket `* eol=lf` would reformat tracked files it does not
+own, which is why the `renar/` fix refused one.
+
+This was the second derived tree to ship without the pin that the first one
+already had. Both registries — this and the complexity proxy's generated-dirs
+list — are hand-kept, which is why the miss was silent.
+
 ### Changed — the closure risk score stops presenting itself as evidence (session #152)
 
 Backtested against this project's own 374 scored closures, 56 of which a defect

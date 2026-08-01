@@ -6,7 +6,6 @@ import os
 from typing import TYPE_CHECKING, Any, cast
 
 from tausik_utils import (
-    MAX_DECISION,
     ServiceError,
     validate_content,
     validate_length,
@@ -162,131 +161,10 @@ class KnowledgeMixin:
     # --- Decisions ---
 
     def decide(self, text: str, task_slug: str | None = None, rationale: str | None = None) -> str:
-        # decision + rationale get the wider MAX_DECISION symbol limit (not the
-        # task-title MAX_TITLE=512) — a decision headline is legitimately longer,
-        # and the limit is in CHARACTERS so Cyrillic is not penalised (#324).
-        validate_length("decision", text, MAX_DECISION)
-        if rationale is not None:
-            validate_length("rationale", rationale, MAX_DECISION)
+        """Thin delegator — the two guarantees live in service_decide."""
+        from service_decide import record
 
-        # Task-linked decisions are inherently project-specific — never route to brain.
-        if task_slug is not None:
-            did = self._decision_local(text, task_slug, rationale)
-            return (
-                f"Decision #{did} recorded — saved to local (reason: linked to task {task_slug})."
-            )
-
-        from brain_classifier import classify
-        from brain_config import load_brain, validate_brain
-        from brain_runtime import decision_publish_fields
-
-        cfg = load_brain()
-        # Classify what would be PUBLISHED, not the headline alone. Judging by
-        # `text` only was unsound by construction: the rationale ships too, and it
-        # is where the project detail lives. Observed live — a release-scope
-        # decision whose headline held only two-segment slugs
-        # (`shared-knowledge`, `doc-swarm`) scored "no project-specific markers"
-        # and went out, while the rationale carried the three-segment slugs
-        # (`redoc-1-8-final`, `l26-memory-decay`) that corroborate them. The
-        # marker rule was right; it was fed the smaller half.
-        blob = "\n".join(str(v) for v in decision_publish_fields(text, rationale).values())
-        decision = classify(blob, "decision", cfg=cfg)
-
-        if decision.target == "brain" and cfg.get("enabled") and self._is_working_project_db():
-            # Defect v14b-defect-brain-decisions-empty: when brain.enabled=true
-            # but database_ids/token are empty, store_record silently returns
-            # status=config_error and the local-fallback path runs with a quiet
-            # "brain write failed" reason. Pre-validate so the user sees a loud,
-            # actionable message instead of accumulating local-only decisions
-            # that should have been mirrored to Notion.
-            cfg_errors = validate_brain()
-            if cfg_errors:
-                did = self._decision_local(text, task_slug, rationale)
-                error_lines = "\n".join(f"  - {e}" for e in cfg_errors)
-                return (
-                    f"⚠ Decision #{did} saved LOCALLY ONLY — brain mirror BLOCKED.\n\n"
-                    f"Brain is enabled in .tausik/config.json but misconfigured:\n"
-                    f"{error_lines}\n\n"
-                    f"Fix one of:\n"
-                    f"  1. Run `.tausik/tausik brain init` to complete setup, OR\n"
-                    f"  2. Set `brain.enabled = false` in .tausik/config.json to disable.\n\n"
-                    f"After fixing, migrate local-only decisions with "
-                    f"`tausik brain move --to-brain`."
-                )
-            from brain_runtime import try_brain_write_decision
-
-            ok, detail = try_brain_write_decision(text, rationale, cfg)
-            # The local write happens EITHER WAY. This used to return on a
-            # successful brain write BEFORE decision_add, which made Notion the
-            # only carrier: no DB row, no tausik/ file, invisible to `tausik
-            # decisions` and to the memory block injected at session start. A
-            # decision the project cannot read back is not recorded, however well
-            # it is published — so the brain is a MIRROR, never a destination.
-            did = self._decision_local(text, task_slug, rationale)
-            if ok:
-                return (
-                    f"Decision #{did} recorded — saved to local and mirrored to brain "
-                    f"(reason: {decision.reason}). Page: {detail}"
-                )
-            return (
-                f"Decision #{did} recorded — saved to local (reason: brain write failed: {detail})."
-            )
-
-        did = self._decision_local(text, task_slug, rationale)
-        return f"Decision #{did} recorded — saved to local (reason: {self._local_reason(decision, cfg)})."
-
-    def _local_reason(self, decision: Any, cfg: dict[str, Any]) -> str:
-        """Why this decision stayed local — the actual cause, not a stand-in.
-
-        This used to collapse every non-local-classified case to "brain not
-        enabled", which became a false statement the moment a second reason
-        existed: a decision skipped because the service is bound to a throwaway
-        DB would report the brain as disabled when it is enabled and fine.
-        """
-        if decision.target == "local":
-            return str(decision.reason)
-        if not cfg.get("enabled"):
-            return "brain not enabled"
-        return (
-            "brain skipped — this service is not bound to the project DB, "
-            "so an external publish would escape from a throwaway context"
-        )
-
-    def _is_working_project_db(self) -> bool:
-        """True iff this service is bound to the project's real DB.
-
-        Publishing to the brain is an effect on a SHARED, external store, and it
-        used to fire from whatever DB the service happened to hold. Reproduced:
-        calling `decide` on a throwaway temp DB created a live page in the user's
-        Notion — a side effect escaping into production from a context (a test, a
-        one-off copy) whose whole premise is that nothing outside it changes.
-
-        Fail-CLOSED: any error answering the question means no publish. The cost
-        of a false negative is a decision kept local; the cost of a false
-        positive is an irreversible write to someone's shared workspace.
-        """
-        try:
-            from project_config import find_tausik_dir
-
-            expected = os.path.join(find_tausik_dir(), "tausik.db")
-            return os.path.abspath(self.be.db_path) == os.path.abspath(expected)
-        except Exception:  # noqa: BLE001 — unknown provenance is not permission
-            return False
-
-    def _decision_local(self, text: str, task_slug: str | None, rationale: str | None) -> int:
-        """The ONE local write for a decision: DB row + git projection. Returns the id.
-
-        Every `decide` path funnels through here. Three of the four call sites
-        used to call `decision_add` directly and skip the projection, so a
-        decision recorded WITH a task_slug — the common case — reached the DB and
-        never `tausik/`. Funnelling beats remembering: a new branch gets the
-        projection by construction rather than by review.
-        """
-        did = self.be.decision_add(text, task_slug, rationale)
-        from state_triggers import auto_export_by_id  # state-git-triggers (fail-open)
-
-        auto_export_by_id(cast("ProjectService", self), "decisions", did)
-        return did
+        return record(cast("ProjectService", self), text, task_slug, rationale)
 
     def decisions(self, n: int = 20) -> list[dict[str, Any]]:
         return self.be.decision_list(n)

@@ -212,7 +212,7 @@ overshoot is intentional (audit event + notes line trace it).
   `is_separate_duty()` отвергает совпадение семейств и неизвестного ревьюера.
   Если автор уже на opus — ревьюер фолбэчится на fable.
 - **Триггер.** `risk_l3_trigger.check_l3_required` при measured-high closure
-  блокирует `task done` и в remediation называет `@tausik-external-reviewer`
+  блокирует `task done` (отбор описывает толщину доказательства, не предсказывает побег — решение #212) и в remediation называет `@tausik-external-reviewer`
   с рекомендованной моделью. Записанный `tausik review record --type L3`
   снимает блок. Opt-out: `config risk.l3_block_on_high=false` (→ warning).
 - **Evidence.** Вердикт ревьюера фиксируется в таблице `reviews` (run_type=L3) и

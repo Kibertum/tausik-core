@@ -283,18 +283,25 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             v = fields.get(name)
             if v and v not in valid:
                 raise ServiceError(f"Invalid {name} '{v}'. Valid: {sorted(valid)}")
+        # EVERY budget is validated before ANY of them is written. The three used
+        # to be interleaved — validate call_budget, write it, then validate
+        # cost_budget_usd and maybe raise — so a rejected call left the first
+        # value in the DB and exited by exception, past the projection. The row
+        # changed, the file did not, and nothing said so until the next
+        # `state export --check`. `task_add` already validates up front
+        # (validate_task_add_inputs); this is the same shape, applied late.
         cb = fields.pop("call_budget", _MISSING)
+        cost_b = fields.pop("cost_budget_usd", _MISSING)
+        tok_b = fields.pop("token_budget", _MISSING)
         notice = ""
+        budget_writes: list[tuple[Any, Any]] = []
         if cb is not _MISSING and cb is not None:
             if cb < 0:
                 raise ServiceError(f"Invalid call_budget '{cb}'; must be >=0")
-            self.be.task_set_call_budget(slug, cb)
+            budget_writes.append((self.be.task_set_call_budget, cb))
             tier = fields.pop("tier", None)
             if tier is not None:
                 notice = f"\nNote: tier '{tier}' overridden by call_budget."
-            if not fields:
-                return self._task_updated(slug, notice)
-        cost_b = fields.pop("cost_budget_usd", _MISSING)
         if cost_b is not _MISSING and cost_b is not None:
             try:
                 cost_val = float(cost_b)
@@ -304,10 +311,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
                 ) from None
             if cost_val < 0:
                 raise ServiceError(f"Invalid cost_budget_usd '{cost_b}'; must be >=0")
-            self.be.task_set_cost_budget(slug, cost_val)
-            if not fields:
-                return self._task_updated(slug, notice)
-        tok_b = fields.pop("token_budget", _MISSING)
+            budget_writes.append((self.be.task_set_cost_budget, cost_val))
         if tok_b is not _MISSING and tok_b is not None:
             try:
                 tok_val = int(tok_b)
@@ -317,9 +321,13 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
                 ) from None
             if tok_val < 0:
                 raise ServiceError(f"Invalid token_budget '{tok_b}'; must be >=0")
-            self.be.task_set_token_budget(slug, tok_val)
-            if not fields:
-                return self._task_updated(slug, notice)
+            budget_writes.append((self.be.task_set_token_budget, tok_val))
+        # ...and so is EVERYTHING ELSE that can refuse. Batching the three
+        # budgets against each other narrowed the defect without closing it: the
+        # very next block — ACL normalization — still raised AFTER the budget
+        # writes had committed, so `--call-budget 40 --scope-paths '{not-json'`
+        # left call_budget AND a derived tier in the row, reported failure, and
+        # exited past the projection. The same shape, one validator further down.
         from scope_acl import ACL_FIELDS, normalize_acl_json
 
         for f in ACL_FIELDS:
@@ -333,8 +341,43 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         for f in ("title", "goal"):
             if fields.get(f) is not None:
                 fields[f] = safe_single_line(fields[f]) or fields[f]
-        self.be.task_update(slug, **fields)
+        self._write_update_atomically(slug, budget_writes, fields)
         return self._task_updated(slug, notice)
+
+    def _write_update_atomically(
+        self, slug: str, budget_writes: list[tuple[Any, Any]], fields: dict[str, Any]
+    ) -> None:
+        """Apply the budget setters and the field write, or apply neither.
+
+        Validating up front is the primary fix and would be enough for the
+        failures anyone has hit. This transaction covers the ones nobody has:
+        `_update` rejects an unknown column, SQLite rejects a bad `story_id`,
+        the disk fills — all of them raise between the budget writes (which go
+        through raw `_ex` and auto-commit) and the field write. Twice now this
+        method has been fixed by removing the failure someone found rather than
+        the shape that produced it, so the shape is closed here.
+
+        `_pending_projection` is already rollback-aware, so a discarded write
+        discards its queued projection with it. If a caller has a transaction
+        open, ownership stays with the caller: it will roll back, and committing
+        here would end its transaction early.
+        """
+        owns_tx = not self.be._in_tx
+        if owns_tx:
+            self.be.begin_tx()
+        try:
+            for setter, value in budget_writes:
+                setter(slug, value)
+            # Preserved exactly: a budget-only call does not touch the field
+            # write (which would bump updated_at for no declared change).
+            if not (budget_writes and not fields):
+                self.be.task_update(slug, **fields)
+            if owns_tx:
+                self.be.commit_tx()
+        except Exception:
+            if owns_tx:
+                self.be.rollback_tx()
+            raise
 
     def task_delete(self, slug: str) -> str:
         self._require_task(slug)

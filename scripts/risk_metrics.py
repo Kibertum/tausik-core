@@ -56,9 +56,16 @@ def format_risk_section(summary: dict[str, Any]) -> str:
 
 
 def format_risk_status_line(summary: dict[str, Any]) -> str:
-    """One-liner for `tausik status`."""
+    """One-liner for `tausik status`.
+
+    Carries the same caveat `task done` prints. The composite is one number with
+    one status, and a reader who meets it in `status` has no more reason to take
+    it for a quality verdict than a reader who meets it at close — presenting it
+    with two different degrees of confidence in two places is how it came to be
+    read as one in the first place (decision #206, #212).
+    """
     d = summary["distribution"]
     line = f"Risk: avg {summary['avg']} over {summary['count']} closes"
     if d["high"]:
         line += f", {d['high']} high"
-    return line
+    return line + " — descriptive, not predictive"

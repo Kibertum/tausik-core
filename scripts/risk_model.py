@@ -30,8 +30,14 @@ from typing import Any
 
 # Weights sum to exactly 1.0 — checked at import time below.
 WEIGHTS: dict[str, float] = {
-    # Unverified gates are the strongest closure-risk signal we have:
-    # the whole QG-2 chain (receipts included) attests only gates that RAN.
+    # Heaviest weight, and MEASURED INVERTED: AUC 0.409 at p = 0.0098 over this
+    # project's 374 scored closures — closures with FULL gate coverage escaped
+    # defects MORE often, and stratifying by complexity strengthened the effect
+    # rather than explaining it away (all 11 escaped `complex` tasks sat at
+    # gate_coverage 0.0000). The weight is a-priori and has never been
+    # validated; it is left unchanged deliberately, because re-fitting on the
+    # same 374 rows would buy a pretty coefficient and the same blindness. Read
+    # docs/ru/research/risk-model-backtest-2026-07.md before touching it.
     "gate_coverage": 0.25,
     # Untouched tests under source churn is the classic silent-regression
     # precursor; slightly below gates because scoped runs legitimately

@@ -380,8 +380,15 @@ def _export_one_knowledge(q, kind: str, slug: str) -> tuple[str, str] | None:
     )
     id_to_slug: dict[tuple[str, int], str] = {}
     for e in edges:
-        table = "memory" if e["target_type"] == "memory" else "decisions"
-        tr = q(f"SELECT slug FROM {table} WHERE id=?", (e["target_id"],))
+        # `build_tree` resolves edge targets against the LIVE projection only
+        # (`memory ... WHERE archived_at IS NULL`), so an edge to an archived
+        # entry is dropped there. Looking the target up without that filter made
+        # this renderer keep the edge — the two disagreed on the same entity's
+        # bytes, which is exactly what "byte-identical to build_tree" forbids.
+        if e["target_type"] == "memory":
+            tr = q("SELECT slug FROM memory WHERE id=? AND archived_at IS NULL", (e["target_id"],))
+        else:
+            tr = q("SELECT slug FROM decisions WHERE id=?", (e["target_id"],))
         if tr:
             id_to_slug[(e["target_type"], e["target_id"])] = tr[0]["slug"]
     rows_edges = _edge_rows(edges, src_type, row["id"], id_to_slug, [], f"{src_type}/{slug}")

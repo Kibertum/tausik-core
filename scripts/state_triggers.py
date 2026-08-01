@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from project_service import ProjectService
@@ -66,7 +66,9 @@ def _tree_root(svc: ProjectService) -> str | None:
         return None
 
 
-def auto_export_entity(svc: ProjectService, kind: str, slug: str) -> bool:
+def auto_export_entity(
+    svc: ProjectService, kind: str, slug: str, *, follow_edges: bool = True
+) -> bool:
     """Best-effort: re-serialize ONE changed entity to its file. NEVER raises.
 
     Returns True iff the projection was actually changed — a file (re)written OR
@@ -78,6 +80,13 @@ def auto_export_entity(svc: ProjectService, kind: str, slug: str) -> bool:
     the DB no longer has. A full `state export` never showed it (it rebuilds the
     whole tree from scratch); only the incremental path accumulated them. The
     projection must be able to shrink, so None now removes the file.
+
+    A departure also restales OTHER files: an `edges:` block naming the row that
+    just left now points at nothing, and `build_tree` drops such an edge (with a
+    warning) while the incremental path never re-rendered the source. That is why
+    the departure — the one signal shared by delete and archive — is where the
+    referring entities are refreshed. `follow_edges=False` on the inner call
+    bounds the recursion at one hop.
     """
     try:
         if not _auto_export_enabled():
@@ -89,7 +98,13 @@ def auto_export_entity(svc: ProjectService, kind: str, slug: str) -> bool:
             return False
         result = export_one(svc, kind, slug)
         if result is None:
-            return _remove_projection(root, kind, slug)
+            removed = _remove_projection(root, kind, slug)
+            # Only memory/decisions can be an edge endpoint (the CHECK constraint
+            # on memory_edges says so), so a departing epic/story/task cannot
+            # strand one — no reason to pay for the sweep there.
+            if follow_edges and kind in ("memory", "decisions"):
+                _reproject_orphaned_edge_sources(svc)
+            return removed
         rel, content = result
         path = os.path.join(root, rel.replace("/", os.sep))
         if os.path.exists(path):
@@ -103,6 +118,47 @@ def auto_export_entity(svc: ProjectService, kind: str, slug: str) -> bool:
     except Exception as e:  # noqa: BLE001 — FAIL-OPEN: telemetry, never propagate
         _log.warning("auto-export %s/%s failed (non-fatal): %s", kind, slug, e)
         return False
+
+
+_ORPHANED_EDGE_SOURCES = """
+SELECT DISTINCT source_type, source_id FROM memory_edges WHERE valid_to IS NULL AND (
+    (target_type='memory'   AND target_id NOT IN (SELECT id FROM memory WHERE archived_at IS NULL))
+ OR (target_type='decision' AND target_id NOT IN (SELECT id FROM decisions))
+)
+"""
+
+
+def _reproject_orphaned_edge_sources(svc: ProjectService) -> int:
+    """Re-serialize every entity holding a live edge to a row that left. Never raises.
+
+    Asked as a QUESTION OF THE DATA — "which live edges now point outside the
+    projection" — rather than "which rows referenced the one just deleted",
+    because after a DELETE the departed row's id is no longer recoverable from
+    its slug. The form is also self-healing: an edge orphaned by any means, past
+    or future, is picked up on the next departure.
+
+    `memory_edges` is polymorphic (`source_type`/`target_type` instead of a
+    foreign key), so `_projection_victims` — which reads PRAGMA foreign_key_list
+    — is structurally unable to see this dependency. It is real regardless of
+    whether the schema can express it, which is why it is followed by hand here
+    and nowhere else.
+    """
+    try:
+        rows = svc.be._q(_ORPHANED_EDGE_SOURCES)
+    except Exception as e:  # noqa: BLE001 — fail-open: the DB write already happened
+        _log.warning("orphaned-edge sweep failed (non-fatal): %s", e)
+        return 0
+    changed = 0
+    for row in rows:
+        kind = "memory" if row["source_type"] == "memory" else "decisions"
+        try:
+            table = "memory" if kind == "memory" else "decisions"
+            src = svc.be._q1(f"SELECT slug FROM {table} WHERE id=?", (row["source_id"],))
+            if src and src.get("slug"):
+                changed += auto_export_entity(svc, kind, src["slug"], follow_edges=False)
+        except Exception as e:  # noqa: BLE001 — fail-open, per-row
+            _log.warning("re-export of edge source %s failed (non-fatal): %s", row, e)
+    return changed
 
 
 def _remove_projection(root: str, kind: str, slug: str) -> bool:
@@ -122,6 +178,52 @@ def _remove_projection(root: str, kind: str, slug: str) -> bool:
         return False
     os.remove(path)
     return True
+
+
+class _BackendView:
+    """A bare backend, dressed as the two attributes the exporter actually reads.
+
+    `export_one` touches only `svc.be._q`, and `_tree_root` only `svc.tausik_dir()`
+    — which `ProjectService` itself defines as `dirname(abspath(be.db_path))`. So
+    a backend can answer both without a service, and `auto_export_write` can hang
+    the projection off the write layer instead of off ~20 remembered call sites.
+    Deliberately NOT a `be` attribute on `SQLiteBackend`: the backend does not
+    become a service, it is only viewed as one, here, for one purpose.
+    """
+
+    __slots__ = ("be",)
+
+    def __init__(self, be: Any) -> None:
+        self.be = be
+
+    def tausik_dir(self) -> str:
+        return os.path.dirname(os.path.abspath(str(self.be.db_path)))
+
+
+def auto_export_write(be: Any, table: str, slug: str) -> bool:
+    """Project the row a backend write just COMMITTED. NEVER raises.
+
+    This is the property half of the projection contract. Its counterparts —
+    `auto_export_entity` at the service layer — are called by hand, once per
+    mutating method, and that is exactly how the guarantee kept leaking: first
+    two methods exported, then eight, then six more, and the cascade
+    (`service_cascade`) still wrote story/epic status straight through `self.be`
+    with nothing projecting. A list that has to be extended is a list that gets
+    forgotten; this hook fires because a projected table was written, so a
+    mutator nobody remembers is covered on the commit that introduces it.
+
+    Membership is asked of the export registry (`ENTITY_DIRS`), not of a table
+    list kept here — the two would drift, which is the same defect one layer up.
+    """
+    try:
+        from state_import import ENTITY_DIRS
+
+        if table not in ENTITY_DIRS:
+            return False
+        return auto_export_entity(cast("ProjectService", _BackendView(be)), table, slug)
+    except Exception as e:  # noqa: BLE001 — FAIL-OPEN: the DB write already happened
+        _log.warning("auto-export write %s/%s failed (non-fatal): %s", table, slug, e)
+        return False
 
 
 def auto_export_by_id(svc: ProjectService, kind: str, entity_id: int) -> bool:

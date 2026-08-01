@@ -1,8 +1,30 @@
-"""High-risk closures require an L3 adversarial review (v15-l3-risk-trigger).
+"""Under-evidenced closures require an L3 adversarial review (v15-l3-risk-trigger).
+
+WHAT THIS GATE DOES AND DOES NOT CLAIM (decision #212). It REFUSES the close and
+returns; it does not merely annotate one. A refusal has to be justified, and the
+justification here is NOT that the score predicts anything — the backtest in
+docs/ru/research/risk-model-backtest-2026-07.md measured AUC 0.4820 over 374
+closures, i.e. the composite does not separate closures a defect escaped from
+those it did not, and its heaviest factor (`gate_coverage`, weight 0.25) is
+significantly INVERTED at AUC 0.409, p = 0.0098.
+
+What `measured_score >= LEVEL_HIGH` over a real coverage share does say is a
+DESCRIPTION, true by construction and independent of any AUC: most of the
+evidence factors we were able to measure are at or near their worst value —
+gates unverified, tests untouched under churn, acceptance criteria with no
+evidence markers, security surface touched. "We have almost no evidence this
+close was verified" is a legitimate reason to ask for a second pair of eyes on
+its own terms. It is not a forecast, and the wording below no longer implies one.
+
+The honest gap, stated rather than papered over: the SELECTOR is still the
+a-priori weighting nobody validated, so which closures land above the line is
+not evidence-based. Fixing that needs a held-out sample the project does not yet
+have (the backtest refused to re-weight on the same 374 rows for exactly this
+reason). Until then this gate is a policy on evidence, not a risk model.
 
 Walko HITL-for-1% pattern: instead of one review policy for everything,
-escalate only the closures whose MEASURED risk is high — the ~1% where an
-adversarial pass pays for itself. Two deliberate softeners:
+escalate only the thinnest-evidenced closures — the ~1% where an adversarial
+pass pays for itself. Two deliberate softeners:
 
   - Renormalized measured score: factors the collector could not measure
     are excluded (they already push the STORED score up conservatively).
@@ -129,7 +151,10 @@ def check_l3_required(
                 f"recorded L3 review found"
             )
         message = (
-            f"High-risk closure: measured risk {ms} >= {LEVEL_HIGH} "
+            f"Under-evidenced closure: measured evidence score {ms} >= {LEVEL_HIGH} "
+            f"— most of what could be measured is at its worst value. This is a "
+            f"description of the evidence, NOT a prediction (the composite's AUC "
+            f"is 0.4820; see docs/ru/research/risk-model-backtest-2026-07.md). "
             f"(SENAR Rule 10.15 selective escalation, Rule 4 external validation)."
             f"{_delegation_hint()} Then record the verdict — "
             f"`tausik review record --task {slug} --type L3 "

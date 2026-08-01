@@ -226,3 +226,126 @@ def test_unregistered_category_refuses_to_borrow_another_categorys_keys():
     """
     with pytest.raises(KeyError, match="no classifier text keys registered"):
         brain_publish_flow.artifact_blob_for_classifier("snippets", {"name": "x"})
+
+
+# --- the binding guard answers "same FILE", not "same string" ----------------
+
+
+def _spelling_variant(path: str) -> str:
+    r"""The same file, spelled with the opposite drive-letter case.
+
+    Windows hands out `d:\...` or `D:\...` depending on which API produced the
+    path, and both name one file. On POSIX there is no such variant, so the
+    helper returns the path unchanged and the test degenerates to a tautology
+    it still deserves to state.
+    """
+    if len(path) > 1 and path[1] == ":":
+        head = path[0]
+        return (head.upper() if head.islower() else head.lower()) + path[1:]
+    return path
+
+
+class TestBindingGuardComparesFilesNotStrings:
+    r"""A drive-letter difference used to disable publishing AND misreport why.
+
+    The guard is fail-closed, so `d:\` against `D:\` did not merely fail to
+    publish — it routed through `local_reason`'s last branch and told a user
+    working inside their own project that the context was a throwaway. Both
+    halves are pinned here, because the message was rewritten in #152
+    specifically so it would stop naming a reason that was not the reason.
+    """
+
+    def test_case_differing_drive_letter_is_the_same_project_db(self, tmp_path, monkeypatch):
+        from service_decide import is_working_project_db
+
+        tausik_dir = tmp_path / ".tausik"
+        tausik_dir.mkdir(parents=True, exist_ok=True)
+        db = tausik_dir / "tausik.db"
+        be = SQLiteBackend(str(db))
+        import project_config
+
+        monkeypatch.setattr(
+            project_config, "find_tausik_dir", lambda *a, **k: _spelling_variant(str(tausik_dir))
+        )
+        try:
+            assert is_working_project_db(be) is True
+        finally:
+            be.close()
+
+    def test_the_throwaway_message_is_unreachable_for_a_casing_difference(
+        self, tmp_path, monkeypatch
+    ):
+        """AC-5: the user is not told their own project is a one-off context.
+
+        The text is deliberately the cross-project one. Feeding it a
+        project-specific payload would make the classifier route local on its
+        own, and the assertion would pass without the binding guard ever being
+        consulted — green for a reason that has nothing to do with the bug.
+        """
+        tausik_dir = tmp_path / ".tausik"
+        tausik_dir.mkdir(parents=True, exist_ok=True)
+        s = ProjectService(SQLiteBackend(str(tausik_dir / "tausik.db")))
+        import project_config
+
+        monkeypatch.setattr(
+            project_config, "find_tausik_dir", lambda *a, **k: _spelling_variant(str(tausik_dir))
+        )
+        try:
+            with (
+                patch("brain_config.load_brain", return_value=BRAIN_CFG),
+                patch("brain_config.validate_brain", return_value=[]),
+                patch("brain_runtime.try_brain_write_decision", return_value=(True, "page-1")),
+            ):
+                msg = s.decide("Prefer exponential backoff for network retries")
+            assert "not bound to the project DB" not in msg
+            assert "throwaway" not in msg
+            assert "mirrored to brain" in msg  # the guard let it through, as it must
+        finally:
+            s.be.close()
+
+    def test_a_symlinked_tausik_dir_is_still_the_project(self, tmp_path, monkeypatch):
+        """AC-3: the symlink question is decided, not left to chance.
+
+        A link to the project's database IS the project's database; refusing it
+        would be the casing over-refusal one indirection further out. Skipped
+        where the platform will not let this process create a link (Windows
+        without Developer Mode) — the decision is still recorded in the
+        docstring of `_same_file`, which is what AC-3 asks for.
+        """
+        from service_decide import is_working_project_db
+
+        real = tmp_path / "real" / ".tausik"
+        real.mkdir(parents=True, exist_ok=True)
+        be = SQLiteBackend(str(real / "tausik.db"))
+        link = tmp_path / "linked"
+        try:
+            os.symlink(str(real), str(link), target_is_directory=True)
+        except (OSError, NotImplementedError, AttributeError):
+            be.close()
+            pytest.skip("this platform/process cannot create a directory symlink")
+        import project_config
+
+        monkeypatch.setattr(project_config, "find_tausik_dir", lambda *a, **k: str(link))
+        try:
+            assert is_working_project_db(be) is True
+        finally:
+            be.close()
+
+    def test_a_genuinely_foreign_db_is_still_refused(self, tmp_path, monkeypatch):
+        """NEGATIVE: the guard is not loosened, only made to answer the right question.
+
+        A different DIRECTORY stays foreign however the paths are spelled — the
+        two normalizations can only merge spellings of one file, never two files.
+        """
+        from service_decide import is_working_project_db
+
+        real = tmp_path / "mine" / ".tausik"
+        real.mkdir(parents=True, exist_ok=True)
+        stray = SQLiteBackend(str(tmp_path / "stray.db"))
+        import project_config
+
+        monkeypatch.setattr(project_config, "find_tausik_dir", lambda *a, **k: str(real))
+        try:
+            assert is_working_project_db(stray) is False
+        finally:
+            stray.close()
