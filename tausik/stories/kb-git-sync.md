@@ -1,7 +1,7 @@
 ---
 slug: kb-git-sync
 title: "Выгрузка и загрузка через git"
-status: open
+status: active
 epic: shared-knowledge
 ---
 
