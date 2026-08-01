@@ -164,13 +164,22 @@ class SQLiteBackend(
         write a file describing state a rollback then throws away, leaving the
         tree ahead of the DB — the same class of divergence this hook exists to
         remove, with the sign flipped.
+
+        "Never raises" covers the IMPORT too, which it did not: `auto_export_write`
+        guards its own body completely, but the deferred import sat outside any
+        try. This function is called from `_update`, so an ImportError would have
+        broken the DB write itself rather than just its projection — a
+        best-effort hook taking down the thing it is best-effort ABOUT.
         """
         if self._in_tx:
             self._pending_projection.append((table, slug))
             return
-        from state_triggers import auto_export_write
+        try:
+            from state_triggers import auto_export_write
 
-        auto_export_write(self, table, slug)
+            auto_export_write(self, table, slug)
+        except Exception:  # noqa: BLE001 — FAIL-OPEN: the row is already written
+            logger.warning("projection import/dispatch failed for %s/%s", table, slug)
 
     def _dependent_tables(self, parent: str) -> list[tuple[str, str, str]]:
         """Projected tables whose rows the ENGINE touches when a `parent` row goes.
@@ -239,14 +248,21 @@ class SQLiteBackend(
         De-duplicated (first write wins the position): `state import` updates
         thousands of rows in one transaction and would otherwise re-render the
         same entity once per field-touching statement.
+
+        The import is inside the guard for the same reason as in `_project_write`
+        — this runs from `commit_tx`, so an unguarded ImportError would turn a
+        best-effort projection into a failed commit.
         """
         pending, self._pending_projection = self._pending_projection, []
         if not pending:
             return
-        from state_triggers import auto_export_write
+        try:
+            from state_triggers import auto_export_write
 
-        for table, slug in dict.fromkeys(pending):
-            auto_export_write(self, table, slug)
+            for table, slug in dict.fromkeys(pending):
+                auto_export_write(self, table, slug)
+        except Exception:  # noqa: BLE001 — FAIL-OPEN: the transaction is committed
+            logger.warning("projection flush failed for %d queued write(s)", len(pending))
 
     def _update(
         self,

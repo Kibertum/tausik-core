@@ -174,8 +174,33 @@ def _reproject_orphaned_edge_sources(svc: ProjectService) -> int:
     Asked as a QUESTION OF THE DATA — "which live edges now point outside the
     projection" — rather than "which rows referenced the one just deleted",
     because after a DELETE the departed row's id is no longer recoverable from
-    its slug. The form is also self-healing: an edge orphaned by any means, past
-    or future, is picked up on the next departure.
+    its slug. One consequence of that form is real: an edge orphaned by any
+    means, past or future, is picked up on the next departure, without anyone
+    having to have routed it here.
+
+    IT DOES NOT CONVERGE, and this used to be called "self-healing", which reads
+    as if it did. Re-serializing the SOURCE does not touch `memory_edges`, so the
+    predicate this scan runs on never clears: the same orphans are found, and
+    the same files re-rendered, on every subsequent departure, forever.
+
+    MEASURED, so the cost is a number and not a worry — 2000 memory rows, 40
+    orphaned edges, three consecutive sweeps:
+
+        sweep #1: returned=40  export_one=40  47ms   orphans_left=40
+        sweep #2: returned=0   export_one=40  281ms  orphans_left=40
+        sweep #3: returned=0   export_one=40  16ms   orphans_left=40
+
+    `returned=0` with `export_one=40` is the whole defect in one line: forty
+    serializations that changed nothing. It is bounded by the ORPHAN count, not
+    by tree size, but archived memory only ever grows, so the per-departure bill
+    grows monotonically with it.
+
+    Converging means invalidating the edge (`valid_to`) when its target leaves —
+    and that belongs at the SERVICE layer, where the archive or the delete
+    happens, not in a fail-open projection trigger that would then be writing to
+    the database it is downstream of. Tracked as
+    `orphaned-edges-never-converge-so-every-departure-pays-for-them`; deliberately
+    not smuggled in here.
 
     `memory_edges` is polymorphic (`source_type`/`target_type` instead of a
     foreign key), so `_projection_victims` — which reads PRAGMA foreign_key_list

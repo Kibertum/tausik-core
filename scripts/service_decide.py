@@ -137,17 +137,35 @@ def local_reason(decision: Any, cfg: dict[str, Any]) -> str:
 
 
 def _same_file(a: str, b: str) -> bool:
-    r"""Do these two paths name the same file? Symlinks resolved, case folded.
+    r"""Do these two paths name the same file? Asked of the filesystem first.
 
     The question is identity of a FILE, and a string comparison answers a
-    different one. Two normalizations, each for a way the same file gets two
-    spellings, and both are the SAFE direction — they can only turn a false
-    "different" into a true "same", never the reverse, because two genuinely
-    distinct files cannot share a realpath:
+    different one. When both paths exist, the filesystem itself answers:
+    `(st_dev, st_ino)` is what "the same file" MEANS, so symlinks, junctions,
+    hard links and drive-letter casing all collapse without any normalization
+    having to be correct about them.
+
+    That order matters, because the string route carried a claim that is false.
+    It read "two genuinely distinct files cannot share a realpath", and folding
+    case after resolving makes that untrue exactly where it costs most: NTFS
+    supports per-directory case sensitivity (`fsutil setCaseSensitiveInfo`, the
+    documented path for WSL2), so `Data.db` and `data.db` can exist SEPARATELY,
+    realpath returns two names, and `normcase` then declares them one. A
+    fail-closed guard becomes fail-OPEN for precisely the class it was written
+    to catch. `st_ino` does not have that failure mode.
+
+    The string route remains as a FALLBACK, for the case the stat route cannot
+    serve: one of the paths does not exist yet (an uninitialised project), or
+    the filesystem reports no usable inode — some Windows network shares return
+    zero. There the residual risk above is accepted, and named rather than
+    denied: it is the narrow case of a non-existent file on a case-sensitive
+    volume, where nothing better is available.
+
+    Both normalizations in that fallback are still there for their own reasons:
 
       * `realpath` — a symlinked or junctioned `.tausik/` makes the resolver
-        return one spelling and the backend hold the other. Decided here rather
-        than left implicit: a symlink to the project's database IS the project's
+        return one spelling and the backend hold the other. Decided rather than
+        left implicit: a symlink to the project's database IS the project's
         database, and refusing it would be the same over-refusal as the casing
         bug, one indirection further out.
       * `normcase` — on Windows and macOS `d:\...` and `D:\...` are one file and
@@ -159,6 +177,12 @@ def _same_file(a: str, b: str) -> bool:
         AND made `local_reason` tell a user working in their own project that
         their context was a throwaway.
     """
+    try:
+        sa, sb = os.stat(a), os.stat(b)
+        if sa.st_ino and sb.st_ino:
+            return (sa.st_dev, sa.st_ino) == (sb.st_dev, sb.st_ino)
+    except OSError:
+        pass  # not both present, or unstattable — fall through to the string route
     return os.path.normcase(os.path.realpath(a)) == os.path.normcase(os.path.realpath(b))
 
 

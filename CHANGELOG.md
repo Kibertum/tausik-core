@@ -9,6 +9,40 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — three claims from session #154 that outran their code (session #155)
+
+Same theme as the two entries below, one size down: prose asserting more than the
+code delivers. Found by reviewing the batch that had just been written.
+
+**"Never raises" now covers the import.** `_project_write` and
+`_flush_pending_projection` both promised never to raise, and both did their
+deferred `from state_triggers import ...` outside any try. The imported function
+guards its own body completely; the import did not. These two run from `_update`
+and from `commit_tx`, so an ImportError would have broken the database write
+itself — a best-effort projection taking down the thing it is best-effort about.
+
+**The orphaned-edge sweep is no longer called self-healing, because it does not
+converge.** Re-serializing the entity that HOLDS a stranded edge does not touch
+`memory_edges`, so the predicate the scan runs on never clears: the same orphans
+are found and the same files re-rendered on every later departure. Measured on
+2000 memory rows with 40 orphans, three consecutive sweeps: 40 renders, then 40
+that changed nothing, then 40 more. The bill is bounded by orphan count rather
+than tree size, but archived memory only grows. The docstring now states this
+with the numbers; converging means invalidating the edge where the departure
+happens, at the service layer, and that is tracked as its own task rather than
+smuggled into a fail-open projection trigger.
+
+**The database-identity guard asks the filesystem before it compares strings.**
+It claimed "two genuinely distinct files cannot share a realpath", which folding
+case afterwards makes false exactly where it costs most: NTFS supports
+per-directory case sensitivity — the documented path for WSL2 — so `Data.db` and
+`data.db` can exist separately, and `normcase` would have declared them one file.
+A fail-closed guard becomes fail-OPEN for the class it was written to catch. When
+both paths exist, `(st_dev, st_ino)` now answers, which is what "the same file"
+means; the string comparison remains as a fallback for a path that does not exist
+yet or a volume with no usable inode, and the residual risk there is named rather
+than denied.
+
 ### Fixed — the projection hook says what it covers, and it is less than it claimed (session #155)
 
 The write-layer hook was introduced with the line "a mutator nobody remembers to

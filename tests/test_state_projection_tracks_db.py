@@ -76,6 +76,41 @@ _WRITE_RE = re.compile(
 )
 _READ_RE = re.compile(r"\b(?:FROM|JOIN)\s+[\"'`\[]?([A-Za-z_][A-Za-z0-9_]*)", re.IGNORECASE)
 _IS_SELECT = re.compile(r"^\s*(?:WITH|SELECT)\b", re.IGNORECASE)
+_LEADING_WITH = re.compile(r"^\s*WITH\s+(?:RECURSIVE\s+)?", re.IGNORECASE)
+
+
+def _strip_cte_prefix(sql: str) -> str:
+    """Drop a leading `WITH ...` clause so the statement's real verb is first.
+
+    `_WRITE_RE` anchors on the DML keyword, and `_IS_SELECT` treats anything
+    starting with WITH as a read. SQLite accepts `WITH x AS (...) UPDATE ...`
+    and `... DELETE FROM ...`, so such a statement was classified as a READ
+    while it changed a row — silently green in a ratchet whose whole job is to
+    catch a write that goes around the hook.
+
+    The CTE list is skipped by counting parentheses rather than by regex,
+    because a subquery may contain the comma and the closing paren that a
+    pattern would stop at. Nothing in this codebase issues CTE-DML today; the
+    point is that if something starts to, the ratchet notices.
+    """
+    m = _LEADING_WITH.match(sql)
+    if not m:
+        return sql
+    i, depth = m.end(), 0
+    while i < len(sql):
+        c = sql[i]
+        if c == "(":
+            depth += 1
+        elif c == ")":
+            depth -= 1
+        elif depth == 0 and not sql.startswith(",", i):
+            # At depth 0, outside the parenthesised body: either the next CTE
+            # (after a comma) or the statement the WITH prefixes.
+            rest = sql[i:].lstrip()
+            if _WRITE_RE.match(rest):
+                return rest
+        i += 1
+    return sql
 
 
 class _SqlTap:
@@ -105,6 +140,7 @@ class _SqlTap:
     def __call__(self, sql: str) -> None:
         if not self.on:
             return
+        sql = _strip_cte_prefix(sql)
         m = _WRITE_RE.match(sql)
         if m:
             verb = "INSERT" if m.group("ins") else "UPDATE" if m.group("upd") else "DELETE"
@@ -399,7 +435,11 @@ def _op_task_close(svc, w: _World) -> None:
     t = w.pick(w.tasks_where(status="review"))
     svc.be.task_update(t, status="done", completed_at=utcnow_iso())
     svc._cascade_done(t)
-    svc._project_task(t)
+    # No `svc._project_task(t)` here. It used to be, and it was dead weight in a
+    # sequence whose stated point is "no manual export anywhere": the real
+    # `task_done` makes no such call, and removing it leaves the tree byte-for-byte
+    # identical. A manual export inside the property loop is exactly the thing the
+    # property is supposed to prove unnecessary.
     w.tasks[t]["status"] = "done"
     story = w.tasks[t]["story"]
     if not [x for x in w.children_of_story(story) if w.tasks[x]["status"] != "done"]:
@@ -621,7 +661,13 @@ _UNREACHABLE: dict[tuple[str, str], str] = {
         "only `brain_move` deletes one, straight through `_ex` with no projection "
         "— see task brain-move-deletes-leave-ghost-projection"
     ),
-    ("memory_edges", "DELETE"): "edges are soft-invalidated (`valid_to`), never deleted",
+    ("memory_edges", "DELETE"): (
+        "no SERVICE method deletes an edge — the service layer soft-invalidates "
+        "(`valid_to`). Migrations do issue `DELETE FROM memory_edges` "
+        "(backend_migrations.py, four of them), so the reason is the observation "
+        "SCOPE, not the absence of the statement: this tap watches a service-driven "
+        "sequence, and schema migration is not one"
+    ),
 }
 
 
@@ -698,6 +744,38 @@ def test_export_failure_does_not_roll_back_the_write(svc, root, monkeypatch):
     svc.epic_add("survivor", "Эпик переживает падение экспорта")
     assert svc.be.epic_get("survivor") is not None
     assert not os.path.exists(os.path.join(root, "epics", "survivor.md"))
+
+
+@pytest.mark.parametrize(
+    ("sql", "expected"),
+    [
+        ("UPDATE tasks SET x=1", ("tasks", "UPDATE")),
+        ("WITH d AS (SELECT id FROM tasks) UPDATE tasks SET x=1", ("tasks", "UPDATE")),
+        (
+            "WITH RECURSIVE d(n) AS (SELECT 1) DELETE FROM memory WHERE id IN d",
+            ("memory", "DELETE"),
+        ),
+        # A comma and a closing paren INSIDE a subquery: a regex that stopped at
+        # either would mis-slice the prefix and miss the verb behind it.
+        (
+            "WITH a AS (SELECT id, slug FROM tasks WHERE id IN (SELECT id FROM epics)) "
+            "INSERT INTO memory (slug) SELECT slug FROM a",
+            ("memory", "INSERT"),
+        ),
+        # Still a read: a CTE in front of a SELECT must NOT be reported as a write.
+        ("WITH d AS (SELECT 1) SELECT * FROM tasks", None),
+    ],
+)
+def test_the_tap_sees_a_write_hiding_behind_a_cte(sql, expected):
+    """`WITH ... UPDATE` is a write, and the ratchet used to score it as a read.
+
+    Nothing issues CTE-DML in this codebase today, which is exactly why this is
+    worth pinning: the ratchet's job is to catch a write path nobody accounted
+    for, and it cannot do that while a legal SQLite form reads as a SELECT.
+    """
+    tap = _SqlTap()
+    tap(sql)
+    assert tap.writes == ({expected} if expected else set())
 
 
 def test_the_hook_alone_does_not_carry_the_projection(svc, root, monkeypatch):

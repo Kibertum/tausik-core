@@ -232,17 +232,36 @@ def test_unregistered_category_refuses_to_borrow_another_categorys_keys():
 
 
 def _spelling_variant(path: str) -> str:
-    r"""The same file, spelled with the opposite drive-letter case.
+    r"""The same file, spelled differently. NEVER the input unchanged.
 
-    Windows hands out `d:\...` or `D:\...` depending on which API produced the
-    path, and both name one file. On POSIX there is no such variant, so the
-    helper returns the path unchanged and the test degenerates to a tautology
-    it still deserves to state.
+    This used to return the path untouched on POSIX, which turned two of the
+    tests below into "is X the same file as X" on two of the three CI legs — a
+    tautology dressed as a regression test, with the real coverage resting on
+    windows-latest alone.
+
+    Each platform gets the variant its own resolver has to earn:
+
+      * Windows hands out `d:\...` or `D:\...` depending on which API produced
+        the path, and both name one file. `normcase` is what makes them equal,
+        so flipping the drive letter is what puts `normcase` on trial.
+      * POSIX has no case variant — `os.path.normcase` is the identity there, so
+        no probe can make its removal redden a POSIX run, and pretending
+        otherwise would be the same false claim one level up. What CAN be put on
+        trial is the other half of the guard: `<dir>/./<base>` and a `..` round
+        trip name the same file through a different string, and only `realpath`
+        collapses them. A string comparison fails on both.
+
+    So on every platform the returned string DIFFERS from the input, and
+    `_same_file` has to do real work to call them equal — which is exactly the
+    claim the class below is named for.
     """
     if len(path) > 1 and path[1] == ":":
         head = path[0]
         return (head.upper() if head.islower() else head.lower()) + path[1:]
-    return path
+    head, tail = os.path.split(path.rstrip(os.sep))
+    if not tail:
+        return path
+    return os.path.join(head, ".", tail, "..", tail)
 
 
 class TestBindingGuardComparesFilesNotStrings:
@@ -254,6 +273,21 @@ class TestBindingGuardComparesFilesNotStrings:
     halves are pinned here, because the message was rewritten in #152
     specifically so it would stop naming a reason that was not the reason.
     """
+
+    def test_the_variant_is_never_the_input_unchanged(self, tmp_path):
+        """The tautology guard, and it is mechanical rather than a promise.
+
+        On POSIX this helper used to hand back its argument, so the two tests
+        below asserted that a path equals itself. That could only be noticed by
+        reading the helper; now it is noticed by running the suite on any
+        platform, which is the leg that was missing.
+        """
+        original = str(tmp_path / ".tausik")
+        variant = _spelling_variant(original)
+        assert variant != original, "the variant must differ AS A STRING, or nothing is tested"
+        assert os.path.realpath(variant) == os.path.realpath(original), (
+            "and it must still name the same file, or the test asks the wrong question"
+        )
 
     def test_case_differing_drive_letter_is_the_same_project_db(self, tmp_path, monkeypatch):
         from service_decide import is_working_project_db
