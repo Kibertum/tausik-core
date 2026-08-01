@@ -9,6 +9,35 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the projection hook says what it covers, and it is less than it claimed (session #155)
+
+The write-layer hook was introduced with the line "a mutator nobody remembers to
+wire is covered on the commit that introduces it". It is not, and this repeats
+that sentence only to retract it: it stood in the trigger's docstring, in a test
+docstring, and in both changelogs, so a reader had four independent-looking
+confirmations of something no code did.
+
+What the hook actually reaches is an UPDATE by slug and three deletes on
+epics/stories/tasks. Around it go every INSERT (`_ins` takes raw SQL and knows
+neither table nor slug), both knowledge kinds — memory and decisions are keyed by
+row id, not by a slug column — the budget setters that write the projected
+`call_budget` and `tier` columns, `task_append_notes`, `task_claim`, and the bulk
+`UPDATE memory SET archived_at`. Those are carried by the eighteen hand-written
+`auto_export_*` calls in the service layer, which the retracted sentence invited
+the next author to delete as redundant.
+
+Measured rather than argued: with only the manual calls silenced and the hook
+fully alive, the projection property goes red on all six seeds. That measurement
+is now a test, and it is written to fail the day the hook becomes complete — so
+whoever completes it has to correct the prose instead of inheriting it.
+
+The gaps are listed by name in the docstring, and the question "is my new mutator
+covered?" now has one true answer instead of two contradictory ones: neither
+mechanism guarantees it — the property test does, and it sees what its generated
+operation set exercises. Finishing the hook is tracked separately for 2.0; the
+duplicate render it would remove costs a second serialization and a file read,
+not a second write, because the export is idempotent.
+
 ### Fixed — the projection writes into the project that owns the database, or nowhere (session #155)
 
 Hanging the git projection off the write layer made it cover mutators nobody
@@ -214,8 +243,12 @@ service methods, then eight, then fourteen; the cascade was never on any of thos
 lists. So the hook moved to where the writes already meet — `SQLiteBackend._update`,
 the single choke point for `epic_update`/`story_update`/`task_update` — and asks
 the export registry (`ENTITY_DIRS`) whether the written table is projected, rather
-than consulting a table list kept alongside it that would drift the same way. A
-mutator nobody remembers to wire is now covered on the commit that introduces it.
+than consulting a table list kept alongside it that would drift the same way.
+
+This paragraph originally ended "a mutator nobody remembers to wire is now covered
+on the commit that introduces it". That was false, and session #155 corrected it —
+see the [Unreleased] entry on what the hook covers. The hook closes updates by slug
+and three deletes; the hand-written service-layer calls still carry everything else.
 
 Projection is deferred while a transaction is open and flushed on commit, because
 `task done` runs its status change and the cascade inside one: an eager write

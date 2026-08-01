@@ -243,14 +243,42 @@ class _BackendView:
 def auto_export_write(be: Any, table: str, slug: str) -> bool:
     """Project the row a backend write just COMMITTED. NEVER raises.
 
-    This is the property half of the projection contract. Its counterparts —
-    `auto_export_entity` at the service layer — are called by hand, once per
-    mutating method, and that is exactly how the guarantee kept leaking: first
-    two methods exported, then eight, then six more, and the cascade
-    (`service_cascade`) still wrote story/epic status straight through `self.be`
-    with nothing projecting. A list that has to be extended is a list that gets
-    forgotten; this hook fires because a projected table was written, so a
-    mutator nobody remembers is covered on the commit that introduces it.
+    WHAT THIS COVERS, EXACTLY: `_update` (a whitelisted UPDATE by slug) and the
+    three `_delete_projected` calls on epics/stories/tasks. Nothing else. This
+    docstring used to claim that "a mutator nobody remembers is covered on the
+    commit that introduces it", and that was false — measured, not argued: with
+    ONLY the manual service-layer calls silenced and this hook fully alive, the
+    projection property goes red on all six seeds
+    (`test_the_hook_alone_does_not_carry_the_projection`).
+
+    WHAT THIS DOES NOT COVER, by name, so no one has to rediscover it:
+      * every INSERT — `_ins` takes raw SQL and knows neither table nor slug, so
+        epic_add / story_add / task_add / decision_add / memory_add reach the DB
+        and not the tree;
+      * `memory` and `decisions` as kinds — their projected files are keyed by
+        row id, not by a slug column, and `memory_delete` is a raw `_ex`;
+      * the budget setters (`task_set_call_budget`, `task_set_cost_budget`,
+        `task_set_token_budget`, the `*_actual` writers) — raw `_ex` on tasks,
+        writing the PROJECTED columns `call_budget` and `tier`;
+      * `task_append_notes` and `task_claim` — raw `_ex`;
+      * the bulk `UPDATE memory SET archived_at` in `backend_graph`.
+
+    SO WHO GUARANTEES COVERAGE? Not this hook, and not the ~18 manual
+    `auto_export_entity` / `auto_export_by_id` calls in the service layer either.
+    Both are implementations. The guarantee is the PROPERTY — after any sequence
+    of mutations with no manual command in between, the tree equals
+    `build_tree(db)` — checked on generated sequences with a write-path ratchet
+    (`tests/test_state_projection_tracks_db.py`). Adding a mutator means adding
+    it to that test's operation set; the ratchet then tells you whether you
+    introduced a write path nobody accounted for. That is one answer to "is my
+    new mutator covered", and it is the only one that is true.
+
+    The manual calls therefore STAY. Removing them as redundant is what this
+    docstring used to invite, and it would silently break the projection for
+    every kind listed above. Completing the hook is real work — it means giving
+    `_ins` a table and a slug at every call site, moving the raw `_ex` writers
+    onto `_update`, and resolving ids for the bulk archive — and it is tracked
+    as `v2-projection-hook-covers-every-write`, not pretended to be done here.
 
     Membership is asked of the export registry (`ENTITY_DIRS`), not of a table
     list kept here — the two would drift, which is the same defect one layer up.

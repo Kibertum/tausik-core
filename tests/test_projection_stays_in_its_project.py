@@ -1,9 +1,11 @@
 """The projection writes into the project that owns the DB, or it writes nowhere.
 
-`auto_export_write` hung the projection off the write layer so that a mutator
-nobody remembers is still covered. That moved the trigger BELOW `ProjectService`
-— down to a bare `SQLiteBackend`, which has a db_path and nothing else. Two
-things the service used to supply came along as assumptions instead of values.
+`auto_export_write` hung the projection off the write layer, which moved the
+trigger BELOW `ProjectService` — down to a bare `SQLiteBackend`, which has a
+db_path and nothing else. Two things the service used to supply came along as
+assumptions instead of values. (What that move did and did not buy in coverage
+is a separate matter, settled in `auto_export_write`'s own docstring; this file
+is about where the projection lands, not what it reaches.)
 
 THE ADDRESS. `_tree_root` is `dirname(tausik_dir) + "/tausik"`, and
 `_BackendView.tausik_dir()` is `dirname(db_path)`. Composed, that is

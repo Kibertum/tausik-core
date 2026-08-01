@@ -8,9 +8,17 @@ saying `open`, and closing the last task of an epic closed the epic in the DB an
 left it `active` in git — on a tree the team is meant to read.
 
 `SQLiteBackend._update` is where all three of those writes already met, so the
-hook lives there. What that buys is not tidiness: a mutator nobody remembers to
-wire is covered on the commit that introduces it, because the trigger keys on a
-projected table having been written.
+hook lives there, and the cases below are the ones it genuinely closes: an UPDATE
+by slug and a delete on epics/stories/tasks.
+
+That is ALL it closes. This docstring used to add "a mutator nobody remembers to
+wire is covered on the commit that introduces it", which was not true and is not
+what these tests check — every INSERT, both knowledge kinds, the budget setters
+and the bulk archive go around the hook, and the service layer's hand-written
+calls are what keep them projected. `auto_export_write` now lists the gaps by
+name, and `test_the_hook_alone_does_not_carry_the_projection` holds the line by
+measuring it. Coverage as a whole is guaranteed by the property in
+`test_state_projection_tracks_db.py`, not by either mechanism on its own.
 
 The transaction cases are here for a reason of their own. `task_done` runs its
 status change and the cascade inside one transaction, so an eager write would put

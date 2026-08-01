@@ -698,3 +698,45 @@ def test_export_failure_does_not_roll_back_the_write(svc, root, monkeypatch):
     svc.epic_add("survivor", "Эпик переживает падение экспорта")
     assert svc.be.epic_get("survivor") is not None
     assert not os.path.exists(os.path.join(root, "epics", "survivor.md"))
+
+
+def test_the_hook_alone_does_not_carry_the_projection(svc, root, monkeypatch):
+    """The hand-written service-layer calls are LOAD-BEARING. This pins that.
+
+    `auto_export_write` used to promise that "a mutator nobody remembers is
+    covered on the commit that introduces it", because the hook keys on a
+    projected table having been written. It does not. The hook reaches `_update`
+    and three deletes; every INSERT, both knowledge kinds, the budget setters,
+    `task_append_notes`, `task_claim` and the bulk archive go around it. What
+    keeps the tree in step is the ~18 hand-written `auto_export_*` calls.
+
+    Two mechanisms both reading as a guarantee is worse than one incomplete
+    list, because the next author removes the manual call as redundant. So this
+    silences ONLY the manual layer, leaves the hook fully alive, and asserts the
+    property BREAKS. The discriminator is the handle: the hook passes a
+    `_BackendView`, every manual call site passes a real service.
+
+    THIS TEST IS MEANT TO GO RED THE DAY THE HOOK BECOMES COMPLETE — that is its
+    job, not a flaw. When `v2-projection-hook-covers-every-write` lands, whoever
+    reddens it must delete it AND rewrite the docstring and changelog entries it
+    guards, rather than leave a promise that quietly became true in code and
+    stayed unread in prose.
+    """
+    real = state_triggers.auto_export_entity
+
+    def hook_only(handle, kind, slug, *, follow_edges=True):
+        if not isinstance(handle, state_triggers._BackendView):
+            return False  # a manual service-layer call — silenced
+        return real(handle, kind, slug, follow_edges=follow_edges)
+
+    monkeypatch.setattr(state_triggers, "auto_export_entity", hook_only)
+
+    svc.epic_add("e", "Эпик")
+    with pytest.raises(AssertionError, match="the DB has rows the tree lacks"):
+        _assert_tracks(svc, root, "hook alone")
+
+    # And the hook IS alive: an UPDATE by slug — the narrow thing it does cover
+    # — still projects. So the failure above is a gap in coverage, not a patch
+    # that switched the whole projection off.
+    svc.be.epic_update("e", title="Эпик под другим именем")
+    assert os.path.isfile(os.path.join(root, "epics", "e.md"))
