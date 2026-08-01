@@ -89,7 +89,7 @@ import state_triggers  # noqa: E402
 def enabled_root(monkeypatch, tmp_path):
     """Enable auto-export and point the tree root at a tmp dir (isolated config)."""
     root = tmp_path / "tausik"
-    monkeypatch.setattr(state_triggers, "_auto_export_enabled", lambda: True)
+    monkeypatch.setattr(state_triggers, "_auto_export_enabled", lambda _d: True)
     monkeypatch.setattr(state_triggers, "_tree_root", lambda _svc: str(root))
     return str(root)
 
@@ -97,7 +97,7 @@ def enabled_root(monkeypatch, tmp_path):
 def test_auto_export_disabled_writes_nothing(svc, monkeypatch, tmp_path):
     _seed(svc)
     root = tmp_path / "tausik"
-    monkeypatch.setattr(state_triggers, "_auto_export_enabled", lambda: False)
+    monkeypatch.setattr(state_triggers, "_auto_export_enabled", lambda _d: False)
     monkeypatch.setattr(state_triggers, "_tree_root", lambda _svc: str(root))
     assert state_triggers.auto_export_entity(svc, "tasks", "exp") is False
     assert not root.exists()  # disabled → no surprise files
@@ -208,9 +208,9 @@ def test_stale_tree_is_not_reported_as_carrying_new_state(svc, enabled_root, mon
     _seed(svc)
     tree, _ = build_tree(svc)
     write_tree(enabled_root, tree, managed_dirs=set(ENTITY_DIRS))
-    monkeypatch.setattr(state_triggers, "_auto_export_enabled", lambda: False)
+    monkeypatch.setattr(state_triggers, "_auto_export_enabled", lambda _d: False)
     svc.be.task_update("exp", status="done")  # DB moves on; projection does not
-    monkeypatch.setattr(state_triggers, "_auto_export_enabled", lambda: True)
+    monkeypatch.setattr(state_triggers, "_auto_export_enabled", lambda _d: True)
 
     sug = state_triggers.import_suggested(svc)
     assert sug is not None, "a real divergence must still be reported"

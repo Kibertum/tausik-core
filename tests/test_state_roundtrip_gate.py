@@ -34,7 +34,7 @@ def project(tmp_path, monkeypatch):
     # "no tree yet" precondition. Each test materializes explicitly via _export.
     import state_triggers
 
-    monkeypatch.setattr(state_triggers, "_auto_export_enabled", lambda: False)
+    monkeypatch.setattr(state_triggers, "_auto_export_enabled", lambda _d: False)
     tausik_dir = tmp_path / ".tausik"
     tausik_dir.mkdir()
     db_path = str(tausik_dir / "tausik.db")

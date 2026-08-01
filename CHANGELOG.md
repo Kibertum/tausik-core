@@ -9,6 +9,35 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the projection writes into the project that owns the database, or nowhere (session #155)
+
+Hanging the git projection off the write layer made it cover mutators nobody
+remembers — and moved it below `ProjectService`, down to a bare `SQLiteBackend`
+that has a database path and nothing else. Two things the service used to supply
+travelled along as assumptions instead of values, and both were wrong.
+
+The address was `dirname(dirname(db_path))/tausik`, which names a project root
+only when the database sits inside that project's `.tausik/`. A backend opened at
+`<tmp>/case0/tausik.db` wrote into `<tmp>/tausik` — a sibling of the directory the
+caller named, outside anything it owns; at `:memory:` it wrote beside the
+repository. The directory must now name itself `.tausik`, and when nothing proves
+it does, there is no projection at all rather than one somewhere else. The costs
+are asymmetric: failing closed loses one unprojected row, failing open writes
+files into a directory nobody asked about.
+
+The switch was worse, because it was the reason the address defect fired. Reading
+`state.auto_export` from the ambient working directory meant one project's config
+answered for another project's database — the same defect the address had already
+been fixed for, one policy layer up. No test in this repository ever enabled the
+projection; this repository's own config enabled it for every temporary database
+the suite built. Measured: 311 tests left 31 stray `.md` files in the shared pytest
+temp root, under colliding universal slugs (`e`, `s`, `mvp`, `setup`), never
+cleaned up. After the fix the same run leaves none.
+
+The switch is now read from the project the address points at, derived from that
+address rather than resolved a second time, so "where we write" and "may we write"
+cannot name two different projects.
+
 ### Fixed — a rejected `task update` really writes nothing now (session #154)
 
 The entry below from session #153 described a narrower repair than it claimed.

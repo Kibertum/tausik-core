@@ -45,7 +45,7 @@ def svc(tmp_path):
 @pytest.fixture
 def root(monkeypatch, tmp_path):
     r = tmp_path / "tausik"
-    monkeypatch.setattr(state_triggers, "_auto_export_enabled", lambda: True)
+    monkeypatch.setattr(state_triggers, "_auto_export_enabled", lambda _d: True)
     monkeypatch.setattr(state_triggers, "_tree_root", lambda _v: str(r))
     return str(r)
 

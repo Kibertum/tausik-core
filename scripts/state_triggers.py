@@ -36,32 +36,66 @@ if TYPE_CHECKING:
 _log = logging.getLogger("tausik.state.triggers")
 
 
-def _auto_export_enabled() -> bool:
-    """True iff config `state.auto_export` is truthy. Any error → False (off)."""
+def _auto_export_enabled(tausik_dir: str) -> bool:
+    """True iff `state.auto_export` is truthy IN THIS PROJECT. Any error → False (off).
+
+    ``tausik_dir`` selects which ``.tausik/config.json`` answers, and it is
+    REQUIRED — not defaulted to the ambient project. Calling ``load_config()``
+    with no argument, which this did, reads the config of the process cwd: the
+    same mcp-config-read-paths-ignore-project-handle defect ``_tree_root`` names
+    three lines below, one policy layer up. The address had been fixed and the
+    switch had not, so a mutation on one project's DB was switched on by ANOTHER
+    project's config. That is how the whole test suite acquired a projection
+    nobody asked for — no test ever set `state.auto_export`, this repository's
+    own config set it for every temp DB pytest built.
+
+    The caller derives the argument from the address already in use rather than
+    resolving a project a second time, so the two cannot disagree about which
+    project is being asked.
+    """
     try:
         from project_config import load_config
 
-        node = load_config().get("state")
+        node = load_config(tausik_dir).get("state")
         return bool(isinstance(node, dict) and node.get("auto_export"))
     except Exception:  # noqa: BLE001 — config read is best-effort; default off
         return False
 
 
 def _tree_root(svc: ProjectService) -> str | None:
-    """The `tausik/` projection dir for THIS svc's project.
+    """The `tausik/` projection dir for THIS svc's project, or None if there is no project.
 
-    Derived from ``svc.tausik_dir()``, NOT the ambient ``find_tausik_dir()`` (the
-    process cwd): keying on the cwd is the mcp-config-read-paths-ignore-project-
-    handle defect — a mutation on one project's DB while cwd is another (e.g. a
-    test with an isolated temp DB) would write the projection into the WRONG
-    tree. Falls back to find_tausik_dir only if the svc cannot answer.
+    Two properties, each learned by getting it wrong.
+
+    NOT THE AMBIENT ``find_tausik_dir()`` (the process cwd): keying on the cwd is
+    the mcp-config-read-paths-ignore-project-handle defect — a mutation on one
+    project's DB while cwd is another (e.g. a test with an isolated temp DB)
+    would write the projection into the WRONG tree.
+
+    AND NOT ANY ``dirname(db_path)``. The address is ``dirname(tausik_dir)`` plus
+    ``tausik``, which names a project root only when ``tausik_dir`` IS some
+    project's ``.tausik/`` — an invariant this inherited from ProjectService
+    without inheriting what enforced it. Once ``auto_export_write`` moved the
+    trigger down to a bare ``SQLiteBackend``, the invariant stopped holding:
+    ``SQLiteBackend("<tmp>/case0/tausik.db")`` answers ``<tmp>/case0``, and the
+    projection went to ``<tmp>/tausik`` — a SIBLING of case0, outside anything
+    the caller owns; at ``:memory:`` it went beside the repository. So the
+    directory must NAME itself, and when it does not, there is no projection at
+    all rather than one somewhere else. Fail-closed, like the brain publish
+    guard, because the costs are asymmetric: a false negative loses one
+    unprojected row, a false positive writes into a directory nobody named —
+    measured, 31 files in the shared pytest basetemp under colliding universal
+    slugs (`e`, `s`, `mvp`, `setup`), never cleaned up.
     """
     try:
-        if hasattr(svc, "tausik_dir"):
-            return os.path.join(os.path.dirname(os.path.abspath(svc.tausik_dir())), "tausik")
-        from project_config import find_tausik_dir
+        from project_config import TAUSIK_DIR, find_tausik_dir
 
-        return os.path.join(os.path.dirname(find_tausik_dir()), "tausik")
+        tausik_dir = os.path.abspath(
+            svc.tausik_dir() if hasattr(svc, "tausik_dir") else find_tausik_dir()
+        )
+        if os.path.basename(tausik_dir) != TAUSIK_DIR:
+            return None
+        return os.path.join(os.path.dirname(tausik_dir), "tausik")
     except Exception:  # noqa: BLE001
         return None
 
@@ -89,13 +123,19 @@ def auto_export_entity(
     bounds the recursion at one hop.
     """
     try:
-        if not _auto_export_enabled():
-            return False
-        from state_export import export_one
-
         root = _tree_root(svc)
         if not root:
             return False
+        # The switch is read from the project the address POINTS AT, not resolved
+        # anew: `_tree_root` guarantees `<project>/tausik`, so its sibling is that
+        # project's `.tausik/`. Deriving it makes "where we write" and "may we
+        # write" structurally incapable of naming two different projects.
+        from project_config import TAUSIK_DIR
+
+        if not _auto_export_enabled(os.path.join(os.path.dirname(root), TAUSIK_DIR)):
+            return False
+        from state_export import export_one
+
         result = export_one(svc, kind, slug)
         if result is None:
             removed = _remove_projection(root, kind, slug)

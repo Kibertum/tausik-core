@@ -46,7 +46,7 @@ def svc(tmp_path):
 def root(monkeypatch, tmp_path):
     """Auto-export on, tree root in a tmp dir -- never the real project's."""
     r = tmp_path / "tausik"
-    monkeypatch.setattr(state_triggers, "_auto_export_enabled", lambda: True)
+    monkeypatch.setattr(state_triggers, "_auto_export_enabled", lambda _d: True)
     monkeypatch.setattr(state_triggers, "_tree_root", lambda _v: str(r))
     return str(r)
 

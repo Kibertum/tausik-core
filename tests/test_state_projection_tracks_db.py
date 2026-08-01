@@ -146,7 +146,7 @@ def root(monkeypatch, svc):
     several isolated projects at once — the real `_tree_root` behaves the same
     way, and pinning it would have silently pointed every service at one tree.
     """
-    monkeypatch.setattr(state_triggers, "_auto_export_enabled", lambda: True)
+    monkeypatch.setattr(state_triggers, "_auto_export_enabled", lambda _d: True)
     monkeypatch.setattr(state_triggers, "_tree_root", _tree_of)
     return _tree_of(svc)
 
