@@ -10,6 +10,28 @@ from verify_first_compat_predicate import should_apply_verify_first_autouse_comp
 
 
 @pytest.fixture(autouse=True)
+def _isolate_shared_knowledge_home(tmp_path_factory, monkeypatch):
+    """Point TAUSIK_HOME at a per-test directory, for EVERY test.
+
+    The shared knowledge store lives in the developer's home directory and is
+    now read by `memory_search` and by both knowledge aggregates. Without this,
+    any test asserting "the block is empty" or "search found N rows" quietly
+    starts depending on what the person running it happens to have shared —
+    green on a fresh checkout, red once they use `--global` even once, and the
+    failure would point at the wrong code.
+
+    Autouse and global rather than per-file: the read path can be reached from
+    anywhere that renders memory, so opting individual files in would be a list
+    someone has to remember to extend. This is the same reasoning that put the
+    projection behind a proven address rather than a path shape.
+
+    A directory is handed over rather than left unset, because an unset
+    TAUSIK_HOME resolves to the REAL `~/.tausik`.
+    """
+    monkeypatch.setenv("TAUSIK_HOME", str(tmp_path_factory.mktemp("tausik_home")))
+
+
+@pytest.fixture(autouse=True)
 def _mock_run_gates():
     """Mock gate_runner.run_gates to prevent pytest-in-pytest recursion.
 

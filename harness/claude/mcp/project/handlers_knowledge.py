@@ -139,7 +139,25 @@ def _do_memory_search(svc: Any, args: dict) -> str:
         args["query"],
         include_archived=bool(args.get("include_archived", False)),
     )
-    return render_list(results, _format_memory_hit, "No memories found.")
+    rendered = render_list(results, _format_memory_hit, "No memories found.")
+
+    # The shared store's degradation notice has to reach THIS surface, not only
+    # the CLI. CLAUDE.md tells agents to prefer MCP, so a warning that exists
+    # only in `tausik memory search` is a warning the primary reader never sees —
+    # and an incomplete result list that says nothing is exactly the silent
+    # failure the shared-read path was written to rule out.
+    #
+    # Importable because `handlers.py` puts the scripts directory on sys.path at
+    # import time, and this module is only ever reached through it. Stated as the
+    # actual reason: an earlier version of this comment claimed the path was
+    # settled by `svc.memory_search` having already imported the module, which
+    # happens to be true here and would have been the wrong thing to rely on.
+    # Kept local rather than top-level so the module has no script-layer
+    # dependency at import time.
+    from knowledge_read import pop_last_warning
+
+    warning = pop_last_warning()
+    return f"{rendered}\n⚠ {warning}" if warning else rendered
 
 
 def _do_memory_block(svc: Any, args: dict) -> str:

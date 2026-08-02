@@ -69,7 +69,13 @@ def build_compact_memory_tail(be: Any) -> list[str]:
     except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         return []
 
-    if not decisions and not conventions and not deadends and not contexts:
+    # Computed BEFORE the empty check: a project with no memory of its own is
+    # exactly the case where shared knowledge matters most — a fresh repository
+    # inheriting what was learned elsewhere. Returning early on "no local rows"
+    # would hide the shared section precisely there.
+    shared, warning = _shared_section(3)
+
+    if not any((decisions, conventions, deadends, contexts, shared, warning)):
         return []
 
     out: list[str] = ["### Memory tail"]
@@ -89,6 +95,8 @@ def build_compact_memory_tail(be: Any) -> list[str]:
         out.append(f"Dead ends ({len(deadends)}):")
         for de in deadends:
             out.append(f"- #{de.get('id')} {flatten_for_injection(de.get('title'), 100)}")
+    out.extend(shared)
+    out.extend(warning)
     return out
 
 
@@ -99,6 +107,7 @@ def build_memory_block(
     max_deadends: int = 5,
     max_lines: int = 50,
     max_contexts: int = 5,
+    max_shared: int = 3,
 ) -> str:
     """Compact markdown: context + decisions + conventions + recent dead ends.
 
@@ -112,7 +121,12 @@ def build_memory_block(
     except Exception:  # noqa: BLE001 — display-only aggregate, non-fatal
         return ""
 
-    if not decisions and not conventions and not deadends and not contexts:
+    # Same reason as in build_compact_memory_tail: a project with no memory of
+    # its own is exactly where inherited knowledge matters, so the shared
+    # section is computed before the empty check rather than after it.
+    shared, warning = _shared_section(max_shared)
+
+    if not any((decisions, conventions, deadends, contexts, shared, warning)):
         return ""
 
     lines: list[str] = [
@@ -151,12 +165,56 @@ def build_memory_block(
         for de in deadends:
             lines.append(f"- #{de.get('id')} {flatten_for_injection(de.get('title'), 80)}")
 
+    lines.extend(shared)
+
     if len(lines) > max_lines:
         overflow = len(lines) - max_lines
         lines = lines[:max_lines]
         lines.append(f"_...(truncated, {overflow} more lines)_")
 
+    # AFTER truncation, deliberately. A degradation notice that competes for the
+    # line budget is a notice that disappears exactly when the block is busiest —
+    # and its disappearance looks identical to "the shared store had nothing".
+    # Reproduced before this was moved: with max_conventions=15, which the CLI
+    # and MCP both allow, the block reached 51 lines and the warning was the line
+    # that got cut. It is short, it is rare, and it is the one line the reader
+    # cannot afford to lose, so it sits outside the budget.
+    lines.extend(warning)
+
     return "\n".join(lines)
+
+
+def _shared_section(max_shared: int) -> tuple[list[str], list[str]]:
+    """(entries, warning) — the shared section, with its notice kept separate.
+
+    Not merged into the project quotas, and the reason is arithmetic rather than
+    taste. The block orders by `id DESC` as a stand-in for recency, and the
+    shared store has an independent id sequence — "newer id" across the two
+    databases means nothing. Merging would let shared rows push project rows out
+    of a block the project relies on, silently, in proportion to how much the
+    person has shared. With a separate budget the project's OWN SECTIONS keep
+    their size whether the shared store holds nothing or ten thousand rows. The
+    block as a whole does grow, by exactly this section — claiming otherwise
+    would overstate what the separation buys.
+
+    The notice is returned apart from the entries so the caller can place it
+    outside any truncation. A store that cannot be read must say so, because
+    invisible absence of shared knowledge is indistinguishable from that
+    knowledge not existing. A store that was never created says nothing at all —
+    no degradation happened, and warning every session about a file the user
+    never asked for turns a signal into noise.
+    """
+    from knowledge_read import read_shared_block
+
+    raw, warning = read_shared_block(max_shared)
+
+    out: list[str] = []
+    if raw:
+        out.append("")
+        out.append(f"**Shared knowledge — from other projects ({len(raw)}):**")
+        out.extend(f"- [{kind}] {flatten_for_injection(text, 100)}" for kind, text in raw)
+
+    return out, ([" ", f"⚠ {warning}"] if warning else [])
 
 
 def build_memory_compact(be: Any, last_n: int = 50) -> str:

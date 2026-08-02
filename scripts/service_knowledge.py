@@ -85,8 +85,27 @@ class KnowledgeMixin:
         include_cq: bool = True,
         include_archived: bool = False,
     ) -> list[dict[str, Any]]:
-        """Search local memory + optional cq cross-project knowledge."""
+        """Search this project's memory, the shared store, and optionally cq.
+
+        Order is deliberate: project hits first, then shared, then cq. Each
+        later group is strictly less local than the one before it, and a reader
+        scanning top-down meets the most specific answers first. Shared rows are
+        addressless and labelled (`knowledge_read`), so they can never be
+        mistaken for a row of THIS project's memory.
+
+        A shared store that cannot be read records a warning for the renderer
+        to surface — `knowledge_read.pop_last_warning`. It is kept there rather
+        than returned here so that every existing caller of this method keeps
+        working unchanged, and a renderer that forgets to ask simply prints no
+        warning instead of printing a corrupt hit.
+        """
         local = self.be.memory_search(query, include_archived=include_archived)
+
+        from knowledge_read import search_shared_memory
+
+        shared, _warning = search_shared_memory(query, limit=5)
+        local.extend(shared)
+
         if not include_cq:
             return local
         # Try cq if configured

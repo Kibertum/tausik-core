@@ -9,6 +9,59 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — search and the knowledge block read the shared store too
+
+With this the shared knowledge base is a working feature rather than a place to
+put things: `memory search` and the block injected into CLAUDE.md now draw from
+`~/.tausik/knowledge.db` alongside the project, and each shared row says so.
+
+Provenance follows the precedent `cq` rows already set rather than inventing a
+second scheme: `source` states where the row came from, the title carries a
+visible `[shared]` prefix, and the id is None. The id matters most. A shared row
+does have one — in another database — and printing it would invite `memory show
+<id>` to return a DIFFERENT, real, local record. Two renderers already branch on
+an absent id, so they needed no teaching.
+
+Shared entries get their OWN section and their own budget in the knowledge
+block, which is arithmetic rather than taste. The block runs on hard caps and
+orders by `id DESC` as a proxy for recency; the shared store has an independent
+id sequence, so "newer id" across the two means nothing. Merging would let
+shared rows push project rows out of a block the project depends on, silently,
+in proportion to how much had been shared. A test pins that the project's
+part of the block — its rows AND the headers around them — is identical before
+and after fifty shared rows appear.
+
+Both aggregates compute that section BEFORE their early return on "no local
+rows" — a project with no memory of its own is exactly where inherited
+knowledge matters, and returning early would have hidden it precisely there.
+That was a real hole in the first version of this change, caught by a test
+rather than by reading.
+
+Ranking is FTS relevance then recency. No embeddings: short keyword queries are
+the dominant shape of an agent's search, and they are where semantic retrieval
+collapses. A test greps the read path for known vector libraries. Named for what it is: a
+tripwire at the likely point of entry, not proof against a hand-rolled
+similarity written without any of those words.
+
+A shared store that cannot be read produces a visible warning and the project's
+own results — never a silent shrug. The warning is appended AFTER the block's
+line budget is applied, because a notice that competes for that budget vanishes
+exactly when the block is fullest, and its absence then reads as "nothing was
+shared" rather than as a broken store, because invisible absence of shared
+knowledge is indistinguishable from that knowledge not existing. A store that
+was never created says nothing at all: nothing has degraded, and warning every
+session about a file the user never asked for turns a signal into noise.
+
+Project listings stay project listings. `memory list` and `decisions` still show
+this database only — the feature is about SEARCH and about session start, and
+blending the two would break the meaning of "show me this project's memory".
+
+The warning lives next to the code that produces it rather than on the service,
+and the class-surface ratchet is what forced that question: `ProjectService` was
+at its cap, and lifting the cap to hold a diagnostic would have spent a
+structural budget on plumbing. The gate asked the right question and the answer
+turned out to be the better placement anyway.
+
 ### Fixed — a stored record can no longer pose as document structure
 
 Both memory aggregates feed text into CLAUDE.md and into the session context,

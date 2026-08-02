@@ -49,10 +49,21 @@ def cmd_memory(svc: ProjectService, args: Any) -> None:
             return
         for r in rows:
             arch = " [archived]" if r.get("archived_at") else ""
-            # cq rows have no id — cross-project knowledge with no `memory` row
-            # to address. Omit the address rather than print `#None`.
+            # cq and shared-store rows have no id — knowledge with no `memory`
+            # row HERE to address. Omit the address rather than print `#None`,
+            # and never print the shared store's own id: it would point at a
+            # different, real, local record.
             addr = "" if r.get("id") is None else f"#{r['id']} "
-            print(f"  {addr}[{r['type']}] {r['title']}{arch}")
+            origin = f"  ({r['origin_project']})" if r.get("origin_project") else ""
+            print(f"  {addr}[{r['type']}] {r['title']}{arch}{origin}")
+        from knowledge_read import pop_last_warning
+
+        warning = pop_last_warning()
+        if warning:
+            # Printed after the results, not instead of them: the project's own
+            # answers are still valid, and what the reader needs to know is that
+            # the list is INCOMPLETE — not that the search failed.
+            print(f"  ⚠ {warning}")
     elif c == "show":
         r = svc.memory_show(args.id)
         print(f"#{r['id']} [{r['type']}] {r['title']}")
