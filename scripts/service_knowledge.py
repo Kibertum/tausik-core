@@ -36,6 +36,7 @@ class KnowledgeMixin:
         content: str,
         tags: list[str] | None = None,
         task_slug: str | None = None,
+        to_global: bool = False,
     ) -> str:
         if mem_type not in VALID_MEMORY_TYPES:
             raise ServiceError(
@@ -46,6 +47,18 @@ class KnowledgeMixin:
         validate_length("title", title)
         validate_content("content", content)
         title = safe_single_line(title) or title
+
+        # Validation above is shared on purpose — a shared entry is held to the
+        # same shape as a project one. Everything BELOW is project-specific and
+        # is skipped rather than adapted: the projection writes into this
+        # repository's tree, and the universality hint asks a question the flag
+        # has already answered. `write_memory` raises rather than falling back,
+        # so a failure here can never end up in the project database instead.
+        if to_global:
+            from knowledge_write import write_memory
+
+            return write_memory(mem_type, title, content, tags, task_slug)
+
         mid = self.be.memory_add(mem_type, title, content, tags, task_slug)
         from brain_universality import emit_universality_hint
 
@@ -160,11 +173,17 @@ class KnowledgeMixin:
 
     # --- Decisions ---
 
-    def decide(self, text: str, task_slug: str | None = None, rationale: str | None = None) -> str:
+    def decide(
+        self,
+        text: str,
+        task_slug: str | None = None,
+        rationale: str | None = None,
+        to_global: bool = False,
+    ) -> str:
         """Thin delegator — the two guarantees live in service_decide."""
         from service_decide import record
 
-        return record(cast("ProjectService", self), text, task_slug, rationale)
+        return record(cast("ProjectService", self), text, task_slug, rationale, to_global)
 
     def decisions(self, n: int = 20) -> list[dict[str, Any]]:
         return self.be.decision_list(n)

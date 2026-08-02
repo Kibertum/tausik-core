@@ -215,10 +215,38 @@ def connect_knowledge_db(*, create: bool = False) -> sqlite3.Connection | None:
     path = knowledge_db_path()
     if not create and not os.path.isfile(path):
         return None
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    home = os.path.dirname(path)
+    os.makedirs(home, exist_ok=True)
+    fresh = not os.path.isfile(path)
     conn = _configure(sqlite3.connect(path, timeout=10, check_same_thread=False))
     init_knowledge_schema(conn)
+    if fresh:
+        _restrict_permissions(home, path)
     return conn
+
+
+def _restrict_permissions(home: str, path: str) -> None:
+    """Owner-only on the directory and the file, mirroring how keys are treated.
+
+    Not defence against the person who owns the file — it is defence against
+    everyone ELSE on a shared machine or in a container. This store accumulates
+    whatever its owner considered worth keeping across projects, and nothing on
+    the write path redacts it, so "readable by default umask" is a wider
+    audience than anyone chose. `crypto_keys` already does exactly this for the
+    signing seed; the reasoning is the same and so is the mode.
+
+    Best-effort by design: on Windows the POSIX bits are largely advisory, and
+    a store that exists with loose permissions beats a command that refuses to
+    write. The narrowing is attempted once, at creation, so an owner who
+    deliberately widened it later is not overruled on every open.
+    """
+    import contextlib
+    import stat
+
+    with contextlib.suppress(OSError):
+        os.chmod(home, stat.S_IRWXU)
+    with contextlib.suppress(OSError):
+        os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
 
 
 def knowledge_schema_version() -> int | None:

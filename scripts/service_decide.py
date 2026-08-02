@@ -38,15 +38,42 @@ if TYPE_CHECKING:
 
 
 def record(
-    svc: ProjectService, text: str, task_slug: str | None = None, rationale: str | None = None
+    svc: ProjectService,
+    text: str,
+    task_slug: str | None = None,
+    rationale: str | None = None,
+    to_global: bool = False,
 ) -> str:
-    """Record a decision locally, mirroring it to the brain only when allowed."""
+    """Record a decision: locally by default, or in the shared store on request.
+
+    Three destinations, not two. Without `to_global` the project keeps its own
+    copy unconditionally and the brain sees it only on proof — the two
+    guarantees this module exists for. WITH `to_global` the decision goes to
+    `~/.tausik/knowledge.db` and NOWHERE else: no local row, no brain mirror.
+    Saying "locally" here without that caveat is how a reader concludes the
+    project always keeps a copy, which stopped being true when the flag landed.
+    """
     # decision + rationale get the wider MAX_DECISION symbol limit (not the
     # task-title MAX_TITLE=512) — a decision headline is legitimately longer,
     # and the limit is in CHARACTERS so Cyrillic is not penalised (#324).
     validate_length("decision", text, MAX_DECISION)
     if rationale is not None:
         validate_length("rationale", rationale, MAX_DECISION)
+
+    # A decision routed to the shared store leaves BOTH guarantees of this
+    # module behind, and that is the point rather than an oversight. The first
+    # guarantee — the project always keeps its own copy — does not apply,
+    # because the person asked for the opposite; honouring it would write two
+    # rows for one decision and make "where does this live" unanswerable. The
+    # second — publish outward only on proof — does not apply either: the
+    # shared store is a file in this user's home, not a shared workspace, so
+    # there is no outward boundary to prove anything about. `write_decision`
+    # raises rather than falling back, so a failed shared write never becomes a
+    # quiet local one.
+    if to_global:
+        from knowledge_write import write_decision
+
+        return write_decision(text, rationale, task_slug)
 
     # Task-linked decisions are inherently project-specific — never route to brain.
     if task_slug is not None:

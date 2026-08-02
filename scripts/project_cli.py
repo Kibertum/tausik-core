@@ -177,7 +177,7 @@ def cmd_session(svc: ProjectService, args: Any) -> None:
 
 
 def cmd_decide(svc: ProjectService, args: Any) -> None:
-    print(svc.decide(args.text, args.task, args.rationale))
+    print(svc.decide(args.text, args.task, args.rationale, getattr(args, "to_global", False)))
 
 
 def cmd_decisions(svc: ProjectService, args: Any) -> None:

@@ -9,6 +9,52 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — `--global` puts knowledge in the shared store, or fails saying so
+
+`tausik memory add --global`, `tausik decide --global` and `tausik snippet
+extract <id> --scope global` write into `~/.tausik/knowledge.db` instead of this
+project. Without the flag nothing changes.
+
+The route is decided by the flag and by nothing else. No prompt, no heuristic,
+no "this looks cross-project, shall I?" — this repository already has a
+classifier making that call for the Notion brain, and it has misfiled seven
+decisions to date. Routing a person can predict beats routing that is
+occasionally cleverer.
+
+A write asked to go global goes global or it FAILS, and the error names the
+path it could not write to and states that the project database was NOT used
+instead. The alternative was never acceptable: someone who typed `--global`
+believes the knowledge is now available everywhere, so a fallback would leave
+it in one repository while reporting success — invisible when committed, found
+months later in another project as an absence.
+
+Shared rows carry the ABSOLUTE root of the project they came from, resolved
+through the `.tausik/` handle rather than the shell's cwd, so running the
+command from a subdirectory still attributes correctly. Absolute, because
+basenames collide — `core`, `server`, `api` — and a collision would credit one
+project's knowledge to another.
+
+No scrubber runs on this path. Redaction belongs where knowledge leaves the
+machine — publishing to Notion — not on a write into a file in the user's own
+home. Scrubbing here would corrupt entries (a redacted path is a wrong path) to
+buy privacy against oneself.
+
+That argument covers less than it first appeared to, and the shortfall is
+recorded rather than smoothed over. It shows that nothing leaves the MACHINE; it
+does not show that nothing crosses a CONFIDENTIALITY boundary. One person works
+for several clients out of one home directory, so an entry written under one
+client is readable from every other project — no export needed. Two follow-ups
+carry that: one on the client name sitting in `origin_project`, one on the
+planned backup target for this unredacted file, which currently includes
+S3-compatible remotes and would carry it off the machine the argument rests on.
+The permissions on the store are narrowed to owner-only at creation, matching
+how the signing key is already treated — that bounds who else on the machine can
+read it, and nothing more.
+
+The universality hint does not fire either: it asks whether an entry belongs in
+a shared store, and the flag has already answered that. A control test asserts
+the hint still fires on the local path, so its absence here means something.
+
 ### Added — a shared knowledge database, one file per person rather than per project
 
 Knowledge learned in one repository was trapped there. A pattern paid for once,

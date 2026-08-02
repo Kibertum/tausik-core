@@ -11,7 +11,16 @@ from project_service import ProjectService
 def cmd_memory(svc: ProjectService, args: Any) -> None:
     c = args.memory_cmd
     if c == "add":
-        print(svc.memory_add(args.mem_type, args.title, args.content, args.tags, args.task))
+        print(
+            svc.memory_add(
+                args.mem_type,
+                args.title,
+                args.content,
+                args.tags,
+                args.task,
+                getattr(args, "to_global", False),
+            )
+        )
     elif c == "list":
         rows = svc.memory_list(
             args.mem_type,

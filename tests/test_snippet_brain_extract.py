@@ -119,13 +119,50 @@ class TestExtract:
             svc.be.close()
 
     def test_unsupported_scope(self, tmp_path, monkeypatch, capsys):
+        """An unknown destination is refused, and the refusal lists the real ones.
+
+        Asserts the INTENT rather than the sentence: `global` joined `brain` as a
+        destination, so pinning the old wording would have made this test a
+        tripwire on prose instead of on behaviour. What must hold is that an
+        unknown scope writes nothing and that the message names every scope that
+        would have worked — a refusal that hides the alternatives is how someone
+        ends up guessing.
+        """
         svc = _svc(tmp_path)
         try:
             sid = _seed(svc)
             cli.cmd_snippet(svc, SimpleNamespace(snippet_cmd="extract", id=sid, scope="local"))
-            assert "only --scope brain" in capsys.readouterr().out.lower()
+            out = capsys.readouterr().out.lower()
+            assert "unsupported scope 'local'" in out
+            assert "--scope brain" in out
+            assert "--scope global" in out
         finally:
             svc.be.close()
+
+    def test_global_scope_copies_into_the_shared_store(self, tmp_path, monkeypatch, capsys):
+        """The new destination, exercised through the CLI rather than the helper.
+
+        `write_snippet` has its own unit coverage; what this pins is the WIRING —
+        that `--scope global` reaches it at all, and that it does so without
+        touching the Notion path (no network, no brain config required).
+        """
+        monkeypatch.setenv("TAUSIK_HOME", str(tmp_path / "home"))
+        import knowledge_db
+
+        svc = _svc(tmp_path)
+        try:
+            sid = _seed(svc)
+            cli.cmd_snippet(svc, SimpleNamespace(snippet_cmd="extract", id=sid, scope="global"))
+            assert "shared store" in capsys.readouterr().out.lower()
+        finally:
+            svc.be.close()
+
+        conn = knowledge_db.connect_knowledge_db(create=False)
+        assert conn is not None, "the shared store was never created"
+        try:
+            assert conn.execute("SELECT COUNT(*) FROM snippets").fetchone()[0] == 1
+        finally:
+            conn.close()
 
 
 # --- AC2 + AC3: auto-propose threshold (opt-in) ------------------------------

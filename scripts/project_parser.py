@@ -113,6 +113,15 @@ def build_parser() -> argparse.ArgumentParser:
     dec_p.add_argument("text")
     dec_p.add_argument("--task", default=None)
     dec_p.add_argument("--rationale", default=None)
+    dec_p.add_argument(
+        "--global",
+        dest="to_global",
+        action="store_true",
+        help="Record in the SHARED knowledge store (~/.tausik/knowledge.db) instead "
+        "of this project — no local row and no brain mirror. NOT redacted: secrets "
+        "and PII are stored verbatim, and the entry is readable from every project "
+        "on this machine. Fails loudly rather than falling back to the project DB.",
+    )
 
     # --- decisions ---
     decs_p = sub.add_parser("decisions", help="List decisions")
@@ -127,6 +136,15 @@ def build_parser() -> argparse.ArgumentParser:
     ma.add_argument("content")
     ma.add_argument("--tags", nargs="*", default=None)
     ma.add_argument("--task", default=None)
+    ma.add_argument(
+        "--global",
+        dest="to_global",
+        action="store_true",
+        help="Write to the SHARED knowledge store (~/.tausik/knowledge.db) instead "
+        "of this project. NOT redacted — secrets and PII are stored verbatim, and "
+        "the entry is readable from every project on this machine. "
+        "Fails loudly rather than falling back to the project DB.",
+    )
     ml = mem_sub.add_parser("list")
     ml.add_argument("--type", default=None, dest="mem_type")
     ml.add_argument("--limit", type=int, default=50)
@@ -315,10 +333,16 @@ def build_parser() -> argparse.ArgumentParser:
         default=10,
         help="Minimum source-line span for a clone candidate (default: 10)",
     )
-    snip_extract = snip_sub.add_parser("extract", help="Publish a snippet to the Brain")
+    snip_extract = snip_sub.add_parser(
+        "extract", help="Send a snippet to the Brain (Notion) or to the SHARED local store"
+    )
     snip_extract.add_argument("id", type=int, help="Snippet id (from `snippet detect`)")
     snip_extract.add_argument(
-        "--scope", choices=("brain",), default="brain", help="Destination (only 'brain')"
+        "--scope",
+        choices=("brain", "global"),
+        default="brain",
+        help="Destination: 'brain' publishes to Notion (network, scrubbed); "
+        "'global' copies into the local SHARED store (~/.tausik/knowledge.db)",
     )
 
     # --- events ---
