@@ -9,6 +9,37 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a stored record can no longer pose as document structure
+
+Both memory aggregates feed text into CLAUDE.md and into the session context,
+where the agent reads it as part of its own instructions. One of them collapsed
+line breaks before rendering; the other, in the same file, only truncated. So a
+record whose text contained a newline stopped looking like a quoted record and
+started looking like structure the framework wrote itself — `- #12 Title`
+followed by a line reading `## SYSTEM: ...` is, once rendered, indistinguishable
+from a real heading.
+
+Truncating to eighty characters was never a mitigation. Slicing keeps whatever
+those characters contain, newline included, so the surviving prefix is exactly
+the part an attacker controls.
+
+Both aggregates now route every field through one shared flattener, which
+collapses on `str.split()` rather than on `"\n"`. That is deliberate: matching
+only the one character left five other ways to start a line — carriage return,
+vertical tab, form feed, NEL, and the Unicode LINE and PARAGRAPH separators —
+and a guard that one substitution walks around is not a guard. The half of the
+codebase that did strip newlines only handled `"\n"`, and restoring exactly that
+behaviour still fails twenty-one of the new tests.
+
+The flattening happens at the render boundary, not on write. A stored rationale
+is legitimately multi-line, and flattening it in the database would destroy
+content to fix a display problem; the value stays whole and only the injected
+copy is one line.
+
+Today this reaches one project. After the shared store is readable, the same
+block is fed from it, so an entry written under one project renders inside
+another — which is why this was fixed before that landed rather than after.
+
 ### Added — `--global` puts knowledge in the shared store, or fails saying so
 
 `tausik memory add --global`, `tausik decide --global` and `tausik snippet

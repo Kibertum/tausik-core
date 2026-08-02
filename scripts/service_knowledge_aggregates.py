@@ -16,6 +16,39 @@ _FILE_PATTERN = re.compile(
 )
 
 
+def flatten_for_injection(text: str | None, limit: int) -> str:
+    """Collapse a stored value to ONE line, then truncate. Both aggregates use this.
+
+    These aggregates do not merely display text — their output is injected into
+    CLAUDE.md and into the session context, where the agent reads it as part of
+    its own instructions. A stored value that survives with its line breaks
+    intact therefore does not appear as a quoted record; it appears as document
+    structure. `- #12 Title` followed by a line reading `## SYSTEM: ...` is
+    indistinguishable, once rendered, from a heading the framework wrote itself.
+
+    Truncation alone does not help. Slicing to 100 characters keeps whatever
+    those 100 characters contain, newline included, so the surviving prefix is
+    exactly what an attacker controls. The break has to be REMOVED, not shortened.
+
+    `str.split()` with no argument is doing the work deliberately: it splits on
+    every Unicode whitespace run, which covers \\n, \\r, \\r\\n, the vertical tab
+    and form feed, NEL (\\x85), and the LINE/PARAGRAPH SEPARATORs (\\u2028,
+    \\u2029). Matching only "\\n" — which is what one of these two aggregates did
+    and the other did not — leaves five other ways to start a new line, and a
+    check that can be stepped around by changing one character is not a check.
+
+    Sanitising here rather than on write is the point of the placement: a stored
+    rationale is legitimately multi-line, and flattening it in the database would
+    destroy content to fix a rendering problem. The value stays whole; only the
+    injected copy is flattened.
+
+    Both `build_compact_memory_tail` and `build_memory_block` route through this
+    one function so the two cannot drift apart again — which is precisely what
+    had already happened by the time this was written.
+    """
+    return " ".join((text or "").split())[:limit]
+
+
 def build_compact_memory_tail(be: Any) -> list[str]:
     """One-line-per-item memory recap for CLAUDE.md Current State.
 
@@ -43,23 +76,19 @@ def build_compact_memory_tail(be: Any) -> list[str]:
     if contexts:
         out.append(f"Context ({len(contexts)}):")
         for ctx in contexts:
-            title = (ctx.get("title") or "").strip().replace("\n", " ")
-            out.append(f"- #{ctx.get('id')} {title[:100]}")
+            out.append(f"- #{ctx.get('id')} {flatten_for_injection(ctx.get('title'), 100)}")
     if decisions:
         out.append(f"Decisions ({len(decisions)}):")
         for d in decisions:
-            text = (d.get("decision") or "").strip().replace("\n", " ")
-            out.append(f"- #{d.get('id')} {text[:120]}")
+            out.append(f"- #{d.get('id')} {flatten_for_injection(d.get('decision'), 120)}")
     if conventions:
         out.append(f"Conventions ({len(conventions)}):")
         for c in conventions:
-            title = (c.get("title") or "").strip().replace("\n", " ")
-            out.append(f"- #{c.get('id')} {title[:100]}")
+            out.append(f"- #{c.get('id')} {flatten_for_injection(c.get('title'), 100)}")
     if deadends:
         out.append(f"Dead ends ({len(deadends)}):")
         for de in deadends:
-            title = (de.get("title") or "").strip().replace("\n", " ")
-            out.append(f"- #{de.get('id')} {title[:100]}")
+            out.append(f"- #{de.get('id')} {flatten_for_injection(de.get('title'), 100)}")
     return out
 
 
@@ -102,29 +131,25 @@ def build_memory_block(
         lines.append("")
         lines.append(f"**Context — environment facts ({len(contexts)}):**")
         for ctx in contexts:
-            title = (ctx.get("title") or "")[:80]
-            lines.append(f"- #{ctx.get('id')} {title}")
+            lines.append(f"- #{ctx.get('id')} {flatten_for_injection(ctx.get('title'), 80)}")
 
     if decisions:
         lines.append("")
         lines.append(f"**Recent decisions ({len(decisions)}):**")
         for d in decisions:
-            text = (d.get("decision") or "")[:100]
-            lines.append(f"- #{d.get('id')} {text}")
+            lines.append(f"- #{d.get('id')} {flatten_for_injection(d.get('decision'), 100)}")
 
     if conventions:
         lines.append("")
         lines.append(f"**Conventions ({len(conventions)}):**")
         for c in conventions:
-            title = (c.get("title") or "")[:80]
-            lines.append(f"- #{c.get('id')} {title}")
+            lines.append(f"- #{c.get('id')} {flatten_for_injection(c.get('title'), 80)}")
 
     if deadends:
         lines.append("")
         lines.append(f"**Recent dead ends ({len(deadends)}):**")
         for de in deadends:
-            title = (de.get("title") or "")[:80]
-            lines.append(f"- #{de.get('id')} {title}")
+            lines.append(f"- #{de.get('id')} {flatten_for_injection(de.get('title'), 80)}")
 
     if len(lines) > max_lines:
         overflow = len(lines) - max_lines
