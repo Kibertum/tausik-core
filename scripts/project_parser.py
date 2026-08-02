@@ -108,6 +108,25 @@ def build_parser() -> argparse.ArgumentParser:
 
     build_state_subparsers(sub)
 
+    # --- knowledge (shared store backup) ---
+    kn_p = sub.add_parser("knowledge", help="Shared knowledge store (~/.tausik/knowledge.db)")
+    kn_sub = kn_p.add_subparsers(dest="knowledge_cmd")
+    kn_export = kn_sub.add_parser(
+        "export",
+        help="Back up the shared store as one readable file per record",
+        epilog="Example: tausik knowledge export --to D:/backups/knowledge",
+    )
+    kn_export.add_argument(
+        "--to",
+        required=True,
+        help="LOCAL directory to write into. Remote destinations (s3://, https://, UNC) "
+        "are refused: the store is kept unredacted and must not leave this machine.",
+    )
+    kn_restore = kn_sub.add_parser(
+        "restore", help="Rebuild the shared store from a backup (matches records by uuid)"
+    )
+    kn_restore.add_argument("--from", dest="from_dir", required=True, help="Backup directory")
+
     # --- decide ---
     dec_p = sub.add_parser("decide", help="Record a decision")
     dec_p.add_argument("text")

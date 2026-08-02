@@ -9,6 +9,68 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the shared store finally has a backup, and it stays on this machine
+
+Every project's database is backed up as a matter of course. The shared
+knowledge file — the one accumulating what was learned across all of them — had
+nothing. `tausik knowledge export --to <dir>` and `tausik knowledge restore
+--from <dir>` close that.
+
+The backup is LOGICAL, one readable file per record, never a copy of the `.db`.
+Three separate reasons and any one settles it: a database file is not
+inspectable, so a backup nobody can read is a backup nobody can trust; it is not
+byte-stable either, since freelist movement and WAL checkpoints vary while the
+content does not, which would make "unchanged means no diff" false; and a byte
+copy carries the FTS5 shadow tables holding tokenised copies of every title,
+body and snippet, plus pages of deleted rows never overwritten.
+
+Destinations are local only (decision #219). Nothing on the write path redacts
+anything and every row carries the absolute path of the project it came from, so
+a backup leaving the machine would withdraw the premise that made un-redacted
+storage acceptable rather than the conclusion. `s3://`, `https://` and UNC paths
+are refused with the reason, not just a refusal. The check is by SHAPE rather
+than reachability — a remote that happens to be down today is still a remote —
+and it stays permissive about mounted volumes, because at this level a mounted
+share is indistinguishable from a local disk and refusing every mount would
+refuse the external drive that is the likeliest backup target there is.
+
+Round-tripping is asserted on CONTENT, field by field, and that caught a real
+defect before it shipped. The frontmatter writer escapes the backslash FIRST, so
+a reader unescaping with a chain of replacements would turn a literal backslash
+followed by `n` into a line break — corrupting `origin_project` on every Windows
+row while reporting success. The reader scans instead, consuming each escape
+with its target. Swapping it back for the naive chain reddens the round trip.
+
+The destination must be empty or already be one of our backups. Review
+reproduced the alternative live: a hand-written ADR file disappeared after a
+single export, because reconciliation deletes what it does not recognise. Worse,
+`state_export` writes `decisions/` and `memory/` under a project's own tree —
+the same names — so pointing --to at that tree would have removed the project's
+records on the first run. Reconciliation now also spares any file not named for
+a record, and a record whose identity is not a safe filename is refused rather
+than joined into a path.
+
+Restores match records by uuid ONLY, with the conflict target named rather than
+left to `OR IGNORE`. The difference is data: `OR IGNORE` suppresses every
+constraint, and snippets carry a unique hash while memory carries a check on its
+type, so a record with a fresh identity whose code already existed would have
+been dropped in silence and counted as restored. Anything that is not an
+identity collision now raises and names the file. Counts are actual inserts, and
+rows already present are reported separately — "left alone" and "restored" are
+different outcomes, and only one of them means the backup was applied. The
+restore commits once at the end: a failure part-way leaves the store untouched,
+because a half-restored store looks like a working one.
+
+Restoring twice, or restoring over a store that partly survived, converges
+instead of doubling. A record deleted from the store disappears from the backup
+too, or it would be resurrected by the next restore. Repeating a backup of an
+unchanged store rewrites nothing — the file content is a pure function of the
+row, and unchanged files are not touched at all.
+
+Failures are loud on both sides: no store to back up, no directory to restore
+from, a directory that is not a backup, and a backup taken at a newer schema all
+raise and say what was not done.
+
 ### Added — an older TAUSIK refuses a newer shared store instead of guessing
 
 One machine, several projects, several TAUSIK versions, one shared knowledge

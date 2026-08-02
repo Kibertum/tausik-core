@@ -34,6 +34,7 @@ def main() -> None:
     from project_cli_extra import (
         cmd_fts,
         cmd_gates,
+        cmd_knowledge,
         cmd_memory,
         cmd_skill,
         cmd_stack,
@@ -91,6 +92,7 @@ def main() -> None:
         "decide": cmd_decide,
         "decisions": cmd_decisions,
         "memory": cmd_memory,
+        "knowledge": cmd_knowledge,
         "gates": cmd_gates,
         "verify": cmd_verify,
         "roadmap": cmd_roadmap,

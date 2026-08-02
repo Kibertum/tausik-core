@@ -8,6 +8,31 @@ from typing import Any
 from project_service import ProjectService
 
 
+def cmd_knowledge(svc: ProjectService, args: Any) -> None:
+    """`tausik knowledge export|restore` — back up the shared store, or rebuild it.
+
+    Takes `svc` it does not use, to match the dispatcher's uniform signature; the
+    shared store is per-user, not per-project, and deliberately reachable without
+    one.
+    """
+    from knowledge_export import export_shared_knowledge, restore_shared_knowledge
+
+    sub = getattr(args, "knowledge_cmd", None)
+    if sub == "export":
+        counts = export_shared_knowledge(args.to)
+        total = sum(counts.values())
+        detail = ", ".join(f"{n} {name}" for name, n in counts.items())
+        print(f"Backed up {total} record(s) to {args.to} ({detail}).")
+        return
+    if sub == "restore":
+        counts = restore_shared_knowledge(args.from_dir)
+        total = sum(counts.values())
+        detail = ", ".join(f"{n} {name}" for name, n in counts.items())
+        print(f"Restored {total} record(s) from {args.from_dir} ({detail}).")
+        return
+    print("Usage: tausik knowledge {export --to <dir> | restore --from <dir>}")
+
+
 def cmd_memory(svc: ProjectService, args: Any) -> None:
     c = args.memory_cmd
     if c == "add":
