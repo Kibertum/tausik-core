@@ -9,6 +9,41 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — Notion is optional, and now it is proven rather than promised
+
+Recon for this task found that most of it was already true: nothing in the agent
+loop fails when Notion does. Recording a decision writes locally whatever the
+mirror did, `memory add` calls a purely local heuristic, hooks skip silently, and
+closing a task or starting a session never touch the brain at all. The scrubber
+already sits on the publication boundary, and that is its only call site.
+
+What was missing was not a mechanism but EVIDENCE. An unenforced property drifts,
+and this one drifts quietly: breaking it produces no error, just decisions that
+stop being recorded. So the guarantees are now tests written against the ways
+they could be lost — a decision survives an exploding mirror, `_record_with_mirror`
+still ends in an unguarded local write, the universality hint imports nothing
+that could reach a network, and no module outside the single publication funnel
+writes CONTENT to Notion. That last one was stated too broadly at first and
+review corrected it: two callers do reach Notion outside the funnel — one
+archives a page by id, the other creates the empty databases during setup — and
+neither carries user text, so they are allowlisted with their reason rather than
+waved away. A third caller fails the test.
+
+One place did make Notion genuinely mandatory. When `.tausik/config.json` could
+not be read, `doctor` added the brain skill to its critical set — "default-on
+when config unreadable" — turning an OPT-IN subsystem into a required one in
+exactly the case where we know least, and contradicting the rule stated nine
+lines above it — far enough that nobody read them together. The commonest way to reach that branch is a fresh project with no
+config: precisely the project that has never touched Notion, failing its health
+check over a wiki it does not use.
+
+Uncertainty now relaxes the requirement, since `enabled` defaults to false and
+that is the only reading consistent with the rest of the config layer — and the
+doctor SAYS it could not tell, because an undetermined check that reports nothing
+is indistinguishable from one that passed. The rule moved out of a long function
+into `brain_skill_requirement`, which is how the contradiction had gone unnoticed:
+a branch buried mid-function is not read, and was not testable.
+
 ### Added — the shared store finally has a backup, and it stays on this machine
 
 Every project's database is backed up as a matter of course. The shared

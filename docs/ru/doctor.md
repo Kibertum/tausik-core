@@ -77,6 +77,7 @@ Exit code отражает худший уровень: `0` для OK/WARN, `1` 
 | `WARN Bootstrap drift` | `python .tausik-lib/bootstrap/bootstrap.py --refresh` и рестарт MCP-сервера |
 | `FAIL MCP server` | Ребутстрэп; убедитесь, что `.claude/mcp/` сгенерирован |
 | `WARN Core skills` | `tausik skill list`; `tausik skill activate <name>` для отсутствующих core skills |
+| `WARN Shared Brain` | Появляется только когда `.tausik/config.json` не удалось истолковать — испорченный файл либо ключ `brain`, который не является словарём (`{"brain": true}`). Brain считается ВЫКЛЮЧЕННЫМ, как и по умолчанию, поэтому проверка от этого не падает. Почините конфиг, если Notion-brain вам нужен; игнорируйте, если нет. |
 | `WARN Backlog hygiene` | `tausik task move <slug> <story>` для каждой названной задачи — либо создайте story под них, если они образуют связную группу |
 
 ## Negative — что Doctor НЕ делает

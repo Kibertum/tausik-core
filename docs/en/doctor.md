@@ -77,6 +77,7 @@ The exit code reflects the worst level: `0` for OK/WARN, `1` for FAIL.
 | `WARN Bootstrap drift` | `python .tausik-lib/bootstrap/bootstrap.py --refresh` and restart the MCP server |
 | `FAIL MCP server` | Re-run bootstrap; ensure `.claude/mcp/` was generated |
 | `WARN Core skills` | `tausik skill list`; `tausik skill activate <name>` for missing core skills |
+| `WARN Shared Brain` | Only appears when `.tausik/config.json` could not be interpreted — a malformed file, or a `brain` key that is not a mapping (`{"brain": true}`). The brain is treated as OFF, which is its default, so this never fails the check. Fix the config if you do use the Notion brain; ignore it if you do not. |
 | `WARN Backlog hygiene` | `tausik task move <slug> <story>` for each named task — or create a story for them if they form a coherent group |
 
 ## Negative — What Doctor Does NOT Do
