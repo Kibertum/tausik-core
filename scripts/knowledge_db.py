@@ -194,8 +194,56 @@ def _configure(conn: sqlite3.Connection) -> sqlite3.Connection:
     return conn
 
 
+def stored_schema_version(conn: sqlite3.Connection) -> int:
+    """`PRAGMA user_version` of an OPEN store. 0 means a store nobody stamped yet."""
+    row = conn.execute("PRAGMA user_version").fetchone()
+    return int(row[0]) if row else 0
+
+
+def require_compatible_schema(conn: sqlite3.Connection) -> None:
+    """Refuse to touch a store written by a NEWER framework than this one.
+
+    One machine, several projects, and each may sit on a different TAUSIK
+    version — but they all share this one file. When a newer project has already
+    written it, an older one has three options and only one of them is honest.
+
+    It could read anyway, and get a schema it does not understand. It could fall
+    back to project-only knowledge, which is the tempting one and the worst: the
+    person keeps working, notices nothing, and discovers a week later that shared
+    hints quietly stopped arriving — with no event to trace it back to. Or it can
+    refuse and say why. This does the third.
+
+    The refusal is fatal rather than a warning line, deliberately. A warning in
+    the middle of search output is exactly what a busy reader skips, and the
+    whole failure mode being prevented here is one that hides. The cost is real
+    and worth naming: until the framework is updated, commands touching shared
+    knowledge stop working in that project. The reverse skew — a store OLDER
+    than this code — is not an error at all; it migrates on open.
+
+    This also has to run BEFORE the schema is stamped. `init_knowledge_schema`
+    writes `user_version` unconditionally, so an older framework opening a newer
+    store would rewrite the marker DOWNWARD and destroy the evidence that any
+    skew existed — for every other project on the machine, not just its own.
+    """
+    from tausik_utils import ServiceError
+
+    found = stored_schema_version(conn)
+    if found > SCHEMA_VERSION:
+        raise ServiceError(
+            f"The shared knowledge database at {knowledge_db_path()} was written by a "
+            f"NEWER TAUSIK (schema v{found}); this project understands up to v{SCHEMA_VERSION}. "
+            "Update TAUSIK in this project to use shared knowledge again. "
+            "Nothing was read or written, and the store was left untouched."
+        )
+
+
 def init_knowledge_schema(conn: sqlite3.Connection) -> None:
-    """Create the knowledge objects if absent. Idempotent — safe to run always."""
+    """Create the knowledge objects if absent. Idempotent — safe to run always.
+
+    Stamps the version LAST, and only for a store this code is allowed to own:
+    `connect_knowledge_db` runs the compatibility check first, so by the time
+    this writes `user_version` the value can only move up (a migration) or stay.
+    """
     conn.executescript(KNOWLEDGE_SQL)
     conn.executescript(KNOWLEDGE_FTS_SQL)
     conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
@@ -219,6 +267,14 @@ def connect_knowledge_db(*, create: bool = False) -> sqlite3.Connection | None:
     os.makedirs(home, exist_ok=True)
     fresh = not os.path.isfile(path)
     conn = _configure(sqlite3.connect(path, timeout=10, check_same_thread=False))
+    try:
+        require_compatible_schema(conn)
+    except Exception:
+        # Close before propagating: the caller never receives this handle, so
+        # nothing else can close it, and a leaked one holds the WAL open for
+        # every other project pointing at this file.
+        conn.close()
+        raise
     init_knowledge_schema(conn)
     if fresh:
         _restrict_permissions(home, path)

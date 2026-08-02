@@ -206,7 +206,23 @@ def _shared_section(max_shared: int) -> tuple[list[str], list[str]]:
     """
     from knowledge_read import read_shared_block
 
-    raw, warning = read_shared_block(max_shared)
+    try:
+        raw, warning = read_shared_block(max_shared)
+    except Exception as e:  # noqa: BLE001 — see below; this aggregate must not break
+        # A version skew is FATAL on the paths a person asked for — writing a
+        # shared entry, searching shared knowledge — because refusing loudly is
+        # the whole point of the guard. It must NOT be fatal here.
+        #
+        # This aggregate is display-only and documented as never breaking its
+        # caller, and its callers are the session-start hook and the CLAUDE.md
+        # refresh. Letting the guard through would mean a newer store in one
+        # project stops every OTHER project from starting a session at all —
+        # punishing the wrong people for a skew they did not create, and far
+        # beyond what "tell the user to update" asks for.
+        #
+        # It is still not silent: the notice is rendered in the block, where the
+        # agent and the person both see it every session until it is fixed.
+        return [], ["", f"⚠ {e}"]
 
     out: list[str] = []
     if raw:

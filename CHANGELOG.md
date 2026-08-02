@@ -9,6 +9,35 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — an older TAUSIK refuses a newer shared store instead of guessing
+
+One machine, several projects, several TAUSIK versions, one shared knowledge
+file. When a project meets a store written by a NEWER framework it now stops and
+says so, naming both versions and what to do about it.
+
+The tempting alternative was a quiet fall back to project-only knowledge. That
+is the worst of the three options available: the person keeps working, notices
+nothing, and discovers a week later that shared hints stopped arriving — with no
+event to trace it back to. Refusing is louder and kinder.
+
+Ordering carries the guarantee. `init_knowledge_schema` stamps `user_version`
+unconditionally, so the check has to run BEFORE it — otherwise an older
+framework would rewrite the marker DOWNWARD on every open and destroy the
+evidence of skew for every other project on the machine, not just its own. A
+test pins the stamp is untouched after a refusal, and reversing the two lines
+reddens eight tests.
+
+Fatal is scoped, not universal, and the line is drawn by who asked. Writing a
+shared entry or searching shared knowledge refuses outright: the person asked
+for the shared store and deserves a straight answer. The knowledge block does
+not — it is display-only, its callers are the session-start hook and the
+CLAUDE.md refresh, and letting the guard through there would mean one project's
+newer store stops every OTHER project from starting a session at all. It renders
+the refusal instead, every session, until someone fixes it.
+
+The reverse skew is not an error. A store older than this code migrates on open
+and keeps its rows.
+
 ### Added — search and the knowledge block read the shared store too
 
 With this the shared knowledge base is a working feature rather than a place to
