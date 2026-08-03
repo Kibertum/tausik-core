@@ -1,7 +1,7 @@
 ---
 slug: graph-memory-cli-tests-leak-state-between-tests
 title: "test_graph_memory: четыре теста видят чужие данные — утечка состояния между тестами внутри одного файла"
-status: planning
+status: done
 epic: null
 story: null
 complexity: medium
@@ -12,10 +12,12 @@ call_budget: 45
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
-scope_paths: []
+relevant_files:
+  - "tests/test_graph_memory.py"
+scope_paths:
+  - "tests/test_graph_memory.py"
 scope_tools: []
-completed_at: null
+completed_at: "2026-08-03T08:24:16Z"
 ---
 
 ## Goal
@@ -35,8 +37,17 @@ test_memory_unlink, test_memory_related, test_memory_graph_empty, test_memory_re
 
 ## Acceptance Criteria
 
+1. Четыре теста tests/test_graph_memory.py зелёные БЕЗ правки их самих.
+2. Причина НАЗВАНА, а не обойдена: установлено, что именно заставляло изолированные тесты видеть общее состояние.
+3. НЕГАТИВНЫЙ СЦЕНАРИЙ: тест, запущенный дважды подряд и в одиночку против всего файла, даёт одинаковый результат. Оба прогона сделаны явно.
+
 ## Plan
 
 ## Rollback
 
+git revert
+
 ## Journal
+
+- 2026-08-03T08:23:56Z [implementation] — AC-1: ✓ tests/test_graph_memory.py::TestGraphCLI::test_memory_graph_empty AC-2: ✓ tests/test_shared_home_does_not_capture_project_discovery.py::TestProjectDiscoveryDoesNotFindTheSharedStore::test_walking_up_past_a_shared_store_does_not_treat_it_as_a_project AC-3: ✓ tests/test_graph_memory.py::TestGraphCLI::test_memory_related_no_results ПРИЧИНА ОКАЗАЛАСЬ НЕ В ЭТИХ ТЕСТАХ. Гипотеза карточки — «фикстура копирует окружение и наследует TAUSIK_DIR» — НЕ ПОДТВЕРДИЛАСЬ: присвоений без monkeypatch нет, в окружении переменная не выставлена. Настоящая причина установлена в задаче checklist-detector-is-red-on-its-own-test и записана решением #222: каталог общей базы знаний ~/.tausik захватывал обнаружение проекта, потому что find_tausik_dir ищет вверх РОВНО имя .tausik. Фикстура создавала свежий tmp_path/proj и делала init в нём КОРРЕКТНО — но подпроцесс, поднимаясь вверх от временного каталога, находил ~/.tausik и работал с ним. Отсюда и «двенадцать рёбер» в свежем проекте, и «Edge #1 already invalidated», и чужие заголовки: все тесты делили одну базу в домашней папке. ПОДОЗРЕНИЕ ИЗ КАРТОЧКИ ПРОВЕРЕНО И СНЯТО: ребро «#1 memory#1 --[relates_to]--> memory#2» в живой базе ЭТОГО проекта — не след тестов. Тесты писали в ~/.tausik, а не в .tausik репозитория; проектная база не тронута. ЗАМЕРЫ ДЕТЕРМИНИРОВАННОСТИ (AC-3), сделаны явно, а не предположены: прогон файла дважды подряд — 41 passed и 41 passed; четыре бывших красных теста ПООДИНОЧКЕ — 4 passed. Ни одной правки в самом файле теста: git diff по tests/test_graph_memory.py пуст. ЗАКРЫТО БЕЗ СОБСТВЕННЫХ ПРАВОК. Это не «обошли», а «устранили корень»: тесты были верны, неверна была среда, которую создала моя же работа.
+- 2026-08-03T08:25:03Z [done] — Domain: осмысленно вне тестов. Речь не о хрупких тестах, а о том, что подпроцесс, запущенный в изолированном временном проекте, работал с базой в домашней папке пользователя — и записал туда посторонние tausik.db и config.json. То есть наблюдаемый эффект был в файловой системе владельца, а не в отчёте pytest. После устранения корня find_tausik_dir из временного каталога возвращает этот каталог, а не домашнюю папку, что проверено запуском.
