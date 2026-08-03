@@ -50,8 +50,15 @@ class TestWhereItLives:
         assert knowledge_db.knowledge_db_path() == str(home / "knowledge.db")
 
     def test_default_is_under_the_user_home(self, monkeypatch):
+        """Built from the CONSTANT, not from a literal.
+
+        This asserted `~/.tausik/knowledge.db` and passed while that very name
+        was capturing project discovery for everything under the home. A literal
+        pins the spelling of the bug, not the property; the property lives in
+        `test_shared_home_does_not_capture_project_discovery.py`.
+        """
         monkeypatch.delenv("TAUSIK_HOME", raising=False)
-        expected = os.path.join(os.path.expanduser("~"), ".tausik", "knowledge.db")
+        expected = os.path.join(os.path.expanduser("~"), knowledge_db._HOME_DIRNAME, "knowledge.db")
         assert knowledge_db.knowledge_db_path() == expected
 
     def test_the_project_handle_does_not_answer_for_the_user(self, monkeypatch, tmp_path):

@@ -9,6 +9,36 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the shared store no longer masquerades as a project
+
+The shared knowledge base was placed at `~/.tausik/knowledge.db`, and
+`find_tausik_dir` locates a project by walking UP looking for a directory named
+exactly `.tausik`. So the moment that directory existed, every path beneath the
+user's home resolved to the HOME as its project.
+
+This was observed, not theorised. Commands run from temporary directories wrote
+a stray project database and config into the home; six tests turned red by
+silently sharing that one "project"; and any of the user's own repositories
+living under their home without a `.tausik` of its own would have resolved the
+same way. Moving the directory aside turned all six green, and putting it back
+turned them red again.
+
+The store now lives in `~/.tausik-knowledge/`, following the precedent `brain`
+already set with `~/.tausik-brain` for exactly this reason. An existing store at
+the old address is adopted on first read — not by a migration command, because a
+migration nobody runs is a knowledge base nobody has — and the old copy is left
+in place, since deleting inside someone's home is theirs to decide.
+
+The guard is a PROPERTY comparing the two constants, not a literal: the shared
+home's name must differ from the project marker and neither may prefix the
+other. A literal would have pinned the spelling of the bug. The behavioural half
+walks up from a directory beneath a shared store and asserts discovery does not
+adopt it, and a companion asserts a real project below one still wins.
+
+A test written with the store already guarded ONE direction — that `TAUSIK_DIR`
+must not move the shared store — and that one-way guarantee read like a two-way
+one. The damage was entirely in the direction nobody asked about.
+
 ### Changed — recording a decision no longer publishes it anywhere (BREAKING)
 
 `tausik decide` used to run the text through a classifier that looked for

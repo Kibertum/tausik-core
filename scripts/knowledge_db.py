@@ -53,7 +53,29 @@ import sqlite3
 SCHEMA_VERSION = 1
 
 _HOME_ENV = "TAUSIK_HOME"
-_HOME_DIRNAME = ".tausik"
+
+# NOT ".tausik", and the difference is not cosmetic. `find_tausik_dir` locates a
+# project by walking UP from the working directory looking for a directory named
+# exactly `.tausik` — so a directory of that name in the user's HOME makes every
+# path beneath it resolve to the home directory as its "project".
+#
+# This was not hypothetical. Creating `~/.tausik/knowledge.db` did it: from that
+# moment any command run from a temp directory treated the home as the project,
+# tests wrote a stray `tausik.db` and `config.json` there, six of them turned red
+# by sharing one "project" database, and every project of the user's living under
+# their home without its own `.tausik` would have resolved the same way.
+#
+# `brain` already uses `~/.tausik-brain` for exactly this reason; this follows the
+# precedent instead of rediscovering it. The property is pinned by a test that
+# compares the two constants rather than the literal string, because a literal
+# survives a rename and stops guaranteeing anything.
+_HOME_DIRNAME = ".tausik-knowledge"
+
+# Where the store used to live. Kept ONLY so an existing one can be found and
+# carried across — a silent "your knowledge base is empty" would be the worst
+# possible way to deliver this fix.
+_LEGACY_HOME_DIRNAME = ".tausik"
+
 _DB_FILENAME = "knowledge.db"
 
 KNOWLEDGE_SQL = """
@@ -162,16 +184,52 @@ END;
 
 
 def knowledge_home() -> str:
-    """The USER-level TAUSIK directory — `$TAUSIK_HOME` or `~/.tausik`.
+    """The USER-level directory — `$TAUSIK_HOME` or `~/.tausik-knowledge`.
 
     Deliberately does NOT consult `TAUSIK_DIR` or search upward from the cwd.
     Those answer "which project am I in"; this answers "who am I", and a shared
     store that resolved through a project handle would be shared with nobody.
+
+    The name matters as much as the location — see `_HOME_DIRNAME`.
     """
     override = os.environ.get(_HOME_ENV)
     if override:
         return os.path.abspath(os.path.expanduser(override))
     return os.path.join(os.path.expanduser("~"), _HOME_DIRNAME)
+
+
+def legacy_knowledge_db_path() -> str:
+    """Where the store lived before the rename. Only ever read, never created."""
+    return os.path.join(os.path.expanduser("~"), _LEGACY_HOME_DIRNAME, _DB_FILENAME)
+
+
+def adopt_legacy_store_if_present() -> str | None:
+    """Carry a store from the old location to the new one. Returns the source, or None.
+
+    Runs on the read/write paths rather than as a migration command, because a
+    migration nobody runs is a knowledge base nobody has. Copies rather than
+    moves: the old directory may hold other things (it did — stray files written
+    by tests while it was masquerading as a project), and deleting inside a
+    user's home is theirs to decide, not ours.
+
+    Only ever adopts when the new location is absent, so it cannot overwrite a
+    store that already exists here.
+    """
+    if os.environ.get(_HOME_ENV):
+        # An explicit home was named. Adopting into it would be reaching for
+        # data the caller did not point at.
+        return None
+    target = os.path.join(knowledge_home(), _DB_FILENAME)
+    if os.path.isfile(target):
+        return None
+    legacy = legacy_knowledge_db_path()
+    if not os.path.isfile(legacy):
+        return None
+    import shutil
+
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    shutil.copy2(legacy, target)
+    return legacy
 
 
 def knowledge_db_path() -> str:
@@ -180,7 +238,13 @@ def knowledge_db_path() -> str:
 
 
 def knowledge_db_exists() -> bool:
-    """True iff the shared store is already on disk. Never creates it."""
+    """True iff the shared store is on disk — at the current OR the old address.
+
+    Adopts first, so `exists()` and a subsequent read agree. Two functions that
+    disagree about whether something exists is how a caller ends up reporting
+    "nothing to back up" over a database full of records.
+    """
+    adopt_legacy_store_if_present()
     return os.path.isfile(knowledge_db_path())
 
 
@@ -260,6 +324,12 @@ def connect_knowledge_db(*, create: bool = False) -> sqlite3.Connection | None:
     existence is settled on the filesystem first, and only a caller that is
     about to WRITE passes create=True.
     """
+    # Before deciding the store is absent: it may simply be at the old address.
+    # Checked on the READ path too, so a person who never writes again still
+    # finds what they had — the alternative is a silent "you have no shared
+    # knowledge" for someone holding thousands of records.
+    adopt_legacy_store_if_present()
+
     path = knowledge_db_path()
     if not create and not os.path.isfile(path):
         return None
