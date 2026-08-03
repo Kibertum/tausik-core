@@ -9,6 +9,19 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — CLI help sent people to the shared store's old address
+
+The store moved out of `~/.tausik/` (see below). The code moved; the words did
+not. Four help strings and four docstrings kept naming `~/.tausik/knowledge.db`,
+and help text is read as an instruction: someone told that path goes there,
+finds nothing, and concludes their entries were never saved.
+
+Help now reads the location from `knowledge_db.default_store_display_path()`,
+built from the same constants the code opens, so the next move carries the words
+with it. The comment explaining WHY the store moved deliberately keeps the old
+path — there it is a fact about the past, and a sweep that "fixed" it would turn
+a correct explanation into a false one. A test asserts both directions.
+
 ### Fixed — the shared store no longer masquerades as a project
 
 The shared knowledge base was placed at `~/.tausik/knowledge.db`, and

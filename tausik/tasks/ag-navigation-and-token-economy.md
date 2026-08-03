@@ -2,8 +2,8 @@
 slug: ag-navigation-and-token-economy
 title: "[1.9] Навигация запросом вместо чтения файлов: измеренная экономия токенов агента"
 status: planning
-epic: null
-story: null
+epic: artifact-graph
+story: ag-payoff
 complexity: medium
 role: developer
 stack: python

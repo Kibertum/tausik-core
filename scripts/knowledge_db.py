@@ -7,8 +7,14 @@ project boundaries is KNOWLEDGE: a pattern learned once, a gotcha paid for
 once, a decision worth carrying, a snippet worth reusing. That is the whole
 schema, plus FTS over it.
 
-WHERE IT LIVES. `~/.tausik/knowledge.db`, overridable with the `TAUSIK_HOME`
-environment variable. Note the deliberate distinction from `TAUSIK_DIR`, which
+WHERE IT LIVES. `~/.tausik-knowledge/knowledge.db`, overridable with the
+`TAUSIK_HOME` environment variable — and spelled here by hand only because a
+docstring cannot interpolate; every OTHER place that shows this path to a person
+reads it from `default_store_display_path()` below. It said `~/.tausik/` until
+the store moved (#222) and the sentence outlived the move, which is what that
+helper exists to prevent next time.
+
+Note the deliberate distinction from `TAUSIK_DIR`, which
 selects a PROJECT's `.tausik/`: one names a project, the other names the user.
 Confusing them is how a shared store would end up inside one repository, so
 they are read by different functions and neither falls back to the other.
@@ -77,6 +83,26 @@ _HOME_DIRNAME = ".tausik-knowledge"
 _LEGACY_HOME_DIRNAME = ".tausik"
 
 _DB_FILENAME = "knowledge.db"
+
+
+def default_store_display_path() -> str:
+    """The default location, written the way help text should show it.
+
+    Help text is read as an INSTRUCTION: a person told `~/.tausik/knowledge.db`
+    goes there, finds nothing, and concludes their entries were never saved.
+    Four CLI help strings said exactly that after the store moved (#222) — the
+    code went to the new directory and every hand-written copy of the old path
+    stayed behind. Built from the constants so the next move carries the words
+    with it instead of leaving them.
+
+    Deliberately NOT `knowledge_db_path()`. That function answers "where is MY
+    store right now", honouring `TAUSIK_HOME`; printing one machine's override
+    into static help would describe that machine rather than the product. Forward
+    slashes and a literal `~` for the same reason — this is documentation of a
+    default, not a path to open.
+    """
+    return f"~/{_HOME_DIRNAME}/{_DB_FILENAME}"
+
 
 KNOWLEDGE_SQL = """
 CREATE TABLE IF NOT EXISTS memory (

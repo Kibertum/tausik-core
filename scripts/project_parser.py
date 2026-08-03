@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 
+from knowledge_db import default_store_display_path
 from output_rollup import add_rollup_flags
 from project_parser_errors import SelfCorrectingParser
 from project_parser_hierarchy import build_hierarchy_subparsers
@@ -109,7 +110,8 @@ def build_parser() -> argparse.ArgumentParser:
     build_state_subparsers(sub)
 
     # --- knowledge (shared store backup) ---
-    kn_p = sub.add_parser("knowledge", help="Shared knowledge store (~/.tausik/knowledge.db)")
+    shared_store = default_store_display_path()
+    kn_p = sub.add_parser("knowledge", help=f"Shared knowledge store ({shared_store})")
     kn_sub = kn_p.add_subparsers(dest="knowledge_cmd")
     kn_export = kn_sub.add_parser(
         "export",
@@ -145,7 +147,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--global",
         dest="to_global",
         action="store_true",
-        help="Record in the SHARED knowledge store (~/.tausik/knowledge.db) instead "
+        help=f"Record in the SHARED knowledge store ({shared_store}) instead "
         "of this project — no local row and no brain mirror. NOT redacted: secrets "
         "and PII are stored verbatim, and the entry is readable from every project "
         "on this machine. Fails loudly rather than falling back to the project DB.",
@@ -168,7 +170,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--global",
         dest="to_global",
         action="store_true",
-        help="Write to the SHARED knowledge store (~/.tausik/knowledge.db) instead "
+        help=f"Write to the SHARED knowledge store ({shared_store}) instead "
         "of this project. NOT redacted — secrets and PII are stored verbatim, and "
         "the entry is readable from every project on this machine. "
         "Fails loudly rather than falling back to the project DB.",
@@ -370,7 +372,7 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("brain", "global"),
         default="brain",
         help="Destination: 'brain' publishes to Notion (network, scrubbed); "
-        "'global' copies into the local SHARED store (~/.tausik/knowledge.db)",
+        f"'global' copies into the local SHARED store ({shared_store})",
     )
 
     # --- events ---

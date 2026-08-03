@@ -2,8 +2,8 @@
 slug: brain-move-deletes-leave-ghost-projection
 title: "brain move пишет и удаляет решения и записи памяти мимо проекции: три вызова из трёх обходят слой, который её обновляет"
 status: planning
-epic: null
-story: null
+epic: brain-hardening
+story: brainh-core
 complexity: simple
 role: developer
 stack: python

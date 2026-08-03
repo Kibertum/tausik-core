@@ -2,8 +2,8 @@
 slug: ag-artifacts-and-edges-with-provenance
 title: "[1.9] Подложка: артефакты и рёбра в той же БД, у каждого ребра — происхождение"
 status: planning
-epic: null
-story: null
+epic: artifact-graph
+story: ag-substrate
 complexity: complex
 role: developer
 stack: python

@@ -2,8 +2,8 @@
 slug: ag-versioned-snapshots-and-structural-drift
 title: "[1.9] Версионирование графа и структурный дрейф: то, что RENAR сейчас ищет текстом"
 status: planning
-epic: null
-story: null
+epic: artifact-graph
+story: ag-payoff
 complexity: complex
 role: architect
 stack: python

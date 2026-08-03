@@ -6,7 +6,8 @@ to one of TWO destinations, and they are not variants of each other: `--scope
 brain` publishes to the cross-project Shared Brain as a `patterns` artifact card
 (network, Notion, scrubbed, artifact_taxonomy_kind classified via
 brain_snippet_detect), while `--scope global` copies it into the local shared
-store `~/.tausik/knowledge.db` (no network, no scrubber, no config required). Kept
+store `~/.tausik-knowledge/knowledge.db` (no network, no scrubber, no config
+required). Kept
 separate from the engine (snippet_detect.py) so detection stays pure/testable and
 out of the CLI's filesize budget. Idempotent ingest: clusters dedup on content hash.
 """

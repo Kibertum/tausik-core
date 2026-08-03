@@ -2,8 +2,8 @@
 slug: ag-claims-and-docs-checked-against-the-graph
 title: "[1.9] Утверждения и документация сверяются с графом: конец «написанного шире сделанного» механически"
 status: planning
-epic: null
-story: null
+epic: artifact-graph
+story: ag-payoff
 complexity: complex
 role: developer
 stack: python

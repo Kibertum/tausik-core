@@ -2,8 +2,8 @@
 slug: ag-observed-edges-from-the-test-run
 title: "[1.9] Наблюдённые рёбра: какой тест реально коснулся какого файла — и выбор тестов по ним"
 status: planning
-epic: null
-story: null
+epic: artifact-graph
+story: ag-substrate
 complexity: complex
 role: developer
 stack: python

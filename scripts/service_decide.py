@@ -55,7 +55,8 @@ def record(
     Three destinations, not two. Without `to_global` the project keeps its own
     copy unconditionally and the brain sees it only on proof — the two
     guarantees this module exists for. WITH `to_global` the decision goes to
-    `~/.tausik/knowledge.db` and NOWHERE else: no local row, no brain mirror.
+    `~/.tausik-knowledge/knowledge.db` and NOWHERE else: no local row, no brain
+    mirror.
     Saying "locally" here without that caveat is how a reader concludes the
     project always keeps a copy, which stopped being true when the flag landed.
     """

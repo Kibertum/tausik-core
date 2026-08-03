@@ -2,8 +2,8 @@
 slug: ag-spike-schema-against-three-stacks
 title: "[1.9] Спайк: проверить схему графа на ТРЁХ разных стеках прежде, чем строить"
 status: planning
-epic: null
-story: null
+epic: artifact-graph
+story: ag-substrate
 complexity: medium
 role: architect
 stack: python

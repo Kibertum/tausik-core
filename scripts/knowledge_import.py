@@ -4,8 +4,8 @@ WHY THIS RUNS ONCE. Years of decisions were mirrored to Notion by a classifier
 that decided on their behalf; that mirroring is gone (decision #221), and what
 it left behind is a local copy — `~/.tausik-brain/brain.db` — holding records
 that exist nowhere else the framework can read. This walks that mirror into
-`~/.tausik/knowledge.db`, so the knowledge outlives the account it was published
-under.
+`~/.tausik-knowledge/knowledge.db`, so the knowledge outlives the account it was
+published under.
 
 NO NETWORK. The mirror is already a local SQLite file, so the import neither
 needs Notion nor is affected by it being unreachable, rate-limited or cancelled.

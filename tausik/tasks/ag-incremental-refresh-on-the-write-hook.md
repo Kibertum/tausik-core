@@ -2,8 +2,8 @@
 slug: ag-incremental-refresh-on-the-write-hook
 title: "[1.9] Непрерывная адаптация: переиндексация одного файла на хуке записи, а не переиндексация всего по расписанию"
 status: planning
-epic: null
-story: null
+epic: artifact-graph
+story: ag-substrate
 complexity: complex
 role: developer
 stack: python
