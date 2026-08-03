@@ -38,126 +38,19 @@ def _source(name: str) -> str:
 class TestTheAgentLoopSurvivesNotion:
     """AC1: a Notion failure never reaches the work.
 
-    The local write is what must be unconditional. A test that merely watched a
-    healthy run would pass whatever the ordering was, so the failure is injected
-    and the ordering is asserted structurally as well.
+    Three tests lived here that drove `_record_with_mirror` — proving the local
+    write survived a failing mirror, and that the mirror could not raise into
+    its caller. Decision #221 removed automatic mirroring entirely, so that
+    function is gone and the property it guarded became STRUCTURAL: `record` has
+    no outward path to fail. `test_decide_never_autopublishes.py` states the
+    stronger version — nothing is published by recording, whatever the text.
+
+    Removed rather than adapted, because a test kept alive against a deleted
+    mechanism teaches the next reader that the mechanism still exists.
     """
 
-    def test_a_decision_is_recorded_locally_even_when_the_brain_write_explodes(
-        self, tmp_path, monkeypatch
-    ):
-        """Drives `_record_with_mirror` directly, and asserts the mirror was TRIED.
 
-        The first version of this test was green for the wrong reason and review
-        caught it: `record()` only reaches the mirror when brain is enabled AND
-        the target is "brain" AND the DB is a working project one. With the
-        default config none of that holds, so the monkeypatched failure never
-        fired — the decision survived because Notion was never attempted, which
-        proves nothing about surviving Notion. The `except RuntimeError` was
-        dead code catching an exception that could not occur.
 
-        So the mirror path is entered on purpose, and a spy asserts it really
-        was entered before the outcome is judged.
-        """
-        from types import SimpleNamespace
-
-        import brain_config
-        import brain_runtime
-        import service_decide
-        from project_backend import SQLiteBackend
-        from project_service import ProjectService
-
-        root = tmp_path / "proj"
-        (root / ".tausik").mkdir(parents=True)
-        monkeypatch.chdir(root)
-
-        attempted: list[bool] = []
-
-        def failing_mirror(*a, **k):
-            attempted.append(True)
-            return False, "Notion is down"
-
-        # Both patched on their OWN modules: `_record_with_mirror` imports each
-        # locally at call time, so patching the importer would miss.
-        monkeypatch.setattr(brain_runtime, "try_brain_write_decision", failing_mirror)
-        monkeypatch.setattr(brain_config, "validate_brain", lambda *a, **k: [])
-
-        svc = ProjectService(SQLiteBackend(str(root / ".tausik" / "tausik.db")))
-        try:
-            out = service_decide._record_with_mirror(
-                svc,
-                "решение во время сбоя Notion",
-                None,
-                {"enabled": True},
-                SimpleNamespace(reason="test", target="brain"),
-            )
-            assert attempted, "the mirror was never attempted — the test proves nothing"
-            assert len(svc.decisions()) == 1, (
-                "the decision was lost because the brain mirror failed — the local "
-                "write is not unconditional"
-            )
-            assert "brain write failed" in out, "the failure was not reported to the caller"
-        finally:
-            svc.be.close()
-
-    def test_the_mirror_really_cannot_raise_into_the_caller(self):
-        """The contract `_record_with_mirror` relies on, checked rather than trusted.
-
-        `try_brain_write_decision` promises "Never raises: caller falls back to
-        local on False", and `_record_with_mirror` is written as if that holds —
-        it calls the mirror BEFORE the local write and does not guard it. An
-        earlier version of the test above injected a raising mirror and failed,
-        which looked like a defect and was not: it was an impossible input.
-
-        The honest test is therefore of the promise itself. If someone lets an
-        exception escape that function, the local write becomes unreachable and
-        decisions start vanishing on a network blip — so the wrapping is the
-        thing to pin.
-        """
-        tree = ast.parse(_source("brain_runtime.py"))
-        fn = next(
-            n
-            for n in ast.walk(tree)
-            if isinstance(n, ast.FunctionDef) and n.name == "try_brain_write_decision"
-        )
-        body = [s for s in fn.body if not isinstance(s, ast.Expr)]  # drop the docstring
-        assert len(body) == 1 and isinstance(body[0], ast.Try), (
-            "try_brain_write_decision is no longer a single wrapped block, so it can "
-            "now raise into _record_with_mirror — where the local write comes AFTER it"
-        )
-        handlers = body[0].handlers
-        assert any(h.type is None or getattr(h.type, "id", "") == "Exception" for h in handlers), (
-            "the handler narrowed — some failures now escape to the caller"
-        )
-
-    def test_the_local_write_is_reached_unconditionally(self):
-        """Structural: the mirror path ends in an UNGUARDED `write_local`.
-
-        Injecting one failure proves one path; this proves the shape. The check
-        is deliberately narrow — a `write_local` at the function body's TOP
-        LEVEL, not merely somewhere inside it. My first draft flagged any
-        occurrence inside any `if`, which is wrong: a branch that writes locally
-        and returns is a complete, correct path, and the test failed on healthy
-        code. What must hold is that after all the branching, the fall-through
-        still writes.
-        """
-        tree = ast.parse(_source("service_decide.py"))
-        funcs = {n.name: n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
-        target = funcs["_record_with_mirror"]
-
-        top_level = [
-            stmt
-            for stmt in target.body
-            if not isinstance(stmt, (ast.If, ast.Try, ast.For, ast.While))
-            and any(
-                isinstance(n, ast.Call) and getattr(n.func, "id", "") == "write_local"
-                for n in ast.walk(stmt)
-            )
-        ]
-        assert top_level, (
-            "no unguarded write_local in _record_with_mirror — every call is nested, "
-            "so the project's own copy now depends on some branch being taken"
-        )
 
     def test_memory_add_does_not_reach_the_network(self):
         """The universality hint is a local heuristic, and so is what it delegates to.

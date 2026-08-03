@@ -120,11 +120,26 @@ def add_brain(sub: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Override cross-project ownership check (--to-local only)",
     )
+    # Keeping the local row is the DEFAULT. Publishing used to delete it, which
+    # only became untenable once `decide` stopped mirroring on its own: this is
+    # now the path a person is pointed at, and a publish that removes the
+    # project's copy is a handover, not a publish.
+    #
+    # `--keep-source` is still accepted and now names the default, so any script
+    # that passed it keeps working and keeps meaning the same thing. Handing a
+    # record over is available under a name that says so.
     bm.add_argument(
         "--keep-source",
         action="store_true",
         dest="keep_source",
-        help="Don't delete the source row after a successful move",
+        default=True,
+        help="Keep the local row after publishing (the default; kept for compatibility)",
+    )
+    bm.add_argument(
+        "--drop-local",
+        action="store_false",
+        dest="keep_source",
+        help="Delete the local row after a successful publish — a move, not a copy",
     )
     bd = brain_sub.add_parser(
         "draft",

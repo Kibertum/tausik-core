@@ -30,7 +30,17 @@ def cmd_knowledge(svc: ProjectService, args: Any) -> None:
         detail = ", ".join(f"{n} {name}" for name, n in counts.items())
         print(f"Restored {total} record(s) from {args.from_dir} ({detail}).")
         return
-    print("Usage: tausik knowledge {export --to <dir> | restore --from <dir>}")
+    if sub == "import-brain":
+        from knowledge_import import format_counts, import_from_brain_mirror
+
+        counts = import_from_brain_mirror(dry_run=bool(getattr(args, "dry_run", False)))
+        verb = "Would import" if getattr(args, "dry_run", False) else "Imported"
+        print(f"{verb}: {format_counts(counts)}.")
+        return
+    print(
+        "Usage: tausik knowledge {export --to <dir> | restore --from <dir> | "
+        "import-brain [--dry-run]}"
+    )
 
 
 def cmd_memory(svc: ProjectService, args: Any) -> None:

@@ -9,6 +9,44 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — recording a decision no longer publishes it anywhere (BREAKING)
+
+`tausik decide` used to run the text through a classifier that looked for
+project-specific markers and mirrored anything general-looking to Notion. That
+is gone. Visibility is a judgement about INTENT, and the words cannot carry it —
+the same sentence is a private note in one project and a lesson worth sharing in
+another, and only the author knows which.
+
+The rule failed in the direction that costs something. Six of this project's own
+internal decisions reached the owner's wiki, among them the one cancelling the
+2.0 plan and the one about the release date, each labelled "no project-specific
+markers detected" — because a well-written decision usually reads generally.
+
+Three destinations now, all chosen rather than inferred: this project by
+default, the shared local store with `--global`, and the outside world only via
+`tausik brain move --to-brain`, by name. The blocker for this was the absence of
+an explicit flag; `--global` arrived earlier in this release, so the classifier
+had nothing left to stand in for.
+
+PUBLISHING NOW KEEPS THE LOCAL COPY. `brain move --to-brain` deleted the local
+row by default, which only became untenable once it was the path people are
+pointed at: a publish that removes the project's copy is a handover, and it
+contradicted this module's first guarantee. `--drop-local` still moves, for
+whoever means it; `--keep-source` is accepted and now names the default.
+
+`tausik knowledge import-brain` brings the accumulated mirror into the shared
+store — no network, since the mirror is already a local file. It is idempotent
+by construction: each record's identity is derived from its Notion page id, so a
+rerun imports nothing rather than tripling the base. Cached web pages are left
+behind, because fetched material has no author and importing it would pass
+someone else's article off as a note. Origins are written as `brain:<hash>`,
+which is what the wiki actually recorded — dressing a hash up as a directory
+would invent a path that never existed.
+
+Sixty lines of now-dead mirror machinery were removed rather than left for
+someone to wire back, and the module docstring rewritten: it still described the
+publish path it no longer has.
+
 ### Fixed — Notion is optional, and now it is proven rather than promised
 
 Recon for this task found that most of it was already true: nothing in the agent
@@ -20,9 +58,8 @@ already sits on the publication boundary, and that is its only call site.
 What was missing was not a mechanism but EVIDENCE. An unenforced property drifts,
 and this one drifts quietly: breaking it produces no error, just decisions that
 stop being recorded. So the guarantees are now tests written against the ways
-they could be lost — a decision survives an exploding mirror, `_record_with_mirror`
-still ends in an unguarded local write, the universality hint imports nothing
-that could reach a network, and no module outside the single publication funnel
+they could be lost — the universality hint imports nothing that could reach a
+network, and no module outside the single publication funnel
 writes CONTENT to Notion. That last one was stated too broadly at first and
 review corrected it: two callers do reach Notion outside the funnel — one
 archives a page by id, the other creates the empty databases during setup — and

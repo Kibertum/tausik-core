@@ -126,6 +126,15 @@ def build_parser() -> argparse.ArgumentParser:
         "restore", help="Rebuild the shared store from a backup (matches records by uuid)"
     )
     kn_restore.add_argument("--from", dest="from_dir", required=True, help="Backup directory")
+    kn_import = kn_sub.add_parser(
+        "import-brain",
+        help="One-off: copy the local Notion mirror into the shared store (no network)",
+    )
+    kn_import.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report what would be imported without writing anything",
+    )
 
     # --- decide ---
     dec_p = sub.add_parser("decide", help="Record a decision")
