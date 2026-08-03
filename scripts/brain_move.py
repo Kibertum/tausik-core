@@ -153,10 +153,20 @@ def move_to_brain(svc, kind: str, source_id: int, *, keep_source: bool = True) -
             "store_result": result,
         }
     if not keep_source:
+        # Through the mixin, not `_ex`. Both statements used to be raw, and a
+        # migration works in BATCHES — one run left as many ghost files as it
+        # moved rows, each describing an entry the DB no longer had. A later
+        # `state export` hid every one of them by rebuilding the tree from
+        # scratch, so `status` stayed clean while the incremental tree rotted.
         if kind == "decision":
-            svc.be._ex("DELETE FROM decisions WHERE id = ?", (int(source_id),))
+            # `_delete_projected_by_id` rather than a `decision_delete` method:
+            # this is the only module that removes a decision, and the
+            # class-surface ratchet holds `SQLiteBackend` at 129 public members
+            # for good reason. What matters is that the delete happens on the
+            # write layer, which projects the departure — not what it is called.
+            svc.be._delete_projected_by_id("decisions", int(source_id))
         else:
-            svc.be._ex("DELETE FROM memory WHERE id = ?", (int(source_id),))
+            svc.be.memory_delete(int(source_id))
     return {
         "status": "ok",
         "notion_page_id": result.get("notion_page_id"),
@@ -214,7 +224,14 @@ def move_to_local(
     # Map brain row → local insert
     if category == "decisions":
         text = (row.get("decision") or row.get("name") or "").strip()
-        local_id = svc.be.decision_add(text, rationale=row.get("rationale") or None)
+        # `write_local`, not `decision_add`. Its docstring counted three of four
+        # call sites that reached past it and skipped the projection; this was
+        # the fourth, and it was not counted because nobody looked outside the
+        # service layer. A row arriving with no file is the same ghost as a file
+        # left by a departed row, with the sign flipped.
+        from service_decide import write_local
+
+        local_id = write_local(svc, text, None, row.get("rationale") or None)
     else:
         title = (row.get("name") or "").strip() or "(untitled)"
         body = (row.get("description") or "").strip()

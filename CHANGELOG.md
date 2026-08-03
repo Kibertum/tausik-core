@@ -9,6 +9,23 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — `brain move` left ghost files behind
+
+All three of its writes went around the git projection. Two raw
+`DELETE ... WHERE id = ?` statements removed rows and left their files in
+`tausik/` as ghosts — describing entries the database no longer had — and one
+raw `decision_add` created a row with no file at all. The command works in
+batches, so one run left as many ghosts as it moved rows, and a later full
+`state export` hid every one of them by rebuilding the tree from scratch:
+`status` stayed clean while the incremental tree rotted.
+
+Deletes now go through `decision_delete` / `memory_delete` on the write layer,
+which resolve the row's slug BEFORE removing it and let the projection shrink
+with the database — including re-rendering rows whose edges pointed at the
+departed one. The insert goes through the same `write_local` funnel as every
+other decision. Projection failures stay fail-open: a broken export does not
+roll back or abort the migration.
+
 ### Fixed — CLI help sent people to the shared store's old address
 
 The store moved out of `~/.tausik/` (see below). The code moved; the words did

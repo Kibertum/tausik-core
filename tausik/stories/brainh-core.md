@@ -1,6 +1,6 @@
 ---
 slug: brainh-core
 title: "Brain: аудит → надёжность → поиск → capture"
-status: open
+status: active
 epic: brain-hardening
 ---

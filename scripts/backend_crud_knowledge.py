@@ -29,6 +29,7 @@ class KnowledgeCrudMixin:
         def _ex(self, sql: str, params: tuple[Any, ...] = ()) -> int: ...
         def _q(self, sql: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]: ...
         def _q1(self, sql: str, params: tuple[Any, ...] = ()) -> dict[str, Any] | None: ...
+        def _delete_projected_by_id(self, table: str, row_id: int) -> int: ...
         def task_get(self, slug: str) -> dict[str, Any] | None: ...
 
     def _resolve_task_slug(self, task_slug: str | None) -> str | None:
@@ -119,7 +120,16 @@ class KnowledgeCrudMixin:
         return self._q1("SELECT * FROM memory WHERE id=?", (mid,))
 
     def memory_delete(self, mid: int) -> int:
-        return self._ex("DELETE FROM memory WHERE id=?", (mid,))
+        return self._delete_projected_by_id("memory", mid)
+
+    # NO `decision_delete` here, and that is a decision rather than an omission.
+    # It was written, and the class-surface ratchet refused it: `SQLiteBackend`
+    # already exposes 129 public members, and the gate exists precisely to stop
+    # the 130th being added for a single caller. Decisions are removed by exactly
+    # one module — `brain_move`, handing a record over — and it reaches
+    # `_delete_projected_by_id` directly. What the defect actually needed was a
+    # write-layer path that PROJECTS; a public method was one way to spell that,
+    # not the requirement.
 
     def memory_count_for_task(self, slug: str) -> int:
         """Count memories linked to a task."""

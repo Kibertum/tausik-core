@@ -242,6 +242,31 @@ class SQLiteBackend(
                 self._project_write(child_table, child_slug)
         return removed
 
+    # Closed set, not whatever the caller passes — the table name reaches SQL as
+    # text, and "internal callers only" describes today's callers.
+    _ID_DELETABLE = ("decisions", "memory")
+
+    def _delete_projected_by_id(self, table: str, row_id: int) -> int:
+        """DELETE a slug-bearing row by id; the tree shrinks with it.
+
+        Sits next to `_delete_projected`, which takes a slug — every caller here
+        holds an id, and resolving it is the step they forgot: raw
+        `DELETE ... WHERE id = ?` in `brain_move` removed rows and left their
+        files as GHOSTS, describing entries the DB no longer had.
+
+        ORDER IS LOAD-BEARING — the slug is read BEFORE the delete, because
+        afterwards there is no row to read it from. Reversed, this projects
+        nothing and says nothing: the same ghost, one layer further down.
+        """
+        if table not in self._ID_DELETABLE:
+            raise ValueError(f"_delete_projected_by_id: {table!r} is not a slug-bearing kind")
+        row = self._q1(f"SELECT slug FROM {table} WHERE id=?", (int(row_id),))  # noqa: S608
+        slug = (row or {}).get("slug")
+        removed = self._ex(f"DELETE FROM {table} WHERE id=?", (int(row_id),))  # noqa: S608
+        if removed and slug:
+            self._project_write(table, str(slug))
+        return removed
+
     def _flush_pending_projection(self) -> None:
         """Project everything the just-committed transaction touched. Never raises.
 

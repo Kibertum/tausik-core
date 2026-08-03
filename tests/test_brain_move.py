@@ -33,12 +33,21 @@ class _FakeBackend:
     def decision_get(self, decision_id: int):
         return self.decisions.get(decision_id)
 
-    def decision_add(self, text: str, *, rationale=None):
+    def decision_add(self, text: str, task_slug=None, rationale=None):
+        # Signature copied from the real `KnowledgeCrudMixin.decision_add`, not
+        # from the one call this file happens to make. It used to accept only
+        # `(text, *, rationale)` — narrower than the thing it stands in for — so
+        # when `move_to_local` was routed through the projection funnel
+        # `write_local`, which passes `task_slug` positionally like every other
+        # caller, these tests failed on the DOUBLE while the code was correct. A
+        # stand-in narrower than its original does not test the caller; it tests
+        # the stand-in.
         new_id = self._next_dec_id
         self._next_dec_id += 1
         self.decisions[new_id] = {
             "id": new_id,
             "decision": text,
+            "task_slug": task_slug,
             "rationale": rationale,
         }
         return new_id

@@ -658,8 +658,17 @@ _UNREACHABLE: dict[tuple[str, str], str] = {
     ("task_logs", "DELETE"): "removed only by ON DELETE CASCADE, which SQLite runs itself",
     ("decisions", "UPDATE"): "no service method edits a recorded decision",
     ("decisions", "DELETE"): (
-        "only `brain_move` deletes one, straight through `_ex` with no projection "
-        "— see task brain-move-deletes-leave-ghost-projection"
+        "no SERVICE method deletes a decision — the only caller is `brain move`, a "
+        "migration command that lives outside this tap's service-driven sequence. "
+        "Like the `memory_edges` entry below, the reason is the observation SCOPE, "
+        "not the absence of the path: the delete now runs through "
+        "`decision_delete` → `_delete_projected_by_id`, which projects the departure, "
+        "and that is proven in tests/test_brain_move_projection.py rather than here. "
+        "Adding it to `_OPS` was tried and reverted — a new operation shifts every "
+        "later draw in the generator, and `start-task-in-open-story` stopped being "
+        "reached across four different seed sets. Fishing for seeds that restore a "
+        "shape is tuning the sample until it agrees, which is what this file exists "
+        "to not do"
     ),
     ("memory_edges", "DELETE"): (
         "no SERVICE method deletes an edge — the service layer soft-invalidates "
