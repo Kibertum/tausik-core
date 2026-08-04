@@ -223,10 +223,24 @@ target-version = "py311"
 line-length = 100
 
 [tool.ruff.lint]
-# Default rules: E (pycodestyle), F (Pyflakes). Project enforces these in CI.
-# BLE001 (flake8-blind-except): enforce 'no silent errors' — a blind
+# The rule set is stated in FULL, on purpose. `extend-select = ["BLE001"]` used
+# to stand here, and everything else the gate enforced came from whatever ruff
+# happened to call its default that day — E4 (imports), E7 (statement style),
+# E9 (syntax/IO errors) and F (Pyflakes). CI installs ruff unpinned, so on
+# 2026-08-04 the default moved under the gate: ruff 0.16.1 turned on EXE001,
+# I001, SIM115, PLW1510, RUF100 and more, and the release pipeline went from
+# 1 finding to 1539 without a line of this repository changing. A gate whose
+# verdict depends on the version of the tool that ran it is not measuring the
+# code, and pinning the tool would only have hidden that — the config, not the
+# vendor's taste of the month, decides what this project enforces.
+#
+# Adopting ruff's newer defaults is a DECISION, and the place to make it is a
+# task that reads the 1539 and rules on them, not a release-day pipeline.
+# E501 (line-too-long) stays out for the same reason it always was: 137 lines
+# would need reflowing, and `line-length` above is a formatter setting here.
+# BLE001 (flake8-blind-except) enforces 'no silent errors' — a blind
 # `except Exception` must be justified with `# noqa: BLE001 — <why>` or narrowed.
-extend-select = ["BLE001"]
+select = ["E4", "E7", "E9", "F", "BLE001"]
 
 [tool.ruff.lint.per-file-ignores]
 # Files that need sys.path manipulation before importing project modules.

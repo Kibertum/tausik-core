@@ -11,7 +11,7 @@ tier: substantial
 call_budget: 120
 defect_of: null
 scope: null
-scope_exclude: "scripts/**, CHANGELOG.md, CHANGELOG.ru.md — содержание релиза заморожено, эта задача только доносит его наружу"
+scope_exclude: "scripts/** — содержание релиза заморожено, эта задача только доносит его наружу"
 relevant_files:
   - README.md
   - README.ru.md
@@ -29,6 +29,8 @@ scope_paths:
   - "docs/en/*.md"
   - "docs/_generated/*.json"
   - "tests/test_breaking_change_count_converges.py"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
 scope_tools: []
 completed_at: null
 ---

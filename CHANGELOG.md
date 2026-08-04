@@ -13,6 +13,67 @@ Nothing yet.
 
 ## [1.8.0] — 2026-08-03
 
+### Fixed — the count of breaking changes lived in prose, where nobody counted it
+
+Three divergences found by review before the tag. The first is about the
+checking mechanism itself.
+
+- **The `whats-new-1.8` intro (EN + RU)** promised FIVE breaking changes above
+  six sections. `test_breaking_change_count_converges` was green throughout: it
+  compares `### N.` headings across four documents, and there really are six
+  headings everywhere. The number spelled out in the opening sentence it never
+  saw — precisely the failure its own docstring names as the reason it exists,
+  and it survived the arrival of the sixth change. A reader does not count
+  sections; a reader reads the first sentence. The test now reads it too: it
+  extracts the number stated in words or digits from four documents (both
+  whats-new pages and both READMEs) and compares it with the section count.
+  Russian numerals inflect, so the table holds stems rather than dictionary
+  forms; the detector is checked against live data and against negatives —
+  "v1/v2 → v3" is not read as a count of breaking changes.
+- **Breaking change 2** told you to move the shared knowledge store by hand
+  (`mkdir` + `mv`), while the 1.8 code adopts it on its own:
+  `adopt_legacy_store_if_present` COPIES the file from the old address on first
+  use and only runs when the new location is absent. The document sent you to do
+  work already done, and to do it with the wrong verb. Both pages now state the
+  code's behaviour and its single exception: when `TAUSIK_HOME` is set, adoption
+  does not run at all, and there the move really is yours. The check changed from
+  "the directory should not exist" to "the file is there" — the old directory
+  survives the copy.
+- **`README` (EN + RU)** called the headline of 1.8 "the project's state travels
+  in git", while the tag notes and whats-new called it the shared knowledge base
+  and the end of the server-side session. No single statement was false, which is
+  why no gate caught the divergence: the release simply presented as three
+  different releases depending on where you looked. The section is rewritten —
+  three pillars, and six breaking changes with a link to the walkthrough.
+
+Along with it, the "6630 tests" badge against a live 7115 — an understatement
+rather than a falsehood (the number is documented as a lower bound, decision
+#182), but a tag is the cheapest moment to remove it.
+
+### Fixed — the ruff gate rested on the linter's DEFAULT, not the project's choice
+
+Found while publishing: the release pipeline failed with 1572 findings over a
+tree in which not one line of code had changed. CI installs ruff unpinned, 0.16.1
+shipped, and its default rule set moved — EXE001, I001, SIM115, PLW1510, RUF100
+and more turned themselves on.
+
+The gate had been enforcing `E4, E7, E9, F` plus `BLE001` all along, but the
+config said only `extend-select = ["BLE001"]`: everything else came from the
+vendor's default. A verdict that depends on the version of the tool that ran it
+is not measuring the code. The rule set is now stated in the config IN FULL, and
+the result no longer depends on what happened to install: `ruff check scripts/
+tests/ bootstrap/` returns zero on both 0.15.12 and 0.16.1 — measured by running
+both.
+
+Pinning the version in CI was rejected as treating the symptom: it would have
+left the verdict hostage to the install and broken the same way at the next
+default change. Adopting ruff's newer defaults is a decision about 1539 findings,
+and it belongs in a task, not in a release-day pipeline.
+
+The one genuine finding is fixed with it: an unused `import hmac` in
+`scripts/verify_handle.py`. The nonce is compared in SQL, there is no Python
+comparison, and nothing read that import from there.
+
 ### Fixed — four documents outran their code, with every doc gate green
 
 Found by review, and the gates are the point: `docs_lint`, `audit_stale_docs`

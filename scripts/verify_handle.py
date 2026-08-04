@@ -41,7 +41,6 @@ in the receipt would publish it with every export. It lives in its own column.
 
 from __future__ import annotations
 
-import hmac
 import secrets
 import sqlite3
 from datetime import datetime, timedelta, timezone
