@@ -70,7 +70,13 @@ def _normalize_function(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
 
 
 def _signature(body_norm: str) -> str:
-    return hashlib.sha1(body_norm.encode("utf-8")).hexdigest()[:16]
+    # `usedforsecurity=False` states the intent rather than suppressing the
+    # scanner: this is a bucket key for grouping identical test bodies in a
+    # report, not a signature anyone trusts. Sixteen hex characters of SHA-1
+    # would be a poor security choice and a perfectly good dedupe key, and the
+    # flag is where that difference is written down. A `# nosec` here would
+    # have silenced the finding while leaving the next reader to guess.
+    return hashlib.sha1(body_norm.encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
 
 
 def _is_test_func(node: ast.AST) -> bool:

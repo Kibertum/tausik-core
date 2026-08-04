@@ -13,6 +13,30 @@ Nothing yet.
 
 ## [1.8.0] — 2026-08-03
 
+### Fixed — the security gate had never run on a release, and fired twice on the first one
+
+GitHub's `security-review` workflow is wired to `pull_request` into main.
+Releases were published by pushing straight to main, so the event it subscribes
+to never happened. The first release to travel through a pull request switched
+it on, and it immediately reported two HIGH-severity findings.
+
+- **B324, `audit_pytest_dedupe`** — `hashlib.sha1` with no stated purpose. The
+  hash is a bucket key for grouping identical test bodies in a report, not a
+  signature anyone trusts. That is now SAID in the code via
+  `usedforsecurity=False` rather than suppressed with `# nosec`: a suppression
+  hides the intent instead of naming it.
+- **B613, `brain_scrubbing`** — the file carried invisible bidi controls. The
+  module that exists precisely to FIND them held them as literals: the
+  `_ZERO_WIDTH_RE` class was spelled with the characters themselves. A scanner
+  cannot tell a detector from a payload — and it is right not to, because no
+  reader could see what the class contained either. The class is now written as
+  escapes, and the set of matched code points was checked by walking EVERY point
+  in the ranges: 16 characters, none lost, none gained.
+
+Two tests come with it: one pins the whole set, the other asserts the file
+carries no invisible characters of its own — a file-level property that costs
+nothing to check and should not be learned from a release pull request.
+
 ### Fixed — the shape of a path was decided by asking which OS was reading it
 
 Found while publishing: the first full run on Linux produced 7 failures where
