@@ -162,7 +162,7 @@ def check_l3_required(
             f"Opt out: config risk.l3_block_on_high=false."
         )
         if not _block_enabled():
-            # l26-bypass-telemetry: a high-risk closure is being let through by
+            # l26-bypass-telemetry: an under-evidenced closure is being let through by
             # config instead of blocked — record it so the downgrade is
             # countable. Written on a SEPARATE short-lived connection (commit +
             # close), NOT the caller's `conn`: the caller (service_task_done)
@@ -200,7 +200,7 @@ def _emit_l3_downgrade(conn: sqlite3.Connection, slug: str, ms: float) -> None:
                 "VALUES ('supervision', ?, 'bypass_l3_block_downgrade', ?)",
                 (
                     slug,
-                    f"l3_block_on_high=false — high-risk closure (measured {ms}) "
+                    f"l3_block_on_high=false — under-evidenced closure (measured {ms}) "
                     f"downgraded from block to warning",
                 ),
             )

@@ -45,13 +45,13 @@ def format_risk_section(summary: dict[str, Any]) -> str:
     """Multi-line block for `tausik metrics`."""
     d = summary["distribution"]
     lines = [
-        "--- Closure Risk (v1.5) ---",
+        "--- Closure Risk (v1.5) — descriptive, not predictive ---",
         f"Scored closes: {summary['count']}, avg risk: {summary['avg']}",
         f"Distribution:  low={d['low']}  medium={d['medium']}  high={d['high']}",
     ]
     if summary["recent_high"]:
         slugs = ", ".join(f"{h['slug']} ({h['score']})" for h in summary["recent_high"])
-        lines.append(f"Recent high-risk: {slugs}")
+        lines.append(f"Recent under-evidenced: {slugs}")
     return "\n".join(lines)
 
 

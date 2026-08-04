@@ -1,7 +1,17 @@
-"""Draft + risk assessment for shared-brain artifact publish (patterns/gotchas).
+"""Draft + risk assessment for shared-brain artifact publish.
 
 Uses `brain_classifier.classify` — project-specific markers imply **high** risk
 (local-only), requiring `confirm_high_risk` on the real Notion write.
+
+WHICH CATEGORIES THE GATE COVERS is decided by `_CLASSIFIER_CATEGORY` and by
+nothing else: a category in that mapping is gated, a category outside it is
+waved through. As of decision #205 that is **patterns, gotchas and decisions**.
+
+The enumeration is repeated here for a reader rather than left implicit, and it
+is pinned to the registry by a test — because the previous version of this line
+said "patterns/gotchas", stayed unchanged when decisions were added, and was
+then CITED as evidence that decisions were exempt. A sentence that once served
+as proof of behaviour keeps being read as proof after it stops being true.
 """
 
 from __future__ import annotations
@@ -77,6 +87,13 @@ def assess_publish_risk(
     fields: Mapping[str, Any],
     cfg: Mapping[str, Any] | None,
 ) -> tuple[Literal["low", "high"], str]:
+    """Return (level, reason) for one candidate publish.
+
+    Covers the categories in `_CLASSIFIER_CATEGORY` — patterns, gotchas and
+    decisions since #205. Anything outside it is reported "low" with a reason
+    that says WHY it is low: no classifier exists for that category, which is
+    not the same claim as "this content was examined and looks safe".
+    """
     if category not in _CLASSIFIER_CATEGORY:
         return "low", "category has no artifact classifier"
     blob = artifact_blob_for_classifier(category, fields)
@@ -94,7 +111,12 @@ def maybe_block_high_risk_publish(
     *,
     confirm_high_risk: bool,
 ) -> tuple[bool, str | None]:
-    """Return (blocked, message). Only patterns/gotchas apply."""
+    """Return (blocked, message).
+
+    Applies to the categories in `_CLASSIFIER_CATEGORY` — patterns, gotchas and
+    decisions since #205 — and to nothing else: an unregistered category returns
+    "not blocked" here without consulting the classifier at all.
+    """
     if category not in _CLASSIFIER_CATEGORY:
         return False, None
     level, reason = assess_publish_risk(category, fields, cfg)

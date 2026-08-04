@@ -87,7 +87,7 @@ When using TAUSIK, SENAR manifests as:
 | Rule 1 | No code without a task | Hook blocks file edits without an active task |
 | Rule 2 | Define scope boundaries | `scope_write_gate`/`bash_write_gate` block writes outside `scope_paths`; QG-0 hard-blocks a medium/complex start with no scope |
 | Rule 3 | Verify against criteria | QG-0 + QG-2 combined enforcement |
-| Rule 4 | External adversarial review | `risk_l3_trigger` blocks a high-risk closure until an L3 review is recorded; reviewer is the separate-model `tausik-external-reviewer` subagent |
+| Rule 4 | External adversarial review | `risk_l3_trigger` blocks an under-evidenced closure until an L3 review is recorded; reviewer is the separate-model `tausik-external-reviewer` subagent |
 | Rule 5 | Verification checklist | Hard gate for substantial/deep tiers whose AC cite no existing test; escalating warning below |
 | Rule 6 | Plan rollback | `rollback_plan` field: QG-0 blocks a medium/complex start without a rollback plan; `task done` warns |
 | Rule 7 | Find root cause for defects | Warning if defect task has no root cause in notes |
@@ -97,7 +97,7 @@ When using TAUSIK, SENAR manifests as:
 | Rule 9.4 | Document dead ends | Dedicated tool + reminders in skills |
 | Rule 9.5 | Periodic audit | Auto-check at session start |
 
-> **A note on Rules 4–6.** As of **v1.5** these are enforced: **Rule 4** (external adversarial review — a separate-model, read-only subagent gates high-risk closures), **Rule 5** (verification checklist — a hard gate for substantial/deep planning tiers, advisory below), and **Rule 6** (rollback planning — QG-0 blocks new medium/complex tasks without a documented rollback plan). See the [SENAR Compliance Matrix](senar-compliance-matrix.md) for the full enforcement table.
+> **A note on Rules 4–6.** As of **v1.5** these are enforced: **Rule 4** (external adversarial review — a separate-model, read-only subagent gates under-evidenced closures), **Rule 5** (verification checklist — a hard gate for substantial/deep planning tiers, advisory below), and **Rule 6** (rollback planning — QG-0 blocks new medium/complex tasks without a documented rollback plan). See the [SENAR Compliance Matrix](senar-compliance-matrix.md) for the full enforcement table.
 
 **Full compliance matrix:** [SENAR Compliance Matrix](senar-compliance-matrix.md)
 

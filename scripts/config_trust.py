@@ -139,7 +139,7 @@ GUARDS: tuple[Guard, ...] = (
         ("risk", "l3_block_on_high"),
         _weaker_when_false,
         True,
-        "L3 external review requirement on high-risk closures",
+        "L3 external review requirement on under-evidenced closures",
     ),
     Guard(
         ("task_done", "auto_verify"),

@@ -194,7 +194,7 @@ gets the project's history, not an empty database — and no external store has
 to exist for that to work.
 
 v1.8 also continues the hardening on the road to 2.0: signed receipts,
-fail-closed gates, external adversarial review for high-risk closures,
+fail-closed gates, external adversarial review for under-evidenced closures,
 closure-risk scoring, structured root cause, and a skill supply chain that
 verifies the same way on every platform.
 

@@ -1,6 +1,6 @@
 ---
 name: tausik-external-reviewer
-description: SENAR Rule 4 external validator for high-risk closures. Runs on a DIFFERENT model than the code's author (separation of duties), read-only, and returns a structured L3 verdict plus the exact `tausik review record` command to persist it as evidence.
+description: SENAR Rule 4 external validator for under-evidenced closures. Runs on a DIFFERENT model than the code's author (separation of duties), read-only, and returns a structured L3 verdict plus the exact `tausik review record` command to persist it as evidence.
 tools: Read, Grep, Bash
 model: opus
 ---
@@ -32,7 +32,7 @@ The invoking skill provides:
 
 3. **Resolve scope** — Read each given file in full, or run the `git diff`, parse the changed files, and Read each in full. Never review on hunks alone.
 
-4. **Adversarial pass** — Hunt the high-risk failure modes first: the factors that escalated this closure (security hits, thin test delta, weak AC evidence, churn). For every issue classify severity: **critical** (injection, auth bypass, data loss, secret leak, race), **high** (missing validation, swallowed exceptions, broken compat), **medium** (duplication ≥3×, missing plausible edge case), **low** (naming, dead code, docs). Re-read the exact `file:line` before recording — drop false positives.
+4. **Adversarial pass** — Hunt the most severe failure modes first, and let the factors that escalated this closure point you at them (security hits, thin test delta, weak AC evidence, churn). Those factors describe how THIN the evidence is, not how likely a defect is — they say where to look, not what you will find. For every issue classify severity: **critical** (injection, auth bypass, data loss, secret leak, race), **high** (missing validation, swallowed exceptions, broken compat), **medium** (duplication ≥3×, missing plausible edge case), **low** (naming, dead code, docs). Re-read the exact `file:line` before recording — drop false positives.
 
 5. **Return a single JSON object** — nothing else:
    ```json

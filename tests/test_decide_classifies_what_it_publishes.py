@@ -21,6 +21,18 @@ from unittest.mock import patch
 
 import pytest
 
+# The publish-risk-gate tests at the bottom of this file are the only coverage
+# `brain_publish_flow` has, and the resolver maps a module to `test_<module>.py`
+# by name — which this file, kept under its historical name, does not match. So
+# `verify --relevant-files scripts/brain_publish_flow.py` ran nine unrelated
+# files and none of the gate's own, and reported green. Declared explicitly
+# rather than by renaming the file, because the name is what keeps the history
+# of decision #221 findable.
+CROSSCUTTING_SCOPE = [
+    "scripts/brain_publish_flow.py",
+    "scripts/service_knowledge.py",
+]
+
 _SCRIPTS = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts"))
 if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
@@ -81,13 +93,7 @@ def test_full_payload_routes_local():
     assert any(m.kind == "slug" for m in d.markers)
 
 
-
-
-
-
 # --- an external publish must not fire from a throwaway context --------------
-
-
 
 
 def test_unknown_db_provenance_fails_closed(svc, monkeypatch):
@@ -105,8 +111,6 @@ def test_unknown_db_provenance_fails_closed(svc, monkeypatch):
     ):
         svc.decide("Prefer exponential backoff for network retries")
     mock_brain.assert_not_called()
-
-
 
 
 # --- decisions are inside the risk gate now ----------------------------------
@@ -223,7 +227,6 @@ class TestBindingGuardComparesFilesNotStrings:
             assert is_working_project_db(be) is True
         finally:
             be.close()
-
 
     def test_a_symlinked_tausik_dir_is_still_the_project(self, tmp_path, monkeypatch):
         """AC-3: the symlink question is decided, not left to chance.

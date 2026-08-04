@@ -11,7 +11,7 @@ enforcement switches lived in it:
 | Key | What it turned off |
 |---|---|
 | `qg0.scope_hard_gate` | the block on edits outside a task's declared scope |
-| `risk.l3_block_on_high` | the external L3 review required to close a high-risk task |
+| `risk.l3_block_on_high` | the external L3 review required to close an under-evidenced task |
 | `task_done.auto_verify` | closes a task on an inline run, skipping the signed receipt |
 | `gates.<name>.enabled` | the gate itself |
 | `gates.<name>.severity` | demotes `block` to `warn` |
