@@ -56,6 +56,39 @@ def _format_task_done_failures(report: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
+
+def _redeem_verify_handle(be: "SQLiteBackend", slug: str, report: dict[str, Any]) -> None:
+    """Spend the presented verify handle, inside the caller's transaction.
+
+    Called from within the `status='done'` transaction so the spend shares its
+    fate: a rollback un-spends the handle, and a close blocked by a later gate
+    never reaches this line at all. Redeem-once is about one green not closing
+    two tasks (SEP-2322 replay) — that is a property of CLOSING, not of passing
+    the gate that checked the handle.
+
+    A failed spend RAISES rather than warning. Reaching here means every gate
+    passed and the handle validated moments ago, so the only ways the atomic
+    `WHERE handle_redeemed_at IS NULL` can miss are a concurrent close that took
+    it first or a database fault — and both mean this close must not be the one
+    that succeeds. The caller's `except: rollback_tx(); raise` turns it into a
+    refused close with the task untouched.
+    """
+    handle = report.get("_verify_handle_to_redeem")
+    if not handle:
+        return
+    from verify_handle import parse_handle, redeem
+
+    parsed = parse_handle(handle)
+    if parsed is None:  # pragma: no cover — the gate already parsed it
+        raise ServiceError(f"verify-handle: {handle!r} became unparseable between check and spend")
+    if not redeem(be._conn, *parsed):
+        raise ServiceError(
+            f"verify-handle: run #{parsed[0]} was spent between validation and "
+            f"close — another `task done` took it. Re-run "
+            f"`tausik verify --task {slug}` and present the new handle."
+        )
+
+
 class TaskDoneReportMixin:
     """Mixin providing _task_done_report. Composed into TaskMixin.
 
@@ -79,6 +112,7 @@ class TaskDoneReportMixin:
         progress_fn: Any | None = None,
         no_file_changes: bool = False,
         no_changelog: bool = False,
+        verify_handle: str | None = None,
     ) -> dict[str, Any]:
         # v14b-token-t15: structured evidence — convert JSON to canonical
         # prose before the existing log path. Mutex with --evidence prose
@@ -141,10 +175,15 @@ class TaskDoneReportMixin:
             progress_fn=progress_fn,
             no_file_changes=no_file_changes,
             no_changelog=no_changelog,
+            verify_handle=verify_handle,
         )
         report["gates"] = gate_report.get("results", [])
         report["cache_status"] = gate_report.get("cache_status")
         report["gates_passed"] = bool(gate_report.get("passed"))
+        # The Verify-First gate validated a presented handle and left it here to
+        # be SPENT at close time. Carried across because the gate writes into its
+        # own report dict, and the spend belongs to the close transaction below.
+        report["_verify_handle_to_redeem"] = gate_report.get("_verify_handle_to_redeem")
         if not gate_report.get("passed"):
             failures = gate_report.get("blocking_failures", [])
             report["blocking_failures"] = [
@@ -406,6 +445,13 @@ class TaskDoneReportMixin:
                 msgs.append(cost_warning)
                 report["warnings"].append(cost_warning)
             msgs.extend(self._cascade_done(slug))  # type: ignore[attr-defined]
+            # v2-verify-receipt-as-argument: spend the presented handle HERE,
+            # inside the transaction that writes status='done'. Redeem-once
+            # exists so one green cannot close two tasks; binding the spend to
+            # the close means a rollback un-spends it too, and a close that
+            # blocks on a later gate no longer burns a verify run the agent
+            # then has to repeat.
+            _redeem_verify_handle(self.be, slug, report)
             self.be.commit_tx()
         except Exception:
             self.be.rollback_tx()

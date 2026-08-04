@@ -35,13 +35,38 @@ def _do_session_list(svc: Any, args: dict) -> str:
     )
 
 
-def _do_session_handoff(svc: Any, args: dict) -> str:
-    # Reset tool call counter on checkpoint (SENAR Rule 9.3)
+def reset_checkpoint_counter(svc: Any) -> None:
+    """Clear the SENAR Rule 9.3 tool-call counter — a HYGIENE operation.
+
+    v2-session-split-and-drop: this used to be four unnamed lines inside
+    `_do_session_handoff`, so writing a continuity document also reset the
+    agent's context-budget counter. That is the two halves of "session" in one
+    function: the handoff is about the WORK, the counter is about the AGENT.
+
+    It stays best-effort — a counter that cannot be cleared must not stop a
+    checkpoint from being recorded — but it is now a named operation a caller
+    invokes on purpose, so a future caller that wants one without the other can
+    have it.
+    """
     try:
         svc.be.meta_set("tool_call_count", "0")
     except Exception:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         pass
-    return svc.session_handoff(args["handoff"])
+
+
+def _do_session_handoff(svc: Any, args: dict) -> str:
+    """Save the handoff, then reset the checkpoint counter.
+
+    Both still happen on this path, and deliberately: `tausik_session_handoff`
+    is what /checkpoint and /end call, and a checkpoint IS the moment the
+    counter should restart. What changed is that the two are now separate,
+    named, and ordered — the continuity write happens FIRST and its result is
+    what the caller sees, so a counter failure can no longer be mistaken for a
+    handoff failure.
+    """
+    result = svc.session_handoff(args["handoff"])
+    reset_checkpoint_counter(svc)
+    return result
 
 
 def _do_session_last_handoff(svc: Any, args: dict) -> str:

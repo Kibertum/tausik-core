@@ -203,6 +203,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         evidence_json: str | None = None,
         no_file_changes: bool = False,
         no_changelog: bool = False,
+        verify_handle: str | None = None,
     ) -> str:
         report = self._task_done_report(
             slug,
@@ -214,6 +215,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             progress_fn=progress_fn,
             no_file_changes=no_file_changes,
             no_changelog=no_changelog,
+            verify_handle=verify_handle,
         )
         if not report.get("ok"):
             raise ServiceError(_format_task_done_failures(report))
@@ -279,6 +281,13 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
                 f"status='{fields['status']}' must use lifecycle method "
                 f"(task_done/start/block/review) — would bypass QG-2."
             )
+        # Emptiness first: the enum check below reads `if v and ...`, so an
+        # empty string slipped PAST it rather than failing it, and every plain
+        # text field had no check at all. Blanking is refused for the fields a
+        # gate reads; the list and its exclusions live in service_validation.
+        from service_validation import reject_blank_updates
+
+        reject_blank_updates(fields)
         for name, valid in _update_enums():
             v = fields.get(name)
             if v and v not in valid:

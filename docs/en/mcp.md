@@ -279,12 +279,22 @@ The `tausik-brain` MCP server runs config-agnostic at startup and reads registry
 
 ### Brain config requirements
 
-When `brain.enabled=true` in `.tausik/config.json`, ALL of the following must be set or `tausik_decide` (and other brain-routing operations) will return a `⚠ ... saved LOCALLY ONLY — brain mirror BLOCKED` warning and skip the Notion mirror:
+Since 1.8, `tausik_decide` does **not** route to the brain at all — recording a
+decision never publishes it anywhere (decision #221). Brain config governs only
+the explicit outward path: `brain_store_*`, `brain_cache_web`, and
+`tausik brain move --to-brain`. When `brain.enabled=true` in
+`.tausik/config.json`, ALL of the following must be set or those operations fail
+rather than mirroring:
 
 - `brain.database_ids.decisions`, `database_ids.patterns`, `database_ids.gotchas`, `database_ids.web_cache` — all four Notion database UUIDs.
 - `brain.notion_integration_token_env` — env var name (default `NOTION_TAUSIK_TOKEN`) that must resolve to a non-empty token via env, `.tausik/.env`, or `brain.notion_integration_token` in config.
 
-`tausik doctor` surfaces validation errors as a `Brain config` warning row. The fastest fix is `tausik brain init` (interactive wizard) or set `brain.enabled=false` to opt out cleanly. After fixing the config, run `tausik brain move --to-brain` to migrate decisions/gotchas/patterns that were saved locally during the misconfiguration window.
+`tausik doctor` surfaces validation errors as a `Brain config` warning row. The fastest fix is `tausik brain init` (interactive wizard) or set `brain.enabled=false` to opt out cleanly.
+
+`tausik brain move --to-brain` is the only outward path, and it is a deliberate
+act — not a catch-up for a misconfiguration window. Decisions stay local because
+that is the rule now, not because the config was broken; nothing accumulates a
+backlog waiting to be flushed to Notion.
 
 ## Codebase RAG (separate optional MCP server)
 

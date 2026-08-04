@@ -276,12 +276,22 @@ DEFAULT_STACKS: 25 записей (python, fastapi, django, flask, react, next, 
 
 ### Требования к brain-конфигу
 
-Когда в `.tausik/config.json` стоит `brain.enabled=true`, все нижеперечисленные поля ДОЛЖНЫ быть заданы — иначе `tausik_decide` (и другие операции, маршрутизируемые в brain) вернут `⚠ ... saved LOCALLY ONLY — brain mirror BLOCKED` и пропустят зеркалирование в Notion:
+С 1.8 `tausik_decide` **не** маршрутизируется в brain вообще — запись решения
+больше никуда его не публикует (решение #221). Brain-конфиг управляет только
+явным внешним путём: `brain_store_*`, `brain_cache_web` и
+`tausik brain move --to-brain`. Когда в `.tausik/config.json` стоит
+`brain.enabled=true`, все нижеперечисленные поля ДОЛЖНЫ быть заданы — иначе эти
+операции откажут, а не зеркалируют:
 
 - `brain.database_ids.decisions`, `database_ids.patterns`, `database_ids.gotchas`, `database_ids.web_cache` — все четыре Notion-database UUID.
 - `brain.notion_integration_token_env` — имя env-переменной (по умолчанию `NOTION_TAUSIK_TOKEN`), которая должна резолвиться в непустой токен через env, `.tausik/.env` или поле `brain.notion_integration_token` в конфиге.
 
-`tausik doctor` поднимает ошибки валидации как WARN-строку `Brain config`. Быстрый фикс — `tausik brain init` (интерактивный wizard) или `brain.enabled=false` для явного отказа. После починки конфига запусти `tausik brain move --to-brain`, чтобы перенести в Notion решения/gotchas/паттерны, которые сохранились только локально во время мисконфига.
+`tausik doctor` поднимает ошибки валидации как WARN-строку `Brain config`. Быстрый фикс — `tausik brain init` (интерактивный wizard) или `brain.enabled=false` для явного отказа.
+
+`tausik brain move --to-brain` — единственный путь наружу, и это осознанное
+действие, а не догоняющая синхронизация после мисконфига. Решения остаются
+локальными потому, что теперь таково правило, а не потому, что сломан конфиг;
+никакой очереди, ждущей выгрузки в Notion, не копится.
 
 ## Codebase RAG (отдельный опциональный MCP-сервер)
 

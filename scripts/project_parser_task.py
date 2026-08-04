@@ -146,6 +146,17 @@ def add_task(sub: argparse._SubParsersAction) -> None:
     )
     tdone.add_argument("--relevant-files", nargs="*", default=None)
     tdone.add_argument(
+        "--verify-handle",
+        default=None,
+        dest="verify_handle",
+        help="Present the handle `tausik verify --task <slug>` printed "
+        "(<run_id>.<nonce>) instead of relying on the freshness lookup. The "
+        "handle names ONE verify run; it is single-use, carries its own expiry, "
+        "and is validated against live files and the live gate set. Omitting it "
+        "keeps the previous behaviour (a green verify run younger than the cache "
+        "TTL is searched for).",
+    )
+    tdone.add_argument(
         "--no-file-changes",
         action="store_true",
         dest="no_file_changes",

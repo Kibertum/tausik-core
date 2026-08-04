@@ -102,7 +102,37 @@ def _handle_verify(
             "NOTE: full-suite run (no task scope). Not recorded to the verify "
             "cache — pass a task_slug to cache a scoped green for task_done."
         )
+    lines.extend(_handle_lines(result, task_slug))
     return "\n".join(lines)
+
+
+def _handle_lines(result: dict, task_slug: str | None) -> list[str]:
+    """The explicit state handle, surfaced to the AGENT (SEP-2567).
+
+    This handler used to return neither run_id nor receipt — the MCP caller got
+    strictly less than the CLI caller, which is part of why the only link
+    between a verify and a close was a server-side search. Returning the handle
+    is what makes `verify_handle` presentable from MCP at all; without these
+    lines the argument added to the tausik_task_done schema would have nothing
+    to carry.
+
+    The durability policy travels WITH the handle rather than living only in
+    the tool description: the description is read once at connect time, this
+    line is read at the moment the decision is made.
+    """
+    if not task_slug:
+        return []
+    handle = result.get("verify_handle")
+    if not handle:
+        return [
+            "HANDLE: none — this run is not presentable (no declared files, all "
+            "gates skipped, or a security-sensitive scope). tausik_task_done "
+            "will fall back to the freshness lookup."
+        ]
+    return [
+        f"HANDLE: {handle} (valid until {result.get('handle_expires_at')}, single use).",
+        f"  Pass it to tausik_task_done as verify_handle when closing '{task_slug}'.",
+    ]
 
 
 def _handle_gates_status(svc: Any = None) -> str:

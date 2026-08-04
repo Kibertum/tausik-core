@@ -88,6 +88,11 @@ def _do_task_done(svc: Any, args: dict) -> str:
         progress_fn=_progress,
         no_file_changes=args.get("no_file_changes", False),
         no_changelog=args.get("no_changelog", False),
+        # Read explicitly: the MCP dispatch does no schema validation, so an
+        # argument this handler does not name is silently dropped (memory #368,
+        # mcp-server-drops-unknown-arguments-silently). Advertising it in
+        # tools.py is not what makes it arrive.
+        verify_handle=args.get("verify_handle"),
     )
     return json.dumps(result, ensure_ascii=False)
 
