@@ -267,7 +267,9 @@ def checklist_hard_block(
         f"QG-2 SENAR Rule 5: planning tier '{tier}' requires at least one "
         f"acceptance criterion backed by a test that EXISTS (or a green "
         f"verification_run #NNNN for this task) — none found. Log it as "
-        f'`task log <slug> "AC-3: ✓ tests/test_foo.py::test_bar"` and re-run '
+        f'`task log <slug> "AC-3: ✓ tests/test_foo.py::test_bar"`, or as a '
+        f"heading 'AC-3 (what is checked): …' with '✓ tests/…::test_…' lines "
+        f"directly beneath it, and re-run "
         f"task done. A bare check mark does not count, and a path that does not "
         f"resolve is treated as no evidence at all. If this task legitimately "
         f"has no test to cite, close it with the state that says so rather than "
@@ -304,7 +306,12 @@ def check_verification_checklist(
             f"NOTE: Verification checklist ({tier}, {_TIER_COUNT[tier]} items) — "
             "no acceptance criterion names a test, a manual run, a review or a "
             "green verification_run. A check mark on its own is a claim, not "
-            "evidence. Log e.g. 'AC-2: ✓ tests/test_foo.py::test_bar' via `task log`."
+            "evidence. TWO forms are read, and naming both matters — showing one "
+            "example without saying it was the only one recognised is what made "
+            "this warning fire over checklists that were there. Either "
+            "'AC-2: ✓ tests/test_foo.py::test_bar' on one line, or a heading "
+            "'AC-2 (what is checked): …' with '✓ tests/…::test_…' lines directly "
+            "beneath it (no blank line between). Log it via `task log`."
         )
 
     ac_text = task.get("acceptance_criteria") or ""

@@ -47,6 +47,17 @@ import re
 
 CHECK_MARK_RE = re.compile(r"[✓✔✅]|\[v\]")
 AC_NUMBER_PREFIX_RE = re.compile(r"^\s*(?:AC[-\s]*)?(\d+)[\.\):]?\s*(.*)$", re.IGNORECASE)
+
+# The `AC` token above is OPTIONAL, and that is right for the input it was
+# written for: the `acceptance_criteria` FIELD, whose lines are numbered by
+# construction, so a leading digit there is an index and nothing else.
+#
+# Free-form task NOTES are not that input. `3 retries were added to the flaky
+# client` opens with a digit and is a sentence. This stricter form exists so the
+# notes parser can tell a heading from prose: only an explicit `AC` token may
+# open a section that following lines inherit. Without it, one ordinary sentence
+# silently donates its number to whatever citation comes next.
+AC_SECTION_HEADING_RE = re.compile(r"^\s*AC[-\s]*(\d+)\b", re.IGNORECASE)
 # The two prefixes an evidence line legitimately carries in front of its AC
 # number, both authored by the project's own tooling — so the start-anchored
 # AC_NUMBER_PREFIX_RE fails to see the number behind them
@@ -118,6 +129,7 @@ STRUCTURAL_DETECTORS: dict[str, re.Pattern[str]] = {
     "CHECK_MARK_RE": CHECK_MARK_RE,
     "TEST_REF_RE": TEST_REF_RE,
     "AC_NUMBER_PREFIX_RE": AC_NUMBER_PREFIX_RE,
+    "AC_SECTION_HEADING_RE": AC_SECTION_HEADING_RE,
     "AC_ITEM_BOUNDARY_RE": AC_ITEM_BOUNDARY_RE,
     # Measurement forms — structural (read by number, language-independent).
     "VERIFICATION_RUN_RE": VERIFICATION_RUN_RE,

@@ -31,6 +31,7 @@ from ac_evidence_detectors import (  # noqa: E402,F401 — re-export for callers
     AC_HEADER_PREFIX_RE,
     AC_ITEM_BOUNDARY_RE,
     AC_NUMBER_PREFIX_RE,
+    AC_SECTION_HEADING_RE,
     CHECK_MARK_RE,
     DOMAIN_RE,
     MANUAL_RE,
@@ -287,17 +288,85 @@ def _evidence_lines_for_unit(unit: str) -> list[EvidenceLine]:
     return out
 
 
+def _carries_evidence(ev: EvidenceLine) -> bool:
+    """Whether a line without its own `AC-N` may inherit the section's index.
+
+    Both halves are required and each rules out a different mistake. The check
+    mark is the author marking this line as a checklist entry — without it, a
+    planning note that happens to mention a path (`limitation: tests/x.py:62
+    asserts …`) would be counted as evidence for whichever criterion it followed.
+    The reference is the evidence itself — without it, a bare tick inherits an
+    index and a claim gets counted as a verification, which is the exact
+    substitution this gate exists to prevent.
+    """
+    if not ev.has_checkmark:
+        return False
+    return bool(ev.test_refs) or ev.is_manual or ev.is_review or ev.is_measurement
+
+
 def parse_evidence_lines(notes_text: str) -> list[EvidenceLine]:
-    """Parse task notes into a list of EvidenceLine candidates."""
+    """Parse task notes into a list of EvidenceLine candidates.
+
+    EVIDENCE MAY SIT BELOW ITS HEADING, not only beside it. Matching used to
+    require `AC-N` on the SAME line as the citation, so the fuller form —
+
+        AC-2 (what is checked): the shared row is labelled and addressless
+        ✓ tests/test_knowledge_read.py::TestX::test_a
+        ✓ tests/test_knowledge_read.py::TestX::test_b
+
+    — parsed as a heading with no evidence plus two citations belonging to
+    nothing. The gate then reported "no acceptance criterion names a test" over
+    a checklist that named several, and it did so four closes running. That is
+    worse than a missing feature: a gate that denies evidence it was handed
+    teaches its reader to skip its output, and it is then equally ignored on the
+    closes where the checklist really is absent. The form is also not a matter
+    of taste — one criterion covered by four tests does not fit on one line.
+
+    The inheritance is SCOPED so that widening recognition does not become
+    accepting anything. A section is opened ONLY by a line carrying an explicit
+    `AC` token (`AC_SECTION_HEADING_RE`) and ends at the next such heading, at a
+    blank line, or at the start of the next log entry; only lines that carry
+    both a tick and a real citation inherit from it.
+
+    THE `AC` TOKEN IS REQUIRED, AND THAT IS THE WHOLE SAFETY PROPERTY. An
+    earlier version of this opened a section from any line whose leading token
+    `AC_NUMBER_PREFIX_RE` could read as an index — and that regex makes `AC`
+    optional, correctly, because it was written for the `acceptance_criteria`
+    FIELD where every line is numbered by construction. Applied to free-form
+    notes it reads `3 retries were added to the flaky client` as a heading for
+    criterion 3, and the next citation — about something else entirely — is
+    credited to it. That is not cosmetic: `_evidence_strength` aggregates real
+    test citations PER TASK, and the Rule 5 hard block clears at one, so one
+    ordinary sentence beginning with a digit could clear the gate for a task
+    with no real coverage at all. Recognising a heading and reading an index are
+    different questions, and they now use different patterns.
+    """
     if not notes_text:
         return []
     out: list[EvidenceLine] = []
+    section_ac: int | None = None
     for raw in notes_text.splitlines():
         line = raw.strip()
         if not line:
+            # A blank line ends the section. Conservative on purpose: the cost
+            # is a checklist separated by blank lines needing its own `AC-N` per
+            # line, against the cost of a citation paragraphs away being
+            # attributed to a criterion nobody meant it for.
+            section_ac = None
             continue
+        body = TIMESTAMP_PREFIX_RE.sub("", line, count=1)
+        heading = AC_SECTION_HEADING_RE.match(body)
+        # A new log entry is a new context — `task log` appends independently,
+        # so a heading from an earlier entry says nothing about this one.
+        if TIMESTAMP_PREFIX_RE.match(line) and heading is None:
+            section_ac = None
+        if heading is not None:
+            section_ac = int(heading.group(1))
         for unit in _segment_evidence_line(line):
-            out.extend(_evidence_lines_for_unit(unit))
+            for ev in _evidence_lines_for_unit(unit):
+                if ev.ac_index is None and section_ac is not None and _carries_evidence(ev):
+                    ev.ac_index = section_ac
+                out.append(ev)
     return out
 
 
