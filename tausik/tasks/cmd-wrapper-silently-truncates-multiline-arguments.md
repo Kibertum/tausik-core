@@ -10,7 +10,7 @@ stack: null
 tier: moderate
 call_budget: 40
 defect_of: null
-scope: null
+scope: "scripts/hooks/**, scripts/**, bootstrap/**, tests/** — восстановление хука bash_write_gate.py, потерянного переключением дерева на github/main"
 scope_exclude: ".tausik/tausik (bash-обёртка не затронута — она уже работает верно)"
 relevant_files: []
 scope_paths:
