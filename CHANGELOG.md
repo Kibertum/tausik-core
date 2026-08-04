@@ -9,6 +9,351 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [1.8.0] — 2026-08-03
+
+### Fixed — four documents outran their code, with every doc gate green
+
+Found by review, and the gates are the point: `docs_lint`, `audit_stale_docs`
+and `gen_doc_constants --check` all pass on every one of these. They check
+links, mirrors and generated constants — not whether a sentence is true.
+
+- **`quickstart` (EN + RU)** said the git projection runs "on task close". The
+  contract has been "any durable write to one of the five projected kinds" since
+  the trigger moved; `team-state-in-git.md` and `cli.md` were updated, quickstart
+  was not. It is the first document a new user reads, and it was teaching them to
+  re-run `state export` by hand after every `decide`, `memory add` and `task log`.
+- **`docs/ru/research/risk-model.md`** — the design document for the risk
+  composite — did not know about the backtest that refuted it. Its "known
+  limitations" listed five ways the model is imprecise and none saying it does
+  not discriminate at all (AUC 0.4820, decision #212). A reader who opened the
+  DESIGN rather than the changelog came away believing the composite works. The
+  status now sits ABOVE the limitations, because that ordering is the message.
+- **`i18n-strategy.md`** contradicted itself: the tree diagram called
+  `en/research/` "localized — paired with ru/research/" while the "What's NOT
+  localized" list, in the same file, said research keeps its original language.
+  Actual counts: 1 EN against 10 RU. Resolved toward the practice rather than the
+  aspiration — research notes record what someone measured on a date, and a
+  translated measurement is an invitation for two copies to drift. The
+  `audit_stale_docs` exclusion for research now matches a stated rule instead of
+  quietly covering a gap, and it stays.
+- **`tausik metrics`** printed its closure-risk block with no caveat while
+  `tausik status`, from the SAME module, printed "descriptive, not predictive".
+  Presenting one number with two degrees of confidence in two places is how it
+  came to be read as a quality verdict. The block header now carries it too.
+
+One reported item did NOT survive checking and is recorded as such rather than
+"fixed": the claim that `mcp.md` documents only one reason a `decide` stays
+local. Since 1.8 `decide` does not publish anywhere at all, so there is no
+silent-local path left to document, and `mcp.md` already says exactly that.
+
+### Fixed — the Rule 5 checklist gate denied evidence it had been handed
+
+Matching required `AC-N` on the SAME line as the citation, so the fuller form —
+a heading, then one line per test beneath it — parsed as a heading with no
+evidence plus citations belonging to nothing. The gate then reported "no
+acceptance criterion names a test" over a checklist that named several, and it
+did so on four consecutive closes; its own escalating nudge reached "reminder
+#4". Measured on the notes of four real closed tasks: 101 evidence lines matched
+to no criterion.
+
+The form is not a matter of taste. One criterion covered by four tests does not
+fit on one line, and the gate's message showed a single-line example without
+saying it was the only shape recognised. Both messages now name both forms.
+
+Worth stating why this counted as a defect rather than an inconvenience: the
+gate exists so a check mark cannot stand in for evidence. A gate that denies
+evidence it was given teaches its reader to skip its output — and it is then
+skipped equally on the closes where the checklist really is absent. What was
+lost is the signal, not the convenience.
+
+Recognition is widened WITHOUT becoming acceptance of anything, which is the
+half that keeps it a gate. A section is opened only by a line carrying an
+EXPLICIT `AC` token, and ends at the next such heading, a blank line, or the
+start of the next log entry; a line inherits it only if it carries BOTH a check
+mark and a real citation.
+
+The `AC` token is required for a reason found by reviewing this change before
+release rather than after. The first version opened a section from any line an
+index could be read out of — using a pattern whose `AC` prefix is optional,
+correctly, because it was written for the `acceptance_criteria` FIELD where
+every line is numbered by construction. Pointed at free-form notes it read
+`3 retries were added to the flaky client` as a heading for criterion 3 and
+credited the next citation to it. Since evidence is counted per TASK and the
+hard block clears at one real citation, a single sentence beginning with a digit
+could have cleared the gate for a task with no coverage at all. Recognising a
+heading and reading an index are different questions and now use different
+patterns. Each
+half rules out a different mistake — without the tick, a planning note that
+merely mentions a test path would be counted as evidence for whatever criterion
+it followed; without the citation, a bare tick would acquire a criterion by
+proximity, which is exactly the substitution being guarded against. A task with
+no checklist is still warned, and the tests assert that in both directions.
+
+### Fixed — the shared store spelled tag lists differently from the project store
+
+`knowledge_write` wrote `",".join(tags)`; the project store writes and reads a
+JSON array. Nothing broke, because neither the CLI search nor the MCP formatter
+printed tags at all — the divergence was unobservable rather than harmless. It
+was armed: the obvious next improvement is one tag renderer over a result set
+holding rows from both stores, and that renderer either swallows the
+`JSONDecodeError` the project code already catches — showing "no tags" for rows
+that have them — or it raises. A defect with a delayed action built into the
+DATA, growing more expensive with every row written.
+
+Converged on the project store's form rather than declaring two formats legal.
+The alternative was to pin the divergence with a test and require every future
+reader to handle both, which is a tax on code that has not been written yet,
+levied to avoid one migration today while the store holds a few dozen rows.
+Existing rows are normalised on the next open, idempotently, leaving NULL and
+empty values alone — `[]` and "no tags" are different claims, and turning one
+into the other would give the read side something new to tell apart for no gain.
+The Notion-mirror import goes through the same canonical writer, so the codebase
+stops being a second producer of the old shape.
+
+The renderer that would have broken is now written, which is what demonstrates
+the fix: `memory list`, `memory show` and the mixed `memory search` output all
+read tags through one function. One loss is recorded rather than guessed at — a
+tag CONTAINING a comma was already destroyed by the CSV write, since `["a,b"]`
+and `["a", "b"]` both became `a,b` and nothing in the stored value tells them
+apart. It is read as two tags, and the ambiguity is documented instead of being
+resolved by a heuristic that would be wrong half the time.
+
+### Fixed — `TAUSIK_HOME` was unvalidated, and the no-scrubber argument rested on it (BREAKING)
+
+The shared store is written WITHOUT redaction, and the reason on record is that
+it is a file in the user's own home that never leaves the machine. That is not a
+property of the code — it is a property of a DIRECTORY, and `TAUSIK_HOME` let
+anything name that directory. `knowledge_home()` did `abspath(expanduser(...))`
+and nothing else. Point it inside a work tree and the accumulated knowledge of
+every project this person works on leaves with the first `git add -A`. Point it
+at OneDrive or Dropbox — which live inside the home directory, so "it is in my
+home" stays true while the conclusion drawn from it stops being — and it leaves
+over the network. None of this needs malice: a wrong variable in a CI config, an
+MCP wrapper started with someone else's environment, a copied `.env`.
+
+The response is split by whether the danger can be removed rather than only
+reported, because a guard that refuses an ordinary setup gets switched off and
+then guards nothing:
+
+- **Network paths and cloud-sync directories: refused.** Nothing written locally
+  changes what a sync client does. Matching is on whole path COMPONENTS, never
+  substrings — `~/notes/my-dropbox-notes` is a directory someone named after a
+  tool, not one a tool syncs.
+- **A git work tree: neutralised, not refused.** The store's own directory gets
+  a `.gitignore` of `*`, the same trick `.tausik/` already uses, so `git add -A`
+  skips it. Refusing here would have rejected the DEFAULT location for everyone
+  who keeps their home directory in a dotfiles repository — a common practice,
+  and a false alarm is how a guard loses its authority.
+- **A store git is ALREADY tracking: refused.** `.gitignore` does not untrack
+  what is indexed, so there the disclosure has happened and continuing quietly
+  would add to it.
+
+Symlinks and junctions are resolved BEFORE anything is judged: a link named
+`~/.tausik-knowledge` pointing into `~/Dropbox` passes every name-based check
+while being precisely the case being guarded against. UNC paths are rejected
+before resolution as well as after, because resolving one reaches for the
+network and an unreachable share blocks for as long as the OS will wait. A
+network path wearing a drive letter — the shape of a corporate roaming home —
+is caught by the volume type rather than the spelling.
+
+The two halves are split on purpose, and it is not tidiness. What a PATH says
+cannot change while a process runs, so it is validated once and cached. What GIT
+says can: a directory becomes a repository, a file gets added. A long-lived MCP
+server is exactly the process that validates a location early and keeps running
+while the filesystem moves under it, and a remembered "that was not a
+repository" would be the guard switching itself off. So the git half is
+re-decided on every open, and it is reached only from the code about to open the
+store — never from a read that merely asks where the store would be, which keeps
+the store's laziness contract intact. It stays cheap because finding the work
+tree is a walk up for `.git`; `git` itself runs only once one has been found,
+which for most people is never.
+
+An existing `.gitignore` is not taken as proof of anything, and that was the
+sharpest edge here. A store directory can easily pick one up from scaffolding or
+an editor, and `*.log` in it protects nothing — treating its mere presence as
+"already handled" is how a guard silently does nothing in the one case it exists
+for. So the question asked is whether git IGNORES the store, and when the answer
+is no the rule is appended rather than the file replaced, because the other
+rules in it are somebody's and not ours to drop.
+
+Two honest degradations rather than pretend answers. With git absent, the work
+tree is still found by walking up for `.git` — worse than asking git, and far
+better than reporting "no repository" and switching the protection off on the
+machine least likely to notice. Whether a file is already TRACKED cannot be
+answered without git, so with none available the store is protected going
+forward instead of refused: a refusal resting on an unanswerable question is a
+guess wearing a refusal's clothes.
+
+Two limits are stated rather than implied: on macOS a network MOUNT is not
+detected (`/Volumes` is where its local external drives appear too, so refusing
+the unclassifiable would refuse ordinary disks), and `box` and `mega` are absent
+from the sync-directory list despite being real products — they are ordinary
+English words, and `~/archive/mega/` is likelier than a sync root spelled that
+way. Their actual sync roots carry suffixed names, which are matched.
+
+### Fixed — the shared store no longer records which client each row came from
+
+`origin_project` held the ABSOLUTE root of the originating project on every row
+of every table. On a machine where one person works for several clients out of
+one home directory — the path of this repository names a client — that made
+every client's directory name readable from every other project: same file, same
+OS account, no export and no privilege required. `SELECT origin_project` was the
+whole attack. The trust boundary in consulting work is the CLIENT, and an
+earlier version of the argument for storing an unredacted path treated "same OS
+account" as "same trust domain"; those are not the same thing.
+
+The read path already displayed the last component only, and that was never a
+fix — it changed what a command PRINTS while the value at rest still named the
+client to `sqlite3`, to the logical export, and to any backup of it.
+
+`origin_project` now holds `basename@fingerprint` (eight hex digits of SHA-256
+over the canonicalised root). This keeps the property the absolute path was
+stored for — two projects called `core` stay distinguishable, which basenames
+alone could not do — and drops the directory names. The obvious alternative, a
+pseudonym plus a mapping table, was rejected for a stated reason: the table has
+to live somewhere, and wherever it lives it holds exactly the string that was
+supposed to stop existing. This fingerprint is COMPUTED, so a project answers
+"is this row mine?" by deriving its own label, and nothing anywhere needs the
+inverse. Snippet `source_file` is normalised to a project-relative path for the
+same reason — a path outside the project collapses to its basename rather than a
+`../../` chain, which would spell the same directory names relatively.
+
+Rows written before this are rewritten on the next open of the store, in all
+three tables, idempotently, leaving NULL and non-path values alone. That runs on
+open rather than as a command because a migration nobody runs is a migration
+that did not happen — the same reasoning the legacy-store adoption uses.
+`PRAGMA user_version` is deliberately NOT bumped to gate it: the version guard
+is fatal by design, so a bump would make every older TAUSIK on the machine
+refuse to open the shared store, which is a breaking change bought to avoid a
+scan of a personal knowledge base on a path that already rebuilds the schema and
+the FTS triggers on every open.
+
+Two things the migration deliberately does NOT do, both found by reviewing it
+adversarially rather than by running it. It does not rewrite a free-text value
+that merely CONTAINS a separator — `origin_project` is free text by design, so
+`team/backend` is a tag, not a path, and fingerprinting it would destroy a
+legitimate value irreversibly to remove a disclosure that was never there; the
+predicate requires an ABSOLUTE path, spelled so that a row written on Windows is
+still redacted when read on Linux. And it no longer leaves a live handle behind
+when it fails: `connect_knowledge_db` closed the connection when the version
+check raised but not when the schema setup did, which was safe only while that
+setup was pure `CREATE IF NOT EXISTS`. Per-row work can hit a contended lock, and
+a leaked handle holds the WAL open for every other project pointing at the file.
+
+Not marked BREAKING, and the judgement is stated rather than left implicit: no
+user action is required, the data migrates itself, and the only behaviour a
+person could have depended on is a `--global` write from OUTSIDE any project —
+which used to succeed by attributing the row to whatever directory the shell
+stood in. That now raises. A fabricated origin is worse than no write, because
+nothing downstream can tell it from a real one.
+
+### Added — "What changed in 1.8" upgrade page (EN + RU)
+
+`docs/en/whats-new-1.8.md` and `docs/ru/whats-new-1.8.md`. Releases here are git
+tags with hand-assembled notes, so the four breaking changes lived only in the
+changelog — a file nobody reads while upgrading. Each now carries its migration,
+a "does this affect you?" check, and the reason it is breaking rather than
+hygiene.
+
+It also records an INTERACTION between two of them that neither describes on its
+own: the trust-tier migration tells you to write `~/.tausik/config.json`, which
+creates the very directory the shared-store move exists to remove (project
+discovery walks up looking for exactly `.tausik`). The page names
+`TAUSIK_USER_CONFIG` and the managed tier as the ways out. Found by reading the
+two migrations against each other rather than in sequence.
+
+### Changed — "session" was two things; the seam is now visible (decision #223)
+
+`sessions` glued together WORK CONTINUITY (the handoff: what was done, what is
+in flight, what to do next) and AGENT CONTEXT HYGIENE (the 180 active-minute
+limit, the 200-call capacity budget, the checkpoint counter). They are
+properties of different subjects, and three couplings between them are gone:
+
+- `session_handoff` no longer requires an open session. The coupling had it
+  backwards: an agent that has just hit the 180-minute limit is the one that
+  most needs to write down where it stopped, and refusing there lost the
+  document the limit exists to force. With no open session the handoff attaches
+  to the most recent one; only a project that has never had a session is
+  refused.
+- Saving a handoff no longer resets the checkpoint counter as a side effect.
+  The reset is now `reset_checkpoint_counter`, a named operation. `/checkpoint`
+  still does both — explicitly, and in that order.
+- **An absent session is no longer treated as unlimited capacity.** The
+  200-call gate used to return early when no session was open, so it stopped
+  gating and said nothing. That also inverted the incentive: the cheapest way
+  past a capacity refusal was to end the session and never start another. It
+  now refuses, and the refusal names the other things a missing session
+  silently switches off — usage telemetry, token metrics, model pinning, and
+  the "this session" brain slice (which reports lifetime numbers as session
+  ones: wrong, not empty).
+
+NOT dropped: work continuity stays. The proposal to drop it rested on the
+git-native projection having taken over, and that premise was measured and
+refuted — `sessions` is not a projected kind, the projection is off by default,
+`next_steps`/`warnings` have no column outside `sessions.handoff`, and the
+projection documents its own gaps. The condition under which the drop becomes
+possible is now an executable gate
+(`tests/test_session_two_halves.py::TestTheDropConditionIsNotMet`) rather than a
+paragraph. See `docs/ru/sessions.md`.
+
+Nothing was deleted: the table, the lifecycle calls and every session-keyed
+metric keep working. Calibration turned out never to have depended on sessions
+at all — it reads `tasks` only.
+
+### Added — a verify run can now be PRESENTED instead of searched for (schema v44, receipt v3) (BREAKING)
+
+`task done` used to prove verify-first by SEARCHING `verification_runs` for a
+row that was green, matched the files_hash and the gate signature, and was
+younger than 600 seconds. The link between "I verified" and "I am closing" was a
+time-window query, and three of its properties were defects: a substantive
+refusal ("you declared a subset of what git says changed") reached the agent as
+a CACHE MISS, because miss was the only word the lookup had; the freshness
+window belonged to the server and was invisible to the model; and two processes
+holding different modules in memory computed "fresh" differently.
+
+`tausik verify --task <slug>` now mints and PRINTS an explicit state handle
+(`<run_id>.<nonce>`, 128 bits of entropy), and `task done --verify-handle` looks
+up exactly that run. This is SEP-2567's "explicit state handles" applied as
+decision #218 specified. Redemption re-derives everything from live state — the
+declared files are re-hashed off disk, the gate signature is recomputed from the
+live config — so a tree that moved is caught by the thing that actually changed
+rather than by a clock, and the resulting refusal says which. Every refusal is
+fail-closed, spending is atomic and single-use (SEP-2322 replay), and the
+security-sensitivity predicate now reads the files the RECEIPT names rather than
+the argument the caller passed.
+
+Receipts are `tausik-receipt/v3`: they carry `files`, `gate_signature` and a
+signed `expires_at`. A v2 receipt stays cryptographically valid and still works
+on the old path, but cannot be PRESENTED — it names neither what it covered nor
+which gates ran, and the refusal lists exactly which fields are missing.
+
+The handle's lifetime is one hour (`verify_handle_ttl_seconds`), longer than the
+600-second cache TTL it does not replace, and it is published in the
+`tausik_verify` tool description, in the CLI output and inside the signed
+receipt — SEP-2567: "A policy only in server documentation is not visible to the
+model."
+
+The handle is validated by the gate but SPENT inside the transaction that
+writes `status='done'`. Redeem-once exists so one green cannot close two tasks;
+that is a property of closing, not of passing a check. Spending it at the gate
+meant a close blocked by a later check burnt a verify run for a task that never
+closed — and certified nothing in exchange.
+
+NOT a change in what counts as green: `task done` WITHOUT `--verify-handle`
+behaves exactly as before. The handle changes how a green is presented, not
+which greens count.
+
+### Fixed — a migration test named its subject "the latest migration"
+
+`test_migration_v43_model_mismatch` derived the version under test from
+`SCHEMA_VERSION`, so v44 broke every arithmetic in it at once: the fixture
+popped v44 instead of v43 and then asserted the database had stopped at 43. It
+also applied the live index script to a v42 database, which now names a column
+v44 adds. Both are pinned to literals; a test that names its subject by "latest"
+stops testing its subject the moment something else becomes latest.
+
 ### Fixed — `brain move` left ghost files behind
 
 All three of its writes went around the git projection. Two raw
@@ -39,7 +384,7 @@ with it. The comment explaining WHY the store moved deliberately keeps the old
 path — there it is a fact about the past, and a sweep that "fixed" it would turn
 a correct explanation into a false one. A test asserts both directions.
 
-### Fixed — the shared store no longer masquerades as a project
+### Fixed — the shared store no longer masquerades as a project (BREAKING)
 
 The shared knowledge base was placed at `~/.tausik/knowledge.db`, and
 `find_tausik_dir` locates a project by walking UP looking for a directory named
@@ -4151,7 +4496,7 @@ same-length edit past 4 KiB *plus* an mtime restored to the nanosecond — an
 actor already running code in the working tree, who can equally edit the file
 one moment after a legitimate verify.
 
-### Configuration trust tiers — a project may only tighten enforcement
+### Configuration trust tiers — a project may only tighten enforcement (BREAKING)
 
 The enforcement switches lived in `.tausik/config.json`, an ordinary file inside
 the repository. `qg0.scope_hard_gate`, `risk.l3_block_on_high`,
