@@ -9,6 +9,24 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the upgrade page opened with what breaks, not with what it is for
+
+The same defect as in the changelog and the READMEs, left standing on the page it
+matters most: `whats-new-1.8` opened with "six breaking changes with migrations
+first", and the shared knowledge base — the reason the release exists — waited on
+line 214, behind two hundred lines of migration chores. Someone arriving to learn
+what 1.8 IS read a list of what would break instead.
+
+Both pages now open with three points naming the release, then go into the
+breaking changes in full. The page keeps its job: it is still for the person
+upgrading, and the migrations still come first in DETAIL. Only the order of
+"what for" and "what breaks" changed.
+
+Third instance of the same miss in one day, and the pattern is worth naming: when
+the fix is "say the point first", it has to be applied to EVERY door into the
+release, not to the one that was pointed at.
+
+
 ### Fixed — the headline feature was announced only as a breaking change
 
 `whats-new-1.8`'s "What is new" listed verify handles, the session split and

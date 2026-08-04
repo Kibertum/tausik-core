@@ -1,7 +1,24 @@
 # What changed in 1.8
 
-For anyone upgrading. Six breaking changes with migrations first, then what is
-new.
+For anyone upgrading. But before reading what breaks, it is worth knowing what
+for.
+
+## What 1.8 is, in three points
+
+**🧠 A shared knowledge base — one file per person, not per project.** A pattern,
+a dead end and a convention no longer die with the project that learned them.
+`--global` puts knowledge where the next project will find it; search reads both
+stores. In full: [knowledge-store.md](knowledge-store.md).
+
+**⏱ The end of the server-side session.** "Session" was two things — work
+continuity and agent context hygiene. Separating them closed a silent failure: an
+absent session no longer means unlimited capacity.
+
+**📦 Team state travels in git.** Tasks, decisions and memory live in a readable
+`tausik/` tree and come back with `tausik sync`.
+
+Then: six breaking changes with migrations, each answering "does this affect me",
+and after them the rest of what is new.
 
 Full list of changes: [CHANGELOG.md](../../CHANGELOG.md).
 
