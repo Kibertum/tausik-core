@@ -9,7 +9,22 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed — the headline feature was announced only as a breaking change
+
+`whats-new-1.8`'s "What is new" listed verify handles, the session split and
+Notion — and never introduced the shared knowledge base at all. The one thing
+1.8 exists for reached that page sideways, through breaking change 2, which says
+the store MOVED. What moved is what 1.8 introduced, and a reader meeting the
+feature first as a migration chore reads a chore.
+
+Both language pages now open "What is new" with the store itself: what it is,
+what `--global` does, that search reads it, that the backup stays on this
+machine, that an older TAUSIK refuses a newer store, and what deliberately does
+NOT belong in it. The GitHub release notes were re-cut the same way — the
+feature first, the six breaking changes after it.
+
+Caught by the owner reading the changelog, not by a gate. No gate can ask
+whether the most important thing was said first.
 
 ## [1.8.0] — 2026-08-03
 

@@ -210,6 +210,41 @@ directory itself is inside a synced tree.
 
 ## What is new
 
+### A shared knowledge base — one file per person, not per project
+
+The headline of 1.8, and until now this page reached it only sideways — through
+breaking change 2, which says the store MOVED. What moved is what 1.8 introduced.
+
+**Before.** A pattern, a dead end and a convention lived inside one project and
+died with it. The next project started from zero, and anyone working for three
+clients learned the same thing three times.
+
+**Now.** There is a shared store — `~/.tausik-knowledge/knowledge.db`, one file
+per person:
+
+```bash
+tausik memory add pattern "Title" "Body" --global   # into the shared store
+tausik search "query"                               # reads both
+```
+
+- `--global` puts knowledge in the shared store **or fails saying so** — it never
+  falls back into the project quietly.
+- Search and the session-start knowledge block read the shared store alongside
+  the project's own.
+- The store has a backup, and the backup **stays on this machine**.
+- An older TAUSIK meeting a store newer than its schema **refuses** rather than
+  guessing at the format.
+- Rows no longer record which client they came from: `origin_project` holds a
+  `basename@fingerprint` label instead of the originating project's absolute
+  root. Existing rows are rewritten on the next open; no action required.
+
+**What it deliberately is not.** The store is written WITHOUT redaction — which
+is exactly why it does not leave this machine, and exactly why `TAUSIK_HOME` is
+now validated (breaking change 6). Put things there that are true EVERYWHERE;
+facts about THIS project belong in project memory.
+
+### Everything else
+
 - **Verify run handles.** `tausik verify --task <slug>` prints
   `<run_id>.<nonce>`; `task done --verify-handle` presents it instead of the
   server searching for a fresh row. Refusals now say what is actually wrong
