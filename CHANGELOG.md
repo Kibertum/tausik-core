@@ -9,6 +9,36 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [1.8.0] — 2026-08-03
+
+**A shared knowledge base, the end of the server-side session, and the project's
+state travelling in git.** Six breaking changes, each with a migration — walked
+through in [whats-new-1.8](docs/en/whats-new-1.8.md).
+
+- **A shared knowledge base — one file per person, not per project.** A pattern,
+  a dead end and a convention no longer die with the project that learned them.
+  `--global` puts knowledge in the shared store or fails saying so; search and
+  the knowledge block read it alongside the project's own; the store has a
+  backup, and the backup stays on this machine.
+- **"Session" split into two things** — work continuity and agent context
+  hygiene. An absent session no longer means unlimited capacity: the 200-call
+  gate stopped quietly waving work through.
+- **Team state travels in git.** Tasks, decisions and memory export to a readable
+  `tausik/` tree and come back with `tausik sync`.
+
+Below: all 168 entries of the release, newest first.
+
+### Fixed — the tag was moved onto the corrected documentation
+
+The narrative fixes above landed after `v1.8.0` was cut, and sat under
+`[Unreleased]` — which would have made the tagged tree assert that they were not
+released while being released by that very tag. They are folded into this
+section instead, and the tag moved onto the tree that carries them. The mirror
+and the tag stay one tree, which is the rule this release has followed
+throughout.
+
 ### Fixed — the upgrade page opened with what breaks, not with what it is for
 
 The same defect as in the changelog and the READMEs, left standing on the page it
@@ -43,25 +73,6 @@ feature first, the six breaking changes after it.
 
 Caught by the owner reading the changelog, not by a gate. No gate can ask
 whether the most important thing was said first.
-
-## [1.8.0] — 2026-08-03
-
-**A shared knowledge base, the end of the server-side session, and the project's
-state travelling in git.** Six breaking changes, each with a migration — walked
-through in [whats-new-1.8](docs/en/whats-new-1.8.md).
-
-- **A shared knowledge base — one file per person, not per project.** A pattern,
-  a dead end and a convention no longer die with the project that learned them.
-  `--global` puts knowledge in the shared store or fails saying so; search and
-  the knowledge block read it alongside the project's own; the store has a
-  backup, and the backup stays on this machine.
-- **"Session" split into two things** — work continuity and agent context
-  hygiene. An absent session no longer means unlimited capacity: the 200-call
-  gate stopped quietly waving work through.
-- **Team state travels in git.** Tasks, decisions and memory export to a readable
-  `tausik/` tree and come back with `tausik sync`.
-
-Below: all 165 entries of the release, newest first.
 
 ### Fixed — Python 3.13 changed `ntpath.isabs`, and the path redactor stopped redacting on Windows
 
