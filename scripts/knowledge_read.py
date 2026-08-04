@@ -78,10 +78,14 @@ def pop_last_warning() -> str | None:
 
 
 def _short_origin(origin: str | None) -> str:
-    """Last path component only.
+    """Last path component only — a no-op on the labels the store now writes.
 
-    The store keeps the absolute root because basenames collide; the display
-    does not need it, and the full path names the client directory it sits under.
+    `origin_project` holds `basename@fingerprint` since the absolute root stopped
+    being stored (see `knowledge_origin`), and a label has no separator, so it
+    passes through whole: the display keeps the fingerprint that tells two
+    projects called `core` apart. This still shortens because a store may hold
+    rows written before that, in the window between opening it read-only and the
+    rewrite on the next writable open.
     """
     return (origin or "").rstrip("/\\").replace("\\", "/").rsplit("/", 1)[-1]
 

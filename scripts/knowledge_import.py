@@ -33,6 +33,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from knowledge_db import connect_knowledge_db
+from knowledge_tags import dump_tags, load_tags
 from tausik_utils import ServiceError
 
 # The mirror's tables, mapped to where their content belongs locally. Only
@@ -66,10 +67,11 @@ def _now() -> str:
 def _origin(row: sqlite3.Row) -> str:
     """`brain:<hash>` — honest about what the wiki actually recorded.
 
-    The mirror keeps a project HASH, never a name or a path. Writing it into
-    `origin_project`, whose other values are real directories, would make a
-    reader believe a directory once existed. The prefix says where it came from
-    and that it is not a path.
+    The mirror keeps a project HASH, never a name or a path. Bare, it would sit
+    in `origin_project` next to values shaped `basename@fingerprint` and read as
+    one of them — a project that never existed under a name nobody can check.
+    The prefix says where it came from and that it is a mirror, not a directory
+    on this machine.
     """
     keys = row.keys()
     h = (row["source_project_hash"] if "source_project_hash" in keys else "") or "unknown"
@@ -167,7 +169,11 @@ def _insert(
                 kind,
                 _text(row, "name", "title") or "(untitled)",
                 _text(row, "description", "content", "example"),
-                _text(row, "tags") or None,
+                # Through the canonical form, not straight from the mirror. The
+                # mirror spells tags however Notion did, and an import is a
+                # write like any other — a second producer of the legacy shape
+                # would leave the migration cleaning up after itself forever.
+                dump_tags(load_tags(_text(row, "tags"))),
                 _origin(row),
                 None,
                 created,

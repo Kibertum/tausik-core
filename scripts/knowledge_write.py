@@ -35,11 +35,15 @@ and `export-of-the-shared-store-must-scrub-or-stay-local`, the latter because
 the planned backup target for this unredacted file includes S3-compatible
 remotes, which would carry it off the machine the argument above relies on.
 
-`origin_project` holds the project's ABSOLUTE ROOT, not its basename. Basenames
-collide — `core`, `server`, `api` — and a collision here would attribute one
-project's knowledge to another. The read side is free to display the last
-component; the store keeps the unambiguous one. That choice is what makes the
-disclosure above concrete, so it is named here rather than left to be found.
+`origin_project` holds a LABEL — `basename@fingerprint` — and no longer the
+project's absolute root. It used to hold the root, on the argument that
+basenames collide (`core`, `server`, `api`) and a collision would attribute one
+project's knowledge to another. That argument was right about collisions and
+wrong about the remedy: the label keeps them distinguishable through the
+fingerprint while dropping the directory names, so the second consequence named
+above — a client's name readable from any other project, by reading the file —
+is gone rather than merely tracked. See `knowledge_origin` for why the
+fingerprint needs no mapping table to be useful.
 """
 
 from __future__ import annotations
@@ -51,6 +55,8 @@ import uuid
 from datetime import datetime, timezone
 
 from knowledge_db import connect_knowledge_db, knowledge_db_path
+from knowledge_origin import origin_label_for, relative_source_file
+from knowledge_tags import dump_tags
 from tausik_utils import ServiceError
 
 
@@ -59,15 +65,36 @@ def _now() -> str:
 
 
 def origin_project_root() -> str:
-    """Absolute root of the project this write comes from.
+    """Absolute root of the project this write comes from. Never stored as-is.
 
     Derived from the resolved `.tausik/` handle rather than from the cwd, so a
     command run from a subdirectory still attributes to the project rather than
     to wherever the shell happened to be.
+
+    Raises when the resolved handle does not exist. `find_tausik_dir` falls back
+    to `cwd/.tausik` when its search finds nothing, which is the right default
+    for a project-local command — it names where the project WOULD be. Here it
+    is the wrong one: the write would succeed and attribute a row to whatever
+    directory the shell stood in, in a store read from every other project. A
+    fabricated origin is worse than no write, because nothing later can tell it
+    from a real one. So this checks the handle instead of trusting the fallback.
     """
     from project_config import find_tausik_dir
 
-    return os.path.dirname(os.path.abspath(find_tausik_dir()))
+    handle = find_tausik_dir()
+    if not handle or not os.path.isdir(handle):
+        raise ServiceError(
+            "Cannot attribute this shared write: no TAUSIK project was found from "
+            f"the current directory (looked for {handle}). Nothing was written — "
+            "attributing it to the current directory would have invented an origin. "
+            "Run from inside a TAUSIK project, or set TAUSIK_DIR."
+        )
+    return os.path.dirname(os.path.abspath(handle))
+
+
+def origin_label() -> str:
+    """What a shared row stores in `origin_project`: `basename@fingerprint`."""
+    return origin_label_for(origin_project_root())
 
 
 def _open_or_fail() -> sqlite3.Connection:
@@ -111,8 +138,8 @@ def write_memory(
                 mem_type,
                 title,
                 content,
-                ",".join(tags) if tags else None,
-                origin_project_root(),
+                dump_tags(tags),
+                origin_label(),
                 task_slug,
                 now,
                 now,
@@ -142,7 +169,7 @@ def write_decision(
                 str(uuid.uuid4()),
                 text,
                 rationale,
-                origin_project_root(),
+                origin_label(),
                 task_slug,
                 _now(),
             ),
@@ -166,8 +193,14 @@ def write_snippet(
 
     `hash` is UNIQUE in the schema, so re-ingesting identical code is a no-op
     rather than an error — matching how the project store already behaves.
+
+    `source_file` is normalised against the project root for the same reason
+    `origin_project` is a label: an absolute path here names the same directories
+    the label was introduced to stop storing, and it names them once per snippet.
     """
     digest = hashlib.sha256(code.encode("utf-8")).hexdigest()
+    root = origin_project_root()
+    source_file = relative_source_file(source_file, root)
     conn = _open_or_fail()
     path = knowledge_db_path()
     try:
@@ -185,7 +218,7 @@ def write_snippet(
                 source_file,
                 source_lines,
                 taxonomy_kind,
-                origin_project_root(),
+                origin_label_for(root),
                 _now(),
             ),
         )

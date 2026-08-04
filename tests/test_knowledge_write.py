@@ -145,11 +145,18 @@ class TestNoPromptAndNoClassifier:
 class TestAttribution:
     """AC3: a shared row names the project it came from."""
 
-    def test_origin_is_the_absolute_project_root(self, svc):
+    def test_origin_is_a_label_and_not_the_absolute_root(self, svc):
+        """The row says which project, without saying where on disk it lives.
+
+        The absolute root used to be stored here, which put the parent
+        directories — client names on a machine like this one — into every row
+        of a store readable from every other project.
+        """
         svc.memory_add("context", "запись", "тело", None, "some-task", True)
         row = _shared_rows("memory")[0]
-        assert os.path.isabs(row["origin_project"])
-        assert row["origin_project"].endswith("proj")
+        assert not os.path.isabs(row["origin_project"])
+        assert "/" not in row["origin_project"] and "\\" not in row["origin_project"]
+        assert row["origin_project"].startswith("proj@")
         assert row["origin_slug"] == "some-task"
 
     def test_origin_survives_being_run_from_a_subdirectory(self, svc, tmp_path, monkeypatch):
@@ -158,7 +165,7 @@ class TestAttribution:
         deep.mkdir(parents=True)
         monkeypatch.chdir(deep)
         svc.memory_add("context", "из подкаталога", "тело", None, None, True)
-        assert _shared_rows("memory")[0]["origin_project"].endswith("proj")
+        assert _shared_rows("memory")[0]["origin_project"].startswith("proj@")
 
 
 class TestNoScrubber:

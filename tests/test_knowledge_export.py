@@ -2,10 +2,15 @@
 
 The round trip is the point. A backup nobody has restored is a hypothesis, and
 this one has a specific way of being wrong: the frontmatter writer escapes the
-backslash FIRST, and every `origin_project` on Windows is an absolute path full
-of them. A reader that unescaped in the wrong order would corrupt a field on
-every row while reporting success — so the round trip is asserted on content,
-not on counts.
+backslash FIRST, and a reader that unescaped in the wrong order would read a
+literal `\n` as a line break, corrupting a field while reporting success. So the
+round trip is asserted on content, not on counts.
+
+The backslashes are carried by `source_file` and by memory content rather than
+by `origin_project`. That column held an absolute Windows path on every row
+until it became a `basename@fingerprint` label, and the store now rewrites any
+path it finds there on open — so a payload parked in it would be redacted
+before the round trip could say anything about escaping.
 """
 
 from __future__ import annotations
@@ -29,6 +34,7 @@ _TS = "2026-08-02T00:00:00Z"
 # a tab, and Cyrillic. Each is a real shape the store holds, and each breaks a
 # different naive reader.
 AWKWARD_ORIGIN = r"D:\Work\Kibertum\clients\acme\repo"
+AWKWARD_SOURCE_FILE = r"scripts\sub\dir\module.py"
 AWKWARD_CONTENT = 'Первая строка\nВторая "в кавычках"\tи табуляция\\плюс слэш'
 
 
@@ -65,7 +71,14 @@ def _seed(n: int = 2) -> None:
             conn.execute(
                 "INSERT INTO snippets (entry_uuid, hash, language, code, source_file, "
                 "origin_project, created_at) VALUES (?, ?, 'python', ?, ?, ?, ?)",
-                (f"s{i}", f"h{i}", "def f():\n    pass\n", "a/b.py", AWKWARD_ORIGIN, _TS),
+                (
+                    f"s{i}",
+                    f"h{i}",
+                    "def f():\n    pass\n",
+                    AWKWARD_SOURCE_FILE,
+                    AWKWARD_ORIGIN,
+                    _TS,
+                ),
             )
         conn.commit()
     finally:
@@ -106,8 +119,13 @@ class TestRemoteDestinationsAreRefused:
         with pytest.raises(ServiceError) as e:
             kx.assert_local_destination("s3://bucket/x")
         msg = str(e.value)
-        assert "absolute path of the project" in msg, "the reason is missing"
+        assert "free text" in msg, "the reason is missing"
         assert "local directory" in msg, "the message does not say what to do instead"
+        # The reason has to be the CURRENT one. `origin_project` stopped being an
+        # absolute path, so a message still naming one would send a reader to
+        # look at a column that no longer discloses anything — and this test is
+        # what would otherwise pin that stale claim in place.
+        assert "absolute path of the project" not in msg
 
     @pytest.mark.parametrize("dest", ["D:/backups/kn", "/var/backups/kn", "backups", "./out"])
     def test_ordinary_local_paths_are_accepted(self, dest):
@@ -149,7 +167,7 @@ class TestTheRoundTripPreservesContent:
         kx.export_shared_knowledge(str(tmp_path / "b"))
         os.remove(knowledge_db.knowledge_db_path())
         kx.restore_shared_knowledge(str(tmp_path / "b"))
-        assert _all_rows("memory")[0]["origin_project"] == AWKWARD_ORIGIN
+        assert _all_rows("snippets")[0]["source_file"] == AWKWARD_SOURCE_FILE
 
     def test_embedded_newlines_and_quotes_come_back_intact(self, tmp_path, home):
         _seed(1)

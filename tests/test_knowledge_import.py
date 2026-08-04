@@ -115,6 +115,29 @@ class TestTheImportIsIdempotent:
         assert len(_rows("decisions")) == 1
 
 
+class TestTagsArriveInTheCanonicalShape:
+    """An import is a write like any other.
+
+    The mirror spells tags however Notion did — the fixture's pattern carries
+    `a,b`. Passing that through unchanged would make the import a second
+    producer of the legacy shape, and the migration would be cleaning up after
+    its own codebase forever rather than after history.
+    """
+
+    def test_an_imported_tag_list_is_stored_as_json(self, mirror):
+        import json
+
+        ki.import_from_brain_mirror()
+        rows = [r for r in _rows("memory") if r["tags"]]
+        assert rows, "the fixture's tagged pattern did not arrive"
+        assert json.loads(rows[0]["tags"]) == ["a", "b"]
+
+    def test_an_untagged_record_stays_untagged(self, mirror):
+        ki.import_from_brain_mirror()
+        gotchas = [r for r in _rows("memory") if r["type"] == "gotcha"]
+        assert gotchas and gotchas[0]["tags"] is None
+
+
 class TestProvenanceIsHonest:
     """The mirror knows a hash. It must not be presented as a path."""
 
@@ -140,7 +163,11 @@ class TestProvenanceIsHonest:
 
         origins = {r["origin_project"] for r in _rows("decisions")}
         assert any(o.startswith("brain:") for o in origins)
-        assert "D:/Work/repo" in origins
+        # The locally written row is stored as a label, so it is asserted by its
+        # shape rather than by the path that was inserted — a path in this column
+        # is exactly what the store no longer keeps.
+        assert any(o.startswith("repo@") for o in origins)
+        assert len(origins) == 2, "the mirror row and the local row collapsed into one origin"
 
 
 class TestWhatIsAndIsNotBroughtOver:

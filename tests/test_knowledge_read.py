@@ -86,12 +86,18 @@ class TestSharedRowsAreLabelledAndAddressless:
         assert rows[0]["source"] == knowledge_read.GLOBAL_SOURCE
         assert rows[0]["title"].startswith(knowledge_read.GLOBAL_LABEL)
 
-    def test_origin_is_shown_as_the_last_component_only(self):
-        """The store keeps the absolute root; the display must not repeat it."""
+    def test_a_legacy_absolute_origin_never_reaches_the_display(self):
+        """Rows written before the label existed must not name their directories.
+
+        Two things have to hold at once and the test asserts both: the store
+        rewrites the stale value on open, and the display would not repeat the
+        parent directories even if it had not.
+        """
         _seed(memories=[("pattern", "тема", "тело", "D:/Work/Kibertum/clients/acme/repo")])
         rows, _ = knowledge_read.search_shared_memory("тема")
-        assert rows[0]["origin_project"] == "repo"
+        assert rows[0]["origin_project"].startswith("repo@")
         assert "clients" not in rows[0]["origin_project"]
+        assert "/" not in rows[0]["origin_project"]
 
     def test_search_reaches_the_service_layer(self, tmp_path, monkeypatch):
         from project_backend import SQLiteBackend

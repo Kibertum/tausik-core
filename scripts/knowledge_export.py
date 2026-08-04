@@ -16,11 +16,14 @@ file per record, deterministic field order: inspectable, diffable, and carrying
 only what was asked for.
 
 WHY DESTINATIONS ARE LOCAL ONLY (decision #219). Nothing on the write path
-redacts anything, and `origin_project` carries an absolute project root on every
-row — on this machine that names a client directory. The argument that made
-un-redacted storage acceptable was "it never leaves the machine", so a backup
-that leaves the machine would silently withdraw the premise rather than the
-conclusion. Redaction is a 1.9 task, and a real one: the existing scrubber
+redacts CONTENT. `origin_project` no longer carries an absolute project root —
+it is a label now, and snippet `source_file` is relative — so the structural
+disclosure that used to be on every single row is gone. What that removed was
+the part nobody chose to write; it does not touch what people typed. A memory
+body can name a client outright, and the argument that made un-redacted storage
+acceptable is still "it never leaves the machine", so a backup that leaves the
+machine would silently withdraw the premise rather than the conclusion.
+Redaction of content is a 1.9 task, and a real one: the existing scrubber
 REFUSES rather than redacts and would reject every backup on the first absolute
 path, so making this work means building a redactor, not moving a call.
 
@@ -125,8 +128,9 @@ def assert_local_destination(dest: str) -> str:
     if raw.startswith("\\\\") or raw.startswith("//"):
         raise ServiceError(
             f"Refusing the UNC destination {raw!r}. The shared knowledge database is stored "
-            "WITHOUT redaction — every row carries the absolute path of the project it came "
-            "from — so backups must stay on this machine. Give a local directory."
+            "WITHOUT redaction — the memories, decisions and code snippets in it are free "
+            "text and can name a client outright — so backups must stay on this machine. "
+            "Give a local directory."
         )
 
     scheme = urlparse(raw).scheme.lower()
@@ -136,9 +140,10 @@ def assert_local_destination(dest: str) -> str:
     if len(scheme) > 1 and scheme in _NETWORK_SCHEMES:
         raise ServiceError(
             f"Refusing the remote destination {raw!r} (scheme {scheme!r}). The shared knowledge "
-            "database is stored WITHOUT redaction — every row carries the absolute path of the "
-            "project it came from — so backups must stay on this machine. Redaction on export "
-            "is planned separately; until then, give a local directory."
+            "database is stored WITHOUT redaction — the memories, decisions and code snippets "
+            "in it are free text and can name a client outright — so backups must stay on this "
+            "machine. Redaction on export is planned separately; until then, give a local "
+            "directory."
         )
     if len(scheme) > 1:
         raise ServiceError(
@@ -456,9 +461,10 @@ def _unescape(s: str) -> str:
     Not a chain of `.replace()` calls, and the difference is not cosmetic. `_dq`
     escapes the backslash FIRST, so a chain that turned `\\n` into a newline
     before restoring `\\\\` would read a literal backslash followed by `n` as a
-    line break. Every `origin_project` on Windows is an absolute path full of
-    backslashes, so that mistake would corrupt a field on EVERY restored row
-    while the restore reported success.
+    line break. Any Windows path in a snippet body or a memory content field is
+    full of backslashes, so that mistake would corrupt a field on restored rows
+    while the restore reported success. It was `origin_project` that made this
+    certain rather than likely, on every row, before it became a label.
 
     Scanning consumes the escape and its target together, which cannot confuse
     the two no matter what the text contains.

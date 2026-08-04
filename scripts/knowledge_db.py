@@ -45,12 +45,22 @@ ever be, so it is done now even though nothing exchanges anything yet.
 `origin_project` and `origin_slug` are free text ON PURPOSE — not foreign keys.
 A shared record must outlive the project it came from, so it may name its
 origin but must never depend on it.
+
+`memory.tags` is a JSON ARRAY, the same spelling the project store uses. It was
+comma-joined here for a while, and nothing broke only because no surface printed
+tags at all — an unobservable divergence that would have detonated on the first
+renderer written over a result set mixing both stores. The canonical form lives
+in `knowledge_tags`; write through it rather than reaching for `",".join` or
+`json.dumps` directly, or the two spellings come back.
 """
 
 from __future__ import annotations
 
 import os
 import sqlite3
+
+from knowledge_home_guard import assert_safe_knowledge_home, protect_home_in_git
+from knowledge_migrations import apply_open_migrations
 
 # Bumped whenever the DDL below changes shape. Read back via `PRAGMA
 # user_version`, which is the one place SQLite gives us that costs no table and
@@ -217,11 +227,24 @@ def knowledge_home() -> str:
     store that resolved through a project handle would be shared with nobody.
 
     The name matters as much as the location — see `_HOME_DIRNAME`.
+
+    VALIDATED, and that is load-bearing rather than defensive. The write path
+    does not scrub, and the reason recorded for it is that this file stays on
+    this machine. `TAUSIK_HOME` is what decides whether that is true, so it is
+    checked here rather than assumed: a network path or a cloud-sync directory
+    is refused, and a git work tree is neutralised with a `.gitignore` instead
+    of refused, because refusing would reject the default location for everyone
+    who keeps their home in a dotfiles repository. See `knowledge_home_guard`.
+
+    The returned path is RESOLVED — symlinks and junctions followed — so every
+    caller sees the directory that will actually be written to, which is also
+    the one the checks were run against.
     """
     override = os.environ.get(_HOME_ENV)
-    if override:
-        return os.path.abspath(os.path.expanduser(override))
-    return os.path.join(os.path.expanduser("~"), _HOME_DIRNAME)
+    if override is not None:
+        return assert_safe_knowledge_home(override, _DB_FILENAME)
+    default = os.path.join(os.path.expanduser("~"), _HOME_DIRNAME)
+    return assert_safe_knowledge_home(default, _DB_FILENAME)
 
 
 def legacy_knowledge_db_path() -> str:
@@ -336,6 +359,7 @@ def init_knowledge_schema(conn: sqlite3.Connection) -> None:
     """
     conn.executescript(KNOWLEDGE_SQL)
     conn.executescript(KNOWLEDGE_FTS_SQL)
+    apply_open_migrations(conn)
     conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
     conn.commit()
 
@@ -361,17 +385,29 @@ def connect_knowledge_db(*, create: bool = False) -> sqlite3.Connection | None:
         return None
     home = os.path.dirname(path)
     os.makedirs(home, exist_ok=True)
+    # After the directory exists, and only here — never from `knowledge_home()`,
+    # which read paths reach. Inside a git work tree the store needs an ignore
+    # rule of its own, or the first `git add -A` commits everything this person
+    # has learned anywhere. Re-decided on every open rather than cached: a
+    # directory can become a repository while a long-lived process is running,
+    # and a remembered "it was not one" would be the guard switching itself off.
+    protect_home_in_git(home, _DB_FILENAME)
     fresh = not os.path.isfile(path)
     conn = _configure(sqlite3.connect(path, timeout=10, check_same_thread=False))
     try:
-        require_compatible_schema(conn)
-    except Exception:
         # Close before propagating: the caller never receives this handle, so
         # nothing else can close it, and a leaked one holds the WAL open for
-        # every other project pointing at this file.
+        # every other project pointing at this file. This covers the schema
+        # setup too, not only the version check. It used to guard the check
+        # alone, on the reading that the setup was CREATE-IF-NOT-EXISTS and
+        # could not realistically fail; `redact_stored_origins` made that
+        # reading false — it does per-row work, so a lock contended by another
+        # project is now a way for this to raise with a live handle in hand.
+        require_compatible_schema(conn)
+        init_knowledge_schema(conn)
+    except Exception:
         conn.close()
         raise
-    init_knowledge_schema(conn)
     if fresh:
         _restrict_permissions(home, path)
     return conn
