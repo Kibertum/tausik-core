@@ -26,17 +26,20 @@ from __future__ import annotations
 import datetime as _dt
 import os
 import sys
+import time
 from typing import Any
 
-# --- Watched modules ------------------------------------------------------
+# --- Eager-import critical modules ----------------------------------------
 #
-# Files whose mtime advancing after MCP startup indicates the running
-# server has stale in-memory code. The list is intentionally narrow —
-# every entry should be a service-layer module that participates in the
-# `tausik_verify` / `task_done` paths where stale code has caused silent
-# hangs in the past. Adding modules here pays a small startup cost; do not
-# add UI/skill/test files.
-_WATCHED_MODULES: tuple[str, ...] = (
+# NOTE: this list does NOT define the WATCH set (that used to be its job and
+# was the bug behind mcp-self-check-watches-eleven-modules-of-a-hundred: the
+# server imports dozens of modules, any of which can go stale, and a hand
+# list can never keep up). Its ONLY remaining responsibility is to *force*
+# these service-layer modules to load at startup, so their file is resolvable
+# in the startup snapshot even for tools that lazy-import them on first call.
+# The observed set is asked of the PRODUCER — `sys.modules` filtered to the
+# deployed server tree (see `_loaded_our_module_paths`) — not enumerated here.
+_EAGER_IMPORT_MODULES: tuple[str, ...] = (
     "service_verification",
     "verify_cache",
     "security_pattern",
@@ -54,6 +57,9 @@ _STARTUP_TIME_ISO: str = ""
 _STARTUP_TIME_EPOCH: float = 0.0
 _MODULE_MTIMES_AT_STARTUP: dict[str, float] = {}
 
+# Small float tolerance so filesystem/precision noise never reads as drift.
+_MTIME_TOLERANCE = 0.001
+
 
 def _ensure_scripts_dir_on_path() -> None:
     here = os.path.dirname(os.path.abspath(__file__))
@@ -62,31 +68,82 @@ def _ensure_scripts_dir_on_path() -> None:
         sys.path.insert(0, scripts)
 
 
+def _server_roots() -> tuple[str, ...]:
+    """The deployed subtrees whose modules we watch: `<profile>/scripts` and
+    `<profile>/mcp`, derived from THIS file's location so the check follows
+    the active IDE profile (`.claude`, `.cursor`, `.opencode`, ...).
+
+    Deriving from `__file__` (not a hard path) means stdlib and
+    site-packages modules fall OUTSIDE these roots by construction — so a
+    `pip install` can never masquerade as MCP drift (AC5).
+    """
+    here = os.path.dirname(os.path.abspath(__file__))  # <profile>/mcp/project
+    mcp_root = os.path.dirname(here)  # <profile>/mcp
+    profile = os.path.dirname(mcp_root)  # <profile>
+    scripts_root = os.path.join(profile, "scripts")
+    return (
+        os.path.normcase(os.path.abspath(scripts_root)),
+        os.path.normcase(os.path.abspath(mcp_root)),
+    )
+
+
+def _is_under_roots(path: str, roots: tuple[str, ...]) -> bool:
+    """True if `path` lives inside one of the server roots (prefix match on a
+    path-separator boundary, case-normalised for Windows)."""
+    p = os.path.normcase(os.path.abspath(path))
+    for root in roots:
+        r = root if root.endswith(os.sep) else root + os.sep
+        if p == root or p.startswith(r):
+            return True
+    return False
+
+
 def _module_path(name: str) -> str | None:
     mod = sys.modules.get(name)
     if mod is None:
         return None
-    f = getattr(mod, "__file__", None)
-    if not f:
+    f = getattr(mod, "__file__", None)  # getattr is untyped → coerce to str below
+    if not f:  # builtins, namespace packages → no __file__, silently skipped (AC5)
         return None
-    return os.path.abspath(f)
+    return os.path.abspath(str(f))
+
+
+def _loaded_our_module_paths(roots: tuple[str, ...] | None = None) -> dict[str, str]:
+    """Ask the PRODUCER for the watch set: every currently-loaded module whose
+    `__file__` lives under the deployed server tree. Replaces the old
+    hand-maintained 11-name list, which went blind to every module outside it.
+    """
+    if roots is None:
+        roots = _server_roots()
+    out: dict[str, str] = {}
+    # Snapshot the items first — sys.modules can mutate during iteration.
+    for name, mod in list(sys.modules.items()):
+        if mod is None:
+            continue
+        f = getattr(mod, "__file__", None)
+        if not f:
+            continue
+        try:
+            path = os.path.abspath(f)
+        except Exception:  # noqa: BLE001 — a broken __file__ must not crash the diagnostic
+            continue
+        if _is_under_roots(path, roots):
+            out[name] = path
+    return out
 
 
 def _snapshot_module_mtimes() -> dict[str, float]:
     out: dict[str, float] = {}
-    for name in _WATCHED_MODULES:
-        path = _module_path(name)
-        if not path:
-            continue
+    for _name, path in _loaded_our_module_paths().items():
         try:
             out[path] = os.path.getmtime(path)
-        except OSError:
+        except Exception:  # noqa: BLE001 — deleted/racing file must not abort the snapshot
             continue
     return out
 
 
 def _eager_import_watch_list() -> None:
-    """Import every watched module so its `__file__` becomes resolvable.
+    """Import every eager module so its `__file__` becomes resolvable.
 
     Wrapped in a single try/except — the MCP server must NOT crash on a
     missing optional service module. We just record the failure as a
@@ -97,12 +154,61 @@ def _eager_import_watch_list() -> None:
     here = os.path.dirname(os.path.abspath(__file__))
     if here not in sys.path:
         sys.path.insert(0, here)
-    for name in _WATCHED_MODULES:
+    for name in _EAGER_IMPORT_MODULES:
         try:
             __import__(name)
         except Exception:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
             # Stale modules are best-effort; skip failures silently.
             continue
+
+
+def _compute_drift(
+    snapshot: dict[str, float],
+    startup_epoch: float,
+    loaded_paths: dict[str, str],
+    getmtime: Any,
+) -> tuple[list[dict[str, Any]], dict[str, float]]:
+    """Pure drift core (injectable `getmtime` for tests). Two sources:
+
+    1. Modules present at startup whose file advanced since the snapshot
+       (`edited-after-startup`).
+    2. Modules loaded LAZILY after startup — absent from the snapshot — whose
+       file mtime is later than the server boot time (`lazy-loaded-after-edit`).
+       These were the permanent blind spot: they never appeared in the startup
+       snapshot, so an edit to them was invisible forever. A file mtime past
+       the boot time is treated conservatively as drift (AC3).
+
+    Any `getmtime` failure on a single module is swallowed so one deleted or
+    unreadable file can never turn the whole diagnostic into an exception (AC5).
+    """
+    drift: list[dict[str, Any]] = []
+    current: dict[str, float] = {}
+
+    def _record(path: str, baseline: float, reason: str) -> None:
+        try:
+            cur = getmtime(path)
+        except Exception:  # noqa: BLE001 — one bad file must not crash self_check
+            return
+        current[path] = cur
+        if cur > baseline + _MTIME_TOLERANCE:
+            drift.append(
+                {
+                    "module": os.path.basename(path),
+                    "path": path,
+                    "snapshot_mtime": baseline,
+                    "current_mtime": cur,
+                    "delta_seconds": round(cur - baseline, 2),
+                    "reason": reason,
+                }
+            )
+
+    for path, snap_mtime in snapshot.items():
+        _record(path, snap_mtime, "edited-after-startup")
+    for _name, path in loaded_paths.items():
+        if path in snapshot:
+            continue
+        _record(path, startup_epoch, "lazy-loaded-after-edit")
+    return drift, current
 
 
 def _enumerate_sibling_mcps(self_pid: int, project_dir: str) -> dict[str, Any]:
@@ -261,6 +367,33 @@ def _enumerate_sibling_mcps(self_pid: int, project_dir: str) -> dict[str, Any]:
     }
 
 
+# Process-scoped TTL cache for the sibling enumeration. The enumeration spawns a
+# PowerShell Get-CimInstance on modern Windows (wmic is gone from Win11 26200),
+# ~0.6-1s over 100+ processes — paying that on EVERY self_check made /start look
+# like a hang. Memoized per project_dir so repeated checks in a session reuse it.
+_SIBLING_ENUM_CACHE: dict[str, tuple[float, Any]] = {}
+
+
+def _enumerate_sibling_mcps_cached(self_pid: int, project_dir: str) -> dict[str, Any]:
+    """TTL-cached wrapper over `_enumerate_sibling_mcps` (AC3, decision #189).
+
+    Falls back to a direct (uncached) call if the reaper helper is unavailable —
+    correctness before latency, and the MCP server must never crash on a tool
+    call because an optional helper failed to import.
+    """
+    try:
+        from mcp_reaper import SIBLING_ENUM_TTL_SECONDS, cached_enumerate
+    except Exception:  # noqa: BLE001 — helper missing → just enumerate directly
+        return _enumerate_sibling_mcps(self_pid, project_dir)
+    return cached_enumerate(
+        os.path.normpath(project_dir),
+        lambda: _enumerate_sibling_mcps(self_pid, project_dir),
+        ttl=SIBLING_ENUM_TTL_SECONDS,
+        now=time.monotonic(),
+        cache=_SIBLING_ENUM_CACHE,
+    )
+
+
 def collect() -> dict[str, Any]:
     """Return diagnostic snapshot for `tausik_self_check`.
 
@@ -268,26 +401,24 @@ def collect() -> dict[str, Any]:
     server is executing stale Python bytecode and the user should restart
     the IDE before running heavy tools (`tausik_verify`, `tausik_task_done`).
     """
-    drift: list[dict[str, Any]] = []
-    current: dict[str, float] = {}
-    for path, snap_mtime in _MODULE_MTIMES_AT_STARTUP.items():
-        try:
-            cur = os.path.getmtime(path)
-        except OSError:
-            continue
-        current[path] = cur
-        if cur > snap_mtime + 0.001:  # tolerate float-precision noise
-            drift.append(
-                {
-                    "module": os.path.basename(path),
-                    "path": path,
-                    "snapshot_mtime": snap_mtime,
-                    "current_mtime": cur,
-                    "delta_seconds": round(cur - snap_mtime, 2),
-                }
-            )
+    # Ask the producer for the live watch set, then run the pure drift core.
+    # Wrapped defensively: any failure here must degrade to "no drift found",
+    # never crash the MCP server on a tool call (AC5).
+    try:
+        loaded = _loaded_our_module_paths()
+    except Exception:  # noqa: BLE001
+        loaded = {}
+    drift, current = _compute_drift(
+        _MODULE_MTIMES_AT_STARTUP, _STARTUP_TIME_EPOCH, loaded, os.path.getmtime
+    )
     project_dir = os.getcwd()  # MCP server.main() pins cwd to --project
-    siblings = _enumerate_sibling_mcps(os.getpid(), project_dir)
+    # Defensive, like _loaded_our_module_paths above: the diagnostic must never
+    # crash the MCP server on a tool call, so any failure in the (cached)
+    # enumeration degrades to "unknown" (count == -1), not an exception (AC5).
+    try:
+        siblings = _enumerate_sibling_mcps_cached(os.getpid(), project_dir)
+    except Exception:  # noqa: BLE001 — enumeration failure → "unknown", never crash
+        siblings = {"count": -1, "pids": [], "error": "sibling enumeration raised"}
     sibling_count = siblings["count"]
     # Three remediation states:
     #   - drift OR confirmed sibling leak (count > 0) → "Restart IDE"
@@ -309,6 +440,18 @@ def collect() -> dict[str, Any]:
         )
     else:
         remediation = "MCP modules in sync; no action needed."
+    # Report-only accumulation warning (decision #189): above a threshold, the
+    # sibling count is an actionable "close old sessions" signal — the framework
+    # never kills a process, since a live sibling can't be told from a stale one.
+    sibling_warning_msg = ""
+    try:
+        from mcp_reaper import sibling_warning
+
+        sibling_warning_msg = sibling_warning(sibling_count)
+    except Exception:  # noqa: BLE001 — a missing helper must not break the diagnostic
+        sibling_warning_msg = ""
+    if sibling_warning_msg:
+        remediation = f"{sibling_warning_msg} {remediation}"
     return {
         "server": "tausik-project",
         "pid": os.getpid(),
@@ -321,6 +464,7 @@ def collect() -> dict[str, Any]:
         "sibling_mcp_count": sibling_count,
         "sibling_mcp_pids": siblings["pids"],
         "sibling_introspection_error": siblings["error"],
+        "sibling_warning": sibling_warning_msg,
         "remediation": remediation,
     }
 

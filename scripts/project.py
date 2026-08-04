@@ -34,6 +34,7 @@ def main() -> None:
     from project_cli_extra import (
         cmd_fts,
         cmd_gates,
+        cmd_knowledge,
         cmd_memory,
         cmd_skill,
         cmd_stack,
@@ -44,20 +45,21 @@ def main() -> None:
     from project_cli_hygiene import cmd_hygiene
     from project_cli_role import cmd_role
     from project_cli_verify import cmd_verify
+    from project_cli_audit import cmd_audit
+    from project_cli_metrics import cmd_metrics
     from project_cli_ops import (
-        cmd_audit,
         cmd_brain,
         cmd_dead_end,
         cmd_doc,
         cmd_explore,
         cmd_hud,
-        cmd_metrics,
         cmd_run,
         cmd_search,
         cmd_suggest_model,
     )
     from project_cli_events import cmd_events
     from project_cli_specs import cmd_spec
+    from project_cli_state import cmd_state, cmd_sync
     from project_cli_adapts import cmd_adapt
     from project_cli_drift import cmd_drift
     from project_cli_renar import cmd_renar
@@ -68,7 +70,7 @@ def main() -> None:
     from project_cli_snippet import cmd_snippet
     from cmd_db import cmd_db
     from project_cli_review import cmd_review
-    from project_config import get_service
+    from service_factory import get_service
     from project_parser import build_parser
     from tausik_utils import ServiceError
 
@@ -90,6 +92,7 @@ def main() -> None:
         "decide": cmd_decide,
         "decisions": cmd_decisions,
         "memory": cmd_memory,
+        "knowledge": cmd_knowledge,
         "gates": cmd_gates,
         "verify": cmd_verify,
         "roadmap": cmd_roadmap,
@@ -101,6 +104,8 @@ def main() -> None:
         "update-claudemd": cmd_update_claudemd,
         "events": cmd_events,
         "spec": cmd_spec,
+        "state": cmd_state,
+        "sync": cmd_sync,
         "adapt": cmd_adapt,
         "drift": cmd_drift,
         "renar": cmd_renar,

@@ -15,6 +15,23 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
+#: Every tool whose input is a shell command line, as a hook matcher.
+#:
+#: `powershell-tool-bypasses-bash-firewall`: this used to be the literal
+#: `"Bash"`, written out at four separate registrations. On win32 — the
+#: platform this project calls primary — the agent is also handed a `PowerShell`
+#: tool, and it matched none of them. The firewall, the shell-write gate (QG-0 +
+#: scope ACL) and the push gate all still worked perfectly; they simply were
+#: never invoked for more than half the commands actually being run.
+#:
+#: The set of dialects is produced by `scripts/hooks/shell_channel.SHELL_TOOLS`.
+#: It is not imported here — bootstrap must stay runnable without the hooks
+#: package on `sys.path` — so `test_bootstrap_hooks_parity` asserts the two
+#: agree instead. A dialect added to the parser without a matcher fails a test
+#: rather than silently going ungated, which is the failure this constant is a
+#: memorial to.
+SHELL_MATCHER = "Bash|PowerShell"
+
 
 def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
     """Build the `hooks` block of .claude/settings.json.
@@ -25,7 +42,10 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
     return {
         "PreToolUse": [
             {
-                "matcher": "Write|Edit",
+                # l26-hook-contract-review: MultiEdit and NotebookEdit also
+                # write files and were ungated by QG-0. bash_write_gate.py (on
+                # the Bash matcher below) covers the shell-write vector.
+                "matcher": "Write|Edit|MultiEdit|NotebookEdit",
                 "hooks": [
                     {
                         "type": "command",
@@ -35,10 +55,12 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 ],
             },
             {
-                # v15-scope-enforce-write (SENAR Rule 2): when every active
-                # task declares scope_paths, writes outside the ACL union
-                # are blocked. Tasks without an ACL keep legacy freedom.
-                "matcher": "Write|Edit|MultiEdit",
+                # v15-scope-enforce-write (SENAR Rule 2): when any active task
+                # declares scope_paths, writes outside the union of declared
+                # ACLs are blocked. l26-hook-contract-review AC3: a co-active
+                # undeclared task no longer nullifies a sibling's ACL; +
+                # NotebookEdit added (it was ungated).
+                "matcher": "Write|Edit|MultiEdit|NotebookEdit",
                 "hooks": [
                     {
                         "type": "command",
@@ -48,7 +70,12 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 ],
             },
             {
-                "matcher": "Write|Edit|MultiEdit",
+                # memory-route-gate: the shell tools are on the matcher because
+                # a heredoc (`cat >> ~/.claude/.../memory/x.md <<EOF`) or a
+                # `Set-Content` writes the exact content the Write path refuses.
+                # Same hole l26-hook-contract-review closed for QG-0; leaving it
+                # open would make the Write block a formality.
+                "matcher": f"Write|Edit|MultiEdit|{SHELL_MATCHER}",
                 "hooks": [
                     {
                         "type": "command",
@@ -61,7 +88,12 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 # SENAR Rule 10.12 (r14-senar-context-hygiene):
                 # Warn (or block under TAUSIK_SECRET_SCAN_STRICT=1) when
                 # the agent is about to write a likely secret to disk.
-                "matcher": "Write|Edit|MultiEdit",
+                # Shell tools are on the matcher for the same reason
+                # memory_pretool_block is (secret-scan-covers-no-shell-channel,
+                # Decision #178): a heredoc or a `Set-Content -Value 'AKIA...'`
+                # carries the exact secret the Write path would warn on, and
+                # leaving it off one channel re-splits the two.
+                "matcher": f"Write|Edit|MultiEdit|{SHELL_MATCHER}",
                 "hooks": [
                     {
                         "type": "command",
@@ -71,11 +103,27 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 ],
             },
             {
-                "matcher": "Bash",
+                "matcher": SHELL_MATCHER,
                 "hooks": [
                     {
                         "type": "command",
                         "command": hook_cmd("bash_firewall.py"),
+                        "timeout": 5,
+                    }
+                ],
+            },
+            {
+                # l26-hook-contract-review (Decision #162): close the shell-write
+                # bypass of QG-0 + scope-ACL. Parses the command for file-write
+                # targets (redirections, tee/dd/sed -i/cp/mv, python open(), and
+                # on the PowerShell side Set-Content/Out-File/New-Item) and
+                # applies the SAME verdict the Write gates apply. Documented
+                # residual: obfuscated writes (see docs/ru/agent-contract.md).
+                "matcher": SHELL_MATCHER,
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": hook_cmd("bash_write_gate.py"),
                         "timeout": 5,
                     }
                 ],
@@ -91,8 +139,15 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 ],
             },
             {
-                "matcher": "Bash",
-                "if": "Bash(git push *)",
+                # The `"if": "Bash(git push *)"` clause that used to narrow this
+                # registration is gone. It was a SECOND, dialect-specific copy
+                # of a decision the hook already makes for itself
+                # (`_command_invokes_git_push`), and the two could only ever
+                # drift apart — which they did: the clause named one shell, so a
+                # push issued through the PowerShell tool reached no gate at all.
+                # The hook returns 0 in microseconds when the line is not a push,
+                # so dropping the pre-filter costs nothing and removes the copy.
+                "matcher": SHELL_MATCHER,
                 "hooks": [
                     {
                         "type": "command",
@@ -147,10 +202,10 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 ],
             },
             {
-                # HIGH-5 review fix: only Write/Edit/MultiEdit/Bash count
-                # toward call_actual. Read/Grep/Glob are research, not work
-                # — including them inflates the calibration drift metric.
-                "matcher": "Write|Edit|MultiEdit|Bash",
+                # HIGH-5 review fix: only Write/Edit/MultiEdit + the shell tools
+                # count toward call_actual. Read/Grep/Glob are research, not
+                # work — including them inflates the calibration drift metric.
+                "matcher": f"Write|Edit|MultiEdit|{SHELL_MATCHER}",
                 "hooks": [
                     {
                         "type": "command",
@@ -179,8 +234,13 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 # so backend_session_metrics.compute_active_minutes
                 # actually has data to sum. Without it the 180-min SENAR
                 # Rule 9.2 active-time gate never trips on read-heavy
-                # work. Wide matcher (covers Read/Grep/Glob too).
-                "matcher": "Write|Edit|MultiEdit|Bash|Read|Grep|Glob|WebFetch|WebSearch",
+                # work. Wide matcher (covers Read/Grep/Glob too) — and it
+                # must name every shell tool, or a session spent working
+                # through the uncounted one reads as idle and the duration
+                # limit silently stops applying.
+                "matcher": (
+                    f"Write|Edit|MultiEdit|{SHELL_MATCHER}|Read|Grep|Glob|WebFetch|WebSearch"
+                ),
                 "hooks": [
                     {
                         "type": "command",
@@ -196,7 +256,7 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 # .tausik/config.json::tool_output_truncation_threshold).
                 # Does NOT modify tool output — just emits stderr so the
                 # agent reads it next turn and adjusts strategy.
-                "matcher": "Read|Grep|Bash|Glob",
+                "matcher": f"Read|Grep|Glob|{SHELL_MATCHER}",
                 "hooks": [
                     {
                         "type": "command",

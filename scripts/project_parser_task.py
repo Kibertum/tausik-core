@@ -96,6 +96,9 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Include soft-archived tasks (archived_at IS NOT NULL). Off by default.",
     )
+    from output_rollup import add_rollup_flags
+
+    add_rollup_flags(tl)
 
     ts = task_sub.add_parser("show")
     ts.add_argument("slug")
@@ -142,6 +145,34 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         help="Confirm no knowledge to capture",
     )
     tdone.add_argument("--relevant-files", nargs="*", default=None)
+    tdone.add_argument(
+        "--verify-handle",
+        default=None,
+        dest="verify_handle",
+        help="Present the handle `tausik verify --task <slug>` printed "
+        "(<run_id>.<nonce>) instead of relying on the freshness lookup. The "
+        "handle names ONE verify run; it is single-use, carries its own expiry, "
+        "and is validated against live files and the live gate set. Omitting it "
+        "keeps the previous behaviour (a green verify run younger than the cache "
+        "TTL is searched for).",
+    )
+    tdone.add_argument(
+        "--no-file-changes",
+        action="store_true",
+        dest="no_file_changes",
+        help="Close a task that touched NO files (pure planning / a decision). "
+        "Allowed only when git proves the declared scope (--relevant-files as a "
+        "pathspec, else the whole tree) has no uncommitted changes.",
+    )
+    tdone.add_argument(
+        "--no-changelog",
+        action="store_true",
+        dest="no_changelog",
+        help="Close a task that warrants NO changelog entry (docs / cleanup / "
+        "measurement). Skips the continuous-changelog gate and logs an explicit "
+        "bypass reason. Only meaningful when config.task_done.changelog_gate is "
+        "enabled.",
+    )
     evidence_group = tdone.add_mutually_exclusive_group()
     evidence_group.add_argument(
         "--evidence",

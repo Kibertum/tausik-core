@@ -4,8 +4,9 @@ This file tracks the project direction. The authoritative, fine-grained backlog
 lives in the project database (`tausik roadmap` / `tausik task list`); this file
 is the human-readable map of where TAUSIK is going and why.
 
-> Released: **v1.5.0** (pre-2.0 hardening — signed verification receipts,
-> SENAR enforcement core, fail-closed gates). See [CHANGELOG](CHANGELOG.md).
+> Released: **v1.7.0** (pre-2.0 hardening — signed verification receipts,
+> SENAR enforcement core, fail-closed gates, multi-IDE parity). **v1.8 in flight**
+> on `release/1.8` (see the `[Unreleased]` section of the [CHANGELOG](CHANGELOG.md)).
 
 ---
 

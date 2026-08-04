@@ -15,6 +15,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from _common import profile_dir as _common_profile_dir  # noqa: E402
 from _common import tausik_path as _tausik_path  # noqa: E402
 
 
@@ -35,10 +36,29 @@ def _run_tausik(cmd: str, args: list[str], project_dir: str, timeout: int = 4) -
         return ""
 
 
+def _profile_dir() -> str | None:
+    """The IDE profile directory this hook is deployed inside, or None.
+
+    Delegates to `_common.profile_dir` — the self-location and its marker logic
+    (hardened by s130-review-fixes) live in one place so they cannot drift
+    between the hooks that need them. `_common` sits in the same `hooks/` dir,
+    so it locates the same profile this hook was deployed into.
+    """
+    return _common_profile_dir()
+
+
 def _rag_server_path(project_dir: str) -> str | None:
     """Path to the codebase-rag MCP server.py if installed, else None."""
+    profile = _profile_dir()
+    if profile:
+        p = os.path.join(profile, "mcp", "codebase-rag", "server.py")
+        if os.path.exists(p):
+            return p
     for ide in ("claude", "cursor"):
-        p = os.path.join(project_dir, ".claude", "mcp", "codebase-rag", "server.py")
+        # `ide` was previously unused in this branch — the literal below read
+        # `.claude` on both iterations, so the cursor pass tested the same path
+        # twice and only the harness fallback below ever varied.
+        p = os.path.join(project_dir, f".{ide}", "mcp", "codebase-rag", "server.py")
         if os.path.exists(p):
             return p
         p2 = os.path.join(project_dir, "harness", ide, "mcp", "codebase-rag", "server.py")
@@ -94,7 +114,12 @@ def _auto_rebuild_skills(project_dir: str) -> None:
     disk. Cache hit = no-op (microseconds). Never raises, never blocks.
     """
     try:
-        scripts_dir = os.path.join(project_dir, ".claude", "scripts")
+        profile = _profile_dir()
+        scripts_dir = (
+            os.path.join(profile, "scripts")
+            if profile
+            else os.path.join(project_dir, ".claude", "scripts")
+        )
         if scripts_dir not in sys.path:
             sys.path.insert(0, scripts_dir)
         import json as _json
@@ -125,7 +150,10 @@ def _auto_rebuild_skills(project_dir: str) -> None:
         if state.get("ide") == ide and state.get("model") == model:
             return  # cache hit — disk already merged for this combination
 
-        skills_dst = os.path.join(project_dir, ".claude", "skills")
+        profile = _profile_dir()
+        skills_dst = os.path.join(
+            profile if profile else os.path.join(project_dir, ".claude"), "skills"
+        )
         if not os.path.isdir(skills_dst):
             return
         rebuild_skills(skills_dst, ide=ide, model=model, force=False)
@@ -210,6 +238,13 @@ def build_context(project_dir: str) -> str:
 
 
 def main() -> int:
+    # hook-stderr-encoding-locale-dependent: this hook's messages contain
+    # non-ASCII, and their readability must not depend on how it was
+    # launched. Local import: hooks/ is sys.path[0] only when run as a script.
+    from _common import force_utf8_io
+
+    force_utf8_io()
+
     if os.environ.get("TAUSIK_SKIP_HOOKS"):
         return 0
 

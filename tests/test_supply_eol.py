@@ -24,7 +24,7 @@ from supply_eol import (  # noqa: E402
 
 
 def _git(cwd, *args):
-    return subprocess.run(["git", *args], cwd=str(cwd), capture_output=True, text=True, timeout=60)
+    return subprocess.run(["git", *args], cwd=str(cwd), capture_output=True, text=True, encoding="utf-8", timeout=60)
 
 
 def _origin(tmp_path):

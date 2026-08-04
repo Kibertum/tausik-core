@@ -2,3 +2,14 @@
 # uses newline="\n"). Pin it to LF on checkout so `tausik renar export --check`
 # does not see false CRLF drift on Windows clones (core.autocrlf=true).
 renar/** text eol=lf
+
+# The git-native state projection is the SECOND derived tree with the same
+# property, and it was shipped without the same pin. `state_serialize.write_tree`
+# emits LF only, and `check_tree` deliberately reads with universal-newline
+# translation OFF so a CRLF re-save cannot pass as clean — which means a CRLF
+# *checkout* reads as corruption too. Unpinned, every Windows clone (autocrlf=true)
+# converts all of `tausik/` and starts life with a red `state export --check` and
+# a red `gate_state_roundtrip` on a tree nobody touched. The set of directories
+# this must cover is asserted from the exporter's own registry, not from this
+# comment: tests/test_state_tree_eol_pin.py.
+tausik/** text eol=lf

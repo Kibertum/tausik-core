@@ -144,7 +144,7 @@ class TestCalibrationDrift:
 
 class TestCliMetricsOutput:
     def test_per_tier_in_metrics_output(self, be, tmp_path, capsys, monkeypatch):
-        from project_cli_ops import cmd_metrics
+        from project_cli_metrics import cmd_metrics
         from project_service import ProjectService
 
         _seed(be, "t1", tier="light", budget=20, actual=18)

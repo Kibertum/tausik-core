@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 37
+SCHEMA_VERSION = 44
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -50,6 +50,14 @@ CREATE TABLE IF NOT EXISTS tasks (
     done_model_id TEXT, done_model_version TEXT,
     model_mismatch INTEGER NOT NULL DEFAULT 0,
     relevant_files TEXT,
+    -- qg2-cannot-close-fileless-task: 1 when the task was closed via
+    -- `task done --no-file-changes` — the third scope state, a task that
+    -- legitimately touched no files (pure planning / a `tausik decide`),
+    -- proven by a clean git scope rather than declared away. Countable so such
+    -- closures can be audited:  SELECT * FROM tasks WHERE no_file_changes_declared = 1;
+    -- A dedicated column, symmetric to verification_runs.no_tests_declared —
+    -- not a `status`/`scope` value, which carry CHECK constraints.
+    no_file_changes_declared INTEGER NOT NULL DEFAULT 0,
     started_at TEXT, completed_at TEXT, blocked_at TEXT,
     archived_at TEXT,
     attempts INTEGER DEFAULT 0,
@@ -79,7 +87,11 @@ CREATE TABLE IF NOT EXISTS decisions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     decision TEXT NOT NULL,
     task_slug TEXT REFERENCES tasks(slug) ON DELETE SET NULL,
-    rationale TEXT, created_at TEXT NOT NULL
+    rationale TEXT, created_at TEXT NOT NULL,
+    -- Stable, machine-independent identity (state-git-stable-ids). NULLABLE at
+    -- the column level; the UNIQUE index and the backfill live in the v42
+    -- post-migration so fresh and migrated DBs converge on one schema shape.
+    slug TEXT
 );
 
 CREATE TABLE IF NOT EXISTS memory (
@@ -89,7 +101,10 @@ CREATE TABLE IF NOT EXISTS memory (
     content TEXT NOT NULL, tags TEXT,
     task_slug TEXT REFERENCES tasks(slug) ON DELETE SET NULL,
     archived_at TEXT,
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    -- Stable, machine-independent identity (state-git-stable-ids). See the
+    -- matching note on `decisions.slug`.
+    slug TEXT
 );
 
 CREATE TABLE IF NOT EXISTS explorations (
@@ -202,7 +217,31 @@ CREATE TABLE IF NOT EXISTS verification_runs (
     files_hash TEXT NOT NULL,
     ran_at TEXT NOT NULL,
     duration_ms INTEGER,
-    receipt_json TEXT
+    receipt_json TEXT,
+    -- l26-verify-git-diff-wire: how the declared scope related to git at run
+    -- time. 'complete' | 'under-declared' | 'unknown'; NULL on rows written
+    -- before v38 and read as 'unknown' (never as 'complete').
+    declared_scope_status TEXT,
+    -- JSON array of files git saw change but relevant_files omitted (capped).
+    undeclared_files TEXT,
+    -- verify-no-test-mapped-dead-end: 1 when the caller declared, for this run,
+    -- that its files map to no test on purpose (docs, config, migrations). Such
+    -- a run passes with NO gate executed, so it must stay countable:
+    --   SELECT * FROM verification_runs WHERE no_tests_declared = 1;
+    -- A dedicated column, not a `scope` value — `scope` is a CHECK-constrained
+    -- SENAR tier, and overloading it would have required rebuilding the table
+    -- to widen the constraint.
+    no_tests_declared INTEGER NOT NULL DEFAULT 0,
+    -- v2-verify-receipt-as-argument (v44, SEP-2567): the explicit state handle
+    -- `verify` mints and `task done --verify-handle` presents. All three are
+    -- NULLABLE because there is no true default — a run that was never handed
+    -- out as a handle has no nonce, no expiry and no spend, and NULL is how
+    -- that is spelled. Backfilling an expiry would invent one, and the
+    -- redemption predicate (`handle_redeemed_at IS NULL`) would then read those
+    -- rows as spendable.
+    handle_nonce TEXT,            -- 128-bit hex; NULL = never minted
+    handle_expires_at TEXT,       -- ISO-8601 UTC; the receipt carries a SIGNED copy
+    handle_redeemed_at TEXT       -- ISO-8601 UTC of the single spend; NULL = unspent
 );
 
 CREATE TABLE IF NOT EXISTS session_usage_metrics (
@@ -345,34 +384,10 @@ CREATE TRIGGER IF NOT EXISTS tasks_audit_delete AFTER DELETE ON tasks BEGIN
 END;
 """
 
-INDEXES_SQL = """
-CREATE INDEX IF NOT EXISTS idx_stories_epic_id ON stories(epic_id);
-CREATE INDEX IF NOT EXISTS idx_stories_status ON stories(status);
-CREATE INDEX IF NOT EXISTS idx_tasks_story_id ON tasks(story_id);
-CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
-CREATE INDEX IF NOT EXISTS idx_tasks_slug ON tasks(slug);
--- NOTE: indexes on migration-added tasks columns (e.g. started_model_id,
--- model_mismatch — v33) live ONLY in their migration, NOT here. INDEXES_SQL
--- runs before migrations on an existing DB, where those columns don't yet
--- exist; indexing them here would crash init_schema (mirrors idx_tasks_archived_at).
-CREATE INDEX IF NOT EXISTS idx_decisions_task_slug ON decisions(task_slug);
-CREATE INDEX IF NOT EXISTS idx_memory_type ON memory(type);
-CREATE INDEX IF NOT EXISTS idx_memory_task_slug ON memory(task_slug);
-CREATE INDEX IF NOT EXISTS idx_events_entity ON events(entity_type, entity_id);
-CREATE INDEX IF NOT EXISTS idx_events_created ON events(created_at);
-CREATE INDEX IF NOT EXISTS idx_task_logs_slug ON task_logs(task_slug);
-CREATE INDEX IF NOT EXISTS idx_task_logs_phase ON task_logs(phase);
-CREATE INDEX IF NOT EXISTS idx_task_logs_created ON task_logs(created_at);
-CREATE INDEX IF NOT EXISTS idx_reasoning_steps_slug ON reasoning_steps(task_slug, seq);
-CREATE INDEX IF NOT EXISTS idx_reasoning_steps_created ON reasoning_steps(created_at);
-CREATE INDEX IF NOT EXISTS idx_edges_source ON memory_edges(source_type, source_id);
-CREATE INDEX IF NOT EXISTS idx_edges_target ON memory_edges(target_type, target_id);
-CREATE INDEX IF NOT EXISTS idx_edges_relation ON memory_edges(relation);
-CREATE INDEX IF NOT EXISTS idx_edges_valid ON memory_edges(valid_to);
-CREATE INDEX IF NOT EXISTS idx_verify_task ON verification_runs(task_slug, ran_at DESC);
-CREATE INDEX IF NOT EXISTS idx_verify_files_hash ON verification_runs(files_hash);
-CREATE INDEX IF NOT EXISTS idx_session_usage_session_id ON session_usage_metrics(session_id);
-CREATE INDEX IF NOT EXISTS idx_session_usage_recorded_at ON session_usage_metrics(recorded_at);
-CREATE INDEX IF NOT EXISTS idx_usage_events_session ON usage_events(session_id, recorded_at);
-CREATE INDEX IF NOT EXISTS idx_usage_events_task ON usage_events(task_slug, recorded_at);
-"""
+# INDEXES_SQL moved to backend_schema_indexes.py to keep this file under the
+# 400-line filesize gate (state-git-stable-ids). Re-exported so existing
+# `from backend_schema import INDEXES_SQL` importers keep working.
+from backend_schema_indexes import (  # noqa: E402,F401
+    INDEXES_SQL,
+    POST_MIGRATION_INDEXES_SQL,
+)

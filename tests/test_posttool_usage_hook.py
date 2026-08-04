@@ -61,6 +61,7 @@ def _run_hook(project_dir: str, payload: dict | str) -> subprocess.CompletedProc
         input=body,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         env=env,
         timeout=15,
     )
@@ -99,8 +100,10 @@ class TestHappyPath:
         assert row["tool_calls"] == 1
         assert row["source"] == "posttool"
         assert row["tool_name"] == "Read"
-        # Opus 4.7: 1000/1M*15 + 200/1M*75 = 0.015 + 0.015 = 0.03
-        assert row["cost_usd"] == pytest.approx(0.03, rel=1e-3)
+        # Opus 4.7 at the published $5/$25 tier (corrected in
+        # cost-pricing-missing-opus-48 from a carried-over $15/$75):
+        # 1000/1M*5 + 200/1M*25 = 0.005 + 0.005 = 0.01
+        assert row["cost_usd"] == pytest.approx(0.01, rel=1e-3)
 
     def test_empty_payload_still_records_event_with_zero_tokens(self, tmp_path):
         project_dir, db = _seed_project(tmp_path)
@@ -166,7 +169,9 @@ class TestNegativeScenarios:
         assert len(events) == 1
         assert events[0]["model_id"] == "claude-mystery-9-9"
         assert events[0]["cost_usd"] == 0.0
-        assert "unknown model" in result.stderr.lower()
+        # The unpriced-model warning is now owned by cost_pricing.calculate_cost_usd
+        # (once per id, override-aware) rather than an inline posttool check.
+        assert "no price for model 'claude-mystery-9-9'" in result.stderr
 
     @pytest.mark.slow  # v14b-pytest-fast-lane: real lock contention via threading sleeps (~7s)
     def test_d_locked_db_retries_then_succeeds(self, tmp_path):
@@ -228,6 +233,7 @@ class TestEnvOverrides:
             input=json.dumps({"tool_name": "Read", "tool_response": {}}),
             capture_output=True,
             text=True,
+            encoding="utf-8",
             env=env,
             timeout=10,
         )

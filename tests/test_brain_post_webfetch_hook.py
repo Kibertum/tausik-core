@@ -69,7 +69,7 @@ def _run(
         [sys.executable, _HOOK_PATH],
         input=raw,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         timeout=20,
         env=env,
     )
@@ -627,7 +627,7 @@ def test_write_failure_is_silent_without_debug(tmp_path, status, issues, expect_
             }
         ),
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         timeout=15,
         env=env,
     )

@@ -11,7 +11,7 @@ import os
 import re
 import subprocess
 import sys
-from typing import Any
+from typing import Any, cast
 
 # Passed explicitly to pip so a pip.conf we do not own cannot repoint the index.
 # A command-line argument overrides the defaults pip loads from config files.
@@ -45,7 +45,7 @@ def _resolve_venv_python(tausik_dir: str) -> str | None:
             from bootstrap_venv import get_venv_python  # type: ignore[import-not-found]
         except ImportError:
             continue
-        return get_venv_python(tausik_dir)
+        return cast("str | None", get_venv_python(tausik_dir))
 
     # Core is out of reach; the venv layout is fixed, so derive it directly.
     if sys.platform == "win32":

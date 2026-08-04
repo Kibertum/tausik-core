@@ -137,7 +137,19 @@ class TestTaskLifecycle:
         svc.be.task_update("rf-merge", relevant_files=json.dumps(["only/path.py"]))
         captured: list[list[str] | None] = []
 
-        def fake_report(slug, relevant_files, progress_fn=None, trigger="task-done"):
+        # **kwargs, not an enumeration: this test asserts WHICH relevant_files
+        # reach the gate report, so every unrelated keyword the real signature
+        # grows (verify_handle was the latest) must pass through untouched
+        # rather than turn an unrelated feature into a TypeError here.
+        def fake_report(
+            slug,
+            relevant_files,
+            progress_fn=None,
+            trigger="task-done",
+            no_file_changes=False,
+            no_changelog=False,
+            **kwargs,
+        ):
             captured.append(relevant_files)
             return {
                 "passed": True,
@@ -486,8 +498,23 @@ class TestSessions:
         result = svc.session_last_handoff()
         assert result["completed"] == ["t1"]
 
-    def test_handoff_no_session(self, svc):
-        with pytest.raises(ServiceError, match="No active session"):
+    def test_handoff_without_an_open_session_attaches_to_the_last_one(self, svc):
+        """v2-session-split-and-drop. This used to raise "No active session",
+        which coupled continuity to the hygiene window. The coupling was
+        backwards: an agent that just hit the 180-minute limit is the one that
+        most needs to write down where it stopped, and refusing there loses the
+        document the limit exists to force."""
+        svc.session_start()
+        svc.session_end("S1")
+        msg = svc.session_handoff({"completed": ["x"], "next_steps": ["y"]})
+        assert "Handoff saved" in msg and "closed" in msg
+        assert svc.session_last_handoff() == {"completed": ["x"], "next_steps": ["y"]}
+
+    def test_handoff_refused_only_when_no_session_ever_existed(self, svc):
+        """The one honest refusal left: with no row at all there is nothing to
+        attach to. Minting a session here would restart the hygiene clock as a
+        side effect of writing a document — the coupling, re-introduced."""
+        with pytest.raises(ServiceError, match="No session has ever been started"):
             svc.session_handoff({"completed": []})
 
     def test_list(self, svc):

@@ -401,3 +401,205 @@ class TestFullMigrationPath:
         conn.commit()
         row2 = conn.execute("SELECT archived_at FROM tasks WHERE slug='arch-test'").fetchone()
         assert row2[0] == "2026-05-07T00:00:00Z"
+
+
+class TestFtsRebuildCoverage:
+    """Post-migration FTS rebuild must cover EVERY external-content index.
+
+    The rebuild list used to be hardcoded and had drifted: `fts_task_logs` and
+    `fts_reasoning_steps` were declared, trigger-maintained, and never rebuilt.
+    Search over task logs and RENAR reasoning steps therefore returned stale
+    rows after every migration, silently. The list is now derived from
+    `sqlite_master`, and these tests pin that it stays complete.
+    """
+
+    @staticmethod
+    def _fresh_db():
+        import sqlite3 as _sq
+
+        from backend_init import init_schema
+
+        conn = _sq.connect(":memory:")
+        init_schema(conn)
+        return conn
+
+    def test_derived_list_misses_no_external_content_index(self):
+        """Meta-guard: nothing declared with `content='<table>'` may be absent
+        from the rebuild list. This is the check that would have caught the bug."""
+        from backend_init import external_content_fts_tables
+
+        conn = self._fresh_db()
+        cur = conn.cursor()
+        derived = set(external_content_fts_tables(cur))
+        declared = {
+            name
+            for name, sql in cur.execute(
+                "SELECT name, sql FROM sqlite_master WHERE type='table' AND sql LIKE '%USING fts5%'"
+            ).fetchall()
+            if sql
+            and "content=" in sql.replace(" ", "")
+            and "content=''" not in sql.replace(" ", "")
+        }
+        assert declared, "no external-content FTS tables found — schema probe is broken"
+        assert declared - derived == set(), (
+            f"external-content FTS indexes missing from the rebuild list: {declared - derived}"
+        )
+        conn.close()
+
+    def test_the_two_historically_missed_tables_are_covered(self):
+        from backend_init import external_content_fts_tables
+
+        conn = self._fresh_db()
+        derived = external_content_fts_tables(conn.cursor())
+        assert "fts_task_logs" in derived
+        assert "fts_reasoning_steps" in derived
+        conn.close()
+
+    def test_stale_task_log_index_is_repaired_by_rebuild(self):
+        """Functional regression: with the old hardcoded list `fts_task_logs`
+        was never rebuilt, so a wiped index stayed empty and search kept
+        returning nothing for a row that exists."""
+        from backend_init import external_content_fts_tables
+
+        conn = self._fresh_db()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO tasks(slug,title,status,created_at,updated_at) VALUES(?,?,?,?,?)",
+            ("t-fts", "T", "planning", "2026-01-01T00:00:00Z", "2026-01-01T00:00:00Z"),
+        )
+        cur.execute(
+            "INSERT INTO task_logs(task_slug,message,created_at) VALUES(?,?,?)",
+            ("t-fts", "quokka sentinel phrase", "2026-01-01T00:00:00Z"),
+        )
+        conn.commit()
+
+        # Simulate the post-migration stale state the rebuild exists to repair.
+        cur.execute("DELETE FROM fts_task_logs")
+        conn.commit()
+        stale = cur.execute(
+            "SELECT count(*) FROM fts_task_logs WHERE fts_task_logs MATCH 'quokka'"
+        ).fetchone()[0]
+        assert stale == 0, "precondition: index must be stale before the rebuild"
+
+        for name in external_content_fts_tables(cur):
+            cur.execute(f"INSERT INTO {name}({name}) VALUES('rebuild')")
+        conn.commit()
+
+        found = cur.execute(
+            "SELECT count(*) FROM fts_task_logs WHERE fts_task_logs MATCH 'quokka'"
+        ).fetchone()[0]
+        assert found == 1, "rebuild did not restore the task_logs index"
+        conn.close()
+
+
+class TestSchemaMigrationParity:
+    """SCHEMA_VERSION and the highest migration are bumped by hand in two files.
+
+    Drift is silent in both directions — ahead leaves databases permanently
+    "stale but unmigratable", behind means a written migration never runs — so
+    the guard is checked at import and pinned here.
+    """
+
+    def test_live_constants_are_in_parity(self):
+        """Documentation pin, NOT the negative check.
+
+        `check_schema_migration_parity` runs at import of `backend_migrations`,
+        so real drift raises during collection and this test never gets to
+        report it. It stays as an executable statement of the invariant; the
+        actual negative coverage is `test_drift_raises_with_both_values_named`,
+        which calls the function with injected values.
+        """
+        from backend_migrations import MIGRATIONS
+        from backend_schema import SCHEMA_VERSION
+
+        assert SCHEMA_VERSION == max(MIGRATIONS)
+
+    def test_drift_raises_with_both_values_named(self):
+        """Negative: a mismatch must be a loud error naming both numbers, not a
+        silent pass. This is the failure the guard exists to make visible."""
+        from backend_migrations import check_schema_migration_parity
+
+        with pytest.raises(RuntimeError) as exc:
+            check_schema_migration_parity(99, {1: [], 2: []})
+        msg = str(exc.value)
+        assert "99" in msg and "v2" in msg, msg
+
+    def test_parity_holds_when_equal(self):
+        from backend_migrations import check_schema_migration_parity
+
+        check_schema_migration_parity(2, {1: [], 2: []})  # must not raise
+
+
+class TestDbBackupPruning:
+    """One `.bak.v<N>` snapshot is written per migration and none were ever
+    removed — a long-lived project carried 10 backups (~150 MB) beside a 24 MB
+    database. Pruning keeps the newest few; these tests pin the ordering and the
+    best-effort contract."""
+
+    @staticmethod
+    def _make_backups(tmp_path, versions):
+        db = tmp_path / "tausik.db"
+        db.write_text("x", encoding="utf-8")
+        for v in versions:
+            (tmp_path / f"tausik.db.bak.v{v}").write_text(f"backup{v}", encoding="utf-8")
+        return str(db)
+
+    def test_keeps_only_the_newest_by_version_number(self, tmp_path):
+        from backend_init import prune_db_backups
+
+        db = self._make_backups(tmp_path, [1, 2, 3, 9, 10, 11, 12])
+        removed = prune_db_backups(db, keep=3)
+        left = sorted(int(p.name.rsplit(".v", 1)[1]) for p in tmp_path.glob("tausik.db.bak.v*"))
+        assert left == [10, 11, 12], f"kept {left}, removed {removed}"
+
+    def test_ordering_is_numeric_not_lexical(self, tmp_path):
+        """Lexically 'v9' sorts after 'v10'; a string sort would keep the OLDEST
+        backups and delete the newest — exactly backwards."""
+        from backend_init import prune_db_backups
+
+        db = self._make_backups(tmp_path, [8, 9, 10])
+        prune_db_backups(db, keep=1)
+        left = [int(p.name.rsplit(".v", 1)[1]) for p in tmp_path.glob("tausik.db.bak.v*")]
+        assert left == [10]
+
+    def test_no_op_when_at_or_below_keep(self, tmp_path):
+        from backend_init import prune_db_backups
+
+        db = self._make_backups(tmp_path, [1, 2])
+        assert prune_db_backups(db, keep=3) == []
+        assert len(list(tmp_path.glob("tausik.db.bak.v*"))) == 2
+
+    def test_missing_directory_does_not_raise(self, tmp_path):
+        """Negative: pruning is maintenance inside the migration path — it must
+        never abort a migration that otherwise succeeded."""
+        from backend_init import prune_db_backups
+
+        assert prune_db_backups(str(tmp_path / "nope" / "tausik.db")) == []
+
+    def test_unrelated_files_are_untouched(self, tmp_path):
+        from backend_init import prune_db_backups
+
+        db = self._make_backups(tmp_path, [1, 2, 3, 4, 5])
+        (tmp_path / "tausik.db-wal").write_text("wal", encoding="utf-8")
+        (tmp_path / "other.db.bak.v1").write_text("other", encoding="utf-8")
+        prune_db_backups(db, keep=1)
+        assert (tmp_path / "tausik.db-wal").exists()
+        assert (tmp_path / "other.db.bak.v1").exists()
+
+    def test_backups_of_a_prefix_sharing_database_are_untouched(self, tmp_path):
+        """Negative (adversarial review, HIGH): `db.db2.bak.v1` starts with
+        `db.db`, so a bare prefix match pooled a DIFFERENT database's backups
+        with this one's. Sorted together by version number, the target's only
+        real snapshot could be the entry chosen for deletion."""
+        from backend_init import prune_db_backups
+
+        db = tmp_path / "tausik.db"
+        db.write_text("x", encoding="utf-8")
+        (tmp_path / "tausik.db.bak.v1").write_text("mine", encoding="utf-8")
+        for v in (1, 2, 3, 4):
+            (tmp_path / f"tausik.db2.bak.v{v}").write_text("other", encoding="utf-8")
+
+        prune_db_backups(str(db), keep=3)
+
+        assert (tmp_path / "tausik.db.bak.v1").exists(), "own only snapshot was deleted"
+        assert len(list(tmp_path.glob("tausik.db2.bak.v*"))) == 4, "other db touched"

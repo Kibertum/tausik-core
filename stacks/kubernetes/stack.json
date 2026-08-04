@@ -8,12 +8,12 @@
   ],
   "path_hints": ["/k8s/", "/manifests/", "/.kube/"],
   "gates": {
-    "kubeval": {
+    "kubeconform": {
       "enabled": false,
       "severity": "warn",
       "trigger": ["verify", "commit"],
-      "command": "kubeval {files} 2>&1 | head -30",
-      "description": "K8s manifest schema validation — schema only, NOT policy-as-code (kube-score/OPA Gatekeeper NOT included).",
+      "command": "kubeconform -summary -ignore-missing-schemas {files} 2>&1 | head -30",
+      "description": "K8s manifest schema validation (kubeconform — the maintained successor to the archived kubeval). Schema only, NOT policy-as-code (kube-score / OPA Gatekeeper / Kyverno NOT included). -ignore-missing-schemas lets CRDs without a published schema pass the lint instead of failing it.",
       "stacks": ["kubernetes"],
       "timeout": 60
     }

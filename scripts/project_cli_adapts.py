@@ -8,6 +8,7 @@ category, signature role, link target) are enforced by the service + DB CHECK.
 from __future__ import annotations
 
 import os
+import sys
 from typing import Any
 
 from project_service import ProjectService
@@ -69,8 +70,11 @@ def cmd_adapt(svc: ProjectService, args: Any) -> None:
         if cmd == "search":
             return _cmd_search(svc, args)
     except ServiceError as e:
-        print(f"Error: {e}")
-        return None
+        # A CLI invocation IS the flow — a swallowed error that still exits 0 is
+        # a silent failure (CLAUDE.md zero-tolerance). Route to stderr and exit
+        # non-zero, consistent with the top-level handler in project.py.
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
     print(f"Unknown adapt subcommand: {cmd!r}")
     return None
 

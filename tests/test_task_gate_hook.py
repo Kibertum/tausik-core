@@ -54,7 +54,7 @@ def _run(env_extra: dict, cwd):
     return subprocess.run(
         [sys.executable, _HOOK],
         input='{"tool_name":"Write","tool_input":{}}',
-        text=True,
+        text=True, encoding="utf-8",
         capture_output=True,
         env=env,
         timeout=10,

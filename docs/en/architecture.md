@@ -48,7 +48,11 @@ the Backend handles only CRUD and SQL. CLI and MCP are two equal entry points.
 
 ### Scripts (Business Logic)
 
-Modules in `scripts/`, each <=400 lines. Highlights:
+Modules in `scripts/`, each <=500 lines (`filesize` gate; raised from 400 as an
+interim measure by decision #190, because the tighter cap was deforming the
+architecture rather than improving it). Line count is not the only size control:
+the `class_surface` gate separately caps a class's composed public surface after
+inheritance, which a per-file cap structurally cannot see. Highlights:
 
 | File | Purpose |
 |------|---------|
@@ -98,10 +102,31 @@ Modules in `scripts/`, each <=400 lines. Highlights:
 | `harness/claude/mcp/project/server.py` | JSON-RPC stdio server |
 | `harness/claude/mcp/project/tools.py` | core tool definitions |
 | `harness/claude/mcp/project/tools_extra.py` | extended tool definitions (skills, gates, doctor, verify, roles, stacks, brain) |
-| `harness/claude/mcp/project/handlers.py` | Dispatch: tool name -> service method |
-| `harness/claude/mcp/project/handlers_skill.py` | Skill + maintenance handlers (split) |
+| `harness/claude/mcp/project/handlers.py` | Dispatch only: tool-call counter, `handle_tool`, merge of the per-domain tables |
+| `harness/claude/mcp/project/handlers_<domain>.py` | Handlers by domain: `task`, `session`, `status`, `knowledge`, `hierarchy`, `stack`, `role`, `verification`, `cq`, `skill`, `spec`, `adapt`. Each module exports `<DOMAIN>_HANDLERS`; `handlers.py` merges them into `_DISPATCH` |
+| `harness/claude/mcp/project/handlers_render.py` | Shared list rendering (`render_list`) — an empty result must read as "nothing here", not as an empty string |
 
 Total MCP surface: **117 project tools + 7 brain tools = 124** (optional `codebase-rag` adds 7 more; not part of the main count).
+
+### Contextual chunk headers (codebase-rag)
+
+A chunk cut out of a file stops carrying what the file was about, so a query
+phrased in the document's terms cannot reach a passage phrased in its own. Each
+indexed chunk therefore carries a short header built by
+`harness/claude/mcp/codebase-rag/rag_context.py`: path words, the symbol it
+defines — or the one it sits inside, for a continuation chunk — and the file's
+own summary line.
+
+This is contextual retrieval with the model taken out. The published technique
+asks an LLM to write a sentence of context per chunk; here the header comes from
+metadata the indexer already has, so the same input yields the same bytes and
+indexing stays reproducible and offline.
+
+The header lives in its own indexed column (`rag_chunks.context_prefix`), never
+in the chunk's content: a word present only in the header still matches, and
+still does not appear in what search returns. An index built before v1.8 grows
+into the layout on first open — the column is added and the FTS table rebuilt
+from the chunks, which are the source of truth.
 
 ### Cross-IDE Support
 
@@ -111,8 +136,8 @@ own (all of them, today). A per-IDE copy would be a mirror waiting to drift — 
 exist under `harness/cursor/` and was deleted in v1.7.0.
 ```
 harness/
-+-- skills/           # 12 core auto-deployed + brain conditional + 20 in skills-official/ (opt-in via --include-official)
-+-- roles/            # 5 roles (developer, architect, qa, tech-writer, ui-ux)
++-- skills/           # 13 core auto-deployed + brain conditional + 20 in skills-official/ (opt-in via --include-official)
++-- roles/            # 6 roles (architect, developer, devops, qa, tech-writer, ui-ux)
 +-- stacks/           # Stack guides
 +-- overrides/        # IDE-specific overrides (claude/, cursor/, qwen/)
 +-- claude/mcp/       # MCP servers (project, brain, codebase-rag) — canonical for ALL IDEs
@@ -164,19 +189,49 @@ so a z.ai GLM session routes to GLM models with no code change. See
 ## Quality Gates
 
 ```
-default_gates.py        -> DEFAULT_GATES (25 gates: 5 universal + 20 stack-scoped)
-                        -> UNIVERSAL_GATES (filesize, tdd_order, ruff, mypy, bandit)
-                        -> stack-scoped gates pulled from stack_registry
-gate_runner.py          -> run_gates(trigger, files)
-                        -> run_command_gate() / run_filesize_gate() / run_tdd_order_gate()
+gate_registry.py        -> GATE_REGISTRY: the one declaration per built-in gate
+                        -> GateSpec(name, phase, default_config, impl)
+                        -> phase: scoped | post_scope
+default_gates.py        -> DEFAULT_GATES = universal (from registry)
+                                         ∪ stack-scoped (from stack_registry)
+                                         ∪ post-scope (from registry)
+gate_runner.py          -> run_gates(trigger, files)   [scoped phase only]
+                        -> dispatch via GATE_REGISTRY[name].impl,
+                           unknown name -> run_command_gate()
+gate_post_scope.py      -> run_post_scope_gates()      [post_scope phase]
+                        -> verify_first, changelog + one gate_runs row each
 service_task.py         -> _run_quality_gates() (called from task_done)
 ```
 
-Universal gates (always on): `filesize`, `tdd_order`, `ruff`, `mypy`, `bandit`.
+Adding a built-in gate is one `GateSpec`. Before `gate-registry-single-source`
+it meant four edits, and the two post-scope gates lived in only one of the four:
+`gates status` did not list them, `gates enable/disable` could not reach them,
+and they wrote no `gate_runs` row — so nothing could prove a QG-2 gate had run.
+
+**Scoped gates** — `(gate_config, files) -> (passed, output)`, run over the
+task's declared scope. Universal (always on): `filesize`, `class_surface`,
+`tdd_order`, `ruff`, `mypy`, `bandit`, `bootstrap_drift`, `memory_route`,
+`renar_drift_schema`, `renar_drift_provenance`.
+
+`class_surface` is the one exception to "run over the declared scope": it ignores
+the file list and measures the **whole repo** (~0.65s). A class grows past its cap
+through its *bases*, so a scoped run would never see it — the same blindness that
+let a module reach 406 lines without blocking anyone. It caps a class's composed
+public surface after inheritance, which the per-file `filesize` cap structurally
+cannot see: a god-object built from mixins keeps every file under the line cap.
+The two **complement** each other — "this class does too much" and "this file is
+too long to read" are different defects. Counts are a **lower bound** (AST, never
+`import`, so a gate can measure a branch nobody has read yet), and known oversized
+classes sit behind a ratchet baseline in `tausik/gates.json` that may only shrink.
+
+**Post-scope gates** — take the close context and edit the QG-2 report:
+`verify_first` (a fresh signed verify green must exist) and `changelog`
+(convention #275). `get_gates_for_trigger` excludes them, so `run_gates` never
+calls one with the wrong signature.
 
 Stack-scoped gates: `pytest`, `tsc`, `eslint`, `js-test`, `go-vet`, `go-test`, `golangci-lint`,
 `cargo-check`, `cargo-test`, `clippy`, `phpstan`, `phpcs`, `phpunit`, `javac`, `ktlint`,
-`ansible-lint`, `terraform-validate`, `helm-lint`, `kubeval`, `hadolint`.
+`ansible-lint`, `terraform-validate`, `helm-lint`, `kubeconform`, `hadolint`.
 
 ## RENAR adoption — advisory-first ("lite")
 

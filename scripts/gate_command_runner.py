@@ -5,6 +5,7 @@ Extracted from gate_runner.py for filesize compliance
 
     _SCOPED_SKIP_SENTINEL — return marker for skipped scoped runs
     run_command_gate(gate, files) -> (passed, output)
+    split_scope(output) -> (label, body) — lift a genuine scope label off output
 
 Behaviour is identical to the previous in-place implementation; gate_runner
 re-exports both names for backwards compatibility with existing callers
@@ -19,10 +20,66 @@ import shlex
 import subprocess
 from typing import IO
 
-from gate_test_resolver import resolve_test_files_for_relevant
+from gate_test_resolver import count_test_files, resolve_test_files_for_relevant
 
 
 _SCOPED_SKIP_SENTINEL = "__TAUSIK_SCOPED_SKIP__"
+
+# How many scoped test files to name before summarising the rest.
+_SCOPE_LABEL_MAX_NAMED = 5
+
+# The human-readable head of the coverage line. It is only a DISPLAY prefix now,
+# not the trust signal: any subprocess can print "SCOPE:" too, so recognising a
+# genuine label by this string let a stack command's stdout masquerade as the
+# framework's own coverage disclosure (conventions #169/#297 — a gate must not
+# render checked-party text as framework-trusted output).
+SCOPE_PREFIX = "SCOPE:"
+
+# The trust signal is this private sentinel instead. `_scoped` prepends it to the
+# genuine label; a subprocess cannot emit a NUL-delimited token, so a spoofed
+# "SCOPE:" line in tool stdout never carries it. It is internal transport only:
+# gate_runner lifts the label off with `split_scope` at the one point it builds
+# the result dict, so the sentinel never reaches stored output or a receipt.
+_SCOPE_SENTINEL = "\x00\x00tausik-scope\x00\x00"
+
+
+def split_scope(output: str) -> tuple[str, str]:
+    """Lift a sentinel-marked scope label off the FRONT of `output`.
+
+    Returns ``(label, body)``. ``label`` is the human-readable "SCOPE: ..." line
+    with the private sentinel stripped, or ``""`` when the output carries no
+    genuine label. Only a leading sentinel counts — a "SCOPE:" line a subprocess
+    printed anywhere (including its own first line) has no sentinel and stays in
+    ``body``, so it can never be mistaken for the framework's disclosure.
+    """
+    if not output.startswith(_SCOPE_SENTINEL):
+        return "", output
+    first, _, rest = output[len(_SCOPE_SENTINEL) :].partition("\n")
+    return first, rest
+
+
+def _scope_label(test_files: list[str], total: int) -> str:
+    """One ASCII line stating WHAT a scoped pytest run actually covered.
+
+    The gate answers "do the tests mapped to relevant_files pass?", but its
+    output is a bare pytest tail ("42 passed") that a reader — and the signed
+    verify receipt built from it — takes as a statement about the whole suite.
+    Session #134 shipped a green receipt while the full suite was red: the
+    failing test simply was not in scope. The denominator has to travel with
+    the verdict, so the receipt cannot be read wider than it was earned.
+
+    ASCII only: this line is read in Windows consoles that mangle UTF-8.
+    """
+    named = ", ".join(test_files[:_SCOPE_LABEL_MAX_NAMED])
+    rest = len(test_files) - _SCOPE_LABEL_MAX_NAMED
+    if rest > 0:
+        named += f", +{rest} more"
+    denominator = f" of {total}" if total else ""
+    return (
+        f"{SCOPE_PREFIX} scoped run over {len(test_files)}{denominator} test "
+        f"file(s) mapped from relevant_files -- NOT the full suite: {named}"
+    )
+
 
 # v1.5 v15p-fix-hadolint-windows-head: stack gate commands historically end
 # with a unix truncation pipe (`hadolint {files} 2>&1 | head -30`). On Windows
@@ -192,10 +249,15 @@ def run_command_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
     is in cmd and no test files map from a non-empty relevant_files. The
     caller (run_gates) translates this into a skipped_result entry so the
     UI shows SKIP, not PASS, and we don't run an irrelevant full suite.
+
+    A run that WAS scoped prefixes its output with `_scope_label` — the verdict
+    and the size of the thing it was earned on travel together.
     """
     cmd = gate.get("command", "")
     if not cmd:
         return True, "No command configured."
+
+    scope_label = ""
 
     file_exts_raw = gate.get("file_extensions") or []
     if file_exts_raw and "{files}" in cmd:
@@ -231,6 +293,7 @@ def run_command_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
         #     relevant_files to opt in to actual verification.
         if not test_files:
             return True, _SCOPED_SKIP_SENTINEL
+        scope_label = _scope_label(test_files, count_test_files())
         test_files_str = " ".join(shlex.quote(t) for t in test_files)
         cmd = cmd.replace("{test_files_for_files}", test_files_str)
 
@@ -249,22 +312,29 @@ def run_command_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
     # configured path like backend/.venv/Scripts/python.exe resolves.
     cmd, line_filter = _extract_truncation_filter(cmd)
     timeout = gate.get("timeout", 120)
+
+    def _scoped(text: str) -> str:
+        """Every outcome of a scoped run carries its scope — pass, fail, timeout,
+        spawn failure. The label is sentinel-marked so gate_runner can trust it;
+        a non-scoped run (empty ``scope_label``) returns the text untouched."""
+        return f"{_SCOPE_SENTINEL}{scope_label}\n{text}" if scope_label else text
+
     try:
         returncode, raw_output = _run_shellless(cmd, timeout)
         output = raw_output.strip()
         if line_filter:
             output = _apply_line_filter(output, line_filter)
         if returncode == 0:
-            return True, output or "Passed."
-        return False, output or f"Failed with exit code {returncode}."
+            return True, _scoped(output or "Passed.")
+        return False, _scoped(output or f"Failed with exit code {returncode}.")
     except subprocess.TimeoutExpired:
-        return False, f"Gate timed out ({timeout}s)."
+        return False, _scoped(f"Gate timed out ({timeout}s).")
     except (FileNotFoundError, PermissionError, NotADirectoryError) as e:
         # Spawn failure (binary missing / not executable) — distinct from an
         # honest non-zero exit. Log it so a misconfigured gate command is visible.
         import logging
 
         logging.getLogger("tausik.gates").warning("Gate command not runnable: %s", e)
-        return False, f"Gate command not runnable (check the configured path): {e}"
+        return False, _scoped(f"Gate command not runnable (check the configured path): {e}")
     except Exception as e:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
-        return False, f"Gate error: {e}"
+        return False, _scoped(f"Gate error: {e}")

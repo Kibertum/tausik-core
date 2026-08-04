@@ -150,25 +150,43 @@ def run_main(
         except json.JSONDecodeError as e:
             print(f"Drift: invalid JSON in {path}: {e}", file=sys.stderr)
             return 1
-        # test_count is measured by `pytest --collect-only`, so it varies with the
-        # environment: optional-dependency modules `importorskip` themselves out of
-        # collection when a package is absent, so a minimal CI runner (pytest only)
-        # legitimately collects FEWER tests than a rich dev box. Gating on an exact
-        # match therefore fails CI for a reason that is not drift — it is the point of
-        # `--skip-test-count`. When set, compare everything EXCEPT test_count; the
-        # deterministic constants (version, tool/hook/code counts) stay hard-gated.
-        left, right = existing, payload
-        if skip_test_count:
-            left = {k: v for k, v in existing.items() if k != "test_count"}
-            right = {k: v for k, v in payload.items() if k != "test_count"}
+        # test_count is a DERIVED MEASUREMENT, not a DECLARED constant, and it
+        # changes with almost every task that adds or removes a test. Pinning it to
+        # an exact match turned normal work into drift: add tests -> close green ->
+        # full suite RED, unseen until the next nine-minute full run
+        # (doc-constants-drift-is-a-trap-every-task-steps-in, decision #182). It is
+        # therefore treated as a LOWER BOUND ("N+ tests"): the recorded number is a
+        # floor, so a suite that GREW (existing <= live) is never drift. The only
+        # meaningful failure is a suite that SHRANK below the recorded floor
+        # (existing > live) — a real regression signal. The deterministic DECLARED
+        # constants (version, tool/hook/code counts) stay hard-gated on exact match.
+        #
+        # `--skip-test-count` still exists for the ORTHOGONAL environment-variance
+        # case: optional-dependency modules `importorskip` themselves out of
+        # collection, so a minimal CI runner legitimately collects FEWER tests than
+        # a rich dev box (existing > live there too) — CI drops test_count entirely.
+        left = {k: v for k, v in existing.items() if k != "test_count"}
+        right = {k: v for k, v in payload.items() if k != "test_count"}
         if left != right:
             print(
-                f"Drift: {path} does not match live pyproject / MCP tools / test count.\n"
+                f"Drift: {path} does not match live pyproject / MCP tools.\n"
                 f"  expected tausik_version={payload.get('tausik_version')!r}\n"
                 f"  Run: python scripts/gen_doc_constants.py",
                 file=sys.stderr,
             )
             return 1
+        if not skip_test_count:
+            recorded = existing.get("test_count")
+            live = payload.get("test_count")
+            if isinstance(recorded, int) and isinstance(live, int) and recorded > live:
+                print(
+                    f"Drift: {path} records test_count={recorded} but the live suite "
+                    f"collects only {live} — the test suite shrank below the recorded "
+                    f"floor. If tests were removed on purpose, run: "
+                    f"python scripts/gen_doc_constants.py --write",
+                    file=sys.stderr,
+                )
+                return 1
         if not skip_cross_files:
             cross_drift = scan_version_refs(repo_root, str(payload["tausik_version"]))
             if cross_drift:

@@ -15,37 +15,15 @@ from typing import TYPE_CHECKING, Any
 from tausik_utils import ServiceError, utcnow_iso
 from model_pinning import model_done_updates
 from service_recording import record_call_actual, record_cost_actual
+from service_task_done_flags import _checklist_hard_enabled, _root_cause_hard_enabled
+from task_done_scope import (
+    persist_declared_scope,
+    scope_from_recent_verify,
+    scope_from_task_row,
+)
 
 if TYPE_CHECKING:
     from project_backend import SQLiteBackend
-
-
-def _root_cause_hard_enabled() -> bool:
-    """config task_done.root_cause_hard, default True (fail-closed policy —
-    see docs/ru/research/failclosed-gates-audit.md)."""
-    try:
-        from project_config import load_config
-
-        td = load_config().get("task_done", {})
-        if isinstance(td, dict):
-            return bool(td.get("root_cause_hard", True))
-    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
-        pass
-    return True
-
-
-def _checklist_hard_enabled() -> bool:
-    """config task_done.checklist_hard, default True (SENAR Rule 5 hard gate
-    for substantial/deep planning tiers — v15s-rule5-checklist-hardgate)."""
-    try:
-        from project_config import load_config
-
-        td = load_config().get("task_done", {})
-        if isinstance(td, dict):
-            return bool(td.get("checklist_hard", True))
-    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
-        pass
-    return True
 
 
 def _format_task_done_failures(report: dict[str, Any]) -> str:
@@ -78,6 +56,39 @@ def _format_task_done_failures(report: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
+
+def _redeem_verify_handle(be: "SQLiteBackend", slug: str, report: dict[str, Any]) -> None:
+    """Spend the presented verify handle, inside the caller's transaction.
+
+    Called from within the `status='done'` transaction so the spend shares its
+    fate: a rollback un-spends the handle, and a close blocked by a later gate
+    never reaches this line at all. Redeem-once is about one green not closing
+    two tasks (SEP-2322 replay) — that is a property of CLOSING, not of passing
+    the gate that checked the handle.
+
+    A failed spend RAISES rather than warning. Reaching here means every gate
+    passed and the handle validated moments ago, so the only ways the atomic
+    `WHERE handle_redeemed_at IS NULL` can miss are a concurrent close that took
+    it first or a database fault — and both mean this close must not be the one
+    that succeeds. The caller's `except: rollback_tx(); raise` turns it into a
+    refused close with the task untouched.
+    """
+    handle = report.get("_verify_handle_to_redeem")
+    if not handle:
+        return
+    from verify_handle import parse_handle, redeem
+
+    parsed = parse_handle(handle)
+    if parsed is None:  # pragma: no cover — the gate already parsed it
+        raise ServiceError(f"verify-handle: {handle!r} became unparseable between check and spend")
+    if not redeem(be._conn, *parsed):
+        raise ServiceError(
+            f"verify-handle: run #{parsed[0]} was spent between validation and "
+            f"close — another `task done` took it. Re-run "
+            f"`tausik verify --task {slug}` and present the new handle."
+        )
+
+
 class TaskDoneReportMixin:
     """Mixin providing _task_done_report. Composed into TaskMixin.
 
@@ -99,6 +110,9 @@ class TaskDoneReportMixin:
         evidence: str | None,
         evidence_json: str | None = None,
         progress_fn: Any | None = None,
+        no_file_changes: bool = False,
+        no_changelog: bool = False,
+        verify_handle: str | None = None,
     ) -> dict[str, Any]:
         # v14b-token-t15: structured evidence — convert JSON to canonical
         # prose before the existing log path. Mutex with --evidence prose
@@ -123,31 +137,23 @@ class TaskDoneReportMixin:
             "message": "",
         }
         task = self._require_task(slug)  # type: ignore[attr-defined]
-        # Verify-First: `tausik verify --task` uses DB relevant_files; `task done`
-        # often omits CLI --relevant-files — merge so cache hash matches verify runs.
-        if relevant_files is None:
-            rf_raw = task.get("relevant_files")
-            if rf_raw:
-                try:
-                    parsed = json.loads(rf_raw)
-                    if isinstance(parsed, list):
-                        relevant_files = parsed
-                except (TypeError, ValueError, json.JSONDecodeError):
-                    pass
-        # v14-task-done-relevant-files-fallback: when both caller and DB row are
-        # silent, recover the file set from the most recent fresh verify-row so
-        # `tausik verify --task X` then `task done X` (no CLI args) hits cache.
-        # Security-sensitive paths bypass the fallback — auth/payment/etc. always
-        # require an explicit list to avoid stale-green leakage.
-        if relevant_files is None:
-            from verify_recent_lookup import lookup_relevant_files_from_recent_verify
-            from service_verification import is_security_sensitive
-
-            recovered = lookup_relevant_files_from_recent_verify(self.be._conn, slug)
-            if recovered and not is_security_sensitive(recovered):
-                relevant_files = recovered
+        # Refuse an already-closed task BEFORE any write. persist_declared_scope
+        # mutates the row, and a closed task's scope fed its risk_score,
+        # verify-cache hash and receipt — rewriting it from a call that then
+        # fails ('already done') would corrupt a certified task invisibly.
         if task["status"] == "done":
             raise ServiceError(f"Task '{slug}' is already done")
+        # Where the scope comes from — and when it is written down — lives in
+        # `task_done_scope`; this function is about whether the task may CLOSE.
+        if persist_declared_scope(self.be, slug, relevant_files):
+            task = self._require_task(slug)  # type: ignore[attr-defined]
+        if relevant_files is None:
+            relevant_files = scope_from_task_row(task)
+        recovered_for_complexity: list[str] | None = None
+        if relevant_files is None:
+            adoptable, recovered_for_complexity = scope_from_recent_verify(self.be._conn, slug)
+            if adoptable:
+                relevant_files = adoptable
         if evidence:
             self.task_log(slug, evidence)  # type: ignore[attr-defined]
             task = self._require_task(slug)  # type: ignore[attr-defined]
@@ -164,11 +170,20 @@ class TaskDoneReportMixin:
             report["blocking_failures"].append({"stage": "plan", "message": str(e)})
             return report
         gate_report = self._run_quality_gates_report(  # type: ignore[attr-defined]
-            slug, relevant_files, progress_fn=progress_fn
+            slug,
+            relevant_files,
+            progress_fn=progress_fn,
+            no_file_changes=no_file_changes,
+            no_changelog=no_changelog,
+            verify_handle=verify_handle,
         )
         report["gates"] = gate_report.get("results", [])
         report["cache_status"] = gate_report.get("cache_status")
         report["gates_passed"] = bool(gate_report.get("passed"))
+        # The Verify-First gate validated a presented handle and left it here to
+        # be SPENT at close time. Carried across because the gate writes into its
+        # own report dict, and the spend belongs to the close transaction below.
+        report["_verify_handle_to_redeem"] = gate_report.get("_verify_handle_to_redeem")
         if not gate_report.get("passed"):
             failures = gate_report.get("blocking_failures", [])
             report["blocking_failures"] = [
@@ -187,7 +202,13 @@ class TaskDoneReportMixin:
             ]
             return report
 
-        checklist_warning = self._check_verification_checklist(slug, task)  # type: ignore[attr-defined]
+        # A `verification_run #NNNN` evidence line is only real if the run is
+        # green and belongs to this task — gather those ids so the AC gate reads
+        # the fact, not the form (ac-evidence-parser-cannot-see-a-measurement).
+        verified_run_ids = self._green_verification_run_ids(slug)  # type: ignore[attr-defined]
+        checklist_warning = self._check_verification_checklist(  # type: ignore[attr-defined]
+            slug, task, verified_run_ids
+        )
         # SENAR Rule 5 (v15s-rule5-checklist-hardgate): a missing checklist is a
         # HARD block for substantial/deep planning tiers; lower tiers escalate
         # through the nudge framework (silent→hint→warning→strong) and reset on
@@ -195,19 +216,19 @@ class TaskDoneReportMixin:
         checklist_nudge = ""
         from gate_ac_check import checklist_hard_block, checklist_missing
 
-        _cl_block, _cl_msg = checklist_hard_block(task)
-        if _cl_msg:
+        cl_block, cl_msg = checklist_hard_block(task, verified_run_ids)
+        if cl_block:
             if _checklist_hard_enabled():
                 report["blocking_failures"].append(
-                    {"stage": "checklist", "gate": "rule5-checklist", "message": _cl_msg}
+                    {"stage": "checklist", "gate": "rule5-checklist", "message": cl_msg}
                 )
                 return report
-            checklist_nudge = f"WARNING (checklist_hard=false): {_cl_msg}"
+            checklist_nudge = f"WARNING (checklist_hard=false): {cl_msg}"
         else:
             try:
                 from nudge_escalation import escalate, reset
 
-                if checklist_missing(task):
+                if checklist_missing(task, verified_run_ids):
                     checklist_nudge = escalate(
                         self.be._conn,
                         "checklist",
@@ -269,10 +290,9 @@ class TaskDoneReportMixin:
                 except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
                     root_cause_nudge = ""
 
-        # Knowledge capture warning (SENAR Rule 8).
-        # v1.3.4 (med-batch-2-qg #5): --no-knowledge refused for complex
-        # /defect tasks (SENAR Rule 8 upgrades from warning to refusal —
-        # those are the cases where knowledge capture matters most).
+        # Knowledge capture warning (SENAR Rule 8). v1.3.4 (med-batch-2-qg #5):
+        # --no-knowledge refused for complex/defect tasks (Rule 8 upgrades from
+        # warning to refusal — where knowledge capture matters most).
         _kw = ("dead end", "decided", "decision", "memory", "pattern", "gotcha")
         notes = task.get("notes") or ""
         is_complex = (task.get("complexity") or "").lower() == "complex"
@@ -317,9 +337,26 @@ class TaskDoneReportMixin:
                 "WARNING: no rollback_plan (SENAR Rule 6). Document how to "
                 "undo this change: task update --rollback-plan '...'"
             )
+        # l26-complexity-self-declared: detect an understated complexity that
+        # dodged the QG-0 scope/rollback gates and make it VISIBLE at close.
+        # Advisory + fail-open (Decision #158); count from the declared list, else
+        # the recovered set (a count leaks nothing, only a number is shown).
+        from complexity_understatement import warn_if_understated
+
+        files_for_complexity = (
+            relevant_files if relevant_files is not None else recovered_for_complexity
+        )
+        complexity_warning = warn_if_understated(
+            self.be, slug, task.get("complexity"), files_for_complexity
+        )
         updates: dict[str, Any] = {"status": "done", "completed_at": utcnow_iso()}
         if relevant_files:
             updates["relevant_files"] = json.dumps(relevant_files)
+        # qg2-cannot-close-fileless-task: record the fileless close countably,
+        # inside the status=done transaction (a blocked gate returned earlier, so
+        # this never marks a task that did not close). See backend_migrations_v41.
+        if no_file_changes:
+            updates["no_file_changes_declared"] = 1
         # v15-risk-compute-on-done: closure risk score — best-effort, never
         # blocks the close. None (total collection failure) just skips the
         # columns; downstream (metrics, L3 trigger) treats NULL as "unknown".
@@ -334,7 +371,22 @@ class TaskDoneReportMixin:
             updates["risk_score"] = risk["score"]
             updates["risk_json"] = json.dumps(risk, ensure_ascii=False)
             report["risk"] = risk
-            risk_note = f"Risk: {risk['score']} ({risk['level']})"
+            # DESCRIPTIVE, not predictive. Backtested on this project's own 374
+            # scored closures: AUC 0.4820 — the composite does not separate
+            # closures a defect escaped from those it did not. `Risk: 0.24 (low)`
+            # read as a quality verdict at every close, which is worse than no
+            # number: it draws attention away from the closures that deserve it.
+            # The wording says what it is. The trigger below is left in place —
+            # but NOT on the defence this comment used to give, which was false
+            # about its own mechanism: it does not "only ADD review", it appends
+            # a blocking failure and RETURNS, refusing the close. What justifies
+            # a refusal is not prediction (there is none) but description: above
+            # the threshold, most of the evidence we could measure is at its
+            # worst value, which is true by construction whatever the AUC says.
+            # Decision #212; docs/ru/research/risk-model-backtest-2026-07.md.
+            risk_note = (
+                f"Risk profile: {risk['score']} ({risk['level']}) — descriptive, not predictive"
+            )
             if risk.get("defaulted"):
                 risk_note += f" — unmeasured: {', '.join(risk['defaulted'])}"
             # v15-l3-risk-trigger: measured-high closures need an L3 review.
@@ -381,6 +433,9 @@ class TaskDoneReportMixin:
             if rollback_warning:
                 msgs.append(rollback_warning)
                 report["warnings"].append(rollback_warning)
+            if complexity_warning:
+                msgs.append(complexity_warning)
+                report["warnings"].append(complexity_warning)
             budget_warning = record_call_actual(self.be, slug, task)
             if budget_warning:
                 msgs.append(budget_warning)
@@ -390,6 +445,13 @@ class TaskDoneReportMixin:
                 msgs.append(cost_warning)
                 report["warnings"].append(cost_warning)
             msgs.extend(self._cascade_done(slug))  # type: ignore[attr-defined]
+            # v2-verify-receipt-as-argument: spend the presented handle HERE,
+            # inside the transaction that writes status='done'. Redeem-once
+            # exists so one green cannot close two tasks; binding the spend to
+            # the close means a rollback un-spends it too, and a close that
+            # blocks on a later gate no longer burns a verify run the agent
+            # then has to repeat.
+            _redeem_verify_handle(self.be, slug, report)
             self.be.commit_tx()
         except Exception:
             self.be.rollback_tx()

@@ -257,6 +257,130 @@ class TestGateRunner:
         passed, _ = run_filesize_gate({"max_lines": 400}, [str(cli)])
         assert passed is True
 
+    # --- l26-filesize-gate-revisit (decision #190): cap 400→500 + committed exempts ---
+
+    def test_filesize_default_cap_is_500(self, tmp_path):
+        # AC1: interim cap raised to 500. A file the size a merged wrapper would
+        # produce (~485 lines, e.g. gate_runner 393 + gate_filesize 97) now passes
+        # WITHOUT an explicit max_lines — the pressure to split it away is gone.
+        merged = tmp_path / "merged_module.py"
+        merged.write_text("x\n" * 485)
+        passed, _ = run_filesize_gate({}, [str(merged)])
+        assert passed is True
+
+    def test_registry_filesize_default_max_lines_is_500(self):
+        # AC1: the canonical runtime source (gate default_config) carries 500.
+        assert DEFAULT_GATES["filesize"]["max_lines"] == 500
+
+    def test_filesize_gate_still_blocks_genuinely_bloated_file(self, tmp_path):
+        # AC4: regression preserved — a file at 2× the concept (>500) still blocks.
+        big = tmp_path / "god_object.py"
+        big.write_text("x\n" * 600)
+        passed, output = run_filesize_gate({}, [str(big)])
+        assert passed is False
+        assert "600 lines" in output and "max 500" in output
+
+    def test_filesize_boundary_fails_then_passes(self, tmp_path):
+        # AC4: fails-then-passes across the cap boundary. The same 600-line file is
+        # blocked at the 500 cap and allowed once the cap is lifted above it.
+        f = tmp_path / "boundary.py"
+        f.write_text("x\n" * 600)
+        assert run_filesize_gate({"max_lines": 500}, [str(f)])[0] is False
+        assert run_filesize_gate({"max_lines": 700}, [str(f)])[0] is True
+
+    def test_exempt_dir_from_committed_config_not_source(self, tmp_path, monkeypatch):
+        # AC3: an exemption set by the COMMITTED tausik/gates.json (injected here via
+        # TAUSIK_GATES_CONFIG) takes effect WITHOUT editing gate_filesize.py source.
+        # 'vendored/' is deliberately absent from the hardcoded fallback list.
+        import gate_filesize
+
+        assert not any("vendored/" in d for d in gate_filesize._FILESIZE_EXEMPT_DIRS)
+        cfg = tmp_path / "gates.json"
+        cfg.write_text(json.dumps({"filesize": {"exempt_dirs": ["vendored/"]}}))
+        big = tmp_path / "vendored" / "huge_lib.py"
+        big.parent.mkdir(parents=True)
+        big.write_text("x\n" * 900)
+        # Without the config the file blocks…
+        assert run_filesize_gate({"max_lines": 500}, [str(big)])[0] is False
+        # …with the committed config it is exempt.
+        monkeypatch.setenv("TAUSIK_GATES_CONFIG", str(cfg))
+        assert run_filesize_gate({"max_lines": 500}, [str(big)])[0] is True
+
+    def test_exempt_basename_from_committed_config(self, tmp_path, monkeypatch):
+        # AC3: exempt_basenames is equally config-driven, matched anywhere in tree.
+        cfg = tmp_path / "gates.json"
+        cfg.write_text(json.dumps({"filesize": {"exempt_basenames": ["generated_pb2.py"]}}))
+        f = tmp_path / "src" / "generated_pb2.py"
+        f.parent.mkdir(parents=True)
+        f.write_text("x\n" * 900)
+        monkeypatch.setenv("TAUSIK_GATES_CONFIG", str(cfg))
+        assert run_filesize_gate({"max_lines": 500}, [str(f)])[0] is True
+
+    def test_committed_config_merges_over_defaults_never_drops(self, tmp_path, monkeypatch):
+        # AC3: committed config EXTENDS the fallback (union) — a config that only
+        # adds 'vendored/' must not drop the baseline 'tests/' exemption.
+        import gate_filesize
+
+        cfg = tmp_path / "gates.json"
+        cfg.write_text(json.dumps({"filesize": {"exempt_dirs": ["vendored/"]}}))
+        monkeypatch.setenv("TAUSIK_GATES_CONFIG", str(cfg))
+        dirs, _ = gate_filesize._resolve_exempts()
+        assert "vendored/" in dirs and "tests/" in dirs
+
+    def test_malformed_committed_config_degrades_to_defaults(self, tmp_path, monkeypatch):
+        # convention #226: a broken config must not crash the gate (that would block
+        # every close for a reason unrelated to the file under review) — it degrades
+        # to the hardcoded fallbacks.
+        import gate_filesize
+
+        cfg = tmp_path / "gates.json"
+        cfg.write_text("{ this is not valid json")
+        monkeypatch.setenv("TAUSIK_GATES_CONFIG", str(cfg))
+        dirs, names = gate_filesize._resolve_exempts()
+        assert dirs == gate_filesize._FILESIZE_EXEMPT_DIRS
+        assert names == gate_filesize._FILESIZE_EXEMPT_BASENAMES
+
+    def test_exempt_dir_matches_on_segment_boundary_not_substring(self):
+        # review s146 finding M2: 'tests/' must exempt tests/ but NOT unittests/.
+        import gate_filesize
+
+        assert gate_filesize._path_under_exempt_dir("tests/foo.py", "tests/") is True
+        assert gate_filesize._path_under_exempt_dir("a/tests/foo.py", "tests/") is True
+        assert gate_filesize._path_under_exempt_dir("scripts/unittests/x.py", "tests/") is False
+        assert gate_filesize._path_under_exempt_dir("backtests/x.py", "tests/") is False
+        assert (
+            gate_filesize._path_under_exempt_dir("docs/ru/research/x.md", "docs/ru/research/")
+            is True
+        )
+
+    def test_bloated_file_in_lookalike_dir_still_blocks(self, tmp_path):
+        # integration for M2: a 900-line file in unittests/ is NOT exempted by
+        # the baseline 'tests/' entry and still fails the cap.
+        d = tmp_path / "unittests"
+        d.mkdir()
+        big = d / "huge.py"
+        big.write_text("x\n" * 900)
+        passed, output = run_filesize_gate({"max_lines": 500}, [str(big)])
+        assert passed is False and "900 lines" in output
+
+    def test_committed_config_lookup_stops_at_git_root(self, tmp_path):
+        # review s146 finding M1: a foreign tausik/gates.json ABOVE the repo's
+        # .git must never be adopted for this project.
+        import gate_filesize
+
+        outer = tmp_path / "ci-workspace"
+        (outer / "tausik").mkdir(parents=True)
+        (outer / "tausik" / "gates.json").write_text(
+            '{"filesize": {"exempt_dirs": ["FOREIGN/"]}}', encoding="utf-8"
+        )
+        repo = outer / "repo"
+        (repo / ".git").mkdir(parents=True)  # repo-root marker
+        sub = repo / "scripts"
+        sub.mkdir()
+        # Walk from inside the repo (no local tausik/gates.json) must stop at .git
+        # and return None — never the outer foreign config.
+        assert gate_filesize._committed_gates_config_path(str(sub)) is None
+
     def test_command_gate_pass(self):
         gate = {"command": "python -c \"print('ok')\""}
         passed, output = run_command_gate(gate, [])
@@ -1088,3 +1212,32 @@ class TestPytestGateScopeSubstitution:
         """Regression: default pytest gate command uses the new substitution token."""
         cmd = DEFAULT_GATES["pytest"]["command"]
         assert "{test_files_for_files}" in cmd
+
+
+class TestGateRunnerCliVerdict:
+    """verify-surfaces-skip-notes-residue: `python gate_runner.py` must not print
+    `All gates passed.` after a `[SKIP]` — the same lie `gate_verdict` was
+    extracted to end, in the neighbour file the extraction did not reach."""
+
+    def test_all_skipped_run_does_not_claim_pass(self):
+        import subprocess
+
+        runner = os.path.join(SCRIPTS_DIR, "gate_runner.py")
+        # A path OUTSIDE every guarded tree: a file under scripts/ (or harness/,
+        # docs/, bootstrap/) now maps to the cross-cutting tests that declare
+        # CROSSCUTTING_SCOPE for that tree (scoped-pytest-blind-to-crosscutting-tests),
+        # so it would no longer be an all-skipped run. This unmapped top-level path
+        # maps to nothing — basename or cross-cutting — which is what this test needs.
+        proc = subprocess.run(
+            [sys.executable, runner, "review", "--files", "zzz_unmapped_dir/no_such_file.py"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        assert proc.returncode == 0
+        assert "[SKIP] pytest" in proc.stdout
+        assert "All gates passed." not in proc.stdout, (
+            f"claimed a pass after a skip:\n{proc.stdout}"
+        )
+        assert "no gate actually executed" in proc.stdout

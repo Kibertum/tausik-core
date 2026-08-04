@@ -136,8 +136,18 @@ secrets/
 
 ## Гарантии TAUSIK
 
-- `bash_firewall.py` блокирует `rm -rf /`, `git reset --hard origin`, force-push
+- `bash_firewall.py` блокирует `rm -rf /`, `Remove-Item -Recurse -Force C:\`, `git reset --hard origin`, force-push — **на обоих оболочечных каналах**, Bash и PowerShell. Полная матрица покрытия каналов: [`enforcement-coverage.md`](enforcement-coverage.md)
 - `git_push_gate.py` требует `TAUSIK_ALLOW_PUSH=1` (выставляется `/ship` после подтверждения)
-- `memory_pretool_block.py` блокирует Write/Edit в `~/.claude/**/memory/` (защита от утечки auto-memory)
+- `memory_pretool_block.py` блокирует Write/Edit/MultiEdit **и Bash/PowerShell** в любой чужой memory-сток — `~/.claude/**/memory/`, `.cursor/rules/`, `.windsurf/rules/`, `.github/copilot-instructions.md`, `.clinerules`, `.roo/rules/`, `.continue/rules/`, `.aider*` (deny-list: `scripts/memory_sinks.py`)
+- Гейт `memory_route` и хук `pre-commit` применяют тот же deny-list IDE-агностично по working tree; литмус-блок в генерируемых rule-файлах закрывает хосты с облачной памятью, которая не пишет файла вообще
 - `brain_scrubbing.py` вырезает приватные URL и имена проектов перед записью в Brain
 - Валидация slug'ов в scaffold ролей/стеков блокирует path traversal
+- Команду дефолтного гейта нельзя подменить чужим инструментом: `.tausik/config.json` едет вместе с репозиторием, поэтому переопределение `gates.<имя>.command` обязано вызывать тот же инструмент, что и дефолт. Аргументы, путь и обёртку-раннер менять можно (`vendor/bin/phpstan analyse --level=8` принимается; `eslint {files}` вместо дефолтного `npx eslint {files}` тоже — обёртки видны насквозь), сам инструмент — нет (`python -c pass` вместо `ruff` отвергается, гейт остаётся с дефолтной командой)
+- Установка скиллов гейтится на **обоих** путях в активированное дерево — `install` (`skill_manager.copy_skill`) и `activate` (`service_skills.skill_activate`): подпись издателя (ed25519, key-pinned на репо), guard'ы обхода пути и симлинков и общий **контент-скан невидимого Unicode** (`skill_content_scan.assert_skill_tree_clean`), который отказывает скиллу, прячущему инструкции для агента в zero-width / bidi / U+E0000 tag-block символах, по каждому prose/config/script-файлу. Полная модель: [`skill-supply-chain-threat-model.md`](skill-supply-chain-threat-model.md)
+
+### Границы гарантий
+
+Надзор проверяется машиной там, где это возможно машине. Оставшееся записано здесь честно, а не подразумевается.
+
+- **Инертные аргументы того же инструмента НЕ обнаруживаются.** Проверка сравнивает вызываемый инструмент, а не смысл вызова, поэтому `ruff --version` или `pytest --collect-only` в переопределении пройдут: инструмент тот самый, гейт формально включён и всегда зелёный. Машинного критерия «команда делает настоящую работу» не существует, а правило «команда обязана начинаться с дефолтного префикса» сломало бы и вендоренный путь, и легитимный отказ от обёртки `npx`. Переопределения команд гейтов в чужом репозитории читай глазами — гейт с подозрительно быстрым зелёным заслуживает взгляда на свою команду.
+- **Встроенные гейты** (`filesize`, `class_surface`, `tdd_order`, `renar_drift_*`) команды не имеют вовсе; попытка её добавить отвергается.

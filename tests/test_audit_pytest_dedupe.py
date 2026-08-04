@@ -144,7 +144,7 @@ def _run_audit_script(repo: Path, *args: str) -> "subprocess.CompletedProcess[st
         [str(_venv_python(repo)), str(repo / "scripts" / "audit_pytest_dedupe.py"), *args],
         cwd=str(repo),
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         env={**os.environ, "PYTHONIOENCODING": "utf-8"},
     )
 

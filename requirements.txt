@@ -1,3 +1,8 @@
 # TAUSIK core dependencies
 # Installed into .tausik/venv/ by bootstrap
-mcp>=1.0.0
+#
+# Every requirement needs an upper bound. The venv is built on the user's
+# machine at an unknown future moment, so an unbounded spec means a major
+# release breaks their MCP server, not our build. Keep the minor range open
+# so 1.x security fixes still land.
+mcp>=1.0.0,<2.0.0

@@ -10,6 +10,35 @@ from datetime import datetime, timezone
 from typing import Any
 
 
+def cli_invocation(environ: dict[str, str] | None = None, os_name: str | None = None) -> str:
+    """How to spell the TAUSIK CLI so the reader's shell will accept it.
+
+    Every remediation line in the framework hardcoded `.tausik/tausik`, and on
+    Windows that is not universally runnable. Measured, not assumed:
+
+        shell        .tausik/tausik      .tausik\\tausik
+        cmd.exe      NOT recognized      works
+        PowerShell   works               works
+        Git Bash     works               NOT (backslash is an escape)
+
+    So the extension is irrelevant — PATHEXT resolves `tausik.cmd` on its own —
+    and the separator is what decides. No single string works everywhere, which
+    means the choice is per-SHELL, not per-OS: a Windows developer inside Git
+    Bash needs the opposite of one inside cmd.
+
+    MSYSTEM / MSYS / a POSIX-looking SHELL are set by Git Bash and MSYS2 and by
+    neither cmd nor PowerShell, so they identify the one Windows case that
+    needs forward slashes. When in doubt on Windows the backslash form wins: it
+    is the one the two native shells both accept.
+    """
+    env = os.environ if environ is None else environ
+    name = os.name if os_name is None else os_name
+    if name != "nt":
+        return ".tausik/tausik"
+    posix_shell = bool(env.get("MSYSTEM") or env.get("MSYS")) or "/" in env.get("SHELL", "")
+    return ".tausik/tausik" if posix_shell else ".tausik\\tausik"
+
+
 def tausik_config_path(project_dir: str) -> str:
     """Return the canonical path to the project's `.tausik/config.json`.
 
@@ -18,6 +47,44 @@ def tausik_config_path(project_dir: str) -> str:
     call before venv activation.
     """
     return os.path.join(project_dir, ".tausik", "config.json")
+
+
+def load_effective_config(project_dir: str) -> dict:
+    """Effective `.tausik/config.json` for *project_dir*, merged through the trust
+    tiers (project < user < managed) — the value a consumer should actually act on.
+
+    Import-light home for consumers — chiefly the hooks — that MUST honour the
+    user (`~/.tausik`) and managed (`$TAUSIK_MANAGED_CONFIG`) tiers but run as a
+    fresh subprocess on every invocation and cannot afford `project_config`'s gate
+    machinery. `config_trust` is stdlib-only and imported lazily here, so a bare
+    `import tausik_utils` stays cheap and there is no import cycle (config_trust
+    itself only imports tausik_utils lazily). Reading raw `json.load` on the
+    project file alone — the bug this closes (`hooks-bypass-config-trust-tiers`) —
+    silently ignored a user/managed operator setting; routing through
+    `config_trust.resolve` makes the tier a tier for these consumers too.
+
+    Any read problem degrades the PROJECT tier to `{}` (never a crash); the trusted
+    tiers are still applied. Rejections (a project trying to weaken a guarded key)
+    are logged, not returned — a hook wants the value, not the audit trail.
+    """
+    import logging
+
+    from config_trust import resolve  # lazy: keep this module import-light, avoid a cycle
+
+    cfg_path = tausik_config_path(project_dir)
+    project: dict = {}
+    if os.path.isfile(cfg_path):
+        try:
+            with open(cfg_path, encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                project = data
+        except (OSError, json.JSONDecodeError, ValueError):
+            project = {}
+    merged, rejections = resolve(project)
+    for r in rejections:
+        logging.getLogger("tausik.config").warning("Config trust tier: %s", r.describe())
+    return merged
 
 
 def fix_stdio_encoding() -> None:
@@ -78,6 +145,11 @@ class ServiceError(Exception):
 
 
 MAX_TITLE = 512
+# A decision headline legitimately runs longer than a task title (it states a
+# choice AND its shape). validate_length counts CHARACTERS, not bytes, so this
+# is a symbol limit — Cyrillic is not penalised 2x (dead-end #324 disproved the
+# byte-penalty theory: len(str) has been code-point based since v1.0.0).
+MAX_DECISION = 1024
 MAX_CONTENT = 100_000
 
 

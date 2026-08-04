@@ -1,9 +1,12 @@
 """Move records between local TAUSIK store and shared brain.
 
-`move_to_brain(svc, kind, source_id, *, keep_source)` — pulls a local
-decision/pattern/gotcha and writes it to the brain via
-`brain_mcp_write.store_record`. On success deletes the local row unless
-`keep_source=True`.
+`move_to_brain(svc, kind, source_id, *, keep_source)` — publishes a local
+decision/pattern/gotcha to the brain via `brain_mcp_write.store_record` and
+KEEPS the local row. Passing `keep_source=False` turns it into an actual move.
+
+That default is the opposite of what it was, and it flipped when automatic
+mirroring was removed (decision #221): this became the path a person is pointed
+at for publishing, and a publish that deletes the project's copy is a handover.
 
 `move_to_local(svc, notion_page_id, category, *, force, keep_source)` — pulls
 a brain row by notion_page_id (decisions/patterns/gotchas only — `web_cache`
@@ -43,11 +46,7 @@ _BRAIN_TABLES = {
 
 def _current_project_hash() -> str:
     """SHA256[:16] of the current project's canonical name."""
-    name = (
-        os.environ.get("TAUSIK_PROJECT_NAME")
-        or os.path.basename(os.getcwd())
-        or "project"
-    )
+    name = os.environ.get("TAUSIK_PROJECT_NAME") or os.path.basename(os.getcwd()) or "project"
     return brain_config.compute_project_hash(name)
 
 
@@ -92,13 +91,9 @@ def _kind_to_category(kind: str) -> str:
     return {"decision": "decisions", "pattern": "patterns", "gotcha": "gotchas"}[kind]
 
 
-def _read_brain_row(
-    conn: sqlite3.Connection, category: str, notion_page_id: str
-) -> dict | None:
+def _read_brain_row(conn: sqlite3.Connection, category: str, notion_page_id: str) -> dict | None:
     table = _BRAIN_TABLES[category]
-    cur = conn.execute(
-        f"SELECT * FROM {table} WHERE notion_page_id = ?", (notion_page_id,)
-    )
+    cur = conn.execute(f"SELECT * FROM {table} WHERE notion_page_id = ?", (notion_page_id,))
     row = cur.fetchone()
     if row is None:
         return None
@@ -108,10 +103,20 @@ def _read_brain_row(
 # --- to-brain -------------------------------------------------------------
 
 
-def move_to_brain(
-    svc, kind: str, source_id: int, *, keep_source: bool = False
-) -> dict[str, Any]:
-    """Move a local row into the brain. See module docstring for contract."""
+def move_to_brain(svc, kind: str, source_id: int, *, keep_source: bool = True) -> dict[str, Any]:
+    """Publish a local row to the brain, KEEPING it locally by default.
+
+    The default used to be the opposite, and that only became untenable when
+    automatic mirroring was removed: with `decide` no longer publishing on its
+    own, this is the path a person is pointed at — and a "publish" that deletes
+    the project's copy is not a publish, it is a handover. It also contradicted
+    the first guarantee of `service_decide`, that the project's own copy is
+    unconditional.
+
+    `keep_source=False` still moves, for the case where handing a record over
+    is genuinely what was meant; it is now something asked for rather than
+    something that happens.
+    """
     if kind not in VALID_TO_BRAIN_KINDS:
         return {
             "status": "bad_input",
@@ -126,8 +131,7 @@ def move_to_brain(
         if row and (row.get("type") or "") not in (kind, kind + "s"):
             return {
                 "status": "bad_input",
-                "reason": f"memory row #{source_id} type='{row.get('type')}' "
-                f"!= kind='{kind}'",
+                "reason": f"memory row #{source_id} type='{row.get('type')}' != kind='{kind}'",
             }
     if row is None:
         return {"status": "not_found", "reason": f"local {kind} #{source_id}"}
@@ -138,27 +142,31 @@ def move_to_brain(
     if client is None:
         return {"status": "failed", "reason": "Notion token env var not set"}
 
-    fields = (
-        _decision_to_brain_fields(row)
-        if kind == "decision"
-        else _memory_to_brain_fields(row)
-    )
+    fields = _decision_to_brain_fields(row) if kind == "decision" else _memory_to_brain_fields(row)
     category = _kind_to_category(kind)
     result = brain_mcp_write.store_record(client, conn, category, fields, cfg)
     if result.get("status") not in ("ok", "ok_not_mirrored"):
         # scrub_blocked / notion_error / config_error / bad_fields → keep source
         return {
-            "status": "skipped"
-            if result.get("status") == "scrub_blocked"
-            else "failed",
+            "status": "skipped" if result.get("status") == "scrub_blocked" else "failed",
             "reason": result.get("status") or "unknown",
             "store_result": result,
         }
     if not keep_source:
+        # Through the mixin, not `_ex`. Both statements used to be raw, and a
+        # migration works in BATCHES — one run left as many ghost files as it
+        # moved rows, each describing an entry the DB no longer had. A later
+        # `state export` hid every one of them by rebuilding the tree from
+        # scratch, so `status` stayed clean while the incremental tree rotted.
         if kind == "decision":
-            svc.be._ex("DELETE FROM decisions WHERE id = ?", (int(source_id),))
+            # `_delete_projected_by_id` rather than a `decision_delete` method:
+            # this is the only module that removes a decision, and the
+            # class-surface ratchet holds `SQLiteBackend` at 129 public members
+            # for good reason. What matters is that the delete happens on the
+            # write layer, which projects the departure — not what it is called.
+            svc.be._delete_projected_by_id("decisions", int(source_id))
         else:
-            svc.be._ex("DELETE FROM memory WHERE id = ?", (int(source_id),))
+            svc.be.memory_delete(int(source_id))
     return {
         "status": "ok",
         "notion_page_id": result.get("notion_page_id"),
@@ -216,7 +224,14 @@ def move_to_local(
     # Map brain row → local insert
     if category == "decisions":
         text = (row.get("decision") or row.get("name") or "").strip()
-        local_id = svc.be.decision_add(text, rationale=row.get("rationale") or None)
+        # `write_local`, not `decision_add`. Its docstring counted three of four
+        # call sites that reached past it and skipped the projection; this was
+        # the fourth, and it was not counted because nobody looked outside the
+        # service layer. A row arriving with no file is the same ghost as a file
+        # left by a departed row, with the sign flipped.
+        from service_decide import write_local
+
+        local_id = write_local(svc, text, None, row.get("rationale") or None)
     else:
         title = (row.get("name") or "").strip() or "(untitled)"
         body = (row.get("description") or "").strip()

@@ -33,8 +33,20 @@ def archive_memory(be: SQLiteBackend, before: str, confirm: bool = False) -> dic
         raise ServiceError(str(e)) from e
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
     if confirm:
+        # Ids are read BEFORE applying: afterwards the rows carry archived_at and
+        # the candidate query no longer returns them. The caller needs them to drop
+        # those files from the git projection, which excludes archived rows. Ids,
+        # not slugs — the candidate projection does not select a slug column, and
+        # the id still resolves to one after the row is archived.
+        doomed = [r["id"] for r in be.memory_archive_candidates(cutoff) if r.get("id")]
         archived = be.memory_archive_apply(cutoff)
-        return {"archived": archived, "before_days": days, "cutoff": cutoff, "applied": True}
+        return {
+            "archived": archived,
+            "archived_ids": doomed,
+            "before_days": days,
+            "cutoff": cutoff,
+            "applied": True,
+        }
     candidates = be.memory_archive_candidates(cutoff)
     return {
         "archived": 0,

@@ -19,6 +19,7 @@ from glob import glob
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from cost_pricing import calculate_cost_usd  # noqa: E402
+from token_accounting import sum_usage_tokens  # noqa: E402
 
 
 def parse_transcript(path: str) -> dict:
@@ -58,11 +59,15 @@ def parse_transcript(path: str) -> dict:
             if msg_type in ("human", "assistant"):
                 messages += 1
 
-            # Extract usage from API response
+            # Extract usage from API response. sum_usage_tokens folds in
+            # server-side compaction billed under usage.iterations[*], which the
+            # top-level input/output_tokens omit — a top-level-only sum here
+            # understated the real (billed) token count (l26-tokenizer-calibration).
             usage = entry.get("usage") or entry.get("message", {}).get("usage") or {}
             if usage:
-                tokens_input += usage.get("input_tokens", 0)
-                tokens_output += usage.get("output_tokens", 0)
+                ti, to = sum_usage_tokens(usage)
+                tokens_input += ti
+                tokens_output += to
 
             # Extract model
             entry_model = entry.get("model") or entry.get("message", {}).get("model") or ""
@@ -182,87 +187,25 @@ def write_metrics(metrics: dict, output_path: str | None = None) -> str:
     return output_path
 
 
-def extract_token_rows(path: str, session_id: int) -> list[dict]:
-    """Walk transcript JSONL, emit one row per tool_use occurrence.
-
-    Schema matches service_token_metrics.aggregate(): ts, session_id, tool_name,
-    input_tokens, output_tokens, cache_read, cache_create, model. API usage is
-    message-level, so per-tool attribution divides input/output/cache_* equally
-    across tool_use blocks in the same assistant entry; the last block absorbs
-    the integer-division remainder so totals stay exact. Pure-text turns and
-    entries without tool_use blocks emit no rows.
-    """
-    rows: list[dict] = []
-    with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entry = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if entry.get("type") != "assistant":
-                continue
-            msg = entry.get("message") if isinstance(entry.get("message"), dict) else {}
-            usage = entry.get("usage") or msg.get("usage") or {}
-            if not isinstance(usage, dict) or not usage:
-                continue
-            content = entry.get("content") or msg.get("content") or []
-            if not isinstance(content, list):
-                continue
-            tool_uses = [b for b in content if isinstance(b, dict) and b.get("type") == "tool_use"]
-            if not tool_uses:
-                continue
-            n = len(tool_uses)
-            ts = entry.get("timestamp") or ""
-            input_tokens = int(usage.get("input_tokens") or 0)
-            output_tokens = int(usage.get("output_tokens") or 0)
-            cache_read = int(usage.get("cache_read_input_tokens") or 0)
-            cache_create = int(usage.get("cache_creation_input_tokens") or 0)
-            entry_model = entry.get("model") or msg.get("model") or None
-            if not isinstance(entry_model, str) or not entry_model.strip():
-                entry_model = None
-
-            def _split(total: int, idx: int) -> int:
-                base = total // n
-                if idx == n - 1:
-                    return total - base * (n - 1)
-                return base
-
-            for i, tu in enumerate(tool_uses):
-                rows.append(
-                    {
-                        "ts": ts,
-                        "session_id": session_id,
-                        "tool_name": tu.get("name") or "(unknown)",
-                        "input_tokens": _split(input_tokens, i),
-                        "output_tokens": _split(output_tokens, i),
-                        "cache_read": _split(cache_read, i),
-                        "cache_create": _split(cache_create, i),
-                        "model": entry_model,
-                    }
-                )
-    return rows
-
-
-def append_token_rows(rows: list[dict], project_dir: str | None = None) -> str | None:
-    """Append rows to .tausik/token_metrics.jsonl. Returns path or None on no-op."""
-    if not rows:
-        return None
-    proj = project_dir or os.getcwd()
-    tausik_dir = os.path.join(proj, ".tausik")
-    if not os.path.isdir(tausik_dir):
-        return None
-    path = os.path.join(tausik_dir, "token_metrics.jsonl")
+def _load_config_safe() -> dict | None:
+    """Effective project config, or None. Best-effort — never raises."""
     try:
-        with open(path, "a", encoding="utf-8") as fh:
-            for r in rows:
-                fh.write(json.dumps(r, ensure_ascii=False) + "\n")
-    except OSError as exc:
-        print(f"token_metrics.jsonl append failed: {exc}", file=sys.stderr)
+        from project_config import load_config
+
+        return load_config()
+    except Exception:  # noqa: BLE001 — no config just means "export stays off"
         return None
-    return path
+
+
+# Token-row extraction and the token_metrics.jsonl writer moved to
+# `token_rows` at the 400-line cap. Re-exported so existing callers and
+# tests keep importing them from here.
+from token_rows import (  # noqa: E402,F401
+    TOKEN_METRICS_MAX_BYTES,
+    _surviving_lines,
+    extract_token_rows,
+    replace_session_token_rows,
+)
 
 
 def resolve_session_id(project_dir: str | None = None) -> int | None:
@@ -291,13 +234,30 @@ def record_to_db(metrics: dict, project_root: str | None = None) -> bool:
     """
     import subprocess
 
+    # Locate project.py and the true project root by self-location, not a
+    # miscounted dirname chain. `dirname×3(__file__)` actually yielded the
+    # *profile* dir (…/.claude), so the old first candidate
+    # `<profile>/.claude/scripts/project.py` doubled the profile segment and
+    # never existed, and `cwd=<profile>` made project.py resolve `.tausik/`
+    # under the profile instead of the project root — a silent DB-record miss
+    # that only "worked" through the scripts/ fallback. The shared helper is
+    # the single home for this logic (see _common.profile_dir).
+    hooks_dir = os.path.dirname(os.path.abspath(__file__))
+    if hooks_dir not in sys.path:
+        sys.path.insert(0, hooks_dir)
+    from _common import profile_dir
+    from _common import project_root as _detect_root
+
+    profile = profile_dir()
     if not project_root:
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    script = os.path.join(project_root, ".claude", "scripts", "project.py")
-    if not os.path.isfile(script):
-        # Try root scripts/ (source layout)
-        script = os.path.join(project_root, "scripts", "project.py")
-    if not os.path.isfile(script):
+        project_root = _detect_root()
+
+    candidates: list[str] = []
+    if profile:  # deployed: project.py ships under the profile's scripts/
+        candidates.append(os.path.join(profile, "scripts", "project.py"))
+    candidates.append(os.path.join(project_root, "scripts", "project.py"))  # source tree
+    script = next((c for c in candidates if os.path.isfile(c)), None)
+    if not script:
         print("project.py not found, skipping DB record", file=sys.stderr)
         return False
 
@@ -384,13 +344,25 @@ def main():
     )
     print(f"Written to: {output}")
 
+    # Optional OTLP/JSON export — an ADDITIONAL output, off unless enabled. When
+    # disabled session_otlp_document() returns {} and nothing here runs, so the
+    # events/metrics path above is unchanged (l26-otel-export, AC1).
+    from otel_export import session_otlp_document
+
+    otlp = session_otlp_document(metrics, _load_config_safe())
+    if otlp:
+        otlp_path = os.path.join(os.path.dirname(output), "session-otlp.json")
+        with open(otlp_path, "w", encoding="utf-8") as f:
+            json.dump(otlp, f, indent=2, ensure_ascii=False)
+        print(f"OTLP trace: {otlp_path}")
+
     if record:
         record_to_db(metrics)
 
     sid = resolve_session_id()
     if sid is not None:
         rows = extract_token_rows(path, sid)
-        jsonl = append_token_rows(rows)
+        jsonl = replace_session_token_rows(rows)
         if jsonl:
             print(f"token_metrics.jsonl: appended {len(rows)} row(s) to {jsonl}")
 

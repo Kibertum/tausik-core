@@ -117,6 +117,11 @@ class TestForceFlag:
 
 class TestEventCountTimestampSafety:
     def test_microsecond_timestamps_handled(self, svc):
+        # A budgeted task now needs an open session: an absent one is an
+        # UNMEASURED capacity, not an unlimited one (decision #223). These two
+        # tests are about the event-count window, not about capacity — they
+        # simply relied on the gate no-oping.
+        svc.session_start()
         _ready_task(svc, "t1", budget=10)
         svc.task_start("t1")
         svc.be._ex(
@@ -128,6 +133,7 @@ class TestEventCountTimestampSafety:
         assert cnt >= 1
 
     def test_window_excludes_after_completed(self, svc):
+        svc.session_start()
         _ready_task(svc, "t1", budget=10)
         svc.task_start("t1")
         svc.be.task_update("t1", completed_at="2020-01-01T00:00:00Z", status="done")
@@ -149,10 +155,21 @@ class TestOverflowDocs:
         with open(path, encoding="utf-8") as f:
             text = f.read()
         # The 4096B static cap (claude-md-trim-reference-line task) trimmed the
-        # verbose ">400 lines / deep file" prose. Contract now: the cap value
+        # verbose ">N lines / deep file" prose. Contract now: the cap value
         # and the gate name must remain mentioned in CLAUDE.md so the agent
         # still sees the rule.
-        assert "400" in text
+        #
+        # The number is READ FROM THE GATE, never spelled here: this pin used to
+        # hardcode "400" and silently went stale the moment decision #190 raised
+        # the cap to 500 — CLAUDE.md was updated correctly and the test failed
+        # anyway, which is a doc-drift guard drifting from the thing it guards.
+        from gate_registry import GATE_REGISTRY
+
+        cap = GATE_REGISTRY["filesize"].default_config["max_lines"]
+        assert str(cap) in text, (
+            f"CLAUDE.md must state the current filesize cap ({cap}); "
+            "update the prose when the gate's max_lines changes"
+        )
         assert "filesize" in text.lower()
 
     def test_tools_py_mentions_overflow(self):

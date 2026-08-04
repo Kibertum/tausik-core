@@ -36,6 +36,16 @@ def _import_hook():
     return mod
 
 
+@pytest.fixture(autouse=True)
+def _isolate_trust_tiers(tmp_path, monkeypatch):
+    # hooks-bypass-config-trust-tiers: the threshold now resolves through the
+    # user/managed tiers. Point them at nonexistent files so no test ever reads
+    # the developer's real ~/.tausik/config.json. Individual tests override
+    # TAUSIK_USER_CONFIG when they mean to exercise the user tier.
+    monkeypatch.setenv("TAUSIK_USER_CONFIG", str(tmp_path / "_no_user.json"))
+    monkeypatch.setenv("TAUSIK_MANAGED_CONFIG", str(tmp_path / "_no_managed.json"))
+
+
 @pytest.mark.parametrize(
     "text,expected",
     [
@@ -65,6 +75,29 @@ def test_resolve_threshold_from_config_json(tmp_path, monkeypatch):
     )
     monkeypatch.delenv("TAUSIK_OUTPUT_TRUNCATION_THRESHOLD", raising=False)
     assert mod._resolve_threshold(str(tmp_path)) == 42
+
+
+def test_resolve_threshold_from_user_tier(tmp_path, monkeypatch):
+    # hooks-bypass-config-trust-tiers: a user-tier value is now honoured even when
+    # the project sets nothing — the whole point of the fix.
+    mod = _import_hook()
+    user_cfg = tmp_path / "user.json"
+    user_cfg.write_text(json.dumps({"tool_output_truncation_threshold": 88}), encoding="utf-8")
+    monkeypatch.setenv("TAUSIK_USER_CONFIG", str(user_cfg))
+    monkeypatch.delenv("TAUSIK_OUTPUT_TRUNCATION_THRESHOLD", raising=False)
+    # project tier (tmp_path/.tausik) is absent → user tier wins over the default
+    assert mod._resolve_threshold(str(tmp_path)) == 88
+
+
+def test_resolve_threshold_malformed_project_falls_back(tmp_path, monkeypatch):
+    # NEGATIVE/boundary: a broken project config.json must not crash the hook;
+    # with no valid tier it falls back to the hard default.
+    mod = _import_hook()
+    cfg_dir = tmp_path / ".tausik"
+    cfg_dir.mkdir()
+    (cfg_dir / "config.json").write_text("{ not json", encoding="utf-8")
+    monkeypatch.delenv("TAUSIK_OUTPUT_TRUNCATION_THRESHOLD", raising=False)
+    assert mod._resolve_threshold(str(tmp_path)) == mod.DEFAULT_THRESHOLD
 
 
 def test_resolve_threshold_from_env(tmp_path, monkeypatch):
@@ -144,6 +177,7 @@ def _run_hook(payload: dict, env: dict[str, str] | None = None, cwd: str | None 
         input=json.dumps(payload),
         capture_output=True,
         text=True,
+        encoding="utf-8",
         env=full_env,
         cwd=cwd,
         timeout=10,
@@ -188,6 +222,7 @@ def test_hook_silent_on_empty_stdin(tmp_path):
         input="",
         capture_output=True,
         text=True,
+        encoding="utf-8",
         cwd=str(tmp_path),
         timeout=10,
     )
@@ -201,6 +236,7 @@ def test_hook_silent_on_malformed_json(tmp_path):
         input="{not json",
         capture_output=True,
         text=True,
+        encoding="utf-8",
         cwd=str(tmp_path),
         timeout=10,
     )

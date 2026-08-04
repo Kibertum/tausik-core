@@ -15,11 +15,50 @@ from session_cleanup_check import (
     _has_open_exploration,
     _review_task_count,
     _session_overrun_minutes,
+    _session_warn_min,
 )
 
 _HOOK_PATH = os.path.join(
     os.path.dirname(__file__), "..", "scripts", "hooks", "session_cleanup_check.py"
 )
+
+
+class TestSessionWarnMinTrustTiers:
+    """hooks-bypass-config-trust-tiers: _session_warn_min used to raw-json.load the
+    project file, ignoring the user/managed tiers where an operator sets this
+    machine-wide. It now merges the tiers via load_effective_config."""
+
+    @pytest.fixture(autouse=True)
+    def _isolate_trust_tiers(self, tmp_path, monkeypatch):
+        # Point the trusted tiers at nonexistent files so no test reads the real
+        # ~/.tausik/config.json; tests override TAUSIK_USER_CONFIG to exercise it.
+        monkeypatch.setenv("TAUSIK_USER_CONFIG", str(tmp_path / "_no_user.json"))
+        monkeypatch.setenv("TAUSIK_MANAGED_CONFIG", str(tmp_path / "_no_managed.json"))
+
+    def test_default_when_nothing_set(self, tmp_path):
+        assert _session_warn_min(str(tmp_path)) == 150
+
+    def test_project_tier_value(self, tmp_path):
+        cfg = tmp_path / ".tausik"
+        cfg.mkdir()
+        (cfg / "config.json").write_text(
+            json.dumps({"session_warn_threshold_minutes": 120}), encoding="utf-8"
+        )
+        assert _session_warn_min(str(tmp_path)) == 120
+
+    def test_user_tier_value_now_takes_effect(self, tmp_path, monkeypatch):
+        user_cfg = tmp_path / "user.json"
+        user_cfg.write_text(json.dumps({"session_warn_threshold_minutes": 90}), encoding="utf-8")
+        monkeypatch.setenv("TAUSIK_USER_CONFIG", str(user_cfg))
+        # no project tier → the user value wins over the default (the bug's fix)
+        assert _session_warn_min(str(tmp_path)) == 90
+
+    def test_malformed_project_falls_back(self, tmp_path):
+        # NEGATIVE: broken JSON must not crash — falls back to the default.
+        cfg = tmp_path / ".tausik"
+        cfg.mkdir()
+        (cfg / "config.json").write_text("{ not json", encoding="utf-8")
+        assert _session_warn_min(str(tmp_path)) == 150
 
 
 class TestPureHelpers:
@@ -76,6 +115,7 @@ class TestHookIntegration:
             input=json.dumps(payload),
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=15,
             env=env,
         )
@@ -115,6 +155,7 @@ class TestHookIntegration:
             input="not-json",
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=15,
             env=env,
         )

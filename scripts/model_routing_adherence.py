@@ -1,10 +1,19 @@
-"""Routing adherence telemetry — recommended vs actual model per task close.
+"""Model recommendation-fit telemetry — recommended vs running model per close.
 
 On `task done` (when both are known) we append one row pairing the model that
 was *recommended* at task_start (persisted by `model_routing_session`) with the
-model that was actually *active* (read from the transcript). `tausik metrics`
-aggregates these into a % adherence + top deviations — calibration data for the
-phase x complexity matrix (`model_routing_matrix`).
+model that was actually *running* (read from the transcript). `tausik metrics`
+aggregates these into a % match + the top recommendation→run gaps.
+
+This is CALIBRATION DATA, not a compliance score (decision #183,
+routing-adherence-metric-measures-nothing). Model choice is per-session and set
+MANUALLY in the IDE picker — the harness does not switch models programmatically
+(see bootstrap WORKFLOW) — so a recommendation that differs from the running
+model is not a rule violation; it tells us whether the `model_routing_matrix`
+recommends the models people actually run. The historical "adherence/deviation"
+naming (below, kept for API stability) carried a compliance connotation the
+metric never earned; the presentation in `tausik metrics` says "recommendation
+fit" and names the manual-choice caveat so a low % does not read as indiscipline.
 
 Storage is a crash-safe append-only JSONL sidecar (`.tausik/routing_adherence.jsonl`),
 mirroring `.task_recommendation.json` rather than polluting the append-only task
@@ -173,3 +182,29 @@ def aggregate_adherence(tausik_dir: str) -> dict[str, Any]:
         "pct": pct,
         "top_deviations": [{"shift": k, "count": v} for k, v in top],
     }
+
+
+def format_recommendation_fit(adh: dict[str, Any] | None) -> str:
+    """Render the `tausik metrics` recommendation-fit block (decision #183).
+
+    Returns "" when there is no data (`n == 0` or None) — an EMPTY sample must
+    not print a spurious 0% that reads as a failure. Framed as a fit/calibration
+    signal, never as compliance: model choice is per-session and manual, so a
+    recommendation that differs from the running model is not a violation.
+    """
+    if not adh or not adh.get("n"):
+        return ""
+    lines = [
+        "--- Model Recommendation Fit (v1.5) ---",
+        f"Running model matched the recommendation: {adh['pct']}% (n={adh['n']})",
+    ]
+    deviations = adh.get("top_deviations", [])
+    if deviations:
+        lines.append(
+            "  Recommendation vs running model (model is chosen per-session in the "
+            "IDE, not switched programmatically — a gap is calibration, not a "
+            "policy violation):"
+        )
+        for d in deviations:
+            lines.append(f"    recommended {d['shift']} (rec->run): {d['count']}")
+    return "\n".join(lines)

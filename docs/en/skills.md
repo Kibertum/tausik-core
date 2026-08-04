@@ -116,6 +116,21 @@ Installed from the `tausik-skills` repo. Use `tausik skill install <name>` to ad
 
 The official vendor repo: `https://github.com/Kibertum/tausik-skills`. Custom repos are supported — see **[Skill Adaptation Guide](skill-adaptation.md)**.
 
+### Spec conformance (agentskills.io)
+
+The SKILL.md format is now the cross-vendor **agentskills.io** canon. A built-in
+gate (`skill_spec_conformance`) fails a close/commit when a changed `SKILL.md`
+breaks the machine-checkable rules: `name` is 1–64 chars of `a-z0-9` with single
+hyphens (no leading/trailing/doubled hyphen) and **must equal its directory
+name**; `description` is 1–1024 chars. The gate is inert unless a `SKILL.md` is
+among the changed files. Local scaffolds whose directory starts with `_` or `.`
+(e.g. `_profile-demo`) are not published skills and are skipped.
+
+> The agentskills.io spec is **not versioned** and contains **no security
+> provisions** — nothing about trust, sandboxing, or tool permissions. This gate
+> is a hygiene check that keeps progressive disclosure working; never treat
+> conformance as a trust signal.
+
 ### Bulk install via bundles
 
 `tausik skill install <name>` installs one skill at a time. For groups (integrations, data-formats, quality-pro, automation, workflow-helpers), use **bundles** instead — see **[Skill Bundles](skill-bundles.md)**:

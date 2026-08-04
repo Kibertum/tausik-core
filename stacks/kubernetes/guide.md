@@ -1,7 +1,7 @@
 # Stack: Kubernetes
 
 ## Testing & Validation
-- **Schema validation**: `kubeval` (auto-enabled by Tausik on `k8s/` / `manifests/`)
+- **Schema validation**: `kubeconform` (auto-enabled by Tausik on `k8s/` / `manifests/`) — the maintained successor to `kubeval` (archived upstream); supports current K8s versions and CRDs
 - **Score / best-practice**: `kube-score` (add as custom gate)
 - **Cluster-side**: `kubectl apply --dry-run=server` (validates against admission controllers)
 - **Policy-as-code**: NOT shipped — add OPA Gatekeeper / Kyverno / Conftest as custom gate

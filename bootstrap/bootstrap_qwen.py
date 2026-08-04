@@ -13,6 +13,14 @@ from typing import Any
 
 from bootstrap_generate import _stdio_mcp_server
 
+# The shell-tool matcher is IMPORTED, not restated. Every matcher below used to
+# carry its own copy of the string "Bash" under a comment promising parity with
+# bootstrap_hooks.py — and a promise in a comment is not a mechanism. When a
+# second shell tool appeared, the Claude generator and this one would have had
+# to be edited in lockstep by whoever remembered. Sharing the constant makes
+# that impossible to get wrong.
+from bootstrap_hooks import SHELL_MATCHER
+
 
 def generate_settings_qwen(
     target_dir: str,
@@ -81,7 +89,8 @@ def generate_settings_qwen(
     hooks = {
         "PreToolUse": [
             {
-                "matcher": "Write|Edit",
+                # l26-hook-contract-review parity: MultiEdit/NotebookEdit also write.
+                "matcher": "Write|Edit|MultiEdit|NotebookEdit",
                 "hooks": [
                     {
                         "type": "command",
@@ -92,7 +101,8 @@ def generate_settings_qwen(
             },
             {
                 # v15-scope-enforce-write parity with bootstrap_hooks.py
-                "matcher": "Write|Edit|MultiEdit",
+                # (+ l26-hook-contract-review: NotebookEdit added).
+                "matcher": "Write|Edit|MultiEdit|NotebookEdit",
                 "hooks": [
                     {
                         "type": "command",
@@ -102,7 +112,9 @@ def generate_settings_qwen(
                 ],
             },
             {
-                "matcher": "Write|Edit|MultiEdit",
+                # memory-route-gate: shell parity with bootstrap_hooks.py — a
+                # heredoc or a Set-Content writes what the Write path refuses.
+                "matcher": f"Write|Edit|MultiEdit|{SHELL_MATCHER}",
                 "hooks": [
                     {
                         "type": "command",
@@ -112,7 +124,10 @@ def generate_settings_qwen(
                 ],
             },
             {
-                "matcher": "Write|Edit|MultiEdit",
+                # secret-scan-covers-no-shell-channel (Decision #178): shell
+                # parity with bootstrap_hooks.py — a heredoc or `Set-Content
+                # -Value 'AKIA...'` carries the secret the Write path warns on.
+                "matcher": f"Write|Edit|MultiEdit|{SHELL_MATCHER}",
                 "hooks": [
                     {
                         "type": "command",
@@ -122,7 +137,7 @@ def generate_settings_qwen(
                 ],
             },
             {
-                "matcher": "Bash",
+                "matcher": SHELL_MATCHER,
                 "hooks": [
                     {
                         "type": "command",
@@ -132,8 +147,22 @@ def generate_settings_qwen(
                 ],
             },
             {
-                "matcher": "Bash",
-                "if": "Bash(git push *)",
+                # l26-hook-contract-review parity: close the shell-write bypass
+                # of QG-0 + scope-ACL (see bootstrap_hooks.py for the rationale).
+                "matcher": SHELL_MATCHER,
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("bash_write_gate.py"),
+                        "timeout": 5,
+                    }
+                ],
+            },
+            {
+                # `if` dropped for the reason bootstrap_hooks.py records: it was
+                # a second, dialect-specific copy of the decision the hook makes
+                # itself, and it named one shell.
+                "matcher": SHELL_MATCHER,
                 "hooks": [
                     {
                         "type": "command",
@@ -178,7 +207,7 @@ def generate_settings_qwen(
                 "matcher": (
                     "mcp__tausik-project__tausik_task_done"
                     "|mcp__tausik-project__tausik_task_done_v2"
-                    "|Bash"
+                    f"|{SHELL_MATCHER}"
                 ),
                 "hooks": [
                     {

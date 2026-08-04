@@ -1,6 +1,6 @@
 [project]
 name = "tausik"
-version = "1.7.0"
+version = "1.8.0"
 description = "Cross-IDE AI agent framework with task lifecycle, quality gates, and project memory"
 readme = "README.md"
 license = "Apache-2.0"
@@ -34,6 +34,19 @@ pythonpath = ["scripts"]
 # Run the full battery via `pytest -m ''` or `tausik verify --full` (env:
 # TAUSIK_VERIFY_FULL=1). See docs/{en,ru}/cli.md for the full contract.
 addopts = "-m 'not slow'"
+# full-pytest-hangs-while-scoped-pytest-is-green. The full suite takes ~9-10
+# minutes of wall clock (5759 passed / 554 s measured in session #135) and the
+# cost is FLAT: the 30 slowest tests are 10% of it, the rest is ~0.09 s x 5700.
+# Three sessions read "slower than my timeout" as "hung" and killed the run at
+# 200/420/600 s, then wrote conclusions about a hang that never happened.
+# A stall is now told apart from slowness mechanically instead of by guessing:
+# any single test over 60 s (11x the slowest real one, 5.3 s) dumps the
+# tracebacks of every thread and exits non-zero. Silence therefore MEANS "not
+# stuck, just long" — budget the ten minutes rather than shortening the timeout.
+# `faulthandler_exit_on_timeout` needs pytest >= 9.0; older installs warn about
+# an unknown option and tests/test_pytest_hang_guard.py says so in words.
+faulthandler_timeout = 60
+faulthandler_exit_on_timeout = true
 markers = [
     "verify_first: opt the test in to v1.4 Verify-First Contract enforcement (default conftest fixture sets auto_verify=True for backward compat)",
     "slow: subprocess/integration/e2e/stress tests; skipped by default in interactive verify, run via `pytest -m ''` or `tausik verify --full` / TAUSIK_VERIFY_FULL=1",
@@ -53,7 +66,30 @@ exclude_lines = [
 
 [tool.mypy]
 python_version = "3.11"
-files = ["scripts"]
+# The MCP project package joins `scripts` here: it is the surface the agent
+# actually talks to (CLAUDE.md mandates MCP over CLI), so leaving it untyped
+# put the unchecked code exactly where a mistake costs most. It was invisible
+# rather than deliberate — nobody had ever run mypy over harness/.
+#
+# `harness/claude/mcp/codebase-rag/` stays out for one concrete reason, not by
+# preference: it holds a second `server.py`, and two files mapping to the same
+# top-level module name make mypy abort with "Duplicate module named 'server'"
+# before checking anything at all.
+#
+# This comment used to name mcp-rag-server-module-split as the task that would
+# add it here. That task ran and did NOT unblock it, so the claim is corrected
+# rather than left standing: the collision is about the FILE NAME, not the file
+# size, and splitting the module by domain (server/rag_tools/rag_handlers) left
+# `server.py` in place on both sides. Verified afterwards — `mypy scripts
+# harness/claude/mcp/project harness/claude/mcp/codebase-rag` still aborts with
+# the duplicate. Nor can the usual escapes apply: the directory name contains a
+# hyphen, so it can never be a Python package, which rules out `__init__.py`
+# and `--explicit-package-bases` alike. Checked on its own the package is
+# nearly clean already (2 import-not-found for modules that arrive via sys.path
+# at runtime). What actually unblocks it is renaming the file — which reaches
+# .mcp.json, the bootstrap templates, the docs and the deployed profiles of
+# five IDEs. Tracked as mcp-rag-server-rename-for-mypy-scope.
+files = ["scripts", "harness/claude/mcp/project"]
 # scripts/hooks/*.py is reachable as both `<name>` (via pythonpath=scripts at
 # runtime) and `hooks.<name>` (via scripts/hooks/). Excluding the hooks/
 # subdir from the default check avoids the dual-module-names error;
@@ -69,6 +105,57 @@ no_implicit_optional = true
 module = "memory_markers"
 ignore_missing_imports = true
 
+# PyYAML is an OPTIONAL RENAR dependency, lazily imported inside a try/except
+# ModuleNotFoundError (project_cli_renar.py, renar_conformance.py) precisely so
+# the CLI works without it. It ships no stubs and is not py.typed, so mypy
+# reports import-untyped for it — an error about the DEPENDENCY, not about any
+# code in scripts/. The obvious fix, `pip install types-PyYAML`, is not
+# available here: the venv is deliberately lean and `tausik doctor` asserts no
+# third-party packages leaked into it, so adding a stub package to satisfy a
+# type checker would break a health check to make another one pass.
+#
+# This suppression is NOT the "per-module ignore" that tests/test_mypy_clean.py
+# warns against. That warning is about silencing a real type error in this
+# repo's own code; nothing in scripts/ is being excused here — only the absence
+# of type information in a third-party package we deliberately do not require.
+[[tool.mypy.overrides]]
+module = "yaml"
+ignore_missing_imports = true
+
+# MCP handler modules. Every handler takes the service as `svc: Any` and many
+# are a single `return svc.some_method(...)`, so `warn_return_any` fires across
+# the whole layer in one shape. (Widening the scope surfaced 21 `no-any-return`
+# errors in total; 20 of them are this shape and land here. The 21st was in
+# self_check.py, was a genuine typing bug, and was fixed at the type level —
+# `mcp_reaper.cached_enumerate` is now generic instead of returning Any — rather
+# than suppressed. No count is asserted anywhere, so treat these numbers as the
+# history that motivated the override, not as a live invariant.)
+# This is STRUCTURAL, not debt to pay
+# down: the handler package must not import ProjectService (that dependency is
+# what the standalone-package split exists to prevent), so the service handle is
+# untyped at this boundary on purpose. Same reasoning as the backend_queries /
+# project_service overrides above, and the contract the Any hides — every entry
+# returns str for a (svc, args) call — is pinned by
+# tests/test_mcp_dispatch_surface.py rather than by the type checker.
+# Everything ELSE in the package is now checked, which is the point.
+[[tool.mypy.overrides]]
+module = [
+    "handlers",
+    "handlers_adapt",
+    "handlers_cq",
+    "handlers_hierarchy",
+    "handlers_knowledge",
+    "handlers_role",
+    "handlers_session",
+    "handlers_skill",
+    "handlers_spec",
+    "handlers_stack",
+    "handlers_status",
+    "handlers_task",
+    "handlers_verification",
+]
+disable_error_code = "no-any-return"
+
 [[tool.mypy.overrides]]
 module = "project_types"
 disallow_untyped_defs = true
@@ -80,11 +167,15 @@ disable_error_code = "attr-defined"
 
 [[tool.mypy.overrides]]
 module = "service_task"
-# Mixin — _require_task, _require_story resolved via ProjectService
+# Mixin — _require_task, _require_story resolved via ProjectService.
+# arg-type debt cleared (mypy-residual-argtype-untangle): auto_export_entity is
+# now called through cast("ProjectService", self) at the facade boundary.
 disable_error_code = "attr-defined"
 
 [[tool.mypy.overrides]]
 module = "service_knowledge"
+# Mixin facade (same as service_task). arg-type debt cleared: auto_export_by_id
+# is called through cast("ProjectService", self).
 disable_error_code = "attr-defined"
 
 [[tool.mypy.overrides]]
@@ -101,15 +192,55 @@ disable_error_code = "name-defined"
 module = "project_config"
 warn_return_any = false
 
+# --- mypy-baseline-debt-precommit-hook-lies -------------------------------
+# hooks/ modules imported from scripts/ by runtime sys.path injection — mypy
+# cannot follow them statically (same reason as memory_markers above), so the
+# import is ignored, not the code. The real arg-type/assignment mismatches that
+# once sat here (state_import, state_export, gate_post_scope, service_gates,
+# graph_mermaid + the arg-type on service_task/service_knowledge) were fixed at
+# the type level in mypy-residual-argtype-untangle — no disable_error_code left.
+[[tool.mypy.overrides]]
+module = [
+    "bootstrap_venv",
+    "bootstrap_check",
+    "bootstrap_config",
+    "tools",
+    "hook_supervision",
+    "token_rows",
+    "_common",
+    # Reached only after a runtime sys.path.insert into the codebase-rag
+    # package, which cannot join `files` while it holds a second server.py
+    # (see the note above). The IMPORT is unresolvable to mypy; the modules
+    # themselves are type-checked when that package is checked on its own.
+    "rag_context",
+    "rag_indexer",
+    "rag_store",
+]
+ignore_missing_imports = true
+
 [tool.ruff]
 target-version = "py311"
 line-length = 100
 
 [tool.ruff.lint]
-# Default rules: E (pycodestyle), F (Pyflakes). Project enforces these in CI.
-# BLE001 (flake8-blind-except): enforce 'no silent errors' — a blind
+# The rule set is stated in FULL, on purpose. `extend-select = ["BLE001"]` used
+# to stand here, and everything else the gate enforced came from whatever ruff
+# happened to call its default that day — E4 (imports), E7 (statement style),
+# E9 (syntax/IO errors) and F (Pyflakes). CI installs ruff unpinned, so on
+# 2026-08-04 the default moved under the gate: ruff 0.16.1 turned on EXE001,
+# I001, SIM115, PLW1510, RUF100 and more, and the release pipeline went from
+# 1 finding to 1539 without a line of this repository changing. A gate whose
+# verdict depends on the version of the tool that ran it is not measuring the
+# code, and pinning the tool would only have hidden that — the config, not the
+# vendor's taste of the month, decides what this project enforces.
+#
+# Adopting ruff's newer defaults is a DECISION, and the place to make it is a
+# task that reads the 1539 and rules on them, not a release-day pipeline.
+# E501 (line-too-long) stays out for the same reason it always was: 137 lines
+# would need reflowing, and `line-length` above is a formatter setting here.
+# BLE001 (flake8-blind-except) enforces 'no silent errors' — a blind
 # `except Exception` must be justified with `# noqa: BLE001 — <why>` or narrowed.
-extend-select = ["BLE001"]
+select = ["E4", "E7", "E9", "F", "BLE001"]
 
 [tool.ruff.lint.per-file-ignores]
 # Files that need sys.path manipulation before importing project modules.

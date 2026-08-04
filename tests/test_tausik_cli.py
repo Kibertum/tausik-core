@@ -20,8 +20,15 @@ def tausik_env(tmp_path):
 
     tausik_dir = tmp_path / ".tausik"
     tausik_dir.mkdir()
-    # Disable all gates in test env to prevent pytest-in-pytest recursion
-    (tausik_dir / "config.json").write_text(
+    (tausik_dir / "config.json").write_text(json.dumps({"project": "cli-test"}))
+
+    # Disable the gates that would otherwise run pytest inside pytest. This has
+    # to go in the MANAGED tier, not `.tausik/config.json`: the trust policy
+    # rejects a project-scope config that turns enforcement off, which is the
+    # whole point of it. Doing it the supported way here also keeps this fixture
+    # honest — if the escape hatch ever breaks, this test breaks with it.
+    managed = tmp_path / "managed-config.json"
+    managed.write_text(
         json.dumps(
             {
                 "gates": {
@@ -34,6 +41,7 @@ def tausik_env(tmp_path):
     )
     env = os.environ.copy()
     env["TAUSIK_DIR"] = str(tausik_dir)
+    env["TAUSIK_MANAGED_CONFIG"] = str(managed)
     return tmp_path, env
 
 

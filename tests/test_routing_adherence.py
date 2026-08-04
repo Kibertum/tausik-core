@@ -6,7 +6,11 @@ import json
 import os
 from pathlib import Path
 
-from model_routing_adherence import aggregate_adherence, record_adherence
+from model_routing_adherence import (
+    aggregate_adherence,
+    format_recommendation_fit,
+    record_adherence,
+)
 from project_backend import SQLiteBackend
 from project_service import ProjectService
 
@@ -193,3 +197,47 @@ class TestTaskDoneIntegration:
             assert _read_rows(str(store)) == []
         finally:
             svc.be.close()
+
+
+# --- routing-adherence-metric-measures-nothing (decision #183) ---------------
+# The metric is a recommendation-FIT signal, not a compliance score: model
+# choice is per-session and manual, so recommended != running is not a violation.
+
+
+class TestRecommendationFitPresentation:
+    def test_empty_sample_prints_nothing(self):
+        """AC5 negative: no data must NOT render a spurious 0% that reads as a
+        failure — the whole block is suppressed."""
+        assert format_recommendation_fit({"n": 0, "pct": 0.0, "top_deviations": []}) == ""
+        assert format_recommendation_fit(None) == ""
+
+    def test_framing_is_fit_not_violation(self):
+        """AC2: the rendered block carries no 'adherence'/'deviation'/'violation'
+        compliance framing, and names the manual per-session choice caveat."""
+        adh = {
+            "n": 10909,
+            "pct": 1.6,
+            "top_deviations": [{"shift": "sonnet->opus", "count": 10739}],
+        }
+        out = format_recommendation_fit(adh)
+        assert out, "expected a rendered block for non-empty data"
+        low = out.lower()
+        # No compliance-connotation labels — those were the misleading framing.
+        assert "adherence" not in low
+        assert "deviation" not in low
+        # 'violation' may appear ONLY inside the negating caveat ("not a ...
+        # violation"); it must never assert a violation happened.
+        assert "violation" not in low or "not a policy violation" in low
+        # Positive framing + the manual-choice caveat that makes a low % honest.
+        assert "recommendation fit" in low
+        assert "per-session" in low
+        assert "not switched programmatically" in low or "not a policy violation" in low
+        # The data still surfaces.
+        assert "1.6%" in out and "10909" in out and "sonnet->opus" in out
+
+    def test_no_deviation_line_when_no_gaps(self):
+        """AC5: a perfect-fit sample omits the gaps line rather than printing an
+        empty header."""
+        out = format_recommendation_fit({"n": 5, "pct": 100.0, "top_deviations": []})
+        assert "Running model matched the recommendation: 100.0% (n=5)" in out
+        assert "rec->run" not in out

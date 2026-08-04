@@ -14,6 +14,17 @@ _GATE_TO_DETECTOR = {
 }
 
 
+def run_renar_drift_gate_for(gate: dict, files: list[str]) -> tuple[bool, str]:
+    """Registry-uniform ``(gate, files)`` entrypoint (gate-registry-single-source).
+
+    Two detectors share one implementation and are told apart by gate name, so
+    the registry points here rather than at a per-detector wrapper. ``files`` is
+    ignored by design — these detectors scan the RENAR artifact store, not the
+    task's scope.
+    """
+    return run_renar_drift_gate(str(gate.get("name") or ""))
+
+
 def run_renar_drift_gate(name: str) -> tuple[bool, str]:
     """Run a RENAR drift detector against the project artifact store.
 

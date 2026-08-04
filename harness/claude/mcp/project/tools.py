@@ -177,6 +177,26 @@ TOOLS = [
                     "description": "Confirm no knowledge to capture (suppresses warning)",
                 },
                 "relevant_files": {"type": "array", "items": {"type": "string"}},
+                "verify_handle": {
+                    "type": "string",
+                    "description": (
+                        "The handle tausik_verify returned (<run_id>.<nonce>). "
+                        "Presents ONE specific verify run as the proof for this "
+                        "close, instead of the server searching for a green run "
+                        "younger than the cache TTL. Single-use; validated "
+                        "against the live files and the live gate set, so its "
+                        "refusals name the actual problem. Omit to keep the "
+                        "previous freshness-lookup behaviour."
+                    ),
+                },
+                "no_file_changes": {
+                    "type": "boolean",
+                    "description": "Close a task that touched NO files (pure planning / a decision). Allowed only when git proves the declared scope (relevant_files as a pathspec, else the whole tree) has no uncommitted changes; fail-closed otherwise. The third QG-2 scope state, symmetric to no_tests_declared.",
+                },
+                "no_changelog": {
+                    "type": "boolean",
+                    "description": "Close a task that warrants NO changelog entry (docs/cleanup/measurement). Skips the continuous-changelog gate (convention #275) and logs an explicit bypass reason. Only meaningful when config.task_done.changelog_gate is enabled.",
+                },
                 "evidence": {
                     "type": "string",
                     "description": 'Inline AC verification log (e.g. "AC verified: 1. ✓ 2. ✓ ..."). Replaces a separate task_log call.',

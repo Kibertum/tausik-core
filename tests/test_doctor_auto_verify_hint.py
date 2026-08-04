@@ -84,7 +84,13 @@ def _run_doctor_capture(cfg_overrides: dict, env_overrides: dict) -> str:
 
     buf = io.StringIO()
     with (
-        patch("project_config.load_config", return_value=base_cfg),
+        # Doctor reads through `load_config_with_rejections` so it can name the
+        # trust-tier keys a project tried to weaken. Stub that, not the plain
+        # reader, or the stub silently misses and doctor reads the real config.
+        patch(
+            "project_config.load_config_with_rejections",
+            return_value=(base_cfg, []),
+        ),
         patch.dict("os.environ", base_env, clear=True),
         redirect_stdout(buf),
     ):

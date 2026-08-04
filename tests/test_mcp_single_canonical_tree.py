@@ -27,6 +27,9 @@ import os
 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 _HARNESS = os.path.join(_ROOT, "harness")
+
+# Cross-cutting: os.walks all of harness/ to forbid byte-copy MCP mirrors.
+CROSSCUTTING_SCOPE = ["harness/"]
 _CANONICAL_IDE = "claude"
 
 

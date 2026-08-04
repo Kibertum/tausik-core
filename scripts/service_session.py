@@ -48,10 +48,12 @@ class SessionMixin:
 
         return _f(self.be, session_id)
 
-    def session_check_duration(self, max_minutes: int | None = None) -> str | None:
+    def session_check_duration(
+        self, max_minutes: int | None = None, *, effective_limit: int | None = None
+    ) -> str | None:
         from service_session_metrics import session_overrun_warning
 
-        return session_overrun_warning(self.be, max_minutes)
+        return session_overrun_warning(self.be, max_minutes, effective_limit=effective_limit)
 
     def session_extend(self, minutes: int = 60) -> str:
         """Extend session active-time limit by N minutes (SENAR Rule 9.2)."""
@@ -132,11 +134,36 @@ class SessionMixin:
         return self.be.session_list(n)
 
     def session_handoff(self, handoff: dict[str, Any]) -> str:
-        current = self.be.session_current()
+        """Record work continuity. Does NOT require the hygiene window open.
+
+        v2-session-split-and-drop: this used to refuse unless a session was
+        active, which coupled the two things `sessions` glues together. The
+        coupling had it exactly backwards — an agent that has just hit the
+        180-minute limit is the one that most needs to write down where it
+        stopped, and refusing there loses the document the limit exists to
+        force. Continuity is about the WORK; the active window is about the
+        agent's context budget.
+
+        With no open session the handoff attaches to the most recent session
+        instead of being dropped. Falling back rather than creating a session is
+        deliberate: minting one here would restart the hygiene clock as a side
+        effect of writing a document — the same two-halves-in-one-call this task
+        exists to undo. Only a project that has never had a session at all is
+        refused, because then there is genuinely no row to attach to.
+        """
+        recent = self.be.session_list(1)
+        current = self.be.session_current() or (recent[0] if recent else None)
         if not current:
-            raise ServiceError("No active session. Start one: .tausik/tausik session start")
+            raise ServiceError(
+                "No session has ever been started in this project, so there is "
+                "nothing to attach a handoff to. Start one: "
+                ".tausik/tausik session start"
+            )
         self.be.session_update_handoff(current["id"], handoff)
-        return f"Handoff saved for session #{current['id']}."
+        closed = (
+            " (closed — attached to the most recent session)" if current.get("ended_at") else ""
+        )
+        return f"Handoff saved for session #{current['id']}{closed}."
 
     def session_last_handoff(self) -> dict[str, Any] | None:
         row = self.be.session_last_handoff()

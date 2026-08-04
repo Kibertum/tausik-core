@@ -7,6 +7,7 @@ import sqlite3
 import sys
 
 import pytest
+from conftest import canonical_ddl
 
 _SCRIPTS = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts"))
 if _SCRIPTS not in sys.path:
@@ -22,13 +23,22 @@ from risk_metrics import (  # noqa: E402
 @pytest.fixture
 def conn():
     c = sqlite3.connect(":memory:")
-    c.execute("CREATE TABLE tasks (slug TEXT, risk_score REAL, completed_at TEXT)")
+    c.execute(canonical_ddl("tasks"))
     yield c
     c.close()
 
 
 def _seed(conn, rows):
-    conn.executemany("INSERT INTO tasks VALUES (?, ?, ?)", rows)
+    """rows: [(slug, risk_score, completed_at)].
+
+    Колонки перечислены поимённо: позиционный INSERT привязывался бы к порядку
+    колонок канона и молча разъезжался бы при вставке новой.
+    """
+    conn.executemany(
+        "INSERT INTO tasks (slug, title, risk_score, completed_at, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')",
+        [(slug, slug, score, done) for slug, score, done in rows],
+    )
     conn.commit()
 
 

@@ -29,7 +29,7 @@ def _run(args: list[str], cwd: Path = REPO) -> subprocess.CompletedProcess:
         [str(PYTHON), str(PROJECT_PY), *args],
         cwd=str(cwd),
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         env={**os.environ, "PYTHONIOENCODING": "utf-8"},
     )
 

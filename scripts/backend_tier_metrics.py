@@ -39,10 +39,7 @@ def session_capacity_summary(
     q: QueryFn, q1: Callable[..., dict[str, Any] | None], capacity: int
 ) -> dict[str, Any]:
     """Per-session tool-call accounting: used, planned, remaining."""
-    sess = q1(
-        "SELECT id, started_at FROM sessions "
-        "WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
-    )
+    sess = q1("SELECT id, started_at FROM sessions WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1")
     if not sess:
         return {
             "session": None,
@@ -72,7 +69,17 @@ def session_capacity_summary(
 
 
 def calibration_drift(q: QueryFn) -> dict[str, Any] | None:
-    """Return drift label from last 10 measured done tasks; None if <5 samples."""
+    """Return drift label from last 10 measured done tasks; None if <5 samples.
+
+    TOKENIZER-INDEPENDENT (l26-tokenizer-calibration re-check). This ratio is
+    ``call_actual / call_budget`` — TOOL-CALL COUNTS, integers unaffected by the
+    2026 tokenizer change (Opus 4.7+/Fable 5/Mythos 5/Sonnet 5 emit ~30% more
+    tokens for the same text). The hypothesis that part of the observed drift is
+    a tokenizer artifact was tested and rejected: **0%** of this signal's drift
+    is attributable to the tokenizer, because call counts carry no tokens. The
+    ~30% correction (``token_accounting``) belongs only where TOKENS or DOLLARS
+    are compared across the boundary (usage rollups, token budgets), never here.
+    """
     rows = q(
         "SELECT call_budget AS b, call_actual AS a "
         "FROM tasks WHERE status='done' "

@@ -45,9 +45,7 @@ class TestServiceAdd:
         assert task["tier"] == "light"
 
     def test_both_budget_overrides_tier(self, svc):
-        msg = svc.task_add(
-            "s1", "t3", "Task 3", role="developer", call_budget=200, tier="trivial"
-        )
+        msg = svc.task_add("s1", "t3", "Task 3", role="developer", call_budget=200, tier="trivial")
         task = svc.be.task_get("t3")
         # call_budget=200 → tier='deep' (>150 threshold), tier='trivial' ignored
         assert task["call_budget"] == 200
@@ -122,11 +120,9 @@ class TestMcpHandlers:
     def test_handler_passes_budget_through(self, svc):
         sys.path.insert(
             0,
-            os.path.join(
-                os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"
-            ),
+            os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"),
         )
-        from handlers import _do_task_add, _do_task_update
+        from handlers_task import _do_task_add, _do_task_update
 
         msg = _do_task_add(
             svc,
@@ -151,11 +147,9 @@ class TestMcpHandlers:
     def test_handler_invalid_tier_rejected(self, svc):
         sys.path.insert(
             0,
-            os.path.join(
-                os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"
-            ),
+            os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"),
         )
-        from handlers import _do_task_add
+        from handlers_task import _do_task_add
         from tausik_utils import ServiceError
 
         with pytest.raises(ServiceError):
@@ -193,6 +187,7 @@ def _run_cli(*args, env=None):
         CLI + list(args),
         capture_output=True,
         text=True,
+        encoding="utf-8",
         cwd=PROJECT_ROOT,
         env=env,
         timeout=15,

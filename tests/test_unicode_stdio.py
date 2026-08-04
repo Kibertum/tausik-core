@@ -49,7 +49,7 @@ def _run(args, code, env):
     return subprocess.run(
         [sys.executable, *args, "-c", code],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         errors="replace",
         env=env,
     )

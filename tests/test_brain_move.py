@@ -33,12 +33,21 @@ class _FakeBackend:
     def decision_get(self, decision_id: int):
         return self.decisions.get(decision_id)
 
-    def decision_add(self, text: str, *, rationale=None):
+    def decision_add(self, text: str, task_slug=None, rationale=None):
+        # Signature copied from the real `KnowledgeCrudMixin.decision_add`, not
+        # from the one call this file happens to make. It used to accept only
+        # `(text, *, rationale)` — narrower than the thing it stands in for — so
+        # when `move_to_local` was routed through the projection funnel
+        # `write_local`, which passes `task_slug` positionally like every other
+        # caller, these tests failed on the DOUBLE while the code was correct. A
+        # stand-in narrower than its original does not test the caller; it tests
+        # the stand-in.
         new_id = self._next_dec_id
         self._next_dec_id += 1
         self.decisions[new_id] = {
             "id": new_id,
             "decision": text,
+            "task_slug": task_slug,
             "rationale": rationale,
         }
         return new_id
@@ -113,8 +122,7 @@ def _fake_notion_response(*, page_id, database_id, properties):
         if "title" in v:
             enriched[k] = {
                 "title": [
-                    {**it, "plain_text": it.get("text", {}).get("content", "")}
-                    for it in v["title"]
+                    {**it, "plain_text": it.get("text", {}).get("content", "")} for it in v["title"]
                 ]
             }
         elif "rich_text" in v:
@@ -179,9 +187,14 @@ class TestMoveToBrain:
         assert result["status"] == "ok"
         assert result["category"] == "decisions"
         assert result["notion_page_id"]
-        # Source deleted by default
-        assert ("decisions", 1) in be.deletes
-        assert 1 not in be.decisions
+        # The local row SURVIVES by default. This asserted deletion until
+        # decision #221 removed automatic mirroring: once this became the path a
+        # person is pointed at for publishing, a default that deletes the
+        # project's copy made "publish" mean "hand over". `--drop-local` still
+        # moves, for whoever means it.
+        assert ("decisions", 1) not in be.deletes
+        assert 1 in be.decisions
+        assert result["source_kept"] is True
 
     def test_pattern_happy_path(self, open_brain_deps, monkeypatch):
         monkeypatch.setenv("TAUSIK_PROJECT_NAME", "demo")
@@ -251,9 +264,7 @@ class TestMoveToBrain:
         be.decision_add("X")
         conn = brain_sync.open_brain_db(str(tmp_path / "b.db"))
         client = _FakeNotionClient(fail_create=True)
-        monkeypatch.setattr(
-            brain_runtime, "open_brain_deps", lambda: (conn, client, cfg)
-        )
+        monkeypatch.setattr(brain_runtime, "open_brain_deps", lambda: (conn, client, cfg))
         try:
             result = brain_move.move_to_brain(_FakeService(be), "decision", 1)
             assert result["status"] == "failed"
@@ -281,9 +292,7 @@ class TestMoveToBrain:
         }
         conn = brain_sync.open_brain_db(str(tmp_path / "b.db"))
         client = _FakeNotionClient()
-        monkeypatch.setattr(
-            brain_runtime, "open_brain_deps", lambda: (conn, client, cfg)
-        )
+        monkeypatch.setattr(brain_runtime, "open_brain_deps", lambda: (conn, client, cfg))
         try:
             result = brain_move.move_to_brain(_FakeService(be), "decision", 1)
             assert result["status"] == "skipped"
@@ -320,22 +329,16 @@ class TestMoveToLocal:
         conn.commit()
 
     def test_web_cache_refused(self, open_brain_deps):
-        result = brain_move.move_to_local(
-            _FakeService(_FakeBackend()), "npg-1", "web_cache"
-        )
+        result = brain_move.move_to_local(_FakeService(_FakeBackend()), "npg-1", "web_cache")
         assert result["status"] == "bad_input"
         assert "web_cache" in result["reason"]
 
     def test_invalid_category(self, open_brain_deps):
-        result = brain_move.move_to_local(
-            _FakeService(_FakeBackend()), "npg-1", "manifestos"
-        )
+        result = brain_move.move_to_local(_FakeService(_FakeBackend()), "npg-1", "manifestos")
         assert result["status"] == "bad_input"
 
     def test_not_found(self, open_brain_deps):
-        result = brain_move.move_to_local(
-            _FakeService(_FakeBackend()), "npg-missing", "decisions"
-        )
+        result = brain_move.move_to_local(_FakeService(_FakeBackend()), "npg-missing", "decisions")
         assert result["status"] == "not_found"
 
     def test_decision_happy_path_same_project(self, open_brain_deps, monkeypatch):
@@ -351,9 +354,7 @@ class TestMoveToLocal:
         # mirror row deleted
         row = (
             open_brain_deps["conn"]
-            .execute(
-                "SELECT 1 FROM brain_decisions WHERE notion_page_id = ?", ("npg-1",)
-            )
+            .execute("SELECT 1 FROM brain_decisions WHERE notion_page_id = ?", ("npg-1",))
             .fetchone()
         )
         assert row is None
@@ -375,9 +376,7 @@ class TestMoveToLocal:
         other_hash = brain_config.compute_project_hash("other-project")
         self._seed_brain_decision(open_brain_deps["conn"], project_hash=other_hash)
         be = _FakeBackend()
-        result = brain_move.move_to_local(
-            _FakeService(be), "npg-1", "decisions", force=True
-        )
+        result = brain_move.move_to_local(_FakeService(be), "npg-1", "decisions", force=True)
         assert result["status"] == "ok"
         assert 1 in be.decisions
 
@@ -386,17 +385,13 @@ class TestMoveToLocal:
         my_hash = brain_config.compute_project_hash("demo")
         self._seed_brain_decision(open_brain_deps["conn"], project_hash=my_hash)
         be = _FakeBackend()
-        result = brain_move.move_to_local(
-            _FakeService(be), "npg-1", "decisions", keep_source=True
-        )
+        result = brain_move.move_to_local(_FakeService(be), "npg-1", "decisions", keep_source=True)
         assert result["status"] == "ok"
         assert result["source_kept"] is True
         # Mirror NOT deleted
         row = (
             open_brain_deps["conn"]
-            .execute(
-                "SELECT 1 FROM brain_decisions WHERE notion_page_id = ?", ("npg-1",)
-            )
+            .execute("SELECT 1 FROM brain_decisions WHERE notion_page_id = ?", ("npg-1",))
             .fetchone()
         )
         assert row is not None

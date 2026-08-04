@@ -12,6 +12,7 @@ import subprocess
 import time
 from typing import Any
 
+import rag_context
 from rag_detect import get_file_list, detect_language
 
 
@@ -58,6 +59,40 @@ _BOUNDARY_PATTERNS: dict[str, re.Pattern[str]] = {
     "elixir": re.compile(r"^(def |defp |defmodule )", re.MULTILINE),
     "markdown": re.compile(r"^#{1,3} ", re.MULTILINE),
 }
+
+
+def annotate_chunks(
+    chunks: list[dict[str, Any]],
+    rel_path: str,
+    language: str | None,
+    file_content: str,
+) -> list[dict[str, Any]]:
+    """Stamp language and the deterministic context header onto each chunk.
+
+    The enclosing symbol carries forward: chunk 2..n of a long definition has
+    no `def` line of its own, and that is precisely the chunk that loses its
+    context when cut. Mutates and returns the same list — the callers already
+    own it.
+    """
+    summary = rag_context.extract_module_summary(file_content)
+    enclosing = ""
+    for chunk in chunks:
+        chunk["language"] = language
+        # `.get`, not `[...]`: a chunk with no text still gets a path-only
+        # header rather than aborting the whole file's indexing. Losing one
+        # file's index to a KeyError is a worse outcome than a thin header.
+        body = chunk.get("content") or ""
+        own = rag_context.extract_symbol(body)
+        if own:
+            enclosing = own
+        chunk["context_prefix"] = rag_context.build_context_prefix(
+            rel_path,
+            body,
+            module_summary=summary,
+            enclosing_symbol=enclosing,
+            chunk_type=chunk.get("chunk_type", "code"),
+        )
+    return chunks
 
 
 def chunk_file(content: str, language: str | None) -> list[dict[str, Any]]:
@@ -315,9 +350,9 @@ def index_full(
         try:
             with open(f["path"], encoding="utf-8", errors="replace") as fh:
                 content = fh.read()
-            chunks = chunk_file(content, f["language"])
-            for c in chunks:
-                c["language"] = f["language"]
+            chunks = annotate_chunks(
+                chunk_file(content, f["language"]), f["rel_path"], f["language"], content
+            )
             store.upsert_file(f["rel_path"], chunks)
             total_chunks += len(chunks)
             indexed_count += 1
@@ -390,9 +425,7 @@ def index_incremental(project_dir: str, store: Any) -> dict[str, Any]:
         try:
             with open(full_path, encoding="utf-8", errors="replace") as fh:
                 content = fh.read()
-            chunks = chunk_file(content, lang)
-            for c in chunks:
-                c["language"] = lang
+            chunks = annotate_chunks(chunk_file(content, lang), rel_path, lang, content)
             store.upsert_file(rel_path, chunks)
             total_chunks += len(chunks)
             indexed += 1

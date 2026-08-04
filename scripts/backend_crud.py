@@ -181,91 +181,9 @@ class BackendCrudMixin:
     def session_last_handoff(self) -> dict[str, Any] | None:
         return self._q1("SELECT * FROM sessions WHERE handoff IS NOT NULL ORDER BY id DESC LIMIT 1")
 
-    # --- Decisions ---
-
-    def _resolve_task_slug(self, task_slug: str | None) -> str | None:
-        """Validate task_slug exists, return None if not found."""
-        if not task_slug:
-            return None
-        if self.task_get(task_slug):
-            return task_slug
-        return None
-
-    def decision_add(
-        self, text: str, task_slug: str | None = None, rationale: str | None = None
-    ) -> int:
-        return self._ins(
-            "INSERT INTO decisions(decision,task_slug,rationale,created_at) VALUES(?,?,?,?)",
-            (text, self._resolve_task_slug(task_slug), rationale, utcnow_iso()),
-        )
-
-    def decision_list(self, n: int = 20) -> list[dict[str, Any]]:
-        return self._q("SELECT * FROM decisions ORDER BY id DESC LIMIT ?", (n,))
-
-    def decision_get(self, decision_id: int) -> dict[str, Any] | None:
-        """Get a single decision by ID."""
-        return self._q1("SELECT * FROM decisions WHERE id=?", (decision_id,))
-
-    def decisions_for_task(self, slug: str) -> list[dict[str, Any]]:
-        return self._q("SELECT * FROM decisions WHERE task_slug=? ORDER BY id", (slug,))
-
-    def decision_count_for_task(self, slug: str) -> int:
-        """Count decisions linked to a task."""
-        row = self._q1("SELECT COUNT(*) as cnt FROM decisions WHERE task_slug=?", (slug,))
-        return row["cnt"] if row else 0
-
-    # --- Memory ---
-
-    def memory_add(
-        self,
-        mem_type: str,
-        title: str,
-        content: str,
-        tags: list[str] | None = None,
-        task_slug: str | None = None,
-    ) -> int:
-        now = utcnow_iso()
-        return self._ins(
-            "INSERT INTO memory(type,title,content,tags,task_slug,created_at,updated_at) "
-            "VALUES(?,?,?,?,?,?,?)",
-            (
-                mem_type,
-                title,
-                content,
-                json.dumps(tags) if tags else None,
-                self._resolve_task_slug(task_slug),
-                now,
-                now,
-            ),
-        )
-
-    def memory_list(
-        self,
-        mem_type: str | None = None,
-        n: int = 50,
-        include_archived: bool = False,
-    ) -> list[dict[str, Any]]:
-        sql = "SELECT * FROM memory WHERE 1=1"
-        params: list[Any] = []
-        if not include_archived:
-            sql += " AND archived_at IS NULL"
-        if mem_type:
-            sql += " AND type=?"
-            params.append(mem_type)
-        sql += " ORDER BY id DESC LIMIT ?"
-        params.append(n)
-        return self._q(sql, tuple(params))
-
-    def memory_get(self, mid: int) -> dict[str, Any] | None:
-        return self._q1("SELECT * FROM memory WHERE id=?", (mid,))
-
-    def memory_delete(self, mid: int) -> int:
-        return self._ex("DELETE FROM memory WHERE id=?", (mid,))
-
-    def memory_count_for_task(self, slug: str) -> int:
-        """Count memories linked to a task."""
-        row = self._q1("SELECT COUNT(*) as cnt FROM memory WHERE task_slug=?", (slug,))
-        return row["cnt"] if row else 0
+    # --- Decisions + Memory (stable-slug entities) moved to
+    #     backend_crud_knowledge.KnowledgeCrudMixin (filesize cap; co-locates the
+    #     slug-allocation concern). _resolve_task_slug went with them. ---
 
     # --- Meta key-value store ---
 

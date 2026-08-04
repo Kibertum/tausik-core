@@ -62,7 +62,10 @@ def _owned_objects(conn: sqlite3.Connection) -> set[str]:
 
 
 def test_schema_version_bumped():
-    assert SCHEMA_VERSION == 37
+    # `>=`, not `==`: this asserts that the v37 snippet migration landed, which
+    # stays true forever. An equality here turns every later migration into a
+    # spurious failure in an unrelated test file (it did exactly that on v38).
+    assert SCHEMA_VERSION >= 37
 
 
 def test_fresh_db_has_all_objects(svc):
@@ -70,8 +73,11 @@ def test_fresh_db_has_all_objects(svc):
 
 
 def test_fresh_db_records_version(svc):
+    # Compared against the constant rather than a literal: the property under
+    # test is "a fresh DB records the CURRENT schema version", which is what
+    # this test is named for. A literal tested "the version is 37" instead.
     row = svc.be._conn.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()
-    assert int(row[0]) == 37
+    assert int(row[0]) == SCHEMA_VERSION
 
 
 def _strip_sql(sql: str) -> str:

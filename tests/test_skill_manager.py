@@ -798,7 +798,7 @@ class TestPipFlagsAreRealFlags:
         return subprocess.run(
             [sys.executable, "-m", "pip", "install", *flags, "--help"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=60,
             stdin=subprocess.DEVNULL,
         ).returncode
@@ -1041,7 +1041,7 @@ class TestCloneEolPinning:
 
     def _git(self, cwd, *args, env=None):
         return subprocess.run(
-            ["git", *args], cwd=cwd, capture_output=True, text=True, env=env, timeout=60
+            ["git", *args], cwd=cwd, capture_output=True, text=True, encoding="utf-8", env=env, timeout=60
         )
 
     def _origin(self, tmp_path, body: bytes = b"---\nname: s\n---\n# body\n"):

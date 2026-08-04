@@ -40,13 +40,6 @@ def parse_duration_to_days(raw: str) -> int:
     return n * _UNIT_DAYS[unit]
 
 
-def _similarity(a: str, b: str) -> float:
-    """Normalised SequenceMatcher ratio over title+content concatenation."""
-    if not a or not b:
-        return 0.0
-    return SequenceMatcher(a=a, b=b, autojunk=False).ratio()
-
-
 def find_dedupe_candidates(rows: list[dict[str, Any]], threshold: float) -> list[dict[str, Any]]:
     """Pairwise similarity over memory rows; return suggestions above threshold.
 
@@ -55,32 +48,54 @@ def find_dedupe_candidates(rows: list[dict[str, Any]], threshold: float) -> list
     are compared on ``title || ' ' || content``; mismatched types are
     skipped to avoid suggesting a ``pattern`` merge into a ``gotcha``.
     The lower id is reported as ``id_a`` for stable ordering.
+
+    l26-memory-dedupe-perf: the naive form ran the full
+    ``SequenceMatcher.ratio()`` (O(len_a·len_b), and autojunk=False disables
+    difflib's own speedup) on EVERY pair — ~20k full diffs at the default n=200,
+    minutes at n=1000. Two exact, result-preserving prunings fix that WITHOUT a
+    heavier FTS/minhash candidate index:
+      * Block by ``type`` first — cross-type pairs are never compared anyway, so
+        grouping removes them without a per-pair check and shrinks each loop.
+      * Gate the expensive ``ratio()`` behind ``real_quick_ratio()`` then
+        ``quick_ratio()`` — both are true UPPER bounds on ``ratio()``, so a pair
+        under threshold on either can never reach it and is skipped. The output
+        set is byte-identical to the brute-force version; only impossible pairs
+        are dropped before the costly step.
     """
     if not (0.0 < threshold <= 1.0):
         raise ValueError(f"threshold must be in (0, 1], got {threshold!r}")
+
+    by_type: dict[Any, list[dict[str, Any]]] = {}
+    for r in rows:
+        by_type.setdefault(r.get("type"), []).append(r)
+
     out: list[dict[str, Any]] = []
-    n = len(rows)
-    for i in range(n):
-        ra = rows[i]
-        ta = (ra.get("title") or "") + " " + (ra.get("content") or "")
-        for j in range(i + 1, n):
-            rb = rows[j]
-            if ra.get("type") != rb.get("type"):
-                continue
-            tb = (rb.get("title") or "") + " " + (rb.get("content") or "")
-            score = _similarity(ta, tb)
-            if score >= threshold:
-                lo, hi = sorted([ra, rb], key=lambda r: int(r.get("id") or 0))
-                out.append(
-                    {
-                        "id_a": int(lo["id"]),
-                        "id_b": int(hi["id"]),
-                        "ratio": round(score, 4),
-                        "type": ra.get("type"),
-                        "title_a": lo.get("title") or "",
-                        "title_b": hi.get("title") or "",
-                    }
-                )
+    for group in by_type.values():
+        # Precompute each row's comparison text once per group.
+        texts = [((r.get("title") or "") + " " + (r.get("content") or ""), r) for r in group]
+        m = len(texts)
+        for i in range(m):
+            ta, ra = texts[i]
+            for j in range(i + 1, m):
+                tb, rb = texts[j]
+                # Same orientation as the brute-force version (a=outer, b=inner)
+                # so ratio() is bit-identical; the quick ratios only PRUNE.
+                sm = SequenceMatcher(a=ta, b=tb, autojunk=False)
+                if sm.real_quick_ratio() < threshold or sm.quick_ratio() < threshold:
+                    continue
+                score = sm.ratio()
+                if score >= threshold:
+                    lo, hi = sorted([ra, rb], key=lambda r: int(r.get("id") or 0))
+                    out.append(
+                        {
+                            "id_a": int(lo["id"]),
+                            "id_b": int(hi["id"]),
+                            "ratio": round(score, 4),
+                            "type": ra.get("type"),
+                            "title_a": lo.get("title") or "",
+                            "title_b": hi.get("title") or "",
+                        }
+                    )
     out.sort(key=lambda r: (-r["ratio"], r["id_a"], r["id_b"]))
     return out
 
@@ -96,16 +111,64 @@ def find_dedupe_candidates(rows: list[dict[str, Any]], threshold: float) -> list
 # noisy; that judgement is left to the optional LLM pass (llm_check seam).
 
 # A repo-relative path token: one-or-more slash segments ending in `.ext`.
+# The `/` in the negative lookbehind already rejects scheme URLs (`https://…`),
+# whose host is preceded by `//`. What survives is prose/URLs WITHOUT a scheme.
 _PATH_RE = re.compile(r"(?<![\w./\\])((?:[\w.\-]+/)+[\w.\-]+\.[A-Za-z0-9]{1,6})\b")
+
+# A domain-like first segment — `label.tld`, a dot that is NOT the leading char.
+# Repo dirs are `scripts/`, `tests/`, or dotfiles like `.github/`; a host is
+# `example.com/`. Keying on "internal dot in the first segment" separates the
+# two without a full path resolver (l26-memory-dedupe-perf: cut stale_file false
+# positives from URLs/hostnames mentioned in prose).
+_HOSTLIKE_FIRST_SEG = re.compile(r"^[\w-]+\.[\w.-]+$")
+
+# Placeholder basenames — conventional EXAMPLE filenames that appear in memory
+# prose describing a format ("cite tests/test_x.py::test_y"), never a real repo
+# file (memory-lint-stale-file-mostly-false-positives). A single-letter stem
+# (`x.py`), or `foo/bar/baz`, or `test_<placeholder>.py`. Kept deliberately
+# narrow so a genuine one-word module name is not swallowed.
+_PLACEHOLDER_BASENAME_RE = re.compile(
+    r"^(?:[a-z]|foo|bar|baz|qux|test_(?:[a-z]|foo|bar|baz|file|name|thing|func|module))"
+    r"\.[a-z0-9]{1,6}$",
+    re.IGNORECASE,
+)
 
 
 def _extract_paths(content: str) -> list[str]:
-    """Return unique repo-relative path-like tokens mentioned in ``content``."""
+    """Return unique repo-relative path-like tokens mentioned in ``content``.
+
+    Tokens whose FIRST segment is domain-like (``example.com/page.html``) are
+    dropped: those are URLs/hostnames in prose, not repo-relative paths, and
+    flagging them as ``stale_file`` (the file "does not exist") is noise. So are
+    tokens whose basename is a conventional PLACEHOLDER (``x.py``,
+    ``tests/test_x.py``) — an example in prose, not a claim about a real file.
+    """
     seen: dict[str, None] = {}
     for m in _PATH_RE.finditer(content or ""):
         token = m.group(1).strip("`'\"")
+        first_seg = token.split("/", 1)[0]
+        if _HOSTLIKE_FIRST_SEG.match(first_seg):
+            continue  # domain-like head → a URL/host mention, not a repo path
+        if _PLACEHOLDER_BASENAME_RE.match(token.rsplit("/", 1)[-1]):
+            continue  # example filename in prose, not a real path
         seen.setdefault(token, None)
     return list(seen)
+
+
+def _parent_dir_exists(path: str, file_exists: Any) -> bool:
+    """True if the path's parent directory exists in the repo.
+
+    The stale_file detector must only speak about paths that are genuinely
+    repo-relative — where the DIRECTORY is real and only the file is missing.
+    A memory writes prose full of slashes that are alternation separators, not
+    paths (`lru_cache/functools.cache`, `release/1.8`, `ru/senar.md`); none of
+    those has an existing parent dir, so requiring one removes the noise while
+    still catching a real deletion inside a live directory. ``file_exists``
+    defaults to ``os.path.exists`` (true for directories), so it doubles as the
+    dir resolver.
+    """
+    parent = path.rsplit("/", 1)[0] if "/" in path else ""
+    return bool(parent) and file_exists(parent)
 
 
 def find_lint_candidates(
@@ -166,7 +229,10 @@ def find_lint_candidates(
         if rid is None:
             continue
         for path in _extract_paths(r.get("content") or ""):
-            if not file_exists(path):
+            # Only a path whose DIRECTORY exists but whose FILE is gone is a real
+            # stale reference; a token whose parent dir does not exist is prose
+            # that merely looks path-shaped (see `_parent_dir_exists`).
+            if not file_exists(path) and _parent_dir_exists(path, file_exists):
                 findings.append(
                     {
                         "id": int(rid),

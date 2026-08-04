@@ -23,18 +23,34 @@ import json
 import os
 from pathlib import Path
 
+# Module import (not from-import) keeps the lookup monkeypatchable in tests.
+import audit_tracked_files
+from ide_utils import all_profile_dirs
+
+
+def _profile_excludes() -> tuple[str, ...]:
+    """Deployed-profile globs for every supported IDE, from the ide registry.
+
+    A deployed profile holds a copy of the engine, not project source, so the
+    orphan scan must skip it. Listing three profile names by hand covered 3 of
+    7 IDEs: on the rest the deployed engine was either walked or reported as
+    orphan. Sourcing the names from `ide_utils.all_profile_dirs()` keeps the
+    scan correct as IDEs are added, with no directory literal to maintain here.
+    """
+    out: list[str] = []
+    for d in sorted(all_profile_dirs()):
+        out.append(f"{d}/*")
+        out.append(f"{d}/**/*")
+    return tuple(out)
+
+
 # Excluded path globs (relative to repo root, forward-slashed).
 DEFAULT_EXCLUDES: tuple[str, ...] = (
     "tests/*",
     "tests/**/*",
     ".tausik/*",
     ".tausik/**/*",
-    ".claude/*",
-    ".claude/**/*",
-    ".cursor/*",
-    ".cursor/**/*",
-    ".qwen/*",
-    ".qwen/**/*",
+    *_profile_excludes(),
     "docs/_generated/*",
     "docs/_generated/**/*",
     "harness/skills/_*/**/*",
@@ -91,10 +107,14 @@ def collect_orphans(repo_root: Path, excludes: tuple[str, ...] = DEFAULT_EXCLUDE
     if not scripts_dir.is_dir():
         return []
 
+    tracked = audit_tracked_files.tracked_files(repo_root)
+
     rel_paths: list[str] = []
     module_to_rel: dict[str, str] = {}
     for p in scripts_dir.rglob("*.py"):
         rel = p.relative_to(repo_root).as_posix()
+        if not audit_tracked_files.is_tracked(rel, tracked):
+            continue
         if _is_excluded(rel, excludes):
             continue
         rel_paths.append(rel)
@@ -108,11 +128,13 @@ def collect_orphans(repo_root: Path, excludes: tuple[str, ...] = DEFAULT_EXCLUDE
         if not d.is_dir():
             continue
         for p in d.rglob("*.py"):
+            if not audit_tracked_files.is_tracked(p.relative_to(repo_root).as_posix(), tracked):
+                continue
             referenced |= _imports_in(p)
 
     # Also count "soft" references in human-facing docs/skills — a script that
     # is documented as a CLI is not orphan even if no .py imports it.
-    doc_referenced = _doc_referenced_modules(repo_root, list(module_to_rel.keys()))
+    doc_referenced = _doc_referenced_modules(repo_root, list(module_to_rel.keys()), tracked)
 
     orphans: list[str] = []
     for mod, rel in module_to_rel.items():
@@ -123,7 +145,11 @@ def collect_orphans(repo_root: Path, excludes: tuple[str, ...] = DEFAULT_EXCLUDE
     return orphans
 
 
-def _doc_referenced_modules(repo_root: Path, module_names: list[str]) -> set[str]:
+def _doc_referenced_modules(
+    repo_root: Path,
+    module_names: list[str],
+    tracked: frozenset[str] | None = None,
+) -> set[str]:
     """Modules whose ``<name>.py`` is mentioned anywhere under ``docs/`` or
     ``harness/skills/``. Picks up CLI scripts that nothing imports but the
     architecture docs / skill READMEs reference by file name.
@@ -135,6 +161,8 @@ def _doc_referenced_modules(repo_root: Path, module_names: list[str]) -> set[str
         if not d.is_dir():
             continue
         for p in d.rglob("*.md"):
+            if not audit_tracked_files.is_tracked(p.relative_to(repo_root).as_posix(), tracked):
+                continue
             try:
                 text = p.read_text(encoding="utf-8")
             except (UnicodeDecodeError, OSError):

@@ -61,6 +61,7 @@ task add <title> [--story STORY_SLUG] [--slug SLUG] [--stack STACK]
 task quick <title> [--goal TEXT] [--role ROLE] [--stack STACK]
 task next [--agent AGENT_ID]    # Pick next planning task (by score)
 task list [--status STATUS] [--story STORY] [--epic EPIC] [--role ROLE] [--stack STACK] [--limit N]
+          [--full] [--top-n N] [--max-lines N]   # >25 rows roll up by status/role; --full = full table
 task show <slug>                # Full info: plan, notes, decisions, defect_of, AC
 task start <slug> [--force]     # planning -> active (QG-0: requires goal + AC + negative scenario)
                                 # --force bypasses session capacity gate (audit event + note)
@@ -103,16 +104,47 @@ task unclaim <slug>             # Release a task
 
 ## Verification
 
-**v1.5 Verify-First Contract.** Heavy gates (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeval, hadolint, ansible-lint) live on the `verify` trigger, not `task-done`. This decouples "task closure" (milliseconds) from "full verification" (potentially minutes on large projects). The `verify` result is cached in the `verification_runs` table for 10 minutes (TTL is configurable via `verify_cache_ttl_seconds` in config.json), and `task done` uses the cache for instant closure.
+**v1.5 Verify-First Contract.** Heavy gates (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeconform, hadolint, ansible-lint) live on the `verify` trigger, not `task-done`. This decouples "task closure" (milliseconds) from "full verification" (potentially minutes on large projects). The `verify` result is cached in the `verification_runs` table for 10 minutes (TTL is configurable via `verify_cache_ttl_seconds` in config.json), and `task done` uses the cache for instant closure.
 
 ```bash
-verify [--task SLUG] [--scope {lightweight,standard,high,critical,manual}]
+verify [--task SLUG] [--relevant-files PATH ...]
+       [--scope {lightweight,standard,high,critical,manual}]
+       [--no-tests-expected]
                                 # Run scoped verify-trigger gates ad-hoc; records into verify cache.
                                 # With --task: gates scoped to the task's relevant_files.
                                 # Without --task: gates with empty file scope (full suite for pytest).
                                 # Cache hit (same files_hash, < 10 min) skips the run.
                                 # Security-sensitive files (auth/payment/hooks) bypass the cache.
 ```
+
+**`--relevant-files`.** Declares the task's scope AND verifies it in one step.
+Requires `--task`: the scope is a property of a task, and there is nowhere else
+to record it. The paths are PERSISTED to the task, so `task done` reads the same
+scope and hits the cache — one source of truth, the task row.
+
+Without a declared scope every scoped gate is `[SKIP]` and the receipt is still
+signed: it certifies emptiness. Before this flag the only working move
+(`task update <slug> --relevant-files ...`) was named in no message at all,
+while the warning offered a flag `verify` did not have — which made ignoring the
+warning the RATIONAL response rather than a careless one.
+
+**`--no-tests-expected`.** A run in which no gate actually executed (everything
+`[SKIP]`) blocks: it proves nothing, and a green recorded against it would stay
+valid for the whole TTL across arbitrary tree changes. For documentation,
+config and migrations that is a dead end — no test maps to those files and none
+ever will. The flag declares this EXPLICITLY: the run is recorded green under
+`no_tests_declared = 1`.
+
+The flag buys visibility, not permission. The closure still happens with no gate
+executed; what changes is that such closures are now countable with one query
+instead of being indistinguishable from verified ones:
+
+```sql
+SELECT task_slug, ran_at FROM verification_runs WHERE no_tests_declared = 1;
+```
+
+It applies only to SKIPPED gates. A failing gate stays red and `verify` still
+exits 1.
 
 **Verify-first workflow:**
 
@@ -203,6 +235,29 @@ to reach the next level. Machinery clauses (closed lists, V1–V6, QG-0/QG-2,
 schema-validation hook = our drift-1) are confirmed by capability; data clauses
 (`adapt-per-tz`) only when artifacts exist.
 
+## State in git (state / sync)
+
+Projection of durable DB state (`.tausik/tausik.db`) into a git-native `tausik/`
+tree — one deterministic .md file per entity (tasks, task_logs, epics, stories,
+decisions, memory, memory edges). The DB is the working cache; the `tausik/` tree
+is the canonical, branch-coupled source of truth. Round-trip: `export` (DB → files),
+`import` (files → DB, git wins on divergence). `sync` is a short alias for
+`state import`, the command you run after `git pull` / `git checkout`.
+
+```bash
+state export [--out DIR] [--check]   # Serialize DB → tausik/ tree (one file per entity).
+                                     # --check: exit 1 if the tree is stale vs live DB (CI gate,
+                                     # same contract as renar export --check).
+state import [--out DIR] [--dry-run] # Rebuild the DB cache from the tausik/ tree (idempotent delta).
+                                     # --dry-run: show the add/update/journal/edge plan without writing.
+sync [--out DIR] [--dry-run]         # Alias for `state import`. Run after git pull/checkout.
+```
+
+Example: `.tausik/tausik state export` before committing a branch; `.tausik/tausik sync`
+right after `git pull` so the local DB cache catches up to the tree. Round-trip
+automation (export on durable write, divergence detection on session start) is gated
+by the `state.auto_export` config key.
+
 ## Stacks
 
 ```bash
@@ -263,7 +318,8 @@ memory unlink <edge_id> [--replacement EDGE_ID]   # Soft-invalidate (never delet
 memory related <node_type> <node_id> [--hops N] [--include-invalid]
 memory graph [--type {memory,decision}] [--id N]
              [--relation {supersedes,caused_by,relates_to,contradicts}]
-             [--include-invalid] [--limit N]
+             [--include-invalid] [--limit N] [--format {table,mermaid}]
+             # --format mermaid: emit the graph in Mermaid notation (for doc rendering); default table
 
 # Aggregators
 memory block [--max-decisions N] [--max-conventions N] [--max-deadends N] [--max-lines N]
@@ -416,7 +472,14 @@ Opt-in: requires `markitdown` and Python ≥3.11. See `docs/en/markitdown-integr
 
 ```bash
 events [--entity {task,epic,story}] [--id SLUG] [--limit N]
+       [--full] [--top-n N] [--max-lines N]
 ```
+
+Above 25 rows the output rolls up by entity-type and action (a compact,
+deterministic aggregate) instead of dumping every event; `--top-n` / `--max-lines`
+cap the group lines and a footer names how many are hidden. `--full` prints the
+per-event dump unchanged. `task list` takes the same three flags (rolls up by
+status and role).
 
 ## Snippets / clone detection (v15-snippet)
 

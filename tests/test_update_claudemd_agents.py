@@ -4,10 +4,15 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bootstrap"))
 
 from claudemd_writer import apply_dynamic_section, resolve_sibling_targets  # noqa: E402
+
+_REPO = Path(__file__).resolve().parents[1]
+_MARKERS = ("<!-- DYNAMIC:START -->", "<!-- DYNAMIC:END -->")
 
 _DOC = (
     "# CLAUDE.md\n\nStatic stuff.\n\n"
@@ -103,3 +108,32 @@ class TestResolveSiblingTargets:
         monkeypatch.chdir(tmp_path)
         targets = resolve_sibling_targets(str(sub / "CLAUDE.md"))
         assert targets == [str(sub / "CLAUDE.md")]  # cwd AGENTS.md excluded
+
+
+class TestRepoAndTemplateHaveMarkers:
+    """l26-agents-md: the AGENTS.md support was started (resolve_sibling_targets
+    mirrors the dynamic section into AGENTS.md) but abandoned — this repo's own
+    AGENTS.md predated the DYNAMIC markers, so every `update-claudemd` warned
+    "marker not found in AGENTS.md — skipped". These guard that (a) the live
+    files carry the markers so the sibling write lands, and (b) the bootstrap
+    template ships them so a freshly generated AGENTS.md never regresses.
+    """
+
+    def test_repo_claude_and_agents_carry_dynamic_markers(self):
+        for name in ("CLAUDE.md", "AGENTS.md"):
+            text = (_REPO / name).read_text(encoding="utf-8")
+            for marker in _MARKERS:
+                assert marker in text, f"{name} is missing {marker}"
+
+    def test_bootstrap_template_body_ships_the_markers(self):
+        """A freshly generated onboarding file must contain the markers so the
+        sibling mirror works out of the box — otherwise a new project inherits
+        the same skipped-with-a-warning state this task fixed."""
+        from bootstrap_templates import build_full_body
+
+        for tier in ("minimal", "standard", "full"):
+            body = build_full_body(
+                "demo", ["python"], "an AI agent", ".claude", ide=None, context_tier=tier
+            )
+            for marker in _MARKERS:
+                assert marker in body, f"context_tier={tier} body missing {marker}"

@@ -41,6 +41,79 @@ def _manifest_path(skills_official_dir: str, override: str | None) -> str:
     return os.path.join(skills_official_dir, DEFAULT_MANIFEST)
 
 
+def discover_manifest_dirs(vendor_dir: str, fallback_dir: str | None = None) -> list[str]:
+    """Directories carrying a bundles.json, in resolution order.
+
+    Every cloned skill repo under ``vendor_dir`` is a candidate: decision #200
+    puts a store's bundle composition inside the store, next to its
+    ``tausik-skills.json``. ``fallback_dir`` is the core checkout's own
+    ``skills-official/``, which exists while developing the framework itself
+    and is absent in a bootstrapped project — the bug this replaces was
+    resolving ONLY that path, so bundles silently did not exist for any user.
+
+    Repos come first so a store can override nothing but add freely.
+    """
+    dirs: list[str] = []
+    if os.path.isdir(vendor_dir):
+        for entry in sorted(os.listdir(vendor_dir)):
+            candidate = os.path.join(vendor_dir, entry)
+            if os.path.isfile(os.path.join(candidate, DEFAULT_MANIFEST)):
+                dirs.append(candidate)
+    if fallback_dir and os.path.isfile(os.path.join(fallback_dir, DEFAULT_MANIFEST)):
+        dirs.append(fallback_dir)
+    return dirs
+
+
+def _merge_into(merged: dict[str, Any], data: dict[str, Any], source: str) -> None:
+    """Fold one manifest into the accumulator.
+
+    Same bundle name in two stores UNIONS their skill lists rather than letting
+    one win. That is what makes the publication boundary hold: the public store
+    can declare `ru-locale` as an empty placeholder while a private store adds
+    its own skills to it, and neither file ever has to name the other's
+    contents. Order is preserved and duplicates collapse.
+    """
+    for name, body in (data.get("bundles") or {}).items():
+        slot = merged["bundles"].setdefault(
+            name, {"title": "", "description": "", "skills": [], "sources": []}
+        )
+        for key in ("title", "description"):
+            if not slot[key] and body.get(key):
+                slot[key] = body[key]
+        seen = set(slot["skills"])
+        for skill in body.get("skills") or []:
+            if skill not in seen:
+                seen.add(skill)
+                slot["skills"].append(skill)
+        if source not in slot["sources"]:
+            slot["sources"].append(source)
+        # A placeholder stops being one the moment any store fills it.
+        slot["placeholder"] = bool(body.get("placeholder")) and not slot["skills"]
+    for skill, message in (data.get("deprecated") or {}).items():
+        if not skill.startswith("_") and isinstance(message, str):
+            merged["deprecated"].setdefault(skill, message)
+
+
+def load_merged_manifest(dirs: list[str]) -> dict[str, Any]:
+    """Merge the bundles.json of every directory in ``dirs``.
+
+    Raises BundleError when ``dirs`` is empty — "no store provides bundles" is
+    a different situation from "the store's manifest is broken", and the two
+    need different advice.
+    """
+    if not dirs:
+        raise BundleError(
+            "No skill repo provides a bundles.json. Bundles ship inside a skill "
+            "repo, next to its tausik-skills.json — add one with "
+            "`tausik skill repo add <url>`, then re-run. "
+            "See docs/en/skill-bundles.md."
+        )
+    merged: dict[str, Any] = {"bundles": {}, "deprecated": {}}
+    for directory in dirs:
+        _merge_into(merged, load_bundles_manifest(directory), directory)
+    return merged
+
+
 def load_bundles_manifest(
     skills_official_dir: str, *, manifest_path: str | None = None
 ) -> dict[str, Any]:
@@ -76,6 +149,22 @@ def load_bundles_manifest(
     return data
 
 
+def _resolve_manifest(
+    source: str | list[str] | dict[str, Any], manifest_path: str | None
+) -> dict[str, Any]:
+    """Accept a single store dir, several store dirs, or an already-merged manifest.
+
+    One entry point so every command sees the same bundles. Passing a single
+    directory still works unchanged — that is how the tests and the framework's
+    own checkout use it.
+    """
+    if isinstance(source, dict):
+        return source
+    if isinstance(source, list):
+        return load_merged_manifest(source)
+    return load_bundles_manifest(source, manifest_path=manifest_path)
+
+
 def _bundle_body(manifest: dict[str, Any], name: str) -> dict[str, Any]:
     bundles = manifest.get("bundles", {})
     if name not in bundles:
@@ -106,10 +195,10 @@ def deprecated_skills(manifest: dict[str, Any]) -> dict[str, str]:
 
 
 def bundle_list(
-    skills_official_dir: str, *, manifest_path: str | None = None
+    skills_official_dir: str | list[str] | dict[str, Any], *, manifest_path: str | None = None
 ) -> list[dict[str, Any]]:
     """Summarize every bundle: name, title, skill count, placeholder flag."""
-    manifest = load_bundles_manifest(skills_official_dir, manifest_path=manifest_path)
+    manifest = _resolve_manifest(skills_official_dir, manifest_path)
     out: list[dict[str, Any]] = []
     for name, body in manifest.get("bundles", {}).items():
         skills = body.get("skills") or []
@@ -126,10 +215,13 @@ def bundle_list(
 
 
 def bundle_show(
-    name: str, skills_official_dir: str, *, manifest_path: str | None = None
+    name: str,
+    skills_official_dir: str | list[str] | dict[str, Any],
+    *,
+    manifest_path: str | None = None,
 ) -> dict[str, Any]:
     """Full body for a single bundle: title, description, skills list."""
-    manifest = load_bundles_manifest(skills_official_dir, manifest_path=manifest_path)
+    manifest = _resolve_manifest(skills_official_dir, manifest_path)
     body = _bundle_body(manifest, name)
     return {
         "name": name,
@@ -147,7 +239,7 @@ def bundle_show(
 
 def bundle_install(
     name: str,
-    skills_official_dir: str,
+    skills_official_dir: str | list[str] | dict[str, Any],
     install_one: Callable[[str], str],
     *,
     manifest_path: str | None = None,
@@ -157,7 +249,7 @@ def bundle_install(
     Returns a list of {skill, status, message} entries — `status` is one of
     'installed', 'deprecated_skipped', 'error'. Continues on per-skill error.
     """
-    manifest = load_bundles_manifest(skills_official_dir, manifest_path=manifest_path)
+    manifest = _resolve_manifest(skills_official_dir, manifest_path)
     body = _bundle_body(manifest, name)
     if body.get("placeholder"):
         return [{"skill": "", "status": "placeholder", "message": "Bundle is empty (placeholder)."}]
@@ -183,13 +275,13 @@ def bundle_install(
 
 def bundle_uninstall(
     name: str,
-    skills_official_dir: str,
+    skills_official_dir: str | list[str] | dict[str, Any],
     uninstall_one: Callable[[str], str],
     *,
     manifest_path: str | None = None,
 ) -> list[dict[str, str]]:
     """Uninstall every skill in the bundle via `uninstall_one`. Continues on error."""
-    manifest = load_bundles_manifest(skills_official_dir, manifest_path=manifest_path)
+    manifest = _resolve_manifest(skills_official_dir, manifest_path)
     body = _bundle_body(manifest, name)
     if body.get("placeholder"):
         return [{"skill": "", "status": "placeholder", "message": "Bundle is empty (placeholder)."}]

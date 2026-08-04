@@ -2,5 +2,34 @@
   "name": "flutter",
   "version": "1",
   "detect": [{ "file": "pubspec.yaml", "type": "exact", "keyword": "flutter" }],
-  "extensions": [".dart"]
+  "extensions": [".dart"],
+  "gates": {
+    "dart-analyze": {
+      "enabled": false,
+      "severity": "block",
+      "trigger": ["verify", "commit"],
+      "command": "dart analyze 2>&1 | tail -30",
+      "description": "Dart static analysis (analyzer + lints from analysis_options.yaml)",
+      "stacks": ["flutter"],
+      "timeout": 120
+    },
+    "dart-format": {
+      "enabled": false,
+      "severity": "warn",
+      "trigger": ["commit"],
+      "command": "dart format --output=none --set-exit-if-changed {files} 2>&1 | tail -20",
+      "description": "Dart formatting — non-zero exit when files differ from dart format output",
+      "stacks": ["flutter"],
+      "timeout": 60
+    },
+    "flutter-test": {
+      "enabled": false,
+      "severity": "block",
+      "trigger": ["verify"],
+      "command": "flutter test 2>&1 | tail -30",
+      "description": "Run the Flutter test suite (flutter_test, widget and golden tests)",
+      "stacks": ["flutter"],
+      "timeout": 300
+    }
+  }
 }

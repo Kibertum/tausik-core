@@ -1,7 +1,9 @@
-"""CLI dispatchers for `tausik audit vendors` and `tausik audit research`.
+"""TAUSIK CLI handler for `tausik audit` — the command and its subcommands.
 
-Extracted from project_cli_ops.py to keep that file under the 400-line gate.
-Wired from project_cli_ops.cmd_audit's dispatch table.
+`cmd_audit` moved here from project_cli_ops.py: the subcommands already
+lived in this file while the command they belong to did not, which split one
+domain across two modules (filesize-rejoin-cap-deformed-wrappers,
+decision #199). Renamed off `_audit_extra` — nothing here is extra.
 """
 
 from __future__ import annotations
@@ -9,6 +11,8 @@ from __future__ import annotations
 import json as _json
 import os as _os
 from typing import Any
+
+from project_service import ProjectService
 
 
 def cmd_audit_vendors(args: Any) -> None:
@@ -68,3 +72,20 @@ if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tes
     from cli_entrypoint import refuse_direct_run
 
     refuse_direct_run(__file__)
+
+
+def cmd_audit(svc: ProjectService, args: Any) -> None:
+    c = getattr(args, "audit_cmd", None)
+    if c == "mark":
+        print(svc.audit_mark())
+    elif c == "vendors":
+        cmd_audit_vendors(args)
+    elif c == "research":
+        cmd_audit_research(args)
+    else:
+        # Default and "check" -- same behavior
+        warning = svc.audit_check()
+        if warning:
+            print(f"WARNING: {warning}")
+        else:
+            print("Audit is up to date.")

@@ -29,6 +29,8 @@ def _conn(*, with_chain_cols: bool = True) -> sqlite3.Connection:
     conn = sqlite3.connect(":memory:")
     conn.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
     chain = ", entry_hash TEXT, prev_hash TEXT" if with_chain_cols else ""
+    # ddl-parity: historical — предмет теста в том, что колонок цепочки ещё
+    # нет либо они пусты; канонный events сделал бы бэкфилл нечем проверять.
     conn.execute(
         "CREATE TABLE events ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, "

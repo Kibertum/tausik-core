@@ -1,9 +1,13 @@
 """CLI dispatcher for `tausik snippet detect|extract` (v15 snippet system).
 
 `detect` runs the AST clone detector over a path and persists each cluster into
-the snippets store (taxonomy_kind='clone'). `extract <id> --scope brain` reads a
-stored snippet and publishes it to the cross-project Shared Brain as a `patterns`
-artifact card (artifact_taxonomy_kind classified via brain_snippet_detect). Kept
+the snippets store (taxonomy_kind='clone'). `extract <id>` sends a stored snippet
+to one of TWO destinations, and they are not variants of each other: `--scope
+brain` publishes to the cross-project Shared Brain as a `patterns` artifact card
+(network, Notion, scrubbed, artifact_taxonomy_kind classified via
+brain_snippet_detect), while `--scope global` copies it into the local shared
+store `~/.tausik-knowledge/knowledge.db` (no network, no scrubber, no config
+required). Kept
 separate from the engine (snippet_detect.py) so detection stays pure/testable and
 out of the CLI's filesize budget. Idempotent ingest: clusters dedup on content hash.
 """
@@ -24,7 +28,8 @@ def cmd_snippet(svc: ProjectService, args: Any) -> None:
         return
     if sub != "detect":
         print(
-            "Usage: tausik snippet {detect [--path X] [--threshold N] | extract <id> --scope brain}"
+            "Usage: tausik snippet {detect [--path X] [--threshold N] | "
+            "extract <id> --scope brain|global}"
         )
         return
     _cmd_snippet_detect(svc, args)
@@ -135,8 +140,26 @@ def _cmd_snippet_extract(svc: ProjectService, args: Any) -> None:
     if snippet is None:
         print(f"Snippet #{snippet_id} not found.")
         return
+    if scope == "global":
+        # The shared store is a file in this user's home: no network, no Notion,
+        # and deliberately no scrubber. Redaction belongs at the boundary where
+        # knowledge leaves the machine, which is the `brain` scope below — not
+        # here, where scrubbing would corrupt a snippet (a redacted identifier
+        # is a wrong identifier) to buy privacy against oneself.
+        from knowledge_write import write_snippet
+
+        print(
+            write_snippet(
+                code=snippet["code"],
+                language=snippet["language"],
+                source_file=snippet.get("source_file"),
+                source_lines=snippet.get("source_lines"),
+                taxonomy_kind=snippet.get("taxonomy_kind"),
+            )
+        )
+        return
     if scope != "brain":
-        print(f"Unsupported scope '{scope}'. Only --scope brain is supported.")
+        print(f"Unsupported scope '{scope}'. Use --scope brain or --scope global.")
         return
 
     import sys

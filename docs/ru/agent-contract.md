@@ -20,12 +20,76 @@ quality gates. Pytest gate использует `{test_files_for_files}` substit
 
 - Если `relevant_files` non-empty но ни один тест не маппится → **gate SKIPPED**
   (раньше fallback на полный suite — defect fixed).
-- Без `relevant_files` (None/empty) — fallback на полный suite остаётся
-  (regression-safe для unscoped вызовов).
+- Суженный прогон предваряет вывод строкой `SCOPE: scoped run over N of M test
+  file(s) … NOT the full suite: …` — на pass, на fail и на timeout одинаково.
+  Она печатается и для ПРОШЕДШЕГО гейта (у остальных гейтов вывод на успехе не
+  показывается). Знаменатель обязателен: `[PASS] pytest` над двумя файлами из
+  318 читается как утверждение о проекте, и в сессии #134 так и прочитался —
+  задача закрылась зелёным подписанным чеком при красном полном наборе.
+  Прежде чем писать в evidence «полный pytest зелёный», прогони его отдельно:
+  он идёт ~9-10 минут и завершается (память #304), а цифры гейта — не его.
+- Без `relevant_files` (None/empty) `task done` **БЛОКИРУЕТ**: необъявленная
+  область — «unknown», а не «verified empty» (verify-cache-empty-scope-hit,
+  сессия #118). Полный suite fallback отменён. Объяви файлы и запусти verify.
+- Задача, которая **законно не трогает файлов** (чистое планирование, `tausik
+  decide`), закрывается флагом `task done --no-file-changes` — третье состояние
+  области. Разрешено ТОЛЬКО когда git подтверждает, что объявленная область
+  (`--relevant-files` как pathspec; всё дерево при пустом списке) не имеет
+  незакоммиченных правок; иначе fail-closed. Счётно:
+  `SELECT * FROM tasks WHERE no_file_changes_declared = 1`
+  (qg2-cannot-close-fileless-task).
 - Verify cache (`verification_runs` table): зелёный run за последние 10 минут с
   тем же `files_hash` → cache hit, gate skipped.
 - Security-sensitive файлы (`scripts/hooks/`, `/auth/`, `/payment/`, `/billing/`)
   обходят cache — всегда re-verify.
+- **Граница подписи чека** (l26-signing-key-boundary): подпись receipt/anchor —
+  это tamper-evidence против ВНЕШНИХ правок `tausik.db`, но НЕ attestation против
+  агента: seed лежит в рабочем дереве, доступном агенту на чтение. Подробнее и о
+  том, почему вынос ключа отложен — `docs/ru/receipts.md` (раздел «граница
+  ключа»). Сбой подписи теперь виден (`Receipt: WARNING` + событие
+  `receipt_sign_failed`), а не молча деградирует до неподписанного прогона.
+- **Continuous-CHANGELOG гейт** (changelog-continuous-gate, convention #275):
+  когда включён в конфиге, `task done` блокирует закрытие, если git НЕ
+  показывает в КАЖДОМ настроенном changelog-файле добавленной НЕПУСТОЙ строки.
+  Это делает дисциплину непрерывного changelog механической, а не строчкой в AC.
+  Механизм общий, политика — в конфиге (TAUSIK — фреймворк, чужой проект может
+  не вести changelog):
+
+  ```json
+  "task_done": {
+    "changelog_gate": {
+      "enabled": true,
+      "files": ["CHANGELOG.md", "CHANGELOG.ru.md"]
+    }
+  }
+  ```
+
+  По умолчанию **выключен** (opt-in) — отсутствие блока `changelog_gate` это
+  осознанный отказ, а не ошибка, и он не шумит. Но блок, который ЕСТЬ и при
+  этом сломан (`enabled` не булев, `files` не список, конфиг не читается),
+  БЛОКИРУЕТ закрытие: политику, которую нельзя прочитать, нельзя считать
+  выключенной — она неизвестна (решение #157). Опечатка в конфиге не должна
+  тихо отменять дисциплину, которую проект считает включённой.
+
+  Что считается записью:
+  - **непустая добавленная строка** — правка «в файле изменились байты» не
+    проходит: одна пустая строка делает файл грязным, ничего не добавляя;
+  - изменения в рабочем дереве (staged и unstaged) **и коммиты, сделанные во
+    время задачи** (окно с `started_at`). Второе обязательно: `/ship` коммитит
+    на шаге 7 и закрывает задачу на шаге 8 — требование «только незакоммиченное»
+    блокировало бы канонический путь закрытия и оставляло `--no-changelog`
+    единственным проходом. Правило, у которого единственный проход — его же
+    обход, обучает обходу;
+  - новый (untracked) changelog-файл с текстом — тоже запись.
+
+  Fail-closed: если git недоступен или сервис не знает своего проектного
+  каталога — блок, а не пропуск (по образцу whole-tree proof, решение #157).
+  Конфиг гейта читается для ПРОЕКТА сервиса (`tausik_dir`), а не из текущего
+  каталога процесса. Задача, законно НЕ требующая записи в
+  changelog (доки, чистка, замер), закрывается флагом `task done --no-changelog`
+  — он пропускает гейт и пишет явное событие-обход (`supervision` /
+  `bypass_changelog_gate`), молчаливого обхода нет. Fileless-задачи
+  (`--no-file-changes`) до этого гейта не доходят — их путь возвращается раньше.
 
 Залогируй проверку AC через `task log` перед закрытием.
 
@@ -96,11 +160,11 @@ overshoot is intentional (audit event + notes line trace it).
 | QG-0 Context Gate | `task start` проверяет goal + AC + negative scenario + scope warning | Hard (CLI + MCP блокирует) |
 | QG-0 Security Surface | Предупреждает для auth/payment/PII задач без security AC | Warning |
 | QG-2 Implementation Gate | `task done` = evidence + --ac-verified + **scoped** gates + verify cache (no bypass) | Hard (CLI + MCP, --force удалён) |
-| Rule 1 Задача перед кодом | CLAUDE.md + skills + `/plan` для старта | Instruction |
-| Rule 2 Scope Boundaries | Поля `scope` + `scope_exclude` в задачах, QG-0 предупреждает | Warning |
+| Rule 1 Задача перед кодом | CLAUDE.md + skills + `/plan`; PreToolUse `task_gate` блокирует Write/Edit/MultiEdit/NotebookEdit без активной задачи, `bash_write_gate` — Bash-запись файлов (heredoc, `sed -i`, `tee`, redirections) | Hard (PreToolUse hook) + Instruction |
+| Rule 2 Scope Boundaries | `scope_paths` ACL + PreToolUse `scope_write_gate`/`bash_write_gate` блокируют запись вне union объявленных областей (Write/Edit/MultiEdit/NotebookEdit **и** Bash) | Hard (PreToolUse hook, если объявлен `scope_paths`) + Warning |
 | Rule 3 Verify Against Criteria | Per-criterion AC evidence парсинг | Hard + Warning |
-| Rule 4 External Validation | Субагент `tausik-external-reviewer` на ДРУГОЙ модели (separation of duties, read-only); требуется при measured-high closure через L3-триггер | Hard (при high-risk) |
-| Rule 5 Verification Checklist | 28-item checklist, 4 тира; **pytest gate scoped по relevant_files**, verify cache reuse в окне 10 мин; v1.4 — структурированный AC-evidence parser (`service_ac_evidence`) сообщает про gaps и отсутствующие test-refs/негативные сценарии | Warning + Hard scope |
+| Rule 4 External Validation | Субагент `tausik-external-reviewer` на ДРУГОЙ модели (separation of duties, read-only); требуется при measured-high closure через L3-триггер | Hard (при тонком доказательстве) |
+| Rule 5 Verification Checklist | 28-item checklist, 4 тира; **pytest gate scoped по relevant_files**, verify cache reuse в окне 10 мин; вердикт даёт структурированный AC-evidence parser (`service_ac_evidence`), а не словарь: предупреждение — если НИ ОДИН критерий не называет тест, ручной прогон или ревью (голая галочка не считается); хард-блок на планировочных тирах substantial/deep — если ни один критерий не ссылается на **существующий** тест: путь обязан нормализоваться ВНУТРЬ `tests/` (обход через `..` не засчитывается), а названная после `::` функция/класс — быть определена в файле (принимается полный pytest node id `file::Class::method` и параметризованный `::test_x[case]`). Нерезолвимая цитата = отсутствие доказательства (fail-closed). Корень берётся от ПРОЕКТА (`CLAUDE_PROJECT_DIR` / `find_tausik_dir`), поэтому вердикт не зависит от каталога запуска. Чего гейт НЕ устанавливает и не заявляет: что тест исполнялся, что он прошёл и что он относится к этой задаче. Рабочая форма строки: `AC-N: ✓ tests/test_foo.py::test_bar` | Warning + Hard (substantial/deep) |
 | Rule 7 Root Cause | Defect-задачи: keyword floor **блокирует** done без root cause; structured-форма (category+description+prevention) — advisory escalating nudge + coverage в `metrics` | Hard (floor) + Warning (structured) |
 | Rule 8 Knowledge Capture | Warning при task_done + `--no-knowledge` для confirm-none | Warning |
 | Rule 9.2 Лимит сессии | `task start` блокируется при >180 мин **active time** (bounded sum: каждый gap = `min(Δ, 10 мин)`, длинный AFK клипуется). `session extend` продлевает; `session recompute` retro. | Hard (CLI + MCP блокирует) |
@@ -123,6 +187,17 @@ overshoot is intentional (audit event + notes line trace it).
 
 ---
 
+## Граница принуждения хуков: что покрыто и что нет
+
+Вынесено в отдельный документ: [`enforcement-coverage.md`](enforcement-coverage.md)
+(EN: [`../en/enforcement-coverage.md`](../en/enforcement-coverage.md)).
+
+Там: что ловит `bash_write_gate` и что НЕ ловит, обёртки и прозрачные
+префиксы, поведение на непарсящейся команде, **матрица покрытия каналов**
+(Write/Edit × Bash × PowerShell) и смешанный scope (Rule 2, AC3).
+
+---
+
 ## Rule 4 — External Validation (separation of duties)
 
 Закрытие задачи с **measured-high** риском требует независимого adversarial-ревью
@@ -137,7 +212,7 @@ overshoot is intentional (audit event + notes line trace it).
   `is_separate_duty()` отвергает совпадение семейств и неизвестного ревьюера.
   Если автор уже на opus — ревьюер фолбэчится на fable.
 - **Триггер.** `risk_l3_trigger.check_l3_required` при measured-high closure
-  блокирует `task done` и в remediation называет `@tausik-external-reviewer`
+  блокирует `task done` (отбор описывает толщину доказательства, не предсказывает побег — решение #212) и в remediation называет `@tausik-external-reviewer`
   с рекомендованной моделью. Записанный `tausik review record --type L3`
   снимает блок. Opt-out: `config risk.l3_block_on_high=false` (→ warning).
 - **Evidence.** Вердикт ревьюера фиксируется в таблице `reviews` (run_type=L3) и
@@ -214,7 +289,7 @@ Coverage (% done defect-задач со структурой) выводится
 { "custom_stacks": ["ruby", "elixir", "scala", "csharp"] }
 ```
 
-После этого `task add --stack ruby` принимается. Stack-scoped gates (pytest, go-test и т.д.) автоматически НЕ применяются к custom стэкам — для них нужно зарегистрировать custom gate в `gates` секции `config.json`. Universal gates (filesize, tdd_order) работают для всех стэков. `tausik stack list` показывает custom стэки с пометкой `(custom)`.
+После этого `task add --stack ruby` принимается. Stack-scoped gates (pytest, go-test и т.д.) автоматически НЕ применяются к custom стэкам — для них нужно зарегистрировать custom gate в `gates` секции `config.json`. Universal gates (filesize, class_surface, tdd_order) работают для всех стэков. `tausik stack list` показывает custom стэки с пометкой `(custom)`.
 
 Гайды в `harness/stacks/{stack}.md`.
 

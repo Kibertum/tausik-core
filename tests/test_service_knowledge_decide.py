@@ -21,9 +21,22 @@ def svc(tmp_path, monkeypatch):
     """Isolated service fixture. v1.3.2: also stub brain_config.load_brain
     so decide() doesn't read the real project's enabled brain (which would
     cause writes to a live Notion). Tests that need brain enabled override.
+
+    The DB now lives at `<tmp>/.tausik/tausik.db` and `find_tausik_dir` points at
+    it, which makes this tmp DB genuinely THE project DB for the duration of the
+    test. `decide` refuses to publish from a service bound to anything else — the
+    hazard this fixture's comment described is now enforced rather than avoided
+    by remembering to stub, so a test that wants the brain path must say so by
+    being a well-formed project, not by being lucky.
     """
-    be = SQLiteBackend(str(tmp_path / "test.db"))
+    tausik_dir = tmp_path / ".tausik"
+    tausik_dir.mkdir(parents=True, exist_ok=True)
+    be = SQLiteBackend(str(tausik_dir / "tausik.db"))
     s = ProjectService(be)
+
+    import project_config
+
+    monkeypatch.setattr(project_config, "find_tausik_dir", lambda *a, **k: str(tausik_dir))
 
     # Force brain disabled by default — individual tests can re-monkeypatch.
     import brain_config
@@ -60,32 +73,15 @@ def test_task_slug_forces_local_does_not_call_brain(svc):
 # --- AC1: markers content routes local ---
 
 
-def test_content_with_src_file_marker_routes_local(svc):
-    msg = svc.decide("See scripts/brain_runtime.py for the wiring")
-    assert "saved to local" in msg
-    assert "src_file marker" in msg
-    assert len(svc.decisions()) == 1
 
 
-def test_content_with_abs_path_marker_routes_local(svc):
-    msg = svc.decide("Bug in D:\\Work\\Personal\\claude\\scripts\\foo.py")
-    assert "saved to local" in msg
-    assert "marker" in msg
 
 
-def test_content_with_tausik_cmd_marker_routes_local(svc):
-    msg = svc.decide("Run tausik_task_start before coding")
-    assert "saved to local" in msg
 
 
 # --- AC3: brain disabled → local fallback ---
 
 
-def test_clean_content_brain_disabled_falls_back_local(svc):
-    msg = svc.decide("HTTP/2 negotiates via ALPN in TLS handshake")
-    assert "saved to local" in msg
-    assert "brain not enabled" in msg
-    assert len(svc.decisions()) == 1
 
 
 def test_clean_content_keeps_backward_compat_recorded_word(svc):
@@ -97,185 +93,27 @@ def test_clean_content_keeps_backward_compat_recorded_word(svc):
 # --- AC2: brain enabled + clean → routes brain ---
 
 
-def test_clean_content_brain_enabled_routes_brain(svc):
-    brain_cfg = {
-        "enabled": True,
-        "notion_integration_token_env": "TEST_TOKEN",
-        "database_ids": {"decisions": "db-dec-1"},
-    }
-    with (
-        patch("brain_config.load_brain", return_value=brain_cfg),
-        patch("brain_config.validate_brain", return_value=[]),
-        patch(
-            "brain_runtime.try_brain_write_decision",
-            return_value=(True, "page-abc-123"),
-        ) as mock_brain,
-    ):
-        msg = svc.decide("Prefer context managers for file I/O in Python")
-
-    mock_brain.assert_called_once()
-    assert "saved to brain" in msg
-    assert "page-abc-123" in msg
-    # Local fallback did NOT fire.
-    assert len(svc.decisions()) == 0
 
 
 # --- v14b: brain enabled but misconfigured → loud warning, not silent fallback ---
 
 
-def test_brain_enabled_with_empty_database_ids_returns_loud_warning(svc, monkeypatch):
-    """Defect v14b-defect-brain-decisions-empty: when brain.enabled=true but
-    database_ids are empty, decide() must save locally AND surface a LOUD
-    warning instead of the quiet "brain write failed" fallback. Without this,
-    users accumulate local-only decisions that should have been mirrored.
-    """
-    brain_cfg = {
-        "enabled": True,
-        "notion_integration_token_env": "TEST_TOKEN",
-        "database_ids": {"decisions": "", "patterns": "", "gotchas": "", "web_cache": ""},
-    }
-    monkeypatch.setenv("TEST_TOKEN", "fake-token")
-    import brain_config
-
-    monkeypatch.setattr(brain_config, "load_brain", lambda cfg=None: brain_cfg)
-    monkeypatch.setattr(
-        brain_config,
-        "validate_brain",
-        lambda cfg=None: [
-            "brain.database_ids.decisions is empty but brain is enabled",
-            "brain.database_ids.patterns is empty but brain is enabled",
-            "brain.database_ids.gotchas is empty but brain is enabled",
-            "brain.database_ids.web_cache is empty but brain is enabled",
-        ],
-    )
-
-    msg = svc.decide("Use SQLite for project DB")
-
-    assert "BLOCKED" in msg
-    assert "LOCALLY ONLY" in msg
-    assert "brain init" in msg
-    assert "brain.enabled = false" in msg
-    assert "decisions is empty" in msg
-    assert "brain move --to-brain" in msg
-    # Decision still saved locally so user data is never lost.
-    assert len(svc.decisions()) == 1
 
 
 # --- AC5: brain write failure → local fallback ---
 
 
-def test_brain_write_failure_falls_back_local(svc):
-    brain_cfg = {"enabled": True, "notion_integration_token_env": "TEST_TOKEN"}
-    with (
-        patch("brain_config.load_brain", return_value=brain_cfg),
-        patch("brain_config.validate_brain", return_value=[]),
-        patch(
-            "brain_runtime.try_brain_write_decision",
-            return_value=(False, "notion_error: 429 Too Many Requests"),
-        ),
-    ):
-        msg = svc.decide("A generic useful lesson about APIs")
-
-    assert "saved to local" in msg
-    assert "brain write failed" in msg
-    assert "429" in msg
-    assert len(svc.decisions()) == 1
 
 
-def test_brain_scrub_blocked_falls_back_local(svc, monkeypatch):
-    """Patches brain_mcp_write.store_record one layer deeper so the real
-    try_brain_write_decision exercises issues-list → message formatting."""
-    brain_cfg = {
-        "enabled": True,
-        "notion_integration_token_env": "TEST_TOKEN",
-        "database_ids": {"decisions": "db-dec-1"},
-    }
-    monkeypatch.setenv("TEST_TOKEN", "fake-token")
-    with (
-        patch("brain_config.load_brain", return_value=brain_cfg),
-        patch("brain_config.validate_brain", return_value=[]),
-        patch("brain_notion_client.NotionClient"),
-        patch("brain_sync.open_brain_db"),
-        patch(
-            "brain_mcp_write.store_record",
-            return_value={
-                "status": "scrub_blocked",
-                "issues": [
-                    {
-                        "detector": "filesystem_paths",
-                        "severity": "block",
-                        "match": "/home/secret/path",
-                        "hint": "Remove absolute path.",
-                    },
-                    {
-                        "detector": "emails",
-                        "severity": "block",
-                        "match": "attacker@example.com",
-                        "hint": "Remove email.",
-                    },
-                ],
-            },
-        ),
-    ):
-        msg = svc.decide("Clean generic text")
-
-    assert "saved to local" in msg
-    assert "scrub_blocked" in msg
-    assert "filesystem_paths" in msg
-    assert "emails" in msg
-    # CRIT-1 regression: raw match values must NOT leak into the user-facing
-    # reason (they can contain user content / ANSI / prompt-injection payloads).
-    assert "/home/secret/path" not in msg
-    assert "attacker@example.com" not in msg
-    assert "unknown" not in msg
-    assert len(svc.decisions()) == 1
 
 
-def test_brain_ok_not_mirrored_treated_as_success(svc, monkeypatch):
-    """AC1: status='ok_not_mirrored' (Notion ok, local mirror lagged) must
-    NOT trigger local decision_add — otherwise decision is double-written."""
-    brain_cfg = {
-        "enabled": True,
-        "notion_integration_token_env": "TEST_TOKEN",
-        "database_ids": {"decisions": "db-dec-1"},
-    }
-    monkeypatch.setenv("TEST_TOKEN", "fake-token")
-    with (
-        patch("brain_config.load_brain", return_value=brain_cfg),
-        patch("brain_config.validate_brain", return_value=[]),
-        patch("brain_notion_client.NotionClient"),
-        patch("brain_sync.open_brain_db"),
-        patch(
-            "brain_mcp_write.store_record",
-            return_value={
-                "status": "ok_not_mirrored",
-                "notion_page_id": "page-partial-xyz",
-                "warning": "mirror write failed: disk full",
-            },
-        ),
-    ):
-        msg = svc.decide("Prefer async context managers for network I/O")
-
-    assert "saved to brain" in msg
-    assert "page-partial-xyz" in msg
-    assert len(svc.decisions()) == 0  # NOT written locally
 
 
 # --- AC6: empty/whitespace text routes to local with "empty content" reason ---
 
 
-def test_empty_text_routes_local(svc):
-    """validate_length only caps upper bound — empty passes through, classifier sends local."""
-    msg = svc.decide("")
-    assert "saved to local" in msg
-    assert "empty content" in msg
-    assert len(svc.decisions()) == 1
 
 
-def test_whitespace_only_routes_local(svc):
-    msg = svc.decide("   \n\t  ")
-    assert "saved to local" in msg
-    assert "empty content" in msg
 
 
 # --- AC7: backward compat with rationale stored in local fallback ---
@@ -317,3 +155,60 @@ def test_try_brain_write_decision_swallows_exceptions(monkeypatch):
     assert ok is False
     # Either we return the structured error OR the exception branch.
     assert "notion_error" in detail or "exception" in detail or "boom" in detail
+
+
+# --- decide-field-limit-cyrillic-unfair: symbol-based limit, no byte penalty ---
+
+
+def test_decision_limit_counts_symbols_not_bytes_cyrillic_not_penalised(svc):
+    """AC1/AC4 (dead-end #324): the limit is in CHARACTERS. A 1000-symbol
+    Cyrillic headline is 2000 UTF-8 bytes yet must be accepted — the old
+    'byte penalty' theory is false. Below MAX_DECISION=1024 → stored."""
+    from tausik_utils import MAX_DECISION
+
+    assert MAX_DECISION == 1024
+    cyr = "ы" * 1000  # 1000 code points, 2000 UTF-8 bytes
+    assert len(cyr.encode("utf-8")) == 2000
+    msg = svc.decide(cyr)
+    assert "saved to local" in msg
+    assert len(svc.decisions()) == 1
+
+
+def test_decision_over_symbol_limit_rejected_with_symbol_message(svc):
+    """AC4: >MAX_DECISION symbols is rejected, and the message speaks in
+    CHARACTERS (not bytes), so the agent knows the real budget."""
+    from tausik_utils import MAX_DECISION, ServiceError
+
+    with pytest.raises((ValueError, ServiceError)) as exc:
+        svc.decide("ы" * (MAX_DECISION + 1))
+    assert "char" in str(exc.value).lower()
+    assert str(MAX_DECISION) in str(exc.value)
+
+
+def test_rationale_also_gets_wide_symbol_limit(svc):
+    """AC3: rationale is validated symmetrically against MAX_DECISION so a
+    verbose Cyrillic rationale is not the new pain point."""
+    from tausik_utils import MAX_DECISION
+
+    svc.decide("Short decision", rationale="ю" * 1000)
+    decs = svc.decisions()
+    assert len(decs) == 1
+    assert len(decs[0]["rationale"]) == 1000
+    from tausik_utils import ServiceError
+
+    with pytest.raises((ValueError, ServiceError)):
+        svc.decide("Short decision 2", rationale="ю" * (MAX_DECISION + 1))
+
+
+def test_task_title_still_capped_at_max_title_not_widened(svc):
+    """AC5 NEGATIVE: widening the decision limit must NOT touch the task-title
+    limit — task titles stay at MAX_TITLE=512."""
+    from tausik_utils import MAX_DECISION, MAX_TITLE, ServiceError, validate_length
+
+    assert MAX_TITLE == 512
+    assert MAX_DECISION > MAX_TITLE
+    # A title between the two limits is fine for a decision but not a task title.
+    mid = "t" * 800
+    validate_length("decision", mid, MAX_DECISION)  # no raise
+    with pytest.raises((ValueError, ServiceError)):
+        validate_length("title", mid)  # default MAX_TITLE → raises

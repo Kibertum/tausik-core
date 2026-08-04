@@ -168,7 +168,10 @@ create a landing page with the title "My Project" and a "Get Started" button
 
 The agent will:
 1. Create a task in the database
-2. Formulate a goal and acceptance criteria (what counts as "done")
+2. Formulate a goal and acceptance criteria (what counts as "done") — **including at
+   least one error or boundary case**. TAUSIK's Context Gate (QG-0) requires it, and
+   the agent supplies it for you (e.g. "the button stays disabled until the title is
+   filled"). You don't have to write it; just know the agent will add one.
 3. Start working — write code, create files
 
 You'll see the agent working: creating files, writing code, verifying everything works.
@@ -232,6 +235,39 @@ You: "that's all for today"                   → agent saves context
 ```
 
 Two or three messages per task. Everything else — automatic.
+
+---
+
+## Working With a Team
+
+`.tausik/` is gitignored — the database is yours. What your teammates need is
+the project's *knowledge*, and that travels in git as text: tasks, decisions
+and memory are exported to a readable `tausik/` tree that you commit alongside
+the code.
+
+```bash
+tausik state export      # DB → tausik/ (runs automatically on any durable write)
+git add tausik/ && git commit
+```
+
+After pulling someone else's work, bring it into your database:
+
+```bash
+git pull
+tausik sync              # tausik/ → DB, files win
+```
+
+A teammate who clones the repository gets the project's history rather than an
+empty database, and no external store has to exist for that to work.
+
+`tausik status` tells you when the tree and the database disagree. It reports
+the counts and names both directions — `tausik sync` (tree → DB) and
+`tausik state export` (DB → tree) — without recommending either, because the
+counts prove the two sides *differ*, not which one is newer. Rows the tree has
+and the database lacks are the one unambiguous signal, and that is what you see
+after a `git pull`.
+
+**[Full round-trip contract →](team-state-in-git.md)**
 
 ---
 

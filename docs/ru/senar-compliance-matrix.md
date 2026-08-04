@@ -2,7 +2,7 @@
 
 # SENAR v1.5 Core — Матрица соответствия
 
-**Дата:** 2026-06-13 | **Аудиторы:** 6+ независимых review-циклов | **Фреймворк:** TAUSIK v1.5.1
+**Дата:** 2026-06-13 | **Аудиторы:** 6+ независимых review-циклов | **Фреймворк:** TAUSIK v1.7.0
 
 ## Quality Gates
 
@@ -11,7 +11,7 @@
 | QG-0 | Цель обязательна | ✅ Реализовано | Hard block | `gate_qg0_check.py` `check_qg0_start()` — ServiceError (через делегатор `service_gates.GatesMixin._check_qg0_start`) |
 | QG-0 | AC обязательны | ✅ Реализовано | Hard block | `gate_qg0_check.py` `check_qg0_start()` — ServiceError (через делегатор `service_gates.GatesMixin._check_qg0_start`) |
 | QG-0 | Негативный сценарий в AC | ✅ Реализовано | Hard block | `gate_negative_scenario.py` `NEGATIVE_SCENARIO_KEYWORDS` + `has_negative_scenario()` (30+ en+ru); проверяется внутри `gate_qg0_check.check_qg0_start()` |
-| QG-0 | Предупреждение о scope | ✅ Реализовано | Warning | `gate_qg0_check.py` `check_qg0_start()` — scope + scope_exclude в stderr |
+| QG-0 | Объявление scope | ✅ Реализовано | Hard (medium/complex) | `gate_qg0_check.py` `check_qg0_start()` — medium/complex-задача без `scope`/`scope_paths` бросает ServiceError (opt out `qg0.scope_hard_gate=false`); simple/unset остаётся warning'ом. `scope_exclude` — по-прежнему совещательный warning в stderr. |
 | QG-0 | Обнаружение security surface | ✅ Реализовано | Warning | `gate_qg0_check.py` `SECURITY_KEYWORDS` + `SECURITY_AC_KEYWORDS` (re-export из `service_gates` для backward-compat) |
 | QG-2 | AC проверены с evidence | ✅ Реализовано | Hard block | `gate_ac_check.py` `verify_ac()` — flag + notes + per-criterion. НЕТ `--force` байпаса. (через делегатор `service_gates.GatesMixin._verify_ac`) |
 | QG-2 | Шаги плана выполнены | ✅ Реализовано | Hard block | `gate_ac_check.py` `verify_plan_complete()` — JSON план (через делегатор `service_gates.GatesMixin._verify_plan_complete`) |
@@ -29,9 +29,11 @@
 | Правило | Описание | Статус | Enforcement | Evidence |
 |---------|---------|--------|-------------|----------|
 | 1 | Задача перед кодом | ✅ Реализовано | Hard (hook) | `hooks/task_gate.py` блокирует Write/Edit без активной задачи |
-| 2 | Границы scope | ✅ Реализовано | Warning | `scope` + `scope_exclude` предупреждение при старте для medium/complex |
+| 2 | Границы scope | ✅ Реализовано | Hard (hook + QG-0) | `hooks/scope_write_gate.py` блокирует Write/Edit вне `scope_paths` активной задачи; `hooks/bash_write_gate.py` распространяет тот же вердикт на оболочечные записи; QG-0 жёстко блокирует старт medium/complex без объявленного scope. `scope_exclude` — совещательный. |
 | 3 | Проверка по критериям | ✅ Реализовано | Hard | QG-0 + QG-2 совместный enforcement |
-| 5 | Checklist верификации | ✅ Реализовано | Warning | 4-тировая авто-детекция (lightweight/standard/high/critical) |
+| 4 | Внешнее состязательное ревью | ✅ Реализовано | Hard (закрытия с тонким доказательством) | `risk_l3_trigger.py` блокирует `task_done` с тонким доказательством, пока не записан L3-ревью (`tausik review record --type L3`); ревьюер — сепаратный по модели, read-only субагент `tausik-external-reviewer` (`external_reviewer.py`, разделение обязанностей). Opt out `risk.l3_block_on_high=false`. Отбор ОПИСЫВАЕТ доказательство закрытия, а не предсказывает побег дефекта (AUC 0.4820 — решение #212). |
+| 5 | Checklist верификации | ✅ Реализовано | Hard (substantial/deep) / Warning | `gate_ac_check.py` `checklist_hard_block()` жёстко блокирует тиры substantial/deep, чьи AC не ссылаются на существующий тест; ниже — эскалирующий warning (4-тировая авто-детекция). Opt out `task_done.checklist_hard=false`. |
+| 6 | План отката | ✅ Реализовано | Hard (medium/complex) | `gate_qg0_check.py` `check_qg0_start()` — medium/complex-задача без `rollback_plan` бросает ServiceError на `task_start`; unset complexity предупреждает. |
 | 7 | Root cause для дефектов | ✅ Реализовано | Warning | Обнаружение ключевых слов в notes |
 | 8 | Захват знаний | ✅ Реализовано | Warning | Подсчёт memory/decision + `--no-knowledge` opt-out |
 | 9.1 | Нет кода без задачи | ✅ Реализовано | Hard (hook) | То же что Rule 1 |
@@ -40,7 +42,7 @@
 | 9.4 | Документирование dead ends | ✅ Реализовано | Instruction + tooling | `dead_end()` + инструкции в скиллах + `/end` проверка |
 | 9.5 | Периодический аудит | ✅ Реализовано | Warning | `audit_check/mark` + интеграция в `/start` |
 
-**Результат: 11/11 реализовано.**
+**Результат: 13/13 реализовано.**
 
 ### Gaps и план закрытия
 
@@ -82,7 +84,7 @@
 | Structured logs (task_logs + FTS5) | ✅ Реализовано | `backend_schema.py` + `service_task.py:task_log` |
 | Fake test detection | ✅ Реализовано | `/review` — 10 паттернов |
 | Skills система | ✅ Реализовано | 13 core + 20 vendor (markitdown, zero-defect, skill-test и др. — opt-in; bundles via `tausik skill bundle`) — `service_skills.py` + `tausik-skills` репо |
-| Hooks система | ✅ Реализовано | 20 Python-хуков + 1 shell pre-commit на PreToolUse / PostToolUse / SessionStart / SessionEnd / Stop / UserPromptSubmit |
+| Hooks система | ✅ Реализовано | 22 Python-хука + 1 shell pre-commit на PreToolUse / PostToolUse / SessionStart / SessionEnd / Stop / UserPromptSubmit |
 | Реестр ролей | ✅ Реализовано | Гибрид: SQLite-метаданные + `harness/roles/{role}.md` профиль; CRUD CLI + 6 MCP инструментов |
 | Doctor health check | ✅ Реализовано | `tausik doctor` + `tausik_doctor` MCP — 4 группы (venv/DB/MCP/skills) + drift |
 | Zero-defect skill | ✅ Реализовано | `/zero-defect` (Maestro-inspired): read-before-write, verify-before-claim, never-hallucinate-APIs |
@@ -92,9 +94,9 @@
 | Категория | Реализовано | Частично | Нет | Оценка |
 |-----------|-------------|----------|-----|--------|
 | Quality Gates (13) | 13 | 0 | 0 | **100%** |
-| Правила (11) | 11 | 0 | 0 | **100%** |
+| Правила (13) | 13 | 0 | 0 | **100%** |
 | Метрики (6) | 6 | 0 | 0 | **100%** |
 | Исследования (3) | 3 | 0 | 0 | **100%** |
-| **Итого (33)** | **33** | **0** | **0** | **100%** |
+| **Итого (35)** | **35** | **0** | **0** | **100%** |
 
-**Соответствие SENAR v1.3 Core: 100%.** Все gaps закрыты.
+**Соответствие SENAR v1.5 Core: 100%.** Все gaps закрыты.

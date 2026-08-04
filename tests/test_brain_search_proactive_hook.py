@@ -44,7 +44,7 @@ def _run(
         [sys.executable, _HOOK_PATH],
         input=json.dumps(payload),
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         timeout=15,
         env=env,
     )
@@ -464,7 +464,7 @@ def test_malformed_stdin_exits_zero(tmp_path):
         [sys.executable, _HOOK_PATH],
         input="not json at all {",
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         timeout=15,
         env=env,
     )
@@ -530,7 +530,7 @@ def test_oversized_stdin_exits_zero(tmp_path):
         [sys.executable, _HOOK_PATH],
         input=huge,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         timeout=15,
         env=env,
     )

@@ -149,11 +149,14 @@ def cmd_brain(svc: ProjectService, args: Any) -> None:
 
     import brain_init
     from brain_notion_client import NotionClient
-    from project_config import load_config, save_config
+    from project_config import load_project_config, save_config
 
     class _ConfigOps:
         def load(self) -> dict:
-            return load_config()
+            # Raw project tier, not the effective config: this dict is handed
+            # straight back to save(), and the effective one carries the user's
+            # and the operator's settings that must not land in the repo file.
+            return load_project_config()
 
         def save(self, cfg: dict) -> None:
             save_config(cfg)

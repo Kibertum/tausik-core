@@ -29,6 +29,8 @@ import hashlib
 import os
 from dataclasses import dataclass, field
 
+from ide_utils import all_profile_dirs as _all_profile_dirs
+
 # Directories never worth scanning for source clones — VCS, caches, vendored
 # deps, build output, and TAUSIK's own data/generated dirs.
 _SKIP_DIRS = frozenset(
@@ -45,10 +47,11 @@ _SKIP_DIRS = frozenset(
         "build",
         "dist",
         ".tausik",
-        ".claude",
-        ".cursor",
         "site-packages",
     }
+    # See ide_utils.all_profile_dirs: hand-listing profiles skipped two of
+    # seven, so snippet detection walked deployed engine copies elsewhere.
+    | set(_all_profile_dirs())
 )
 
 # AST fields that carry no structural meaning for clone comparison.

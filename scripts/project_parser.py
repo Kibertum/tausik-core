@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import argparse
 
+from knowledge_db import default_store_display_path
+from output_rollup import add_rollup_flags
 from project_parser_errors import SelfCorrectingParser
 from project_parser_hierarchy import build_hierarchy_subparsers
 from project_parser_task import add_task
+from project_parser_verify import add_verify_parsers
 from project_types import (
     VALID_EDGE_RELATIONS,
     VALID_MEMORY_TYPES,
@@ -101,11 +104,54 @@ def build_parser() -> argparse.ArgumentParser:
         help="Exit 1 if the renar/ tree is stale vs live DB (CI gate)",
     )
 
+    # --- state (state-git-export): git-native DB→tausik/ projection ---
+    from project_parser_state import build_state_subparsers
+
+    build_state_subparsers(sub)
+
+    # --- knowledge (shared store backup) ---
+    shared_store = default_store_display_path()
+    kn_p = sub.add_parser("knowledge", help=f"Shared knowledge store ({shared_store})")
+    kn_sub = kn_p.add_subparsers(dest="knowledge_cmd")
+    kn_export = kn_sub.add_parser(
+        "export",
+        help="Back up the shared store as one readable file per record",
+        epilog="Example: tausik knowledge export --to D:/backups/knowledge",
+    )
+    kn_export.add_argument(
+        "--to",
+        required=True,
+        help="LOCAL directory to write into. Remote destinations (s3://, https://, UNC) "
+        "are refused: the store is kept unredacted and must not leave this machine.",
+    )
+    kn_restore = kn_sub.add_parser(
+        "restore", help="Rebuild the shared store from a backup (matches records by uuid)"
+    )
+    kn_restore.add_argument("--from", dest="from_dir", required=True, help="Backup directory")
+    kn_import = kn_sub.add_parser(
+        "import-brain",
+        help="One-off: copy the local Notion mirror into the shared store (no network)",
+    )
+    kn_import.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report what would be imported without writing anything",
+    )
+
     # --- decide ---
     dec_p = sub.add_parser("decide", help="Record a decision")
     dec_p.add_argument("text")
     dec_p.add_argument("--task", default=None)
     dec_p.add_argument("--rationale", default=None)
+    dec_p.add_argument(
+        "--global",
+        dest="to_global",
+        action="store_true",
+        help=f"Record in the SHARED knowledge store ({shared_store}) instead "
+        "of this project — no local row and no brain mirror. NOT redacted: secrets "
+        "and PII are stored verbatim, and the entry is readable from every project "
+        "on this machine. Fails loudly rather than falling back to the project DB.",
+    )
 
     # --- decisions ---
     decs_p = sub.add_parser("decisions", help="List decisions")
@@ -120,6 +166,15 @@ def build_parser() -> argparse.ArgumentParser:
     ma.add_argument("content")
     ma.add_argument("--tags", nargs="*", default=None)
     ma.add_argument("--task", default=None)
+    ma.add_argument(
+        "--global",
+        dest="to_global",
+        action="store_true",
+        help=f"Write to the SHARED knowledge store ({shared_store}) instead "
+        "of this project. NOT redacted — secrets and PII are stored verbatim, and "
+        "the entry is readable from every project on this machine. "
+        "Fails loudly rather than falling back to the project DB.",
+    )
     ml = mem_sub.add_parser("list")
     ml.add_argument("--type", default=None, dest="mem_type")
     ml.add_argument("--limit", type=int, default=50)
@@ -205,6 +260,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     mgraph.add_argument("--include-invalid", action="store_true")
     mgraph.add_argument("--limit", type=int, default=50)
+    mgraph.add_argument("--format", choices=["table", "mermaid"], default="table")
     mblock = mem_sub.add_parser(
         "block",
         help="Print compact memory block (decisions + conventions + dead ends) for re-injection",
@@ -244,38 +300,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     key_sub.add_parser("show", help="Print public key + fingerprint (never the seed)")
 
-    vp = sub.add_parser("verify", help="Run scoped quality gates")
-    vp.add_argument("--task")
-    _scopes = ["lightweight", "standard", "high", "critical", "manual"]
-    vp.add_argument("--scope", choices=_scopes, default="manual")
-
-    # --- receipt (v15-receipt-emit-on-verify) ---
-    rcpt_p = sub.add_parser("receipt", help="Signed verify receipts (ed25519)")
-    rcpt_sub = rcpt_p.add_subparsers(dest="receipt_cmd")
-    rs = rcpt_sub.add_parser(
-        "show",
-        help="Print + re-verify the latest signed receipt",
-        epilog="Example: tausik receipt show --task my-task",
-    )
-    rs.add_argument("--task", help="Latest receipt for this task slug")
-    rs.add_argument("--run", type=int, help="Receipt of a specific verification_run id")
-    rs.add_argument("--json", action="store_true", help="Print the raw signed envelope")
-    re_ = rcpt_sub.add_parser(
-        "export",
-        help="Export a portable, self-verifiable receipt artifact",
-        epilog="Example: tausik receipt export --task my-task",
-    )
-    re_.add_argument("--task", help="Latest receipt for this task slug")
-    re_.add_argument("--run", type=int, help="Receipt of a specific verification_run id")
-    re_.add_argument("--out", help="Output path (default .tausik/receipts/<task>-<sha8>.json)")
-    re_.add_argument("--stdout", action="store_true", help="Print artifact instead of writing")
-    rv = rcpt_sub.add_parser(
-        "verify",
-        help="Verify an exported receipt file offline (no DB/keystore)",
-        epilog="Example: tausik receipt verify .tausik/receipts/my-task-abc12345.json",
-    )
-    rv.add_argument("file", help="Path to a tausik-receipt-export/v1 JSON file")
-    rv.add_argument("--pub", help="Override key: 'ed25519:<64 hex>' from `tausik key show`")
+    # verify + receipt живут в project_parser_verify (filesize gate).
+    add_verify_parsers(sub)
 
     # --- serve (v15-nosdk-verify-endpoint) ---
     srv = sub.add_parser(
@@ -337,10 +363,16 @@ def build_parser() -> argparse.ArgumentParser:
         default=10,
         help="Minimum source-line span for a clone candidate (default: 10)",
     )
-    snip_extract = snip_sub.add_parser("extract", help="Publish a snippet to the Brain")
+    snip_extract = snip_sub.add_parser(
+        "extract", help="Send a snippet to the Brain (Notion) or to the SHARED local store"
+    )
     snip_extract.add_argument("id", type=int, help="Snippet id (from `snippet detect`)")
     snip_extract.add_argument(
-        "--scope", choices=("brain",), default="brain", help="Destination (only 'brain')"
+        "--scope",
+        choices=("brain", "global"),
+        default="brain",
+        help="Destination: 'brain' publishes to Notion (network, scrubbed); "
+        f"'global' copies into the local SHARED store ({shared_store})",
     )
 
     # --- events ---
@@ -348,10 +380,33 @@ def build_parser() -> argparse.ArgumentParser:
     ev_p.add_argument("--entity", default=None, help="Filter by entity type (task, epic, story)")
     ev_p.add_argument("--id", default=None, dest="entity_id", help="Filter by entity ID/slug")
     ev_p.add_argument("--limit", type=int, default=50)
+    add_rollup_flags(ev_p)
     ev_sub = ev_p.add_subparsers(dest="events_cmd")
     ev_sub.add_parser("seal", help="Seal pending events into the hash-chain")
     ev_sub.add_parser("verify", help="Verify the audit hash-chain (+ ed25519 anchor)")
     ev_sub.add_parser("anchor", help="Sign the current chain head with the project key")
+    # Cross-harness supervision telemetry (l26-bypass-telemetry-opencode-parity):
+    # a non-Python harness (the OpenCode JS plugin) cannot call the in-process
+    # emit_supervision_* helper, so it shells out here. The row is written by the
+    # SAME Python emitter the Claude hooks use — one producer, one contract.
+    ev_emit = ev_sub.add_parser(
+        "emit-supervision",
+        help="Record a supervision bypass/degradation event (cross-harness parity)",
+    )
+    ev_emit.add_argument(
+        "--kind",
+        choices=["bypass", "degradation"],
+        default="bypass",
+        help="bypass_ (intentional) or fail_open_ (silent degradation)",
+    )
+    ev_emit.add_argument("--vector", required=True, help="e.g. skip_hooks, cli_unreachable")
+    ev_emit.add_argument(
+        "--source",
+        required=True,
+        dest="sup_source",
+        help="the hook/gate that was bypassed, e.g. opencode_qg0",
+    )
+    ev_emit.add_argument("--details", default=None, help="free-text error/context")
 
     # --- db (v14b-junk-audit-pass: backup hygiene) ---
     db_p = sub.add_parser("db", help="Database hygiene helpers")

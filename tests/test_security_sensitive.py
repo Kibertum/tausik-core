@@ -19,6 +19,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
+from conftest import VERIFICATION_RUNS_DDL  # noqa: E402
 from service_verification import (  # noqa: E402
     _build_cache_command,
     has_fresh_verify_run,
@@ -260,21 +261,7 @@ class TestVerifyFirstRegression:
         db = tmp_path / "verify.db"
         c = sqlite3.connect(str(db))
         c.row_factory = sqlite3.Row
-        c.execute(
-            """
-            CREATE TABLE verification_runs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                task_slug TEXT,
-                scope TEXT NOT NULL,
-                command TEXT NOT NULL,
-                exit_code INTEGER NOT NULL,
-                summary TEXT,
-                files_hash TEXT NOT NULL,
-                ran_at TEXT NOT NULL,
-                duration_ms INTEGER
-            )
-            """
-        )
+        c.executescript(VERIFICATION_RUNS_DDL + ";")
         return c
 
     def test_hook_file_cache_now_lookups(self, conn, tmp_path):

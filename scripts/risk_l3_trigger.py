@@ -1,8 +1,30 @@
-"""High-risk closures require an L3 adversarial review (v15-l3-risk-trigger).
+"""Under-evidenced closures require an L3 adversarial review (v15-l3-risk-trigger).
+
+WHAT THIS GATE DOES AND DOES NOT CLAIM (decision #212). It REFUSES the close and
+returns; it does not merely annotate one. A refusal has to be justified, and the
+justification here is NOT that the score predicts anything — the backtest in
+docs/ru/research/risk-model-backtest-2026-07.md measured AUC 0.4820 over 374
+closures, i.e. the composite does not separate closures a defect escaped from
+those it did not, and its heaviest factor (`gate_coverage`, weight 0.25) is
+significantly INVERTED at AUC 0.409, p = 0.0098.
+
+What `measured_score >= LEVEL_HIGH` over a real coverage share does say is a
+DESCRIPTION, true by construction and independent of any AUC: most of the
+evidence factors we were able to measure are at or near their worst value —
+gates unverified, tests untouched under churn, acceptance criteria with no
+evidence markers, security surface touched. "We have almost no evidence this
+close was verified" is a legitimate reason to ask for a second pair of eyes on
+its own terms. It is not a forecast, and the wording below no longer implies one.
+
+The honest gap, stated rather than papered over: the SELECTOR is still the
+a-priori weighting nobody validated, so which closures land above the line is
+not evidence-based. Fixing that needs a held-out sample the project does not yet
+have (the backtest refused to re-weight on the same 374 rows for exactly this
+reason). Until then this gate is a policy on evidence, not a risk model.
 
 Walko HITL-for-1% pattern: instead of one review policy for everything,
-escalate only the closures whose MEASURED risk is high — the ~1% where an
-adversarial pass pays for itself. Two deliberate softeners:
+escalate only the thinnest-evidenced closures — the ~1% where an adversarial
+pass pays for itself. Two deliberate softeners:
 
   - Renormalized measured score: factors the collector could not measure
     are excluded (they already push the STORED score up conservatively).
@@ -17,8 +39,16 @@ adversarial pass pays for itself. Two deliberate softeners:
     live boundary flake at exactly 0.6667 in the full test suite.
   - Opt-out: config risk.l3_block_on_high=false downgrades to a warning.
 
-A recorded L3 review for the task (tausik review record --run-type l3)
-satisfies the gate; run_type matching is case-insensitive ('l3'/'L3').
+A recorded L3 review for the task (tausik review record --type L3)
+satisfies the gate.
+
+Lowercase run_type CANNOT reach the DB: argparse pins --type to
+choices=['L1','L2','L3'] and the reviews schema carries
+CHECK(run_type IN ('L1','L2','L3')). The UPPER() in has_l3_review is
+belt-and-braces for hand-written rows, not a supported input form —
+the previous wording promised a `--run-type l3` flag that does not
+exist, and its test only passed because the fixture declared reviews
+by hand WITHOUT the CHECK (test-ddl-drift-verification-runs).
 """
 
 from __future__ import annotations
@@ -121,7 +151,10 @@ def check_l3_required(
                 f"recorded L3 review found"
             )
         message = (
-            f"High-risk closure: measured risk {ms} >= {LEVEL_HIGH} "
+            f"Under-evidenced closure: measured evidence score {ms} >= {LEVEL_HIGH} "
+            f"— most of what could be measured is at its worst value. This is a "
+            f"description of the evidence, NOT a prediction (the composite's AUC "
+            f"is 0.4820; see docs/ru/research/risk-model-backtest-2026-07.md). "
             f"(SENAR Rule 10.15 selective escalation, Rule 4 external validation)."
             f"{_delegation_hint()} Then record the verdict — "
             f"`tausik review record --task {slug} --type L3 "
@@ -129,7 +162,50 @@ def check_l3_required(
             f"Opt out: config risk.l3_block_on_high=false."
         )
         if not _block_enabled():
+            # l26-bypass-telemetry: an under-evidenced closure is being let through by
+            # config instead of blocked — record it so the downgrade is
+            # countable. Written on a SEPARATE short-lived connection (commit +
+            # close), NOT the caller's `conn`: the caller (service_task_done)
+            # issues BEGIN IMMEDIATE right after this, and a bare INSERT on
+            # `conn` would leave an implicit deferred transaction open that
+            # collides with that BEGIN ("cannot start a transaction within a
+            # transaction"), crashing the very close this downgrade exists to
+            # allow. Own try/except so the outer handler cannot swallow a
+            # telemetry error AND suppress this WARNING. Best-effort, never
+            # raises.
+            _emit_l3_downgrade(conn, slug, ms)
             return False, f"WARNING (l3_block_on_high=false): {message}"
         return True, message
     except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         return False, ""
+
+
+def _emit_l3_downgrade(conn: sqlite3.Connection, slug: str, ms: float) -> None:
+    """Record an l3_block_on_high=false downgrade on a fresh connection.
+
+    Derives the DB path from ``conn`` but does NOT write through it — see the
+    call site for why borrowing the caller's connection would crash task_done.
+    """
+    import sqlite3 as _sqlite3
+
+    try:
+        row = conn.execute("PRAGMA database_list").fetchone()
+        db_path = row[2] if row else None
+        if not db_path:
+            return  # e.g. :memory: — nothing durable to write to
+        aux = _sqlite3.connect(db_path, timeout=2)
+        try:
+            aux.execute(
+                "INSERT INTO events(entity_type, entity_id, action, details) "
+                "VALUES ('supervision', ?, 'bypass_l3_block_downgrade', ?)",
+                (
+                    slug,
+                    f"l3_block_on_high=false — under-evidenced closure (measured {ms}) "
+                    f"downgraded from block to warning",
+                ),
+            )
+            aux.commit()
+        finally:
+            aux.close()
+    except Exception:  # noqa: BLE001 — best-effort telemetry, never blocks
+        pass

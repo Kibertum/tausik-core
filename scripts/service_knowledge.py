@@ -3,13 +3,23 @@
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
-from tausik_utils import ServiceError, validate_content, validate_length
+from tausik_utils import (
+    ServiceError,
+    validate_content,
+    validate_length,
+)
 from project_types import VALID_EDGE_RELATIONS, VALID_MEMORY_TYPES, VALID_NODE_TYPES
+
+# CQ_SOURCE + build_cq_row live in service_cq_row (filesize cap); re-exported here
+# so `from service_knowledge import CQ_SOURCE, build_cq_row` keeps working.
+from service_cq_row import CQ_SOURCE, build_cq_row  # noqa: F401
+
 
 if TYPE_CHECKING:
     from project_backend import SQLiteBackend
+    from project_service import ProjectService
 
 
 class KnowledgeMixin:
@@ -26,6 +36,7 @@ class KnowledgeMixin:
         content: str,
         tags: list[str] | None = None,
         task_slug: str | None = None,
+        to_global: bool = False,
     ) -> str:
         if mem_type not in VALID_MEMORY_TYPES:
             raise ServiceError(
@@ -36,10 +47,28 @@ class KnowledgeMixin:
         validate_length("title", title)
         validate_content("content", content)
         title = safe_single_line(title) or title
+
+        # Validation above is shared on purpose — a shared entry is held to the
+        # same shape as a project one. Everything BELOW is project-specific and
+        # is skipped rather than adapted: the projection writes into this
+        # repository's tree, and the universality hint asks a question the flag
+        # has already answered. `write_memory` raises rather than falling back,
+        # so a failure here can never end up in the project database instead.
+        if to_global:
+            from knowledge_write import write_memory
+
+            return write_memory(mem_type, title, content, tags, task_slug)
+
         mid = self.be.memory_add(mem_type, title, content, tags, task_slug)
         from brain_universality import emit_universality_hint
 
         emit_universality_hint(f"{title}\n{content}")
+        from state_triggers import auto_export_by_id  # state-git-triggers (fail-open)
+
+        # `self` is a KnowledgeMixin here but always a composed ProjectService at
+        # runtime (the mixins only exist assembled) — cast the facade, don't widen
+        # the helper's honest ProjectService signature.
+        auto_export_by_id(cast("ProjectService", self), "memory", mid)
         return f"Memory #{mid} ({mem_type}) saved."
 
     def memory_list(
@@ -56,8 +85,27 @@ class KnowledgeMixin:
         include_cq: bool = True,
         include_archived: bool = False,
     ) -> list[dict[str, Any]]:
-        """Search local memory + optional cq cross-project knowledge."""
+        """Search this project's memory, the shared store, and optionally cq.
+
+        Order is deliberate: project hits first, then shared, then cq. Each
+        later group is strictly less local than the one before it, and a reader
+        scanning top-down meets the most specific answers first. Shared rows are
+        addressless and labelled (`knowledge_read`), so they can never be
+        mistaken for a row of THIS project's memory.
+
+        A shared store that cannot be read records a warning for the renderer
+        to surface — `knowledge_read.pop_last_warning`. It is kept there rather
+        than returned here so that every existing caller of this method keeps
+        working unchanged, and a renderer that forgets to ask simply prints no
+        warning instead of printing a corrupt hit.
+        """
         local = self.be.memory_search(query, include_archived=include_archived)
+
+        from knowledge_read import search_shared_memory
+
+        shared, _warning = search_shared_memory(query, limit=5)
+        local.extend(shared)
+
         if not include_cq:
             return local
         # Try cq if configured
@@ -69,18 +117,14 @@ class KnowledgeMixin:
             if client:
                 domains = query.lower().split()[:3]  # Use query words as domains
                 cq_results = client.query(domains, limit=3)
+                # Per-unit, not a generator under the outer except: a single
+                # malformed unit used to abort the whole remaining batch
+                # silently, dropping legitimate hits that followed it.
                 for u in cq_results:
-                    insight = u.get("insight", {})
-                    conf = u.get("evidence", {}).get("confidence", 0)
-                    local.append(
-                        {
-                            "id": 0,
-                            "type": "cq",
-                            "title": f"[cq {conf:.0%}] {insight.get('summary', '')}",
-                            "content": insight.get("detail", ""),
-                            "tags": ",".join(u.get("domain", [])),
-                        }
-                    )
+                    try:
+                        local.append(build_cq_row(u))
+                    except Exception:  # noqa: BLE001 — one bad unit must not cost the rest
+                        continue
         except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
             pass  # cq unavailable -- graceful degradation
         return local
@@ -103,16 +147,36 @@ class KnowledgeMixin:
         return row
 
     def memory_delete(self, mid: int) -> str:
-        if not self.be.memory_get(mid):
+        row = self.be.memory_get(mid)
+        if not row:
             raise ServiceError(f"Memory #{mid} not found")
+        # Read the slug BEFORE the delete: the projection is keyed by slug, and
+        # after the row is gone there is nothing left to derive it from. Skipping
+        # this left a ghost file describing a row the DB no longer had.
+        slug = row.get("slug")
         self.be.memory_delete(mid)
+        if slug:
+            from state_triggers import auto_export_entity  # fail-open
+
+            auto_export_entity(cast("ProjectService", self), "memory", slug)
         return f"Memory #{mid} deleted."
 
     def memory_archive(self, before: str, confirm: bool = False) -> dict[str, Any]:
-        """Thin delegator — real logic lives in service_knowledge_hygiene."""
+        """Thin delegator — real logic lives in service_knowledge_hygiene.
+
+        The projection excludes archived memory, so an applied archive must REMOVE
+        those files. `archive_memory` reports which rows it took (by id, read
+        before the write — afterwards the candidate query no longer returns them).
+        """
         from service_knowledge_hygiene import archive_memory
 
-        return archive_memory(self.be, before, confirm)
+        result = archive_memory(self.be, before, confirm)
+        if result.get("applied"):
+            from state_triggers import auto_export_by_id  # fail-open
+
+            for mid in result.get("archived_ids") or []:
+                auto_export_by_id(cast("ProjectService", self), "memory", mid)
+        return result
 
     def memory_dedupe(self, threshold: float = 0.85, n: int = 200) -> list[dict[str, Any]]:
         """Thin delegator — real logic lives in service_knowledge_hygiene."""
@@ -128,59 +192,17 @@ class KnowledgeMixin:
 
     # --- Decisions ---
 
-    def decide(self, text: str, task_slug: str | None = None, rationale: str | None = None) -> str:
-        validate_length("decision", text)
+    def decide(
+        self,
+        text: str,
+        task_slug: str | None = None,
+        rationale: str | None = None,
+        to_global: bool = False,
+    ) -> str:
+        """Thin delegator — the two guarantees live in service_decide."""
+        from service_decide import record
 
-        # Task-linked decisions are inherently project-specific — never route to brain.
-        if task_slug is not None:
-            did = self.be.decision_add(text, task_slug, rationale)
-            return (
-                f"Decision #{did} recorded — saved to local (reason: linked to task {task_slug})."
-            )
-
-        from brain_classifier import classify
-        from brain_config import load_brain, validate_brain
-
-        cfg = load_brain()
-        decision = classify(text, "decision", cfg=cfg)
-
-        if decision.target == "brain" and cfg.get("enabled"):
-            # Defect v14b-defect-brain-decisions-empty: when brain.enabled=true
-            # but database_ids/token are empty, store_record silently returns
-            # status=config_error and the local-fallback path runs with a quiet
-            # "brain write failed" reason. Pre-validate so the user sees a loud,
-            # actionable message instead of accumulating local-only decisions
-            # that should have been mirrored to Notion.
-            cfg_errors = validate_brain()
-            if cfg_errors:
-                did = self.be.decision_add(text, task_slug, rationale)
-                error_lines = "\n".join(f"  - {e}" for e in cfg_errors)
-                return (
-                    f"⚠ Decision #{did} saved LOCALLY ONLY — brain mirror BLOCKED.\n\n"
-                    f"Brain is enabled in .tausik/config.json but misconfigured:\n"
-                    f"{error_lines}\n\n"
-                    f"Fix one of:\n"
-                    f"  1. Run `.tausik/tausik brain init` to complete setup, OR\n"
-                    f"  2. Set `brain.enabled = false` in .tausik/config.json to disable.\n\n"
-                    f"After fixing, migrate local-only decisions with "
-                    f"`tausik brain move --to-brain`."
-                )
-            from brain_runtime import try_brain_write_decision
-
-            ok, detail = try_brain_write_decision(text, rationale, cfg)
-            if ok:
-                return (
-                    f"Decision recorded — saved to brain "
-                    f"(reason: {decision.reason}). Page: {detail}"
-                )
-            did = self.be.decision_add(text, task_slug, rationale)
-            return (
-                f"Decision #{did} recorded — saved to local (reason: brain write failed: {detail})."
-            )
-
-        did = self.be.decision_add(text, task_slug, rationale)
-        reason = decision.reason if decision.target == "local" else "brain not enabled"
-        return f"Decision #{did} recorded — saved to local (reason: {reason})."
+        return record(cast("ProjectService", self), text, task_slug, rationale, to_global)
 
     def decisions(self, n: int = 20) -> list[dict[str, Any]]:
         return self.be.decision_list(n)
@@ -221,6 +243,9 @@ class KnowledgeMixin:
         title = approach[:100]
         content = f"Approach: {approach}\nReason: {reason}"
         mid = self.be.memory_add("dead_end", title, content, tags, task_slug)
+        from state_triggers import auto_export_by_id  # fail-open
+
+        auto_export_by_id(cast("ProjectService", self), "memory", mid)
         # Suggest cq publish if configured
         cq_hint = ""
         try:
@@ -289,6 +314,9 @@ class KnowledgeMixin:
             for old_edge in existing:
                 if old_edge["source_type"] == target_type and old_edge["source_id"] == target_id:
                     self.be.edge_invalidate(old_edge["id"], eid)
+            # 'supersedes' also invalidates edges where the TARGET is the source,
+            # so that entity's `edges:` block changed too.
+            self._export_node(target_type, target_id)
         else:
             eid = self.be.edge_add(
                 source_type,
@@ -299,7 +327,20 @@ class KnowledgeMixin:
                 confidence,
                 created_by,
             )
+        self._export_node(source_type, source_id)
         return f"Edge #{eid} created: {source_type}#{source_id} --[{relation}]--> {target_type}#{target_id}"
+
+    def _export_node(self, node_type: str, node_id: int) -> None:
+        """Re-project the file of a graph node whose outgoing edges changed.
+
+        `edges:` in a memory/decision file is a projection of the edges where that
+        entity is the SOURCE, so an edge write changes the source's file — not the
+        target's. Fail-open like every trigger.
+        """
+        kind = "memory" if node_type == "memory" else "decisions"
+        from state_triggers import auto_export_by_id  # fail-open
+
+        auto_export_by_id(cast("ProjectService", self), kind, node_id)
 
     def memory_unlink(self, edge_id: int, replacement_id: int | None = None) -> str:
         """Soft-invalidate an edge (never deletes -- Graphiti approach)."""
@@ -311,6 +352,7 @@ class KnowledgeMixin:
         rows = self.be.edge_invalidate(edge_id, replacement_id)
         if rows == 0:
             raise ServiceError(f"Edge #{edge_id} could not be invalidated")
+        self._export_node(edge["source_type"], edge["source_id"])
         return f"Edge #{edge_id} invalidated."
 
     def memory_related(

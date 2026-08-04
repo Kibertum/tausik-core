@@ -4,7 +4,24 @@
 
 Skill bundles are a logical grouping of vendor skills from `tausik-skills` (the official `Kibertum/tausik-skills` repo, mirrored under `skills-official/` in dev). One CLI call installs every skill in a bundle — useful for matching a project's domain (integrations, data extraction, deep quality) without remembering individual skill names.
 
-> **Status (v1.4.0):** bundles are configured locally — every consumer project that re-runs bootstrap gets `skills-official/bundles.json` and the `tausik skill bundle` CLI. The marketplace push to `github.com/Kibertum/tausik-skills` itself is **deferred until after v1.4 ships** (the polish moratorium forbids public pushes). The local CLI works against the in-tree `skills-official/` mirror.
+> **Where bundles come from (changed in v1.8):** a bundle's composition belongs
+> to the store that ships the skills. `bundles.json` travels *inside* a
+> tausik-skills-format repo, next to its `tausik-skills.json`, and
+> `tausik skill bundle` reads the repos you have added with
+> `tausik skill repo add`.
+>
+> Until v1.8 resolution looked only for a `skills-official/` directory beside
+> the core checkout. That directory exists while developing the framework and
+> never in a project you bootstrapped, so the command failed with "no bundles
+> manifest" for every actual user. It survives as a development fallback only.
+>
+> **Bundles with the same name across stores union their skill lists.** This is
+> what keeps a private store private: a public store can declare a bundle and
+> leave it empty while a private one fills it, and neither manifest ever names
+> the other's contents. A bundle stops counting as a placeholder the moment any
+> store fills it. Keeping the list in the core instead was rejected for exactly
+> this reason — the core is publicly mirrored, so a core-side membership list
+> would mean naming private skills in a published file.
 
 ## The 6 bundles
 

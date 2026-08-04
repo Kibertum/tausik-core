@@ -13,6 +13,22 @@ import os
 import sys
 
 
+def _project_dir(svc) -> str:
+    """Project root for key lookup — from the service, not the cwd.
+
+    `receipt show`/`export` looked the public key up in `os.getcwd()`, so both
+    reported a validly-signed receipt as UNVERIFIABLE whenever they were run
+    from a SUBDIRECTORY of the project — the same CWD-dependence that
+    `verify_run_record._project_dir_from_conn` closed on the signing side
+    (s129-review-fixes). Presentation commands degrade to the cwd rather than
+    refuse when no project handle is available; the read-only verdict they
+    print is not a gate.
+    """
+    from project_root import root_from_service
+
+    return root_from_service(svc) or os.getcwd()
+
+
 def cmd_receipt(svc, args) -> None:
     cmd = getattr(args, "receipt_cmd", None)
     if cmd == "export":
@@ -55,9 +71,15 @@ def cmd_receipt(svc, args) -> None:
         receipt = envelope.get("receipt") or {}
         sig = envelope.get("signature") or {}
         gates = receipt.get("gates") or []
-        gate_line = ", ".join(
-            f"{g.get('name', '?')}={'PASS' if g.get('passed') else 'FAIL'}" for g in gates
-        )
+        # A receipt only ever carries gates that RAN (`verify_receipt_emit`
+        # filters skipped ones out), so this line cannot mislabel a skip today.
+        # It is routed through the shared verdict anyway: correctness that
+        # depends on an invariant enforced in a different module is correctness
+        # waiting to expire. verify-summary-reports-skipped-as-pass found this
+        # as the sixth private spelling of the same three words.
+        from gate_runner import gate_verdict
+
+        gate_line = ", ".join(f"{g.get('name', '?')}={gate_verdict(g)}" for g in gates)
         print(
             f"Receipt (run #{stored['run_id']}, {receipt.get('schema', '?')}):\n"
             f"  task:        {receipt.get('task_slug', '?')}\n"
@@ -72,7 +94,7 @@ def cmd_receipt(svc, args) -> None:
     import crypto_sign
 
     try:
-        valid = crypto_sign.verify_receipt(envelope, project_dir=os.getcwd())
+        valid = crypto_sign.verify_receipt(envelope, project_dir=_project_dir(svc))
     except crypto_sign.SignError as e:
         print(f"Signature: UNVERIFIABLE — {e}", file=sys.stderr)
         sys.exit(2)
@@ -104,7 +126,7 @@ def _cmd_export(svc, args) -> None:
         )
         sys.exit(2)
 
-    project_dir = os.getcwd()
+    project_dir = _project_dir(svc)
     try:
         public = crypto_keys.load_public(project_dir)
     except crypto_keys.KeyError_ as e:

@@ -1,6 +1,6 @@
 """SENAR Rule 4 External Validation — pick a reviewer distinct from the author.
 
-Rule 4 (Separation of Duties) demands that a high-risk closure be reviewed by
+Rule 4 (Separation of Duties) demands that an under-evidenced closure be reviewed by
 a model *different* from the one that wrote the code, and that the reviewer
 SHALL NOT have write access. The two halves are enforced in different places:
 

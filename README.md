@@ -2,13 +2,13 @@
 
 # TAUSIK
 
-**AI agents that can't fake "done."**
+**AI agents that can't *quietly* fake "done."**
 
-TAUSIK is a discipline layer for AI coding agents. It turns the agent's word — "tests pass," "the task is done" — into something you can actually verify. Plan before code, ship with proof, remember every decision. Not suggestions the agent can ignore: hard gates it physically cannot skip.
+TAUSIK is a discipline layer for AI coding agents. It turns the agent's word — "tests pass," "the task is done" — into something you can actually verify. Plan before code, ship with proof, remember every decision. Not suggestions the agent can ignore: a discipline rail that refuses the easy shortcut and makes the ones it can't refuse visible and recorded — with tamper-evidence against outside edits, not a firewall that claims to stop a determined agent.
 
-[![v1.7.0](https://img.shields.io/badge/version-v1.7.0-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
+[![v1.8.0](https://img.shields.io/badge/version-v1.8.0-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
 [![signed receipts: ed25519](https://img.shields.io/badge/signed%20receipts-ed25519-6f42c1.svg)](docs/en/receipts.md)
-[![4747 tests](https://img.shields.io/badge/tests-4747-brightgreen.svg)](#proof-tausik-built-tausik)
+[![7115 tests](https://img.shields.io/badge/tests-7115-brightgreen.svg)](#proof-tausik-built-tausik)
 [![coverage 76%](https://img.shields.io/badge/coverage-76%25-green.svg)](#proof-tausik-built-tausik)
 [![0 dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#whats-inside)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -22,11 +22,11 @@ TAUSIK is a discipline layer for AI coding agents. It turns the agent's word —
 |---|---|
 | Says "I'll just refactor this" and edits 30 files | **No active task → BLOCKED.** No code edits until a task is open. |
 | Declares "done" with nothing to show for it | **QG-2 blocks the close.** Every acceptance criterion needs evidence. |
-| Reports a green build you have to take on faith | **ed25519 signed receipt.** The green is cryptographically bound to the gate and the commit — it can't be forged or replayed. |
+| Reports a green build you have to take on faith | **ed25519 signed receipt.** The green is cryptographically bound to the gate and the commit — an outside edit to the database can't forge or replay it. |
 | Tries the same broken approach for the third time | **Project memory.** Failed approaches are recorded; the agent sees what didn't work. |
 | Quietly skips the test/lint pipeline | **Separate `verify` step.** Heavy gates run on their own trigger and get cached — skipping is visible, not silent. |
 
-The difference is one word: **enforcement.**
+The difference is one word: **evidence.**
 
 ---
 
@@ -79,7 +79,7 @@ This is what makes TAUSIK different from every prompt-based ruleset.
 
 **Remember everything.** Decisions, patterns, conventions, and dead ends live in a local SQLite + FTS5 database and are re-injected at session start. New session, same context — no re-explaining the project.
 
-**Enforce, not suggest.** Two quality gates and a set of real-time hooks block the agent the moment it tries to cut a corner. No `--force`, no "please remember to test."
+**Discipline, not suggestion.** Two quality gates and a set of real-time hooks refuse the common shortcuts (no code without a task, no close without evidence) and make the ones they can't refuse visible and recorded. No `--force`, no "please remember to test." The threat model is silent drift by an honest agent, not a determined one working around the rail.
 
 ---
 
@@ -110,7 +110,7 @@ Both are fail-closed: a gate that can't evaluate blocks rather than waves the ta
 TAUSIK was built with TAUSIK — every feature, refactor, and bug fix went through the gates that ship in the box. Not as a vanity metric, as the strongest test of the contract:
 
 - **Every task closed with a goal + acceptance criteria.** Zero closed without verify evidence.
-- **4747 tests** — the enforcement core is the most-tested part.
+- **7115 tests** — the discipline core is the most-tested part.
 - **76% line coverage** (baseline, `scripts/`, 4124 selected tests) — refresh with `pytest tests/ --cov=scripts --cov-report=json:coverage.json` and update the badge; CI uploads `coverage.json` as a build artifact on every PR.
 - **0 core dependencies** — Python 3.11+ stdlib only; MCP deps live in an isolated `.tausik/venv/`.
 - **0 phone-home calls** — everything runs and stays on your machine.
@@ -128,14 +128,14 @@ Those are **suggestions** — text the agent reads and is free to ignore the mom
 - **Lifecycle & gates** — Epic → Story → Task with a state machine; QG-0 at start, QG-2 at close, both fail-closed.
 - **Verifiable trust** — ed25519 signed verification receipts, offline-checkable, with supply-chain signing for skills and stacks.
 - **Project memory** — SQLite + FTS5 store of decisions, patterns, conventions and dead ends, re-injected every session.
-- **Real-time enforcement** — hooks for the no-code-without-a-task gate, a bash firewall, a single-use push ticket, and auto-format.
+- **Real-time discipline rails** — hooks for the no-code-without-a-task gate, a bash firewall, a single-use push ticket, and auto-format.
 - **Metrics & routing** — throughput, first-pass success, defect-escape and lead-time tracked automatically; per-task cost/token budgets; complexity-aware model routing across vendor families (Claude and [z.ai GLM](docs/en/kilo-zai.md), data-driven, no code change).
 
 <details>
 <summary>Raw counts</summary>
 
 - **124 MCP tools** (117 project + 7 brain) — full programmatic access to the project database.
-- **21 real-time hooks** — task gate, bash firewall, push gate, auto-format, drift detection, memory pre/post audit, and more.
+- **22 real-time hooks** — task gate, bash firewall, push gate, auto-format, drift detection, memory pre/post audit, and more.
 - **25 stack-aware verify suites** — pytest, ruff, mypy, tsc, eslint, cargo, go vet, phpstan, helm-lint, hadolint, and others, scoped to the files you touched.
 - **13 core skills** auto-deployed (+ `/brain` once configured); 20 official skills opt-in via `bootstrap --include-official` or `tausik skill install <name>`.
 - **6 automatic metrics**, **cross-project shared brain** (optional, Notion-mirrored), **batch execution** (`/run plan.md`).
@@ -157,7 +157,7 @@ Multi-IDE by design, but we're honest about what's validated end-to-end.
 | VSCode + Claude Extension | 124 | 13 core + opt-in | 21 | Tested E2E |
 | Windsurf / Codex-style | MCP + rules | host-dependent | host-specific | Expected / manual |
 
-Hooks — the real-time rails (no code without a task, bash firewall, push gate) — run in **Claude Code and Qwen Code**. Kilo, Cursor, Windsurf and other MCP hosts get the same 124 tools and skills, with quality gates enforced at `task start` and `task done`.
+Hooks — the real-time rails (no code without a task, bash firewall, push gate) — run in **Claude Code and Qwen Code**. Kilo, Cursor, Windsurf and other MCP hosts get the same 124 tools and skills, with quality gates applied at `task start` and `task done`.
 
 **Kilo Code + z.ai (GLM):** bootstrap with `--ide kilo` and TAUSIK runs as a first-class MCP host driven by GLM models — model routing recommends within the active model's family (a `glm-*` session gets GLM verdicts), all as data, no code change. See **[Kilo + z.ai →](docs/en/kilo-zai.md)**.
 
@@ -185,9 +185,51 @@ TAUSIK is the reference implementation of [SENAR](https://senar.tech) ([GitHub](
 
 ---
 
-## v1.7 — pre-2.0, and confident about it
+## v1.8 — knowledge outlives the project, and the state travels in git
 
-v1.7 continues the hardening on the road to 2.0: signed receipts, fail-closed gates, external adversarial review for high-risk closures, closure-risk scoring, structured root cause, and a skill supply chain that verifies the same way on every platform. The enforcement core is **locked and covered by 4747 tests**, dogfooded daily. On uncommon paths you may still hit doc-vs-behavior drift — if you do, [file an issue](https://github.com/Kibertum/tausik-core/issues) and we'll converge it before 2.0.
+Three things carry this release.
+
+**[Team state in git](docs/en/team-state-in-git.md).** Tasks, decisions and
+memory export to a readable `tausik/` tree, ride along in the repository, and
+come back with `tausik sync`. A teammate who clones the repo gets the project's
+history, not an empty database — and no external store has to exist for that to
+work.
+
+**A shared knowledge base — one file per person, not per project.** Patterns,
+dead ends and conventions used to die with the project that learned them.
+`--global` puts knowledge in the shared store or fails saying so; search and the
+knowledge block read it too; an older TAUSIK refuses a newer store instead of
+guessing at it. The store has a backup, and the backup stays on this machine.
+
+**The end of the server-side session.** "Session" was two things — work
+continuity and agent context hygiene — and separating them closed a silent
+failure: an absent session no longer means unlimited capacity, so the 200-call
+gate stopped quietly waving work through. A handoff no longer requires an open
+session.
+
+**Six breaking changes, each with a migration** — the classifier is off the
+publication decision, the shared store moved out of `~/.tausik/`, a project may
+only tighten enforcement, the verify receipt is v3, a verify run with no
+declared scope certifies nothing, and `TAUSIK_HOME` is validated. Read them
+before upgrading: **[What changed in 1.8 →](docs/en/whats-new-1.8.md)**
+([Русский](docs/ru/whats-new-1.8.md)).
+
+v1.8 also continues the hardening on the road to 2.0: signed receipts,
+fail-closed gates, external adversarial review for under-evidenced closures,
+closure-risk scoring, structured root cause, and a skill supply chain that
+verifies the same way on every platform.
+
+A theme runs through this release's fixes, and it is worth stating plainly: a
+check that reports a verdict it never computed is worse than no check. `doctor`
+was asserting a `CLAUDE.md` comparison it had stopped performing — an inverted
+rule inside a tracked section went unseen. `metrics tokens` presented a ranking
+of call counts as a ranking of spend. Both now say what they actually measured,
+and both are pinned by tests. What the rail proves is bounded on purpose —
+tamper-evidence against outside edits, not attestation against the agent that
+holds the key ([receipts](docs/en/receipts.md)). On uncommon paths you may still
+hit doc-vs-behavior drift — if you do,
+[file an issue](https://github.com/Kibertum/tausik-core/issues) and we'll
+converge it before 2.0.
 
 ## License
 

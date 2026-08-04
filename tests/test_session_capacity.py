@@ -75,11 +75,36 @@ class TestEnforcement:
         svc.task_start("small")
         assert svc.be.task_get("small")["status"] == "active"
 
-    def test_no_block_without_session(self, svc):
-        # No session_start → capacity check is no-op
+    def test_no_session_is_a_refusal_not_a_pass(self, svc):
+        """v2-session-split-and-drop. This test used to assert the OPPOSITE —
+        "no session_start -> capacity check is no-op" — and that pinned a
+        fail-open: the 200-call gate stopped gating and said nothing. It also
+        inverted the incentive, because the cheapest way past a capacity refusal
+        was to end the session and never start another.
+
+        An absent session is not unlimited capacity; it is an unmeasured one."""
         _ready_task(svc, "t", budget=300)
-        svc.task_start("t")
-        assert svc.be.task_get("t")["status"] == "active"
+        with pytest.raises(ServiceError, match="no session is open"):
+            svc.task_start("t")
+        assert svc.be.task_get("t")["status"] == "planning"
+
+    def test_the_refusal_names_what_else_a_missing_session_switches_off(self, svc):
+        """A missing session also silences usage telemetry, token metrics and
+        model pinning — all of which fail by recording nothing. The refusal is
+        the only place an agent is told, so it has to say it."""
+        _ready_task(svc, "t", budget=300)
+        with pytest.raises(ServiceError) as exc:
+            svc.task_start("t")
+        assert "tausik session start" in str(exc.value)
+        assert "telemetry" in str(exc.value)
+
+    def test_a_budgetless_task_still_starts_without_a_session(self, svc):
+        """The gate only has an opinion about tasks that declared a budget —
+        widening it to every task would make a session mandatory for work that
+        never asked to be accounted."""
+        _ready_task(svc, "no-budget")
+        svc.task_start("no-budget")
+        assert svc.be.task_get("no-budget")["status"] == "active"
 
     def test_no_block_without_budget(self, svc):
         svc.session_start()
@@ -135,9 +160,11 @@ class TestUnblockEnforcement:
         assert "unblocked" in msg
         assert svc.be.task_get("small")["status"] == "active"
 
-    def test_unblock_without_session_no_block(self, svc):
-        """Capacity check is a no-op without an active session."""
+    def test_unblock_without_session_is_refused(self, svc):
+        """Unblocking returns a task to active, so it consumes capacity exactly
+        like a start. It used to be exempt because the gate no-oped without a
+        session — same fail-open, second door."""
         _ready_task(svc, "t", budget=300)
         svc.be.task_update("t", status="blocked")
-        msg = svc.task_unblock("t")
-        assert "unblocked" in msg
+        with pytest.raises(ServiceError, match="no session is open"):
+            svc.task_unblock("t")

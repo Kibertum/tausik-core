@@ -58,10 +58,26 @@ def test_migration_v32_creates_table_triggers_clean(tmp_path):
     conn.execute("INSERT INTO meta VALUES('schema_version', '31')")
     conn.execute("CREATE TABLE tasks(slug TEXT PRIMARY KEY)")  # FK target
     # events exists in the v1 baseline on every real DB; v34 ALTERs it.
+    # ddl-parity: historical — форма v31 до migration v34, канон уже содержит
+    # entry_hash/prev_hash, которые этот прогон только собирается добавить.
     conn.execute(
         "CREATE TABLE events(id INTEGER PRIMARY KEY AUTOINCREMENT, "
         "entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, action TEXT NOT NULL, "
         "actor TEXT, details TEXT, created_at TEXT NOT NULL DEFAULT '2020-01-01T00:00:00Z')"
+    )
+    # ddl-parity: historical — форма v31 до migration v38: verification_runs
+    # есть в базовой линии v1 на любой живой БД, и v38 её ALTERит. Прежде здесь
+    # стоял комментарий «Same reason as events above» — он ЧИТАЛСЯ как
+    # освобождение, но литерала пометки не содержал и гейтом не распознавался
+    # вовсе. Блок выживал случайно, по порогу заглушки (одна колонка): вторая
+    # колонка уронила бы прогон, а комментарий перед глазами обещал обратное.
+    conn.execute("CREATE TABLE verification_runs(id INTEGER PRIMARY KEY AUTOINCREMENT)")
+    # ALTER + backfill targets for v42 (slug identity): the chain reaches them too.
+    conn.execute(
+        "CREATE TABLE decisions(id INTEGER PRIMARY KEY AUTOINCREMENT)"
+    )
+    conn.execute(
+        "CREATE TABLE memory(id INTEGER PRIMARY KEY AUTOINCREMENT)"
     )
 
     new_ver = run_migrations(conn, 31)

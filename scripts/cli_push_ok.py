@@ -20,6 +20,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+import git_exec
+
 TICKET_FILENAME = ".push_ticket.json"
 SCHEMA_VERSION = 1
 DEFAULT_TTL_SECONDS = 60
@@ -36,15 +38,13 @@ def _find_tausik_dir(start: Path | None = None) -> Path | None:
 
 def _git(args: list[str]) -> str | None:
     try:
-        out = subprocess.check_output(
-            ["git"] + args,
-            stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL,  # defense-in-depth: never read an inherited (MCP) stdin pipe
-            timeout=3,
-        )
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+        # git_exec closes stdin (defense-in-depth: never read an inherited MCP stdin pipe).
+        result = git_exec.run(args, timeout=3)
+    except (subprocess.TimeoutExpired, OSError):
         return None
-    return out.decode("utf-8", "replace").strip()
+    if result.returncode != 0:
+        return None
+    return str(result.stdout.strip())
 
 
 def write_push_ticket(

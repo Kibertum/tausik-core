@@ -5,7 +5,7 @@ The original v14b-baseline-token-metrics design assumed Claude Code's
 PostToolUse payload carried per-tool API usage. It does not — usage is
 message-level and only available in the transcript JSONL. The replacement
 emitter lives in scripts/hooks/session_metrics.py (extract_token_rows /
-append_token_rows / resolve_session_id) and runs at SessionEnd.
+replace_session_token_rows / resolve_session_id) and runs at SessionEnd.
 
 This file is kept as a silent no-op so live IDE instances with a stale
 hooks config (still pointing here) don't error on every tool call until

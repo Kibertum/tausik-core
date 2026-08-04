@@ -2,16 +2,72 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
+from knowledge_tags import load_tags
 from project_service import ProjectService
+
+
+def _render_tags(raw: str | None) -> str:
+    """Tags as a display suffix, empty when there are none.
+
+    Reads through `knowledge_tags.load_tags` rather than `json.loads` so one
+    function serves rows from the project store and the shared store alike —
+    the two used to spell a tag list differently, and a reader written for
+    either would have shown the other as having no tags.
+    """
+    tags = load_tags(raw)
+    return " " + ", ".join(tags) if tags else ""
+
+
+def cmd_knowledge(svc: ProjectService, args: Any) -> None:
+    """`tausik knowledge export|restore` — back up the shared store, or rebuild it.
+
+    Takes `svc` it does not use, to match the dispatcher's uniform signature; the
+    shared store is per-user, not per-project, and deliberately reachable without
+    one.
+    """
+    from knowledge_export import export_shared_knowledge, restore_shared_knowledge
+
+    sub = getattr(args, "knowledge_cmd", None)
+    if sub == "export":
+        counts = export_shared_knowledge(args.to)
+        total = sum(counts.values())
+        detail = ", ".join(f"{n} {name}" for name, n in counts.items())
+        print(f"Backed up {total} record(s) to {args.to} ({detail}).")
+        return
+    if sub == "restore":
+        counts = restore_shared_knowledge(args.from_dir)
+        total = sum(counts.values())
+        detail = ", ".join(f"{n} {name}" for name, n in counts.items())
+        print(f"Restored {total} record(s) from {args.from_dir} ({detail}).")
+        return
+    if sub == "import-brain":
+        from knowledge_import import format_counts, import_from_brain_mirror
+
+        counts = import_from_brain_mirror(dry_run=bool(getattr(args, "dry_run", False)))
+        verb = "Would import" if getattr(args, "dry_run", False) else "Imported"
+        print(f"{verb}: {format_counts(counts)}.")
+        return
+    print(
+        "Usage: tausik knowledge {export --to <dir> | restore --from <dir> | "
+        "import-brain [--dry-run]}"
+    )
 
 
 def cmd_memory(svc: ProjectService, args: Any) -> None:
     c = args.memory_cmd
     if c == "add":
-        print(svc.memory_add(args.mem_type, args.title, args.content, args.tags, args.task))
+        print(
+            svc.memory_add(
+                args.mem_type,
+                args.title,
+                args.content,
+                args.tags,
+                args.task,
+                getattr(args, "to_global", False),
+            )
+        )
     elif c == "list":
         rows = svc.memory_list(
             args.mem_type,
@@ -22,12 +78,7 @@ def cmd_memory(svc: ProjectService, args: Any) -> None:
             print("  (no memories)")
             return
         for r in rows:
-            tags = ""
-            if r.get("tags"):
-                try:
-                    tags = " " + ", ".join(json.loads(r["tags"]))
-                except (json.JSONDecodeError, TypeError):
-                    pass
+            tags = _render_tags(r.get("tags"))
             arch = " [archived]" if r.get("archived_at") else ""
             print(f"  #{r['id']} [{r['type']}] {r['title']}{tags}{arch}")
     elif c == "search":
@@ -40,16 +91,33 @@ def cmd_memory(svc: ProjectService, args: Any) -> None:
             return
         for r in rows:
             arch = " [archived]" if r.get("archived_at") else ""
-            print(f"  #{r['id']} [{r['type']}] {r['title']}{arch}")
+            # cq and shared-store rows have no id — knowledge with no `memory`
+            # row HERE to address. Omit the address rather than print `#None`,
+            # and never print the shared store's own id: it would point at a
+            # different, real, local record.
+            addr = "" if r.get("id") is None else f"#{r['id']} "
+            origin = f"  ({r['origin_project']})" if r.get("origin_project") else ""
+            # One renderer for a list that mixes project rows with shared-store
+            # ones. This is the improvement the two tag formats were waiting to
+            # break: shared rows stored `a,b` while project rows stored `["a",
+            # "b"]`, so a reader written for either would have shown one of them
+            # as having no tags at all.
+            print(f"  {addr}[{r['type']}] {r['title']}{_render_tags(r.get('tags'))}{arch}{origin}")
+        from knowledge_read import pop_last_warning
+
+        warning = pop_last_warning()
+        if warning:
+            # Printed after the results, not instead of them: the project's own
+            # answers are still valid, and what the reader needs to know is that
+            # the list is INCOMPLETE — not that the search failed.
+            print(f"  ⚠ {warning}")
     elif c == "show":
         r = svc.memory_show(args.id)
         print(f"#{r['id']} [{r['type']}] {r['title']}")
         print(f"Created: {r.get('created_at', '')}")
-        if r.get("tags"):
-            try:
-                print(f"Tags: {', '.join(json.loads(r['tags']))}")
-            except (json.JSONDecodeError, TypeError):
-                pass
+        shown = load_tags(r.get("tags"))
+        if shown:
+            print(f"Tags: {', '.join(shown)}")
         if r.get("task_slug"):
             print(f"Task: {r['task_slug']}")
         print(f"\n{r['content']}")
@@ -83,6 +151,11 @@ def cmd_memory(svc: ProjectService, args: Any) -> None:
             label = rec.get("title", rec.get("decision", ""))[:60]
             print(f"  [{depth} hop] {ntype}#{nid} --[{rel}]--> {label}")
     elif c == "graph":
+        if getattr(args, "format", "table") == "mermaid":
+            from graph_mermaid import render_memory_graph  # graph-mermaid-render
+
+            print(render_memory_graph(svc), end="")
+            return
         edges = svc.memory_graph(
             args.node_type,
             args.node_id,

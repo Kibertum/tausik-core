@@ -19,25 +19,14 @@ if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
 
 import crypto_keys  # noqa: E402
+from backend_schema_gate_runs import GATE_RUNS_SQL  # noqa: E402
 import crypto_sign  # noqa: E402
 import service_verification as sv  # noqa: E402
+from conftest import VERIFICATION_RUNS_DDL  # noqa: E402
 from verify_receipt_check import check_receipt_for_hit  # noqa: E402
 
-_DDL = """
-CREATE TABLE IF NOT EXISTS verification_runs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_slug TEXT,
-    scope TEXT NOT NULL CHECK(scope IN
-        ('lightweight', 'standard', 'high', 'critical', 'manual')),
-    command TEXT NOT NULL,
-    exit_code INTEGER NOT NULL,
-    summary TEXT,
-    files_hash TEXT NOT NULL,
-    ran_at TEXT NOT NULL,
-    duration_ms INTEGER,
-    receipt_json TEXT
-);
-"""
+# Canonical DDL cut from backend_schema.SCHEMA_SQL — never a hand-written copy.
+_DDL = VERIFICATION_RUNS_DDL + ";"
 
 _GATES = [{"name": "pytest", "passed": True, "severity": "block"}]
 
@@ -47,6 +36,10 @@ def conn():
     c = sqlite3.connect(":memory:")
     c.row_factory = sqlite3.Row
     c.executescript(_DDL)
+    # Canonical DDL, not another hand-written copy: record_run now also writes
+    # gate_runs. Both schemas here come from the real modules, so neither can
+    # drift away from production behind a green test.
+    c.executescript(GATE_RUNS_SQL)
     yield c
     c.close()
 

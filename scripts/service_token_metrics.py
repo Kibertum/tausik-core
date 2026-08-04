@@ -152,6 +152,32 @@ def print_cli(last_n: int, as_json: bool) -> None:
         print(format_table(agg))
 
 
+def _attribution_caveat() -> list[str]:
+    """The limitation a reader must see BEFORE the numbers, not after them.
+
+    These columns look like per-tool cost and are not. API usage is reported
+    per MESSAGE, not per tool call, which the capture hook says of itself
+    ("PostToolUse payload carried per-tool API usage. It does not"). What
+    survives in the file is a message-level figure stamped onto whichever tool
+    happened to run: `in_p50`/`in_p90` come out as the same tiny number for
+    every tool, `in_total` is that number times the call count — a call counter
+    wearing a cost label — and summing `cache_read` re-counts one cached
+    conversation on every call, which is why a single tool can appear to have
+    read hundreds of millions of tokens.
+
+    Printing this caveat is the whole fix (decision #201). A table that asserts
+    an attribution nobody measured is the same defect as a health check that
+    reports a comparison it skipped: the reader cannot tell, so they believe it.
+    """
+    return [
+        "NOTE: these are MESSAGE-level figures stamped onto the tool that ran, not",
+        "      per-tool cost. in_p50/in_p90 are near-identical across tools, in_total",
+        "      tracks call count, and summed cache_read re-counts one cached context",
+        "      per call. Use for CALL VOLUME; do not read as spend per tool. Attributing",
+        "      cost per tool needs a transcript-level parser (decision #201).",
+    ]
+
+
 def format_table(agg: dict[str, Any]) -> str:
     """Render aggregate as a fixed-width table for CLI output."""
     if agg["events"] == 0:
@@ -165,6 +191,7 @@ def format_table(agg: dict[str, Any]) -> str:
         f"Token metrics — last {agg['sessions_in_window']} session(s), "
         f"{agg['events']} event(s) ({agg['sessions_observed']} session(s) observed total)"
     )
+    lines.extend(_attribution_caveat())
     header = (
         f"{'tool':<24} {'events':>7} {'in_p50':>9} {'in_p90':>9} "
         f"{'in_total':>11} {'out_total':>11} {'cache_r':>10} {'cache_c':>10}"

@@ -236,3 +236,108 @@ class TestFindDedupeCandidatesPure:
         out = find_dedupe_candidates(rows, threshold=0.5)
         assert out[0]["id_a"] == 3
         assert out[0]["id_b"] == 5
+
+
+# ---------------------------------------------------------------------------
+# l26-memory-dedupe-perf: quick-ratio pruning must be exact + cheaper
+# ---------------------------------------------------------------------------
+
+
+def _brute_force_dedupe(rows, threshold):
+    """The pre-optimization all-pairs full-ratio() reference implementation."""
+    import difflib
+
+    out = []
+    n = len(rows)
+    for i in range(n):
+        ra = rows[i]
+        ta = (ra.get("title") or "") + " " + (ra.get("content") or "")
+        for j in range(i + 1, n):
+            rb = rows[j]
+            if ra.get("type") != rb.get("type"):
+                continue
+            tb = (rb.get("title") or "") + " " + (rb.get("content") or "")
+            score = difflib.SequenceMatcher(a=ta, b=tb, autojunk=False).ratio()
+            if score >= threshold:
+                lo, hi = sorted([ra, rb], key=lambda r: int(r.get("id") or 0))
+                out.append(
+                    {
+                        "id_a": int(lo["id"]),
+                        "id_b": int(hi["id"]),
+                        "ratio": round(score, 4),
+                        "type": ra.get("type"),
+                        "title_a": lo.get("title") or "",
+                        "title_b": hi.get("title") or "",
+                    }
+                )
+    out.sort(key=lambda r: (-r["ratio"], r["id_a"], r["id_b"]))
+    return out
+
+
+def _synthetic_rows(seed, n):
+    import random
+
+    rnd = random.Random(seed)
+    words = "alpha beta gamma delta epsilon zeta eta theta iota kappa".split()
+    types = ["pattern", "gotcha", "convention"]
+    rows = []
+    for i in range(1, n + 1):
+        k = rnd.randint(3, 9)
+        title = " ".join(rnd.choice(words) for _ in range(rnd.randint(1, 3)))
+        content = " ".join(rnd.choice(words) for _ in range(k))
+        rows.append({"id": i, "type": rnd.choice(types), "title": title, "content": content})
+    # Guarantee some genuine near-duplicates survive pruning.
+    for src in (1, 4, 7):
+        if src < len(rows):
+            twin = dict(rows[src])
+            twin["id"] = 1000 + src
+            twin["content"] = rows[src]["content"] + " x"
+            rows.append(twin)
+    return rows
+
+
+class TestDedupePerf:
+    @pytest.mark.parametrize("threshold", [0.5, 0.7, 0.85, 0.95])
+    @pytest.mark.parametrize("seed", [1, 2, 3])
+    def test_exact_same_result_as_brute_force(self, seed, threshold):
+        """AC2: the quick-ratio prunings are true upper bounds, so the optimized
+        output must be byte-identical to the all-pairs reference."""
+        rows = _synthetic_rows(seed, 40)
+        assert find_dedupe_candidates(rows, threshold) == _brute_force_dedupe(rows, threshold)
+
+    def test_prunes_the_expensive_full_ratio_calls(self, monkeypatch):
+        """AC3: far fewer full SequenceMatcher.ratio() calls than same-type pairs
+        — the expensive step is gated behind the cheap upper bounds."""
+        import difflib
+
+        import memory_cleanup
+
+        counter = {"ratio": 0}
+
+        class _CountingSM(difflib.SequenceMatcher):
+            def ratio(self):
+                counter["ratio"] += 1
+                return super().ratio()
+
+        monkeypatch.setattr(memory_cleanup, "SequenceMatcher", _CountingSM)
+
+        rows = _synthetic_rows(seed=7, n=60)
+        # Count same-type pairs — the number of full ratio()s the brute force ran.
+        from collections import Counter
+
+        tc = Counter(r["type"] for r in rows)
+        same_type_pairs = sum(c * (c - 1) // 2 for c in tc.values())
+
+        find_dedupe_candidates(rows, threshold=0.85)
+        assert counter["ratio"] < same_type_pairs, (
+            f"ratio() ran {counter['ratio']}x for {same_type_pairs} same-type pairs "
+            "— pruning did not fire"
+        )
+        # At a high threshold most random pairs are pruned; expect a big cut.
+        assert counter["ratio"] <= same_type_pairs // 2
+
+    def test_sort_order_preserved(self):
+        rows = _synthetic_rows(seed=2, n=30)
+        out = find_dedupe_candidates(rows, threshold=0.6)
+        keys = [(-r["ratio"], r["id_a"], r["id_b"]) for r in out]
+        assert keys == sorted(keys)

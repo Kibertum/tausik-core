@@ -68,6 +68,19 @@ class TestExclusion:
     def test_unrelated_path_not_excluded(self):
         assert not _is_excluded("scripts/foo.py", DEFAULT_EXCLUDES)
 
+    def test_every_ide_profile_is_excluded(self):
+        """engine-claude-literals-followup: the excludes cover ALL profiles from
+        the ide registry (7 IDEs), not the 3 that were hardcoded. On the other
+        IDEs the deployed engine was walked or reported as an orphan.
+        """
+        from ide_utils import all_profile_dirs  # noqa: E402
+
+        profiles = all_profile_dirs()
+        assert len(profiles) >= 4, "registry regressed below the known IDE count"
+        for d in profiles:
+            assert f"{d}/*" in DEFAULT_EXCLUDES
+            assert f"{d}/**/*" in DEFAULT_EXCLUDES
+
 
 class TestCollectOrphans:
     def test_lonely_helper_reported(self, fake_repo: Path):
@@ -101,6 +114,7 @@ class TestCli:
             cwd=str(REPO),
             capture_output=True,
             text=True,
+            encoding="utf-8",
             env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         )
         # Either clean (exit 0) or surfaces real candidates (exit 1) — never crash

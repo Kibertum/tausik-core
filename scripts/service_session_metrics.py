@@ -104,13 +104,30 @@ def effective_session_limit(be: Any, session_id: int, base_limit: int) -> int:
     return limit
 
 
-def session_overrun_warning(be: Any, max_minutes: int | None = None) -> str | None:
-    """SENAR Rule 9.2 — warn if active time exceeds limit. Returns msg or None."""
+def session_overrun_warning(
+    be: Any,
+    max_minutes: int | None = None,
+    *,
+    effective_limit: int | None = None,
+) -> str | None:
+    """SENAR Rule 9.2 — warn if active time exceeds limit. Returns msg or None.
+
+    `effective_limit` lets a caller that has ALREADY resolved the limit hand it
+    in instead of paying for a second `events_list` scan of the same session.
+    `status_view` renders the limit and asks for this warning in one pass, and
+    that pass runs on the compact hot path behind `/start` — the path this
+    codebase keeps hardening against latency. Omitted, the limit is resolved
+    here as before, so every existing caller is unaffected.
+    """
     current = be.session_current()
     if not current or not current.get("started_at"):
         return None
     base = max_minutes or DEFAULT_SESSION_MAX_MINUTES
-    limit = effective_session_limit(be, current["id"], base)
+    limit = (
+        effective_limit
+        if effective_limit is not None
+        else effective_session_limit(be, current["id"], base)
+    )
     active = session_active_minutes(be, current["id"])
     if active <= limit:
         return None

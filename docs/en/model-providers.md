@@ -66,3 +66,27 @@ OpenCode supports 75+ providers via liteLLM. Common examples:
 - `anthropic/claude-sonnet-4-5` — Anthropic Claude
 - `google/gemini-2.5-pro` — Google Gemini
 - `ollama/llama3` — Local Ollama models (free)
+
+## Cost telemetry for non-Claude models
+
+TAUSIK ships a price table only for Claude tiers — it will not invent a rate for
+GigaChat, GPT, Gemini or a local model, because a fabricated price is worse than
+an absent one. Left unconfigured, cost telemetry for such a model records
+`cost_usd = 0.00` and prints a one-time stderr warning (`unknown ≠ free`) so the
+zero is not mistaken for "this model is free".
+
+To meter your own model, declare a flat USD-per-1M-tokens rate in
+`.tausik/config.json` — the same rate is applied to input and output:
+
+```json
+{
+  "llm_pricing_usd_per_million": {
+    "gigachat/GigaChat-2-Max": 1.20,
+    "ollama/llama3": 0.0
+  }
+}
+```
+
+An explicit `0.0` is honoured (a genuinely free local model), distinct from the
+unpriced default: the warning fires only when there is neither a built-in price
+nor an override. Negative or non-numeric entries are dropped.

@@ -23,7 +23,7 @@ def _run_hook(project_dir: str, extra_env: dict | None = None) -> subprocess.Com
         [sys.executable, _HOOK_PATH],
         input="{}",
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         timeout=15,
         env=env,
     )
@@ -59,7 +59,7 @@ class TestSessionStartHook:
             [sys.executable, _HOOK_PATH],
             input="",
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=15,
             env=env,
         )
@@ -97,7 +97,7 @@ class TestSessionStartHook:
             [sys.executable, _HOOK_PATH],
             input="{}",
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=15,
             env=env,
             cwd=str(tmp_path),

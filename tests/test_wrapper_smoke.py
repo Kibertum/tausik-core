@@ -73,7 +73,7 @@ class TestCmdWrapper:
         result = subprocess.run(
             ["cmd", "/c", str(wrapper), "status"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         assert result.returncode == 0, result.stderr
         assert "STUB_OK status" in result.stdout
@@ -87,7 +87,7 @@ class TestCmdWrapper:
         result = subprocess.run(
             ["cmd", "/c", str(wrapper), "status"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         assert result.returncode == 1
         assert result.stderr.count("no scripts dir found") == 1
@@ -109,7 +109,7 @@ class TestShWrapper:
         result = subprocess.run(
             ["bash", str(wrapper), "status"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         assert result.returncode == 0, result.stderr
         assert "STUB_OK status" in result.stdout
@@ -125,7 +125,7 @@ class TestShWrapper:
         result = subprocess.run(
             ["bash", str(wrapper), "status"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         assert result.returncode == 1
         assert result.stderr.count("no scripts dir found") == 1

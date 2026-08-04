@@ -14,25 +14,15 @@ if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
 
 import service_verification as sv  # noqa: E402
+from backend_schema_gate_runs import GATE_RUNS_SQL  # noqa: E402
+from conftest import VERIFICATION_RUNS_DDL  # noqa: E402
 
 # --- Schema fixture --------------------------------------------------------
 
-
-_VERIFICATION_RUNS_DDL = """
-CREATE TABLE IF NOT EXISTS verification_runs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_slug TEXT,
-    scope TEXT NOT NULL CHECK(scope IN
-        ('lightweight', 'standard', 'high', 'critical', 'manual')),
-    command TEXT NOT NULL,
-    exit_code INTEGER NOT NULL,
-    summary TEXT,
-    files_hash TEXT NOT NULL,
-    ran_at TEXT NOT NULL,
-    duration_ms INTEGER,
-    receipt_json TEXT
-);
-"""
+# Canonical DDL, cut from backend_schema.SCHEMA_SQL by conftest — never a
+# hand-written copy. A copy proves the copy, not production, and drifts
+# silently (see conftest.canonical_ddl for the two incidents that cost).
+_VERIFICATION_RUNS_DDL = VERIFICATION_RUNS_DDL + ";"
 
 
 @pytest.fixture
@@ -40,6 +30,9 @@ def conn():
     c = sqlite3.connect(":memory:")
     c.row_factory = sqlite3.Row
     c.executescript(_VERIFICATION_RUNS_DDL)
+    # Canonical DDL, not a hand-written copy: run_gates_with_cache now records
+    # red and non-cacheable runs too, so gate_runs must exist here.
+    c.executescript(GATE_RUNS_SQL)
     yield c
     c.close()
 
@@ -501,6 +494,26 @@ class TestResolveGateSignature:
         sig_new = sv.resolve_gate_signature("task-done")
         assert sig_old != sig_new
 
+    def test_signature_stable_across_flow_with_trusted_tier_present(self, tmp_path, monkeypatch):
+        """l26-config-not-repo-state-audit verdict (consumer 1, no code change):
+        with a trusted tier present but UNCHANGED, the verify-time and done-time
+        signatures match — no spurious cache miss. The signature intentionally
+        tracks the EFFECTIVE (merged) config; it is stable here because the
+        config is static within one machine's verify→done flow. This pins the
+        reason it is deliberately NOT pinned to the repo-only tier."""
+        import json
+
+        managed = tmp_path / "managed.json"
+        # An unguarded, non-gate key: present in the trusted tier, but it does not
+        # perturb the gate set — the point is that a static tier yields a stable sig.
+        managed.write_text(json.dumps({"verify_cache_ttl_seconds": 600}), encoding="utf-8")
+        monkeypatch.setenv("TAUSIK_MANAGED_CONFIG", str(managed))
+        monkeypatch.setenv("TAUSIK_USER_CONFIG", str(tmp_path / "absent-user.json"))
+        at_verify = sv.resolve_gate_signature("verify")
+        at_done = sv.resolve_gate_signature("verify")
+        assert at_verify == at_done
+        assert at_verify not in ("", "unavailable")
+
 
 class TestCacheInvalidatesOnGateChange:
     """A1 fix end-to-end: changing gate command between runs misses cache."""
@@ -594,12 +607,21 @@ class TestRunGatesWithCacheIntegration:
         )
         assert passed
         assert st == "bypass"
-        # No record_run on bypass
+        # gate-runs-record-failures: a bypassed run IS recorded — a verify over
+        # security-sensitive files is precisely one you want in the record.
+        # It must not become reusable, and it cannot: has_fresh_verify_run
+        # refuses on is_cache_allowed() before it even queries, and the row's
+        # command carries the noncacheable marker so neither lookup matches.
         rows = conn.execute(
-            "SELECT id FROM verification_runs WHERE task_slug = ?",
+            "SELECT command FROM verification_runs WHERE task_slug = ?",
             ("auth-task",),
         ).fetchall()
-        assert rows == []
+        assert len(rows) == 1
+        assert rows[0][0].startswith("noncacheable|")
+        from verify_cache import has_fresh_verify_run
+
+        ok, _hit = has_fresh_verify_run(conn, "auth-task", ["scripts/auth/login.py"])
+        assert ok is False
 
     def test_cache_invalidates_on_mtime_change(self, conn, tmp_path, monkeypatch):
         import gate_runner
@@ -644,16 +666,19 @@ class TestRunGatesWithCacheIntegration:
             files_hash=sv.compute_files_hash(["scripts/zzz.py"]),
             command="ignored",  # mismatched intentionally
         )
-        # cache_command in red branch was 'trigger=task-done|sig=...|files=...'
-        # but record_run is NOT called for red (only on `passed and cache_ok`)
-        # so lookup with any command finds nothing
         assert hit is None
-        # Confirm: no row recorded for red
+        # gate-runs-record-failures: a red run IS recorded now — that is the
+        # only way "how often does this gate block?" can be answered. What
+        # must stay true is that recording never makes it cache-hittable, and
+        # exit_code=1 is what guarantees it (both lookups filter exit_code=0).
+        # The comment above this assertion already described this as the
+        # intended design; the old `rows == []` encoded the implementation
+        # instead, which is why the failures were invisible.
         rows = conn.execute(
-            "SELECT id FROM verification_runs WHERE task_slug = ?",
+            "SELECT exit_code FROM verification_runs WHERE task_slug = ?",
             ("task-red",),
         ).fetchall()
-        assert rows == []
+        assert [tuple(r) for r in rows] == [(1,)]
 
     def test_append_notes_called_on_hit(self, conn, tmp_path, monkeypatch):
         import gate_runner
@@ -786,7 +811,7 @@ class TestChangedFilesSince:
 
     def test_combines_committed_and_uncommitted(self, tmp_path, monkeypatch):
         # Mock os.path.isdir to claim .git exists at tmp_path
-        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        monkeypatch.setattr("verify_git_diff._is_repo_root", lambda base: True)
         runner = _fake_run(
             stdout_log="scripts/a.py\nscripts/b.py\n",
             stdout_diff="scripts/c.py\nscripts/a.py\n",
@@ -804,19 +829,19 @@ class TestChangedFilesSince:
         assert sv.changed_files_since(None) is None  # type: ignore[arg-type]
 
     def test_returns_none_when_git_log_fails(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        monkeypatch.setattr("verify_git_diff._is_repo_root", lambda base: True)
         runner = _fake_run(rc_log=128)
         out = sv.changed_files_since("2026-04-28T12:00:00Z", root=str(tmp_path), runner=runner)
         assert out is None
 
     def test_returns_none_when_git_diff_fails(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        monkeypatch.setattr("verify_git_diff._is_repo_root", lambda base: True)
         runner = _fake_run(stdout_log="x\n", rc_diff=128)
         out = sv.changed_files_since("2026-04-28T12:00:00Z", root=str(tmp_path), runner=runner)
         assert out is None
 
     def test_returns_none_when_subprocess_raises(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        monkeypatch.setattr("verify_git_diff._is_repo_root", lambda base: True)
 
         def boom(*_a, **_kw):
             raise OSError("fork failed")
@@ -825,7 +850,7 @@ class TestChangedFilesSince:
         assert out is None
 
     def test_normalizes_backslashes_and_dot_slash(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        monkeypatch.setattr("verify_git_diff._is_repo_root", lambda base: True)
         runner = _fake_run(
             stdout_log="./scripts/a.py\n",
             stdout_diff="./scripts/b.py\n",  # git emits forward slash; this exercises normalization
@@ -873,7 +898,7 @@ class TestIsDeclaredConsistentWithGitDiff:
     def test_consistency_classification(
         self, tmp_path, monkeypatch, stdout_log, declared, expected
     ):
-        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        monkeypatch.setattr("verify_git_diff._is_repo_root", lambda base: True)
         runner = _fake_run(stdout_log=stdout_log, stdout_diff="")
         ok = sv.is_declared_consistent_with_git_diff(
             declared,
@@ -884,7 +909,7 @@ class TestIsDeclaredConsistentWithGitDiff:
         assert ok is expected
 
     def test_exact_match_returns_true(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        monkeypatch.setattr("verify_git_diff._is_repo_root", lambda base: True)
         runner = _fake_run(stdout_log="scripts/auth.py\n", stdout_diff="")
         ok = sv.is_declared_consistent_with_git_diff(
             ["scripts/auth.py"],
@@ -896,7 +921,7 @@ class TestIsDeclaredConsistentWithGitDiff:
 
     def test_over_declaration_returns_true(self, tmp_path, monkeypatch):
         """Agent declares MORE files than changed — fine, not a bypass."""
-        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        monkeypatch.setattr("verify_git_diff._is_repo_root", lambda base: True)
         runner = _fake_run(stdout_log="scripts/auth.py\n", stdout_diff="")
         ok = sv.is_declared_consistent_with_git_diff(
             ["scripts/auth.py", "scripts/extra.py", "tests/test_auth.py"],
@@ -920,7 +945,7 @@ class TestRunGatesWithCacheGitDiffIntegration:
     def test_cache_hit_when_declared_matches_changes(self, conn, monkeypatch, tmp_path):
         """Pre-warm cache, then re-run with same files + matching git diff →
         cache should HIT (status='hit')."""
-        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        monkeypatch.setattr("verify_git_diff._is_repo_root", lambda base: True)
         # First call: pretend gates ran fresh (mock run_gates to PASS)
         import gate_runner
 
@@ -963,10 +988,17 @@ class TestRunGatesWithCacheGitDiffIntegration:
         assert status2 == "hit"
 
     def test_cache_refused_when_declared_underreports(self, conn, monkeypatch, tmp_path):
-        """Pre-warm cache for declared=[scripts/foo.py]. Then declare same
-        files BUT git diff shows scripts/auth.py also changed → cache must
-        return status='git-mismatch', not 'hit'."""
-        monkeypatch.setattr("os.path.isdir", lambda p: True)
+        """Pre-warm cache for declared=[scripts/foo.py]. Then declare the same
+        files BUT git diff shows scripts/bar.py also changed → cache must
+        return status='git-mismatch', not 'hit'.
+
+        l26-verify-git-diff-wire: the undeclared file here is deliberately a
+        NON-security one. Under-declaration on its own stays non-blocking
+        (Decision #138/#139) and only refuses the cache, which is what this
+        test pins. The security-sensitive variant is a different contract and
+        is covered by test_cache_refused_when_undeclared_file_is_security.
+        """
+        monkeypatch.setattr("verify_git_diff._is_repo_root", lambda base: True)
         import gate_runner
 
         monkeypatch.setattr(
@@ -996,7 +1028,7 @@ class TestRunGatesWithCacheGitDiffIntegration:
         monkeypatch.setattr(
             verify_git_diff,
             "changed_files_since",
-            lambda ts, **_kw: {"scripts/foo.py", "scripts/auth.py"},
+            lambda ts, **_kw: {"scripts/foo.py", "scripts/bar.py"},
         )
         passed2, _, status2 = sv.run_gates_with_cache(
             conn,
@@ -1005,6 +1037,42 @@ class TestRunGatesWithCacheGitDiffIntegration:
             task_created_at="2026-04-28T12:00:00Z",
         )
         assert status2 == "git-mismatch"
+        assert passed2 is True  # divergence alone must never fail the run
+
+    def test_cache_refused_when_undeclared_file_is_security(self, conn, monkeypatch):
+        """l26-verify-git-diff-wire: an undeclared *security-sensitive* file is
+        the one case that fails rather than merely refusing the cache.
+
+        Refusing the cache was never enough on its own: the gates that run
+        afterwards are scoped to the declared list, so an undeclared
+        scripts/auth.py would be verified by nothing at all — the half of the
+        v1.3.4 bypass that stayed open until this change.
+        """
+        monkeypatch.setattr("verify_git_diff._is_repo_root", lambda base: True)
+        import gate_runner
+        import verify_git_diff
+
+        ran: list[bool] = []
+        monkeypatch.setattr(
+            gate_runner,
+            "run_gates",
+            lambda _trigger, _files, **_kw: (ran.append(True), (True, []))[1],
+        )
+        monkeypatch.setattr(
+            verify_git_diff,
+            "changed_files_since",
+            lambda ts, **_kw: {"scripts/foo.py", "scripts/auth.py"},
+        )
+        passed, results, status = sv.run_gates_with_cache(
+            conn,
+            "task-sec",
+            ["scripts/foo.py"],
+            task_created_at="2026-04-28T12:00:00Z",
+        )
+        assert passed is False
+        assert status == "scope-security-mismatch"
+        assert results[0]["name"] == "scope-declaration"
+        assert ran == []
 
     def test_no_task_created_at_falls_back_to_security_only(self, conn, monkeypatch):
         """Without task_created_at, behavior matches pre-v1.3.4 — no git
@@ -1119,47 +1187,23 @@ class TestPipelineEnvelopeTimeout:
         assert "relevant_files" in msg
 
 
-# --- v14-cache-relaxed-mismatch-hit ----------------------------------------
+# --- verify-cache-empty-scope-hit (was: v14-cache-relaxed-mismatch-hit) -----
 
 
-class TestRelaxedMismatchCacheHit:
-    """Sharp edge #2: verify ran with files=[] (manual scope), task_done with
-    explicit relevant_files — strict cache misses (hashes differ) but the
-    user clearly verified this slug recently. Relaxed lookup accepts the
-    broad-pass row only when the recorded run named NO files."""
+class TestManualScopeRowIsNotACacheHit:
+    """Was TestRelaxedMismatchCacheHit, which pinned the opposite contract.
 
-    def test_lookup_any_fresh_run_unit(self, conn):
-        from datetime import datetime, timezone
+    The relaxed fallback accepted a verify row that named NO files as a
+    broad-pass certificate for an explicit file set. It was removed: with no
+    declared files the scoped gates are skipped, so the row certified files it
+    never examined, under an empty-marker hash that no edit invalidates.
+    `lookup_any_fresh_run_for_task` went with it — the strict lookup is the
+    only reader left. Empty-scope specifics: test_verify_cache_empty_scope.py.
+    """
 
-        from verify_recent_lookup import lookup_any_fresh_run_for_task
-
-        # No row → None.
-        assert lookup_any_fresh_run_for_task(conn, "t") is None
-
-        # Fresh green row regardless of hash → returned.
-        now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-        conn.execute(
-            "INSERT INTO verification_runs (task_slug, scope, command, exit_code, "
-            "summary, files_hash, ran_at) VALUES (?,?,?,?,?,?,?)",
-            ("t", "manual", "trigger=verify|sig=x|files=", 0, "ok", "h1", now),
-        )
-        conn.commit()
-        row = lookup_any_fresh_run_for_task(conn, "t")
-        assert row is not None
-        assert row["files_hash"] == "h1"
-
-        # Failed run → ignored.
-        conn.execute("DELETE FROM verification_runs")
-        conn.execute(
-            "INSERT INTO verification_runs (task_slug, scope, command, exit_code, "
-            "summary, files_hash, ran_at) VALUES (?,?,?,?,?,?,?)",
-            ("t", "manual", "trigger=verify|sig=x|files=", 1, "fail", "h", now),
-        )
-        conn.commit()
-        assert lookup_any_fresh_run_for_task(conn, "t") is None
-
-    def test_relaxed_hit_when_verify_recorded_no_files(self, conn, monkeypatch):
-        """The headline case: verify ran with files=[], task_done with files."""
+    def test_manual_scope_row_does_not_hit(self, conn, monkeypatch):
+        """The headline case, inverted: verify ran with files=[], task_done
+        with files → gates must actually run."""
         monkeypatch.setattr(
             "project_config.load_config",
             lambda: {"verify_pipeline_timeout_seconds": 0},
@@ -1180,12 +1224,21 @@ class TestRelaxedMismatchCacheHit:
 
         def fake_run(_trigger, _files, **_kw):
             called["n"] += 1
-            return True, []
+            return True, [{"name": "g", "passed": True, "skipped": False, "severity": "block"}]
 
         monkeypatch.setattr("gate_runner.run_gates", fake_run)
-        passed, results, status = sv.run_gates_with_cache(conn, "relaxed-task", ["scripts/foo.py"])
-        assert status == "hit"
-        assert called["n"] == 0, "relaxed hit must skip run_gates entirely"
+        _passed, _results, status = sv.run_gates_with_cache(
+            conn, "relaxed-task", ["scripts/foo.py"]
+        )
+        assert status != "hit"
+        assert called["n"] == 1, "a run that skipped the scoped gates cannot certify a file set"
+
+    def test_relaxed_lookup_helper_is_gone(self):
+        """The helper existed only for the relaxed branch; leaving it in place
+        invites a future caller to reintroduce the hole."""
+        import verify_recent_lookup
+
+        assert not hasattr(verify_recent_lookup, "lookup_any_fresh_run_for_task")
 
     def test_relaxed_skipped_for_security_sensitive(self, conn, monkeypatch):
         """is_cache_allowed gates the whole branch — auth/payment paths still re-verify."""

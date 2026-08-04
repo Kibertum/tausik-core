@@ -52,6 +52,26 @@ NEGATIVE_SCENARIO_KEYWORDS = (
     "break",
     "crash",
     "exception",
+    # Russian parity (qg0-negative-detector-russian-parity, convention #170): the
+    # working language is Russian, but several English markers above had no
+    # Russian counterpart, so a criterion that named its negative case in Russian
+    # ("НЕГАТИВ: ...") failed QG-0. Each of these mirrors an English keyword
+    # already in the list — additive, no new failure mode.
+    "негатив",  # negative
+    "таймаут",  # timeout
+    "исключени",  # exception (исключение/исключения)
+    "паден",  # crash (падение/упал)
+    "крах",  # crash
+    "превыш",  # exceed (превышение/превышен)
+    "переполн",  # overflow (переполнение)
+    # qg0-negative-detector-does-not-know-the-word-negative (#301): the
+    # task-done evidence detector `ac_evidence_detectors.NEGATIVE_RE` matches the
+    # negative-WORD family `negative | негативн | отрицательн`, but QG-0 knew only
+    # the first two — so a criterion naming its negative case as "отрицательный"
+    # passed the evidence check yet was BLOCKED at start. The two are pinned to
+    # agree by `test_negative_word_parity_with_evidence_detector`; keep this stem
+    # here (and add any new NEGATIVE_RE form) so they never diverge again.
+    "отрицательн",  # negative (отрицательный/отрицательное)
 )
 
 

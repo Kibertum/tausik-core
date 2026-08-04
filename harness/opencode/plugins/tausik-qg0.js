@@ -80,6 +80,39 @@ async function _queryActive($, root) {
   return n > 0;
 }
 
+/** Record a supervision bypass/degradation, cross-harness parity with the
+ * Python hooks (l26-bypass-telemetry-opencode-parity). The SAME weakening lives
+ * in this Node harness as in scripts/hooks/task_gate.py, and the metric that
+ * counts switch-offs (supervision_bypasses) is blind here unless we leave a row.
+ *
+ * Routes through the CLI (`events emit-supervision`) so the row is written by
+ * the one Python emitter — identical entity_type/action/chain-safe contract,
+ * never a second copy of it re-implemented in JS (a second producer would drift,
+ * the very thing the metric's oracle rule forbids).
+ *
+ * Best-effort, and awaited so the record actually lands before the hook returns:
+ * a failure to write is a MISSING row, never a thrown error — telemetry must not
+ * brick the editor. In the fail-open case the CLI is already the thing that
+ * broke, so this attempt usually fails too; that is the honest floor (a
+ * degradation this cannot record is undercounted, never overcounted), the same
+ * ceiling the Python side documents.
+ *
+ * @param {Function} $
+ * @param {string} root
+ * @param {"bypass"|"degradation"} kind
+ * @param {string} vector
+ * @param {string} source
+ */
+async function _recordSupervision($, root, kind, vector, source) {
+  try {
+    await $`${_cliPath(root)} events emit-supervision --kind ${kind} --vector ${vector} --source ${source}`
+      .quiet()
+      .text();
+  } catch {
+    // swallow — best-effort telemetry, never blocks or bricks the editor
+  }
+}
+
 /** Cached active-task verdict.
  *
  * The CLI costs 300 ms warm / 1.1 s cold on Windows (measured), which is paid on
@@ -102,12 +135,52 @@ async function _verdict($, root) {
   const sig = await _dbSignature(root);
   const now = Date.now();
   if (_cache && now - _cache.ts < CACHE_TTL_MS) {
-    const usable = sig !== null ? _cache.sig === sig : _cache.active === false;
-    if (usable) return _cache.active;
+    if (_cache.unreachable) {
+      // A broken CLI is a STABLE condition. The pre-fix code let _queryActive's
+      // exception escape before _cache was assigned, so every write re-spawned the
+      // 300ms/1.1s probe AND re-shelled the (same broken) supervision emit — two
+      // slow subprocesses per write, exactly what the cache exists to prevent. So
+      // cache the unreachable verdict too, under the SAME signature guard as an
+      // active verdict: reuse only while a real DB signature is unchanged. No
+      // signature (no Bun) => don't reuse — reusing a fail-open verdict is the
+      // LENIENT direction, forbidden without a signature to justify it (mirrors the
+      // active-`true` rule). The reused throw carries freshProbe:false so the caller
+      // records the degradation once per real probe, not once per write.
+      if (sig !== null && _cache.sig === sig) {
+        throw _unreachableError(_cache.reason, false);
+      }
+    } else {
+      const usable = sig !== null ? _cache.sig === sig : _cache.active === false;
+      if (usable) return _cache.active;
+    }
   }
-  const active = await _queryActive($, root);
+  let active;
+  try {
+    active = await _queryActive($, root);
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : String(e);
+    _cache = { sig, unreachable: true, reason, ts: now };
+    throw _unreachableError(reason, true);
+  }
   _cache = { sig, active, ts: now };
   return active;
+}
+
+/** Build the throw that signals "CLI unreachable" to tool.execute.before.
+ *
+ * `freshProbe` distinguishes a real, just-observed probe failure (record the
+ * degradation) from a reused cached verdict within the TTL window (the SAME
+ * episode — do NOT re-shell the broken emit on every write). Undercount stays the
+ * honest floor: one outage records one degradation per probe window, never zero.
+ *
+ * @param {string} reason
+ * @param {boolean} freshProbe
+ */
+function _unreachableError(reason, freshProbe) {
+  const err = new Error(reason);
+  err.cliUnreachable = true;
+  err.freshProbe = freshProbe;
+  return err;
 }
 
 // NOTE: this module exports exactly ONE symbol, and that is deliberate. OpenCode's docs
@@ -130,8 +203,18 @@ export const TausikQG0 = async ({ $, directory, worktree }) => {
      * @param {{args: Record<string, unknown>}} _output
      */
     "tool.execute.before": async (input, _output) => {
-      if (process.env.TAUSIK_SKIP_HOOKS) return;
+      // WRITE_TOOLS filter FIRST: read-only tools are never gated and must not
+      // emit bypass telemetry either — that keeps the count scoped to the same
+      // write surface Claude Code's task_gate matcher (Write|Edit|MultiEdit)
+      // sees. A skip that fired on every read would wildly over-count.
       if (!WRITE_TOOLS.has(input.tool)) return;
+
+      if (process.env.TAUSIK_SKIP_HOOKS) {
+        // The umbrella skip disables the gate — but never in silence. Record the
+        // bypass so the supervision_bypasses metric is not blind on this harness.
+        await _recordSupervision($, root, "bypass", "skip_hooks", "opencode_qg0");
+        return;
+      }
 
       const failSecure = Boolean(process.env.TAUSIK_HOOK_FAIL_SECURE);
 
@@ -158,6 +241,19 @@ export const TausikQG0 = async ({ $, directory, worktree }) => {
             `Allowing '${input.tool}' WITHOUT an active-task check. ` +
             `Run \`tausik doctor\`; set TAUSIK_HOOK_FAIL_SECURE=1 to block instead of allow.`
         );
+        // A visible warning tells THIS user on EVERY ungated write — it is a cheap
+        // console.warn, not a subprocess, so per-write loudness has no cost and the
+        // "never in silence" doctrine holds for each hole punched.
+        //
+        // The supervision row, by contrast, shells the (broken) CLI — a slow spawn.
+        // Emit it only on a FRESH probe: a reused cached-unreachable verdict is the
+        // SAME degradation episode within the TTL window, already recorded. Emitting
+        // per write would re-spawn the broken CLI on every keystroke (the second
+        // slow subprocess this task removes) and inflate one outage into N rows.
+        // e.freshProbe===false only for a reused verdict; unknown errors (undefined)
+        // are treated as fresh so an unexpected failure is never silently uncounted.
+        if (e && e.freshProbe === false) return;
+        await _recordSupervision($, root, "degradation", "cli_unreachable", "opencode_qg0");
         return;
       }
 

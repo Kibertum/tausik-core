@@ -1,9 +1,13 @@
 """Default quality gate configurations.
 
 `DEFAULT_GATES` is the union of:
-  * `UNIVERSAL_GATES` — hardcoded gates with no `stacks` filter (filesize,
-    tdd_order, ruff, mypy, bandit). They live here because they don't
-    belong to any single stack.
+  * `UNIVERSAL_GATES` — built-in scoped gates with no `stacks` filter
+    (filesize, tdd_order, ruff, mypy, bandit, the drift detectors). Their
+    single declaration is `gate_registry.GATE_REGISTRY`; this module only
+    projects the registry into the `{name: config}` shape config expects.
+  * `POST_SCOPE_GATES` — QG-2 report gates (Verify-First, changelog). They
+    used to be invisible here, which is why `gates status` could not list
+    them and `gates enable/disable` could not reach them.
   * Stack-scoped gates pulled from `stack_registry` — pytest, tsc, eslint,
     cargo-*, phpstan, terraform-validate, etc. The canonical source is
     each stack's `stacks/<name>/stack.json` gates section.
@@ -15,64 +19,19 @@ contract `from default_gates import DEFAULT_GATES` exception-free.
 
 from __future__ import annotations
 
-# --- Universal gates (no stacks filter) -------------------------------------
+from gate_registry import PHASE_POST_SCOPE, PHASE_SCOPED, defaults_for_phase
 
-UNIVERSAL_GATES: dict[str, dict] = {
-    "ruff": {
-        "enabled": True,
-        "severity": "block",
-        "trigger": ["commit"],
-        "command": "ruff check {files}",
-        "description": "Lint with ruff before commit",
-        "file_extensions": [".py"],
-    },
-    "mypy": {
-        "enabled": False,
-        "severity": "warn",
-        "trigger": ["commit"],
-        "command": "mypy {files}",
-        "description": "Type-check with mypy before commit",
-        "file_extensions": [".py"],
-    },
-    "filesize": {
-        "enabled": True,
-        "severity": "block",
-        "trigger": ["task-done", "commit"],
-        "command": None,
-        "description": "Warn if files exceed max_lines threshold",
-        "max_lines": 400,
-    },
-    "bandit": {
-        "enabled": False,
-        "severity": "warn",
-        "trigger": ["review"],
-        "command": "bandit -r {files} -q",
-        "description": "Security scan with bandit",
-    },
-    "tdd_order": {
-        "enabled": False,
-        "severity": "warn",
-        "trigger": ["task-done"],
-        "command": None,
-        "description": "Verify test files were modified (TDD enforcement)",
-    },
-    # RENAR §3.11 drift detectors (warning-mode). Read-only scans of the RENAR
-    # artifact store; ignore `files`. Warn-only by design — see renar_drift.py.
-    "renar_drift_schema": {
-        "enabled": True,
-        "severity": "warn",
-        "trigger": ["task-done"],
-        "command": None,
-        "description": "RENAR drift-1: schema validation of SPEC/ADAPT artifacts",
-    },
-    "renar_drift_provenance": {
-        "enabled": True,
-        "severity": "warn",
-        "trigger": ["task-done"],
-        "command": None,
-        "description": "RENAR drift-7: stale TC↔requirement (task↔SPEC) provenance",
-    },
-}
+# --- Universal gates (no stacks filter) -------------------------------------
+# Derived, not written: gate-registry-single-source moved the literal into
+# `gate_registry`. Kept as a module-level name because stacks docs and
+# `test_external_flags_are_real` refer to it as the shape a stack gate follows.
+
+UNIVERSAL_GATES: dict[str, dict] = defaults_for_phase(PHASE_SCOPED)
+
+# QG-2 gates that run after the scoped pipeline. Present in DEFAULT_GATES for
+# visibility and toggling only — `get_gates_for_trigger` filters them out of
+# `run_gates`, which could not call them (different signature) and must not try.
+POST_SCOPE_GATES: dict[str, dict] = defaults_for_phase(PHASE_POST_SCOPE)
 
 
 # Stack-scoped gates come EXCLUSIVELY from the plugin registry
@@ -108,9 +67,16 @@ def _build_stack_scoped_gates() -> dict[str, dict]:
 
 
 def _build_default_gates() -> dict[str, dict]:
-    """DEFAULT_GATES = UNIVERSAL_GATES ∪ registry-derived stack-scoped gates."""
+    """DEFAULT_GATES = UNIVERSAL ∪ stack-scoped ∪ post-scope.
+
+    Post-scope goes last on purpose: a `stacks/*/stack.json` that happened to
+    declare a gate named `changelog` would otherwise shadow the QG-2 gate of
+    the same name with a command gate, and the framework's own close contract
+    would be redefinable by a stack plugin.
+    """
     merged: dict[str, dict] = dict(UNIVERSAL_GATES)
     merged.update(_build_stack_scoped_gates())
+    merged.update(POST_SCOPE_GATES)
     return merged
 
 

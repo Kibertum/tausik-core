@@ -23,9 +23,7 @@ _HOME = os.path.expanduser("~").replace("\\", "/")
 _MEMORY_ROOT = f"{_HOME}/.claude/projects/test-proj/memory"
 
 
-def _run(
-    project_dir, payload: dict, extra_env: dict | None = None
-) -> subprocess.CompletedProcess:
+def _run(project_dir, payload: dict, extra_env: dict | None = None) -> subprocess.CompletedProcess:
     env = {
         **os.environ,
         "CLAUDE_PROJECT_DIR": str(project_dir),
@@ -41,6 +39,7 @@ def _run(
         input=json.dumps(payload),
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=15,
         env=env,
     )
@@ -116,9 +115,7 @@ class TestBlocksMemoryWrites:
             tmp_path,
             {
                 "tool_name": "Write",
-                "tool_input": {
-                    "file_path": "~/.claude/projects/test-proj/memory/foo.md"
-                },
+                "tool_input": {"file_path": "~/.claude/projects/test-proj/memory/foo.md"},
                 "transcript_path": "",
             },
         )
@@ -145,9 +142,7 @@ class TestBlocksMemoryWrites:
             tmp_path,
             {
                 "tool_name": "Write",
-                "tool_input": {
-                    "file_path": f"{_HOME}/.claude/agents/my-agent/memory/notes.md"
-                },
+                "tool_input": {"file_path": f"{_HOME}/.claude/agents/my-agent/memory/notes.md"},
                 "transcript_path": "",
             },
         )
@@ -160,9 +155,7 @@ class TestBlocksMemoryWrites:
             tmp_path,
             {
                 "tool_name": "Write",
-                "tool_input": {
-                    "file_path": f"{_HOME}/.claude/plugins/foo/memory/sub/f.md"
-                },
+                "tool_input": {"file_path": f"{_HOME}/.claude/plugins/foo/memory/sub/f.md"},
                 "transcript_path": "",
             },
         )
@@ -277,6 +270,7 @@ class TestGracefulMalformed:
             input="not json {{{",
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=15,
             env=env,
         )
@@ -295,6 +289,7 @@ class TestGracefulMalformed:
             input="",
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=15,
             env=env,
         )
@@ -313,6 +308,7 @@ class TestGracefulMalformed:
             input="[1,2,3]",
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=15,
             env=env,
         )
@@ -615,11 +611,21 @@ class TestSettingsGeneration:
         assert "PreToolUse" in hooks
         matched = False
         for entry in hooks["PreToolUse"]:
-            if not any(
-                "memory_pretool_block.py" in h["command"] for h in entry["hooks"]
-            ):
+            if not any("memory_pretool_block.py" in h["command"] for h in entry["hooks"]):
                 continue
-            assert entry["matcher"] == "Write|Edit|MultiEdit", entry
+            # The shell tools are on the matcher since memory-route-gate: a
+            # heredoc or a Set-Content writes exactly what the Write path
+            # refuses. The expected value is DERIVED from the parser's own
+            # dialect list rather than spelled out here — this assertion used to
+            # carry the literal "Write|Edit|MultiEdit|Bash", and that literal is
+            # precisely the shape that let a second shell tool go ungated: the
+            # test kept passing while the channel it named stopped being the
+            # only one.
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks"))
+            import shell_channel
+
+            expected = "Write|Edit|MultiEdit|" + "|".join(shell_channel.SHELL_TOOLS)
+            assert entry["matcher"] == expected, entry
             matched = True
         assert matched, "memory_pretool_block.py not registered in Claude PreToolUse"
 
@@ -635,11 +641,21 @@ class TestSettingsGeneration:
         assert "PreToolUse" in hooks
         matched = False
         for entry in hooks["PreToolUse"]:
-            if not any(
-                "memory_pretool_block.py" in h["command"] for h in entry["hooks"]
-            ):
+            if not any("memory_pretool_block.py" in h["command"] for h in entry["hooks"]):
                 continue
-            assert entry["matcher"] == "Write|Edit|MultiEdit", entry
+            # The shell tools are on the matcher since memory-route-gate: a
+            # heredoc or a Set-Content writes exactly what the Write path
+            # refuses. The expected value is DERIVED from the parser's own
+            # dialect list rather than spelled out here — this assertion used to
+            # carry the literal "Write|Edit|MultiEdit|Bash", and that literal is
+            # precisely the shape that let a second shell tool go ungated: the
+            # test kept passing while the channel it named stopped being the
+            # only one.
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks"))
+            import shell_channel
+
+            expected = "Write|Edit|MultiEdit|" + "|".join(shell_channel.SHELL_TOOLS)
+            assert entry["matcher"] == expected, entry
             matched = True
         assert matched, "memory_pretool_block.py not registered in Qwen PreToolUse"
 

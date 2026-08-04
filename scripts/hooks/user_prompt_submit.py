@@ -123,6 +123,13 @@ def _read_prompt() -> str:
 
 
 def main() -> int:
+    # hook-stderr-encoding-locale-dependent: this hook's messages contain
+    # non-ASCII, and their readability must not depend on how it was
+    # launched. Local import: hooks/ is sys.path[0] only when run as a script.
+    from _common import force_utf8_io
+
+    force_utf8_io()
+
     if os.environ.get("TAUSIK_SKIP_HOOKS"):
         return 0
 
@@ -141,7 +148,7 @@ def main() -> int:
         nudges.append(
             "**[TAUSIK nudge]** This looks like a coding request but no TAUSIK task is active. "
             "Before writing code: run `tausik_task_list --status active` to check, "
-            "or create a task via `/plan` or `/go` (SENAR Rule 1, enforced by PreToolUse hook). "
+            "or create a task via `/plan` (SENAR Rule 1, enforced by PreToolUse hook). "
             "Skipping this step means Write/Edit will be blocked."
         )
 

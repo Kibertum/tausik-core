@@ -48,7 +48,12 @@
 
 ### Скрипты (бизнес-логика)
 
-Модули в `scripts/`, каждый ≤400 строк. Хайлайты:
+Модули в `scripts/`, каждый ≤500 строк (гейт `filesize`; поднято с 400 как
+промежуточная мера решением #190 — более тесный лимит деформировал архитектуру,
+а не улучшал её). Число строк — не единственный контроль размера: гейт
+`class_surface` отдельно ограничивает составную публичную поверхность класса
+после наследования, которую пофайловый лимит видеть структурно не может.
+Хайлайты:
 
 | Файл | Назначение |
 |------|------------|
@@ -98,10 +103,32 @@
 | `harness/claude/mcp/project/server.py` | JSON-RPC stdio-сервер |
 | `harness/claude/mcp/project/tools.py` | core tool definitions |
 | `harness/claude/mcp/project/tools_extra.py` | расширенные tool definitions (skills, gates, doctor, verify, roles, stacks, brain) |
-| `harness/claude/mcp/project/handlers.py` | Диспетчеризация: имя инструмента → метод сервиса |
-| `harness/claude/mcp/project/handlers_skill.py` | Обработчики навыков + обслуживания (split) |
+| `harness/claude/mcp/project/handlers.py` | Только диспетчеризация: счётчик вызовов, `handle_tool`, слияние доменных таблиц |
+| `harness/claude/mcp/project/handlers_<домен>.py` | Обработчики по доменам: `task`, `session`, `status`, `knowledge`, `hierarchy`, `stack`, `role`, `verification`, `cq`, `skill`, `spec`, `adapt`. Каждый модуль экспортирует `<DOMAIN>_HANDLERS`, `handlers.py` сливает их в `_DISPATCH` |
+| `harness/claude/mcp/project/handlers_render.py` | Общий рендер списков (`render_list`) — пустой результат обязан читаться как «ничего нет», а не как пустая строка |
 
 Полный MCP-surface: **117 project + 7 brain = 124 инструмента** (опциональный `codebase-rag` добавляет ещё 7; не в основном счёте).
+
+### Контекстные заголовки чанков (codebase-rag)
+
+Чанк, вырезанный из файла, перестаёт нести то, о чём файл был, и запрос,
+сформулированный в терминах документа, до такого пассажа не дотягивается.
+Поэтому каждый индексируемый чанк несёт короткий заголовок, который строит
+`harness/claude/mcp/codebase-rag/rag_context.py`: слова пути, символ, который
+чанк определяет, — или тот, внутри которого он находится, если это
+чанк-продолжение, — и строку-сводку самого файла.
+
+Это contextual retrieval с изъятой из него моделью. Опубликованная техника
+просит LLM написать по предложению контекста на чанк; здесь заголовок берётся
+из метаданных, которые у индексатора уже есть, поэтому один и тот же вход даёт
+одни и те же байты, а индексация остаётся воспроизводимой и офлайновой.
+
+Заголовок живёт в собственной индексируемой колонке
+(`rag_chunks.context_prefix`), а не в содержимом чанка: слово, присутствующее
+только в заголовке, находится — и в выдаче поиска не появляется. Индекс,
+собранный до v1.8, дорастает до новой раскладки при первом открытии: колонка
+добавляется, а FTS-таблица перестраивается из чанков, которые и есть источник
+истины.
 
 ### Поддержка разных сред разработки
 
@@ -112,11 +139,11 @@
 ```
 harness/
 ├── skills/           # 13 core auto-deployed + brain условно + 20 в skills-official/ (opt-in через --include-official)
-├── roles/            # 5 ролей (developer, architect, qa, tech-writer, ui-ux)
+├── roles/            # 6 ролей (architect, developer, devops, qa, tech-writer, ui-ux)
 ├── stacks/           # Руководства по стекам
 ├── overrides/        # Переопределения для конкретных сред (claude/, cursor/, qwen/)
 ├── claude/mcp/       # MCP-серверы (project, brain, codebase-rag) — канон для ВСЕХ сред
-└── opencode/plugins/ # Плагин принуждения QG-0 для OpenCode (tool.execute.before)
+└── opencode/plugins/ # Плагин дисциплины QG-0 для OpenCode (tool.execute.before)
 ```
 
 #### Среда (IDE) × Модель — две ортогональные оси (Решение #119)
@@ -164,19 +191,52 @@ TAUSIK разделяет *где* он работает и *какая моде
 ## Шлюзы качества
 
 ```
-default_gates.py        → DEFAULT_GATES (25 гейтов: 5 универсальных + 20 stack-scoped)
-                        → UNIVERSAL_GATES (filesize, tdd_order, ruff, mypy, bandit)
-                        → stack-scoped gates pulled from stack_registry
-gate_runner.py          → run_gates(trigger, files)
-                        → run_command_gate() / run_filesize_gate() / run_tdd_order_gate()
+gate_registry.py        → GATE_REGISTRY: одно объявление на встроенный гейт
+                        → GateSpec(name, phase, default_config, impl)
+                        → phase: scoped | post_scope
+default_gates.py        → DEFAULT_GATES = универсальные (из реестра)
+                                        ∪ stack-scoped (из stack_registry)
+                                        ∪ post-scope (из реестра)
+gate_runner.py          → run_gates(trigger, files)   [только фаза scoped]
+                        → диспетч через GATE_REGISTRY[name].impl,
+                          имя вне реестра → run_command_gate()
+gate_post_scope.py      → run_post_scope_gates()      [фаза post_scope]
+                        → verify_first, changelog + по строке в gate_runs
 service_task.py         → _run_quality_gates() (вызывается из task_done)
 ```
 
-Универсальные гейты (всегда включены): `filesize`, `tdd_order`, `ruff`, `mypy`, `bandit`.
+Добавить встроенный гейт — это один `GateSpec`. До `gate-registry-single-source`
+требовалось четыре правки, а два post-scope гейта жили лишь в одном из четырёх
+мест: `gates status` их не перечислял, `gates enable/disable` до них не доставал,
+и они не писали строку в `gate_runs` — то есть НИЧТО не могло доказать, что
+QG-2-гейт отработал.
+
+**Scoped-гейты** — `(gate_config, files) -> (passed, output)`, судят объявленный
+скоуп задачи. Универсальные (всегда включены): `filesize`, `class_surface`,
+`tdd_order`, `ruff`, `mypy`, `bandit`, `bootstrap_drift`, `memory_route`,
+`renar_drift_schema`, `renar_drift_provenance`.
+
+`class_surface` — единственное исключение из «судят объявленный скоуп»: он
+игнорирует список файлов и мерит **весь репозиторий** (~0.65 с). Класс уезжает за
+лимит через свои *базы*, поэтому пофайловый прогон этого не увидит никогда — та
+же слепота, из-за которой модуль дорос до 406 строк, никого не заблокировав. Гейт
+ограничивает составную публичную поверхность класса после наследования, которую
+пофайловый `filesize` структурно видеть не может: god-объект, собранный из
+миксинов, держит каждый файл ниже строкового лимита. Они **дополняют** друг
+друга — «этот класс делает слишком много» и «этот файл слишком длинный, чтобы его
+читать» суть разные дефекты. Счёт объявлен **нижней границей** (AST, никогда
+`import`, чтобы гейт мог измерить ветку, которую ещё никто не читал), а известные
+превышающие классы держит baseline-храповик в `tausik/gates.json`, который может
+только сокращаться.
+
+**Post-scope гейты** — принимают контекст закрытия и правят QG-2-отчёт:
+`verify_first` (обязателен свежий подписанный зелёный verify) и `changelog`
+(конвенция #275). `get_gates_for_trigger` их отфильтровывает, поэтому
+`run_gates` никогда не вызовет их с чужой сигнатурой.
 
 Stack-scoped гейты: `pytest`, `tsc`, `eslint`, `js-test`, `go-vet`, `go-test`, `golangci-lint`,
 `cargo-check`, `cargo-test`, `clippy`, `phpstan`, `phpcs`, `phpunit`, `javac`, `ktlint`,
-`ansible-lint`, `terraform-validate`, `helm-lint`, `kubeval`, `hadolint`.
+`ansible-lint`, `terraform-validate`, `helm-lint`, `kubeconform`, `hadolint`.
 
 ## Адаптация RENAR — advisory-first («лайт»)
 
@@ -273,7 +333,7 @@ Exit code `0` = caching активен (`cache_read_input_tokens > 0`);
 ## Тестирование
 
 ```bash
-pytest tests/ -v                    # все тесты (4101)
+pytest tests/ -v                    # все тесты (6096)
 pytest tests/test_tausik_backend.py   # backend CRUD
 pytest tests/test_tausik_service.py   # service logic
 pytest tests/test_tausik_cli.py       # CLI smoke

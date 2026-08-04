@@ -2,7 +2,7 @@
 
 # SENAR v1.5 Core — Compliance Matrix
 
-**Date:** 2026-06-13 | **Auditors:** 6+ independent review cycles | **Framework:** TAUSIK v1.5.1
+**Date:** 2026-06-13 | **Auditors:** 6+ independent review cycles | **Framework:** TAUSIK v1.7.0
 
 ## Quality Gates
 
@@ -11,7 +11,7 @@
 | QG-0 | Goal required | ✅ Implemented | Hard block | `gate_qg0_check.py` `check_qg0_start()` — ServiceError (via `service_gates.GatesMixin._check_qg0_start` delegator) |
 | QG-0 | AC required | ✅ Implemented | Hard block | `gate_qg0_check.py` `check_qg0_start()` — ServiceError (via `service_gates.GatesMixin._check_qg0_start` delegator) |
 | QG-0 | Negative scenario in AC | ✅ Implemented | Hard block | `gate_negative_scenario.py` `NEGATIVE_SCENARIO_KEYWORDS` + `has_negative_scenario()` (30+ en+ru); enforced inside `gate_qg0_check.check_qg0_start()` |
-| QG-0 | Scope warning | ✅ Implemented | Warning | `gate_qg0_check.py` `check_qg0_start()` — scope + scope_exclude stderr |
+| QG-0 | Scope declared | ✅ Implemented | Hard (medium/complex) | `gate_qg0_check.py` `check_qg0_start()` — a medium/complex task with no `scope`/`scope_paths` raises ServiceError (opt out `qg0.scope_hard_gate=false`); simple/unset stays a warning. `scope_exclude` remains an advisory stderr warning. |
 | QG-0 | Security surface detection | ✅ Implemented | Warning | `gate_qg0_check.py` `SECURITY_KEYWORDS` + `SECURITY_AC_KEYWORDS` (re-exported by `service_gates` for backward-compat) |
 | QG-2 | AC verified with evidence | ✅ Implemented | Hard block | `gate_ac_check.py` `verify_ac()` — flag + notes + per-criterion. NO `--force` bypass. (via `service_gates.GatesMixin._verify_ac` delegator) |
 | QG-2 | Plan steps complete | ✅ Implemented | Hard block | `gate_ac_check.py` `verify_plan_complete()` — JSON plan check (via `service_gates.GatesMixin._verify_plan_complete` delegator) |
@@ -29,9 +29,11 @@
 | Rule | Description | Status | Enforcement | Evidence |
 |------|-------------|--------|-------------|----------|
 | 1 | Task before code | ✅ Implemented | Hard (hook) | `hooks/task_gate.py` blocks Write/Edit without active task |
-| 2 | Scope boundaries | ✅ Implemented | Warning | `scope` + `scope_exclude` warned on start for medium/complex |
+| 2 | Scope boundaries | ✅ Implemented | Hard (hook + QG-0) | `hooks/scope_write_gate.py` blocks a Write/Edit outside the active task's `scope_paths`; `hooks/bash_write_gate.py` extends the same verdict to shell writes; QG-0 hard-blocks a medium/complex `task_start` with no scope declared. `scope_exclude` stays advisory. |
 | 3 | Verify against criteria | ✅ Implemented | Hard | QG-0 + QG-2 combined enforcement |
-| 5 | Verification checklist | ✅ Implemented | Warning | 4-tier auto-detection (lightweight/standard/high/critical) |
+| 4 | External adversarial review | ✅ Implemented | Hard (under-evidenced closures) | `risk_l3_trigger.py` blocks an under-evidenced `task_done` until an L3 review is recorded (`tausik review record --type L3`); reviewer is the separate-model, read-only `tausik-external-reviewer` subagent (`external_reviewer.py`, separation of duties). Opt out `risk.l3_block_on_high=false`. The selector describes the closure's evidence; it does not predict defect escape (AUC 0.4820 — decision #212). |
+| 5 | Verification checklist | ✅ Implemented | Hard (substantial/deep) / Warning | `gate_ac_check.py` `checklist_hard_block()` hard-blocks substantial/deep planning tiers whose AC cite no existing test; lower tiers get an escalating warning (4-tier auto-detection). Opt out `task_done.checklist_hard=false`. |
+| 6 | Rollback plan | ✅ Implemented | Hard (medium/complex) | `gate_qg0_check.py` `check_qg0_start()` — a medium/complex task with no `rollback_plan` raises ServiceError at `task_start`; unset complexity warns. |
 | 7 | Root cause for defects | ✅ Implemented | Warning | Keyword detection in notes |
 | 8 | Knowledge capture | ✅ Implemented | Warning | memory/decision count + `--no-knowledge` opt-out |
 | 9.1 | No code without task | ✅ Implemented | Hard (hook) | Same as Rule 1 |
@@ -40,7 +42,7 @@
 | 9.4 | Document dead ends | ✅ Implemented | Instruction + tooling | `dead_end()` + skill instructions + `/end` check |
 | 9.5 | Periodic audit | ✅ Implemented | Warning | `audit_check/mark` + `/start` integration |
 
-**Result: 11/11 implemented.**
+**Result: 13/13 implemented.**
 
 ### Gaps and Plan to Close
 
@@ -82,7 +84,7 @@
 | Structured logs (task_logs + FTS5) | ✅ Implemented | `backend_schema.py` + `service_task.py:task_log` |
 | Fake test detection | ✅ Implemented | `/review` skill — 10 patterns |
 | Skills system | ✅ Implemented | 13 core skills + 20 official/vendor on demand (bundles via `tausik skill bundle`) — `service_skills.py` + `tausik-skills` repo |
-| Hooks system | ✅ Implemented | 20 Python hooks + 1 shell pre-commit across PreToolUse / PostToolUse / SessionStart / SessionEnd / Stop / UserPromptSubmit |
+| Hooks system | ✅ Implemented | 22 Python hooks + 1 shell pre-commit across PreToolUse / PostToolUse / SessionStart / SessionEnd / Stop / UserPromptSubmit |
 | Roles registry | ✅ Implemented | Hybrid: SQLite metadata + `harness/roles/{role}.md` profile; CRUD CLI + 6 MCP tools |
 | Doctor health check | ✅ Implemented | `tausik doctor` + `tausik_doctor` MCP — 4 groups (venv/DB/MCP/skills) + drift |
 | Zero-defect skill | ✅ Implemented | `/zero-defect` (Maestro-inspired): read-before-write, verify-before-claim, never-hallucinate-APIs |
@@ -92,9 +94,9 @@
 | Category | Implemented | Partial | Missing | Score |
 |----------|-------------|---------|---------|-------|
 | Quality Gates (13) | 13 | 0 | 0 | **100%** |
-| Rules (11) | 11 | 0 | 0 | **100%** |
+| Rules (13) | 13 | 0 | 0 | **100%** |
 | Metrics (6) | 6 | 0 | 0 | **100%** |
 | Explorations (3) | 3 | 0 | 0 | **100%** |
-| **Total (33)** | **33** | **0** | **0** | **100%** |
+| **Total (35)** | **35** | **0** | **0** | **100%** |
 
-**SENAR v1.3 Core compliance: 100%.** All gaps closed.
+**SENAR v1.5 Core compliance: 100%.** All gaps closed.

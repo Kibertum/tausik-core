@@ -25,7 +25,7 @@ Work on tasks from project DB.
    brain_search(query="<title keywords> <stack tag>", category="patterns", limit=3)
    brain_search(query="<title keywords> <stack tag>", category="gotchas", limit=3)
    ```
-   Surface up to 3 patterns + 3 gotchas inline before announcing the task. Filter ids appearing in `tausik_memory_list type=convention` with title `brain.ignored:<id>`. If a result misleads, mark via `tausik_memory_quick(type="convention", title="brain.ignored:<page_id>", ...)`. Skip silently if brain disabled.
+   Surface up to 3 patterns + 3 gotchas inline before announcing the task. Filter ids appearing in `tausik_memory_list type=convention` with title `brain.ignored:<id>`. If a result misleads, mark via `tausik_memory_add(type="convention", title="brain.ignored:<page_id>", ...)`. Skip silently if brain disabled.
 
 4. **Adopt role** — follow the role profile's skill modifiers for /task.
 

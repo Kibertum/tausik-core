@@ -11,10 +11,19 @@ Legacy migrations (v2-v11) are in backend_migrations_legacy.py.
 from __future__ import annotations
 
 from backend_migrations_legacy import LEGACY_MIGRATIONS, seed_v18_roles
+from backend_schema import SCHEMA_VERSION
 from backend_migrations_postseed import run_post_migrations
 from backend_migrations_v35 import MIGRATION_V35
 from backend_migrations_v36 import MIGRATION_V36
 from backend_migrations_v37 import MIGRATION_V37
+from backend_migrations_v38 import MIGRATION_V38
+from backend_migrations_parity import check_schema_migration_parity
+from backend_migrations_v39 import MIGRATION_V39
+from backend_migrations_v40 import MIGRATION_V40
+from backend_migrations_v41 import MIGRATION_V41
+from backend_migrations_v42 import MIGRATION_V42
+from backend_migrations_v43 import MIGRATION_V43
+from backend_migrations_v44 import MIGRATION_V44
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -329,11 +338,31 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     36: MIGRATION_V36,
     # v37: dedicated snippets store (v15-snippet-table) — SQL in backend_migrations_v37.py
     37: MIGRATION_V37,
+    # v38: declared-scope honesty on verification runs (l26-verify-git-diff-wire)
+    38: MIGRATION_V38,
+    # v39: per-gate run records (l26-gate-results-persist)
+    39: MIGRATION_V39,
+    # v40: declared "no test expected" on verify runs (verify-no-test-mapped-dead-end)
+    40: MIGRATION_V40,
+    # v41: declared "no file changes" on tasks (qg2-cannot-close-fileless-task)
+    41: MIGRATION_V41,
+    # v42: stable slug identity for decisions and memory (state-git-stable-ids).
+    # Columns only; the backfill + UNIQUE index run in backend_migrations_v42_backfill.
+    42: MIGRATION_V42,
+    # v43: rebuild tasks so model_mismatch is NOT NULL DEFAULT 0 on the upgrade path
+    # (schema-model-mismatch-nullable-on-upgrade). Also aligns tasks column order.
+    43: MIGRATION_V43,
+    # v44: explicit state handle on verify runs (v2-verify-receipt-as-argument,
+    # decision #218 / SEP-2567). Three nullable columns; no rebuild.
+    44: MIGRATION_V44,
 }
 
 
 # Merged: legacy + current
 MIGRATIONS: dict[int, list[str]] = {**LEGACY_MIGRATIONS, **_CURRENT_MIGRATIONS}
+
+
+check_schema_migration_parity(SCHEMA_VERSION, MIGRATIONS)
 
 
 def run_migrations(conn: "sqlite3.Connection", current_version: int) -> int:  # noqa: F821

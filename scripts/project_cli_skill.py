@@ -96,7 +96,14 @@ def _cmd_skill_bundle(
     import skill_bundles
 
     sub = getattr(args, "bundle_cmd", None)
-    skills_official = _resolve_skills_official_dir()
+    # Bundles live inside the stores that provide the skills (decision #200),
+    # so ask the cloned repos first. `skills-official/` next to the core
+    # checkout is a development fallback only: it exists when working on the
+    # framework itself and never in a bootstrapped project, which is why
+    # resolving ONLY that path meant bundles did not exist for any user.
+    skills_official = skill_bundles.discover_manifest_dirs(
+        vendor_dir, _resolve_skills_official_dir()
+    )
 
     if sub == "list":
         try:

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""PreToolUse hook: block dangerous bash commands.
+"""PreToolUse hook: block dangerous shell commands, in every dialect.
 
-Blocks: rm -rf /, DROP TABLE, git reset --hard, git push --force to main.
+Blocks: rm -rf /, Remove-Item -Recurse C:\\, DROP TABLE, Format-Volume,
+git reset --hard, git push --force.
 Exit codes: 0 = allow, 2 = block.
 Receives JSON on stdin with tool_name, tool_input.
 
@@ -10,77 +11,55 @@ boundaries instead of substring match — `echo "git push --force"` and
 `mygit-helper push --force` no longer false-positive. Shape mirrors
 `git_push_gate.py:_GIT_PUSH_RE`: command-start anchor (line start, or
 shell separator) + optional path prefix + literal subcommand.
+
+`powershell-tool-bypasses-bash-firewall`: this file used to hold the policy, the
+POSIX reader AND the verdict. It now holds only the verdict. WHAT is dangerous
+is `danger_patterns`; HOW to read a line is a per-dialect scanner; WHICH dialect
+a tool speaks is `shell_channel`. That last one matters most: the answer used to
+be a literal `"Bash"` repeated across the gates, and when a second shell tool
+appeared on the primary platform, every one of those literals kept quietly
+saying "not my channel".
 """
 
 import json
 import os
-import re
 import sys
 
-# Patterns that should ALWAYS be blocked. Substring match is acceptable
-# here because these strings are extremely unlikely to appear inside benign
-# commands or quoted strings worth supporting (no one echoes "rm -rf /").
-BLOCKED_PATTERNS = [
-    ("rm -rf /", "Recursive delete from root"),
-    ("rm -rf /*", "Recursive delete from root"),
-    ("rm -rf .", "Recursive delete from current directory"),
-    ("DROP TABLE", "SQL table drop"),
-    ("DROP DATABASE", "SQL database drop"),
-    ("TRUNCATE TABLE", "SQL table truncate"),
-    (":(){:|:&};:", "Fork bomb"),
-    ("mkfs.", "Filesystem format"),
-    ("dd if=/dev/zero", "Disk wipe"),
-    ("> /dev/sda", "Disk overwrite"),
-]
-
-# Boundary that prefixes a command in a shell line: start of input, or
-# any of the shell separators / operators. Mirrors git_push_gate.py.
-_CMD_START = r"(?:^|[\s;&|()`])"
-# Optional path prefix like `/usr/bin/git` or `./git` or `mygit\`. The
-# path component must end with `/` or `\` so a bare token like `gitfoo`
-# never matches.
-_OPT_PATH = r"(?:[/\w.\\-]*[/\\])?"
-# Optional `git -c key=val` flags between `git` and the subcommand.
-_OPT_GIT_C = r"(?:\s+-c\s+\S+)*"
-
-
-def _git_subcmd_re(subcmd: str, danger_arg_re: str) -> re.Pattern:
-    """Build a regex that matches `git <subcmd> ... <dangerous-arg>`.
-
-    Preserves git_push_gate's anchor + path-prefix + -c-flag handling.
-    Dangerous arg can appear anywhere after the subcommand (including
-    after positional args like `git push origin main --force`).
-    """
-    return re.compile(
-        rf"{_CMD_START}{_OPT_PATH}git{_OPT_GIT_C}\s+{subcmd}\b[^\n]*?{danger_arg_re}",
-        re.IGNORECASE,
-    )
-
-
-# Patterns that need confirmation (exit 2 with explanation).
-# Each entry: (compiled_regex, human_reason).
-WARN_PATTERNS_RE = [
-    (
-        _git_subcmd_re("reset", r"--hard\b"),
-        "git reset --hard discards all local changes permanently",
-    ),
-    (
-        _git_subcmd_re("push", r"(?:--force(?:-with-lease)?\b|--force\b|-f\b)"),
-        "git push --force / -f can overwrite remote history",
-    ),
-    (
-        _git_subcmd_re("clean", r"-[a-zA-Z]*f[a-zA-Z]*d\b|-fd\b|-df\b"),
-        "git clean -fd removes untracked files permanently",
-    ),
-    (
-        _git_subcmd_re("checkout", r"--\s+\."),
-        "git checkout -- . discards all unstaged changes",
-    ),
-]
+# Re-exported for callers (and docs) that predate the split and still reach for
+# these names at their old address.
+from bash_cmd_scan import (  # noqa: F401
+    _INTERPRETERS,
+    _mentions_interpreter,
+    _PAYLOAD,
+    _split_subcommands,
+    scan_target as _scan_target,
+)
+from danger_patterns import (  # noqa: F401
+    BLOCKED_PATTERNS,
+    WARN_PATTERNS_RE,
+    _CMD_START,
+    _git_subcmd_re,
+    _RM_RE,
+    wiped_root_any,
+)
+from shell_channel import scan_target
 
 
 def main() -> int:
+    # This hook's block messages now quote the offending operand and use an
+    # em dash, so they are no longer pure ASCII — and a block message that
+    # renders as mojibake is a block whose reason the reader has to guess.
+    # Local import: hooks/ is sys.path[0] only when run as a script.
+    from _common import force_utf8_io
+
+    force_utf8_io()
+
     if os.environ.get("TAUSIK_SKIP_HOOKS"):
+        from _common import emit_supervision_bypass
+
+        emit_supervision_bypass(
+            os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd()), "skip_hooks", "bash_firewall"
+        )
         return 0
 
     try:
@@ -92,7 +71,31 @@ def main() -> int:
     if not command:
         return 0
 
-    cmd_lower = command.lower()
+    # Which SHELL wrote this line decides how to read it, and nothing else. On
+    # win32 the agent is handed a separate `PowerShell` tool whose syntax the
+    # POSIX lexer mis-reads at the first backslash: `shlex(posix=True)` treats
+    # `\` as an escape, so `Remove-Item C:\` either loses its operand or raises.
+    #
+    # The tool -> dialect mapping is `shell_channel`'s, not a comparison written
+    # out here. This line briefly WAS `== "PowerShell"`, which would have been a
+    # second copy of the very list whose staleness caused the bug — found by
+    # reviewing this fix rather than the code it replaced (convention #276).
+    scanned = scan_target(str(data.get("tool_name") or ""), command)
+    cmd_lower = scanned.lower()
+
+    # Both dialect judges run, whichever tool sent the line: a
+    # `powershell -Command "Remove-Item -Recurse C:\"` arrives through Bash and
+    # a `bash -c 'rm -rf /'` through PowerShell, and each scanner joins the
+    # other's payload back into the scanned text precisely so the other judge
+    # can read it.
+    wiped = wiped_root_any(scanned, command)
+    if wiped is not None:
+        print(
+            f"BLOCKED: recursive force-delete of {wiped!r} — that is the whole "
+            f"filesystem or the whole working directory. Command: {command}",
+            file=sys.stderr,
+        )
+        return 2
 
     for pattern, reason in BLOCKED_PATTERNS:
         if pattern.lower() in cmd_lower:
@@ -100,11 +103,20 @@ def main() -> int:
             return 2
 
     for regex, reason in WARN_PATTERNS_RE:
-        if regex.search(command):
+        if regex.search(scanned):
+            # The old line said "ask the user for explicit confirmation first",
+            # describing a mechanism that was never built: there is no
+            # post-confirmation path here, so the user says yes and the hook
+            # blocks identically. A remediation that cannot be carried out
+            # teaches the reader that the messages are decorative. Name the
+            # escape that exists — and that leaves a countable trace.
             print(
                 f"BLOCKED: {reason}.\n"
                 f"Command: {command}\n"
-                f"If you really need this, ask the user for explicit confirmation first.",
+                "Confirming with the user does NOT unblock this - the gate has no "
+                "approval path. Use a non-destructive equivalent, or (with the user's "
+                "agreement) re-run that one command with TAUSIK_SKIP_HOOKS=1 set; the "
+                "bypass is recorded as a supervision event.",
                 file=sys.stderr,
             )
             return 2

@@ -64,6 +64,21 @@ def count_stacks(repo_root: Path) -> int:
     return sum(1 for p in stacks_dir.iterdir() if p.is_dir())
 
 
+def count_roles(repo_root: Path) -> int:
+    """Count built-in role profiles under `harness/roles/*.md`.
+
+    Each `.md` is one registered role (architect, developer, devops, qa,
+    tech-writer, ui-ux). Docs quote this number ("6 roles"/"6 ролей"), so it is
+    surfaced as a constant to make that copy fail the doc-drift check when a role
+    is added or removed rather than drift silently — which it already did once
+    (architecture.md kept "5 roles" after devops landed as the sixth).
+    """
+    roles_dir = repo_root / "harness" / "roles"
+    if not roles_dir.is_dir():
+        return 0
+    return sum(1 for p in roles_dir.glob("*.md") if p.is_file())
+
+
 def code_counts_flat(repo_root: Path) -> dict[str, int]:
     """Bundle for `gen_doc_constants` to merge into `constants.json`."""
     return {
@@ -71,4 +86,5 @@ def code_counts_flat(repo_root: Path) -> dict[str, int]:
         "hooks_count": count_registered_hooks(repo_root),
         "skills_core_count": count_core_skills(repo_root),
         "stacks_count": count_stacks(repo_root),
+        "roles_count": count_roles(repo_root),
     }

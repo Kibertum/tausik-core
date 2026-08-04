@@ -61,15 +61,24 @@ task add <title> [--story STORY_SLUG] [--slug SLUG] [--stack STACK]
 task quick <title> [--goal TEXT] [--role ROLE] [--stack STACK]
 task next [--agent AGENT_ID]    # Выбрать следующую planning-задачу (по score)
 task list [--status STATUS] [--story STORY] [--epic EPIC] [--role ROLE] [--stack STACK] [--limit N]
+          [--full] [--top-n N] [--max-lines N]   # >25 строк — свёртка по статусу/роли; --full = полная таблица
 task show <slug>                # Полная информация: план, заметки, решения, defect_of, AC
 task start <slug> [--force]     # planning → active (QG-0: требует goal + AC + negative scenario)
                                 # --force байпасит session capacity gate (audit event + note)
 task done <slug> --ac-verified [--no-knowledge] [--relevant-files FILE1 FILE2 ...] [--evidence "..."]
+                 [--verify-handle <run_id>.<nonce>]
                                 # QG-2: --ac-verified подтверждает проверку AC (требует evidence в notes
                                 #       ИЛИ --evidence inline). v1.5 Verify-First Contract: heavy gates
                                 #       (pytest, tsc, cargo, ...) НЕ запускаются здесь — они на отдельной
-                                #       команде `verify`. task done проверяет наличие свежего green из
-                                #       verify cache (10 min TTL, тот же files_hash) и закрывается за
+                                #       команде `verify`.
+                                # --verify-handle (1.8, решение #218): ПРЕДЪЯВИТЬ хендл, который напечатал
+                                #       `verify --task <slug>`, вместо поиска свежей строки. Хендл называет
+                                #       ОДИН прогон, одноразовый, несёт свой срок годности (1 час) и
+                                #       проверяется по ЖИВЫМ файлам и ЖИВОМУ конфигу гейтов — поэтому его
+                                #       отказ говорит по существу («файлы изменились с момента verify»),
+                                #       а не «промах кэша». Подробности: docs/ru/receipts.md.
+                                # БЕЗ --verify-handle поведение прежнее: поиск свежего green из
+                                #       verify cache (10 min TTL, тот же files_hash), закрытие за
                                 #       миллисекунды. Если verify не запускался — блок с remediation.
                                 #       Opt-out: .tausik/config.json → {"task_done":{"auto_verify":true}}
                                 #       — старое поведение (heavy гейты inline). НЕТ --force.
@@ -107,10 +116,12 @@ task unclaim <slug>            # Освободить задачу
 
 ## Верификация
 
-**v1.5 Verify-First Contract.** Тяжёлые гейты (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeval, hadolint, ansible-lint) живут на триггере `verify`, а не `task-done`. Это разделяет «закрытие задачи» (миллисекунды) от «полной проверки» (минуты на больших проектах). Результат `verify` кешируется в таблице `verification_runs` на 10 минут (TTL настраивается через `verify_cache_ttl_seconds` в config.json), и `task done` использует кеш для немедленного закрытия.
+**v1.5 Verify-First Contract.** Тяжёлые гейты (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeconform, hadolint, ansible-lint) живут на триггере `verify`, а не `task-done`. Это разделяет «закрытие задачи» (миллисекунды) от «полной проверки» (минуты на больших проектах). Результат `verify` кешируется в таблице `verification_runs` на 10 минут (TTL настраивается через `verify_cache_ttl_seconds` в config.json), и `task done` использует кеш для немедленного закрытия.
 
 ```bash
-verify [--task SLUG] [--scope {lightweight,standard,high,critical,manual}]
+verify [--task SLUG] [--relevant-files PATH ...]
+       [--scope {lightweight,standard,high,critical,manual}]
+       [--no-tests-expected]
                                 # Запустить scoped verify-trigger gates ad-hoc; пишет в verify cache.
                                 # С --task: гейты scoped по relevant_files задачи.
                                 # Без --task: гейты с пустым file scope (full suite для pytest).
@@ -118,13 +129,44 @@ verify [--task SLUG] [--scope {lightweight,standard,high,critical,manual}]
                                 # Security-sensitive файлы (auth/payment/hooks) обходят cache.
 ```
 
+**`--relevant-files`.** Объявляет область задачи И проверяет её одной командой.
+Требует `--task`: область — свойство задачи, и записывать её больше некуда.
+Пути СОХРАНЯЮТСЯ в задачу, поэтому `task done` читает ту же область и попадает
+в кеш — источник правды один, строка задачи.
+
+Без объявленной области каждый scoped-гейт получает `[SKIP]`, а чек всё равно
+подписывается: он удостоверяет пустоту. До появления этого флага единственный
+рабочий путь (`task update <slug> --relevant-files ...`) не назывался ни в
+одном сообщении, а предупреждение предлагало флаг, которого у `verify` не было
+— поэтому игнорировать предупреждение было РАЗУМНЫМ поведением, а не
+небрежностью.
+
+**`--no-tests-expected`.** Прогон, в котором ни один гейт не выполнился (все
+`[SKIP]`), блокируется: он ничего не доказывает, а записанный зелёный по нему
+жил бы весь TTL при любых правках дерева. Для документации, конфигов и миграций
+это тупик — тестов там нет и не будет. Флаг объявляет это ЯВНО: прогон
+записывается зелёным с `no_tests_declared = 1`.
+
+Флаг покупает видимость, а не разрешение. Закрытие всё равно происходит без
+единого выполненного гейта — разница в том, что теперь такие закрытия можно
+пересчитать одним запросом, а не отличать их от проверенных нельзя вовсе:
+
+```sql
+SELECT task_slug, ran_at FROM verification_runs WHERE no_tests_declared = 1;
+```
+
+Флаг касается только ПРОПУЩЕННЫХ гейтов. Упавший гейт остаётся красным, и
+`verify` по-прежнему выходит с кодом 1.
+
 **Workflow с verify-first:**
 
 ```bash
 .tausik/tausik task start my-task                    # QG-0
 # … работа над кодом …
-.tausik/tausik verify --task my-task                 # heavy: pytest etc.
-.tausik/tausik task done my-task --ac-verified       # lightweight: cache lookup
+.tausik/tausik verify --task my-task                 # heavy: pytest etc. + печатает Verify handle
+.tausik/tausik task done my-task --ac-verified       # lightweight: поиск свежего прогона
+# либо предъявить хендл, напечатанный verify, — точечная проверка вместо поиска:
+.tausik/tausik task done my-task --ac-verified --verify-handle 4821.9f3c1a2b4d5e6f7089abcdef01234567
 ```
 
 **Opt-out на legacy (CI/inline):** установите в `.tausik/config.json`:
@@ -205,6 +247,29 @@ mandatory clause → `pre_adoption: true` + `level: null` (паттерн kai, �
 drift-1) подтверждаются capability; data-клаузы (`adapt-per-tz`) — только при
 наличии артефактов.
 
+## Состояние в git (state / sync)
+
+Проекция durable-состояния БД (`.tausik/tausik.db`) в git-native дерево `tausik/` —
+одно детерминированное .md-файл на сущность (задачи, task_logs, эпики, стори,
+решения, память, рёбра памяти). БД — рабочий кэш; дерево `tausik/` — канонический,
+привязанный к ветке источник истины. Round-trip: `export` (БД → файлы), `import`
+(файлы → БД, git выигрывает при расхождении). `sync` — короткий алиас `state import`,
+команда после `git pull` / `git checkout`.
+
+```bash
+state export [--out DIR] [--check]   # Сериализовать БД → дерево tausik/ (по файлу на сущность).
+                                     # --check: exit 1 если дерево устарело против live-БД (CI-гейт,
+                                     # тот же контракт, что renar export --check).
+state import [--out DIR] [--dry-run] # Пересобрать кэш БД из дерева tausik/ (идемпотентная дельта).
+                                     # --dry-run: показать план add/update/journal/edge без записи в БД.
+sync [--out DIR] [--dry-run]         # Алиас `state import`. Запусти после git pull/checkout.
+```
+
+Пример: `.tausik/tausik state export` перед коммитом ветки; `.tausik/tausik sync`
+сразу после `git pull`, чтобы локальный кэш БД догнал дерево. Автоматизация
+round-trip (экспорт при durable-записи, детекция расхождения при старте сессии)
+гейтится конфигом `state.auto_export`.
+
 ## Стеки
 
 ```bash
@@ -265,7 +330,8 @@ memory unlink <edge_id> [--replacement EDGE_ID]   # Soft-invalidate (никог�
 memory related <node_type> <node_id> [--hops N] [--include-invalid]
 memory graph [--type {memory,decision}] [--id N]
              [--relation {supersedes,caused_by,relates_to,contradicts}]
-             [--include-invalid] [--limit N]
+             [--include-invalid] [--limit N] [--format {table,mermaid}]
+             # --format mermaid: граф в Mermaid-нотации (для рендера в доках), default table
 
 # Агрегаторы
 memory block [--max-decisions N] [--max-conventions N] [--max-deadends N] [--max-lines N]
@@ -419,7 +485,14 @@ Opt-in: требует `markitdown` и Python ≥3.11.
 
 ```bash
 events [--entity {task,epic,story}] [--id SLUG] [--limit N]
+       [--full] [--top-n N] [--max-lines N]
 ```
+
+Выше 25 строк вывод сворачивается по типу сущности и действию (компактный
+детерминированный агрегат) вместо дампа каждого события; `--top-n` / `--max-lines`
+ограничивают строки групп, а футер называет, сколько скрыто. `--full` печатает
+построчный дамп без изменений. `task list` принимает те же три флага (свёртка по
+статусу и роли).
 
 ## Сниппеты / детекция клонов (v15-snippet)
 

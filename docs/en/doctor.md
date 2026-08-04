@@ -2,7 +2,9 @@
 
 # Doctor — Health Check
 
-`doctor` is a single command that runs eight checks across the moving parts of a TAUSIK install (venv / DB / MCP / Skills / Drift / Config / Gates / Session). It does **not** auto-fix — it tells you what is wrong and how to fix it.
+`doctor` is a single command that checks the moving parts of a TAUSIK install — venv, DB, MCP servers, skills, deployment drift, config, gates, session, and backlog hygiene. It does **not** auto-fix: it tells you what is wrong and how to fix it.
+
+Some checks only run when the thing they check is installed (the Kilo and OpenCode config checks, the Brain check), so the number of lines you see depends on your setup. The table below lists every check that can appear.
 
 ## Run It
 
@@ -30,6 +32,13 @@ Or via MCP: `tausik_doctor` (no parameters). The MCP variant returns the same da
 | **Config** | Knobs | `session_max_minutes`, `session_warn_threshold_minutes`, `session_idle_threshold_minutes`, `session_capacity_calls`, `verify_cache_ttl_seconds` |
 | **Gates** | Registered gates | Stack-detected + universal gates count |
 | **Session** | Active vs wall | If session is open: `Xm active / Ym wall` (gap-based) |
+| **Backlog** | Epic reachability | Every open task (planning/active/blocked/review) is reachable from an epic. A task with no story shows up in neither `tausik roadmap` nor `task list --epic` — so it drops out of the release scope count silently. WARN, not FAIL: a standalone task is legitimate. Closed tasks do not count. |
+| **Backlog** | Deferred AC | No closed task inside a **still-open** epic left an acceptance criterion marked `DEFERRED`. Such a criterion has no owner and no due date, and the epic can close over it. Clear it by finishing the criterion, or by handing it to a task that owns it and recording that: `tausik task log <slug> "AC-N CARRIED BY <owning-slug>"`. Scoped to open epics on purpose — a criterion parked in an epic that shipped long ago is history, not work. |
+| **Drift** | CLAUDE.md drift | Sections your `CLAUDE.md` carries under the template's **own** heading still match the template. A heading the file does not carry is customisation, not drift — translating, renaming or dropping a section is a deliberate choice. A missing section still counts as drift when the file otherwise *is* the template's document (more than half its sections present), so a project whose config asks for a directive its `CLAUDE.md` lacks is still caught. The remediation names the diverging sections; it never tells you to re-run bootstrap, which would overwrite hand-written content. |
+| **Config** | Trust tier | No project-scope config key weakens enforcement. See [config-trust-tiers.md](config-trust-tiers.md). |
+| **Config** | Verify-First profile | `auto_verify` is not silently enabling itself on an interactive machine. |
+| **IDE** | Kilo / OpenCode config | Present only when that IDE profile is installed: the config parses and its `tausik-project` MCP stanza resolves. |
+| **Brain** | Notion config | Present only when Brain is enabled: all four `database_ids` plus a token are set. |
 
 ## Sample Output
 
@@ -68,6 +77,8 @@ The exit code reflects the worst level: `0` for OK/WARN, `1` for FAIL.
 | `WARN Bootstrap drift` | `python .tausik-lib/bootstrap/bootstrap.py --refresh` and restart the MCP server |
 | `FAIL MCP server` | Re-run bootstrap; ensure `.claude/mcp/` was generated |
 | `WARN Core skills` | `tausik skill list`; `tausik skill activate <name>` for missing core skills |
+| `WARN Shared Brain` | Only appears when `.tausik/config.json` could not be interpreted — a malformed file, or a `brain` key that is not a mapping (`{"brain": true}`). The brain is treated as OFF, which is its default, so this never fails the check. Fix the config if you do use the Notion brain; ignore it if you do not. |
+| `WARN Backlog hygiene` | `tausik task move <slug> <story>` for each named task — or create a story for them if they form a coherent group |
 
 ## Negative — What Doctor Does NOT Do
 

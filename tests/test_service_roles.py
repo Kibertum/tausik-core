@@ -46,6 +46,38 @@ class TestRoleCRUD:
         with pytest.raises(ServiceError):
             _r.role_create(be, "qa", "QA again")
 
+    def test_deployed_profile_resolves_against_the_project_not_cwd(self, tmp_path, monkeypatch):
+        """s130-review-fixes: role lookup must resolve against the project the
+        backend speaks for, not the process cwd. A deployed profile that exists
+        under the project's IDE dir must be found even when cwd is elsewhere —
+        the adversarial-review MEDIUM: the project_dir param existed but was
+        never wired, so _profile_path_deployed still read os.getcwd()."""
+        project = tmp_path / "proj"
+        (project / ".tausik").mkdir(parents=True)
+        # Deploy a role profile the Claude way under the project (not cwd).
+        (project / ".claude" / "roles").mkdir(parents=True)
+        (project / ".claude" / "roles" / "deployed-only.md").write_text(
+            "# Role: Deployed\n\nFrom the deployed profile.\n", encoding="utf-8"
+        )
+        be = SQLiteBackend(str(project / ".tausik" / "tausik.db"))
+        try:
+            monkeypatch.setattr(_r, "_repo_root", lambda: str(tmp_path / "no-source"))
+            elsewhere = tmp_path / "elsewhere"
+            elsewhere.mkdir()
+            monkeypatch.chdir(elsewhere)  # cwd is NOT the project
+            pd = _r._project_dir_from_be(be)
+            assert pd == str(project)
+            assert "From the deployed profile" in (_r._read_profile("deployed-only", pd) or "")
+            # Without the project dir it would look under cwd and miss it.
+            assert _r._read_profile("deployed-only", None) is None
+        finally:
+            be.close()
+
+    def test_project_dir_from_be_ignores_noncanonical_db_path(self, be):
+        """A backend not at <root>/.tausik/<db> yields no root (→ cwd fallback),
+        rather than a wrong dirname(dirname()) guess."""
+        assert _r._project_dir_from_be(be) is None
+
     def test_create_with_extends_clones_profile(self, be, isolate_profiles):
         _r.role_create(be, "dev", "Developer")
         with open(_r._profile_path_user("dev"), "w", encoding="utf-8") as f:

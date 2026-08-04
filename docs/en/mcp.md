@@ -15,7 +15,7 @@ There is also an optional `codebase-rag` server documented at the bottom.
 
 ## Verify-First Contract (v1.5)
 
-Heavy quality gates (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeval, hadolint, ansible-lint) live on a dedicated `verify` trigger. The MCP workflow:
+Heavy quality gates (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeconform, hadolint, ansible-lint) live on a dedicated `verify` trigger. The MCP workflow:
 
 ```
 tausik_task_start(slug=…)        # QG-0
@@ -96,7 +96,7 @@ Pre-1.4 there was a parallel `tausik_task_done_v2` alias for the structured-JSON
 | `tausik_session_list` | List sessions | — |
 | `tausik_session_handoff` | Save handoff data | `handoff` (object) |
 | `tausik_session_last_handoff` | Get handoff from previous session | — |
-| `tausik_session_open` (v1.5) | Compound RPC: session start + status + handoff + active/blocked tasks + self_check in one envelope. Powers `/start` Phase 1. | — |
+| `tausik_session_open` (v1.5) | Compound RPC: session start + status + handoff + active/blocked tasks + self_check in one envelope. Powers `/start` Phase 1. The `session` and `self_check` sections are projected to the rendered fields only (no `watched_modules`/`current_mtimes`, no duplicated handoff) — use `tausik_self_check` for full telemetry. | — |
 
 Session limit is gap-based **active time** (paused after 10-min idle gap), not wall clock. See `session-active-time.md`.
 
@@ -195,7 +195,7 @@ Relation types: `supersedes`, `caused_by`, `relates_to`, `contradicts`.
 | `tausik_gates_disable` | Disable gate | `name` |
 | `tausik_verify` | v1.5 Verify-First: run heavy gates (pytest, tsc, …) and cache green in `verification_runs`. After that `tausik_task_done` reads the cache and closes instantly. | `task_slug` |
 
-Available gates: `pytest`, `ruff`, `mypy`, `bandit`, `tsc`, `eslint`, `go-vet`, `golangci-lint`, `cargo-check`, `clippy`, `phpstan`, `phpcs`, `javac`, `ktlint`, `filesize`, `tdd_order`. Stack-scoped gates auto-enable based on detected stack; universal gates (`filesize`, `tdd_order`) apply to all stacks.
+Available gates: `pytest`, `ruff`, `mypy`, `bandit`, `tsc`, `eslint`, `go-vet`, `golangci-lint`, `cargo-check`, `clippy`, `phpstan`, `phpcs`, `javac`, `ktlint`, `filesize`, `class_surface`, `tdd_order`. Stack-scoped gates auto-enable based on detected stack; universal gates (`filesize`, `class_surface`, `tdd_order`) apply to all stacks. `class_surface` is repo-wide rather than scoped: it caps a class's composed public surface after inheritance, which a per-file line cap cannot see.
 
 `tdd_order` is disabled by default. Enable with `tausik_gates_enable name=tdd_order`.
 
@@ -279,12 +279,22 @@ The `tausik-brain` MCP server runs config-agnostic at startup and reads registry
 
 ### Brain config requirements
 
-When `brain.enabled=true` in `.tausik/config.json`, ALL of the following must be set or `tausik_decide` (and other brain-routing operations) will return a `⚠ ... saved LOCALLY ONLY — brain mirror BLOCKED` warning and skip the Notion mirror:
+Since 1.8, `tausik_decide` does **not** route to the brain at all — recording a
+decision never publishes it anywhere (decision #221). Brain config governs only
+the explicit outward path: `brain_store_*`, `brain_cache_web`, and
+`tausik brain move --to-brain`. When `brain.enabled=true` in
+`.tausik/config.json`, ALL of the following must be set or those operations fail
+rather than mirroring:
 
 - `brain.database_ids.decisions`, `database_ids.patterns`, `database_ids.gotchas`, `database_ids.web_cache` — all four Notion database UUIDs.
 - `brain.notion_integration_token_env` — env var name (default `NOTION_TAUSIK_TOKEN`) that must resolve to a non-empty token via env, `.tausik/.env`, or `brain.notion_integration_token` in config.
 
-`tausik doctor` surfaces validation errors as a `Brain config` warning row. The fastest fix is `tausik brain init` (interactive wizard) or set `brain.enabled=false` to opt out cleanly. After fixing the config, run `tausik brain move --to-brain` to migrate decisions/gotchas/patterns that were saved locally during the misconfiguration window.
+`tausik doctor` surfaces validation errors as a `Brain config` warning row. The fastest fix is `tausik brain init` (interactive wizard) or set `brain.enabled=false` to opt out cleanly.
+
+`tausik brain move --to-brain` is the only outward path, and it is a deliberate
+act — not a catch-up for a misconfiguration window. Decisions stay local because
+that is the rule now, not because the config was broken; nothing accumulates a
+backlog waiting to be flushed to Notion.
 
 ## Codebase RAG (separate optional MCP server)
 
@@ -299,6 +309,32 @@ When `brain.enabled=true` in `.tausik/config.json`, ALL of the following must be
 | `search_web_cache` | Search cached web results | `query` |
 
 These are not part of the main 124 count — they belong to the optional `codebase-rag` server.
+
+## Scoped tool surface (`mcp.scope_tools_exposure`)
+
+Off by default. When you set `mcp.scope_tools_exposure: true` in `config.json`,
+the server narrows the advertised tool-list to what the **active task** is
+allowed to use: the union of the task's declared `scope_tools` (SENAR Rule 2 ACL)
+and an always-safe core — the whole `tausik_task_*` and `tausik_session_*`
+families plus `tausik_status`, `tausik_verify`, `tausik_doctor`,
+`tausik_self_check`, `tausik_update_claudemd` and the `*_search` tools. Every
+other tool is hidden from the list, cutting both the token cost of the tool
+definitions and the attack surface.
+
+It is **fail-open**: all tools are exposed whenever no task is active, no active
+task declared a non-empty `scope_tools`, or the scope cannot be resolved — so
+turning it on never strands a project that never declared a scope. Hiding is a
+UX/token optimization, **not** the security barrier: a hidden tool called
+directly still passes the existing scope enforcement, and the write-gate is
+untouched. The scoped list is recomputed each time the host fetches
+`list_tools` — i.e. on every server connect with a task already active.
+
+**Measured cost.** The full authored surface is 124 tools ≈ 51 KB of tool
+definitions (~12.8k estimated tokens; `tests/test_mcp_tool_token_cost.py` pins
+this and ratchets it). Under Claude Code deferred loading (`ENABLE_TOOL_SEARCH`)
+only tool names load eagerly and each description is truncated to 2 KB — a ratchet
+test keeps every TAUSIK description under that limit so none is silently cut, and
+asserts names stay unique and searchable so name-based dispatch still resolves.
 
 ## Launching the Tausik MCP Server
 

@@ -45,7 +45,7 @@ their code BEFORE that timer was added and ignore it.
 
 ## Shared Brain (Notion)
 
-Brain in v1.4 is Notion-backed (no Docker / CouchDB / Meilisearch / Raven anymore — those were the v1.2 architecture and have been removed). The local mirror is a single SQLite file at `~/.tausik-brain/brain.db`.
+Brain is Notion-backed — there is no Docker, CouchDB, Meilisearch or Raven to run. The local mirror is a single SQLite file at `~/.tausik-brain/brain.db`.
 
 | Error Pattern | Diagnosis | Fix |
 |---|---|---|

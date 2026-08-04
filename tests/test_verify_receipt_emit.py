@@ -19,25 +19,15 @@ if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
 
 import crypto_keys  # noqa: E402
+from backend_schema_gate_runs import GATE_RUNS_SQL  # noqa: E402
 import crypto_sign  # noqa: E402
 import service_verification as sv  # noqa: E402
 import verify_receipt_emit as vre  # noqa: E402
+import verify_run_record as vrr  # noqa: E402
+from conftest import VERIFICATION_RUNS_DDL  # noqa: E402
 
-_DDL = """
-CREATE TABLE IF NOT EXISTS verification_runs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_slug TEXT,
-    scope TEXT NOT NULL CHECK(scope IN
-        ('lightweight', 'standard', 'high', 'critical', 'manual')),
-    command TEXT NOT NULL,
-    exit_code INTEGER NOT NULL,
-    summary TEXT,
-    files_hash TEXT NOT NULL,
-    ran_at TEXT NOT NULL,
-    duration_ms INTEGER,
-    receipt_json TEXT
-);
-"""
+# Canonical DDL cut from backend_schema.SCHEMA_SQL — never a hand-written copy.
+_DDL = VERIFICATION_RUNS_DDL + ";"
 
 _GATES = [
     {"name": "pytest", "passed": True, "severity": "block"},
@@ -50,6 +40,7 @@ def conn():
     c = sqlite3.connect(":memory:")
     c.row_factory = sqlite3.Row
     c.executescript(_DDL)
+    c.executescript(GATE_RUNS_SQL)  # canonical DDL — record_run also writes gate_runs
     yield c
     c.close()
 
@@ -106,6 +97,19 @@ class TestEmission:
         env = _stored_envelope(conn, run_id)
         names = [g["name"] for g in env["receipt"]["gates"]]
         assert "hadolint" not in names
+        assert crypto_sign.verify_receipt(env, project_dir=keyed_project)
+
+    def test_configured_gates_count_is_the_full_run(self, conn, keyed_project):
+        """risk-gate-coverage-configured-count-in-check: the receipt records the
+        FULL configured-gate count of the verify run (ran + skipped), while
+        `gates` still lists only the ones that ran. The risk model reads both from
+        this one signed source, so its gate_coverage denominator is the verify-time
+        config, not a task-done recompute that a trust-tier flip could change."""
+        gates = _GATES + [{"name": "hadolint", "passed": True, "skipped": True}]
+        run_id = _record(conn, keyed_project, gates=gates)
+        env = _stored_envelope(conn, run_id)
+        assert env["receipt"]["configured_gates_count"] == 3  # 2 ran + 1 skipped
+        assert len(env["receipt"]["gates"]) == 2  # only the ran gates listed
         assert crypto_sign.verify_receipt(env, project_dir=keyed_project)
 
     def test_receipt_binds_gates_and_fingerprint(self, conn, keyed_project):
@@ -231,3 +235,90 @@ class TestLoadReceipt:
         )
         conn.commit()
         assert vre.load_receipt(conn, task_slug="task-x") is None
+
+
+# --- s129-review-fixes: signing must resolve the project root, not the CWD ----
+
+
+def _file_db(root_dir):
+    """A file-based connection whose DB sits at <root>/.tausik/tausik.db — the
+    real production layout, so `_project_dir_from_conn` can derive <root>."""
+    tausik = os.path.join(str(root_dir), ".tausik")
+    os.makedirs(tausik, exist_ok=True)
+    c = sqlite3.connect(os.path.join(tausik, "tausik.db"))
+    c.row_factory = sqlite3.Row
+    c.executescript(_DDL)
+    c.executescript(GATE_RUNS_SQL)
+    return c
+
+
+class TestProjectDirDerivedFromConn:
+    """The HIGH from this session's adversarial review: `_project_has_key`
+    looked at the DB-derived root while emission looked at CWD, so a `verify`
+    run from a subdirectory produced a false 'signing failed' warning. Signing
+    must resolve the same root the key check does — from the DB file."""
+
+    def test_derives_root_from_db_file(self, tmp_path):
+        c = _file_db(tmp_path)
+        try:
+            assert vrr._project_dir_from_conn(c) == str(tmp_path)
+        finally:
+            c.close()
+
+    def test_inmemory_conn_falls_back_to_dot(self, conn):
+        # AC4: an in-memory / pathless DB cannot name a root → best-effort '.'.
+        assert vrr._project_dir_from_conn(conn) == "."
+
+    def test_record_run_without_project_dir_uses_derived_root(self, tmp_path, monkeypatch):
+        # AC1/AC2 wiring: with no explicit project_dir, record_run must hand
+        # emit_signed_receipt the DB-derived ROOT — not '.' (the old CWD default
+        # that caused the false warning from a subdirectory).
+        captured = {}
+
+        def fake_emit(conn, run_id, **kwargs):
+            captured["project_dir"] = kwargs.get("project_dir")
+            return (vre.STATUS_NO_KEY, None)
+
+        monkeypatch.setattr(vre, "emit_signed_receipt", fake_emit)
+        c = _file_db(tmp_path)
+        try:
+            sv.record_run(
+                c,
+                task_slug="task-a",
+                scope="standard",
+                command="c",
+                exit_code=0,
+                summary="ok",
+                files_hash="h" * 64,
+                gate_results=_GATES,
+                # project_dir intentionally omitted → derivation must kick in
+            )
+        finally:
+            c.close()
+        assert captured["project_dir"] == str(tmp_path)
+
+    def test_signs_against_db_root_end_to_end(self, tmp_path):
+        # The observable win: keys live at the DB's root; a record_run with NO
+        # project_dir signs a receipt that verifies against that root — proving
+        # signing no longer depends on the process CWD.
+        crypto_keys.init_keys(str(tmp_path))
+        c = _file_db(tmp_path)
+        try:
+            run_id = sv.record_run(
+                c,
+                task_slug="task-a",
+                scope="standard",
+                command="c",
+                exit_code=0,
+                summary="ok",
+                files_hash="h" * 64,
+                gate_results=_GATES,
+            )
+            row = c.execute(
+                "SELECT receipt_json FROM verification_runs WHERE id = ?", (run_id,)
+            ).fetchone()
+            assert row["receipt_json"], "signing must produce a receipt against the DB root"
+            env = json.loads(row["receipt_json"])
+            assert crypto_sign.verify_receipt(env, project_dir=str(tmp_path))
+        finally:
+            c.close()

@@ -15,7 +15,7 @@
 
 ## Verify-First Contract (v1.5)
 
-Тяжёлые quality gates (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeval, hadolint, ansible-lint) живут на отдельном триггере `verify`. MCP workflow:
+Тяжёлые quality gates (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeconform, hadolint, ansible-lint) живут на отдельном триггере `verify`. MCP workflow:
 
 ```
 tausik_task_start(slug=…)                    # QG-0
@@ -96,7 +96,7 @@ tausik_task_done(slug=…, ac_verified=True)   # лёгкое: lookup в кеш�
 | `tausik_session_list` | Список сессий | — |
 | `tausik_session_handoff` | Сохранить handoff data | `handoff` (object) |
 | `tausik_session_last_handoff` | Получить handoff из предыдущей сессии | — |
-| `tausik_session_open` (v1.5) | Compound RPC: session start + status + handoff + active/blocked задачи + self_check в одном envelope. Питает Phase 1 в `/start`. | — |
+| `tausik_session_open` (v1.5) | Compound RPC: session start + status + handoff + active/blocked задачи + self_check в одном envelope. Питает Phase 1 в `/start`. Секции `session` и `self_check` спроецированы только до рендерящихся полей (без `watched_modules`/`current_mtimes`, без дубля хендоффа) — полная телеметрия через `tausik_self_check`. | — |
 
 Лимит сессии — gap-based **active time** (паузится после 10-min idle gap), не wall clock. См. `session-active-time.md`.
 
@@ -192,7 +192,7 @@ RENAR-подложка: формальные требования (**SPEC**) и 
 | `tausik_gates_disable` | Выключить gate | `name` |
 | `tausik_verify` | v1.5 Verify-First: запустить heavy gates (pytest, tsc, …) и закешировать green в `verification_runs`. После этого `tausik_task_done` использует кеш и закрывается мгновенно. | `task_slug` |
 
-Доступные gates: `pytest`, `ruff`, `mypy`, `bandit`, `tsc`, `eslint`, `go-vet`, `golangci-lint`, `cargo-check`, `clippy`, `phpstan`, `phpcs`, `javac`, `ktlint`, `filesize`, `tdd_order`. Stack-scoped gates авто-включаются по обнаруженному стеку; universal gates (`filesize`, `tdd_order`) применяются ко всем стекам.
+Доступные gates: `pytest`, `ruff`, `mypy`, `bandit`, `tsc`, `eslint`, `go-vet`, `golangci-lint`, `cargo-check`, `clippy`, `phpstan`, `phpcs`, `javac`, `ktlint`, `filesize`, `class_surface`, `tdd_order`. Stack-scoped gates авто-включаются по обнаруженному стеку; universal gates (`filesize`, `class_surface`, `tdd_order`) применяются ко всем стекам. `class_surface` работает по всему репозиторию, а не по скоупу: он ограничивает составную публичную поверхность класса после наследования, которую пофайловый строковый лимит видеть не может.
 
 `tdd_order` отключён по умолчанию. Включите через `tausik_gates_enable name=tdd_order`.
 
@@ -276,12 +276,22 @@ DEFAULT_STACKS: 25 записей (python, fastapi, django, flask, react, next, 
 
 ### Требования к brain-конфигу
 
-Когда в `.tausik/config.json` стоит `brain.enabled=true`, все нижеперечисленные поля ДОЛЖНЫ быть заданы — иначе `tausik_decide` (и другие операции, маршрутизируемые в brain) вернут `⚠ ... saved LOCALLY ONLY — brain mirror BLOCKED` и пропустят зеркалирование в Notion:
+С 1.8 `tausik_decide` **не** маршрутизируется в brain вообще — запись решения
+больше никуда его не публикует (решение #221). Brain-конфиг управляет только
+явным внешним путём: `brain_store_*`, `brain_cache_web` и
+`tausik brain move --to-brain`. Когда в `.tausik/config.json` стоит
+`brain.enabled=true`, все нижеперечисленные поля ДОЛЖНЫ быть заданы — иначе эти
+операции откажут, а не зеркалируют:
 
 - `brain.database_ids.decisions`, `database_ids.patterns`, `database_ids.gotchas`, `database_ids.web_cache` — все четыре Notion-database UUID.
 - `brain.notion_integration_token_env` — имя env-переменной (по умолчанию `NOTION_TAUSIK_TOKEN`), которая должна резолвиться в непустой токен через env, `.tausik/.env` или поле `brain.notion_integration_token` в конфиге.
 
-`tausik doctor` поднимает ошибки валидации как WARN-строку `Brain config`. Быстрый фикс — `tausik brain init` (интерактивный wizard) или `brain.enabled=false` для явного отказа. После починки конфига запусти `tausik brain move --to-brain`, чтобы перенести в Notion решения/gotchas/паттерны, которые сохранились только локально во время мисконфига.
+`tausik doctor` поднимает ошибки валидации как WARN-строку `Brain config`. Быстрый фикс — `tausik brain init` (интерактивный wizard) или `brain.enabled=false` для явного отказа.
+
+`tausik brain move --to-brain` — единственный путь наружу, и это осознанное
+действие, а не догоняющая синхронизация после мисконфига. Решения остаются
+локальными потому, что теперь таково правило, а не потому, что сломан конфиг;
+никакой очереди, ждущей выгрузки в Notion, не копится.
 
 ## Codebase RAG (отдельный опциональный MCP-сервер)
 
@@ -296,6 +306,33 @@ DEFAULT_STACKS: 25 записей (python, fastapi, django, flask, react, next, 
 | `search_web_cache` | Поиск кешированных web-результатов | `query` |
 
 Эти не входят в основной счёт 124 — принадлежат опциональному `codebase-rag` серверу.
+
+## Область tool-поверхности (`mcp.scope_tools_exposure`)
+
+Выключено по умолчанию. Когда вы ставите `mcp.scope_tools_exposure: true` в
+`config.json`, сервер сужает рекламируемый tool-list до того, что разрешено
+**активной задаче**: объединение объявленных задачей `scope_tools` (ACL SENAR
+Rule 2) и всегда-безопасного ядра — целиком семейства `tausik_task_*` и
+`tausik_session_*` плюс `tausik_status`, `tausik_verify`, `tausik_doctor`,
+`tausik_self_check`, `tausik_update_claudemd` и тулы `*_search`. Прочие тулы
+скрыты из списка, что сокращает и токен-стоимость определений тулов, и
+поверхность атаки.
+
+Это **fail-open**: все тулы экспонируются, когда нет активной задачи, ни одна
+активная задача не объявила непустой `scope_tools`, или область не резолвится —
+включение никогда не оставляет без тулов проект, который не объявлял область.
+Сокрытие — это UX/токен-оптимизация, а **не** барьер безопасности: скрытый тул,
+вызванный напрямую, всё равно проходит существующий scope-энфорсмент, а
+write-гейт не тронут. Область пересчитывается каждый раз, когда хост запрашивает
+`list_tools` — то есть при каждом подключении к серверу с уже активной задачей.
+
+**Замер стоимости.** Полная авторская поверхность — 124 тула ≈ 51 КБ определений
+(~12.8k оценочных токенов; `tests/test_mcp_tool_token_cost.py` фиксирует это и
+держит храповиком). При отложенной загрузке Claude Code (`ENABLE_TOOL_SEARCH`)
+эагерно грузятся только имена, а каждое описание обрезается до 2 КБ — храповой
+тест держит каждое описание TAUSIK под этим лимитом, чтобы ничего не срезалось
+молча, и проверяет, что имена остаются уникальными и искомыми, чтобы диспетчер по
+имени по-прежнему находил нужный тул.
 
 ## Запуск Tausik MCP-сервера
 

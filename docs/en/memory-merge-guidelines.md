@@ -4,7 +4,7 @@
 
 How to keep **local** project memory (`.tausik/tausik.db`) and optional **Shared Brain** (Notion) free of noise. This guide is about *editorial* choice. It **complements**, not replaces:
 
-- **`scripts/brain_classifier.py`** (`classify()`) — routes content to **local** vs **brain** using markers and blocklist.
+- **`scripts/brain_classifier.py`** (`classify()`) — scores the **risk** of an explicit publish using markers and blocklist. Since 1.8 it does not choose a destination (decision #221).
 - **`brain_scrubbing`** (pre–Notion write) — **blocks** unsafe content regardless of your merge decision (see *Scrubbing wins* below).
 
 ## Decision table
@@ -14,15 +14,15 @@ How to keep **local** project memory (`.tausik/tausik.db`) and optional **Shared
 | Same topic, adding nuance, typo fix, or tightening wording | **Merge**: update the existing memory row (single source of truth). |
 | Same *symptom*, different **root cause** | **New** entry; optionally relate rows with [`memory link`](cli.md#knowledge) / graph tools so searches surface both. |
 | Verbatim duplicate (copy-paste) | **Delete** the redundant row after confirming it adds nothing. |
-| Insight tied to a closed task but potentially reusable | Capture locally first; generalize wording before any brain publish (`move_to_brain`, MCP store, or `brain publish`). |
+| Insight tied to a closed task but potentially reusable | Capture locally first; generalize wording before any brain publish (`tausik brain move --to-brain <id>`, MCP store, or `tausik brain publish`). |
 
 If unsure, run **`tausik search`** / **`memory_search`** (and brain search if enabled) before writing.
 
 ## Alignment with the classifier
 
-`classify(content, category)` only answers **where** a write may go (`local` vs `brain`). It does **not** deduplicate or merge rows. Conservative signals (paths, long slugs, blocklisted names) → **local** — you should still apply merge-vs-new discipline **inside** local memory so FTS stays usable.
+`classify(content, category)` answers only **how risky** an explicit publish looks. It does **not** choose a destination, and it does **not** deduplicate or merge rows. Conservative signals (paths, long slugs, blocklisted names) → **high risk**, which blocks the publish until a human confirms — you should still apply merge-vs-new discipline **inside** local memory so FTS stays usable.
 
-Categories used by the classifier for patterns/gotchas/web_cache line up with **[Shared Brain](shared-brain.md)** routing; **task-linked** decisions stay local by policy (`service_knowledge.decide` when `task_slug` is set).
+Since 1.8 nothing routes itself. **You** pick the destination: the project by default, the local shared store with `--global`, and Notion only via `tausik brain move --to-brain <id>` (decision #221). Recording a decision publishes it nowhere — the local copy is unconditional (`service_decide.record`).
 
 ## Negative exception: scrubbing overrides merge intent
 
@@ -63,7 +63,7 @@ When you write a memory or decision whose body mentions a well-known cross-proje
 Universal pattern(s) detected: jwt, retry — consider promoting via `brain_draft_artifact` (or skip with `confirm: cross-project`).
 ```
 
-The hint is **advisory only** — it never blocks the write, never raises, and is silent when nothing matches. Detection runs after a successful write in `service_knowledge.memory_add` and in `brain_runtime.try_brain_write_decision` / `try_brain_write_web_cache` success paths.
+The hint is **advisory only** — it never blocks the write, never raises, and is silent when nothing matches. Detection runs after a successful write in `service_knowledge.memory_add`. It also sits in the `brain_runtime.try_brain_write_decision` / `try_brain_write_web_cache` success paths, but `try_brain_write_decision` has had **no production caller since 1.8** — decisions no longer reach Notion by themselves (decision #221), so that path is reachable only from tests.
 
 Topics covered (regex/keyword, case-insensitive, word-boundary aware):
 

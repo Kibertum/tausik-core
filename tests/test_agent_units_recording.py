@@ -43,11 +43,16 @@ def _seed_active_task(
     svc.be.task_update(slug, acceptance_criteria=ac)
     svc.task_start(slug)
     # Pre-log AC verification so QG-2 doesn't block task_done in tests.
-    svc.task_log(slug, "AC verified: 1. covered ✓")
-    # Verification checklist so SENAR Rule 5 (hard gate for substantial/deep
-    # planning tiers, v15s-rule5-checklist-hardgate) doesn't block closes here —
-    # these tests exercise budget recording, not the checklist gate.
-    svc.task_log(slug, "Checklist: scope ok, tests cover edge case, no security surface.")
+    # The Rule 5 hard gate (substantial/deep planning tiers) wants a citation
+    # that resolves on disk — it used to accept a line of checklist vocabulary
+    # ("scope ok, tests cover edge case"), which is what
+    # rule5-checklist-keyword-theater removed. These tests exercise budget
+    # recording, so the citation names the file that actually covers them.
+    svc.task_log(
+        slug,
+        "AC-1: ✓ tests/test_agent_units_recording.py::"
+        "TestTaskDoneRecordsActual::test_writes_call_actual_from_events",
+    )
 
 
 def _iso_shift(iso_z: str, seconds: int) -> str:
@@ -197,6 +202,7 @@ def _run_hook(cwd: str, payload: dict | None = None) -> subprocess.CompletedProc
         input=json.dumps(payload or {}),
         capture_output=True,
         text=True,
+        encoding="utf-8",
         cwd=cwd,
         env={**os.environ, "CLAUDE_PROJECT_DIR": cwd},
         timeout=10,
@@ -274,6 +280,7 @@ class TestCallCounterHook:
             input="{}",
             capture_output=True,
             text=True,
+            encoding="utf-8",
             cwd=str(proj),
             env=env,
             timeout=5,

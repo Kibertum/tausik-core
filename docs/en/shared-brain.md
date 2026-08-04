@@ -19,8 +19,36 @@ The split is deliberate. The local DB keeps project-specific traces (file paths,
 
 Nothing that identifies the project should ever reach the brain. Enforcement:
 1. **Scrubbing linter** rejects writes with absolute paths, kebab-slugs ≥3 parts, `.tausik/tausik` commands, internal URLs.
-2. **Classifier** decides whether a record is `local` or `brain`; only `brain`-classified records are pushed.
+2. **Risk classifier** scores an *explicit* publish: project-specific markers mean **high** risk, and the write is blocked until `confirm_high_risk` is set after human review (`scripts/brain_publish_flow.py`). Since 1.8 it no longer *decides* the destination — see the note below.
 3. **Source Project Hash** — every record carries `SHA256(canonical_name)[:16]`, so even if a project-identifier accidentally slips through audit, the Notion-side reader can't cross-reference project names without the local registry.
+
+### Since 1.8: three stores, and you choose — nothing routes itself
+
+The page you are reading describes the **Notion** brain. As of 1.8 it is no
+longer the only cross-project store, and it is never reached automatically.
+
+| Destination | Where | How you get there |
+|---|---|---|
+| This project | `.tausik/tausik.db` | the default — nothing to type |
+| Shared local store | `~/.tausik-knowledge/knowledge.db` (`$TAUSIK_HOME` overrides) | `--global` on `decide` / `memory add` |
+| Notion brain | your Notion workspace | `tausik brain move --to-brain`, by name, and only that |
+
+Two things changed and both are breaking:
+
+- **Recording a decision no longer publishes it anywhere** (decision #221). The
+  classifier used to pick the destination by scanning the text for
+  project-specific markers. It failed in the direction that costs something —
+  six of this project's internal decisions reached the owner's wiki, each
+  labelled "no project-specific markers detected", because a well-written
+  decision usually reads generally. Visibility is a judgement about intent, and
+  the words cannot carry it.
+- **The shared local store is not `~/.tausik/`** (decision #222). That name was
+  a defect: project discovery walks upward looking for exactly `.tausik`, so a
+  store in the home directory captured discovery for everything beneath it. It
+  now lives in `~/.tausik-knowledge/`.
+
+The shared local store is **not** redacted — see
+[whats-new-1.8](whats-new-1.8.md) before putting anything in it.
 
 ## Architecture
 
@@ -240,7 +268,7 @@ Counters:
 - `searches` — every call to `brain_search` / `search_with_fallback`.
 - `hits` — searches that returned ≥1 result (proxy for "did the brain answer the question?").
 - `writes` — successful `try_brain_write_decision` / `try_brain_write_web_cache` operations (Notion ack received). Failed writes are NOT counted.
-- `ignored` — `tausik_memory_quick brain.ignored:<id>` entries written when an agent flags a brain suggestion as irrelevant (next session won't re-surface it).
+- `ignored` — `tausik_memory_add brain.ignored:<id>` entries written when an agent flags a brain suggestion as irrelevant (next session won't re-surface it).
 
 The `hit_rate_pct` is `hits / searches * 100`. A consistently low session hit-rate (<20%) suggests either (a) the brain is empty/stale and needs `tausik brain sync` + new writes, or (b) queries are too project-specific (the classifier should send those to local memory, not brain). The two failure modes look the same in metrics, so investigate by reading recent `brain_events` rows.
 
@@ -250,7 +278,7 @@ Telemetry never blocks the actual operation: if `brain_events.INSERT` fails (loc
 
 1. **No plaintext project names leave the machine.** The only per-project identifier in the brain is `SHA256(canonical_name)[:16]`. Canonical name comes from `project_names[0]` in your local `.tausik/config.json` and is not itself pushed anywhere.
 2. **Scrubbing linter** (`scripts/brain_scrubbing.py`, shipped) intercepts every write before it hits the client. Rejects: absolute Windows/POSIX paths, internal domain URLs, any text matched by `brain.private_url_patterns` regex list, kebab-slugs that look like internal identifiers.
-3. **Classifier** (`scripts/brain_classifier.py`, shipped) picks `local` vs `brain` per-record. Only `brain`-class records are pushed. Conservative-default: ambiguous → `local`.
+3. **Risk classifier** (`scripts/brain_classifier.py`, shipped) scores an *explicit* publish rather than picking a destination. Project-specific markers mean **high** risk and the write is refused until `confirm_high_risk` is set after human review. Conservative-default: ambiguous → high risk. Since 1.8 it no longer routes anything on its own (decision #221).
 4. **You can revoke at any time.** Revoke the Notion integration or unset `NOTION_TAUSIK_TOKEN`; the next sync/write fails cleanly with `NotionAuthError`, and the local mirror continues working for read-only searches.
 
 ## Edge cases / failure modes

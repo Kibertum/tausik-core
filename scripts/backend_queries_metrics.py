@@ -93,6 +93,7 @@ class BackendQueriesMetricsMixin:
             r["status"]: r["cnt"]
             for r in self._q("SELECT status, COUNT(*) as cnt FROM stories GROUP BY status")  # type: ignore[attr-defined]
         }
+        from backend_defect_escape import defect_escape_metrics
         from backend_tier_metrics import calibration_drift, per_tier_metrics
 
         return {
@@ -116,7 +117,126 @@ class BackendQueriesMetricsMixin:
             "session_hours": _session_hours(session_stats),
             "stories": story_counts,
             "session_usage": self.session_usage_summary(),  # type: ignore[attr-defined]
+            "gate_activity": self.gate_activity_summary(),
+            # l26-bypass-telemetry: how many times supervision was switched off.
+            "supervision_bypasses": self.supervision_bypasses_summary(),
+            # l26-complexity-self-declared: supervision that WORKED (detections,
+            # not bypasses) — e.g. an understated complexity caught at close.
+            "supervision_detections": self.supervision_detections_summary(),
+            # hook-fail-open-db-error-telemetry: supervision that was SILENTLY
+            # skipped (a guard failed open on a DB error) — neither intentional
+            # bypass nor working detection.
+            "supervision_degradations": self.supervision_degradations_summary(),
+            # l26-defect-escape-rate: der above is the crude aggregate; this is the
+            # principled, sliced outcome metric (escape rate by the escaped task's
+            # own attributes) + a risk_score backtest.
+            "defect_escape": defect_escape_metrics(self._q),  # type: ignore[attr-defined]
         }
+
+    def gate_activity_summary(self) -> dict[str, Any]:
+        """Per-gate run/failure counts — how well the enforcement itself works.
+
+        Configured-but-never-run gates are listed with runs=0 rather than left
+        out, so "this gate has never once fired" is visible instead of being
+        rendered as silence (convention #226). Gate config is best-effort: if
+        it cannot be read we still report what the table holds, but the
+        never-fired list is then necessarily incomplete and says so by being
+        derived only from rows that exist.
+
+        The known set spans BOTH gate phases. Triggers alone would miss the
+        post-scope QG-2 gates, which `get_gates_for_trigger` deliberately
+        excludes (they take the close context, not `(gate, files)`) — and the
+        one thing worth knowing about a gate guarding every close is precisely
+        that it has never fired. The registry is in-memory static, so it is
+        gathered outside the config try-block: a broken config must not be able
+        to blank the half of the answer that never needed the config.
+        """
+        from gate_registry import PHASE_POST_SCOPE, specs_for_phase
+        from gate_run_record import gate_activity
+
+        known: list[str] = [s.name for s in specs_for_phase(PHASE_POST_SCOPE)]
+        try:
+            from project_config import get_gates_for_trigger
+
+            for trigger in ("verify", "task-done"):
+                known.extend(g["name"] for g in get_gates_for_trigger(trigger))
+        except Exception:  # noqa: BLE001 — metrics are read-only; config trouble must not blank them
+            pass
+        return gate_activity(self._conn, sorted(set(known)))  # type: ignore[attr-defined]
+
+    def _supervision_by_action(self, *, category: str) -> dict[str, Any]:
+        """Aggregate entity_type='supervision' events by action, in ONE of three
+        MUTUALLY-EXCLUSIVE categories:
+
+          - 'bypass'      action LIKE 'bypass_%'    — INTENTIONAL weakening
+                          (skip_hooks, auto_verify, gates_disable, ...).
+          - 'degradation' action LIKE 'fail_open_%' — SILENT fail-open: a guard
+                          could not read the DB and let the edit through. Not on
+                          purpose, but unenforced all the same.
+          - 'detection'  everything else           — supervision that WORKED
+                          (e.g. complexity_understated caught at close).
+
+        The three mean opposite things and must NEVER be summed. 'detection' is
+        the residual bucket, so every new category MUST also be excluded here —
+        otherwise degradations masquerade as detections, the inverse of the
+        truth (the exact failure the l26 review flagged for bypass vs detection).
+        """
+        # The '_' in 'bypass_%' / 'fail_open_%' is a LIKE single-char wildcard, so
+        # an ESCAPE is required for it to mean a LITERAL underscore — without it
+        # 'bypassX...' for any X would match, and a future action like
+        # 'bypassAuto_verify' could land in the wrong bucket, breaking the
+        # MUTUALLY-EXCLUSIVE guarantee (s128 review MEDIUM-2).
+        predicates = {
+            "bypass": r"action LIKE 'bypass\_%' ESCAPE '\'",
+            "degradation": r"action LIKE 'fail\_open\_%' ESCAPE '\'",
+            "detection": (
+                r"action NOT LIKE 'bypass\_%' ESCAPE '\' "
+                r"AND action NOT LIKE 'fail\_open\_%' ESCAPE '\'"
+            ),
+        }
+        try:
+            where = predicates[category]
+        except KeyError:
+            raise ValueError(f"unknown supervision category: {category!r}") from None
+        rows = self._q(  # type: ignore[attr-defined]
+            f"SELECT action, COUNT(*) as cnt FROM events "
+            f"WHERE entity_type='supervision' AND {where} "
+            f"GROUP BY action ORDER BY cnt DESC"
+        )
+        by_action = {r["action"]: r["cnt"] for r in rows}
+        return {"total": sum(by_action.values()), "by_action": by_action}
+
+    def supervision_bypasses_summary(self) -> dict[str, Any]:
+        """l26-bypass-telemetry: how many times supervision was bypassed/weakened.
+
+        Counts ONLY action LIKE 'bypass_%' (skip_hooks, skip_push_hook,
+        auto_verify, l3_block_downgrade, scope_hard_gate, gates_disable). A
+        non-zero total means enforcement was switched off that many times — the
+        metric exists so that claim is falsifiable rather than silent (release-1.8
+        thesis). Detections (supervision that WORKED) and degradations (silent
+        fail-open) are counted separately, never conflated here.
+        """
+        return self._supervision_by_action(category="bypass")
+
+    def supervision_degradations_summary(self) -> dict[str, Any]:
+        """hook-fail-open-db-error-telemetry: how many times a guard silently
+        failed OPEN (action LIKE 'fail_open_%', e.g. fail_open_db_error).
+
+        Distinct from a bypass — nobody switched it off — and from a detection —
+        supervision did NOT work, it was skipped because a DB error let the edit
+        through. A non-zero total means enforcement was transiently unenforced
+        that many times; kept apart so it is never misread as either.
+        """
+        return self._supervision_by_action(category="degradation")
+
+    def supervision_detections_summary(self) -> dict[str, Any]:
+        """l26-complexity-self-declared: supervision events that are DETECTIONS
+        — supervision that WORKED (e.g. complexity_understated). Excludes both
+        bypass_% (intentional weakening) and fail_open_% (silent degradation) so
+        the metrics reader never misreads 'the detector caught N declarations'
+        as 'enforcement was weakened/skipped N times'.
+        """
+        return self._supervision_by_action(category="detection")
 
     def session_capacity_summary(self, capacity: int) -> dict[str, Any]:
         from backend_tier_metrics import session_capacity_summary as _s

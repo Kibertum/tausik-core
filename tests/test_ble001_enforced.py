@@ -28,7 +28,7 @@ def test_no_unannotated_blind_except_whole_tree():
         [sys.executable, "-m", "ruff", "check", "--select", "BLE001", "."],
         cwd=_REPO,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     # ruff exits 0 when no violations remain; any BLE001 line = a new blind catch.
     assert "BLE001" not in proc.stdout, f"unannotated blind except found:\n{proc.stdout}"

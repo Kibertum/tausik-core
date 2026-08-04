@@ -31,7 +31,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from _common import current_active_task_slug  # noqa: E402
-from cost_pricing import calculate_cost_usd, get_pricing  # noqa: E402
+from cost_pricing import calculate_cost_usd  # noqa: E402
 
 _RETRY_ATTEMPTS = 3
 _RETRY_BACKOFF_SEC = 0.05
@@ -179,12 +179,11 @@ def main() -> int:
 
     tokens_input, tokens_output, model_id = _extract_usage(payload)
 
-    if model_id and get_pricing(model_id) is None and (tokens_input or tokens_output):
-        print(
-            f"posttool_usage: unknown model_id {model_id!r}; cost_usd=0.0",
-            file=sys.stderr,
-        )
-
+    # The unpriced-model warning is owned by `calculate_cost_usd` now: it fires
+    # once per id and, unlike the old inline check here, consults the project's
+    # `llm_pricing_usd_per_million` override before calling a model unpriced —
+    # so a GLM/custom model the project HAS priced no longer prints a false
+    # "unknown model" line and then records a non-zero cost.
     cost_usd = calculate_cost_usd(model_id, tokens_input, tokens_output)
     task_slug = current_active_task_slug(project_dir)
 

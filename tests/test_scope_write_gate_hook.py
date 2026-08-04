@@ -14,6 +14,7 @@ import subprocess
 import sys
 
 import pytest
+from conftest import canonical_ddl
 
 _SCRIPTS = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts"))
 if _SCRIPTS not in sys.path:
@@ -54,8 +55,14 @@ def _make_db(tmp_path, tasks):
     tausik.mkdir(exist_ok=True)
     db = tausik / "tausik.db"
     conn = sqlite3.connect(str(db))
-    conn.execute("CREATE TABLE tasks (slug TEXT, status TEXT, scope_paths TEXT)")
-    conn.executemany("INSERT INTO tasks VALUES (?, ?, ?)", tasks)
+    conn.execute(canonical_ddl("tasks"))
+    conn.executemany(
+        # Поимённо, а не позиционно: на канонных 42 колонках позиционный
+        # INSERT привязывался бы к их порядку и разъезжался бы молча.
+        "INSERT INTO tasks (slug, title, status, scope_paths, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')",
+        [(slug, slug, status, paths) for slug, status, paths in tasks],
+    )
     conn.commit()
     conn.close()
     return str(db)
@@ -106,10 +113,46 @@ class TestHook:
         assert _run_hook(tmp_path, file_path=str(tmp_path / "docs" / "x.md")).returncode == 0
         assert _run_hook(tmp_path, file_path=str(tmp_path / "other" / "x.md")).returncode == 2
 
-    def test_undeclared_active_task_grants_legacy_freedom(self, tmp_path):
+    def test_undeclared_sibling_no_longer_reopens_scope(self, tmp_path):
+        # l26-hook-contract-review AC3: once ANY active task declares a scope,
+        # a co-active UNDECLARED task no longer nullifies it. Was the escape
+        # hatch — keep one undeclared task active and the ACL vanished globally.
         _make_db(tmp_path, [("t1", "active", '["scripts/"]'), ("t2", "active", None)])
+        # outside t1's scope -> now blocked (previously allowed via t2)
+        assert _run_hook(tmp_path, file_path=str(tmp_path / "anywhere" / "x.md")).returncode == 2
+        # inside t1's scope -> still allowed
+        assert _run_hook(tmp_path, file_path=str(tmp_path / "scripts" / "a.py")).returncode == 0
+
+    def test_no_declared_scope_anywhere_grants_legacy_freedom(self, tmp_path):
+        # When NOBODY declares a scope, the conservative legacy freedom holds —
+        # AC3 only removes the mixed declared+undeclared escape, not adoption.
+        _make_db(tmp_path, [("t1", "active", None), ("t2", "active", None)])
         r = _run_hook(tmp_path, file_path=str(tmp_path / "anywhere" / "x.md"))
         assert r.returncode == 0
+
+    def test_notebookedit_gated_on_notebook_path(self, tmp_path):
+        # l26-hook-contract-review: NotebookEdit was ungated; it now enforces
+        # scope, reading its target from notebook_path (not file_path).
+        _make_db(tmp_path, [("t1", "active", '["notebooks/"]')])
+        env = os.environ.copy()
+        env["TAUSIK_SKIP_HOOKS"] = ""
+        env["TAUSIK_HOOK_FAIL_SECURE"] = ""
+        env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+        payload = {
+            "tool_name": "NotebookEdit",
+            "tool_input": {"notebook_path": str(tmp_path / "docs" / "x.ipynb")},
+        }
+        r = subprocess.run(
+            [sys.executable, HOOK],
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            timeout=10,
+        )
+        assert r.returncode == 2, r.stderr
 
     def test_no_active_task_allowed(self, tmp_path):
         _make_db(tmp_path, [("t1", "done", '["scripts/"]')])
@@ -131,7 +174,9 @@ class TestHook:
         tausik = tmp_path / ".tausik"
         tausik.mkdir()
         conn = sqlite3.connect(str(tausik / "tausik.db"))
-        conn.execute("CREATE TABLE tasks (slug TEXT, status TEXT)")  # no scope_paths
+        # ddl-parity: historical — схема ДО v30, без scope_paths: сам предмет
+        # теста в том, как хук ведёт себя на такой БД.
+        conn.execute("CREATE TABLE tasks (slug TEXT, status TEXT)")
         conn.execute("INSERT INTO tasks VALUES ('t1', 'active')")
         conn.commit()
         conn.close()
@@ -142,6 +187,8 @@ class TestHook:
         tausik = tmp_path / ".tausik"
         tausik.mkdir()
         conn = sqlite3.connect(str(tausik / "tausik.db"))
+        # ddl-parity: historical — та же схема ДО v30, здесь для проверки
+        # эскалации TAUSIK_HOOK_FAIL_SECURE на нечитаемой области.
         conn.execute("CREATE TABLE tasks (slug TEXT, status TEXT)")
         conn.execute("INSERT INTO tasks VALUES ('t1', 'active')")
         conn.commit()

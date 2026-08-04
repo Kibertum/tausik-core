@@ -247,10 +247,17 @@ TOOLS_EXTRA = [
         "name": "tausik_verify",
         "description": (
             "v1.4 Verify-First Contract: run heavy gates (pytest, tsc, cargo, "
-            "phpstan, …) ad-hoc and record a green into the verify cache so "
-            "`tausik_task_done` can close in milliseconds. With task_slug: "
-            "scoped to the task's relevant_files. Without: full-suite, "
-            "no DB row. Returns passed/status/scope/results."
+            "phpstan, …) ad-hoc and record a green so `tausik_task_done` can "
+            "close in milliseconds. With task_slug: scoped to the task's "
+            "relevant_files. Without: full-suite, no DB row. Returns "
+            "passed/status/scope/results AND, when the run is presentable, a "
+            "verify_handle of the form <run_id>.<nonce>. PASS THAT HANDLE to "
+            "tausik_task_done as verify_handle — it is the proof this task was "
+            "verified. DURABILITY: a handle is valid for 1 hour from the run, "
+            "is SINGLE-USE, and is invalidated early if the files it covers "
+            "change or the gate set changes. A run with no declared files, "
+            "with all gates skipped, or covering security-sensitive paths earns "
+            "no handle and says so."
         ),
         "inputSchema": {
             "type": "object",

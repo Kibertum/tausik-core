@@ -16,6 +16,8 @@ import sqlite3
 import subprocess
 from typing import Any
 
+import git_exec
+
 _log = logging.getLogger("tausik.receipt")
 
 # Emission outcome markers, also printed by the verify CLI.
@@ -27,16 +29,13 @@ STATUS_ERROR = "error"
 def current_git_sha(cwd: str | None = None) -> str | None:
     """HEAD sha for receipt binding; None outside a repo / on git failure."""
     try:
-        out = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"],
-            stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL,  # MCP-reachable (verify): never read the JSON-RPC stdin pipe
-            timeout=5,
-            cwd=cwd,
-        )
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+        # git_exec closes stdin (MCP-reachable via verify — never read the JSON-RPC pipe).
+        result = git_exec.run(["rev-parse", "HEAD"], cwd=cwd, timeout=5, binary=True)
+    except (subprocess.TimeoutExpired, OSError):
         return None
-    return out.decode("ascii", "replace").strip() or None
+    if result.returncode != 0:
+        return None
+    return result.stdout.decode("ascii", "replace").strip() or None
 
 
 def emit_signed_receipt(
@@ -49,12 +48,27 @@ def emit_signed_receipt(
     passed: bool,
     files_hash: str,
     project_dir: str = ".",
+    declared_scope_status: str | None = None,
+    undeclared_files: list[str] | None = None,
+    undeclared_count: int | None = None,
+    files: list[str] | None = None,
+    gate_signature: str | None = None,
+    expires_at: str | None = None,
 ) -> tuple[str, str | None]:
     """Build + sign + persist a receipt for an existing verification_run row.
 
     Returns (status, key_fingerprint). status is one of STATUS_SIGNED /
     STATUS_NO_KEY / STATUS_ERROR; never raises — verify must stay usable
     on projects without a key (graceful degradation per AC).
+
+    `files` / `gate_signature` / `expires_at` are the v3 self-description
+    (v2-verify-receipt-as-argument). They are passed in rather than derived
+    here because their authoritative form already exists at the call site: the
+    caller holds the declared list and the cache `command` that both the row
+    and the cache key were built from. Recomputing them here would let the
+    receipt and the row it describes drift apart by exactly one refactor.
+    Omitting them yields a receipt that `missing_v3_fields` reports as
+    incomplete — which is the honest outcome, not a silent full receipt.
     """
     import crypto_keys
 
@@ -79,6 +93,12 @@ def emit_signed_receipt(
         # A receipt attests gates that actually RAN — a skipped gate carries
         # passed=True for the verdict but proves nothing, so it stays out.
         ran_gates = [g for g in gate_results if not g.get("skipped")]
+        # The CONFIGURED count is the full run: run_gates() appends one result per
+        # gate scheduled for the trigger (ran AND skipped), so len(gate_results) is
+        # exactly the denominator the risk model's gate_coverage factor wants —
+        # captured here, at verify time, alongside its numerator (ran_gates). The
+        # old recompute-at-task-done read a DIFFERENT config if the trust tier had
+        # flipped in between (risk-gate-coverage-configured-count-in-check).
         receipt = build_receipt(
             task_slug=task_slug,
             git_sha=current_git_sha(project_dir),
@@ -88,6 +108,13 @@ def emit_signed_receipt(
             ran_at=str(ran_at),
             files_hash=files_hash,
             key_fingerprint=fp,
+            declared_scope_status=declared_scope_status,
+            undeclared_files=undeclared_files,
+            undeclared_count=undeclared_count,
+            configured_gates_count=len(gate_results),
+            files=files,
+            gate_signature=gate_signature,
+            expires_at=expires_at,
         )
         envelope = sign_receipt(project_dir, receipt)
         conn.execute(

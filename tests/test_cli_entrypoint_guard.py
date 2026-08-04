@@ -30,7 +30,7 @@ def _run(path: str, *args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, path, *args],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         timeout=60,
         stdin=subprocess.DEVNULL,
     )
@@ -56,7 +56,7 @@ def test_module_still_imports(path):
     result = subprocess.run(
         [sys.executable, "-c", f"import sys; sys.path.insert(0, {_SCRIPTS!r}); import {name}"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         timeout=60,
     )
     assert result.returncode == 0, result.stderr

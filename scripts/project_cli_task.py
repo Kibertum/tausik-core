@@ -61,7 +61,21 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
             limit=getattr(args, "limit", None),
             include_archived=getattr(args, "include_archived", False),
         )
-        _print_table(tasks, ["slug", "title", "status", "story_slug", "role", "stack"])
+        from output_rollup import render_rollup, should_rollup
+
+        if should_rollup(len(tasks), full=getattr(args, "full", False)):
+            # A large epic's task list rolls up by status/role; --full prints the
+            # per-task table below, byte-identical to the pre-rollup output.
+            for line in render_rollup(
+                tasks,
+                ["status", "role"],
+                title="Tasks",
+                top_n=getattr(args, "top_n", None),
+                max_lines=getattr(args, "max_lines", None),
+            ):
+                print(line)
+        else:
+            _print_table(tasks, ["slug", "title", "status", "story_slug", "role", "stack"])
     elif c == "show":
         task = svc.task_show(args.slug)
         _print_task_detail(task)
@@ -122,7 +136,13 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                     f"[gates] {ev.get('index')}/{ev.get('total')} {ev.get('name')} ...\n"
                 )
             elif kind == "gate_done":
-                status = "SKIP" if ev.get("skipped") else ("PASS" if ev.get("passed") else "FAIL")
+                # This spelling was already correct — and that is exactly why it
+                # is routed through the shared one now. Five copies existed and
+                # had drifted in BOTH directions; keeping the right ones private
+                # is what let the wrong ones survive unnoticed.
+                from gate_runner import gate_verdict
+
+                status = gate_verdict(ev)
                 _sys.stderr.write(
                     f"[gates] {ev.get('index')}/{ev.get('total')} "
                     f"{ev.get('name')} {status} "
@@ -139,6 +159,9 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                 evidence=getattr(args, "evidence", None),
                 evidence_json=getattr(args, "evidence_json", None),
                 progress_fn=_stderr_progress,
+                no_file_changes=getattr(args, "no_file_changes", False),
+                no_changelog=getattr(args, "no_changelog", False),
+                verify_handle=getattr(args, "verify_handle", None),
             )
         )
     elif c == "block":

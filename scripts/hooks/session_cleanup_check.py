@@ -22,17 +22,16 @@ sys.path.insert(0, _HOOK_DIR)
 sys.path.insert(0, os.path.dirname(_HOOK_DIR))  # scripts/ — for tausik_utils
 
 from _common import tausik_path as _tausik_path  # noqa: E402
-from tausik_utils import tausik_config_path  # noqa: E402
+from tausik_utils import load_effective_config  # noqa: E402
 
 
 def _session_warn_min(project_dir: str) -> int:
-    import json
-
-    cfg_path = tausik_config_path(project_dir)
+    # Was a raw json.load of the project file, which ignored the user/managed
+    # tiers where an operator most likely sets this machine-wide
+    # (hooks-bypass-config-trust-tiers). load_effective_config merges the tiers.
     try:
-        with open(cfg_path, encoding="utf-8") as f:
-            data = json.load(f)
-        v = data.get("session_warn_threshold_minutes", 150)
+        cfg = load_effective_config(project_dir)
+        v = cfg.get("session_warn_threshold_minutes", 150)
         n = int(v) if isinstance(v, (int, float)) else 150
         return max(1, n)
     except (OSError, ValueError, TypeError):
@@ -131,6 +130,13 @@ def build_warnings(project_dir: str) -> list[str]:
 
 
 def main() -> int:
+    # hook-stderr-encoding-locale-dependent: this hook's messages contain
+    # non-ASCII, and their readability must not depend on how it was
+    # launched. Local import: hooks/ is sys.path[0] only when run as a script.
+    from _common import force_utf8_io
+
+    force_utf8_io()
+
     if os.environ.get("TAUSIK_SKIP_HOOKS"):
         return 0
 

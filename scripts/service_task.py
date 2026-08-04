@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from tausik_utils import (
     ServiceError,
@@ -12,10 +12,7 @@ from tausik_utils import (
     validate_length,
     validate_slug,
 )
-from project_types import (
-    COMPLEXITY_SP,
-    VALID_TASK_STATUSES,
-)
+from project_types import COMPLEXITY_SP, VALID_TASK_STATUSES
 from service_cascade import CascadeMixin
 from service_gates import GatesMixin
 from model_pinning import model_start_updates
@@ -26,6 +23,7 @@ from service_task_done import TaskDoneReportMixin, _format_task_done_failures  #
 
 if TYPE_CHECKING:
     from project_backend import SQLiteBackend
+    from project_service import ProjectService
 
 _LIFECYCLE_STATUSES = frozenset({"done", "active", "blocked", "review"})
 
@@ -42,6 +40,21 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
     """Task lifecycle with strict workflow enforcement."""
 
     be: SQLiteBackend
+
+    def _project_task(self, slug: str) -> None:
+        """Re-serialize ONE task to `tausik/`. Fail-open — never raises.
+
+        Called from every task mutator. Only `task_done` used to export, so a
+        task created, re-specced, started, blocked or journalled on a branch did
+        not travel with it; the tree only caught up on the next full
+        `tausik state export`, which is why `status` reported no divergence.
+        Claim/unclaim are deliberately absent: `claimed_by` is not one of the
+        columns `state_export.export_one` serializes, so they cannot change the
+        projection.
+        """
+        from state_triggers import auto_export_entity
+
+        auto_export_entity(cast("ProjectService", self), "tasks", slug)
 
     def task_add(
         self,
@@ -92,6 +105,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             self.be.task_set_cost_budget(slug, float(cost_budget_usd))
         if token_budget is not None:
             self.be.task_set_token_budget(slug, int(token_budget))
+        self._project_task(slug)
         msg = f"Task '{slug}' created."
         if not goal or not goal.strip():
             msg += "\n⚠ QG-0 warning: missing goal."
@@ -156,6 +170,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         except Exception:
             self.be.rollback_tx()
             raise
+        self._project_task(slug)
         msgs = [f"Task '{slug}' started (attempt #{updates['attempts']})."]
         msgs.extend(qg0_warnings)
         if capacity_audit:
@@ -186,6 +201,9 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         evidence: str | None = None,
         progress_fn: Any | None = None,
         evidence_json: str | None = None,
+        no_file_changes: bool = False,
+        no_changelog: bool = False,
+        verify_handle: str | None = None,
     ) -> str:
         report = self._task_done_report(
             slug,
@@ -195,15 +213,20 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             evidence=evidence,
             evidence_json=evidence_json,
             progress_fn=progress_fn,
+            no_file_changes=no_file_changes,
+            no_changelog=no_changelog,
+            verify_handle=verify_handle,
         )
         if not report.get("ok"):
             raise ServiceError(_format_task_done_failures(report))
         try:
             from model_routing_adherence import finalize_close
             from project_config import find_tausik_dir
+            from state_triggers import auto_export_entity
 
-            # Routing-adherence telemetry + recommendation cleanup. Best-effort.
-            finalize_close(find_tausik_dir(), slug)
+            finalize_close(find_tausik_dir(), slug)  # routing telemetry (best-effort)
+            # cast: mixin is a composed ProjectService at runtime (see service_knowledge)
+            auto_export_entity(cast("ProjectService", self), "tasks", slug)
         except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
             pass
         message = report.get("message")
@@ -223,19 +246,19 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         self.be.task_update(slug, **updates)
         if reason:
             self.be.task_append_notes(slug, f"BLOCKED: {reason}")
+        self._project_task(slug)
         return f"Task '{slug}' blocked."
 
     def task_unblock(self, slug: str, *, force: bool = False) -> str:
         task = self._require_task(slug)
         if task["status"] != "blocked":
             raise ServiceError(f"Task '{slug}' is not blocked (status: {task['status']})")
-        # v1.3.4 (med-batch-2-qg #4): unblocking returns the task to active
-        # state — same risk as task_start. Without this check, the agent
-        # could block-then-unblock to bypass session capacity limits and
-        # keep coding past the 180-min ACTIVE-time threshold (SENAR Rule 9.2).
+        # v1.3.4 (med-batch-2-qg #4): unblock → active; capacity check stops
+        # block/unblock cycling past the 180-min ACTIVE threshold (SENAR Rule 9.2).
         if not force:
             check_session_capacity(self.be, slug, task)
         self.be.task_update(slug, status="active", blocked_at=None)
+        self._project_task(slug)
         return f"Task '{slug}' unblocked."
 
     def task_review(self, slug: str) -> str:
@@ -243,6 +266,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         if task["status"] == "done":
             raise ServiceError(f"Cannot move '{slug}' to review — task is already done")
         self.be.task_update(slug, status="review")
+        self._project_task(slug)
         return f"Task '{slug}' moved to review."
 
     def task_update(self, slug: str, **fields: Any) -> str:
@@ -257,22 +281,36 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
                 f"status='{fields['status']}' must use lifecycle method "
                 f"(task_done/start/block/review) — would bypass QG-2."
             )
+        # Emptiness first: the enum check below reads `if v and ...`, so an
+        # empty string slipped PAST it rather than failing it, and every plain
+        # text field had no check at all. Blanking is refused for the fields a
+        # gate reads; the list and its exclusions live in service_validation.
+        from service_validation import reject_blank_updates
+
+        reject_blank_updates(fields)
         for name, valid in _update_enums():
             v = fields.get(name)
             if v and v not in valid:
                 raise ServiceError(f"Invalid {name} '{v}'. Valid: {sorted(valid)}")
+        # EVERY budget is validated before ANY of them is written. The three used
+        # to be interleaved — validate call_budget, write it, then validate
+        # cost_budget_usd and maybe raise — so a rejected call left the first
+        # value in the DB and exited by exception, past the projection. The row
+        # changed, the file did not, and nothing said so until the next
+        # `state export --check`. `task_add` already validates up front
+        # (validate_task_add_inputs); this is the same shape, applied late.
         cb = fields.pop("call_budget", _MISSING)
+        cost_b = fields.pop("cost_budget_usd", _MISSING)
+        tok_b = fields.pop("token_budget", _MISSING)
         notice = ""
+        budget_writes: list[tuple[Any, Any]] = []
         if cb is not _MISSING and cb is not None:
             if cb < 0:
                 raise ServiceError(f"Invalid call_budget '{cb}'; must be >=0")
-            self.be.task_set_call_budget(slug, cb)
+            budget_writes.append((self.be.task_set_call_budget, cb))
             tier = fields.pop("tier", None)
             if tier is not None:
                 notice = f"\nNote: tier '{tier}' overridden by call_budget."
-            if not fields:
-                return f"Task '{slug}' updated.{notice}"
-        cost_b = fields.pop("cost_budget_usd", _MISSING)
         if cost_b is not _MISSING and cost_b is not None:
             try:
                 cost_val = float(cost_b)
@@ -282,10 +320,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
                 ) from None
             if cost_val < 0:
                 raise ServiceError(f"Invalid cost_budget_usd '{cost_b}'; must be >=0")
-            self.be.task_set_cost_budget(slug, cost_val)
-            if not fields:
-                return f"Task '{slug}' updated.{notice}"
-        tok_b = fields.pop("token_budget", _MISSING)
+            budget_writes.append((self.be.task_set_cost_budget, cost_val))
         if tok_b is not _MISSING and tok_b is not None:
             try:
                 tok_val = int(tok_b)
@@ -295,9 +330,13 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
                 ) from None
             if tok_val < 0:
                 raise ServiceError(f"Invalid token_budget '{tok_b}'; must be >=0")
-            self.be.task_set_token_budget(slug, tok_val)
-            if not fields:
-                return f"Task '{slug}' updated.{notice}"
+            budget_writes.append((self.be.task_set_token_budget, tok_val))
+        # ...and so is EVERYTHING ELSE that can refuse. Batching the three
+        # budgets against each other narrowed the defect without closing it: the
+        # very next block — ACL normalization — still raised AFTER the budget
+        # writes had committed, so `--call-budget 40 --scope-paths '{not-json'`
+        # left call_budget AND a derived tier in the row, reported failure, and
+        # exited past the projection. The same shape, one validator further down.
         from scope_acl import ACL_FIELDS, normalize_acl_json
 
         for f in ACL_FIELDS:
@@ -311,8 +350,43 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         for f in ("title", "goal"):
             if fields.get(f) is not None:
                 fields[f] = safe_single_line(fields[f]) or fields[f]
-        self.be.task_update(slug, **fields)
-        return f"Task '{slug}' updated.{notice}"
+        self._write_update_atomically(slug, budget_writes, fields)
+        return self._task_updated(slug, notice)
+
+    def _write_update_atomically(
+        self, slug: str, budget_writes: list[tuple[Any, Any]], fields: dict[str, Any]
+    ) -> None:
+        """Apply the budget setters and the field write, or apply neither.
+
+        Validating up front is the primary fix and would be enough for the
+        failures anyone has hit. This transaction covers the ones nobody has:
+        `_update` rejects an unknown column, SQLite rejects a bad `story_id`,
+        the disk fills — all of them raise between the budget writes (which go
+        through raw `_ex` and auto-commit) and the field write. Twice now this
+        method has been fixed by removing the failure someone found rather than
+        the shape that produced it, so the shape is closed here.
+
+        `_pending_projection` is already rollback-aware, so a discarded write
+        discards its queued projection with it. If a caller has a transaction
+        open, ownership stays with the caller: it will roll back, and committing
+        here would end its transaction early.
+        """
+        owns_tx = not self.be._in_tx
+        if owns_tx:
+            self.be.begin_tx()
+        try:
+            for setter, value in budget_writes:
+                setter(slug, value)
+            # Preserved exactly: a budget-only call does not touch the field
+            # write (which would bump updated_at for no declared change).
+            if not (budget_writes and not fields):
+                self.be.task_update(slug, **fields)
+            if owns_tx:
+                self.be.commit_tx()
+        except Exception:
+            if owns_tx:
+                self.be.rollback_tx()
+            raise
 
     def task_delete(self, slug: str) -> str:
         self._require_task(slug)
@@ -320,6 +394,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         from service_delegate import clear_delegation_state
 
         clear_delegation_state(self.be, slug)  # drop stale OW meta on slug reuse
+        self._project_task(slug)  # export_one -> None -> drops the file
         return f"Task '{slug}' deleted."
 
     def task_plan(self, slug: str, steps: list[str]) -> str:
@@ -331,6 +406,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         self._require_task(slug)
         plan_data = [{"step": s, "done": False} for s in steps]
         self.be.task_update(slug, plan=json.dumps(plan_data))
+        self._project_task(slug)
         return f"Plan set for '{slug}' ({len(steps)} steps)."
 
     def task_step(self, slug: str, step_num: int) -> str:
@@ -345,6 +421,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             raise ServiceError(f"Step {step_num} out of range (1-{len(steps)})")
         steps[step_num - 1]["done"] = True
         self.be.task_update(slug, plan=json.dumps(steps))
+        self._project_task(slug)
         done_count = sum(1 for s in steps if s.get("done"))
         return f"Step {step_num} done ({done_count}/{len(steps)})."
 
@@ -374,6 +451,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             }
             phase = status_to_phase.get(task["status"])
         self.be.task_log_add(slug, message, phase=phase, diff_stats=diff_stats)
+        self._project_task(slug)  # the journal is part of the task doc
         return f"Logged to '{slug}'."
 
     def task_logs(self, slug: str, phase: str | None = None) -> list[dict]:
@@ -393,6 +471,17 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         self._require_task(slug)
         story = self._require_story(new_story_slug)
         self.be.task_update(slug, story_id=story["id"])
+        self._project_task(slug)
         return f"Task '{slug}' moved to story '{new_story_slug}'."
 
     # _cascade_start, _cascade_done -> inherited from CascadeMixin (service_cascade.py)
+
+    def _task_updated(self, slug: str, notice: str) -> str:
+        """Single exit for `task_update`: project, then report.
+
+        The method has four return points (call_budget-only, cost-budget-only,
+        token-budget-only, and the general field write). Routing them through one
+        helper is why a fifth cannot silently skip the projection.
+        """
+        self._project_task(slug)
+        return f"Task '{slug}' updated.{notice}"

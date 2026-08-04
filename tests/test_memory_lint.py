@@ -34,6 +34,13 @@ _ALL_EXIST = lambda _p: True  # noqa: E731
 _NONE_EXIST = lambda _p: False  # noqa: E731
 
 
+def _only_dirs_exist(*dirs: str):
+    """Resolver where the given directories exist but no file does — the shape
+    the stale_file detector now requires (a real dir with a missing file)."""
+    dset = set(dirs)
+    return lambda p: p in dset
+
+
 class TestPureDetectors:
     def test_empty_memory_yields_nothing(self):
         assert find_lint_candidates([], [], _ALL_EXIST) == []
@@ -63,8 +70,9 @@ class TestPureDetectors:
         assert ids == [1, 2]
 
     def test_stale_file_flagged_when_missing(self):
+        # A real deletion inside a live directory: scripts/ exists, gone.py does not.
         rows = [_mem(1, content="see scripts/gone.py for details")]
-        out = find_lint_candidates(rows, [], _NONE_EXIST)
+        out = find_lint_candidates(rows, [], _only_dirs_exist("scripts"))
         assert len(out) == 1
         assert out[0]["kind"] == "stale_file"
         assert "scripts/gone.py" in out[0]["reason"]
@@ -77,6 +85,66 @@ class TestPureDetectors:
         # No slash+ext token -> nothing to check, never flagged.
         rows = [_mem(1, content="this mentions ruff and mypy but no file path")]
         assert find_lint_candidates(rows, [], _NONE_EXIST) == []
+
+    def test_url_and_hostname_are_not_flagged_as_stale_files(self):
+        """l26-memory-dedupe-perf: a URL/hostname mentioned in prose is not a
+        repo-relative path — flagging it as a missing file is noise. The FIRST
+        segment being domain-like (example.com) is the tell."""
+        rows = [
+            _mem(1, content="see https://example.com/docs/page.html for the spec"),
+            _mem(2, content="the api at example.com/v2/users.json returns json"),
+            _mem(3, content="cdn.jsdelivr.net/npm/pkg/dist/index.min.js is the bundle"),
+        ]
+        assert find_lint_candidates(rows, [], _NONE_EXIST) == []
+
+    def test_dotfile_dir_path_still_flagged(self):
+        """A leading dotfile dir (.github/) is a real repo path, NOT a host — the
+        refinement keys on an INTERNAL dot, so it must still be checked."""
+        rows = [_mem(1, content="the workflow .github/workflows/ci.yml is gone")]
+        out = find_lint_candidates(rows, [], _only_dirs_exist(".github/workflows"))
+        assert len(out) == 1 and out[0]["kind"] == "stale_file"
+        assert ".github/workflows/ci.yml" in out[0]["reason"]
+
+
+class TestStaleFilePrecision:
+    """memory-lint-stale-file-mostly-false-positives: a report that is 90% noise
+    is a report people stop reading. These pin each false-positive class the
+    real memory set produced, and the real-deletion case that must survive."""
+
+    def test_slash_as_alternation_separator_not_flagged(self):
+        # `lru_cache/functools.cache`, `release/1.8`, `HEAD/v1.6.1` — slashes are
+        # separators of alternatives in prose; none has an existing parent dir.
+        rows = [
+            _mem(1, content="use lru_cache/functools.cache for memoisation"),
+            _mem(2, content="branch release/1.8 was cut from HEAD/v1.6.1"),
+        ]
+        # Nothing exists (no such dirs) -> no flags.
+        assert find_lint_candidates(rows, [], _NONE_EXIST) == []
+
+    def test_path_fragment_without_anchor_not_flagged(self):
+        # `ru/senar.md` is a fragment of `docs/{ru,en}/senar.md`; `ru/` is not a
+        # real dir, so it must not be reported as a missing file.
+        rows = [_mem(1, content="mirrors ru/senar.md and en/senar.md")]
+        assert find_lint_candidates(rows, [], _NONE_EXIST) == []
+
+    def test_placeholder_basenames_not_flagged_even_in_real_dir(self):
+        # Placeholders appear in prose describing a format; `tests/` DOES exist,
+        # so only the placeholder denylist keeps these out.
+        rows = [
+            _mem(1, content="cite it like tests/test_x.py::test_y or tests/test_file.py"),
+            _mem(2, content="the bootstrap example writes scripts/x.py"),
+        ]
+        out = find_lint_candidates(rows, [], _only_dirs_exist("tests", "scripts"))
+        assert [f for f in out if f["kind"] == "stale_file"] == []
+
+    def test_real_deletion_in_live_dir_is_still_flagged(self):
+        """AC4 anti-gutting: a genuinely missing file inside an EXISTING dir must
+        still be reported — the fix must not silence real staleness."""
+        rows = [_mem(1, content="the old scripts/deleted_module.py was removed")]
+        out = find_lint_candidates(rows, [], _only_dirs_exist("scripts"))
+        assert len(out) == 1
+        assert out[0]["kind"] == "stale_file"
+        assert "scripts/deleted_module.py" in out[0]["reason"]
 
     def test_broken_edge_does_not_crash(self):
         rows = [_mem(1)]

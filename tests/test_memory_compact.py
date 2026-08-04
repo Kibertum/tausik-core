@@ -91,7 +91,7 @@ class TestMcpAndCli:
             0,
             os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"),
         )
-        from handlers import _do_memory_compact
+        from handlers_knowledge import _do_memory_compact
 
         out = _do_memory_compact(svc, {})
         assert "Compacted logs" in out

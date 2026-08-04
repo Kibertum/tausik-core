@@ -84,7 +84,7 @@ def test_cli_e2e_subprocess_error_contains_example(tmp_path):
     r = subprocess.run(
         [sys.executable, str(SCRIPTS / "project.py"), "epic", "add", "a", "b", "c"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         timeout=60,
         cwd=str(ROOT),
     )

@@ -23,30 +23,33 @@ from dataclasses import dataclass, field
 
 from tausik_utils import ServiceError
 
-CHECK_MARK_RE = re.compile(r"[\u2713\u2714\u2705]|\[v\]")
-AC_NUMBER_PREFIX_RE = re.compile(r"^\s*(?:AC[-\s]*)?(\d+)[\.\):]?\s*(.*)$", re.IGNORECASE)
-TEST_REF_RE = re.compile(
-    r"(tests?/[\w/.\-]+\.py(?:::[\w_]+)?|test_[\w_]+\.py(?:::[\w_]+)?)",
-    re.IGNORECASE,
+# WHAT counts as a marker lives in `ac_evidence_detectors` — split out when this
+# module hit the 400-line gate, and the split is what gives the language-parity
+# registry a home. This module owns HOW lines are segmented and matched to AC
+# items. Re-exported: callers and tests import these names from here.
+from ac_evidence_detectors import (  # noqa: E402,F401 — re-export for callers
+    AC_HEADER_PREFIX_RE,
+    AC_ITEM_BOUNDARY_RE,
+    AC_NUMBER_PREFIX_RE,
+    AC_SECTION_HEADING_RE,
+    CHECK_MARK_RE,
+    DOMAIN_RE,
+    MANUAL_RE,
+    NEGATIVE_RE,
+    PYTEST_SUMMARY_RE,
+    REVIEW_RE,
+    TEST_REF_RE,
+    TIMESTAMP_PREFIX_RE,
+    VERIFICATION_RUN_RE,
 )
-NEGATIVE_RE = re.compile(r"\bnegative\b", re.IGNORECASE)
-MANUAL_RE = re.compile(r"\bmanual(?:ly)?\b", re.IGNORECASE)
-REVIEW_RE = re.compile(r"/review|review\s*record|adversarial", re.IGNORECASE)
-# SENAR Rule 4 domain challenge (v15s-rule4-domain-challenge): does the result
-# make sense OUTSIDE the tests? arXiv 2605.30353 — agents pass tests with
-# physically meaningless outputs. An evidence line answering the domain question.
-DOMAIN_RE = re.compile(
-    r"\bdomain\b|\bsanity\b|makes?\s+sense|имеет\s+смысл|доменн|real[\s\-]?world",
-    re.IGNORECASE,
-)
-# Start of a numbered AC item inside a single-line blob: optional "AC-" prefix,
-# a number, a separator (. ) :), then whitespace. Anchored to start-of-text or a
-# preceding whitespace/`;`/`(` so a mid-token number (Python 3.11, SHA-256,
-# v1.4, "returns 0)") cannot start a spurious item.
-AC_ITEM_BOUNDARY_RE = re.compile(
-    r"(?:^|(?<=[\s;(]))(?:AC[-\s]*)?(\d+)\s*[.):]\s",
-    re.IGNORECASE,
-)
+
+
+def _strip_log_prefixes(unit: str) -> str:
+    """Strip a leading `[timestamp]` + `AC …:` header (project-authored) so a
+    start-anchored AC-number match sees the number behind them. Index detection
+    only — never stored as `raw` (ac-evidence-parser-format-strict)."""
+    stripped = TIMESTAMP_PREFIX_RE.sub("", unit, count=1)
+    return AC_HEADER_PREFIX_RE.sub("", stripped, count=1)
 
 
 @dataclass
@@ -59,11 +62,17 @@ class EvidenceLine:
     is_negative: bool = False
     is_review: bool = False
     is_domain: bool = False
+    is_measurement: bool = False
+    # verification_runs id from a `verification_run #NNNN` line (None for a bare
+    # pytest-summary), so the GATE layer can fact-check it (exists/same-task/green).
+    measurement_run_id: int | None = None
 
     @property
     def evidence_type(self) -> str:
         if self.test_refs:
             return "test_ref"
+        if self.is_measurement:
+            return "measurement"
         if self.is_manual:
             return "manual"
         if self.is_review:
@@ -225,9 +234,20 @@ def _evidence_lines_for_unit(unit: str) -> list[EvidenceLine]:
     is_negative = bool(NEGATIVE_RE.search(unit))
     is_review = bool(REVIEW_RE.search(unit))
     is_domain = bool(DOMAIN_RE.search(unit))
+    run_m = VERIFICATION_RUN_RE.search(unit)
+    measurement_run_id: int | None = None
+    if run_m:
+        try:
+            measurement_run_id = int(run_m.group(1))
+        except (TypeError, ValueError):
+            measurement_run_id = None
+    is_measurement = bool(run_m) or bool(PYTEST_SUMMARY_RE.search(unit))
 
     ac_indices: list[int] = []
-    m = AC_NUMBER_PREFIX_RE.match(unit)
+    # Match the AC number at the START of the unit, tolerating the task_log
+    # timestamp + an "AC …:" header (both project-authored) in front of it.
+    # Same strict regex → a numberless line still binds to no AC.
+    m = AC_NUMBER_PREFIX_RE.match(_strip_log_prefixes(unit))
     if m and m.group(2).strip():
         try:
             ac_indices.append(int(m.group(1)))
@@ -251,6 +271,8 @@ def _evidence_lines_for_unit(unit: str) -> list[EvidenceLine]:
             is_negative=is_negative,
             is_review=is_review,
             is_domain=is_domain,
+            is_measurement=is_measurement,
+            measurement_run_id=measurement_run_id,
         )
         if (
             ev.ac_index is not None
@@ -260,22 +282,91 @@ def _evidence_lines_for_unit(unit: str) -> list[EvidenceLine]:
             or ev.is_negative
             or ev.is_review
             or ev.is_domain
+            or ev.is_measurement
         ):
             out.append(ev)
     return out
 
 
+def _carries_evidence(ev: EvidenceLine) -> bool:
+    """Whether a line without its own `AC-N` may inherit the section's index.
+
+    Both halves are required and each rules out a different mistake. The check
+    mark is the author marking this line as a checklist entry — without it, a
+    planning note that happens to mention a path (`limitation: tests/x.py:62
+    asserts …`) would be counted as evidence for whichever criterion it followed.
+    The reference is the evidence itself — without it, a bare tick inherits an
+    index and a claim gets counted as a verification, which is the exact
+    substitution this gate exists to prevent.
+    """
+    if not ev.has_checkmark:
+        return False
+    return bool(ev.test_refs) or ev.is_manual or ev.is_review or ev.is_measurement
+
+
 def parse_evidence_lines(notes_text: str) -> list[EvidenceLine]:
-    """Parse task notes into a list of EvidenceLine candidates."""
+    """Parse task notes into a list of EvidenceLine candidates.
+
+    EVIDENCE MAY SIT BELOW ITS HEADING, not only beside it. Matching used to
+    require `AC-N` on the SAME line as the citation, so the fuller form —
+
+        AC-2 (what is checked): the shared row is labelled and addressless
+        ✓ tests/test_knowledge_read.py::TestX::test_a
+        ✓ tests/test_knowledge_read.py::TestX::test_b
+
+    — parsed as a heading with no evidence plus two citations belonging to
+    nothing. The gate then reported "no acceptance criterion names a test" over
+    a checklist that named several, and it did so four closes running. That is
+    worse than a missing feature: a gate that denies evidence it was handed
+    teaches its reader to skip its output, and it is then equally ignored on the
+    closes where the checklist really is absent. The form is also not a matter
+    of taste — one criterion covered by four tests does not fit on one line.
+
+    The inheritance is SCOPED so that widening recognition does not become
+    accepting anything. A section is opened ONLY by a line carrying an explicit
+    `AC` token (`AC_SECTION_HEADING_RE`) and ends at the next such heading, at a
+    blank line, or at the start of the next log entry; only lines that carry
+    both a tick and a real citation inherit from it.
+
+    THE `AC` TOKEN IS REQUIRED, AND THAT IS THE WHOLE SAFETY PROPERTY. An
+    earlier version of this opened a section from any line whose leading token
+    `AC_NUMBER_PREFIX_RE` could read as an index — and that regex makes `AC`
+    optional, correctly, because it was written for the `acceptance_criteria`
+    FIELD where every line is numbered by construction. Applied to free-form
+    notes it reads `3 retries were added to the flaky client` as a heading for
+    criterion 3, and the next citation — about something else entirely — is
+    credited to it. That is not cosmetic: `_evidence_strength` aggregates real
+    test citations PER TASK, and the Rule 5 hard block clears at one, so one
+    ordinary sentence beginning with a digit could clear the gate for a task
+    with no real coverage at all. Recognising a heading and reading an index are
+    different questions, and they now use different patterns.
+    """
     if not notes_text:
         return []
     out: list[EvidenceLine] = []
+    section_ac: int | None = None
     for raw in notes_text.splitlines():
         line = raw.strip()
         if not line:
+            # A blank line ends the section. Conservative on purpose: the cost
+            # is a checklist separated by blank lines needing its own `AC-N` per
+            # line, against the cost of a citation paragraphs away being
+            # attributed to a criterion nobody meant it for.
+            section_ac = None
             continue
+        body = TIMESTAMP_PREFIX_RE.sub("", line, count=1)
+        heading = AC_SECTION_HEADING_RE.match(body)
+        # A new log entry is a new context — `task log` appends independently,
+        # so a heading from an earlier entry says nothing about this one.
+        if TIMESTAMP_PREFIX_RE.match(line) and heading is None:
+            section_ac = None
+        if heading is not None:
+            section_ac = int(heading.group(1))
         for unit in _segment_evidence_line(line):
-            out.extend(_evidence_lines_for_unit(unit))
+            for ev in _evidence_lines_for_unit(unit):
+                if ev.ac_index is None and section_ac is not None and _carries_evidence(ev):
+                    ev.ac_index = section_ac
+                out.append(ev)
     return out
 
 

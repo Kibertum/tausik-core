@@ -319,29 +319,94 @@ def test_scan_test_counts_clean_when_all_match(tmp_path: Path):
     assert scan_test_counts(repo, _FAKE_TEST_COUNT_PAYLOAD) == []
 
 
-def test_scan_test_counts_flags_badge_drift(tmp_path: Path):
+def test_scan_test_counts_clean_when_doc_below_live_lower_bound(tmp_path: Path):
+    """decision #182: test_count is a LOWER BOUND. A doc claiming FEWER tests
+    than the live suite (2590 < 3050) is an honest 'N+' claim — NOT drift."""
     repo = _seed_cross_file_repo(tmp_path)
     (repo / "README.md").write_text(
         "[![2590 tests](https://example.com/badge/tests-2590%20passed-green.svg)](#)\n",
         encoding="utf-8",
     )
+    assert scan_test_counts(repo, _FAKE_TEST_COUNT_PAYLOAD) == []
+
+
+def test_scan_test_counts_flags_overclaim(tmp_path: Path):
+    """A doc claiming MORE tests than exist (3500 > 3050) IS flagged — the doc
+    asserts a suite size the code cannot back up."""
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text(
+        "[![3500 tests](https://example.com/badge/tests-3500%20passed-green.svg)](#)\n",
+        encoding="utf-8",
+    )
     drifts = scan_test_counts(repo, _FAKE_TEST_COUNT_PAYLOAD)
-    # Both badge URL and badge label patterns fire
-    assert any("badge URL count" in d and "found=2590" in d for d in drifts)
-    assert any("badge label count" in d and "found=2590" in d for d in drifts)
+    assert any("OVERCLAIM" in d and "badge URL count" in d and "found=3500" in d for d in drifts)
+    assert any("OVERCLAIM" in d and "badge label count" in d and "found=3500" in d for d in drifts)
 
 
 def test_run_main_check_passes_with_skip_test_count(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """--skip-test-count disables only the test-count scan; other scans stay on."""
+    """--skip-test-count disables only the test-count scan; other scans stay on.
+
+    Uses an OVERCLAIM (9999 > 3050) so the non-skip check fails — a doc number
+    BELOW live is a valid lower bound and would (correctly) not drift."""
     import gen_doc_constants as g
 
     repo = _seed_cross_file_repo(tmp_path)
-    (repo / "AGENTS.md").write_text("pytest suite (2590 tests)\n", encoding="utf-8")
+    (repo / "AGENTS.md").write_text("pytest suite (9999 tests)\n", encoding="utf-8")
     monkeypatch.setattr(g, "build_constants_doc", lambda _root: dict(_FAKE_TEST_COUNT_PAYLOAD))
     assert run_main(repo, check=False) == 0
     assert run_main(repo, check=True) == 1
+    assert run_main(repo, check=True, skip_test_count=True) == 0
+
+
+def _seed_constants_for_lowerbound(tmp_path: Path, recorded: int) -> Path:
+    """Build a minimal repo whose constants.json records `recorded` test_count."""
+    import json
+
+    repo = _seed_cross_file_repo(tmp_path)
+    gen = repo / "docs" / "_generated"
+    gen.mkdir(parents=True, exist_ok=True)
+    (gen / "constants.json").write_text(
+        json.dumps(
+            {"schema_version": 1, "tausik_version": "1.4.0", "test_count": recorded},
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return repo
+
+
+def test_run_main_test_count_growth_is_not_drift(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """decision #182 / AC2: the whole point — a GROWN suite (recorded 3000 <=
+    live 3200) is NOT drift. This is what closes the every-task-reds-the-suite trap."""
+    import gen_doc_constants as g
+
+    repo = _seed_constants_for_lowerbound(tmp_path, recorded=3000)
+    monkeypatch.setattr(
+        g,
+        "build_constants_doc",
+        lambda _root: {"schema_version": 1, "tausik_version": "1.4.0", "test_count": 3200},
+    )
+    assert run_main(repo, check=True) == 0
+
+
+def test_run_main_test_count_shrink_is_drift(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """AC3(b): a suite that SHRANK below the recorded floor (recorded 3200 >
+    live 3000) IS drift — the one meaningful failure the lower bound still catches."""
+    import gen_doc_constants as g
+
+    repo = _seed_constants_for_lowerbound(tmp_path, recorded=3200)
+    monkeypatch.setattr(
+        g,
+        "build_constants_doc",
+        lambda _root: {"schema_version": 1, "tausik_version": "1.4.0", "test_count": 3000},
+    )
+    rc = run_main(repo, check=True)
+    assert rc == 1
+    # ...but --skip-test-count still lets CI (which collects fewer) pass.
     assert run_main(repo, check=True, skip_test_count=True) == 0
 
 
@@ -369,9 +434,9 @@ def test_run_main_check_passes_with_skip_test_count(
             "scan_test_counts",
             "_FAKE_TEST_COUNT_PAYLOAD",
             "AGENTS.md",
-            "tests/             pytest suite (2590 tests)\n",
-            ("AGENTS.md:1", "pytest suite count", "found=2590"),
-            id="scan_test_counts_flags_pytest_suite_drift",
+            "tests/             pytest suite (9999 tests)\n",
+            ("AGENTS.md:1", "pytest suite count", "found=9999"),
+            id="scan_test_counts_flags_pytest_suite_overclaim",
         ),
     ],
 )

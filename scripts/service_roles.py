@@ -39,22 +39,66 @@ def _profile_path_source(slug: str) -> str:
     return os.path.join(_repo_root(), ROLES_DIR_REL, f"{slug}.md")
 
 
-def _profile_path_user(slug: str) -> str:
+def _project_dir_from_be(be: Any) -> str | None:
+    """Project root for a backend handle: `<root>/.tausik/tausik.db` → `<root>`.
+
+    Role lookup must resolve against the project the backend speaks for, not the
+    process cwd (memory #265 / mcp-config-read-paths): an MCP server launched
+    elsewhere would otherwise miss a deployed role profile that exists. Derived
+    from `be.db_path`, mirroring `verify_run_record._project_dir_from_conn`.
+    """
+    db_path = getattr(be, "db_path", None)
+    if not db_path:
+        return None
+    try:
+        abs_db = os.path.abspath(str(db_path))
+        tausik_dir = os.path.dirname(abs_db)
+        # Derive a root ONLY from the canonical `<root>/.tausik/<db>` layout.
+        # A backend pointed at some other path (an in-memory or ad-hoc db, as
+        # in tests) gives no reliable root, and guessing `dirname(dirname())`
+        # there would resolve roles against the wrong directory — worse than
+        # the cwd fallback. Unknown is None, not a guess.
+        if os.path.basename(tausik_dir) != ".tausik":
+            return None
+        return os.path.dirname(tausik_dir)
+    except Exception:  # noqa: BLE001 — unresolvable path just falls back to cwd downstream
+        return None
+
+
+def _profile_path_user(slug: str, project_dir: str | None = None) -> str:
     """Writable path for user-created role profiles. Survives re-bootstrap."""
-    return os.path.join(os.getcwd(), USER_ROLES_DIR_REL, f"{slug}.md")
+    return os.path.join(project_dir or os.getcwd(), USER_ROLES_DIR_REL, f"{slug}.md")
 
 
-def _profile_path_deployed(slug: str) -> str:
-    """IDE-deployed copy of source profile (overwritten by bootstrap)."""
-    return os.path.join(os.getcwd(), DEPLOYED_ROLES_DIR_REL, f"{slug}.md")
+def _profile_path_deployed(slug: str, project_dir: str | None = None) -> str:
+    """IDE-deployed copy of source profile (overwritten by bootstrap).
+
+    Resolved through `ide_utils`, not a hardcoded `.claude/roles`: bootstrap
+    deploys role profiles into whichever IDE directory the project uses, so
+    the old literal meant `role show` silently missed the deployed profile on
+    every non-Claude install. Falls back to the Claude layout only if the IDE
+    registry cannot be read at all.
+    """
+    base = project_dir or os.getcwd()
+    try:
+        from ide_utils import get_ide_dir
+
+        return os.path.join(get_ide_dir(base), "roles", f"{slug}.md")
+    except Exception:  # noqa: BLE001 — degraded resolution still beats no path
+        return os.path.join(base, DEPLOYED_ROLES_DIR_REL, f"{slug}.md")
 
 
-def _read_profile(slug: str) -> str | None:
-    """Read profile: user override → source → deployed."""
+def _read_profile(slug: str, project_dir: str | None = None) -> str | None:
+    """Read profile: user override → source → deployed.
+
+    `project_dir` scopes the user-override and deployed lookups to the project
+    the caller speaks for; None keeps the cwd behaviour every CLI call relies
+    on. The source path is repo-relative and unaffected.
+    """
     for path in (
-        _profile_path_user(slug),
+        _profile_path_user(slug, project_dir),
         _profile_path_source(slug),
-        _profile_path_deployed(slug),
+        _profile_path_deployed(slug, project_dir),
     ):
         if os.path.isfile(path):
             try:
@@ -82,7 +126,8 @@ def role_show(be: Any, slug: str) -> dict[str, Any]:
         raise ServiceError(f"Role '{slug}' not found.")
     cnt = be._q1("SELECT COUNT(*) AS n FROM tasks WHERE role = ?", (slug,))
     row["task_count"] = (cnt or {}).get("n", 0)
-    row["profile"] = _read_profile(slug)
+    pd = _project_dir_from_be(be)
+    row["profile"] = _read_profile(slug, pd)
     row["profile_path_source"] = _profile_path_source(slug)
     return row
 
@@ -108,19 +153,20 @@ def role_create(
     validate_length("title", title)
     title = _safe_text(title) or title
     description = _safe_text(description)
+    pd = _project_dir_from_be(be)
     if extends is not None:
         validate_slug(extends)
-        if not _read_profile(extends):
+        if not _read_profile(extends, pd):
             raise ServiceError(
                 f"Cannot extend '{extends}' — role profile not found in user/source/deployed."
             )
     if be._q1("SELECT slug FROM roles WHERE slug = ?", (slug,)):
         raise ServiceError(f"Role '{slug}' already exists.")
-    target = _profile_path_user(slug)
+    target = _profile_path_user(slug, pd)
     profile_existed = os.path.isfile(target)
     if not profile_existed:
         os.makedirs(os.path.dirname(target), exist_ok=True)
-        body = _read_profile(extends) if extends else None
+        body = _read_profile(extends, pd) if extends else None
         tmp = target + ".tmp"
         try:
             with open(tmp, "w", encoding="utf-8") as f:
@@ -179,9 +225,7 @@ def role_update(
         return role_show(be, slug)
     fields["updated_at"] = utcnow_iso()
     cols = ", ".join(f"{k} = ?" for k in fields)
-    be._conn.execute(
-        f"UPDATE roles SET {cols} WHERE slug = ?", (*fields.values(), slug)
-    )
+    be._conn.execute(f"UPDATE roles SET {cols} WHERE slug = ?", (*fields.values(), slug))
     be._conn.commit()
     return role_show(be, slug)
 
@@ -199,8 +243,7 @@ def role_delete(be: Any, slug: str, force: bool = False) -> str:
     refs = (cnt or {}).get("n", 0)
     if refs and not force:
         raise ServiceError(
-            f"Role '{slug}' is referenced by {refs} task(s). "
-            f"Pass force=True to delete anyway."
+            f"Role '{slug}' is referenced by {refs} task(s). Pass force=True to delete anyway."
         )
     be.begin_tx()
     try:
@@ -225,10 +268,7 @@ def role_delete(be: Any, slug: str, force: bool = False) -> str:
         be.rollback_tx()
         raise
     profile_loc = _profile_path_user(slug)
-    return (
-        f"Role '{slug}' deleted "
-        f"({refs} task(s) detached; profile retained at {profile_loc})."
-    )
+    return f"Role '{slug}' deleted ({refs} task(s) detached; profile retained at {profile_loc})."
 
 
 def seed_existing_roles(be: Any) -> dict[str, Any]:
@@ -258,9 +298,7 @@ def seed_existing_roles(be: Any) -> dict[str, Any]:
                 seen.add(slug)
             except ServiceError:
                 out["skipped"] += 1
-    rows = be._q(
-        "SELECT DISTINCT role FROM tasks WHERE role IS NOT NULL AND role != ''"
-    )
+    rows = be._q("SELECT DISTINCT role FROM tasks WHERE role IS NOT NULL AND role != ''")
     for r in rows:
         slug = r.get("role") or ""
         if not slug or slug in seen:
@@ -280,9 +318,7 @@ def seed_existing_roles(be: Any) -> dict[str, Any]:
         except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
             import logging
 
-            logging.getLogger("tausik.roles").warning(
-                "seed: unexpected failure inserting %s", slug
-            )
+            logging.getLogger("tausik.roles").warning("seed: unexpected failure inserting %s", slug)
             out["skipped"] += 1
     return out
 

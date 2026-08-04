@@ -64,6 +64,16 @@ def test_migration_v35_creates_tables_clean(tmp_path):
     conn.execute("CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     conn.execute("INSERT INTO meta VALUES('schema_version', '34')")
     conn.execute("CREATE TABLE tasks(slug TEXT PRIMARY KEY)")  # FK target
+    # ALTER target for v38 — run_migrations walks every version up to current,
+    # not just the one under test here.
+    conn.execute("CREATE TABLE verification_runs(id INTEGER PRIMARY KEY AUTOINCREMENT)")
+    # ALTER + backfill targets for v42 (slug identity): the chain reaches them too.
+    conn.execute(
+        "CREATE TABLE decisions(id INTEGER PRIMARY KEY AUTOINCREMENT)"
+    )
+    conn.execute(
+        "CREATE TABLE memory(id INTEGER PRIMARY KEY AUTOINCREMENT)"
+    )
 
     new_ver = run_migrations(conn, 34)
     assert new_ver >= 35

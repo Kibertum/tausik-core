@@ -1,7 +1,17 @@
-"""Draft + risk assessment for shared-brain artifact publish (patterns/gotchas).
+"""Draft + risk assessment for shared-brain artifact publish.
 
 Uses `brain_classifier.classify` — project-specific markers imply **high** risk
 (local-only), requiring `confirm_high_risk` on the real Notion write.
+
+WHICH CATEGORIES THE GATE COVERS is decided by `_CLASSIFIER_CATEGORY` and by
+nothing else: a category in that mapping is gated, a category outside it is
+waved through. As of decision #205 that is **patterns, gotchas and decisions**.
+
+The enumeration is repeated here for a reader rather than left implicit, and it
+is pinned to the registry by a test — because the previous version of this line
+said "patterns/gotchas", stayed unchanged when decisions were added, and was
+then CITED as evidence that decisions were exempt. A sentence that once served
+as proof of behaviour keeps being read as proof after it stops being true.
 """
 
 from __future__ import annotations
@@ -11,7 +21,7 @@ from typing import Any, Literal, Mapping
 
 from brain_classifier import classify
 
-_CLASSIFIER_CATEGORY = {"patterns": "pattern", "gotchas": "gotcha"}
+_CLASSIFIER_CATEGORY = {"patterns": "pattern", "gotchas": "gotcha", "decisions": "decision"}
 
 _TEXT_KEYS_PATTERNS = (
     "name",
@@ -30,6 +40,19 @@ _TEXT_KEYS_GOTCHAS = (
     "artifact_taxonomy_kind",
 )
 
+_TEXT_KEYS_DECISIONS = ("name", "decision", "rationale")
+
+# Keyed, not branched. This used to be `PATTERNS if category == "patterns" else
+# GOTCHAS`, which silently read any third category with gotcha keys — a blob of
+# empty strings, classified as "empty content" → local → high risk → every
+# publish blocked. A lookup makes an unregistered category say so instead of
+# guessing, which is what let `decisions` be added at all.
+_TEXT_KEYS_BY_CATEGORY: dict[str, tuple[str, ...]] = {
+    "patterns": _TEXT_KEYS_PATTERNS,
+    "gotchas": _TEXT_KEYS_GOTCHAS,
+    "decisions": _TEXT_KEYS_DECISIONS,
+}
+
 _TAGS_STACK = ("tags", "stack")
 
 
@@ -40,8 +63,20 @@ def _stringify(v: Any) -> str:
 
 
 def artifact_blob_for_classifier(category: str, fields: Mapping[str, Any]) -> str:
-    """Concatenate classify-relevant text like scrub_inputs does for markers."""
-    keys = _TEXT_KEYS_PATTERNS if category == "patterns" else _TEXT_KEYS_GOTCHAS
+    """Concatenate classify-relevant text like scrub_inputs does for markers.
+
+    Every key a category publishes must be listed for it: the blob is what the
+    risk assessment sees, and a field left out of it is a field that cannot
+    influence the verdict — the same shape of gap that let `decide` judge a
+    decision by its headline while shipping its rationale.
+    """
+    keys = _TEXT_KEYS_BY_CATEGORY.get(category)
+    if keys is None:
+        raise KeyError(
+            f"no classifier text keys registered for category {category!r}; "
+            f"add them to _TEXT_KEYS_BY_CATEGORY rather than letting the blob "
+            f"fall back to another category's fields"
+        )
     lines = [_stringify(fields.get(k)) for k in keys]
     lines.extend(_stringify(fields.get(k)) for k in _TAGS_STACK)
     return "\n".join(lines)
@@ -52,6 +87,13 @@ def assess_publish_risk(
     fields: Mapping[str, Any],
     cfg: Mapping[str, Any] | None,
 ) -> tuple[Literal["low", "high"], str]:
+    """Return (level, reason) for one candidate publish.
+
+    Covers the categories in `_CLASSIFIER_CATEGORY` — patterns, gotchas and
+    decisions since #205. Anything outside it is reported "low" with a reason
+    that says WHY it is low: no classifier exists for that category, which is
+    not the same claim as "this content was examined and looks safe".
+    """
     if category not in _CLASSIFIER_CATEGORY:
         return "low", "category has no artifact classifier"
     blob = artifact_blob_for_classifier(category, fields)
@@ -69,7 +111,12 @@ def maybe_block_high_risk_publish(
     *,
     confirm_high_risk: bool,
 ) -> tuple[bool, str | None]:
-    """Return (blocked, message). Only patterns/gotchas apply."""
+    """Return (blocked, message).
+
+    Applies to the categories in `_CLASSIFIER_CATEGORY` — patterns, gotchas and
+    decisions since #205 — and to nothing else: an unregistered category returns
+    "not blocked" here without consulting the classifier at all.
+    """
     if category not in _CLASSIFIER_CATEGORY:
         return False, None
     level, reason = assess_publish_risk(category, fields, cfg)

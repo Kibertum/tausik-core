@@ -9,6 +9,28 @@ import subprocess
 import sys
 
 
+def cli_invocation() -> str:
+    """Shell-correct spelling of the CLI, for remediation lines in hooks.
+
+    The implementation lives in `tausik_utils` — one definition, reached from
+    here rather than copied, because a duplicated "how do I spell the CLI"
+    would drift exactly like the four private copies of "resolve the project
+    root" did. Hooks only put their own directory on `sys.path`, so this adds
+    the parent (`<profile>/scripts`, located from this file, not hardcoded).
+    Falls back to the POSIX form if that import is unavailable — a wrong hint
+    is better than a crashed hook.
+    """
+    try:
+        parent = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if parent not in sys.path:
+            sys.path.append(parent)
+        from tausik_utils import cli_invocation as _impl
+
+        return _impl()
+    except Exception:  # noqa: BLE001 — a hint must never break the gate it explains
+        return ".tausik/tausik"
+
+
 _TASK_DONE_TOOL_NAMES = (
     # v14b-task-done-rename-drop-v2: single MCP tool name. The v2 variant was
     # an interim alias from 1.3.7–1.4 while we proved out the structured-JSON
@@ -21,6 +43,46 @@ _TASK_DONE_TOOL_NAMES = (
 # Match actual CLI shape: `.tausik/tausik task done <slug>` or `tausik task done <slug>`
 # — not any prose mention of "task done" in a Bash command (echo, grep, git log, ...).
 _BASH_TASK_DONE_RE = re.compile(r"\btausik(?:\.cmd)?\b[^|;&]*?\btask\s+done\s+([a-z0-9][a-z0-9-]*)")
+
+
+def force_utf8_io() -> None:
+    """Make this hook's stdout/stderr UTF-8 regardless of how it was invoked.
+
+    hook-stderr-encoding-locale-dependent. Hooks emit supervision messages
+    containing non-ASCII — "2× hard cap reached — stop and re-plan". Written
+    through an interpreter that was not started in UTF-8 mode, those go out in
+    the machine's locale encoding: on Windows the line above leaves as
+    ``b'2\\xd7 hard cap reached \\x97'``. A reader expecting UTF-8 either sees
+    mojibake or fails outright, and the failure surfaces nowhere near its
+    cause — a `UnicodeDecodeError` in a subprocess reader thread turns
+    stdout/stderr into ``None``, so the caller reports "argument of type
+    'NoneType' is not iterable".
+
+    The generated host configs (`.claude/settings.json`, `.qwen/settings.json`)
+    do pass ``-X utf8`` on every hook invocation, so production is in fact
+    covered — but by the *launcher*, not by the hook. One line per host profile
+    in `bootstrap/` decides it, and a hook run any other way — a test, a manual
+    invocation, a host profile added later — was never covered at all. The
+    readability of a supervision message must not depend on how the supervisor
+    happened to be launched.
+
+    ``errors="replace"`` is deliberate: this is the mechanism that reports
+    budget overruns and policy blocks, so a character it cannot encode must
+    degrade to a replacement glyph, never raise. A hook that crashes while
+    trying to warn is worse than a hook that warns imperfectly.
+
+    Safe to call more than once, and a no-op on streams that have been
+    replaced by something without ``reconfigure`` (pytest's capture objects,
+    ``io.StringIO``) — the point is to fix real pipes, not to police them.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):  # detached / already-closed stream
+            pass
 
 
 def truncate(s: str | None, n: int = 100) -> str:
@@ -53,6 +115,41 @@ def tausik_path(project_dir: str) -> str | None:
         if os.path.exists(path):
             return path
     return None
+
+
+def profile_dir() -> str | None:
+    """The IDE profile directory a hook is deployed inside, or None (source tree).
+
+    Single home for the self-location that session_start/session_metrics both
+    need — copying it a third time is the "resolve the project root" drift the
+    `cli_invocation` note above warns about. Deployed layout is
+    `<profile>/scripts/hooks/<hook>.py`, so two levels up from this file is the
+    profile. A positive marker only a real profile carries (the MCP server or
+    the core skills) removes the coincidence with the project root's own
+    top-level `scripts/` — the source tree has that dir but neither marker, so
+    it correctly returns None there (adversarial review, s130-review-fixes).
+    """
+    here = os.path.dirname(os.path.abspath(__file__))  # <profile>/scripts/hooks
+    profile = os.path.dirname(os.path.dirname(here))  # <profile>
+    markers = (
+        os.path.join(profile, "mcp", "project", "server.py"),
+        os.path.join(profile, "skills", "start"),
+    )
+    return profile if any(os.path.exists(m) for m in markers) else None
+
+
+def project_root() -> str:
+    """Best-effort project root from a hook's own location, not from cwd.
+
+    Deployed: the parent of the profile dir. Source: two levels above
+    `scripts/hooks`. Used where a hook must run a subprocess with the project
+    as its cwd (e.g. so `project.py` resolves `.tausik/` at the real root).
+    """
+    prof = profile_dir()
+    if prof:
+        return os.path.dirname(prof)
+    here = os.path.dirname(os.path.abspath(__file__))  # <root>/scripts/hooks
+    return os.path.dirname(os.path.dirname(here))  # <root>
 
 
 def is_tausik_project(project_dir: str) -> bool:
@@ -93,6 +190,16 @@ def current_active_task_slug(project_dir: str) -> str | None:
     if len(rows) != 1:
         return None
     return str(rows[0][0])
+
+
+# Supervision audit telemetry lives in `hook_supervision` (extracted when the
+# degradation helper pushed this file past the 400-line filesize gate). Re-
+# exported here so every `from _common import emit_supervision_bypass` keeps
+# working; the canonical home — and its docstrings — is hook_supervision.py.
+from hook_supervision import (  # noqa: E402,F401 — re-export for back-compat
+    emit_supervision_bypass,
+    emit_supervision_degradation,
+)
 
 
 def has_active_task(project_dir: str, timeout: int = 4) -> bool:

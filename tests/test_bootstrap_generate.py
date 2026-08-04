@@ -40,7 +40,7 @@ class TestGenerateClaudeMd:
             "No commit without gates",
             "MCP-first",
             "Git: ask before commit/push",
-            "Max 400 lines per file",
+            "Max 500 lines per file",
             "Continuous logging",
             "Document dead ends",
             "Checkpoint every 30-50 tool calls",
