@@ -1,6 +1,6 @@
 # What changed in 1.8
 
-For anyone upgrading. Five breaking changes with migrations first, then what is
+For anyone upgrading. Six breaking changes with migrations first, then what is
 new.
 
 Full list of changes: [CHANGELOG.md](../../CHANGELOG.md).
@@ -48,16 +48,27 @@ discovery for everything beneath it: from any directory without its own
 `.tausik`, TAUSIK treated the home directory as the project. The precedent was
 right there — brain has always lived in `~/.tausik-brain`, outside the search.
 
-**Migration.** Move the store if you had one:
+**Migration: nothing to do.** The store is adopted from the old address on first
+use — `adopt_legacy_store_if_present` COPIES it to the new location. Copies
+rather than moves: the old directory may hold other things, and deleting inside
+someone's home directory is theirs to decide, not ours. Adoption only ever runs
+when the new location is absent, so it cannot overwrite a store already there.
+
+**One exception, and it is yours.** If `TAUSIK_HOME` is set, adoption does not
+run at all: an explicitly named home is a named address, and reaching into it
+for data the caller did not point at is not the framework's call. There, the
+move is on you:
 
 ```bash
-mkdir -p ~/.tausik-knowledge
-mv ~/.tausik/knowledge.db ~/.tausik-knowledge/knowledge.db
+mkdir -p "$TAUSIK_HOME"
+mv ~/.tausik/knowledge.db "$TAUSIK_HOME/knowledge.db"
 ```
 
-**⚠️ Do not recreate `~/.tausik/`** — see the interaction under change 3.
+**⚠️ Do not recreate `~/.tausik/`** — see the interaction under change 3. The
+old directory left behind after adoption can be deleted by hand; while it
+exists it keeps masquerading as a project for everything under your home.
 
-**Check:** `ls ~/.tausik` — the directory should not exist.
+**Check:** `ls ~/.tausik-knowledge/knowledge.db` — the file is there.
 
 ---
 

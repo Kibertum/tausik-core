@@ -8,7 +8,7 @@ TAUSIK is a discipline layer for AI coding agents. It turns the agent's word —
 
 [![v1.8.0](https://img.shields.io/badge/version-v1.8.0-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
 [![signed receipts: ed25519](https://img.shields.io/badge/signed%20receipts-ed25519-6f42c1.svg)](docs/en/receipts.md)
-[![6630 tests](https://img.shields.io/badge/tests-6630-brightgreen.svg)](#proof-tausik-built-tausik)
+[![7115 tests](https://img.shields.io/badge/tests-7115-brightgreen.svg)](#proof-tausik-built-tausik)
 [![coverage 76%](https://img.shields.io/badge/coverage-76%25-green.svg)](#proof-tausik-built-tausik)
 [![0 dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#whats-inside)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -110,7 +110,7 @@ Both are fail-closed: a gate that can't evaluate blocks rather than waves the ta
 TAUSIK was built with TAUSIK — every feature, refactor, and bug fix went through the gates that ship in the box. Not as a vanity metric, as the strongest test of the contract:
 
 - **Every task closed with a goal + acceptance criteria.** Zero closed without verify evidence.
-- **6630 tests** — the discipline core is the most-tested part.
+- **7115 tests** — the discipline core is the most-tested part.
 - **76% line coverage** (baseline, `scripts/`, 4124 selected tests) — refresh with `pytest tests/ --cov=scripts --cov-report=json:coverage.json` and update the badge; CI uploads `coverage.json` as a build artifact on every PR.
 - **0 core dependencies** — Python 3.11+ stdlib only; MCP deps live in an isolated `.tausik/venv/`.
 - **0 phone-home calls** — everything runs and stays on your machine.
@@ -185,13 +185,34 @@ TAUSIK is the reference implementation of [SENAR](https://senar.tech) ([GitHub](
 
 ---
 
-## v1.8 — the project's state travels in git
+## v1.8 — knowledge outlives the project, and the state travels in git
 
-The headline is [team state in git](docs/en/team-state-in-git.md): tasks,
-decisions and memory export to a readable `tausik/` tree, ride along in the
-repository, and come back with `tausik sync`. A teammate who clones the repo
-gets the project's history, not an empty database — and no external store has
-to exist for that to work.
+Three things carry this release.
+
+**[Team state in git](docs/en/team-state-in-git.md).** Tasks, decisions and
+memory export to a readable `tausik/` tree, ride along in the repository, and
+come back with `tausik sync`. A teammate who clones the repo gets the project's
+history, not an empty database — and no external store has to exist for that to
+work.
+
+**A shared knowledge base — one file per person, not per project.** Patterns,
+dead ends and conventions used to die with the project that learned them.
+`--global` puts knowledge in the shared store or fails saying so; search and the
+knowledge block read it too; an older TAUSIK refuses a newer store instead of
+guessing at it. The store has a backup, and the backup stays on this machine.
+
+**The end of the server-side session.** "Session" was two things — work
+continuity and agent context hygiene — and separating them closed a silent
+failure: an absent session no longer means unlimited capacity, so the 200-call
+gate stopped quietly waving work through. A handoff no longer requires an open
+session.
+
+**Six breaking changes, each with a migration** — the classifier is off the
+publication decision, the shared store moved out of `~/.tausik/`, a project may
+only tighten enforcement, the verify receipt is v3, a verify run with no
+declared scope certifies nothing, and `TAUSIK_HOME` is validated. Read them
+before upgrading: **[What changed in 1.8 →](docs/en/whats-new-1.8.md)**
+([Русский](docs/ru/whats-new-1.8.md)).
 
 v1.8 also continues the hardening on the road to 2.0: signed receipts,
 fail-closed gates, external adversarial review for under-evidenced closures,
