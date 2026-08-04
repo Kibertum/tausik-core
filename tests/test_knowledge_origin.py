@@ -334,3 +334,54 @@ class TestAWriteThatCannotAttributeItselfFails:
             knowledge_write.write_memory("pattern", "заголовок", "тело")
         if os.path.isfile(knowledge_db.knowledge_db_path()):
             assert _origins("memory") == []
+
+
+class TestAbsolutenessIsSpellingNotInterpreterOpinion:
+    """The redaction must not depend on the OS, or on the Python minor.
+
+    `relative_source_file` asked `os.path.isabs`, and Python 3.13 changed
+    `ntpath.isabs`: on Windows a path with one leading separator and no drive
+    letter stopped being absolute. The function then returned such a path
+    unchanged — the machine's directory layout left in the column this redaction
+    exists to clear, on one platform, from one minor release on, silently. The
+    assertions below name no platform and no version on purpose: that they hold
+    everywhere is the property.
+    """
+
+    def test_the_predicate_reads_the_spelling_on_every_platform(self):
+        """The unit-level property: what counts as absolute is fixed text.
+
+        This is the assertion `os.path.isabs` could not make. A drive-less
+        rooted path is absolute here on Linux and on Windows, on 3.12 and on
+        3.13 — because the question is about the string, not about the host.
+        """
+        assert ko._ABSOLUTE_RE.match("/work/clients/acme/repo/a.py")
+        assert ko._ABSOLUTE_RE.match(r"\work\clients\acme\repo\a.py")
+        assert ko._ABSOLUTE_RE.match(r"D:\Work\clients\acme")
+        assert ko._ABSOLUTE_RE.match("d:/Work/clients/acme")
+        assert not ko._ABSOLUTE_RE.match("team/backend")
+        assert not ko._ABSOLUTE_RE.match("already/relative.py")
+
+    def test_a_rooted_path_in_this_platforms_spelling_is_redacted(self):
+        """End to end, in the separator this host actually uses.
+
+        A backslash path handed to a POSIX host cannot be split into segments
+        by anyone, so the end-to-end claim is made in the spelling of the
+        running platform; the cross-platform half is the predicate above. On
+        Windows this is exactly the case Python 3.13 broke.
+        """
+        root = os.path.join(os.sep, "work", "clients", "acme", "repo")
+        got = ko.relative_source_file(os.path.join(root, "scripts", "a.py"), root)
+        assert got == "scripts/a.py"
+        assert "clients" not in got and "acme" not in got
+
+    def test_a_path_outside_the_project_still_collapses_to_a_basename(self):
+        """NEGATIVE: the redaction must not weaken to make the check above pass."""
+        got = ko.relative_source_file("/work/clients/bravo/x.py", "/work/clients/acme/repo")
+        assert got == "x.py"
+        assert ".." not in got and "bravo" not in got
+
+    def test_a_value_that_merely_contains_a_separator_is_left_alone(self):
+        """NEGATIVE: `origin_project` is free text; `team/backend` is not a path."""
+        assert ko.relative_source_file("team/backend", "/root") == "team/backend"
+        assert ko.relative_source_file("already/relative.py", "/root") == "already/relative.py"
