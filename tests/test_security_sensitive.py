@@ -19,6 +19,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
+from conftest import VERIFICATION_RUNS_DDL  # noqa: E402
 from service_verification import (  # noqa: E402
     _build_cache_command,
     has_fresh_verify_run,
@@ -260,37 +261,7 @@ class TestVerifyFirstRegression:
         db = tmp_path / "verify.db"
         c = sqlite3.connect(str(db))
         c.row_factory = sqlite3.Row
-        c.execute(
-            """
-            CREATE TABLE IF NOT EXISTS verification_runs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_slug TEXT,
-    scope TEXT NOT NULL CHECK(scope IN
-        ('lightweight', 'standard', 'high', 'critical', 'manual')),
-    command TEXT NOT NULL,
-    exit_code INTEGER NOT NULL,
-    summary TEXT,
-    files_hash TEXT NOT NULL,
-    ran_at TEXT NOT NULL,
-    duration_ms INTEGER,
-    receipt_json TEXT,
-    -- l26-verify-git-diff-wire: how the declared scope related to git at run
-    -- time. 'complete' | 'under-declared' | 'unknown'; NULL on rows written
-    -- before v38 and read as 'unknown' (never as 'complete').
-    declared_scope_status TEXT,
-    -- JSON array of files git saw change but relevant_files omitted (capped).
-    undeclared_files TEXT,
-    -- verify-no-test-mapped-dead-end: 1 when the caller declared, for this run,
-    -- that its files map to no test on purpose (docs, config, migrations). Such
-    -- a run passes with NO gate executed, so it must stay countable:
-    --   SELECT * FROM verification_runs WHERE no_tests_declared = 1;
-    -- A dedicated column, not a `scope` value — `scope` is a CHECK-constrained
-    -- SENAR tier, and overloading it would have required rebuilding the table
-    -- to widen the constraint.
-    no_tests_declared INTEGER NOT NULL DEFAULT 0
-)
-            """
-        )
+        c.executescript(VERIFICATION_RUNS_DDL + ";")
         return c
 
     def test_hook_file_cache_now_lookups(self, conn, tmp_path):

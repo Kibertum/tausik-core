@@ -243,10 +243,15 @@ def _column_count(block: str) -> int:
 
     Разбиение по запятым не исключало SQL-комментарии «--», которыми канон
     насыщен, и врало ровно там, где от него зависит освобождение: канонический
-    verification_runs давал 18 колонок против 13 настоящих, session_usage_metrics
+    verification_runs давал 31 колонку против 16 настоящих, session_usage_metrics
     — 10 против 9. Законная двухколоночная заглушка с поясняющим комментарием,
     содержащим запятую, посчиталась бы четырёхколоночной и дала бы ЛОЖНОЕ
     падение.
+
+    Ошибка растёт вместе со схемой: на 13 колонках запятые давали 18, а после
+    трёх колонок handle-нонса (handle_nonce/handle_expires_at/
+    handle_redeemed_at) с их комментариями — уже 31 против 16. PRAGMA считает
+    столько же, сколько сам sqlite, поэтому от роста схемы не зависит.
 
     Источник истины — сам sqlite (тот же довод, по которому список таблиц
     выводится из SCHEMA_SQL, а не хардкодится, — конвенция #214).
@@ -607,10 +612,15 @@ class TestColumnCountComesFromSqlite:
 
     @pytest.mark.parametrize(
         "table,expected",
-        [("verification_runs", 13), ("session_usage_metrics", 9)],
+        [("verification_runs", 16), ("session_usage_metrics", 9)],
     )
     def test_the_measured_miscount_is_pinned(self, table, expected):
-        """Замер из карточки закреплён числом: регулярка давала 18 и 10."""
+        """Замер закреплён числом: регулярка по запятым даёт 31 и 10.
+
+        16 у verification_runs — после трёх колонок handle-нонса (было 13,
+        и регулярка тогда давала 18). Числа здесь — ОЖИДАНИЕ; считает по-
+        прежнему PRAGMA, менять способ замера ради совпадения нельзя.
+        """
         block = canonical_ddl(table).rstrip(";").rstrip()
         assert _column_count(block) == expected
 

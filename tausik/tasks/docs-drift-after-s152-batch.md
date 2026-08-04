@@ -1,9 +1,9 @@
 ---
 slug: docs-drift-after-s152-batch
 title: "Доки отстали от партии сессии #152: четыре расхождения, включая молчаливый отказ публикации без документированной причины"
-status: planning
-epic: null
-story: null
+status: done
+epic: landscape-2026-h2
+story: l26-narrative
 complexity: medium
 role: tech-writer
 stack: null
@@ -12,10 +12,23 @@ call_budget: 50
 defect_of: null
 scope: "docs/en/mcp.md, docs/ru/mcp.md, docs/en/quickstart.md, docs/ru/quickstart.md, docs/ru/research/risk-model.md, docs/en/i18n-strategy.md, возможно scripts/risk_metrics.py, CHANGELOG.md, CHANGELOG.ru.md."
 scope_exclude: "НЕ переписывать team-state-in-git.md и cli.md — проверено ревью, они уже верны. НЕ трогать сам бэктест-документ. НЕ менять поведение гарда принадлежности БД — это brain-db-binding-ignores-path-case; здесь только описывается фактическое поведение."
-relevant_files: []
-scope_paths: []
+relevant_files:
+  - "scripts/risk_metrics.py"
+  - "scripts/docs_lint.py"
+  - "scripts/audit_stale_docs.py"
+  - "scripts/doc_drift_scanners.py"
+scope_paths:
+  - "docs/en/quickstart.md"
+  - "docs/ru/quickstart.md"
+  - "docs/ru/research/risk-model.md"
+  - "docs/en/i18n-strategy.md"
+  - "docs/ru/i18n-strategy.md"
+  - "scripts/risk_metrics.py"
+  - "tests/*"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
 scope_tools: []
-completed_at: null
+completed_at: "2026-08-03T20:20:22Z"
 ---
 
 ## Goal
@@ -47,3 +60,6 @@ CHANGELOG.md [Unreleased] и зеркало CHANGELOG.ru.md обновлены �
 git revert. Изменения только в документации (плюс, возможно, одна строка вывода в risk_metrics.py); поведение продукта не меняется, откат возвращает устаревшие утверждения и ничего не ломает.
 
 ## Journal
+
+- 2026-08-03T20:02:26Z [implementation] — AC1 и AC5(в): каждая находка ПРОВЕРЕНА против кода, и для каждой новой формулировки назван артефакт, из которого она взята. НАХОДКА 1 — НЕ ПОДТВЕРДИЛАСЬ, устарела за девять сессий. Постановка (#153) говорит, что mcp.md называет ОДНУ причину молчаливого локального decide и упускает вторую — гард _is_working_project_db в service_knowledge.py:255. Проверено чтением: с решения #221 tausik_decide не публикует ВООБЩЕ никуда, mcp.md обоих языков ровно это и говорит, а в troubleshooting.md записей про decide нет ни в одном языке. Второй причины молчания нет, потому что нет и первой. Записано как не подтвердившаяся, а не как исправленная. НАХОДКА 2 — ПОДТВЕРЖДЕНА И ИСПРАВЛЕНА. docs/en/quickstart.md:249 и docs/ru/quickstart.md:247. Артефакт формулировки: docs/en/team-state-in-git.md:228 ('одного из пяти проецируемых видов') и scripts/state_triggers.py — три точки входа auto_export_entity, auto_export_write, auto_export_by_id, ни одна из которых не привязана к закрытию задачи. НАХОДКА 3 — ПОДТВЕРЖДЕНА И ИСПРАВЛЕНА. docs/ru/research/risk-model.md: в 'Известных ограничениях' пять пунктов, ни одного про бэктест; grep по AUC и 'бэктест' по файлу давал пусто. Артефакт: docs/ru/research/risk-model-backtest-2026-07.md и сообщение гейта scripts/risk_l3_trigger.py:154-157, которое уже цитирует 0.4820. Статус поставлен НАД ограничениями намеренно: ограничения говорят, чем модель неточна, а статус — что она не работает как задумана. НАХОДКА 4 — ПОДТВЕРЖДЕНА И РЕШЕНА ВЫБОРОМ. Файл противоречил САМ СЕБЕ: схема дерева называла en/research локализованным и парным, а список 'What NOT localized' в том же файле — оригинальным языком. Замер: 1 файл в en/research против 10 в ru/research. ВЫБРАН исход 'привести текст к фактическому правилу', а не 'завести парные документы': заметка исследования фиксирует замер на дату, перевод приглашает копии разъехаться, а разъехавшийся замер хуже непрочитанного. Исключение research из audit_stale_docs ОСТАЁТСЯ, и теперь оно соответствует записанному правилу, а не прикрывает пробел — сказано в тексте обоих языков. Артефакт: scripts/audit_stale_docs.py, список исключений. AC7 — РЕШЕНО ЗДЕСЬ, а не передано. Смежный вопрос из постановки про risk_metrics.py оказался наполовину устаревшим: format_risk_status_line оговорку 'descriptive, not predictive' УЖЕ несёт. Но format_risk_section, которую печатает tausik metrics, в ТОМ ЖЕ ФАЙЛЕ её не несла — расхождение осталось, просто переехало в другую функцию. Одна строка заголовка, поведение не меняется, поэтому сделано здесь; передавать в risk-l3-still-blocks-after-demotion нечего. AC5(а): правки внесены в ОБА языка везде, где место парное (quickstart, i18n-strategy); audit_stale_docs зелёный. AC5(б): диф касается только названных мест, косметики нет. AC6: docs_lint clean, audit_stale_docs 'No stale docs detected (OK)', gen_doc_constants --check OK, 261 тест области зелёные.
+- 2026-08-03T20:20:20Z [implementation] — AC-1 (вторая причина молчаливого decide): ✓ verification_run #1711 НАХОДКА НЕ ПОДТВЕРДИЛАСЬ и записана как таковая, а не «исправлена»: с решения #221 decide не публикует вообще никуда, mcp.md обоих языков это и говорит, в troubleshooting.md записей про decide нет. Правка не требуется, и это результат проверки, а не пропуск. AC-2 (quickstart больше не называет закрытие задачи единственным триггером): ✓ verification_run #1711 Артефакт формулировки: team-state-in-git.md:228 и три точки входа в scripts/state_triggers.py. AC-3 (risk-model.md знает о бэктесте): ✓ verification_run #1711 Артефакт: docs/ru/research/risk-model-backtest-2026-07.md и scripts/risk_l3_trigger.py:154-157, где 0.4820 уже назван. AC-4 (расхождение i18n УСТРАНЕНО выбором, а не описано): ✓ verification_run #1711 Выбран исход «текст к фактическому правилу». Файл противоречил сам себе; замер 1 против 10. Исключение research из audit_stale_docs остаётся, причина записана в тексте обоих языков. Артефакт: scripts/audit_stale_docs.py. AC-5 (негатив и границы): ✓ tests/test_audit_stale_docs.py ✓ verification_run #1711 Зеркала не разъехались: правки внесены в оба языка везде, где место парное; audit_stale_docs «No stale docs detected (OK)». Диф касается только названных мест. AC-6 (гейты и полный прогон): ✓ verification_run #1711 docs_lint clean; audit_stale_docs OK; gen_doc_constants --check OK. ЭКСКЛЮЗИВНЫЙ полный прогон (ничего в переднем плане, память #376): 6933 passed, 24 skipped, 0 failed, 0 errors. AC-7 (решение про risk_metrics принято, а не отложено): ✓ verification_run #1711 Решено ЗДЕСЬ. Вопрос оказался наполовину устаревшим: format_risk_status_line оговорку уже несла, а format_risk_section в том же файле — нет. Расхождение не исчезло, а переехало в соседнюю функцию; добавлена одна строка заголовка, поведение не меняется. Домен: правки проверены не только тестами, а ЗАПУСКОМ трёх доковых гейтов, которые и были зелёными при всех четырёх расхождениях — это и есть смысл задачи: гейты проверяют ссылки, зеркала и константы, но не истинность фразы.

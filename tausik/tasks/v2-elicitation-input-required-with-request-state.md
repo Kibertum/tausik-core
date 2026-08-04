@@ -2,8 +2,8 @@
 slug: v2-elicitation-input-required-with-request-state
 title: "[2.0] Элиситация без открытого соединения: ответ завершается пометкой input_required и запиской requestState"
 status: planning
-epic: null
-story: null
+epic: v2-global-mcp
+story: v2gm-core
 complexity: complex
 role: architect
 stack: python

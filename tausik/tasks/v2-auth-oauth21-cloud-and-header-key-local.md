@@ -2,8 +2,8 @@
 slug: v2-auth-oauth21-cloud-and-header-key-local
 title: "[2.0] Авторизация удалённого MCP: OAuth 2.1 для облачных клиентов, статический ключ в ЗАГОЛОВКЕ для локальных, никогда в строке запроса"
 status: planning
-epic: null
-story: null
+epic: v2-global-mcp
+story: v2gm-core
 complexity: complex
 role: architect
 stack: python

@@ -22,6 +22,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
+from conftest import VERIFICATION_RUNS_DDL
 from project_backend import SQLiteBackend
 from project_service import ProjectService
 from tausik_utils import ServiceError
@@ -427,35 +428,7 @@ class TestRelevantFilesFallback:
 
         db = sqlite3.connect(":memory:")
         db.row_factory = sqlite3.Row
-        db.execute(
-            """CREATE TABLE IF NOT EXISTS verification_runs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_slug TEXT,
-    scope TEXT NOT NULL CHECK(scope IN
-        ('lightweight', 'standard', 'high', 'critical', 'manual')),
-    command TEXT NOT NULL,
-    exit_code INTEGER NOT NULL,
-    summary TEXT,
-    files_hash TEXT NOT NULL,
-    ran_at TEXT NOT NULL,
-    duration_ms INTEGER,
-    receipt_json TEXT,
-    -- l26-verify-git-diff-wire: how the declared scope related to git at run
-    -- time. 'complete' | 'under-declared' | 'unknown'; NULL on rows written
-    -- before v38 and read as 'unknown' (never as 'complete').
-    declared_scope_status TEXT,
-    -- JSON array of files git saw change but relevant_files omitted (capped).
-    undeclared_files TEXT,
-    -- verify-no-test-mapped-dead-end: 1 when the caller declared, for this run,
-    -- that its files map to no test on purpose (docs, config, migrations). Such
-    -- a run passes with NO gate executed, so it must stay countable:
-    --   SELECT * FROM verification_runs WHERE no_tests_declared = 1;
-    -- A dedicated column, not a `scope` value — `scope` is a CHECK-constrained
-    -- SENAR tier, and overloading it would have required rebuilding the table
-    -- to widen the constraint.
-    no_tests_declared INTEGER NOT NULL DEFAULT 0
-)"""
-        )
+        db.executescript(VERIFICATION_RUNS_DDL + ";")
         # No row → None.
         assert lookup_relevant_files_from_recent_verify(db, "t") is None
 
@@ -504,35 +477,7 @@ class TestRelevantFilesFallback:
 
         db = sqlite3.connect(":memory:")
         db.row_factory = sqlite3.Row
-        db.execute(
-            """CREATE TABLE IF NOT EXISTS verification_runs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_slug TEXT,
-    scope TEXT NOT NULL CHECK(scope IN
-        ('lightweight', 'standard', 'high', 'critical', 'manual')),
-    command TEXT NOT NULL,
-    exit_code INTEGER NOT NULL,
-    summary TEXT,
-    files_hash TEXT NOT NULL,
-    ran_at TEXT NOT NULL,
-    duration_ms INTEGER,
-    receipt_json TEXT,
-    -- l26-verify-git-diff-wire: how the declared scope related to git at run
-    -- time. 'complete' | 'under-declared' | 'unknown'; NULL on rows written
-    -- before v38 and read as 'unknown' (never as 'complete').
-    declared_scope_status TEXT,
-    -- JSON array of files git saw change but relevant_files omitted (capped).
-    undeclared_files TEXT,
-    -- verify-no-test-mapped-dead-end: 1 when the caller declared, for this run,
-    -- that its files map to no test on purpose (docs, config, migrations). Such
-    -- a run passes with NO gate executed, so it must stay countable:
-    --   SELECT * FROM verification_runs WHERE no_tests_declared = 1;
-    -- A dedicated column, not a `scope` value — `scope` is a CHECK-constrained
-    -- SENAR tier, and overloading it would have required rebuilding the table
-    -- to widen the constraint.
-    no_tests_declared INTEGER NOT NULL DEFAULT 0
-)"""
-        )
+        db.executescript(VERIFICATION_RUNS_DDL + ";")
         now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         db.execute(
             "INSERT INTO verification_runs (task_slug, scope, command, exit_code, "
@@ -575,37 +520,7 @@ class TestPipelineEnvelopeRegression:
 
         db = sqlite3.connect(str(tmp_path / "regress.db"))
         db.row_factory = sqlite3.Row
-        db.executescript(
-            """
-CREATE TABLE IF NOT EXISTS verification_runs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_slug TEXT,
-    scope TEXT NOT NULL CHECK(scope IN
-        ('lightweight', 'standard', 'high', 'critical', 'manual')),
-    command TEXT NOT NULL,
-    exit_code INTEGER NOT NULL,
-    summary TEXT,
-    files_hash TEXT NOT NULL,
-    ran_at TEXT NOT NULL,
-    duration_ms INTEGER,
-    receipt_json TEXT,
-    -- l26-verify-git-diff-wire: how the declared scope related to git at run
-    -- time. 'complete' | 'under-declared' | 'unknown'; NULL on rows written
-    -- before v38 and read as 'unknown' (never as 'complete').
-    declared_scope_status TEXT,
-    -- JSON array of files git saw change but relevant_files omitted (capped).
-    undeclared_files TEXT,
-    -- verify-no-test-mapped-dead-end: 1 when the caller declared, for this run,
-    -- that its files map to no test on purpose (docs, config, migrations). Such
-    -- a run passes with NO gate executed, so it must stay countable:
-    --   SELECT * FROM verification_runs WHERE no_tests_declared = 1;
-    -- A dedicated column, not a `scope` value — `scope` is a CHECK-constrained
-    -- SENAR tier, and overloading it would have required rebuilding the table
-    -- to widen the constraint.
-    no_tests_declared INTEGER NOT NULL DEFAULT 0
-);
-            """
-        )
+        db.executescript(VERIFICATION_RUNS_DDL + ";")
 
         # The custom gate dict mirrors what a real stack-scoped gate would
         # provide. The autouse `_mock_run_gates` shim in conftest stubs

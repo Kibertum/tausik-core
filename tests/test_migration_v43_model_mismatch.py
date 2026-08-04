@@ -33,9 +33,30 @@ from backend_schema import (  # noqa: E402
     FTS_SQL,
     FTS_TRIGGERS_SQL,
     INDEXES_SQL,
-    SCHEMA_VERSION,
 )
 from test_migrations import V1_SCHEMA  # noqa: E402
+
+# The migration UNDER TEST, pinned as a literal. This file used to derive it
+# from the schema version, on the assumption that v43 would stay the newest
+# migration forever. v44 broke every derivation at once: the fixture popped v44
+# instead of v43 and then asserted the DB had stopped at 43, and the "upgrade
+# from the previous version" calls re-ran v44 rather than the v43 they mean to
+# exercise. A test that names its subject by "latest" stops testing its subject
+# the moment something else becomes latest.
+_V43 = 43
+_V42 = _V43 - 1
+
+# The `tasks` indexes from the live INDEXES_SQL, and ONLY those. The fixture
+# reproduces init_schema's pre-migration state at v42, so it must not apply an
+# index that a LATER migration's columns make possible — v44's
+# idx_verify_handle names verification_runs.handle_nonce, which does not exist
+# at v42, so applying the whole script raised "no such column". Narrowing to
+# `tasks` is not a workaround: every index assertion below is about tasks, and
+# the other three (archived_at, started_model, model_mismatch) already arrive
+# from the migrations themselves.
+_TASKS_INDEXES_SQL = "\n".join(
+    stmt.strip() + ";" for stmt in INDEXES_SQL.split(";") if " ON tasks(" in stmt
+)
 
 
 def _notnull(conn: sqlite3.Connection, table: str, column: str) -> int:
@@ -50,11 +71,14 @@ def _migrate_to_42_then_inject(conn: sqlite3.Connection) -> None:
     model_mismatch and a defect_of chain — the shape v43 must fix in the field."""
     conn.isolation_level = None  # run_migrations drives its own transactions
     conn.executescript(V1_SCHEMA)
-    removed = bm.MIGRATIONS.pop(SCHEMA_VERSION)  # SCHEMA_VERSION == 43 after the fix
+    # Remove v43 AND everything after it: `run_migrations` walks sorted keys, so
+    # popping only v43 would let v44+ apply against a table v43 had not yet
+    # rebuilt, and the fixture would no longer be "the pre-v43 state".
+    removed = {v: bm.MIGRATIONS.pop(v) for v in sorted(bm.MIGRATIONS) if v >= _V43}
     try:
-        assert bm.run_migrations(conn, 1) == SCHEMA_VERSION - 1  # stops at 42
+        assert bm.run_migrations(conn, 1) == _V42
     finally:
-        bm.MIGRATIONS[SCHEMA_VERSION] = removed
+        bm.MIGRATIONS.update(removed)
     # Reproduce the production INVARIANT at v42: init_schema applies FTS + its
     # triggers + the base indexes (backend_init.py:151-153) so that when a
     # migration runs, fts_tasks, the 7 tasks triggers and all 6 indexes exist.
@@ -63,7 +87,7 @@ def _migrate_to_42_then_inject(conn: sqlite3.Connection) -> None:
     # and searches fts, so it must stand the DB up the way a real upgrade does.
     conn.executescript(FTS_SQL)
     conn.executescript(FTS_TRIGGERS_SQL)
-    conn.executescript(INDEXES_SQL)
+    conn.executescript(_TASKS_INDEXES_SQL)
     now = "2026-01-01T00:00:00Z"
     # parent task, then a defect that self-references it via defect_of
     conn.execute(
@@ -98,11 +122,14 @@ class TestConstraintTightened:
         assert _notnull(migrated_with_null, "tasks", "model_mismatch") == 0
 
     def test_model_mismatch_is_not_null_after_v43(self, migrated_with_null):
-        assert bm.run_migrations(migrated_with_null, SCHEMA_VERSION - 1) == SCHEMA_VERSION
+        # `>=`, not `==`: from v42 the runner applies every pending migration,
+        # so the returned version is the HEAD, not v43. What this test asserts
+        # is that v43 was among them — which the notnull flag below proves.
+        assert bm.run_migrations(migrated_with_null, _V42) >= _V43
         assert _notnull(migrated_with_null, "tasks", "model_mismatch") == 1
 
     def test_null_value_is_backfilled_to_zero(self, migrated_with_null):
-        bm.run_migrations(migrated_with_null, SCHEMA_VERSION - 1)
+        bm.run_migrations(migrated_with_null, _V42)
         row = migrated_with_null.execute(
             "SELECT model_mismatch FROM tasks WHERE slug='child'"
         ).fetchone()
@@ -115,7 +142,7 @@ class TestConstraintTightened:
 
         from backend_schema import SCHEMA_SQL
 
-        bm.run_migrations(migrated_with_null, SCHEMA_VERSION - 1)
+        bm.run_migrations(migrated_with_null, _V42)
         fresh = _sql.connect(":memory:")
         fresh.executescript(SCHEMA_SQL)
         try:
@@ -129,27 +156,27 @@ class TestConstraintTightened:
 class TestRebuildPreservesData:
     def test_row_count_and_rows_survive(self, migrated_with_null):
         before = migrated_with_null.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
-        bm.run_migrations(migrated_with_null, SCHEMA_VERSION - 1)
+        bm.run_migrations(migrated_with_null, _V42)
         after = migrated_with_null.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
         assert before == after == 2
         slugs = {r[0] for r in migrated_with_null.execute("SELECT slug FROM tasks")}
         assert slugs == {"parent", "child"}
 
     def test_defect_of_self_fk_chain_intact(self, migrated_with_null):
-        bm.run_migrations(migrated_with_null, SCHEMA_VERSION - 1)
+        bm.run_migrations(migrated_with_null, _V42)
         row = migrated_with_null.execute(
             "SELECT defect_of FROM tasks WHERE slug='child'"
         ).fetchone()
         assert row[0] == "parent", "the self-referential defect_of link must survive"
 
     def test_foreign_key_check_is_clean(self, migrated_with_null):
-        bm.run_migrations(migrated_with_null, SCHEMA_VERSION - 1)
+        bm.run_migrations(migrated_with_null, _V42)
         migrated_with_null.execute("PRAGMA foreign_keys=ON")
         violations = migrated_with_null.execute("PRAGMA foreign_key_check").fetchall()
         assert violations == [], f"rebuild broke referential integrity: {violations}"
 
     def test_incoming_fk_from_decisions_still_resolves(self, migrated_with_null):
-        bm.run_migrations(migrated_with_null, SCHEMA_VERSION - 1)
+        bm.run_migrations(migrated_with_null, _V42)
         row = migrated_with_null.execute(
             "SELECT task_slug FROM decisions WHERE decision='d'"
         ).fetchone()
@@ -158,7 +185,7 @@ class TestRebuildPreservesData:
 
 class TestFtsAndObjectsRecreated:
     def test_fts_tasks_finds_rebuilt_rows(self, migrated_with_null):
-        bm.run_migrations(migrated_with_null, SCHEMA_VERSION - 1)
+        bm.run_migrations(migrated_with_null, _V42)
         # external-content fts5 keyed by tasks.id; a search must return the row
         hit = migrated_with_null.execute(
             "SELECT t.slug FROM tasks t JOIN fts_tasks f ON t.id=f.rowid "
@@ -167,7 +194,7 @@ class TestFtsAndObjectsRecreated:
         assert ("child",) in hit, "fts_tasks was not rebuilt against the new tasks table"
 
     def test_all_six_indexes_recreated(self, migrated_with_null):
-        bm.run_migrations(migrated_with_null, SCHEMA_VERSION - 1)
+        bm.run_migrations(migrated_with_null, _V42)
         idx = {
             r[0]
             for r in migrated_with_null.execute(
@@ -185,7 +212,7 @@ class TestFtsAndObjectsRecreated:
         }
 
     def test_all_seven_triggers_recreated(self, migrated_with_null):
-        bm.run_migrations(migrated_with_null, SCHEMA_VERSION - 1)
+        bm.run_migrations(migrated_with_null, _V42)
         trg = {
             r[0]
             for r in migrated_with_null.execute(
@@ -205,7 +232,7 @@ class TestFtsAndObjectsRecreated:
     def test_audit_trigger_fires_after_rebuild(self, migrated_with_null):
         """A recreated trigger must actually WORK, not merely exist: inserting a
         task after the rebuild writes a 'created' audit event."""
-        bm.run_migrations(migrated_with_null, SCHEMA_VERSION - 1)
+        bm.run_migrations(migrated_with_null, _V42)
         migrated_with_null.execute(
             "INSERT INTO tasks (slug, title, status, created_at, updated_at) "
             "VALUES ('post', 'Post', 'planning', '2026-01-02T00:00:00Z', '2026-01-02T00:00:00Z')"

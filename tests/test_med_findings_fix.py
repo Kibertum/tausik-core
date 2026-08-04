@@ -117,6 +117,11 @@ class TestForceFlag:
 
 class TestEventCountTimestampSafety:
     def test_microsecond_timestamps_handled(self, svc):
+        # A budgeted task now needs an open session: an absent one is an
+        # UNMEASURED capacity, not an unlimited one (decision #223). These two
+        # tests are about the event-count window, not about capacity — they
+        # simply relied on the gate no-oping.
+        svc.session_start()
         _ready_task(svc, "t1", budget=10)
         svc.task_start("t1")
         svc.be._ex(
@@ -128,6 +133,7 @@ class TestEventCountTimestampSafety:
         assert cnt >= 1
 
     def test_window_excludes_after_completed(self, svc):
+        svc.session_start()
         _ready_task(svc, "t1", budget=10)
         svc.task_start("t1")
         svc.be.task_update("t1", completed_at="2020-01-01T00:00:00Z", status="done")

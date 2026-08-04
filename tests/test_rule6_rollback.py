@@ -114,8 +114,14 @@ class TestTaskDoneWarns:
     def test_done_warns_without_plan_but_completes(self, svc, monkeypatch):
         monkeypatch.setenv("TAUSIK_QUIET", "1")
         self._seed(svc)
-        # wipe the plan post-start to simulate a pre-v28 task at close time
-        svc.task_update("t1", rollback_plan="")
+        # Seed the pre-v28 shape straight into the row. This used to go through
+        # `svc.task_update(rollback_plan="")`, which the blank-field guard now
+        # refuses (task-update-accepts-empty-required-field) — and refusing is
+        # correct: no user should be able to erase the plan and be told it
+        # worked. The backend write is also the more faithful simulation, since
+        # a pre-v28 row was never produced by today's task_update in the first
+        # place.
+        svc.be.task_update("t1", rollback_plan="")
         result = svc.task_done("t1", None, True, True, evidence="AC verified: 1. OK 2. OK")
         assert "completed" in result
         assert "Rule 6" in result

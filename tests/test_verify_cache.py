@@ -28,6 +28,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
+from conftest import VERIFICATION_RUNS_DDL  # noqa: E402
 from verify_cache import (  # noqa: E402
     _build_cache_command,
     has_fresh_verify_run,
@@ -41,37 +42,7 @@ def conn(tmp_path):
     db = tmp_path / "verify.db"
     c = sqlite3.connect(str(db))
     c.row_factory = sqlite3.Row
-    c.execute(
-        """
-        CREATE TABLE IF NOT EXISTS verification_runs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_slug TEXT,
-    scope TEXT NOT NULL CHECK(scope IN
-        ('lightweight', 'standard', 'high', 'critical', 'manual')),
-    command TEXT NOT NULL,
-    exit_code INTEGER NOT NULL,
-    summary TEXT,
-    files_hash TEXT NOT NULL,
-    ran_at TEXT NOT NULL,
-    duration_ms INTEGER,
-    receipt_json TEXT,
-    -- l26-verify-git-diff-wire: how the declared scope related to git at run
-    -- time. 'complete' | 'under-declared' | 'unknown'; NULL on rows written
-    -- before v38 and read as 'unknown' (never as 'complete').
-    declared_scope_status TEXT,
-    -- JSON array of files git saw change but relevant_files omitted (capped).
-    undeclared_files TEXT,
-    -- verify-no-test-mapped-dead-end: 1 when the caller declared, for this run,
-    -- that its files map to no test on purpose (docs, config, migrations). Such
-    -- a run passes with NO gate executed, so it must stay countable:
-    --   SELECT * FROM verification_runs WHERE no_tests_declared = 1;
-    -- A dedicated column, not a `scope` value — `scope` is a CHECK-constrained
-    -- SENAR tier, and overloading it would have required rebuilding the table
-    -- to widen the constraint.
-    no_tests_declared INTEGER NOT NULL DEFAULT 0
-)
-        """
-    )
+    c.executescript(VERIFICATION_RUNS_DDL + ";")
     return c
 
 
@@ -135,16 +106,31 @@ class TestManualScopeCertifiesNothing:
         assert hit is None
 
 
+# The tests below change the working directory, because `compute_files_hash`
+# and `is_cache_allowed` resolve `relevant_files` relative to the cwd. They use
+# `monkeypatch.chdir`, never `os.chdir`: pytest restores the former at teardown
+# and nothing restores the latter.
+#
+# That is not a style preference. With a bare `os.chdir(tmp_path)` every test
+# that ran AFTERWARDS in the same process stayed in a temp directory, so
+# `load_config()` found no `.tausik/config.json` and quietly returned defaults.
+# `tests/test_gate_class_surface.py::test_named_exempt_files_are_exempt_and_documented`
+# then saw an EMPTY exempt list and failed — in a scoped verify run, where this
+# file happens to sort before it. In the full alphabetical suite the order is
+# reversed, so the leak was invisible: the suite was green and a scoped run of
+# a subset of the very same tests was red.
+
+
 class TestStrictPriorityOverRelaxed:
     """AC #3: strict hit returns first; relaxed not reached if strict matches."""
 
-    def test_strict_hit_returns_strict_row_not_manual(self, conn, tmp_path):
+    def test_strict_hit_returns_strict_row_not_manual(self, conn, tmp_path, monkeypatch):
         # Both rows present: a strict-match for explicit files, AND a manual
         # row. Strict must win — its scope/id should be returned, not manual.
         f = tmp_path / "scripts" / "x.py"
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text("# x", encoding="utf-8")
-        os.chdir(tmp_path)
+        monkeypatch.chdir(tmp_path)
         files = ["scripts/x.py"]
         manual_id = _record_manual_verify(conn, "t-strict-priority")
         strict_id = _record_explicit_verify(conn, "t-strict-priority", files)
@@ -164,7 +150,7 @@ class TestReverseDirectionRejected:
     via relaxed fallback. Reverse direction must stay strict so mtime /
     gate-signature invalidation keeps working."""
 
-    def test_explicit_verify_does_not_match_different_explicit_files(self, conn, tmp_path):
+    def test_explicit_verify_does_not_match_different_explicit_files(self, conn, tmp_path, monkeypatch):
         # Verify recorded against ["scripts/a.py"], task_done arrives with
         # ["scripts/b.py"]. Strict misses (different files_hash + command),
         # relaxed sees a row but with files=['scripts/a.py'] in command —
@@ -174,7 +160,7 @@ class TestReverseDirectionRejected:
         a.parent.mkdir(parents=True, exist_ok=True)
         a.write_text("# a", encoding="utf-8")
         b.write_text("# b", encoding="utf-8")
-        os.chdir(tmp_path)
+        monkeypatch.chdir(tmp_path)
         _record_explicit_verify(conn, "t-reverse", ["scripts/a.py"])
         fresh, hit = has_fresh_verify_run(conn, "t-reverse", ["scripts/b.py"])
         assert fresh is False
@@ -190,11 +176,11 @@ class TestBucketSeparation:
     is what matters, so it stays asserted directly.
     """
 
-    def test_task_done_row_does_not_satisfy_verify_first(self, conn, tmp_path):
+    def test_task_done_row_does_not_satisfy_verify_first(self, conn, tmp_path, monkeypatch):
         f = tmp_path / "scripts" / "foo.py"
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text("# foo", encoding="utf-8")
-        os.chdir(tmp_path)
+        monkeypatch.chdir(tmp_path)
         files = ["scripts/foo.py"]
         # Bootstrap / pre-commit / an earlier task_done attempt records a
         # task-done bucket row for exactly these files: exit_code=0, same
@@ -213,13 +199,13 @@ class TestBucketSeparation:
         assert fresh is False, "task-done bucket row must not close QG-2"
         assert hit is None
 
-    def test_verify_row_found_despite_newer_task_done_rows(self, conn, tmp_path):
+    def test_verify_row_found_despite_newer_task_done_rows(self, conn, tmp_path, monkeypatch):
         """The verify row still wins when task-done rows are interleaved after
         it — a newer row in the other bucket must not shadow it."""
         f = tmp_path / "scripts" / "foo.py"
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text("# foo", encoding="utf-8")
-        os.chdir(tmp_path)
+        monkeypatch.chdir(tmp_path)
         files = ["scripts/foo.py"]
         verify_id = _record_explicit_verify(conn, "t-interleaved", files)
         for _ in range(2):
@@ -252,11 +238,11 @@ class TestSecurityShortCircuit:
         assert fresh is False
         assert hit is None
 
-    def test_security_sensitive_rejects_even_with_strict_row(self, conn, tmp_path):
+    def test_security_sensitive_rejects_even_with_strict_row(self, conn, tmp_path, monkeypatch):
         f = tmp_path / "src" / "auth" / "login.py"
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text("# auth", encoding="utf-8")
-        os.chdir(tmp_path)
+        monkeypatch.chdir(tmp_path)
         files = ["src/auth/login.py"]
         _record_explicit_verify(conn, "t-security-strict", files)
         fresh, hit = has_fresh_verify_run(conn, "t-security-strict", files)

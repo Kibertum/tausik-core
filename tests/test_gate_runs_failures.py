@@ -24,6 +24,7 @@ if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
 
 import service_verification as sv  # noqa: E402
+from conftest import VERIFICATION_RUNS_DDL  # noqa: E402
 from gate_run_record import gate_activity  # noqa: E402
 from verify_cache import has_fresh_verify_run  # noqa: E402
 
@@ -39,37 +40,7 @@ def conn(tmp_path):
     # the cache lookup does dict(row), which only works with Row.
     c.row_factory = sqlite3.Row
     c.execute("PRAGMA foreign_keys=ON")
-    c.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS verification_runs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_slug TEXT,
-    scope TEXT NOT NULL CHECK(scope IN
-        ('lightweight', 'standard', 'high', 'critical', 'manual')),
-    command TEXT NOT NULL,
-    exit_code INTEGER NOT NULL,
-    summary TEXT,
-    files_hash TEXT NOT NULL,
-    ran_at TEXT NOT NULL,
-    duration_ms INTEGER,
-    receipt_json TEXT,
-    -- l26-verify-git-diff-wire: how the declared scope related to git at run
-    -- time. 'complete' | 'under-declared' | 'unknown'; NULL on rows written
-    -- before v38 and read as 'unknown' (never as 'complete').
-    declared_scope_status TEXT,
-    -- JSON array of files git saw change but relevant_files omitted (capped).
-    undeclared_files TEXT,
-    -- verify-no-test-mapped-dead-end: 1 when the caller declared, for this run,
-    -- that its files map to no test on purpose (docs, config, migrations). Such
-    -- a run passes with NO gate executed, so it must stay countable:
-    --   SELECT * FROM verification_runs WHERE no_tests_declared = 1;
-    -- A dedicated column, not a `scope` value — `scope` is a CHECK-constrained
-    -- SENAR tier, and overloading it would have required rebuilding the table
-    -- to widen the constraint.
-    no_tests_declared INTEGER NOT NULL DEFAULT 0
-);;
-        """
-    )
+    c.executescript(VERIFICATION_RUNS_DDL + ";")
     c.executescript(GATE_RUNS_SQL)
     c.commit()
     yield c

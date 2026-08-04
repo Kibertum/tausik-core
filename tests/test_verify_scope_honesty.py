@@ -34,39 +34,12 @@ import gate_runner  # noqa: E402
 import service_verification as sv  # noqa: E402
 import verify_cached_run as vcr  # noqa: E402
 import verify_scope_honesty as vsh  # noqa: E402
+from conftest import VERIFICATION_RUNS_DDL  # noqa: E402
 
-# Mirrors the verification_runs baseline in backend_schema.py. Hand-rolled here
-# like its sibling test modules; the drift risk that creates is tracked in
-# `test-ddl-drift-verification-runs`.
-_DDL = """
-CREATE TABLE IF NOT EXISTS verification_runs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_slug TEXT,
-    scope TEXT NOT NULL CHECK(scope IN
-        ('lightweight', 'standard', 'high', 'critical', 'manual')),
-    command TEXT NOT NULL,
-    exit_code INTEGER NOT NULL,
-    summary TEXT,
-    files_hash TEXT NOT NULL,
-    ran_at TEXT NOT NULL,
-    duration_ms INTEGER,
-    receipt_json TEXT,
-    -- l26-verify-git-diff-wire: how the declared scope related to git at run
-    -- time. 'complete' | 'under-declared' | 'unknown'; NULL on rows written
-    -- before v38 and read as 'unknown' (never as 'complete').
-    declared_scope_status TEXT,
-    -- JSON array of files git saw change but relevant_files omitted (capped).
-    undeclared_files TEXT,
-    -- verify-no-test-mapped-dead-end: 1 when the caller declared, for this run,
-    -- that its files map to no test on purpose (docs, config, migrations). Such
-    -- a run passes with NO gate executed, so it must stay countable:
-    --   SELECT * FROM verification_runs WHERE no_tests_declared = 1;
-    -- A dedicated column, not a `scope` value — `scope` is a CHECK-constrained
-    -- SENAR tier, and overloading it would have required rebuilding the table
-    -- to widen the constraint.
-    no_tests_declared INTEGER NOT NULL DEFAULT 0
-);;
-"""
+# The verification_runs baseline cut straight out of backend_schema.SCHEMA_SQL
+# by conftest.canonical_ddl — no longer hand-rolled, so it cannot drift away
+# from production behind a green test (`test-ddl-drift-verification-runs`).
+_DDL = VERIFICATION_RUNS_DDL + ";"
 
 _GATES = [{"name": "pytest", "passed": True, "severity": "block"}]
 
