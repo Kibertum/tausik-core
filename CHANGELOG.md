@@ -13,6 +13,26 @@ Nothing yet.
 
 ## [1.8.0] — 2026-08-03
 
+### Fixed — Python 3.13 changed `ntpath.isabs`, and the path redactor stopped redacting on Windows
+
+Found by the release matrix: eight cells green, the ninth — windows + 3.13 — red
+on two `test_knowledge_origin` tests.
+
+`relative_source_file` takes the machine's directory layout out of the
+`source_file` column. It asked `os.path.isabs` whether a value was absolute, and
+that answer MOVES: Python 3.13 stopped `ntpath.isabs` from calling a path with
+one leading separator and no drive letter absolute. The function then returned
+such a path UNCHANGED — leaving the directory layout in the very column this
+redaction exists to clear. On one platform, from one minor release onward,
+silently.
+
+The uncomfortable part is not the Python change. This same module defines
+`_ABSOLUTE_RE` a hundred lines above and states outright why `os.path.isabs`
+cannot be used. One function in the module did not use it. It does now.
+
+Absoluteness is a property of the SPELLING. Asking the interpreter what it
+thinks today makes the answer a moving target.
+
 ### Fixed — CI provisioning was fixed in one of the two places
 
 The same defect closed in `.gitlab-ci.yml` was left untouched in

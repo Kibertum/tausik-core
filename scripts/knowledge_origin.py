@@ -162,10 +162,21 @@ def relative_source_file(source_file: str | None, project_root: str) -> str | No
     Already-relative values are returned unchanged. They came from a project
     store that had already normalised them, and re-resolving them against a root
     they may not belong to would be a guess.
+
+    Absoluteness is decided by `_ABSOLUTE_RE`, the predicate this module already
+    defines a hundred lines above with the reason spelled out — and this function
+    was the one place that did not use it. It asked `os.path.isabs`, and that
+    answer moves: Python 3.13 changed `ntpath.isabs` so a path with one leading
+    separator and no drive letter (`\\work\\clients\\acme\\repo\\a.py`) is no
+    longer absolute on Windows. The function then returned such a path
+    UNCHANGED — leaving the machine's directory layout in the very column this
+    redaction exists to clear, on one platform, from one minor release onward,
+    without a word. What is absolute is a property of how the path is SPELLED;
+    asking the interpreter what it thinks today makes the answer a moving target.
     """
     if not source_file:
         return source_file
-    if not os.path.isabs(source_file):
+    if not _ABSOLUTE_RE.match(source_file):
         return source_file
     root = os.path.abspath(project_root)
     resolved = os.path.abspath(source_file)
