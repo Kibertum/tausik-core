@@ -13,6 +13,29 @@ Nothing yet.
 
 ## [1.8.0] — 2026-08-03
 
+### Fixed — CI provisioning was fixed in one of the two places
+
+The same defect closed in `.gitlab-ci.yml` was left untouched in
+`.github/workflows/tests.yml`, and the release's nine-cell matrix failed on it in
+all nine. Fixing the FOUND CASE instead of the FORM is exactly what convention
+#361 forbids, and it was violated within an hour of the case being found.
+
+Three failures, one root: the runner did not install `requirements.txt`.
+
+- `test_mcp_no_deprecated_primitives` — `ModuleNotFoundError: No module named
+  'mcp'`. Not a skip but an error: a red that says "your code is broken" about an
+  unprovisioned runner.
+- `test_mypy_clean` — three `import-not-found` errors on `mcp.server`,
+  `mcp.server.stdio` and `mcp.types`, under a message asserting that "the
+  declared tree is no longer clean" — a missing PACKAGE presented as a TYPE
+  regression.
+- `test_both_host_profiles_are_actually_scanned` — the runner deployed only the
+  claude profile. The guard against forgetting the second profile was defeated by
+  an environment that had one.
+
+Both CI configurations now ask for the same thing: `requirements.txt` and
+`bootstrap --ide all`.
+
 ### Fixed — the security gate had never run on a release, and fired twice on the first one
 
 GitHub's `security-review` workflow is wired to `pull_request` into main.
