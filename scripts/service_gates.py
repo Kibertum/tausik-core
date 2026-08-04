@@ -119,6 +119,12 @@ class GatesMixin:
             "duration_ms": details.get("duration_ms"),
             "cache_hit": details.get("cache_hit"),
             "scope_description": details.get("scope_description"),
+            # v2-verify-receipt-as-argument: the explicit state handle, present
+            # only when this run earned one. It has to reach the AGENT — a
+            # handle the caller never sees is session state wearing a new name
+            # (SEP-2567), which is the thing decision #218 removed.
+            "verify_handle": details.get("verify_handle"),
+            "handle_expires_at": details.get("handle_expires_at"),
         }
 
     def _check_qg0_start(self, slug: str, task: dict[str, Any]) -> list[str]:
@@ -191,6 +197,7 @@ class GatesMixin:
         trigger: str = "task-done",
         no_file_changes: bool = False,
         no_changelog: bool = False,
+        verify_handle: str | None = None,
     ) -> dict[str, Any]:
         """Return detailed gate report for MCP/agent-friendly handling.
 
@@ -219,7 +226,9 @@ class GatesMixin:
         # scope-independent gates over an empty file set would substitute `{files}`
         # to "." and scan the whole tree for a task that touched nothing.
         if no_file_changes and trigger == "task-done":
-            self._run_post_scope_gates(report, slug, relevant_files, no_file_changes=True)
+            self._run_post_scope_gates(
+                report, slug, relevant_files, no_file_changes=True, verify_handle=verify_handle
+            )
             return report
         try:
             from service_verification import (
@@ -280,6 +289,7 @@ class GatesMixin:
                 relevant_files,
                 no_file_changes=no_file_changes,
                 no_changelog=no_changelog,
+                verify_handle=verify_handle,
             )
         return report
 
@@ -291,6 +301,7 @@ class GatesMixin:
         *,
         no_file_changes: bool = False,
         no_changelog: bool = False,
+        verify_handle: str | None = None,
     ) -> None:
         """QG-2 gates that run after the scoped pipeline — one loop, one registry.
 
@@ -308,6 +319,7 @@ class GatesMixin:
             relevant_files,
             no_file_changes=no_file_changes,
             no_changelog=no_changelog,
+            verify_handle=verify_handle,
         )
 
     # The two methods below are the registry's `svc:` implementations for the
@@ -324,11 +336,19 @@ class GatesMixin:
         *,
         no_file_changes: bool = False,
         no_changelog: bool = False,  # noqa: ARG002 — uniform post-scope shape
+        verify_handle: str | None = None,
     ) -> None:
         """Verify-First Contract — delegates to gate_verify_first."""
         from gate_verify_first import enforce_verify_first
 
-        enforce_verify_first(self, report, slug, relevant_files, no_file_changes=no_file_changes)
+        enforce_verify_first(
+            self,
+            report,
+            slug,
+            relevant_files,
+            no_file_changes=no_file_changes,
+            verify_handle=verify_handle,
+        )
 
     def _enforce_changelog(
         self,
@@ -338,6 +358,7 @@ class GatesMixin:
         *,
         no_changelog: bool = False,
         no_file_changes: bool = False,  # noqa: ARG002 — uniform post-scope shape
+        verify_handle: str | None = None,  # noqa: ARG002 — uniform post-scope shape
     ) -> None:
         """Continuous-CHANGELOG gate — delegates to gate_changelog."""
         from gate_changelog import enforce_changelog

@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 43
+SCHEMA_VERSION = 44
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -231,7 +231,17 @@ CREATE TABLE IF NOT EXISTS verification_runs (
     -- A dedicated column, not a `scope` value — `scope` is a CHECK-constrained
     -- SENAR tier, and overloading it would have required rebuilding the table
     -- to widen the constraint.
-    no_tests_declared INTEGER NOT NULL DEFAULT 0
+    no_tests_declared INTEGER NOT NULL DEFAULT 0,
+    -- v2-verify-receipt-as-argument (v44, SEP-2567): the explicit state handle
+    -- `verify` mints and `task done --verify-handle` presents. All three are
+    -- NULLABLE because there is no true default — a run that was never handed
+    -- out as a handle has no nonce, no expiry and no spend, and NULL is how
+    -- that is spelled. Backfilling an expiry would invent one, and the
+    -- redemption predicate (`handle_redeemed_at IS NULL`) would then read those
+    -- rows as spendable.
+    handle_nonce TEXT,            -- 128-bit hex; NULL = never minted
+    handle_expires_at TEXT,       -- ISO-8601 UTC; the receipt carries a SIGNED copy
+    handle_redeemed_at TEXT       -- ISO-8601 UTC of the single spend; NULL = unspent
 );
 
 CREATE TABLE IF NOT EXISTS session_usage_metrics (
@@ -377,4 +387,7 @@ END;
 # INDEXES_SQL moved to backend_schema_indexes.py to keep this file under the
 # 400-line filesize gate (state-git-stable-ids). Re-exported so existing
 # `from backend_schema import INDEXES_SQL` importers keep working.
-from backend_schema_indexes import INDEXES_SQL  # noqa: E402,F401
+from backend_schema_indexes import (  # noqa: E402,F401
+    INDEXES_SQL,
+    POST_MIGRATION_INDEXES_SQL,
+)

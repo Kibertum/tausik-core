@@ -79,6 +79,7 @@ def run_gates_with_cache(
     trigger: str = "task-done",
     details: dict[str, Any] | None = None,
     no_tests_expected: bool = False,
+    allow_handle: bool = True,
 ) -> tuple[bool, list[dict[str, Any]], str | None]:
     """SENAR Rule 5 cache-aware gate run.
 
@@ -88,6 +89,12 @@ def run_gates_with_cache(
       cache_status: "hit" / "miss" / "bypass" / "git-mismatch" /
                     "no-test-mapped" / "no-tests-declared" /
                     "scope-security-mismatch" / None
+
+    `allow_handle=False` records the run exactly as usual but withholds the
+    explicit state handle (v2-verify-receipt-as-argument). The one caller is the
+    legacy `auto_verify` route in `gate_verify_first`, which runs these gates
+    from INSIDE a `task done`: such a run must not hand out a presentable
+    certificate for the very close that produced it.
 
     `no_tests_expected` is the caller declaring, for this run, that the
     declared files are not expected to map to any test — documentation,
@@ -341,6 +348,7 @@ def run_gates_with_cache(
                 scope_desc=scope_desc,
                 trigger=trigger,
                 details=details,
+                allow_handle=allow_handle,
             )
         except VerificationRecordError as exc:
             # The one branch where the fix actually changes a verdict. Gates may

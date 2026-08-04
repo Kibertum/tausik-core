@@ -66,11 +66,19 @@ task show <slug>                # Полная информация: план, �
 task start <slug> [--force]     # planning → active (QG-0: требует goal + AC + negative scenario)
                                 # --force байпасит session capacity gate (audit event + note)
 task done <slug> --ac-verified [--no-knowledge] [--relevant-files FILE1 FILE2 ...] [--evidence "..."]
+                 [--verify-handle <run_id>.<nonce>]
                                 # QG-2: --ac-verified подтверждает проверку AC (требует evidence в notes
                                 #       ИЛИ --evidence inline). v1.5 Verify-First Contract: heavy gates
                                 #       (pytest, tsc, cargo, ...) НЕ запускаются здесь — они на отдельной
-                                #       команде `verify`. task done проверяет наличие свежего green из
-                                #       verify cache (10 min TTL, тот же files_hash) и закрывается за
+                                #       команде `verify`.
+                                # --verify-handle (1.8, решение #218): ПРЕДЪЯВИТЬ хендл, который напечатал
+                                #       `verify --task <slug>`, вместо поиска свежей строки. Хендл называет
+                                #       ОДИН прогон, одноразовый, несёт свой срок годности (1 час) и
+                                #       проверяется по ЖИВЫМ файлам и ЖИВОМУ конфигу гейтов — поэтому его
+                                #       отказ говорит по существу («файлы изменились с момента verify»),
+                                #       а не «промах кэша». Подробности: docs/ru/receipts.md.
+                                # БЕЗ --verify-handle поведение прежнее: поиск свежего green из
+                                #       verify cache (10 min TTL, тот же files_hash), закрытие за
                                 #       миллисекунды. Если verify не запускался — блок с remediation.
                                 #       Opt-out: .tausik/config.json → {"task_done":{"auto_verify":true}}
                                 #       — старое поведение (heavy гейты inline). НЕТ --force.
@@ -155,8 +163,10 @@ SELECT task_slug, ran_at FROM verification_runs WHERE no_tests_declared = 1;
 ```bash
 .tausik/tausik task start my-task                    # QG-0
 # … работа над кодом …
-.tausik/tausik verify --task my-task                 # heavy: pytest etc.
-.tausik/tausik task done my-task --ac-verified       # lightweight: cache lookup
+.tausik/tausik verify --task my-task                 # heavy: pytest etc. + печатает Verify handle
+.tausik/tausik task done my-task --ac-verified       # lightweight: поиск свежего прогона
+# либо предъявить хендл, напечатанный verify, — точечная проверка вместо поиска:
+.tausik/tausik task done my-task --ac-verified --verify-handle 4821.9f3c1a2b4d5e6f7089abcdef01234567
 ```
 
 **Opt-out на legacy (CI/inline):** установите в `.tausik/config.json`:

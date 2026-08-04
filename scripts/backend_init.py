@@ -23,6 +23,7 @@ from backend_schema import (
     FTS_SQL,
     FTS_TRIGGERS_SQL,
     INDEXES_SQL,
+    POST_MIGRATION_INDEXES_SQL,
     SCHEMA_SQL,
     SCHEMA_VERSION,
 )
@@ -192,4 +193,12 @@ def init_schema(conn: sqlite3.Connection) -> None:
             # snapshot it might need to roll back to.
             if db_path:
                 prune_db_backups(db_path)
+    # AFTER migrations, on BOTH paths. These index columns arrive from
+    # migrations, so they cannot be in INDEXES_SQL above (which runs before
+    # migrations on an existing DB and would crash on the missing column) — but
+    # leaving them only in the migrations meant a FRESH database never got them,
+    # because a fresh install stamps the current version and then has no
+    # migrations to run. Every statement is IF NOT EXISTS; this is a no-op on a
+    # database that already has them.
+    cur.executescript(POST_MIGRATION_INDEXES_SQL)
     conn.commit()

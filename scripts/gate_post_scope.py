@@ -143,13 +143,19 @@ def run_post_scope_gates(
     *,
     no_file_changes: bool = False,
     no_changelog: bool = False,
+    verify_handle: str | None = None,
 ) -> list[dict]:
     """Run every post-scope gate in registry order. Returns the gate results.
 
     Each implementation is called with the uniform post-scope shape —
-    ``(report, slug, relevant_files, *, no_file_changes, no_changelog)`` — and
-    uses the parts it needs; Verify-First ignores `no_changelog`, the changelog
-    gate ignores the file list. Pass/fail is read from the report itself (did
+    ``(report, slug, relevant_files, *, no_file_changes, no_changelog,
+    verify_handle)`` — and uses the parts it needs; Verify-First ignores
+    `no_changelog`, the changelog gate ignores the file list and the handle.
+    The shape is uniform rather than per-gate precisely so that adding an
+    argument is one edit here plus an ignored keyword on the gates that do not
+    want it — the alternative, dispatching by signature, makes a gate that
+    quietly stops receiving a new argument indistinguishable from one that
+    chose to ignore it. Pass/fail is read from the report itself (did
     this gate add a blocking failure?) rather than from a return value, so a
     gate cannot claim an outcome different from the one it recorded.
     """
@@ -181,6 +187,7 @@ def run_post_scope_gates(
             relevant_files,
             no_file_changes=no_file_changes,
             no_changelog=no_changelog,
+            verify_handle=verify_handle,
         )
         results.append(
             _result(

@@ -51,12 +51,24 @@ def emit_signed_receipt(
     declared_scope_status: str | None = None,
     undeclared_files: list[str] | None = None,
     undeclared_count: int | None = None,
+    files: list[str] | None = None,
+    gate_signature: str | None = None,
+    expires_at: str | None = None,
 ) -> tuple[str, str | None]:
     """Build + sign + persist a receipt for an existing verification_run row.
 
     Returns (status, key_fingerprint). status is one of STATUS_SIGNED /
     STATUS_NO_KEY / STATUS_ERROR; never raises — verify must stay usable
     on projects without a key (graceful degradation per AC).
+
+    `files` / `gate_signature` / `expires_at` are the v3 self-description
+    (v2-verify-receipt-as-argument). They are passed in rather than derived
+    here because their authoritative form already exists at the call site: the
+    caller holds the declared list and the cache `command` that both the row
+    and the cache key were built from. Recomputing them here would let the
+    receipt and the row it describes drift apart by exactly one refactor.
+    Omitting them yields a receipt that `missing_v3_fields` reports as
+    incomplete — which is the honest outcome, not a silent full receipt.
     """
     import crypto_keys
 
@@ -100,6 +112,9 @@ def emit_signed_receipt(
             undeclared_files=undeclared_files,
             undeclared_count=undeclared_count,
             configured_gates_count=len(gate_results),
+            files=files,
+            gate_signature=gate_signature,
+            expires_at=expires_at,
         )
         envelope = sign_receipt(project_dir, receipt)
         conn.execute(

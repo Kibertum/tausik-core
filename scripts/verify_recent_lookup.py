@@ -27,6 +27,23 @@ def _extract_files_from_cache_command(command: str) -> list[str]:
     return [f for f in files_part.split(",") if f]
 
 
+def extract_gate_signature(command: str | None) -> str | None:
+    """Parse the gate signature from a `_build_cache_command` value.
+
+    Format: `trigger=...|sig=<16hex>|files=...`. Returns None when absent.
+
+    Lives beside `_extract_files_from_cache_command` because they read the two
+    halves of ONE string. The first cut put this in `verify_handle_check` and had
+    `verify_run_record` import it from there — a write path reaching into a
+    policy module for a parser, which is the wrong direction and would have left
+    the command format described in two places the moment either changed.
+    """
+    if not command or "|sig=" not in command:
+        return None
+    tail = command.split("|sig=", 1)[1]
+    return tail.split("|", 1)[0] or None
+
+
 def lookup_recent_for_task(
     conn: sqlite3.Connection,
     task_slug: str,

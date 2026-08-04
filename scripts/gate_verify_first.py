@@ -30,6 +30,63 @@ from tausik_utils import cli_invocation
 _CLI = cli_invocation()
 
 
+def _project_dir(svc: Any) -> str:
+    """The project ROOT this service speaks for, for key lookup. Never raises.
+
+    `tausik_dir()` is `<root>/.tausik`; the key lives at `<root>/.tausik/keys`,
+    and `crypto_keys.load_public` takes the ROOT. Falling back to "." matches
+    what `verify_run_record._project_dir_from_conn` does when a path cannot be
+    resolved — a degraded resolution that finds no key produces the explicit
+    keyless refusal, which is a correct answer, not a crash.
+    """
+    import os
+
+    getter = getattr(svc, "tausik_dir", None)
+    if callable(getter):
+        try:
+            return os.path.dirname(str(getter()))
+        except Exception:  # noqa: BLE001 — resolution is best-effort, the refusal is not
+            return "."
+    return "."
+
+
+def _enforce_handle(svc: Any, report: dict[str, Any], slug: str, handle: str) -> None:
+    """QG-2 via a presented explicit state handle (SEP-2567).
+
+    THE HANDLE IS VALIDATED HERE AND SPENT ELSEWHERE, and the split was earned
+    the hard way. The first cut redeemed right here, reasoning that a handle
+    consumed by a failed close is a smaller problem than one left spendable
+    after a successful one. Dogfooding disproved that within the hour: this gate
+    passed, a LATER post-scope check blocked the close, and a ninety-second
+    verify run was spent on a task that never closed. Nothing had been
+    certified, so burning the handle bought no safety — it only made the agent
+    redo the expensive half.
+
+    Redeem-once exists so one green cannot close two tasks (SEP-2322 replay).
+    That binds the spend to an actual CLOSE, not to reaching this line. The
+    verdict is therefore recorded on the report and `service_task_done` spends
+    the handle inside the same transaction that writes status='done': if that
+    transaction rolls back, the spend rolls back with it — the property this
+    code was previously approximating badly.
+    """
+    from verify_handle_check import check_handle
+
+    verdict = check_handle(svc.be._conn, handle, task_slug=slug, project_dir=_project_dir(svc))
+    svc.be.task_append_notes(slug, f"Verify-First: {verdict.reason}")
+    if verdict.ok:
+        # Internal transport between the two halves of one flow, hence the
+        # leading underscore — not part of the report a caller reads.
+        report["_verify_handle_to_redeem"] = handle
+        return
+    _block(
+        report,
+        "verify-handle",
+        verdict.reason,
+        f"{_CLI} verify --task {slug} --relevant-files <paths...>   "
+        f"# then present the handle it prints:\n"
+        f"{_CLI} task done {slug} --ac-verified --verify-handle <run_id>.<nonce>",
+    )
+
 
 def _enforce_no_file_changes(
     svc: Any,
@@ -110,6 +167,7 @@ def enforce_verify_first(
     relevant_files: list[str] | None,
     *,
     no_file_changes: bool = False,
+    verify_handle: str | None = None,
 ) -> None:
     """Add a synthetic blocking_failure if no fresh `tausik verify` run
     exists for this task and the project has verify-trigger gates.
@@ -131,6 +189,18 @@ def enforce_verify_first(
     have NO uncommitted changes. A dirty scope or an unavailable git blocks,
     fail-closed. This is symmetric to how no_tests_declared closes a run with
     no gate executed — here we close with no scope to gate.
+
+    `verify_handle` (v2-verify-receipt-as-argument, SEP-2567) is the FOURTH
+    route and takes precedence over the freshness lookup: the caller presents
+    the identifier `tausik verify` minted, and it is validated by point lookup
+    plus re-derivation from live state instead of being searched for by age.
+    Its refusals are substantive ("the files this receipt covers have changed")
+    where the lookup could only ever say "miss".
+
+    Presenting no handle keeps the previous behaviour exactly (AC8). That is a
+    compatibility promise rather than an oversight: a silent tightening would
+    strand every existing caller, and the handle is a better way to PRESENT a
+    green, not a new thing to be green about.
     """
     from service_verification import (
         DEFAULT_CACHE_TTL_S,
@@ -181,6 +251,21 @@ def enforce_verify_first(
         if isinstance(cfg, dict)
         else DEFAULT_CACHE_TTL_S
     )
+
+    # v2-verify-receipt-as-argument: a presented handle is decided FIRST, and
+    # ahead of the undeclared-scope block below, because the handle carries its
+    # own scope — the receipt names the files it covered, and that list (not the
+    # caller's argument) is what gets judged. Deciding it after would refuse a
+    # perfectly specific proof for want of a redundant re-declaration.
+    #
+    # It is also terminal in both directions. A handle that validates satisfies
+    # QG-2; a handle that does not BLOCKS, rather than falling through to the
+    # freshness lookup. Falling through would make every refusal below
+    # recoverable by simply having verified recently — which is exactly the
+    # substitution of "recent" for "correct" that decision #218 removed.
+    if verify_handle:
+        _enforce_handle(svc, report, slug, verify_handle)
+        return
 
     # verify-cache-empty-scope-hit: an undeclared scope cannot be certified
     # by anything, so decide it here — ahead of both the cache lookup and
@@ -261,6 +346,13 @@ def enforce_verify_first(
                 scope=report.get("scope") or "standard",
                 append_notes_fn=svc.be.task_append_notes,
                 trigger="verify",
+                # These gates are running INSIDE a task_done. The run is
+                # recorded under trigger=verify so it shares the cache bucket,
+                # but it must not mint a presentable handle: that would let a
+                # close certify itself, and a close that blocks after this point
+                # would leave a valid hour-long handle behind for a task that
+                # never closed (v2-verify-receipt-as-argument).
+                allow_handle=False,
             )
         except Exception as e:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
             _block(

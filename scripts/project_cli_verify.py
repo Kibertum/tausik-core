@@ -17,6 +17,11 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from tausik_utils import cli_invocation
+
+# How to spell the CLI in a remediation the reader's shell will accept.
+_CLI = cli_invocation()
+
 
 def _emit_cache_hit(svc: Any, task_slug: str, hit: dict[str, Any]) -> None:
     """Print the cache-hit line and log the telemetry event (best-effort)."""
@@ -221,8 +226,41 @@ def cmd_verify(svc: Any, args: Any) -> None:
         )
     if task_slug:
         _emit_receipt(svc, run_id)
+        _emit_handle(report, task_slug)
     if not passed:
         raise SystemExit(1)
+
+
+def _emit_handle(report: dict[str, Any], task_slug: str) -> None:
+    """Print the explicit state handle, or say why there is none.
+
+    Printing it is not cosmetic — it IS the feature. SEP-2567's whole point is
+    that the identifier is returned to the caller and passed back as an
+    argument; a handle minted into the database and never shown would be the
+    same hidden server state under a new name.
+
+    The durability policy is printed WITH it for the same reason: "A policy
+    only in server documentation is not visible to the model." The agent that
+    has to decide whether to re-verify sees the expiry at the moment it is
+    given the handle, not in a doc it may never read.
+    """
+    handle = report.get("verify_handle")
+    if not handle:
+        # Silence here would read as "handles are off". The run that earns no
+        # handle is exactly the run whose green certifies nothing, and that is
+        # worth one line.
+        print(
+            "Verify handle: none — this run is not presentable "
+            "(no declared files, all gates skipped, or a security-sensitive "
+            f"scope). `task done {task_slug}` will fall back to the freshness "
+            "lookup."
+        )
+        return
+    print(
+        f"Verify handle: {handle}\n"
+        f"  valid until {report.get('handle_expires_at')} (single use). Present it:\n"
+        f"  {_CLI} task done {task_slug} --ac-verified --verify-handle {handle}"
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests

@@ -43,7 +43,21 @@ def force_audit_message(be: "SQLiteBackend", slug: str, task: dict[str, Any]) ->
 
 
 def check_session_capacity(be: "SQLiteBackend", slug: str, task: dict[str, Any]) -> None:
-    """Block task_start if its budget would overshoot the session's call budget."""
+    """Block task_start if its budget would overshoot the session's call budget.
+
+    NO OPEN SESSION IS A REFUSAL, NOT A PASS (v2-session-split-and-drop). This
+    used to `return` on `summary["session"] is None`, which meant the 200-call
+    gate stopped gating and said nothing — the one shape of failure this project
+    treats as worse than a false block. It also inverted the incentive: the
+    cheapest way past a capacity refusal was to end the session and never start
+    another, and nothing would ever mention it again.
+
+    The refusal is cheap to satisfy (`tausik session start`) and it is the same
+    action that restores the rest of what a missing session silently switches
+    off — usage telemetry, token metrics and model pinning all no-op without one
+    (docs/ru/sessions.md). A budget-less task still passes untouched: this gate
+    only has an opinion about tasks that declared a budget.
+    """
     budget = task.get("call_budget")
     if not budget or budget <= 0:
         return
@@ -53,7 +67,13 @@ def check_session_capacity(be: "SQLiteBackend", slug: str, task: dict[str, Any])
     cap = cfg.get("session_capacity_calls", DEFAULT_SESSION_CAPACITY_CALLS)
     summary = be.session_capacity_summary(cap)
     if summary["session"] is None:
-        return
+        raise ServiceError(
+            f"Session capacity gate: '{slug}' declares budget={budget}, but no "
+            f"session is open, so there is nothing to account it against. An "
+            f"absent session is not unlimited capacity — it is an unmeasured "
+            f"one. Start a session: `tausik session start`. (Without one, usage "
+            f"telemetry, token metrics and model pinning also record nothing.)"
+        )
     if budget > summary["remaining"]:
         raise ServiceError(
             f"Session capacity gate: '{slug}' budget={budget} exceeds remaining "

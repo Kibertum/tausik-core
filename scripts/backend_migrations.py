@@ -23,6 +23,7 @@ from backend_migrations_v40 import MIGRATION_V40
 from backend_migrations_v41 import MIGRATION_V41
 from backend_migrations_v42 import MIGRATION_V42
 from backend_migrations_v43 import MIGRATION_V43
+from backend_migrations_v44 import MIGRATION_V44
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -351,6 +352,9 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     # v43: rebuild tasks so model_mismatch is NOT NULL DEFAULT 0 on the upgrade path
     # (schema-model-mismatch-nullable-on-upgrade). Also aligns tasks column order.
     43: MIGRATION_V43,
+    # v44: explicit state handle on verify runs (v2-verify-receipt-as-argument,
+    # decision #218 / SEP-2567). Three nullable columns; no rebuild.
+    44: MIGRATION_V44,
 }
 
 

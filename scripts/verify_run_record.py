@@ -72,6 +72,8 @@ def record_run(
     scope_description: dict[str, Any] | None = None,
     trigger: str | None = None,
     no_tests_declared: bool = False,
+    handle_out: dict[str, Any] | None = None,
+    allow_handle: bool = True,
 ) -> int:
     """Insert a verify run. Returns the new row id.
 
@@ -93,6 +95,31 @@ def record_run(
     It is a column rather than a `scope` value: `scope` is CHECK-constrained to
     the SENAR tiers, so encoding it there raised IntegrityError against every
     real database while passing in tests whose DDL omits the constraint.
+
+    `handle_out` (v2-verify-receipt-as-argument), when a dict is passed, is
+    filled with `{"handle", "expires_at"}` for a run entitled to one. An
+    out-parameter for the same reason `details` is one in
+    `run_gates_with_cache`: this function has many call sites and returns an
+    int several of them use directly.
+
+    `allow_handle=False` withdraws entitlement regardless of the four
+    conditions below. It exists for ONE caller: the legacy `auto_verify` route,
+    which runs the verify-trigger gates INLINE from inside `task done`. Those
+    runs are recorded with `trigger=verify` so they share the cache bucket, and
+    without this flag every such close would mint a real, hour-long, presentable
+    handle as a side effect — including closes that then BLOCK for an unrelated
+    reason, leaving a valid handle for a task that never closed. The invariant
+    "a close cannot certify itself" was previously carried by the trigger label
+    alone; the label is still needed for the cache, so the entitlement says so
+    separately.
+
+    ENTITLEMENT IS NARROW, deliberately. A handle is minted only for a run that
+    is green, names a task, names files, and is NOT stamped `noncacheable|` —
+    the same four conditions under which the old freshness lookup would have
+    accepted the row. The handle changes HOW a green is presented, not WHICH
+    greens count. A run that certifies nothing is still recorded (that is
+    observability, and it is why the recording is unconditional), it just
+    cannot be handed out.
     """
     status = str((scope_description or {}).get("status") or "unknown")
     undeclared = list((scope_description or {}).get("undeclared") or [])
@@ -137,6 +164,12 @@ def record_run(
     if task_slug and gate_results is not None:
         from verify_receipt_emit import emit_signed_receipt
 
+        files, gate_signature, entitled = describe_run_command(command)
+        entitled = entitled and exit_code == 0 and bool(files) and allow_handle
+        # The expiry is computed BEFORE the receipt is built because it must be
+        # SIGNED. A durability policy stapled on afterwards could be edited
+        # afterwards; inside the signature it cannot (SEP-2567).
+        expires_at = _handle_expiry(conn, run_id) if entitled else None
         emit_signed_receipt(
             conn,
             run_id,
@@ -145,6 +178,9 @@ def record_run(
             gate_results=gate_results,
             passed=exit_code == 0,
             files_hash=files_hash,
+            files=files if entitled else None,
+            gate_signature=gate_signature if entitled else None,
+            expires_at=expires_at,
             # project_dir resolves to the project ROOT (DB-derived), not the CWD:
             # signing must find the key at <root>/.tausik/keys regardless of the
             # directory `tausik verify` was invoked from (s129-review-fixes).
@@ -153,7 +189,90 @@ def record_run(
             undeclared_files=undeclared,
             undeclared_count=undeclared_count,
         )
+        if entitled and expires_at:
+            _mint(conn, run_id, expires_at=expires_at, handle_out=handle_out)
     return run_id
+
+
+def describe_run_command(command: str) -> tuple[list[str], str | None, bool]:
+    """Read a cache `command` back into (files, gate_signature, replayable).
+
+    The command string `trigger=verify|sig=<16hex>|files=a.py,b.py` is already
+    the authoritative statement of what this run covered and which gate set
+    produced it — it is what the cache key was built from and what the row
+    stores. Parsing it back is therefore not a second derivation that could
+    disagree with the first; it is a read of the one that exists. Building the
+    receipt's `files`/`gate_signature` from a separately-threaded argument
+    would have created the second source.
+
+    `replayable` is False for the `noncacheable|` prefix (empty scope,
+    all-skipped gates, security-sensitive set) and for a non-verify trigger.
+    Only a `trigger=verify` run is ever presentable: the `task-done` bucket
+    exists so a close cannot certify itself.
+    """
+    from verify_recent_lookup import (
+        _extract_files_from_cache_command,
+        extract_gate_signature,
+    )
+
+    if not command or command.startswith("noncacheable|"):
+        return [], None, False
+    if not command.startswith("trigger=verify|"):
+        return [], None, False
+    return (
+        _extract_files_from_cache_command(command),
+        extract_gate_signature(command),
+        True,
+    )
+
+
+def _handle_expiry(conn: sqlite3.Connection, run_id: int) -> str | None:
+    """`ran_at + handle TTL` for this row, or None if the row vanished."""
+    from verify_constants import DEFAULT_HANDLE_TTL_S
+    from verify_handle import compute_expires_at
+
+    row = conn.execute("SELECT ran_at FROM verification_runs WHERE id = ?", (run_id,)).fetchone()
+    if row is None:
+        return None
+    try:
+        from project_config import load_config
+
+        ttl = int(load_config().get("verify_handle_ttl_seconds", DEFAULT_HANDLE_TTL_S))
+    except Exception:  # noqa: BLE001 — a config read must not decide whether a run is provable
+        ttl = DEFAULT_HANDLE_TTL_S
+    return compute_expires_at(str(row[0]), ttl)
+
+
+def _mint(
+    conn: sqlite3.Connection,
+    run_id: int,
+    *,
+    expires_at: str,
+    handle_out: dict[str, Any] | None,
+) -> None:
+    """Mint the handle and hand it to the caller. Best-effort by design.
+
+    A minting failure must NOT fail the verify run: the run happened, its
+    evidence is written, and the pre-existing freshness lookup still closes the
+    task without a handle (AC8). Refusing the whole run here would make a new
+    presentation mechanism able to break the old one — the opposite of the
+    compatibility this task promised. The cost of the degradation is visible:
+    no handle is printed, so nothing silently claims to be presentable.
+    """
+    from verify_handle import mint_handle
+
+    try:
+        handle = mint_handle(conn, run_id, expires_at=expires_at)
+    except sqlite3.Error:
+        import logging
+
+        logging.getLogger("tausik.gates").warning(
+            "could not mint a verify handle for run #%s", run_id, exc_info=True
+        )
+        return
+    if handle_out is not None:
+        handle_out["handle"] = handle
+        handle_out["expires_at"] = expires_at
 
 
 class VerificationRecordError(RuntimeError):
@@ -235,6 +354,7 @@ def _record_verification(
     duration_ms: int | None = None,
     details: dict[str, Any] | None = None,
     no_tests_declared: bool = False,
+    allow_handle: bool = True,
 ) -> int:
     """The single write point into `verification_runs`.
 
@@ -258,6 +378,7 @@ def _record_verification(
     """
     import time as _time
 
+    handle_out: dict[str, Any] = {}
     for attempt in range(1, RECORD_MAX_ATTEMPTS + 1):
         try:
             run_id = record_run(
@@ -273,6 +394,8 @@ def _record_verification(
                 scope_description=scope_desc,
                 trigger=trigger,
                 no_tests_declared=no_tests_declared,
+                handle_out=handle_out,
+                allow_handle=allow_handle,
             )
         except Exception as exc:  # noqa: BLE001 — re-raised below, never swallowed
             # `record_run` inserts, writes the gate rows, then commits. A
@@ -301,5 +424,12 @@ def _record_verification(
             ) from exc
         if details is not None:
             details["run_id"] = run_id
+            # Absent (not None) when the run earned no handle, so a reader can
+            # tell "not entitled" from "entitled but minting failed" — the
+            # latter logs, the former is the ordinary case for a run that
+            # certifies nothing.
+            if handle_out.get("handle"):
+                details["verify_handle"] = handle_out["handle"]
+                details["handle_expires_at"] = handle_out["expires_at"]
         return run_id
     raise AssertionError("unreachable")  # pragma: no cover — loop returns or raises
