@@ -297,6 +297,18 @@ def assert_safe_knowledge_home(home: str, db_filename: str) -> str:
             "is frequently inside a project. Unset it, or give a real directory."
         )
 
+    # Checked on the RAW value, before `abspath` touches it. UNC is a SPELLING,
+    # and a spelling belongs to the string rather than to the OS reading it —
+    # but `abspath` destroys it off Windows: on Linux a backslash is an ordinary
+    # character, so `\\server\share\kn` came back as
+    # `<cwd>/\\server\share\kn`, sailed past the check below, and the guard went
+    # on to create a directory with that literal name. The one refusal the whole
+    # no-redaction argument rests on was Windows-only, and its test said so only
+    # because it had never run anywhere else.
+    raw = home.strip()
+    if _is_unc(raw):
+        raise ServiceError(_network_refusal(raw, "that is a UNC network path"))
+
     expanded = os.path.abspath(os.path.expanduser(home))
     # Checked BEFORE `realpath`, not only after. Resolving a UNC path reaches for
     # the network, and an unreachable share blocks for as long as the OS is

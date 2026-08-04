@@ -29,6 +29,7 @@ from memory_sinks import (  # noqa: E402
     SinkRule,
     find_foreign_sinks,
     glob_match,
+    is_absolute,
     is_foreign_sink,
     normalize,
     redirect_message,
@@ -78,6 +79,49 @@ class TestGlob:
 
     def test_normalize_is_case_and_separator_insensitive(self):
         assert normalize("A\\B\\..\\C") == "a/c"
+
+
+class TestPathShapeDoesNotDependOnTheRunningPlatform:
+    """Both answers below used to change with the OS reading the string.
+
+    `normalize` collapsed `..` through `os.path.normpath`, which treats a
+    backslash as a separator only on Windows; `_tree_relative` asked
+    `os.path.isabs`, which calls `d:/proj` relative anywhere but Windows. Both
+    inputs arrive as TEXT — from a config file, an environment variable, a hook
+    payload written by another machine — so the platform that happens to be
+    reading is the wrong thing to ask. These assertions carry no `sys.platform`
+    on purpose: identical expectations on every OS is the whole property.
+    """
+
+    def test_backslashes_collapse_the_same_everywhere(self):
+        assert normalize("A\\B\\..\\C") == "a/c"
+        assert normalize("a/b\\..\\c") == "a/c"
+        assert normalize("a\\b/../c") == "a/c"
+        assert ".." not in normalize("x\\y\\..\\z")
+
+    def test_a_drive_letter_is_absolute_everywhere(self):
+        assert is_absolute("d:/proj/core")
+        assert is_absolute("C:\\proj\\core")
+        assert is_absolute("/var/lib/x")
+        assert is_absolute("\\\\server\\share")
+        assert is_absolute("//server/share")
+
+    def test_what_is_not_absolute_stays_relative(self):
+        assert not is_absolute("proj/core")
+        assert not is_absolute(".clinerules")
+        assert not is_absolute("")
+        # Drive-RELATIVE: `C:x` means "x on drive C's current directory", which
+        # is not an absolute path even on Windows.
+        assert not is_absolute("C:x")
+
+    def test_a_windows_project_dir_still_yields_a_relative_display_path(self):
+        """The Linux half of convention #282: the reader gets a pasteable path."""
+        rule = DEFAULT_SINKS[0]
+        msg = redirect_message(
+            [("d:/proj/core/.clinerules", rule)], ".tausik/tausik", "d:/proj/core"
+        )
+        assert "  .clinerules  ->" in msg, msg
+        assert "d:/proj/core/.clinerules" not in msg, msg
 
 
 class TestTreeSinks:

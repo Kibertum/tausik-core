@@ -13,6 +13,49 @@ Nothing yet.
 
 ## [1.8.0] — 2026-08-03
 
+### Fixed — the shape of a path was decided by asking which OS was reading it
+
+Found while publishing: the first full run on Linux produced 7 failures where
+Windows produced 6949 greens. None of them is flaky — all seven are one thing.
+
+- **`path_glob.normalize`** collapsed `..` through `os.path.normpath`, which
+  treats a backslash as a separator ONLY on Windows. `A\B\..\C` became `a/c` on
+  the maintainer's machine and stayed `a/b/../c` on Linux — so a rule written as
+  `a/c` simply stopped matching there. The docstring had promised all along that
+  "a Windows backslash, a trailing separator and a `../` are not three different
+  ways to spell the same path"; one line of code delivered that on one platform.
+  The separator is now replaced BEFORE the collapse, and the collapse is
+  `posixpath`'s rather than the platform's.
+- **`memory_sinks._tree_relative`** asked `os.path.isabs`, which calls
+  `d:/proj/core` relative anywhere but Windows. The path fell through as
+  "already project-relative" and the one line the reader must act on printed the
+  whole absolute path — precisely the defect convention #282 forbids, back again
+  on the other platform. `path_glob.is_absolute` now answers by SPELLING: a POSIX
+  root, a UNC root and a drive letter are absolute everywhere; `C:x`
+  (drive-relative) is not.
+- **`knowledge_home_guard`** checked UNC syntax only AFTER `abspath`. On Linux
+  `abspath` glues `\\server\share\kn` onto the working directory, the check never
+  fires, and the guard goes on to create a directory with that literal name. The
+  single refusal the entire "written without redaction because it never leaves
+  this machine" argument rests on was Windows-only, and its test said otherwise
+  only because it had never run anywhere else. The check moved to the RAW value:
+  a spelling belongs to the string, not to the operating system.
+
+Plus three tests that measured something other than what they named: one checked
+an incidental property of `abspath` instead of "a drive letter is not read as a
+URL scheme"; one required two host profiles and relied on the author's machine
+having them; one read `.tausik/config.json`, which is gitignored by design, and
+died with `KeyError` on any clean clone. The first now asserts the property, CI
+provisions both profiles for the second, and the third SKIPS with its reason
+stated when the setting is absent rather than failing or quietly passing.
+
+**Why this survived to the tag.** The pipeline is configured for `main`, tags and
+merge requests. All of 1.8 — 74 commits — was developed on a branch where it
+never ran once, and Linux saw the release for the first time on publication day.
+The header of `.gitlab-ci.yml` says it exists so the gate would stop standing
+behind the door after the CRLF episode. It was behind the door again, for a
+different reason, with the same result.
+
 ### Fixed — the count of breaking changes lived in prose, where nobody counted it
 
 Three divergences found by review before the tag. The first is about the

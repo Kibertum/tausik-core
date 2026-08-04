@@ -132,8 +132,19 @@ class TestRemoteDestinationsAreRefused:
         assert os.path.isabs(kx.assert_local_destination(dest))
 
     def test_a_windows_drive_is_not_mistaken_for_a_url_scheme(self):
-        """`urlparse("D:/x").scheme == "d"` — length is what tells them apart."""
-        assert kx.assert_local_destination("D:/backups/kn").lower().startswith("d:")
+        """`urlparse("D:/x").scheme == "d"` — length is what tells them apart.
+
+        The property under test is ACCEPTANCE: a drive letter must not be read
+        as a network scheme and refused. The first version of this assertion
+        checked that the returned string starts with `d:`, which is not the
+        property — it is a side effect of `abspath` on Windows. On Linux
+        `abspath("D:/backups/kn")` prepends the working directory, the drive
+        letter stops being the first thing in the string, and the test failed
+        while the code under test behaved exactly as intended.
+        """
+        result = kx.assert_local_destination("D:/backups/kn")
+        assert "d:" in result.lower(), result
+        assert "backups" in result and result.endswith("kn"), result
 
     def test_an_empty_destination_is_refused(self):
         with pytest.raises(ServiceError):

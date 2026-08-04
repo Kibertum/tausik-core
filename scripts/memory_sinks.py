@@ -58,7 +58,11 @@ from typing import Any, Iterable
 # The pattern language lives in `path_glob`: `*` within a segment, `**` across
 # segments (zero included), everything lowercased first. Re-exported so the
 # three enforcement layers import one module, not two.
-from path_glob import glob_match, normalize  # noqa: F401 — re-exported for the layers
+from path_glob import (  # noqa: F401 — re-exported for the layers
+    glob_match,
+    is_absolute,
+    normalize,
+)
 
 
 # --- The list ---------------------------------------------------------------
@@ -216,9 +220,16 @@ def _tree_relative(path: str, project_dir: str | None) -> str | None:
 
     A relative input is taken as already project-relative — that is the form
     `git status --porcelain` emits, which is the gate's only input.
+
+    Absoluteness is judged by `is_absolute`, not `os.path.isabs`: the input can
+    carry a `d:/proj/core` written by a Windows host while this code runs on
+    Linux, and `os.path.isabs` would call it relative. The path then fell
+    through as "already project-relative" and the remediation line printed the
+    whole absolute path — the exact defect convention #282 forbids, reappearing
+    on the other platform.
     """
     expanded = os.path.expanduser(path)
-    if not os.path.isabs(expanded):
+    if not is_absolute(expanded):
         return normalize(expanded)
     if not project_dir:
         return None
