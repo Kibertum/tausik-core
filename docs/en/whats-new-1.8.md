@@ -262,5 +262,6 @@ facts about THIS project belong in project memory.
 
 - [upgrade.md](upgrade.md) — the general upgrade procedure.
 - [config-trust-tiers.md](config-trust-tiers.md) — the tiers in full.
+- [knowledge-store.md](knowledge-store.md) — the shared store in full: how it differs from project memory and what goes where.
 - [receipts.md](receipts.md) — receipts and handles.
 - [sessions.md](sessions.md) — the two halves of a session.

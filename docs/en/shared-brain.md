@@ -15,6 +15,8 @@ The split is deliberate. The local DB keeps project-specific traces (file paths,
 
 **Artifact taxonomy (v1.4):** shared vocabulary **artifact / pattern / snippet** for MCP `brain_store_*` and future snippet cards — see **[brain-artifact-taxonomy.md](brain-artifact-taxonomy.md)** (optional field + strict mode in `.tausik/config.json`).
 
+**The local shared store (1.8):** `~/.tausik-knowledge/knowledge.db` is not this page but **[knowledge-store.md](knowledge-store.md)**. It does NOT leave the machine and is therefore NOT redacted; the brain does leave and is therefore redacted. That difference is the only thing worth memorising.
+
 **Editorial hygiene:** when to **merge** local memory rows vs add a new entry (orthogonal to scrubbing) — **[Memory merge guidelines](memory-merge-guidelines.md)**.
 
 Nothing that identifies the project should ever reach the brain. Enforcement:

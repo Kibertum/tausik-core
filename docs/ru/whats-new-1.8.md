@@ -265,5 +265,6 @@ tausik search "запрос"                                   # ищет и т�
 
 - [upgrade.md](upgrade.md) — общая процедура обновления.
 - [config-trust-tiers.md](config-trust-tiers.md) — тиры конфигурации целиком.
+- [knowledge-store.md](knowledge-store.md) — общая база знаний целиком: чем отличается от проектной и что куда класть.
 - [receipts.md](receipts.md) — квитанции и хендлы.
 - [sessions.md](sessions.md) — две половины сессии.

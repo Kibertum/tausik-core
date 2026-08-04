@@ -128,6 +128,7 @@ Those are **suggestions** — text the agent reads and is free to ignore the mom
 - **Lifecycle & gates** — Epic → Story → Task with a state machine; QG-0 at start, QG-2 at close, both fail-closed.
 - **Verifiable trust** — ed25519 signed verification receipts, offline-checkable, with supply-chain signing for skills and stacks.
 - **Project memory** — SQLite + FTS5 store of decisions, patterns, conventions and dead ends, re-injected every session.
+- **A shared knowledge base** (v1.8) — one file per person, not per project. `--global` puts a pattern or a dead end where the NEXT project will find it; search reads both stores. It never leaves this machine, and it has a backup that stays here too. **[How it differs from project memory →](docs/en/knowledge-store.md)**
 - **Real-time discipline rails** — hooks for the no-code-without-a-task gate, a bash firewall, a single-use push ticket, and auto-format.
 - **Metrics & routing** — throughput, first-pass success, defect-escape and lead-time tracked automatically; per-task cost/token budgets; complexity-aware model routing across vendor families (Claude and [z.ai GLM](docs/en/kilo-zai.md), data-driven, no code change).
 

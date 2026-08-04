@@ -28,6 +28,23 @@ whether the most important thing was said first.
 
 ## [1.8.0] — 2026-08-03
 
+**A shared knowledge base, the end of the server-side session, and the project's
+state travelling in git.** Six breaking changes, each with a migration — walked
+through in [whats-new-1.8](docs/en/whats-new-1.8.md).
+
+- **A shared knowledge base — one file per person, not per project.** A pattern,
+  a dead end and a convention no longer die with the project that learned them.
+  `--global` puts knowledge in the shared store or fails saying so; search and
+  the knowledge block read it alongside the project's own; the store has a
+  backup, and the backup stays on this machine.
+- **"Session" split into two things** — work continuity and agent context
+  hygiene. An absent session no longer means unlimited capacity: the 200-call
+  gate stopped quietly waving work through.
+- **Team state travels in git.** Tasks, decisions and memory export to a readable
+  `tausik/` tree and come back with `tausik sync`.
+
+Below: all 165 entries of the release, newest first.
+
 ### Fixed — Python 3.13 changed `ntpath.isabs`, and the path redactor stopped redacting on Windows
 
 Found by the release matrix: eight cells green, the ninth — windows + 3.13 — red
