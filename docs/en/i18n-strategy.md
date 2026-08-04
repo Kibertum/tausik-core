@@ -25,8 +25,9 @@ docs/
 ├── ru/            ← Russian docs (~44 files; mirrors en/ minus a few EN-only
 │                    docs like plan-review/plan-stacks/skill-spec/skill-patterns,
 │                    plus RU-only agent-contract.md)
-├── en/research/   ← Technical research notes (localized — paired with ru/research/)
-├── ru/research/
+├── en/research/   ← Research notes, NOT paired: each stays in the language it
+├── ru/research/      was written in (1 EN vs 10 RU today). See "What's NOT
+│                     localized" below — this diagram used to claim the pair.
 └── README.md      ← Navigation hub (bilingual)
 ```
 
@@ -44,7 +45,13 @@ docs/
 - **Skills (SKILL.md)** — agent instructions, English frontmatter + Russian content
 - **CLI help text** — stays in Russian (follows user locale)
 - **Code comments** — English
-- **`docs/research/`** — technical notes/research, original language
+- **`docs/research/`**, **`docs/en/research/`**, **`docs/ru/research/`** —
+  technical notes and measurements, kept in the language they were written in. A
+  research note records what someone measured on a date; translating it invites
+  the two copies to drift, and a drifted measurement is worse than an unread one.
+  `audit_stale_docs` excludes all three research homes from its mirror check for
+  this reason — the exclusion matches the rule rather than hiding a gap, and it
+  stays.
 
 ## How to add a new language
 

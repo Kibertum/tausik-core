@@ -244,7 +244,7 @@ Claude Code — чат с ИИ-агентом.
 выгружаются в читаемое дерево `tausik/`, которое вы коммитите рядом с кодом.
 
 ```bash
-tausik state export      # БД → tausik/ (выполняется автоматически при закрытии задачи)
+tausik state export      # БД → tausik/ (выполняется автоматически при любой durable-записи)
 git add tausik/ && git commit
 ```
 

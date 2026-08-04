@@ -246,7 +246,7 @@ and memory are exported to a readable `tausik/` tree that you commit alongside
 the code.
 
 ```bash
-tausik state export      # DB → tausik/ (runs automatically on task close)
+tausik state export      # DB → tausik/ (runs automatically on any durable write)
 git add tausik/ && git commit
 ```
 
