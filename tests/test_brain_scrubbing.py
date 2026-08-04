@@ -416,3 +416,55 @@ def test_format_issues_renders_block_list():
     assert "emails" in md
     assert "filesystem_paths" in md
     assert "a@b.com" in md
+
+
+# --- the detector must not become the thing it detects ------------------------
+
+
+_ZERO_WIDTH_RANGES = ((0x200B, 0x200F), (0x202A, 0x202E), (0x2060, 0x2064))
+_ZERO_WIDTH_SINGLES = (0xFEFF,)
+
+
+def test_zero_width_class_matches_exactly_the_documented_ranges():
+    """The class was rewritten from literal code points to escapes.
+
+    The rewrite exists because the module that FINDS invisible bidi controls
+    was itself a source file carrying them — bandit's B613 flagged it HIGH, and
+    correctly: a scanner cannot tell a detector from a payload. The risk of such
+    a rewrite is a silently narrower class, which would leave the scrubber quiet
+    on exactly the input it exists for. So the set is asserted whole, by walking
+    every code point, rather than by spot-checking a few members.
+    """
+    expected = {cp for lo, hi in _ZERO_WIDTH_RANGES for cp in range(lo, hi + 1)}
+    expected |= set(_ZERO_WIDTH_SINGLES)
+    actual = {
+        cp for cp in range(0x0, 0x11000) if brain_scrubbing._ZERO_WIDTH_RE.fullmatch(chr(cp))
+    }
+    assert actual == expected, {
+        "lost": sorted(hex(c) for c in expected - actual),
+        "gained": sorted(hex(c) for c in actual - expected),
+    }
+
+
+def test_the_source_carries_no_invisible_characters_of_its_own():
+    """What B613 checks, checked here so it fails at the desk, not in the release.
+
+    The finding surfaced on a release pull request — the only event that runs
+    the security workflow — after the tag had already been cut on the
+    development remote. A file-level property this cheap to test does not need
+    to wait that long.
+    """
+    import io as _io
+    import os as _os
+
+    path = _os.path.join(
+        _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+        "scripts",
+        "brain_scrubbing.py",
+    )
+    src = _io.open(path, encoding="utf-8").read()
+    offenders = sorted({hex(ord(c)) for c in src if brain_scrubbing._ZERO_WIDTH_RE.fullmatch(c)})
+    assert not offenders, (
+        f"scripts/brain_scrubbing.py contains invisible characters {offenders} — "
+        "write them as escapes; the module that detects them must not carry them."
+    )

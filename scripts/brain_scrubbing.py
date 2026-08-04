@@ -133,7 +133,7 @@ def _detect_private_urls(content: str, patterns: list[re.Pattern]) -> list[dict]
 #   (a) Cyrillic/Greek homoglyphs (e.g. Cyrillic `а` U+0430 looks like
 #       Latin `a` U+0061 but has different bytes);
 #   (b) zero-width joiners/spaces/formatting chars inserted between letters
-#       (e.g. `sec​ret` with U+200B between `sec` and `ret`);
+#       (e.g. `sec<U+200B>ret`, a zero-width space between `sec` and `ret`);
 #   (c) URL-encoded characters (`%73ecret` → `secret` only after decode).
 # The normalization below canonicalizes input so each of those bypasses is
 # collapsed to its plain form before substring matching.
@@ -226,8 +226,17 @@ _HOMOGLYPHS: dict[int, str] = {
     ord("ω"): "w",
 }
 
-# ZW joiners / spaces / bidi formatting + BOM. re: (​-‏‪-‮⁠-⁤﻿)
-_ZERO_WIDTH_RE = re.compile(r"[​-‏‪-‮⁠-⁤﻿]")
+# ZW joiners / spaces / bidi formatting + BOM.
+#
+# The class is written as ESCAPES, not as the characters themselves. It used
+# to hold the literal code points, which made this module the one thing it
+# exists to find: a source file carrying invisible bidi controls. Bandit's
+# B613 flagged it HIGH, and correctly so, because a scanner cannot tell a
+# detector from a payload; no reader could see what the class held either.
+# `re` reads a backslash-u escape inside a raw string, so the matched set is
+# unchanged: U+200B-U+200F, U+202A-U+202E, U+2060-U+2064, U+FEFF. That it is
+# unchanged is pinned by a test that walks every code point in those ranges.
+_ZERO_WIDTH_RE = re.compile(r"[\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff]")
 
 
 def _normalize_for_match(s: str) -> str:
