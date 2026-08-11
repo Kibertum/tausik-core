@@ -9,7 +9,28 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Nothing yet.
+### Added — a review of the owner's bookmark corpus, and what it is worth taking
+
+284 saved links on agent harnessing, read against what TAUSIK already does. The
+result is `docs/ru/research/bookmark-corpus-review-2026-08.md`: what the field
+has that we lack, what we already have under another name, and — the half worth
+keeping — ten classes of borrowing rejected with a reason, so nobody files them
+again.
+
+The method turned out to matter more than the corpus. The slicing by keyword put
+the three most relevant sources into the wrong slices; the reviewers noticed and
+went to the primary sources — the specification in full, the protocol changelog,
+READMEs over the API — instead of the summaries. Reading our OWN code produced
+more findings than reading anyone else's: a placeholder our `.mcp.json` carries
+that a packaging standard forbids, a debt `knowledge_write.py` tracks in its own
+docstring, a hook whose docstring calls itself "a coaching signal, not a censor".
+
+A side result outweighs part of the findings: the `Calibration` line in `status`
+is computed over a window of ten and is unfit for planning — on one day it read
+both "calibrated 1.06" and "overestimating 0.63". Planning belongs on the
+per-tier aggregate over 502 closures (0.63), where the larger the task the more
+we OVERestimate. Recorded as convention #384.
+
 
 ## [1.8.0] — 2026-08-03
 
