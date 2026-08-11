@@ -83,6 +83,11 @@ REVIEW-REPORT-*.md
 # Scratch next-session prompt (not tracked)
 prompt.md
 
+# Presentation decks — build artifacts of a narrative, not source. The story
+# they tell lives in README, whats-new and the changelog; a PDF in the tree
+# would be a fourth copy of the same claims with no gate keeping it true.
+TAUSIK-deck-*.pdf
+
 # Confidential / internal — must NOT ship in the public repo (v151 release-readiness)
 docs/audit/
 tausik_systemwide_analysis.md
