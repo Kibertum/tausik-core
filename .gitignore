@@ -86,7 +86,18 @@ prompt.md
 # Presentation decks — build artifacts of a narrative, not source. The story
 # they tell lives in README, whats-new and the changelog; a PDF in the tree
 # would be a fourth copy of the same claims with no gate keeping it true.
+# Presentation and storefront artifacts, assembled locally and published by
+# hand elsewhere (GitHub settings, org profile, decks). They are BUILDS of a
+# narrative whose source lives in README, whats-new and the changelog — where
+# gates keep it true. A copy in the tree would be one more place for the same
+# claims to drift, with nothing watching it.
 TAUSIK-deck-*.pdf
+*-social-preview.png
+RENAR-readme-draft.md
+TAUSIK-pending-*.md
+TAUSIK-report-*.md
+TAUSIK-report-*.pdf
+KIBERTUM-org-profile.md
 
 # Confidential / internal — must NOT ship in the public repo (v151 release-readiness)
 docs/audit/
