@@ -1,7 +1,7 @@
 ---
 slug: doctor-drift-compares-the-host-scripts-root-not-the-libs
 title: "doctor и гейт bootstrap_drift сравнивают с корнем scripts ХОСТА, а не с тем, откуда копирует bootstrap"
-status: planning
+status: done
 epic: landscape-2026-h2
 story: l26-narrative
 complexity: medium
@@ -11,14 +11,21 @@ tier: moderate
 call_budget: 40
 defect_of: null
 scope: null
-scope_exclude: null
-relevant_files: []
+scope_exclude: "bootstrap/bootstrap_copy.py — копировщик уже прав, правится ЧИТАТЕЛЬ"
+relevant_files:
+  - "scripts/service_doctor_drift.py"
+  - "scripts/gate_bootstrap_drift.py"
+  - "scripts/tausik_utils.py"
+  - "scripts/gate_test_resolver.py"
+  - "tests/test_consumer_layout.py"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
 scope_paths:
   - "scripts/service_doctor_drift.py"
   - "scripts/*.py"
   - "tests/*.py"
 scope_tools: []
-completed_at: null
+completed_at: "2026-08-12T16:26:52Z"
 ---
 
 ## Goal
@@ -41,3 +48,5 @@ completed_at: null
 git revert коммита; правка в одной функции разрешения источника
 
 ## Journal
+
+- 2026-08-12T16:26:29Z [implementation] — Чек-лист доказательств. AC-1 (источник разрешается ТАК ЖЕ, как у копировщика, без второго правила): ✓ MANUAL: введена tausik_utils.library_source — библиотека побеждает, при отсутствии берётся проект. Тикеты GitHub #7 и GitLab #3 — один дефект, заведённый дважды; закрываются оба. AC-2 (вендоренная раскладка побеждает): ✓ tests/test_consumer_layout.py::test_drift_does_not_accuse_the_projects_own_scripts AC-3 (фикстура из тикета): ✓ tests/test_consumer_layout.py — фикстура кладёт .tausik-lib/scripts и посторонние deploy.sh, pg_backup.sh в scripts проекта. Проверено обоими способами: deploy.sh НЕ появляется в списке дрейфа, а испорченная развёрнутая копия task_gate.py — появляется. AC-4 (не создать третью копию правила): ✓ MANUAL: копий стало на одну МЕНЬШЕ. К library_source сведён gate_bootstrap_drift, у которого было собственное вычисление с ОБРАТНЫМ порядком (проект первым). Ирония тикета — докстринг модуля ссылается на конвенцию #266 про вторую копию правила и совершает этот дефект уровнем выше — закрыта не комментарием, а удалением второй копии. AC-5 (ложная тревога — провал критерия): ✓ MANUAL: 0 обвинений в адрес скриптов проекта на фикстуре. AC-6 (слепота проверена ОТДЕЛЬНО): ✓ MANUAL: положен файл в .tausik-lib/scripts/hooks, испорчена его развёрнутая копия — дрейф найден. До правки эти файлы не сравнивались вовсе; это вторая, более опасная половина дефекта, и она проверена независимо от первой. Negative: обе половины проверены раздельно, а не одной проверкой. Плюс два падения, внесённых мной по ходу и пойманных гейтами проекта до коммита: ручная сборка пути к config.json вместо tausik_config_path и захардкоженные каталоги профилей IDE вместо ide_utils.all_profile_dirs. Оба исправлены использованием общих функций — то есть гейты сработали ровно так, как задуманы. Domain: раскладка снята с настоящего потребительского проекта; список посторонних скриптов (deploy.sh, pg_backup.sh) взят из тикета GitLab #3, где doctor обвинял шесть файлов приложения.

@@ -21,6 +21,8 @@ under the filesize cap.
 from __future__ import annotations
 
 import os
+
+from tausik_utils import library_source
 import sys
 from typing import cast
 
@@ -37,13 +39,10 @@ def _harness_drift_names(project_dir: str) -> list[str]:
     """
     # lib_dir holds the source `harness/`: this repo (project_dir) or a submodule
     # consumer (.tausik-lib). Try both; bootstrap/ must be on sys.path to import.
-    lib_dir = project_dir
-    if not os.path.isdir(os.path.join(lib_dir, "harness")):
-        alt = os.path.join(project_dir, ".tausik-lib")
-        if os.path.isdir(os.path.join(alt, "harness")):
-            lib_dir = alt
-        else:
-            return []
+    harness = library_source(project_dir, "harness")
+    if harness is None:
+        return []
+    lib_dir = os.path.dirname(harness)
     boot = os.path.join(lib_dir, "bootstrap")
     if not os.path.isdir(boot):
         return []

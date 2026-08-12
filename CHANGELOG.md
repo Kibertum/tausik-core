@@ -9,6 +9,32 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — doctor accused foreign scripts and was blind to real drift
+
+The copier `bootstrap_copy.copy_scripts` deploys from `<lib>/scripts`, while the drift
+check read `<project>/scripts`. At home these are one directory, so it agreed. At a
+consumer they are two DIFFERENT trees: `<project>/scripts` belongs to the project.
+
+The result was double. False alarm: doctor reported drift on `deploy.sh` and
+`pg_backup.sh`, which are not and never were part of the harness, and that warning had
+no cure — no amount of re-running bootstrap brings foreign files into a profile. And
+blindness, which is worse: the ~300 files bootstrap actually deploys from `.tausik-lib`
+were never compared AT ALL. A half-landed deploy — the very failure this check exists
+for — reported clean.
+
+The source is now resolved by one shared function, `tausik_utils.library_source`: the
+library wins, falling back to the project itself. The order is load-bearing — the old
+"project first" produced both halves of the defect at once.
+
+Rather than adding a third copy of the rule, there is now one FEWER: the
+`bootstrap_drift` gate, which had its own source resolution with the opposite order, is
+folded into the same function. Divergence between such copies is exactly what convention
+#266 forbids.
+
+Both halves verified separately: zero accusations against the project's own scripts, and
+real drift in a deployed copy is detected.
+
+
 ### Fixed — the blocking pytest gate silently checked nothing outside <root>/tests
 
 The path `<base>/tests` was hardcoded in three places: `gate_test_resolver._crosscutting_index`,

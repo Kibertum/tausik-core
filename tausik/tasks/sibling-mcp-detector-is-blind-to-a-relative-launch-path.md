@@ -11,7 +11,7 @@ tier: moderate
 call_budget: 35
 defect_of: null
 scope: null
-scope_exclude: null
+scope_exclude: "scripts/** — детектор живёт в harness, ядра не касаемся"
 relevant_files: []
 scope_paths:
   - "harness/**"

@@ -10,6 +10,8 @@ import os
 import sys
 from typing import TypedDict
 
+from tausik_utils import library_source
+
 
 class ClaudemdDriftReport(TypedDict):
     """Verdict of :func:`claudemd_drift_report` — see it for the semantics."""
@@ -324,8 +326,11 @@ def scripts_drift_names(project_dir: str) -> list[str] | None:
     profile is such a copy. An absent profile is skipped; a present one is
     mandatory.
     """
-    src = os.path.join(project_dir, "scripts")
-    if not os.path.isdir(src):
+    # Источник — то дерево, ИЗ КОТОРОГО копирует bootstrap, а не то, что лежит
+    # рядом. Разрешается общей функцией, чтобы doctor и одноимённый гейт не
+    # расходились: см. library_source и конвенцию #266.
+    src = library_source(project_dir, "scripts")
+    if src is None:
         return None
     src_files = _deployed_relpaths(src)
     drift: list[str] = []

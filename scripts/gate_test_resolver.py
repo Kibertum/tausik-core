@@ -11,6 +11,8 @@ import ast
 import json
 import os
 
+from tausik_utils import tausik_config_path
+
 # Module-level constant a cross-cutting test declares to name the source trees it
 # guards, e.g. CROSSCUTTING_SCOPE = ["scripts/hooks/", "bootstrap/"]. The resolver
 # reads it statically (no import — a test module runs fixtures on import) and adds
@@ -79,7 +81,7 @@ def test_roots(base: str) -> list[str]:
 #: Каталоги, внутрь которых обнаружение не заходит. Чужой `tests/` в вендоренном
 #: дереве — не наши тесты, и включить его значит гонять чужой набор под видом
 #: своего.
-_DISCOVERY_SKIP = frozenset(
+_DISCOVERY_SKIP_BASE = frozenset(
     {
         ".git",
         ".venv",
@@ -96,13 +98,23 @@ _DISCOVERY_SKIP = frozenset(
         "vendor",
         ".tausik",
         ".tausik-lib",
-        ".claude",
-        ".cursor",
-        ".qwen",
-        ".kilo",
-        ".opencode",
     }
 )
+
+
+def _discovery_skip() -> frozenset[str]:
+    """Каталоги, внутрь которых обнаружение не заходит.
+
+    Профили IDE берутся из ``ide_utils.all_profile_dirs``, а не перечисляются
+    руками: список руками покрывал бы ``.claude`` и пропускал остальные шесть,
+    и обнаружение зашло бы в развёрнутую копию движка, приняв её тесты за тесты
+    проекта. Чужой ``tests/`` в вендоренном дереве — тоже не наши тесты, и
+    включить его значит гонять чужой набор под видом своего.
+    """
+    from ide_utils import all_profile_dirs
+
+    return _DISCOVERY_SKIP_BASE | all_profile_dirs()
+
 
 #: Насколько глубоко искать. Двух уровней хватает на `backend/tests` и
 #: `services/api/tests` — типовые раскладки монорепозитория. Глубже начинается
@@ -120,20 +132,23 @@ def _discover_roots(base: str) -> list[str]:
     ограниченным по глубине и по списку пропускаемых каталогов.
     """
     found: list[str] = []
+    skip = _discovery_skip()
     for depth in range(1, _DISCOVERY_DEPTH + 1):
-        _walk_level(base, base, depth, found)
+        _walk_level(base, base, depth, found, skip)
         if found:
             break  # ближайший уровень побеждает: глубже искать незачем
     return sorted(found)
 
 
-def _walk_level(base: str, current: str, remaining: int, found: list[str]) -> None:
+def _walk_level(
+    base: str, current: str, remaining: int, found: list[str], skip: frozenset[str]
+) -> None:
     try:
         entries = sorted(os.listdir(current))
     except OSError:
         return
     for name in entries:
-        if name in _DISCOVERY_SKIP:
+        if name in skip:
             continue
         path = os.path.join(current, name)
         if not os.path.isdir(path):
@@ -142,12 +157,12 @@ def _walk_level(base: str, current: str, remaining: int, found: list[str]) -> No
             if name == "tests":
                 found.append(path)
         else:
-            _walk_level(base, path, remaining - 1, found)
+            _walk_level(base, path, remaining - 1, found, skip)
 
 
 def _configured_roots(base: str) -> list[str]:
     """`testing.roots` из конфига проекта. Ошибка чтения — не корни, а пусто."""
-    path = os.path.join(base, ".tausik", "config.json")
+    path = tausik_config_path(base)
     try:
         with open(path, encoding="utf-8") as fh:
             cfg = json.load(fh)

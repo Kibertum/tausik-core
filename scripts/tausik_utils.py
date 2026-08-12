@@ -10,6 +10,33 @@ from datetime import datetime, timezone
 from typing import Any
 
 
+def library_source(project_dir: str, subdir: str) -> str | None:
+    """Дерево, ИЗ КОТОРОГО bootstrap разворачивает `subdir`. Один ответ на всех.
+
+    Развёрнутые копии сравнивают с источником минимум два места — проверка
+    дрейфа в doctor и одноимённый гейт, — и каждое вычисляло источник само.
+    Это и есть «вторая копия правила», которую конвенция #266 запрещает: копии
+    разошлись, причём тихо.
+
+    БИБЛИОТЕКА ПОБЕЖДАЕТ, и порядок здесь несущий. В этом репозитории
+    `.tausik-lib` нет, поэтому источником становится сам проект — верно. В
+    потребительском проекте существуют ОБА каталога, и `<project>/scripts` —
+    это скрипты ПРОЕКТА, а не харнесса. Прежний порядок «проект первым» давал
+    там вечное ложное срабатывание (doctor обвинял `deploy.sh`, которого в
+    харнессе нет и не было) и одновременно СЛЕПОТУ к настоящему дрейфу: те
+    ~300 файлов, что bootstrap реально разворачивает из `.tausik-lib`, не
+    сравнивались вовсе.
+
+    Возвращает None, когда источника нет ни там ни там: сравнивать не с чем, и
+    это не дрейф, а отсутствие предмета сравнения.
+    """
+    lib = os.path.join(project_dir, ".tausik-lib", subdir)
+    if os.path.isdir(lib):
+        return lib
+    own = os.path.join(project_dir, subdir)
+    return own if os.path.isdir(own) else None
+
+
 def cli_invocation(environ: dict[str, str] | None = None, os_name: str | None = None) -> str:
     """How to spell the TAUSIK CLI so the reader's shell will accept it.
 
