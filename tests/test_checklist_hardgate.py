@@ -59,6 +59,15 @@ class TestChecklistHardBlock:
 
     def test_real_test_reference_clears_the_gate(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
+        # Корень проекта закрепляется ЯВНО, иначе тест зависит от машины.
+        # Без этого он краснеет везде, где существует ~/.tausik: обнаружение
+        # проекта идёт вверх по дереву и принимает каталог пользовательского
+        # тира конфига за корень проекта, так что chdir теряет силу, а корнем
+        # становится домашняя папка (gotcha #385, чинится задачей
+        # user-tier-config-recreates-the-directory-18-removed). В CI такого
+        # каталога нет, поэтому дефект виден только у разработчика.
+        monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+        monkeypatch.setenv("TAUSIK_DIR", str(tmp_path / ".tausik"))
         (tmp_path / "tests").mkdir()
         (tmp_path / "tests" / "test_real.py").write_text("def test_a(): pass\n", encoding="utf-8")
 
@@ -83,6 +92,15 @@ class TestChecklistHardBlock:
 
     def test_checklist_missing_reads_evidence_not_vocabulary(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
+        # Корень проекта закрепляется ЯВНО, иначе тест зависит от машины.
+        # Без этого он краснеет везде, где существует ~/.tausik: обнаружение
+        # проекта идёт вверх по дереву и принимает каталог пользовательского
+        # тира конфига за корень проекта, так что chdir теряет силу, а корнем
+        # становится домашняя папка (gotcha #385, чинится задачей
+        # user-tier-config-recreates-the-directory-18-removed). В CI такого
+        # каталога нет, поэтому дефект виден только у разработчика.
+        monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+        monkeypatch.setenv("TAUSIK_DIR", str(tmp_path / ".tausik"))
         (tmp_path / "tests").mkdir()
         (tmp_path / "tests" / "test_real.py").write_text("def test_a(): pass\n", encoding="utf-8")
 

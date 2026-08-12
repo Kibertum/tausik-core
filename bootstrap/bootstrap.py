@@ -39,6 +39,7 @@ from bootstrap_modes import (
     run_post_bootstrap,
     run_refresh_mode,
 )
+from bootstrap_hooks import assert_hooks_deployed
 from bootstrap_copy import (
     copy_aidd_templates,
     copy_mcp,
@@ -129,6 +130,12 @@ def bootstrap_ide(
 
     n_scripts = copy_scripts(lib_dir, target_dir)
     print(f"  Scripts: {n_scripts} copied")
+
+    # Настройки будут называть хуки по этому адресу. Если развёртывание не
+    # состоялось, конфиг назовёт файлы, которых нет, и будет выглядеть рабочим —
+    # именно так в потребительском проекте оказывались 22 хука, ведущие в пустой
+    # сабмодуль, при CLAUDE.md, объявлявшем Rule 1 жёстким правилом.
+    assert_hooks_deployed(target_dir)
 
     n_mcp = copy_mcp(lib_dir, target_dir, ide)
     print(f"  MCP servers: {n_mcp} copied")

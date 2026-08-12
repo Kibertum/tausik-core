@@ -129,7 +129,16 @@ def test_claude_hooks_are_rename_proof(tmp_path):
         for h in entry["hooks"]
     ]
     assert cmds, "no hooks generated"
-    assert all("${CLAUDE_PROJECT_DIR}/.tausik-lib/scripts/hooks/" in c for c in cmds)
+    # Адрес — РАЗВЁРНУТАЯ копия, а не библиотека. Прежняя редакция этого теста
+    # требовала ровно обратного: `.tausik-lib/scripts/hooks/`. Она закрепляла
+    # дефект как правило — в потребительском проекте библиотека приходит
+    # сабмодулем, обычный клон оставляет её пустой, и все 22 хука указывали в
+    # никуда при CLAUDE.md, объявлявшем Rule 1 жёстким. Достижимость хуков в
+    # обычном клоне проверяется в tests/test_hooks_survive_a_plain_clone.py.
+    assert all("${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/" in c for c in cmds)
+    assert not any(".tausik-lib" in c for c in cmds), (
+        "хуки снова указывают в библиотеку — в обычном клоне это пустой сабмодуль"
+    )
     # No quotes around the path — else the hooks-parity tokenizer (splits on
     # whitespace, matches *.py) would fail to extract script basenames.
     assert all('"' not in c for c in cmds)

@@ -8,6 +8,7 @@ runs to relevant tests instead of the full suite.
 from __future__ import annotations
 
 import ast
+import json
 import os
 
 # Module-level constant a cross-cutting test declares to name the source trees it
@@ -45,33 +46,172 @@ def read_crosscutting_scope(test_path: str) -> list[str] | None:
     return None
 
 
+def test_roots(base: str) -> list[str]:
+    """Каталоги, в которых лежат тесты. Обнаруживаются, а не предполагаются.
+
+    Прежде путь `<base>/tests` был захардкожен в трёх местах, и в проекте с
+    раскладкой `backend/tests/` индекс тестов выходил пустым. Дальше по цепочке
+    `run_command_gate` попадал в ветку «нет замапленных тестов» и возвращал
+    SKIP — неотличимый от честного «изменение действительно не мапится ни на
+    один тест». Блокирующий гейт был включён, резолвился, показывался в
+    `gates status` и не проверял НИЧЕГО.
+
+    Настраивается ключом `testing.roots` в `.tausik/config.json`; при его
+    отсутствии остаётся прежнее поведение — `<base>/tests`, если он есть.
+    Пустой список означает «корней нет», и это ОТДЕЛЬНЫЙ исход, а не пустое
+    отображение: см. `NoTestRootsError` и `assert_test_roots`.
+    """
+    roots: list[str] = []
+    configured = _configured_roots(base)
+    for rel in configured:
+        candidate = os.path.join(base, rel)
+        if os.path.isdir(candidate):
+            roots.append(candidate)
+    if roots:
+        return roots  # явная настройка побеждает обнаружение
+
+    default = os.path.join(base, "tests")
+    if os.path.isdir(default):
+        return [default]
+    return _discover_roots(base)
+
+
+#: Каталоги, внутрь которых обнаружение не заходит. Чужой `tests/` в вендоренном
+#: дереве — не наши тесты, и включить его значит гонять чужой набор под видом
+#: своего.
+_DISCOVERY_SKIP = frozenset(
+    {
+        ".git",
+        ".venv",
+        "venv",
+        "node_modules",
+        "__pycache__",
+        ".tox",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        "dist",
+        "build",
+        "site-packages",
+        "vendor",
+        ".tausik",
+        ".tausik-lib",
+        ".claude",
+        ".cursor",
+        ".qwen",
+        ".kilo",
+        ".opencode",
+    }
+)
+
+#: Насколько глубоко искать. Двух уровней хватает на `backend/tests` и
+#: `services/api/tests` — типовые раскладки монорепозитория. Глубже начинается
+#: обход всего дерева, а с ним и риск подцепить чужое.
+_DISCOVERY_DEPTH = 2
+
+
+def _discover_roots(base: str) -> list[str]:
+    """Найти каталоги `tests` неглубоко под корнем проекта.
+
+    Настройка `testing.roots` — правильный способ, но она требует ЗНАТЬ, что её
+    надо задать. Пользователь с раскладкой `backend/tests` этого не знает: у него
+    просто молча ничего не проверяется, и SKIP выглядит как честный. Поэтому
+    обнаружение делает очевидный случай работающим без конфига, оставаясь
+    ограниченным по глубине и по списку пропускаемых каталогов.
+    """
+    found: list[str] = []
+    for depth in range(1, _DISCOVERY_DEPTH + 1):
+        _walk_level(base, base, depth, found)
+        if found:
+            break  # ближайший уровень побеждает: глубже искать незачем
+    return sorted(found)
+
+
+def _walk_level(base: str, current: str, remaining: int, found: list[str]) -> None:
+    try:
+        entries = sorted(os.listdir(current))
+    except OSError:
+        return
+    for name in entries:
+        if name in _DISCOVERY_SKIP:
+            continue
+        path = os.path.join(current, name)
+        if not os.path.isdir(path):
+            continue
+        if remaining == 1:
+            if name == "tests":
+                found.append(path)
+        else:
+            _walk_level(base, path, remaining - 1, found)
+
+
+def _configured_roots(base: str) -> list[str]:
+    """`testing.roots` из конфига проекта. Ошибка чтения — не корни, а пусто."""
+    path = os.path.join(base, ".tausik", "config.json")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            cfg = json.load(fh)
+    except (OSError, ValueError):
+        return []
+    testing = cfg.get("testing")
+    if not isinstance(testing, dict):
+        return []
+    roots = testing.get("roots")
+    if not isinstance(roots, list):
+        return []
+    return [str(r) for r in roots if isinstance(r, (str, os.PathLike))]
+
+
+class NoTestRootsError(RuntimeError):
+    """Корней с тестами не найдено — гейт не может определить область.
+
+    Отличается от «изменение не мапится ни на один тест» намеренно. Первое —
+    неверная настройка проекта, второе — законный результат. Сваливать их в
+    один SKIP значит прятать первое за вторым, и ровно так дефект прожил
+    незамеченным.
+    """
+
+
+def assert_test_roots(base: str) -> list[str]:
+    """Корни или громкий отказ. Зовётся там, где SKIP был бы ложью."""
+    roots = test_roots(base)
+    if not roots:
+        raise NoTestRootsError(
+            "не найдено ни одного корня с тестами: нет ни `testing.roots` в "
+            ".tausik/config.json, ни каталога tests/ в корне проекта. Гейт не "
+            "может определить область — это НЕ то же самое, что «изменение не "
+            "мапится ни на один тест», и молчаливым SKIP не подаётся."
+        )
+    return roots
+
+
 def _crosscutting_index(base: str) -> dict[str, list[str]]:
     """{test_relpath: [prefixes]} for every declaring test under tests/.
 
     Text-filters to files that mention the constant before parsing, so the common
     case (a test that does not declare one) costs a cheap substring check, not an
     AST parse of all ~300 test files."""
-    tests_root = os.path.join(base, "tests")
     index: dict[str, list[str]] = {}
-    try:
-        walker = os.walk(tests_root)
-    except OSError:
-        return index
-    for dirpath, _dirnames, filenames in walker:
-        for fn in filenames:
-            if not (fn.startswith("test_") and fn.endswith(".py")):
-                continue
-            abs_path = os.path.join(dirpath, fn)
-            try:
-                with open(abs_path, encoding="utf-8") as fh:
-                    if _CROSSCUTTING_CONST not in fh.read():
-                        continue
-            except OSError:
-                continue
-            scope = read_crosscutting_scope(abs_path)
-            if scope:  # non-empty list only; [] opt-out and None both skip
-                rel = os.path.relpath(abs_path, base).replace("\\", "/")
-                index[rel] = scope
+    for tests_root in test_roots(base):
+        try:
+            walker = os.walk(tests_root)
+        except OSError:
+            continue
+        for dirpath, _dirnames, filenames in walker:
+            for fn in filenames:
+                if not (fn.startswith("test_") and fn.endswith(".py")):
+                    continue
+                abs_path = os.path.join(dirpath, fn)
+                try:
+                    with open(abs_path, encoding="utf-8") as fh:
+                        if _CROSSCUTTING_CONST not in fh.read():
+                            continue
+                except OSError:
+                    continue
+                scope = read_crosscutting_scope(abs_path)
+                if scope:  # non-empty list only; [] opt-out and None both skip
+                    rel = os.path.relpath(abs_path, base).replace("\\", "/")
+                    index[rel] = scope
     return index
 
 
@@ -95,18 +235,18 @@ def build_tests_index(base: str) -> dict[str, list[str]]:
     scoped run that reports "PASS" without saying "2 of 318 test files" reads
     as a statement about the whole project. See `run_command_gate`.
     """
-    tests_root = os.path.join(base, "tests")
     tests_index: dict[str, list[str]] = {}
-    try:
-        for dirpath, _dirnames, filenames in os.walk(tests_root):
-            for fn in filenames:
-                if not (fn.startswith("test_") and fn.endswith(".py")):
-                    continue
-                abs_path = os.path.join(dirpath, fn)
-                rel_path = os.path.relpath(abs_path, base).replace("\\", "/")
-                tests_index.setdefault(fn, []).append(rel_path)
-    except OSError:
-        return {}
+    for tests_root in test_roots(base):
+        try:
+            for dirpath, _dirnames, filenames in os.walk(tests_root):
+                for fn in filenames:
+                    if not (fn.startswith("test_") and fn.endswith(".py")):
+                        continue
+                    abs_path = os.path.join(dirpath, fn)
+                    rel_path = os.path.relpath(abs_path, base).replace("\\", "/")
+                    tests_index.setdefault(fn, []).append(rel_path)
+        except OSError:
+            continue
     return tests_index
 
 

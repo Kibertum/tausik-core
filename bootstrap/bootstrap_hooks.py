@@ -13,7 +13,59 @@ list / contract is unchanged — purely a relocation.
 
 from __future__ import annotations
 
+import os
 from typing import Any, Callable
+
+
+class HooksNotDeployedError(RuntimeError):
+    """The hooks a generated config would point at are not on disk."""
+
+
+def deployed_hooks_dir(target_dir: str) -> str:
+    """Where the hooks a generated config must point — the DEPLOYED copy.
+
+    Not the library's `scripts/hooks`. In this repository the two are the same
+    directory, because here TAUSIK *is* the project; in a consumer project the
+    library is a submodule under `.tausik-lib`, and a submodule contributes ONE
+    entry to the index — its gitlink. A clone without `--recurse-submodules`
+    therefore has nothing at those paths, and every hook command in the
+    generated settings points into an empty directory: no task gate, no secret
+    scan, no push gate. The same bootstrap meanwhile writes a CLAUDE.md that
+    declares Rule 1 enforced by a PreToolUse hook. Measured on a live consumer
+    project: 22 hook commands into `.tausik-lib`, 1 file tracked there, and 26
+    byte-identical hooks tracked under the deployed tree right next to it.
+
+    This function only COMPUTES the path; it does not check the deploy. The
+    check lives in `assert_hooks_deployed`, called once by the orchestrator
+    after `copy_scripts`. Splitting them is deliberate: a generator asked for
+    the correct address should answer, and a unit test inspecting the wiring of
+    a generated config should not have to provision a hook tree to get one.
+    Verifying that the deploy actually happened is the orchestrator's job,
+    because only the orchestrator knows a deploy was supposed to have run.
+    """
+    return os.path.join(target_dir, "scripts", "hooks")
+
+
+def assert_hooks_deployed(target_dir: str) -> str:
+    """Refuse to leave a config naming hooks that are not on disk.
+
+    `copy_scripts` runs before every generator (bootstrap.py), so the deployed
+    tree is there by the time settings are written. If it is not, that is a
+    broken bootstrap, and staying silent would leave behind a settings file
+    that is indistinguishable from a working one — until the first edit slips
+    through unguarded. Loud refusal is the only honest outcome.
+    """
+    hooks = deployed_hooks_dir(target_dir)
+    scripts = [f for f in os.listdir(hooks) if f.endswith(".py")] if os.path.isdir(hooks) else []
+    if not scripts:
+        raise HooksNotDeployedError(
+            f"hooks are not deployed at {hooks} — refusing to leave a config that names "
+            "them. copy_scripts should have run before settings were generated; if this "
+            "fires, the deploy step did not run or failed. A config naming hooks that are "
+            "not there enforces nothing and looks identical to one that works."
+        )
+    return hooks
+
 
 #: Every tool whose input is a shell command line, as a hook matcher.
 #:

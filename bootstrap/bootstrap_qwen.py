@@ -19,7 +19,7 @@ from bootstrap_generate import _stdio_mcp_server
 # second shell tool appeared, the Claude generator and this one would have had
 # to be edited in lockstep by whoever remembered. Sharing the constant makes
 # that impossible to get wrong.
-from bootstrap_hooks import SHELL_MATCHER
+from bootstrap_hooks import SHELL_MATCHER, deployed_hooks_dir
 
 
 def generate_settings_qwen(
@@ -42,10 +42,12 @@ def generate_settings_qwen(
     def _p(p: str) -> str:
         return p.replace("\\", "/")
 
+    # Тот же разрез, что и у claude-генератора: конфиг обязан указывать на
+    # РАЗВЁРНУТУЮ копию хуков, а не на библиотечную. В потребительском проекте
+    # библиотека — сабмодуль, и обычный клон оставляет эти пути пустыми.
     if lib_dir is None:
         lib_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    hooks_dir = os.path.join(lib_dir, "scripts", "hooks")
-    abs_hooks = _p(os.path.abspath(hooks_dir))
+    abs_hooks = _p(os.path.abspath(deployed_hooks_dir(target_dir)))
 
     def _hook_cmd(script: str, suffix: str = "") -> str:
         # -X utf8 forces UTF-8 stdio for every hook (they run directly, not via

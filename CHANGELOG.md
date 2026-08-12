@@ -9,6 +9,96 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the blocking pytest gate silently checked nothing outside <root>/tests
+
+The path `<base>/tests` was hardcoded in three places: `gate_test_resolver._crosscutting_index`,
+`gate_test_resolver.build_tests_index` and `gate_test_citation._test_ref_exists`. In a project
+laid out as `backend/tests/` the test index came back empty, `run_command_gate` fell into the
+"no mapped tests" branch and returned SKIP — indistinguishable from an honest "this change
+genuinely maps to no test". The gate was enabled, resolved, listed in `gates status`, and
+verified NOTHING.
+
+Test roots are now discovered. An explicit `testing.roots` in `.tausik/config.json` wins; without
+it the previous behaviour holds (`<base>/tests`), and failing that a bounded search two levels
+deep runs, skipping vendored and tooling directories. Configuration alone is not enough: someone
+laid out as `backend/tests` does not know it must be set — for them nothing is checked, silently.
+
+A distinct outcome `NoTestRootsError` is introduced: "no test roots found" is no longer reported
+with the same SKIP as "no test maps to this change". The first is a misconfiguration, the second
+a legitimate result, and collapsing them hides the first behind the second.
+
+Also closed: a defect introduced by this very change and caught by review before commit — the
+traversal check compared against a loop variable that would have been undefined when the path
+resolved on the first branch. The path is now checked against ALL discovered roots, and separate
+volumes on Windows no longer make `commonpath` raise.
+
+### Fixed — two tests were red on any machine that has ~/.tausik
+
+`test_real_test_reference_clears_the_gate` and `test_checklist_missing_reads_evidence_not_vocabulary`
+chdir into a temp directory, but the project root was resolved by discovery, which walks UP the
+tree and accepts `~/.tausik` — the user-tier config directory — as a project root. The home
+directory became the root and the chdir lost its effect. CI has no such directory, so the defect
+was visible only on a developer machine. The tests now pin the root explicitly; the root cause
+stays with user-tier-config-recreates-the-directory-18-removed.
+
+
+### Added — a consumer-layout fixture that is red on live defects
+
+TAUSIK is developed where it IS the project: library and project are one
+directory, `scripts/` belongs to the harness, tests live at `<root>/tests`. It is
+installed into the opposite: the library arrives as a submodule, `scripts/`
+belongs to the project, tests may live anywhere. Every path assumption that
+holds at home inverts at a consumer — and inverts SILENTLY, because at home
+every test is green.
+
+`tests/consumer_layout.py` builds that layout; `tests/test_consumer_layout.py`
+runs four defects of one class against it. On landing: three green, two xfail.
+Green are the fixture's own realism, hook reachability (already fixed — it
+serves as the control) and an explicitly named absence of a seam for the
+sibling-MCP detector. Red are the pytest gate degenerating to a no-op outside
+`<root>/tests`, and doctor accusing the project's own scripts.
+
+The xfail markers are `strict=True`: the moment a defect is fixed, the expected
+failure becomes an XPASS and fails the run, demanding the marker be removed. The
+fixture cannot drift silently out of step with the code.
+
+The missing sibling-detector check is stated by its OWN test rather than passed
+over in silence: there is no callable predicate to exercise, and that test turns
+red the day the seam appears — so the check gets added instead of forgotten.
+
+
+### Fixed — a plain clone ran NO hooks at all, and the config looked configured
+
+Both settings generators took the hook address from the LIBRARY —
+`lib_dir/scripts/hooks`. In this repository the library and the project are the
+same directory, so it worked at home. In a consumer project the library arrives
+as a submodule under `.tausik-lib`, and a submodule contributes exactly one entry
+to the git index — its gitlink. A clone without `--recurse-submodules` therefore
+got a tree with nothing at those paths: no task gate, no secret scan, no push
+gate. Meanwhile the same bootstrap wrote a `CLAUDE.md` declaring Rule 1 enforced
+by a PreToolUse hook.
+
+Measured on a live consumer project: **22 hook commands pointing into
+`.tausik-lib`, 1 file tracked there**, and right next to them **26 byte-identical
+hooks that git does track** — deployed by that same bootstrap.
+
+Both generators now point at the deployed copy. Two responsibilities are split
+apart: `deployed_hooks_dir` computes the address, `assert_hooks_deployed` checks
+that the deploy happened and is called by the orchestrator after `copy_scripts`.
+A config naming hooks that are not on disk is no longer written silently — the
+refusal is loud, because such a file is indistinguishable from a working one
+until the first edit slips through unguarded.
+
+**Worth naming separately: why the defect survived so long.** A test pinned it.
+`test_claude_hooks_are_rename_proof` required commands to contain
+`${CLAUDE_PROJECT_DIR}/.tausik-lib/scripts/hooks/`. It fixed the broken wiring in
+place as a rule and stayed green the whole time. That test is corrected, and hook
+reachability in a plain clone is now pinned by a new
+`tests/test_hooks_survive_a_plain_clone.py`: it builds a layout with an EMPTY
+library and asserts every command names a file that exists — a property, not a
+spelling.
+
+
 ### Added — a review of the owner's bookmark corpus, and what it is worth taking
 
 284 saved links on agent harnessing, read against what TAUSIK already does. The
