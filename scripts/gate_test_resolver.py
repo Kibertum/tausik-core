@@ -66,7 +66,12 @@ def test_roots(base: str) -> list[str]:
     roots: list[str] = []
     configured = _configured_roots(base)
     for rel in configured:
-        candidate = os.path.join(base, rel)
+        # normpath: настроенный корень пишут через `/` даже на Windows, а
+        # обнаруженные приходят с разделителем платформы. Без приведения одна и
+        # та же функция отдавала бы корни в двух написаниях в зависимости от
+        # того, настроены они или найдены, и сравнивающий их вызывающий читал
+        # бы разные строки как разные каталоги.
+        candidate = os.path.normpath(os.path.join(base, rel))
         if os.path.isdir(candidate):
             roots.append(candidate)
     if roots:
@@ -116,10 +121,21 @@ def _discovery_skip() -> frozenset[str]:
     return _DISCOVERY_SKIP_BASE | all_profile_dirs()
 
 
-#: Насколько глубоко искать. Двух уровней хватает на `backend/tests` и
-#: `services/api/tests` — типовые раскладки монорепозитория. Глубже начинается
-#: обход всего дерева, а с ним и риск подцепить чужое.
-_DISCOVERY_DEPTH = 2
+#: Насколько глубоко искать. Глубина считается В СЕГМЕНТАХ ПУТИ до самого
+#: `tests`: 2 — это `backend/tests`, 3 — `services/api/tests`. Обе раскладки
+#: типовые для монорепозитория, и обе названы обещанием ниже по коду, поэтому
+#: предел ровно 3.
+#:
+#: Прежнее значение 2 обещало `services/api/tests` докстрингом, а доставало
+#: только до `backend/tests`: тот же дефект по форме, что и захардкоженный
+#: `<root>/tests`, который эта функция и заводилась чинить, — только уровнем
+#: ниже. `test_roots()` на дереве с `services/api/tests` возвращал пустой
+#: список, гейт цитирования читал честную ссылку как выдуманную, а командный
+#: гейт вырождался в SKIP.
+#:
+#: Глубже трёх не идём: обход всего дерева стоит дорого, а риск подцепить чужой
+#: `tests/` растёт быстрее пользы. Кому нужно глубже — задаёт `testing.roots`.
+_DISCOVERY_DEPTH = 3
 
 
 def _discover_roots(base: str) -> list[str]:

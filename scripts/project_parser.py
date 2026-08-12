@@ -37,6 +37,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="With --template: overwrite existing files without prompting.",
     )
+    init_p.add_argument(
+        "--here",
+        action="store_true",
+        help="Create a project in THIS directory even though an enclosing "
+        "project exists (nested projects keep separate databases).",
+    )
 
     # --- status ---
     st_p = sub.add_parser("status", help="Project overview")

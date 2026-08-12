@@ -9,6 +9,211 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — two private copies of the "where is the library" rule survived the consolidation
+
+`scripts_drift_names` was routed through `library_source`, while
+`claudemd_drift_report` in the SAME file, thirty-odd lines below, kept its own
+computation — with the priority REVERSED: two consecutive
+`sys.path.insert(0, …)` calls, the second of which, the project path, ended up
+first in the list. There was no directory-existence check at all. The commit
+whose message read "one copy of the rule FEWER" left a copy in the neighbouring
+function.
+
+The third copy lived in `skill_deps._resolve_venv_python`, whose candidate list
+checked project paths BEFORE the submodule. Both now go through
+`library_source`. The `__file__`-relative candidates in `skill_deps` stay: they
+answer a DIFFERENT question — whether this script sits inside the engine's own
+checkout — which a function counting from the project directory cannot answer.
+
+The regression is pinned on the CALL rather than the result, deliberately: both
+revisions return the same result on the consumer fixture, so a result test would
+have been green before the fix and therefore checked nothing. Verified by running
+it against the reverted code — red.
+
+`docs/ru/hooks.md` no longer teaches consumers `git config core.hooksPath
+scripts/hooks`: in the consumer layout that directory belongs to the project,
+there is no `pre-commit` in it, and git treats a missing hook as absence rather
+than an error — the install silently did nothing.
+
+### Fixed — the pre-commit security gate could not find itself in a consumer project and silently never ran
+
+The hook looked for `scripts/gate_memory_route.py` and
+`.tausik-lib/scripts/gate_memory_route.py`. In the consumer layout the first
+belongs to the PROJECT and holds no gate, and the second is empty in a clone
+without `--recurse-submodules`. The deployed copy in the IDE profile was never
+tried at all.
+
+The variable stayed empty, `[ -n "$MEMORY_ROUTE_GATE" ]` did not hold, and the
+whole control was silently skipped — while `docs/en/security.md` promises the
+deny-list is enforced "IDE-agnostically over the working tree". A comment in the
+hook declared that inertness acceptable; for a security control it is not. Found
+by the adversarial batch review.
+
+The file held TWO engine-lookup rules, both incomplete: the gate never tried the
+profile, the RAG reindex tried only `.claude` out of seven. One rule remains.
+Profiles are found by glob, not by a list: a list would name `.claude` and miss
+the other six, and there is nowhere to ask `ide_utils.all_profile_dirs()` from a
+shell script that has not yet found the engine. The glob is `.[!.]*`, not `.*` —
+the latter expands to `..` and the search would step into the PARENT directory.
+
+The source tree wins over the deployed copy. These file names belong to the
+engine, so `scripts/gate_memory_route.py` existing means this IS its own
+repository, where the deployed profile lags every edit. In a consumer project
+that path is empty and the search falls straight through to the profile, which is
+where that engine lives.
+
+NOT FOUND MEANS SAID. A missing gate is reported on stderr but does not block the
+commit: blocking would invent a new failure for projects that never had the
+engine. A gate switched off by decision (`gates.memory_route.enabled=false`) stays
+quiet — "off" and "gone" are different states, and noise that cannot be silenced
+stops being read along with the real warnings.
+
+The Python interpreter is now RUN rather than tested for file existence. The old
+chain asked `[ -f ]` and ended at a bare `python`, which Git Bash on Windows does
+not have on PATH at all; "the file exists" does not answer the question for a
+command name, and answers the wrong question for a path —
+`C:/Python311/python.exe` exists and yet will not execute, because MSYS wants the
+`/c/Python311/python.exe` form. A `TAUSIK_PYTHON` override and `python3`/`py`
+candidates were added. mypy runs through the same interpreter — a fourth copy of
+the same guess lived there.
+
+### Fixed — test-root discovery promised a depth it did not reach
+
+The limit stood at two path segments (`backend/tests`), while the docstring named
+`services/api/tests` as a working case — that is three. `test_roots()` returned
+an empty list on such a tree.
+
+The defect has the same shape as the hardcoded `<root>/tests` that discovery was
+written to fix, one level down, and the false promise arrived in the same commit
+as the depth itself. Found by the adversarial batch review.
+
+The consequences travelled down the chain: the citation gate read a perfectly
+honest reference `services/api/tests/test_billing.py::test_charge` as fabricated,
+and the command gate degenerated into a SKIP.
+
+The limit is raised to three segments — exactly what was promised. We do not go
+deeper on purpose: walking the whole tree is expensive and the risk of harvesting
+someone else's `tests/` grows faster than the benefit; anyone who needs deeper
+sets `testing.roots`. Measured walk on this repository: 1 ms.
+
+The citation gate's refusal now distinguishes two cases that used to look
+identical: "the citation did not match" and "there was nothing to match against."
+In the second case, the advice to fix the citation is unusable, and the actual
+remedy — `testing.roots` — was never named at all.
+
+Configured roots are normalised to the platform separator. They are written with
+`/` even on Windows while discovered ones arrive with the platform separator, so
+one function returned roots in two spellings depending on whether they were
+configured or found.
+
+### Fixed — `init` adopted an enclosing project and reported success
+
+`cmd_init` called `find_tausik_dir()` — it SEARCHED where it should have
+CREATED. The search handed it the first `.tausik` up the tree, and `init`
+deployed the project somewhere other than where the user was standing.
+
+`init` now creates the project in the CURRENT directory. If that directory is
+already inside another project, the command refuses and NAMES the root it found:
+a nested project would get its own database, and part of the work would quietly
+end up in it. A message without the address would leave the user guessing what
+had been found.
+
+The refusal is overridable with `--here`. A nested project is rare but
+legitimate, and there is no reason to lock it out entirely: a refusal that cannot
+be overridden turns the cure into a new disease.
+
+A repeat `init` in an already-initialized directory stays idempotent and destroys
+nothing.
+
+### Fixed — a command run outside a project silently attached to the home directory, or created a project where you stood
+
+`config_trust` deliberately places the user config tier under the same
+`.tausik/config.json` layout as a project, only rooted at home. The upward
+project search could not tell them apart. On Windows this fired ALWAYS: every
+temp directory lives under `C:\Users\<user>`, and a ten-level climb reaches home
+with room to spare.
+
+Three consequences followed, all of them silent.
+
+`tausik status`, typed in an arbitrary directory, showed the user tier's summary
+instead of refusing. An empty summary is indistinguishable from the summary of a
+genuinely empty project.
+
+`tausik init` in an empty directory printed "Project 'probe' initialized" having
+created nothing: `Database: C:\Users\<user>\.tausik\tausik.db`. The new
+project's data went into the tier, and the success message was false.
+
+Worse, `SQLiteBackend` creates the directory and deploys the schema as a side
+effect of connecting — correct for `init`, but it meant a READ command created
+`.tausik/tausik.db` wherever it was typed and reported "Tasks: 0/0 done". The
+side effect stayed on disk.
+
+Our own test suite wrote into the developer's `~/.tausik/tausik.db` — the file's
+hash changed after a run. The `conftest` isolation moved the config FILE
+(`TAUSIK_USER_CONFIG`) but never touched project discovery, so it did not cover
+this side.
+
+There are three rules now, each answering its own question. `~/.tausik` is never
+offered as a project. The climb STOPS at home: home is checked, but above it the
+user's ownership ends — without the stop, the ban on the tier itself was simply
+stepped over and the first thing found higher up got adopted. A command that is
+not `init` refuses out loud when no project exists and creates nothing; the
+decision about who may create belongs to the command layer, not the backend.
+
+The boundary is drawn by EQUALITY with the tier directory, not by containment in
+home: projects living in the home directory are ordinary, and a ban on everything
+under home would break the legitimate case more often than it fixed the defect.
+An explicit `TAUSIK_DIR` keeps working — the ban is on GUESSING, not on the
+user's choice.
+
+The first version of this fix compared paths AS STRINGS and the defect survived
+it. The climb arrives from `TMP` written in 8.3 short form —
+`C:\Users\AYUMAS~1\.tausik` — while `expanduser` returns the long
+`C:\Users\ayumashev`. Different spellings, same directory. The question here is
+directory IDENTITY, not path form, so the comparison resolves via `realpath`.
+
+The second version derived the tier's address from `config_trust.user_config_path`
+for a single source of truth — and was likewise refuted by a run: under pytest the
+override moves the tier to a throwaway path, and home becomes a "project" again.
+The override moves the FILE, not the HOME DIRECTORY, and it was the directory
+being asked about.
+
+### Fixed — the sibling-MCP detector always reported zero
+
+Matching a process to the project required the ABSOLUTE project path to appear in
+another process's command line. Servers launch relatively —
+`python ./.claude/mcp/project/server.py --project .` — and no absolute path is there,
+nor will be. The condition never held: measured on a live machine, ten running
+processes and a count of "0 siblings".
+
+A zero that means "cannot count" is indistinguishable from a zero that means "no
+siblings", and the whole check quietly became decoration.
+
+Matching is extracted into a predicate, `_command_belongs_to_project`, and ALL FOUR
+process-enumeration sites now call it: two Windows branches (wmic and PowerShell) and
+two POSIX (`/proc` and `ps`). Fixing one would have closed the defect on one platform
+and left it on three.
+
+A match is now either the absolute path in the command line (the previous method,
+still correct and kept) or the process's working directory equal to the project. The
+working directory is passed to the predicate as an ARGUMENT rather than read by it:
+the absence of exactly that seam is why the defect could not be closed by a test. It
+is read only in the `/proc` branch, because only there does the OS hand it over as a
+single link; elsewhere it stays `None`.
+
+An unknown working directory does NOT count as a match. Guessing instead of measuring
+would produce the same useless counter from the other side: instead of a permanent
+zero, a permanent overcount — and a spurious "sibling" reads as a process leak.
+
+Sibling enumeration also moved out of `self_check` into its own `sibling_mcp` module.
+The filesize gate presented the bill on exactly this change, but the cut had been
+named earlier — by `self_check`'s own docstring, which listed TWO entities at once:
+stale in-memory modules and sibling servers. Watching module mtimes and walking other
+processes share not one line of state. The old names are deliberately NOT re-exported:
+a test still patching the enumeration at the former address must fail loudly on the
+missing attribute rather than silently patch nothing.
+
+
 ### Fixed — doctor accused foreign scripts and was blind to real drift
 
 The copier `bootstrap_copy.copy_scripts` deploys from `<lib>/scripts`, while the drift

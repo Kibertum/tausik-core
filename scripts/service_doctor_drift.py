@@ -95,8 +95,21 @@ def claudemd_drift_report(project_dir: str) -> ClaudemdDriftReport | None:
     except OSError:
         return None
     try:
-        sys.path.insert(0, os.path.join(project_dir, ".tausik-lib", "bootstrap"))
-        sys.path.insert(0, os.path.join(project_dir, "bootstrap"))
+        # Через `library_source`, как и `scripts_drift_names` тремя десятками
+        # строк выше. Здесь было своё вычисление, и оно давало ОБРАТНЫЙ
+        # приоритет: два `sys.path.insert(0, …)` подряд, из которых второй —
+        # путь проекта — оказывался первым в списке. То есть та самая копия
+        # правила, которую сведение к общей функции и убирало, пережила его
+        # в соседней функции того же файла. Проверки `isdir` тоже не было.
+        #
+        # Отсутствие каталога — НЕ повод сдаться: `bootstrap_templates` может
+        # быть уже доступен по пути (так и происходит, когда проверку зовут из
+        # самого движка). Ранняя версия этой правки возвращала здесь None и
+        # погасила тринадцать проверок разом — каталога у временного проекта
+        # нет, а шаблон был достижим и раньше.
+        bootstrap_src = library_source(project_dir, "bootstrap")
+        if bootstrap_src is not None:
+            sys.path.insert(0, bootstrap_src)
         import importlib  # noqa: PLC0415
 
         try:

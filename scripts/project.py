@@ -155,6 +155,17 @@ def main() -> None:
 
     from skill_manager import SkillManagerError
 
+    # Раньше get_service() ниже создавал каталог и схему самим фактом
+    # подключения, поэтому любая команда, набранная вне проекта, заводила его на
+    # месте и рапортовала об успехе. Спрашиваем ДО подключения.
+    from project_config import assert_project_exists
+
+    try:
+        assert_project_exists(args.command)
+    except ServiceError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
     svc = get_service()
     try:
         fn(svc, args)
