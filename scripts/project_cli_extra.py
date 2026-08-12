@@ -254,68 +254,19 @@ def cmd_memory(svc: ProjectService, args: Any) -> None:
 def cmd_update_claudemd(svc: ProjectService, args: Any) -> None:
     """Update <!-- DYNAMIC:START --> section in CLAUDE.md."""
     import os
-    import subprocess
 
-    claudemd = args.claudemd
-    if not claudemd:
-        try:
-            from ide_utils import detect_ide, get_ide_config
+    # Both the block AND the file lookup live in claudemd_state, shared with the
+    # MCP handler. Each side used to carry its own copy, and the copies drifted
+    # silently — the MCP one lost the memory tail and the AGENTS.md refresh
+    # (mcp-update-claudemd-erases-the-memory-tail).
+    from claudemd_state import build_dynamic_state, resolve_claudemd
 
-            _cfg = get_ide_config(detect_ide(os.getcwd()))
-            _candidates = ["CLAUDE.md", os.path.join(_cfg["config_dir"], "CLAUDE.md")]
-        except ImportError:
-            _candidates = ["CLAUDE.md", ".claude/CLAUDE.md"]
-        for candidate in _candidates:
-            if os.path.exists(candidate):
-                claudemd = candidate
-                break
+    claudemd = args.claudemd or resolve_claudemd(os.getcwd())
     if not claudemd or not os.path.exists(claudemd):
         print("Error: CLAUDE.md not found. Use --claudemd to specify path.")
         return
 
-    tasks = svc.task_list()
-    session = svc.session_current()
-
-    active = [t for t in tasks if t["status"] == "active"]
-    blocked = [t for t in tasks if t["status"] == "blocked"]
-    done_count = sum(1 for t in tasks if t["status"] == "done")
-    total = len(tasks)
-
-    # stdin=DEVNULL: avoids inherit of MCP JSON-RPC pipe (v14b-defect-mcp-task-done-stdin-hang).
-    try:
-        r = subprocess.run(
-            ["git", "branch", "--show-current"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=5,
-            stdin=subprocess.DEVNULL,
-        )
-        branch = r.stdout.strip() or "unknown"
-    except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
-        branch = "unknown"
-
-    session_info = f"#{session['id']} (active)" if session else "none"
-
-    lines = [
-        "## Current State",
-        f"Session: {session_info} | Branch: {branch} | Version: {_get_version()}",
-        f"Tasks: {done_count}/{total} done, {len(active)} active, {len(blocked)} blocked",
-    ]
-    if active:
-        lines.append(f"Active: {', '.join(t['slug'] for t in active)}")
-    if blocked:
-        lines.append(f"Blocked: {', '.join(t['slug'] for t in blocked)}")
-
-    if (be := getattr(svc, "be", None)) is not None:
-        from service_knowledge_aggregates import build_compact_memory_tail
-
-        if memory_tail := build_compact_memory_tail(be):
-            lines.append("")
-            lines.extend(memory_tail)
-
-    dynamic_content = "\n".join(lines)
+    dynamic_content = build_dynamic_state(svc, os.getcwd())
 
     # Refresh CLAUDE.md AND its AGENTS.md sibling from the same dynamic source so
     # no IDE's onboarding file goes stale mid-session (v15p-agents-md-bootstrap).
@@ -331,15 +282,6 @@ def cmd_update_claudemd(svc: ProjectService, args: Any) -> None:
         import sys
 
         sys.exit(1)
-
-
-def _get_version() -> str:
-    try:
-        from tausik_version import __version__
-
-        return __version__
-    except ImportError:
-        return "unknown"
 
 
 def cmd_fts(svc: ProjectService, args: Any) -> None:

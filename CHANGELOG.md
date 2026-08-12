@@ -9,6 +9,39 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — /start erased the memory tail it promises to inject
+
+The MCP handler `tausik_update_claudemd` was a SECOND, independent copy of the
+CLI's `cmd_update_claudemd`, and the copy had drifted: it built the Current
+State lines and nothing else. The CLI appends the compact memory tail —
+contexts, decisions, conventions, dead ends, shared knowledge — and refreshes
+the `AGENTS.md` sibling; neither survived in the copy.
+
+Both losses land on the path the project mandates. `/start` Phase 2 calls the
+MCP tool and no other, MCP-first is a hard rule, and the skill's own text says
+the call "injects compact memory tail … so memory persists across sessions".
+So every session start deleted 34 lines of project memory from CLAUDE.md — and
+reported `CLAUDE.md updated`. The tail only ever came back when someone ran the
+CLI, so the block oscillated between sessions instead of persisting.
+
+The fix is not a corrected copy. Both callers now build the block through
+`claudemd_state.build_dynamic_state`, so a third divergence has nothing left to
+diverge from. Two smaller differences went with the merge: branch resolution now
+asks git instead of reading `.git/HEAD` (a git worktree stores a FILE there, so
+the MCP path reported `unknown` in every worktree), and the MCP path resolves
+CLAUDE.md from absolute candidates rather than cwd-relative ones.
+
+`build_compact_memory_tail` already carried a docstring warning that its two
+consumers "cannot drift apart again — which is precisely what had already
+happened by the time this was written". The drift that mattered was one level
+up: the MCP handler never called it.
+
+The regression test pins PARITY of the two paths, not the presence of a
+substring. A test asserting "the block mentions Memory tail" would have missed
+this loss exactly as the existing tests did — they exercised
+`build_compact_memory_tail` directly and never asked who calls it. Verified red
+on the unfixed handler first.
+
 ### Fixed — two private copies of the "where is the library" rule survived the consolidation
 
 `scripts_drift_names` was routed through `library_source`, while
