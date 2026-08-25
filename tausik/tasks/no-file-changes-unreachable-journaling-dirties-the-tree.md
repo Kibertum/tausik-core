@@ -1,7 +1,7 @@
 ---
 slug: no-file-changes-unreachable-journaling-dirties-the-tree
 title: "Флаг --no-file-changes недостижим: обязательное журналирование само пачкает дерево"
-status: planning
+status: done
 epic: landscape-2026-h2
 story: l26-silent-failures-in-shipped-commands
 complexity: medium
@@ -12,7 +12,14 @@ call_budget: 35
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
+relevant_files:
+  - "scripts/gate_verify_first.py"
+  - "scripts/state_triggers.py"
+  - "scripts/verify_git_diff.py"
+  - "tests/test_fileless_close.py"
+  - "docs/ru/agent-contract.md"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
 scope_paths:
   - "scripts/*.py"
   - "tests/*.py"
@@ -21,7 +28,7 @@ scope_paths:
   - CHANGELOG.md
   - CHANGELOG.ru.md
 scope_tools: []
-completed_at: null
+completed_at: "2026-08-25T13:34:57Z"
 ---
 
 ## Goal
@@ -44,3 +51,5 @@ AC6. Обходной путь, которым пользовались до с�
 git revert коммита: проверка возвращается к сравнению по всему дереву
 
 ## Journal
+
+- 2026-08-25T13:33:51Z [implementation] — AC-1: ✓ tested via tests/test_fileless_close.py::TestProjectionIsNotTheTasksWork::test_own_journal_projection_does_not_block_the_close — воспроизведение сессии #177: dirty=[tausik/tasks/t.md] давало отказ, теперь закрытие проходит. AC-2: ✓ tested via ::test_every_projected_kind_is_excluded_not_just_tasks — исключены все пять проецируемых видов, не только tasks. AC-3: ✓ tested via ::test_prefixes_are_derived_from_entity_dirs_not_a_literal_list — перечень выводится из state_triggers.projection_dirs (адрес проекции берётся у того же _tree_root, которым пользуется экспортёр) и из state_serialize.ENTITY_DIRS; литерального списка нет ни в одном из трёх модулей. AC-4: ✓ негативный сценарий выполнен — 5 тестов красные до правки; ::test_source_edit_still_blocks_under_the_flag остаётся требованием блокировки: смешанная область (scripts/real_work.py + журнал) блокирует и называет ИСХОДНИК, а журнал в сообщении не упоминается. AC-5: ✓ tested via ::test_hand_written_file_under_tausik_but_outside_the_projection_blocks — tausik/gates.json блокирует; граница названа в докстринге _projection_prefixes и закреплена тестом ::test_the_boundary_of_the_exclusion_is_named_in_the_docstring: ручная правка ВНУТРИ пяти каталогов побайтово неотличима от авто-экспорта, у незакоммиченной правки нет автора. AC-6: ✓ docs/ru/agent-contract.md, тесты ::test_contract_retires_the_commit_for_the_sake_of_closing_workaround и ::test_contract_names_the_exclusion_and_its_boundary. Регрессия: 1590 passed по срезу state/verify/fileless/gate. ruff clean, mypy clean.

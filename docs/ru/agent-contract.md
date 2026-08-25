@@ -38,6 +38,17 @@ quality gates. Pytest gate использует `{test_files_for_files}` substit
   незакоммиченных правок; иначе fail-closed. Счётно:
   `SELECT * FROM tasks WHERE no_file_changes_declared = 1`
   (qg2-cannot-close-fileless-task).
+- Проекция состояния — `tausik/{epics,stories,tasks,decisions,memory}/` — из
+  этой проверки **ИСКЛЮЧЕНА**. `task log` есть жёсткое правило проекта, он
+  автоматически выгружает журнал в `tausik/tasks/<slug>.md`, и соблюдение
+  правила само пачкало дерево, которое проверка читает: флаг был недостижим.
+  **Коммит ради самого закрытия БОЛЬШЕ НЕ НУЖЕН** — прежний обходной путь
+  отменён, не повторяй его по инерции
+  (no-file-changes-unreachable-journaling-dirties-the-tree).
+  Граница исключения названа вслух: правка ВНУТРИ этих пяти каталогов,
+  сделанная руками, побайтово неотличима от авто-экспорта — автора у
+  незакоммиченной правки нет — и потому проедет. Всё прочее под `tausik/`
+  (например `tausik/gates.json`) в исключение НЕ входит и блокирует как раньше.
 - Verify cache (`verification_runs` table): зелёный run за последние 10 минут с
   тем же `files_hash` → cache hit, gate skipped.
 - Security-sensitive файлы (`scripts/hooks/`, `/auth/`, `/payment/`, `/billing/`)

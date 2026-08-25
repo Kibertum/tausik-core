@@ -100,6 +100,27 @@ def _tree_root(svc: ProjectService) -> str | None:
         return None
 
 
+def projection_dirs(svc: ProjectService) -> tuple[str, ...]:
+    """Absolute paths of the directories this module's auto-export WRITES INTO.
+
+    The address comes from `_tree_root` — the same resolver the exporter uses to
+    decide where a row lands — and the subdirectory names from the exporter's own
+    registry (`state_serialize.ENTITY_DIRS`). Neither is restated here, because a
+    second declaration of the projection layout is free to drift from the first
+    (#249), and a consumer asking "is this path something the framework wrote?"
+    would then answer for a layout that no longer exists.
+
+    Empty tuple when there is no resolvable projection root — the same
+    fail-closed answer `_tree_root` gives, propagated rather than papered over.
+    """
+    from state_serialize import ENTITY_DIRS
+
+    root = _tree_root(svc)
+    if not root:
+        return ()
+    return tuple(os.path.join(root, name) for name in ENTITY_DIRS)
+
+
 def auto_export_entity(
     svc: ProjectService, kind: str, slug: str, *, follow_edges: bool = True
 ) -> bool:

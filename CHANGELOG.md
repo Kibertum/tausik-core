@@ -9,6 +9,66 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — `--no-file-changes` was unreachable: the mandatory journal dirtied the tree
+
+`task done --no-file-changes` proves an empty scope through git rather than the
+agent's word — a good rule that could not be obeyed. This project mandates
+`task log` after every step, `task log` auto-exports the journal to
+`tausik/tasks/<slug>.md`, and the git check then reported that very file as the
+task's uncommitted work. Observed live in session #177: a clean tree, one
+`task log`, and the close refused with
+`git reports uncommitted changes in the working tree: tausik/tasks/<slug>.md`.
+The only way through was to commit for the sake of closing — a workaround that
+had quietly become the normal path.
+
+The check now separates the task's WORK from the framework's own bookkeeping.
+The five directories the state export owns —
+`tausik/{epics,stories,tasks,decisions,memory}/` — are excluded from it. The
+excluded paths are DERIVED, never listed: the address comes from the same
+`_tree_root` the exporter uses to decide where a row lands, and the
+subdirectory names from `state_serialize.ENTITY_DIRS`, so adding a projected
+kind cannot leave this check behind.
+
+The flag is not weakened. A source edit still blocks under the flag, and when
+the scope mixes real work with the journal, the refusal names the source file
+and stops accusing the bookkeeping. Anything under `tausik/` that the exporter
+does NOT own — a hand-maintained `gates.json`, a README — is outside the
+exclusion and blocks as before. An unresolvable projection or repository root
+excludes nothing at all, so the check degrades to its previous behaviour.
+
+The boundary is stated rather than hidden, in the code and in
+`docs/ru/agent-contract.md`: a hand edit INSIDE those five directories is
+byte-for-byte the same thing as an auto-export, and an uncommitted change
+carries no author, so the two cannot be told apart and a hand edit does ride
+through. The contract also records that the commit-to-close workaround is
+retired, so the next agent does not repeat it out of habit.
+
+### Fixed — the line cap was counted in binary files and refused a close for it
+
+`run_filesize_gate` filtered candidates by exempt directory, exact path and
+basename, and by nothing else. There was no filter by file TYPE at all, so the
+500-line source rule was applied to whatever landed in `relevant_files` — a PDF,
+an image, an archive. `count_lines` opens with `errors="replace"`, so it never
+raised on such a file; it silently counted 0x0A bytes inside a compressed stream
+and returned a number.
+
+Observed live in session #177: closing a task whose declared scope held two
+report PDFs failed with `TAUSIK-report-survey.pdf: 9897 lines (max 500)`. That
+is not a violation of a source limit. It is a refusal for a violation that does
+not exist, and it blocked two finished tasks.
+
+The gate now asks `is_binary_file` before counting. The decision is made on
+CONTENT, not on an extension list: extensions cannot be enumerated and the next
+binary format arrives with the next task. Two signals — a NUL byte in the first
+8 KB, or failure to decode that head as UTF-8.
+
+The second signal uses an incremental UTF-8 decoder without `final=True`, on
+purpose. A fixed-size read can cut a multi-byte character in half, and a plain
+`bytes.decode()` would raise on that truncation — which would report every long
+Cyrillic source file in this repository as binary and silence the cap on exactly
+the files it exists for. The relaxation does not reach text: a long `.py`, a
+long Cyrillic `.py`, and a plain-text file merely NAMED `.pdf` all still block.
+
 ### Fixed — /start erased the memory tail it promises to inject
 
 The MCP handler `tausik_update_claudemd` was a SECOND, independent copy of the

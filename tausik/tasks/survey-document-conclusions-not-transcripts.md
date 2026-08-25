@@ -1,7 +1,7 @@
 ---
 slug: survey-document-conclusions-not-transcripts
 title: "Итоговый документ обзора: выводы и факты вместо стенограмм агентов"
-status: active
+status: done
 epic: release-110-proof-outward
 story: proof-outward
 complexity: medium
@@ -12,7 +12,9 @@ call_budget: 60
 defect_of: null
 scope: null
 scope_exclude: "scripts/**, bootstrap/**, tests/** — это документ, а не код фреймворка"
-relevant_files: []
+relevant_files:
+  - TAUSIK-report-survey.pdf
+  - TAUSIK-report-survey-full.pdf
 scope_paths:
   - "*.py"
   - "*.html"
@@ -20,7 +22,7 @@ scope_paths:
   - "TAUSIK-*.pdf"
   - "TAUSIK-*.md"
 scope_tools: []
-completed_at: null
+completed_at: "2026-08-25T13:35:47Z"
 ---
 
 ## Goal
