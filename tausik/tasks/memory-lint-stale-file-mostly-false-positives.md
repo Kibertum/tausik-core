@@ -17,6 +17,7 @@ relevant_files:
   - "tests/test_memory_lint.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-26T23:11:47Z"
 ---
 

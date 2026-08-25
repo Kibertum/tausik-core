@@ -18,6 +18,7 @@ scope_paths:
   - "tests/*.py"
   - "docs/ru/research/*.md"
 scope_tools: []
+depends_on: []
 completed_at: null
 ---
 

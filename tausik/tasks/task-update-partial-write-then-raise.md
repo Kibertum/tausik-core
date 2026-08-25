@@ -51,6 +51,7 @@ relevant_files:
   - "tests/test_task_update_writes_all_or_nothing.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-28T21:55:20Z"
 ---
 

@@ -15,6 +15,7 @@ scope_exclude: "scripts/*, tests/*, CHANGELOG*.md, README*.md, AGENTS.md, CLAUDE
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-06T21:43:54Z"
 ---
 

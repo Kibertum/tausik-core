@@ -30,6 +30,7 @@ relevant_files:
   - "docs/en/team-state-in-git.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-28T18:16:56Z"
 ---
 

@@ -15,6 +15,7 @@ scope_exclude: "docs/, README.md, README.ru.md, CHANGELOG entries для про�
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-07T16:51:17Z"
 ---
 

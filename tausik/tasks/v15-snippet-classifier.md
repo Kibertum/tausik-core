@@ -20,6 +20,7 @@ relevant_files:
   - "tests/test_brain_snippet_detect.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-13T23:01:05Z"
 ---
 

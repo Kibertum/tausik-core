@@ -19,6 +19,7 @@ relevant_files:
   - "tests/test_config_read_project_scope.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-20T23:12:54Z"
 ---
 

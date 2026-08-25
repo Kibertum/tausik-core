@@ -20,6 +20,7 @@ relevant_files:
   - "tests/test_brain_mcp_handlers.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-23T08:33:16Z"
 ---
 

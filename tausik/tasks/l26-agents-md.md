@@ -26,6 +26,7 @@ scope_paths:
   - "scripts/service_claudemd.py"
   - "scripts/claudemd_writer.py"
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-23T19:51:10Z"
 ---
 

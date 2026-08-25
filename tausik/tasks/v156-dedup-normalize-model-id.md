@@ -16,6 +16,7 @@ relevant_files:
   - "scripts/model_routing_matrix.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-19T11:51:53Z"
 ---
 

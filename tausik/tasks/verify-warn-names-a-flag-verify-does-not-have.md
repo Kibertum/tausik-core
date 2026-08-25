@@ -39,6 +39,7 @@ scope_paths:
   - "docs/ru/cli.md"
   - "docs/en/cli.md"
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-24T16:37:43Z"
 ---
 

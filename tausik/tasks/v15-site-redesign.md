@@ -20,6 +20,7 @@ scope_paths:
   - "docs/en/no-sdk-verify.md"
   - "docs/ru/no-sdk-verify.md"
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-13T13:38:40Z"
 ---
 

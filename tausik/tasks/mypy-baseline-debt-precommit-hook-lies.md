@@ -26,6 +26,7 @@ relevant_files:
   - "scripts/verify_envelope.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-26T17:47:31Z"
 ---
 

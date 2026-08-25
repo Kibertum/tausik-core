@@ -27,6 +27,7 @@ relevant_files:
   - "scripts/project_parser_task.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-20T22:54:28Z"
 ---
 

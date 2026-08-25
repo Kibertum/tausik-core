@@ -37,6 +37,7 @@ relevant_files:
   - "tests/test_changelog_gate.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-22T19:09:41Z"
 ---
 

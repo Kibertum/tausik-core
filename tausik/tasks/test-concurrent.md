@@ -16,6 +16,7 @@ relevant_files:
   - "tests/test_concurrent.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-03-14T13:09:18Z"
 ---
 

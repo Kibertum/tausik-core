@@ -21,6 +21,7 @@ scope_paths:
   - README.ru.md
   - "tests/*.py"
 scope_tools: []
+depends_on: []
 completed_at: null
 ---
 

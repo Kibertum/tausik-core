@@ -26,6 +26,7 @@ relevant_files:
   - "agents/skills/_profile-demo/variants/codex.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-01T13:48:28Z"
 ---
 

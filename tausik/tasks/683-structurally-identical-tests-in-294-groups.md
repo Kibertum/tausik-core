@@ -18,6 +18,7 @@ scope_paths:
   - "scripts/audit_pytest_dedupe.py"
   - "docs/ru/*.md"
 scope_tools: []
+depends_on: []
 completed_at: null
 ---
 

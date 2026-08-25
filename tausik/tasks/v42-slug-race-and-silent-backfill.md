@@ -22,6 +22,7 @@ relevant_files:
   - "tests/test_state_stable_ids.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-25T11:46:01Z"
 ---
 

@@ -17,6 +17,7 @@ relevant_files:
   - "docs/senar-compliance-matrix.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-05T19:44:18Z"
 ---
 

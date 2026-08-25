@@ -18,6 +18,7 @@ relevant_files:
   - "tests/test_iac_bootstrap_detection.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-25T16:58:40Z"
 ---
 

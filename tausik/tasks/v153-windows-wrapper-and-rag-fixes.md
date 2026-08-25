@@ -15,6 +15,7 @@ scope_exclude: "no API changes; no behavior change beyond the two fixes"
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-15T10:13:37Z"
 ---
 

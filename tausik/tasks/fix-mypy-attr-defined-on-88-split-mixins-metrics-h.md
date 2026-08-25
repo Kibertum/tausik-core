@@ -17,6 +17,7 @@ relevant_files:
   - "scripts/service_hierarchy.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-14T09:05:15Z"
 ---
 

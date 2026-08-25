@@ -18,6 +18,7 @@ scope_paths:
   - "scripts/knowledge_origin.py"
   - "tests/*.py"
 scope_tools: []
+depends_on: []
 completed_at: null
 ---
 

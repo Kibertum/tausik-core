@@ -18,6 +18,7 @@ relevant_files:
   - "scripts/service_session_metrics.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-26T00:57:22Z"
 ---
 

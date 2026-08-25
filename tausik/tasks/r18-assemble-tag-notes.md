@@ -20,6 +20,7 @@ scope_paths:
   - "docs/en/whats-new-1.8.md"
   - "docs/ru/whats-new-1.8.md"
 scope_tools: []
+depends_on: []
 completed_at: "2026-08-03T14:53:56Z"
 ---
 

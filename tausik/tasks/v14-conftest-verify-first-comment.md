@@ -17,6 +17,7 @@ relevant_files:
   - "tests/verify_first_compat_predicate.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-01T10:35:24Z"
 ---
 

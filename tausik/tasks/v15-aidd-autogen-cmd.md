@@ -15,6 +15,7 @@ scope_exclude: "harness/aidd-templates/* (template content unchanged), .claude/*
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-14T16:49:53Z"
 ---
 

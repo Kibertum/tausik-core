@@ -15,6 +15,7 @@ scope_exclude: "Не писать hook здесь — это отдельная 
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-22T22:54:54Z"
 ---
 

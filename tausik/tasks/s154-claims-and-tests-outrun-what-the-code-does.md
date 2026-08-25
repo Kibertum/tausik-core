@@ -22,6 +22,7 @@ relevant_files:
   - CHANGELOG.ru.md
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-08-01T19:45:43Z"
 ---
 

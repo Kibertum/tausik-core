@@ -17,6 +17,7 @@ relevant_files:
   - "tests/test_gates.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-25T10:24:50Z"
 ---
 

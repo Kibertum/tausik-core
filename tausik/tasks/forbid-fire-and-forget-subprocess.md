@@ -18,6 +18,7 @@ relevant_files:
   - "tests/test_no_silent_subprocess.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-11T03:04:27Z"
 ---
 

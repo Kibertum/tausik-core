@@ -19,6 +19,7 @@ relevant_files:
   - "docs/ru/zero-defect.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-26T16:26:25Z"
 ---
 

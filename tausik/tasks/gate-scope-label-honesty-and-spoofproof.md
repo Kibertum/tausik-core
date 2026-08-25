@@ -18,6 +18,7 @@ relevant_files:
   - "tests/test_gate_command_runner.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-25T06:26:55Z"
 ---
 

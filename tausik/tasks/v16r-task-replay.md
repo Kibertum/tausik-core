@@ -21,6 +21,7 @@ relevant_files:
   - "tests/test_task_replay.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-13T15:52:59Z"
 ---
 

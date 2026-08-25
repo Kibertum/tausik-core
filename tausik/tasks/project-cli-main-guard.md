@@ -18,6 +18,7 @@ relevant_files:
   - "tests/test_cli_entrypoint_guard.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-10T13:13:51Z"
 ---
 

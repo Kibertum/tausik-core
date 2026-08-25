@@ -26,6 +26,7 @@ scope_paths:
   - "scripts/**"
   - "tests/*.py"
 scope_tools: []
+depends_on: []
 completed_at: "2026-08-12T15:35:47Z"
 ---
 

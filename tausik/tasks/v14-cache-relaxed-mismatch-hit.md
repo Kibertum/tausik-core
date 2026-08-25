@@ -15,6 +15,7 @@ scope_exclude: "scripts/service_task.py (logic не трогаем — relaxed �
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-03T08:14:10Z"
 ---
 

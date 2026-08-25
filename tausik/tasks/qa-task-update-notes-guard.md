@@ -15,6 +15,7 @@ scope_exclude: "scripts/project_backend.py (CRUD stays pure), MCP handler/tools 
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-14T12:38:37Z"
 ---
 

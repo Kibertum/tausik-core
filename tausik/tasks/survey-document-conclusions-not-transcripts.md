@@ -22,6 +22,7 @@ scope_paths:
   - "TAUSIK-*.pdf"
   - "TAUSIK-*.md"
 scope_tools: []
+depends_on: []
 completed_at: "2026-08-25T13:35:47Z"
 ---
 

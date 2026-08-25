@@ -21,6 +21,7 @@ relevant_files:
   - "tests/test_doctor_drift_baselines.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-06T11:32:08Z"
 ---
 

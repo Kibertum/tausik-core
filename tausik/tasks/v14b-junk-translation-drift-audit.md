@@ -15,6 +15,7 @@ scope_exclude: "scripts/audit_stale_docs.py (referenced as pattern, not modified
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-06T20:50:33Z"
 ---
 

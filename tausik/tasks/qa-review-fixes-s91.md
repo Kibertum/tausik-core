@@ -15,6 +15,7 @@ scope_exclude: "scripts/task_notes_guard.py (lazy import left as-is — reviewer
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-14T12:46:51Z"
 ---
 

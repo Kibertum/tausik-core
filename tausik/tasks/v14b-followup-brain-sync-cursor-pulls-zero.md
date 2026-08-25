@@ -15,6 +15,7 @@ scope_exclude: "scripts/brain_sync.py (sync_category contract is correct — ret
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-07T08:58:05Z"
 ---
 

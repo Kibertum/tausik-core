@@ -22,6 +22,7 @@ relevant_files:
   - "docs/ru/senar.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-08T16:16:21Z"
 ---
 

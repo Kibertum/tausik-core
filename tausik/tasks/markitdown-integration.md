@@ -23,6 +23,7 @@ relevant_files:
   - "references/markitdown-integration.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-25T11:09:50Z"
 ---
 

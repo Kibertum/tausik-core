@@ -17,6 +17,7 @@ relevant_files:
   - "tests/test_verify_scope_pointer.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-25T06:12:01Z"
 ---
 

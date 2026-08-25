@@ -15,6 +15,7 @@ scope_exclude: "scripts/skill_profile.py (уже работает с любым 
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-07T00:41:21Z"
 ---
 

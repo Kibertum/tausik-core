@@ -25,6 +25,7 @@ relevant_files:
   - "tests/test_model_pinning.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-13T15:12:22Z"
 ---
 

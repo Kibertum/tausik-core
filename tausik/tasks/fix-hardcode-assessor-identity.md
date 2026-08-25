@@ -15,6 +15,7 @@ scope_exclude: "scripts/renar_conformance.py, формат RENAR-CONFORMANCE.yam
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-13T23:53:33Z"
 ---
 

@@ -16,6 +16,7 @@ relevant_files:
   - "scripts/docs_lint.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-26T15:52:20Z"
 ---
 

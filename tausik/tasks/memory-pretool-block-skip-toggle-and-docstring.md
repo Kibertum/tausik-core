@@ -17,6 +17,7 @@ relevant_files:
   - "tests/test_memory_hook_skip_telemetry.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-21T10:25:46Z"
 ---
 

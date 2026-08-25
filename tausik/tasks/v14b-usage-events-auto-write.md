@@ -15,6 +15,7 @@ scope_exclude: "scripts/brain_*.py — brain никак не задейство�
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-03T16:22:18Z"
 ---
 

@@ -19,6 +19,7 @@ relevant_files:
   - "docs/ru/upgrade.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-06T21:37:01Z"
 ---
 

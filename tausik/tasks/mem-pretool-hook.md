@@ -15,6 +15,7 @@ scope_exclude: "Не трогать task_gate.py и другие существ�
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-22T20:34:52Z"
 ---
 

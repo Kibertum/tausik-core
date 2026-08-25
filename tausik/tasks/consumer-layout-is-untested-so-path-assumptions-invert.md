@@ -23,6 +23,7 @@ scope_paths:
   - "docs/ru/*.md"
   - "docs/en/*.md"
 scope_tools: []
+depends_on: []
 completed_at: "2026-08-12T15:48:29Z"
 ---
 

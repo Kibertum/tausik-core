@@ -31,6 +31,7 @@ relevant_files:
   - "tests/test_secret_scan_hook.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-26T16:05:37Z"
 ---
 

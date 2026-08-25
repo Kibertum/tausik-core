@@ -16,6 +16,7 @@ relevant_files:
   - "docs/ru/research/tausik-1.4-composer-retro-2026-05-02.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-02T11:33:24Z"
 ---
 

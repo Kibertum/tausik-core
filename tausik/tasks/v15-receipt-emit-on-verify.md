@@ -27,6 +27,7 @@ relevant_files:
   - "tests/test_service_verification.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-12T00:54:14Z"
 ---
 

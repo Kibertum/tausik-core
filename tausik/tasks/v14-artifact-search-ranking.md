@@ -16,6 +16,7 @@ relevant_files:
   - "scripts/brain_search.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-01T11:48:36Z"
 ---
 

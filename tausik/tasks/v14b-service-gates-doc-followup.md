@@ -15,6 +15,7 @@ scope_exclude: "scripts/gate_qg0_check.py + scripts/gate_ac_check.py (already sh
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-06T20:36:05Z"
 ---
 

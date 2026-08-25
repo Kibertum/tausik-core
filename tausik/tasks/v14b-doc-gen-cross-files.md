@@ -15,6 +15,7 @@ scope_exclude: "Adding test_count to constants.json (separate follow-up — need
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-06T21:29:32Z"
 ---
 

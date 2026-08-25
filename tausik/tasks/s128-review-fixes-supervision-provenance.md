@@ -23,6 +23,7 @@ relevant_files:
   - "tests/test_opencode_qg0_plugin.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-21T11:35:26Z"
 ---
 

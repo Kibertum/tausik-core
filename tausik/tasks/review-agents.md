@@ -21,6 +21,7 @@ relevant_files:
   - "agents/claude/skills/review/agents/documentation.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-03-29T17:22:29Z"
 ---
 

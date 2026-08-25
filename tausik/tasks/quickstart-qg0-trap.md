@@ -17,6 +17,7 @@ relevant_files:
   - "docs/ru/quickstart.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-27T12:59:37Z"
 ---
 

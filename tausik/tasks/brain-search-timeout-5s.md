@@ -17,6 +17,7 @@ relevant_files:
   - "tests/test_brain_notion_client.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-06T16:06:27Z"
 ---
 

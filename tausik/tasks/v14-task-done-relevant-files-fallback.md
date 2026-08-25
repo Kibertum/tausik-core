@@ -15,6 +15,7 @@ scope_exclude: "scripts/service_verification.py (logic не трогаем), bac
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-02T22:02:28Z"
 ---
 

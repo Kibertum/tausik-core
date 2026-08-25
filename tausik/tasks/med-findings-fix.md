@@ -25,6 +25,7 @@ relevant_files:
   - "tests/test_agent_units_cli.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-25T14:42:44Z"
 ---
 

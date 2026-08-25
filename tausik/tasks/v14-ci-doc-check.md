@@ -20,6 +20,7 @@ relevant_files:
   - "tests/test_check_docs_hook.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-02T11:23:20Z"
 ---
 

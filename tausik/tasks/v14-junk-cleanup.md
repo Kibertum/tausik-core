@@ -15,6 +15,7 @@ scope_exclude: "любой код, активные research, docs/{en,ru}/*.md 
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-03T09:30:17Z"
 ---
 

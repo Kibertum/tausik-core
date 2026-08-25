@@ -15,6 +15,7 @@ scope_exclude: "scripts/audit_translation_drift.py, scripts/docs_lint.py, script
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-06T22:08:41Z"
 ---
 

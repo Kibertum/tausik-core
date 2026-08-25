@@ -25,6 +25,7 @@ scope_paths:
   - "scripts/project_cli_metrics.py"
   - "tests/test_complexity_understatement.py"
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-21T10:00:27Z"
 ---
 

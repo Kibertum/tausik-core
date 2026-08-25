@@ -17,6 +17,7 @@ relevant_files:
   - "agents/claude/mcp/project/tools_extra.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-08T05:15:17Z"
 ---
 

@@ -17,6 +17,7 @@ relevant_files:
   - "tests/test_v131_blind_review.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-27T12:03:28Z"
 ---
 

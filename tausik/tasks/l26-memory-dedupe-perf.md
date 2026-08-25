@@ -21,6 +21,7 @@ scope_paths:
   - "tests/test_memory_cleanup_cli.py"
   - "tests/test_memory_lint.py"
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-21T11:45:38Z"
 ---
 

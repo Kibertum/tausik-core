@@ -33,6 +33,7 @@ scope_paths:
   - "docs/ru/*.md"
   - "CHANGELOG*.md"
 scope_tools: []
+depends_on: []
 completed_at: "2026-08-03T12:37:13Z"
 ---
 

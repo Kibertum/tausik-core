@@ -15,6 +15,7 @@ scope_exclude: "Не писать markers-модуль (уже done). Не пи�
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-22T22:59:02Z"
 ---
 

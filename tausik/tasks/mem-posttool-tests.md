@@ -15,6 +15,7 @@ scope_exclude: "Не трогать scripts/hooks/memory_markers.py, memory_post
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-22T23:07:39Z"
 ---
 

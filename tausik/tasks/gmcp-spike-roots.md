@@ -17,6 +17,7 @@ scope_paths:
   - "docs/ru/research/global-mcp-spike.md"
   - "tests/*"
 scope_tools: []
+depends_on: []
 completed_at: null
 ---
 

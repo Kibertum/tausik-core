@@ -19,6 +19,7 @@ relevant_files:
   - "tests/test_task_start_model_banner.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-19T08:24:12Z"
 ---
 

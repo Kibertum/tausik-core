@@ -20,6 +20,7 @@ relevant_files:
   - "tests/test_task_next_model_hint.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-01T15:43:35Z"
 ---
 

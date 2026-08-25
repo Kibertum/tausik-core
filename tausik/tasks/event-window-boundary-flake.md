@@ -17,6 +17,7 @@ scope_paths:
   - "scripts/backend_queries.py"
   - "tests/test_agent_units_recording.py"
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-17T21:48:04Z"
 ---
 

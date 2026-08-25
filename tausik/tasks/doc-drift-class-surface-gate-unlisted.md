@@ -25,6 +25,7 @@ relevant_files:
   - "tests/test_doc_gate_list_parity.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-27T19:31:11Z"
 ---
 

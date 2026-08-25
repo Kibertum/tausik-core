@@ -22,6 +22,7 @@ relevant_files:
   - "tests/test_mcp_answers_prompts_list.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-14T12:19:07Z"
 ---
 

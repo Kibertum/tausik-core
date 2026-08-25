@@ -15,6 +15,7 @@ scope_exclude: "scripts/service_ac_evidence.py existing parse_evidence_lines / m
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-06T17:33:34Z"
 ---
 

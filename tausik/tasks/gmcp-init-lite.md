@@ -19,6 +19,7 @@ scope_paths:
   - "scripts/project_parser.py"
   - "tests/*"
 scope_tools: []
+depends_on: []
 completed_at: null
 ---
 

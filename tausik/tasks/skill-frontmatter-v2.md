@@ -20,6 +20,7 @@ relevant_files:
   - "tests/test_bootstrap_frontmatter.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-03-31T19:19:18Z"
 ---
 

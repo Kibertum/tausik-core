@@ -18,6 +18,7 @@ relevant_files:
   - "scripts/project_backend.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-05T19:41:58Z"
 ---
 

@@ -15,6 +15,7 @@ scope_exclude: "НЕ менять пороги implied_complexity и веса �
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: null
 ---
 

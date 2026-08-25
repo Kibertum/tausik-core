@@ -15,6 +15,7 @@ scope_exclude: ".tausik/ (project DB + cache), .tausik-lib/ (snapshot of agents/
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-06T12:13:58Z"
 ---
 

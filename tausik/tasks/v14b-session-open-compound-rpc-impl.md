@@ -15,6 +15,7 @@ scope_exclude: "scripts/project_service.py, scripts/service_session.py — compo
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-06T18:19:22Z"
 ---
 

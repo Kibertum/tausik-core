@@ -19,6 +19,7 @@ relevant_files:
   - "tests/test_skill_cli_help.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-02T11:08:48Z"
 ---
 

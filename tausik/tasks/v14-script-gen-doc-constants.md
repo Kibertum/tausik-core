@@ -23,6 +23,7 @@ relevant_files:
   - "tests/test_mcp_doc_tool_counts.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-01T13:23:44Z"
 ---
 

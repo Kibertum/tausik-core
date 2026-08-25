@@ -15,6 +15,7 @@ scope_exclude: "backend_migrations_v34.py (separate task), parse_ac_text body-co
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-14T09:28:47Z"
 ---
 

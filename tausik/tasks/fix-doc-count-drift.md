@@ -15,6 +15,7 @@ scope_exclude: "docs/audit/**, docs/_generated/constants.json, version/test scan
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-14T00:09:16Z"
 ---
 

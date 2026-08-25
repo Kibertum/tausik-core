@@ -16,6 +16,7 @@ relevant_files:
   - "docs/en/hooks.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-26T16:16:38Z"
 ---
 

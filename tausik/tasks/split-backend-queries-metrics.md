@@ -15,6 +15,7 @@ scope_exclude: "SQL-запросы, backend_tier_metrics.py, backend_queries_usa
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-14T00:23:04Z"
 ---
 

@@ -15,6 +15,7 @@ scope_exclude: "tausik-skills repo (отдельная задача v14b-skill-b
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-03T20:57:59Z"
 ---
 

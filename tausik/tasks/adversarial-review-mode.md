@@ -18,6 +18,7 @@ relevant_files:
   - "tests/test_adversarial_review_mode.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-16T22:50:58Z"
 ---
 

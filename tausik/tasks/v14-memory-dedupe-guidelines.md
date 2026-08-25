@@ -20,6 +20,7 @@ relevant_files:
   - "docs/ru/shared-brain.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-01T17:33:47Z"
 ---
 

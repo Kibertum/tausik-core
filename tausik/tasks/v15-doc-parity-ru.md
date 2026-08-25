@@ -22,6 +22,7 @@ scope_paths:
   - "docs/en/agent-contract.md"
   - "site/.vitepress/config.ts"
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-13T13:43:03Z"
 ---
 

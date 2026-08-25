@@ -17,6 +17,7 @@ relevant_files:
   - "docs/en/cli.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-26T22:02:05Z"
 ---
 

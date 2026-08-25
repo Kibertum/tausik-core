@@ -19,6 +19,7 @@ scope_paths:
   - ".gitignore"
   - "docs/ru/*.md"
 scope_tools: []
+depends_on: []
 completed_at: null
 ---
 

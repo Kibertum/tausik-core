@@ -15,6 +15,7 @@ scope_exclude: "harness/*/mcp/project/tools_spec.py, harness/*/mcp/project/tools
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-13T23:59:44Z"
 ---
 

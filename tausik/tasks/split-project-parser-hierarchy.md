@@ -15,6 +15,7 @@ scope_exclude: "прочие project_parser_*.py, семантику CLI-арг�
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-14T00:27:17Z"
 ---
 

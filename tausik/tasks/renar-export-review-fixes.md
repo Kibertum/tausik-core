@@ -18,6 +18,7 @@ relevant_files:
   - "tests/test_renar_export.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-14T11:13:27Z"
 ---
 

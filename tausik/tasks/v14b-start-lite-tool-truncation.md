@@ -15,6 +15,7 @@ scope_exclude: "CLAUDE.md split (dropped per AC #3); modifying tool output conte
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-07T09:18:54Z"
 ---
 

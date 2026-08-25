@@ -23,6 +23,7 @@ relevant_files:
   - "tests/test_token_metrics.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-06T11:18:42Z"
 ---
 

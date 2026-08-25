@@ -17,6 +17,7 @@ scope_paths:
   - "scripts/hooks/session_metrics.py"
   - "tests/test_token_metrics_rotation.py"
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-18T11:10:00Z"
 ---
 

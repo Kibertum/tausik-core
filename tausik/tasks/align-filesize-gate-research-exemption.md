@@ -15,6 +15,7 @@ scope_exclude: "логику count_lines/run_filesize_gate, .tausik/config.json"
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-14T00:11:55Z"
 ---
 

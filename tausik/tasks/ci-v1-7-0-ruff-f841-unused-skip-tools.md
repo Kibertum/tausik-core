@@ -17,6 +17,7 @@ relevant_files:
   - "scripts/service_doctor_drift.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-17T16:22:14Z"
 ---
 

@@ -17,6 +17,7 @@ relevant_files:
   - "scripts/backend_migrations_v34.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-14T08:56:05Z"
 ---
 

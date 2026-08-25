@@ -20,6 +20,7 @@ scope_paths:
   - "docs/en/*"
   - "tests/*"
 scope_tools: []
+depends_on: []
 completed_at: "2026-08-03T19:31:54Z"
 ---
 

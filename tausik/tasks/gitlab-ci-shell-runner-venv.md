@@ -18,6 +18,7 @@ relevant_files:
   - "tests/test_bootstrap_extension_skills.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-10T15:18:45Z"
 ---
 

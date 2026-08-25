@@ -17,6 +17,7 @@ scope_paths:
   - "scripts/hooks/bash_firewall.py"
   - "tests/test_hooks.py"
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-18T11:21:28Z"
 ---
 

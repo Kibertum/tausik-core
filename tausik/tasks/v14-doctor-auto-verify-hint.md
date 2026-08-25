@@ -17,6 +17,7 @@ relevant_files:
   - "tests/test_doctor_auto_verify_hint.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-01T10:14:38Z"
 ---
 

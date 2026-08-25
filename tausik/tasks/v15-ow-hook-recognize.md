@@ -20,6 +20,7 @@ relevant_files:
   - "docs/_generated/constants.json"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-14T21:16:56Z"
 ---
 

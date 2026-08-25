@@ -22,6 +22,7 @@ scope_paths:
   - "scripts/service_task_done.py"
   - "tests/*"
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-12T02:05:19Z"
 ---
 

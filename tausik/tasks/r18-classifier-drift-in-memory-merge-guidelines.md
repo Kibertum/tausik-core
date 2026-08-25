@@ -25,6 +25,7 @@ scope_paths:
   - "docs/ru/shared-brain.md"
   - "scripts/brain_classifier.py"
 scope_tools: []
+depends_on: []
 completed_at: "2026-08-03T14:52:17Z"
 ---
 

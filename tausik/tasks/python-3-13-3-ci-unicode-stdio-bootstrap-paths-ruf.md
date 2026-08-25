@@ -17,6 +17,7 @@ relevant_files:
   - "tests/test_unicode_stdio.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-17T17:52:30Z"
 ---
 

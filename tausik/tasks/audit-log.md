@@ -20,6 +20,7 @@ relevant_files:
   - "scripts/project.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-03-14T13:12:51Z"
 ---
 

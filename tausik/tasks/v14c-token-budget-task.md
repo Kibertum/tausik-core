@@ -32,6 +32,7 @@ relevant_files:
   - "docs/ru/cost-telemetry.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-07T13:08:40Z"
 ---
 

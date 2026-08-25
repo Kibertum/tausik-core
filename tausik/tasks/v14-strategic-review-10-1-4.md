@@ -15,6 +15,7 @@ scope_exclude: "все code edits откладываются до отдельн
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-02T18:24:12Z"
 ---
 

@@ -17,6 +17,7 @@ relevant_files:
   - "tests/test_brain_schema.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-25T10:01:14Z"
 ---
 

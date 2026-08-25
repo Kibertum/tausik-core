@@ -15,6 +15,7 @@ scope_exclude: "stacks.md, upgrade.md, senar-compliance-matrix.md (already clear
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-06T21:08:32Z"
 ---
 

@@ -15,6 +15,7 @@ scope_exclude: "scripts/, tests/, agents/"
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-07T12:05:56Z"
 ---
 

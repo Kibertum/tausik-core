@@ -29,6 +29,7 @@ relevant_files:
   - "scripts/tausik_utils.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-17T08:14:12Z"
 ---
 

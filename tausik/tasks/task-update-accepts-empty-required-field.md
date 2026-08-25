@@ -22,6 +22,7 @@ scope_paths:
   - "scripts/service_validation.py"
   - "tests/*"
 scope_tools: []
+depends_on: []
 completed_at: "2026-08-03T14:43:20Z"
 ---
 

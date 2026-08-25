@@ -32,6 +32,7 @@ scope_paths:
   - CHANGELOG.ru.md
   - "docs/_generated/constants.json"
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-19T20:27:58Z"
 ---
 

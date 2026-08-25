@@ -17,6 +17,7 @@ scope_paths:
   - "scripts/hooks/git_push_gate.py"
   - "tests/test_hooks.py"
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-17T22:29:31Z"
 ---
 

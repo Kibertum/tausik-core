@@ -15,6 +15,7 @@ scope_exclude: "scripts/hooks/session_metrics.py (don't modify existing parser â
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-04T14:12:40Z"
 ---
 

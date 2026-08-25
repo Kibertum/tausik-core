@@ -17,6 +17,7 @@ relevant_files:
   - "tests/test_skills_have_gotchas.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-16T22:54:10Z"
 ---
 

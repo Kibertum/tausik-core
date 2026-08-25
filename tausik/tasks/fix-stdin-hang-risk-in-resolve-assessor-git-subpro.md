@@ -16,6 +16,7 @@ relevant_files:
   - "scripts/project_cli_renar.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-14T08:52:59Z"
 ---
 

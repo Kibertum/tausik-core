@@ -15,6 +15,7 @@ scope_exclude: "core-репо (site/ удаляется отдельной за�
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-28T13:00:02Z"
 ---
 

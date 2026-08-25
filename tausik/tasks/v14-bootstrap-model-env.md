@@ -16,6 +16,7 @@ relevant_files:
   - "tests/test_bootstrap_model_profile.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-01T13:59:01Z"
 ---
 

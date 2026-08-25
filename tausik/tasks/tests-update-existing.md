@@ -16,6 +16,7 @@ relevant_files:
   - "tests/test_skills_maturity.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-25T17:20:03Z"
 ---
 

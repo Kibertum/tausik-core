@@ -20,6 +20,7 @@ relevant_files:
   - "tests/test_brain_artifact_external_repo.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-01T11:58:52Z"
 ---
 

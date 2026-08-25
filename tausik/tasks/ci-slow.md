@@ -15,6 +15,7 @@ scope_exclude: "Не трогать сами тесты продукта/фре�
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-17T21:49:21Z"
 ---
 

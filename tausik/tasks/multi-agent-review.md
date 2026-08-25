@@ -17,6 +17,7 @@ relevant_files:
   - "docs/review-report-public-release.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-05T13:26:20Z"
 ---
 

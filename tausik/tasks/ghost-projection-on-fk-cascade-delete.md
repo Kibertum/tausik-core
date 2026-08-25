@@ -48,6 +48,7 @@ relevant_files:
   - "tests/test_state_tree_eol_pin.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-28T21:39:47Z"
 ---
 

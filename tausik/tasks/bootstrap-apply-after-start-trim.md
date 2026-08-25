@@ -16,6 +16,7 @@ relevant_files:
   - "harness/skills/start/SKILL.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-06T16:18:43Z"
 ---
 

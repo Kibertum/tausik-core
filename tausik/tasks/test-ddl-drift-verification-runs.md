@@ -40,6 +40,7 @@ scope_paths:
   - "scripts/risk_l3_trigger.py"
   - "tests/test_schema_upgrade_parity.py"
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-20T12:37:42Z"
 ---
 

@@ -15,6 +15,7 @@ scope_exclude: "scripts/, bootstrap/, harness/, docs/, .claude/, любая prod
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-07T16:35:27Z"
 ---
 

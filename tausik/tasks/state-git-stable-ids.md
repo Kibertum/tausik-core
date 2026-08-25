@@ -28,6 +28,7 @@ relevant_files:
   - "tests/test_ddl_fixture_parity.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-25T11:11:40Z"
 ---
 

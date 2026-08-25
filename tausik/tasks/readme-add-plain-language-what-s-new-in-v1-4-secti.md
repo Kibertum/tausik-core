@@ -15,6 +15,7 @@ scope_exclude: "CHANGELOG.md, CHANGELOG.ru.md, docs/, scripts/, tests/, harness/
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-07T21:26:33Z"
 ---
 

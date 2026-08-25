@@ -26,6 +26,7 @@ relevant_files:
   - "tests/test_session_capacity.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-28T13:57:15Z"
 ---
 

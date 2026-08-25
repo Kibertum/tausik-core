@@ -15,6 +15,7 @@ scope_exclude: "tests/test_bootstrap_venv.py, tests/test_bootstrap_frontmatter.p
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-03T11:29:13Z"
 ---
 

@@ -17,6 +17,7 @@ relevant_files:
   - "scripts/brain_project_registry.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-25T10:26:09Z"
 ---
 

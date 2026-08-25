@@ -15,6 +15,7 @@ scope_exclude: ".claude/agents/* (no rollback at this stage — sub-agents stay)
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-07T19:57:40Z"
 ---
 

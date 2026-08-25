@@ -15,6 +15,7 @@ scope_exclude: "scripts/service_*.py, scripts/project_*.py, docs/, agents/"
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-03T11:18:09Z"
 ---
 

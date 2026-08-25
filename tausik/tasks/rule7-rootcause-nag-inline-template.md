@@ -15,6 +15,7 @@ scope_exclude: "scripts/nudge_escalation.py (escalation mechanics unchanged), do
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-14T12:30:37Z"
 ---
 

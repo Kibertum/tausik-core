@@ -19,6 +19,7 @@ relevant_files:
   - pyproject.toml
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-16T20:50:31Z"
 ---
 

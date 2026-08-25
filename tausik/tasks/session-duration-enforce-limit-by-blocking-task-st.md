@@ -15,6 +15,7 @@ scope_exclude: "scripts/project_backend.py, scripts/backend_*.py, agents/"
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-07T11:58:00Z"
 ---
 

@@ -15,6 +15,7 @@ scope_exclude: "core-репо файлы; gitlab core настройки; github
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-28T13:23:51Z"
 ---
 

@@ -28,6 +28,7 @@ relevant_files:
   - "tests/test_mcp_integration.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-03-29T17:31:43Z"
 ---
 

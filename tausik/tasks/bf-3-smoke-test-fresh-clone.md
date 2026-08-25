@@ -16,6 +16,7 @@ relevant_files:
   - "tests/test_bootstrap_skills_coverage.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-26T00:47:14Z"
 ---
 

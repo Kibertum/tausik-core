@@ -25,6 +25,7 @@ relevant_files:
   - "tausik/tasks/tool-call-syntax-leaks-into-entity-text.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-28T19:39:53Z"
 ---
 

@@ -22,6 +22,7 @@ relevant_files:
   - "tests/test_fail_open_degradation_telemetry.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-21T10:35:42Z"
 ---
 

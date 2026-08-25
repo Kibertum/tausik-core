@@ -15,6 +15,7 @@ scope_exclude: "scripts/brain_classifier.py (routing logic unrelated), brain lay
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-06T23:16:23Z"
 ---
 

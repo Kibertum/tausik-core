@@ -15,6 +15,7 @@ scope_exclude: "CHANGELOG.md/ru.md (историческая запись), лю
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-02T22:17:14Z"
 ---
 

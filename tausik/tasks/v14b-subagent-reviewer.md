@@ -15,6 +15,7 @@ scope_exclude: "harness/skills/review/agents/* (existing 6-agent flow stays as f
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-07T09:05:27Z"
 ---
 

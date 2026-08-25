@@ -16,6 +16,7 @@ relevant_files:
   - "[\"docs/ru/architecture.md\",\"docs/ru/brain-db-schema.md\",\"docs/ru/claude-md-guide.md\",\"docs/ru/environment.md\",\"docs/ru/security.md\",\"docs/ru/senar-compliance-matrix.md\",\"docs/ru/stacks.md\",\"docs/ru/upgrade.md\",\"CHANGELOG.md\",\"CHANGELOG.ru.md\"]"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-06T20:59:40Z"
 ---
 

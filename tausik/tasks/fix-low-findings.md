@@ -23,6 +23,7 @@ relevant_files:
   - "tests/test_cli_smoke_extra.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-05T20:09:23Z"
 ---
 

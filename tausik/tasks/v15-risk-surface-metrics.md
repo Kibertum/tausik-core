@@ -23,6 +23,7 @@ scope_paths:
   - "scripts/project_cli.py"
   - "tests/*"
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-12T01:37:37Z"
 ---
 

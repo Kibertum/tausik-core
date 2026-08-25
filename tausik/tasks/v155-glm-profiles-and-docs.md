@@ -19,6 +19,7 @@ relevant_files:
   - "docs/en/architecture.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-19T08:33:44Z"
 ---
 

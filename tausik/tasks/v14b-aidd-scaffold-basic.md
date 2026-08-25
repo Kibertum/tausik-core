@@ -15,6 +15,7 @@ scope_exclude: "harness/* path (rename task v14b-rename-harness will move agents
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-04T14:40:49Z"
 ---
 

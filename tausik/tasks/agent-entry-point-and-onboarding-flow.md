@@ -21,6 +21,7 @@ relevant_files:
   - "bootstrap/bootstrap_generate.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-07T13:18:42Z"
 ---
 

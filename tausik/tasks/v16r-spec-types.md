@@ -31,6 +31,7 @@ relevant_files:
   - "tests/test_specs.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-13T20:57:54Z"
 ---
 

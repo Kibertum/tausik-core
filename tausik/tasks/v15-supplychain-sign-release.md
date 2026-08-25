@@ -24,6 +24,7 @@ scope_paths:
   - "scripts/project_parser_errors.py"
   - "tests/*"
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-12T02:16:18Z"
 ---
 

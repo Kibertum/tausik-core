@@ -28,6 +28,7 @@ scope_paths:
   - "harness/claude/subagents/tausik-external-reviewer.md"
   - "tests/*"
 scope_tools: []
+depends_on: []
 completed_at: "2026-08-03T19:38:49Z"
 ---
 

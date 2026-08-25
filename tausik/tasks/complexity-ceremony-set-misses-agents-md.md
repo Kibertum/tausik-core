@@ -18,6 +18,7 @@ relevant_files:
   - "tests/test_complexity_understatement.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-25T06:15:36Z"
 ---
 

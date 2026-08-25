@@ -25,6 +25,7 @@ relevant_files:
   - README.ru.md
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-18T19:08:23Z"
 ---
 

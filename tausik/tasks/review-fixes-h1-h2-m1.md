@@ -23,6 +23,7 @@ relevant_files:
   - "tests/test_task_done_verify_hook.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-17T00:10:54Z"
 ---
 

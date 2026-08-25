@@ -15,6 +15,7 @@ scope_exclude: "docs/{en,ru,_generated} (нужны site); site-репо tausik/
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-28T13:04:02Z"
 ---
 

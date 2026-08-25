@@ -15,6 +15,7 @@ scope_exclude: "bootstrap/, .claude/, .qwen/, scripts/hooks/bash_firewall.py, sc
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-07T20:46:23Z"
 ---
 

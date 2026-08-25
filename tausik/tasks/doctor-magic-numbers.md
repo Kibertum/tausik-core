@@ -18,6 +18,7 @@ relevant_files:
   - "tests/test_config_knobs.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-26T11:15:33Z"
 ---
 

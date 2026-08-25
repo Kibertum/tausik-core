@@ -17,6 +17,7 @@ relevant_files:
 scope_paths:
   - "tests/test_graph_memory.py"
 scope_tools: []
+depends_on: []
 completed_at: "2026-08-03T08:24:16Z"
 ---
 

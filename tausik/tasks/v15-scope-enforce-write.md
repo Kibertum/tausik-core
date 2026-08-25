@@ -29,6 +29,7 @@ scope_tools:
   - Edit
   - Write
   - Bash
+depends_on: []
 completed_at: "2026-06-12T01:11:59Z"
 ---
 

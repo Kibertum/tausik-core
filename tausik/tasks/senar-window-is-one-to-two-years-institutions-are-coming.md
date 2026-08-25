@@ -16,6 +16,7 @@ relevant_files: []
 scope_paths:
   - "docs/ru/research/*.md"
 scope_tools: []
+depends_on: []
 completed_at: null
 ---
 

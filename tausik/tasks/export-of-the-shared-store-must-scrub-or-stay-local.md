@@ -17,6 +17,7 @@ relevant_files:
   - "tausik/tasks/kb-export-global.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-08-02T17:38:38Z"
 ---
 

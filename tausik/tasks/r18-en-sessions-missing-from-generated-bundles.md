@@ -22,6 +22,7 @@ scope_paths:
   - ".qwen/*"
   - "bootstrap/*"
 scope_tools: []
+depends_on: []
 completed_at: "2026-08-03T14:44:12Z"
 ---
 

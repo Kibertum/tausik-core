@@ -15,6 +15,7 @@ scope_exclude: "scripts/project_cli.py (CLI keeps using svc.task_done str-return
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-04T11:26:27Z"
 ---
 

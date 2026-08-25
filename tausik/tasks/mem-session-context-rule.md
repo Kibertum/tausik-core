@@ -15,6 +15,7 @@ scope_exclude: "Не трогать memory_compact, memory_add/list/delete. Не
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-22T22:46:39Z"
 ---
 

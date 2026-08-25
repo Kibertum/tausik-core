@@ -15,6 +15,7 @@ scope_exclude: "scripts/tausik_utils.py format_status_compact_json (compact path
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-14T14:18:22Z"
 ---
 

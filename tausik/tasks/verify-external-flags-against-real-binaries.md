@@ -17,6 +17,7 @@ relevant_files:
   - "stacks/rust/stack.json"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-10T21:37:10Z"
 ---
 

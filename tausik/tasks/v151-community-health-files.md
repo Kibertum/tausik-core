@@ -20,6 +20,7 @@ relevant_files:
   - ".github/pull_request_template.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-15T01:09:50Z"
 ---
 

@@ -15,6 +15,7 @@ scope_exclude: "scripts/backend_queries.py metrics queries (archived всё ещ
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-06T22:57:06Z"
 ---
 

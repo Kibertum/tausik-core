@@ -15,6 +15,7 @@ scope_exclude: "tests/* (no parametrize edits in 1.4); .tausik/* (no infra chang
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-07T19:59:36Z"
 ---
 

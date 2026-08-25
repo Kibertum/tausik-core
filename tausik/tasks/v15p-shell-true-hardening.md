@@ -16,6 +16,7 @@ relevant_files:
   - "scripts/gate_command_runner.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-13T09:12:07Z"
 ---
 

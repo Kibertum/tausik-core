@@ -19,6 +19,7 @@ scope_paths:
   - ".gitignore"
   - "*.pdf"
 scope_tools: []
+depends_on: []
 completed_at: "2026-08-11T10:44:51Z"
 ---
 

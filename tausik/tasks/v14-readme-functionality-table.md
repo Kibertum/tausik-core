@@ -15,6 +15,7 @@ scope_exclude: "docs/, scripts/, CHANGELOG, любой код"
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-03T09:20:08Z"
 ---
 

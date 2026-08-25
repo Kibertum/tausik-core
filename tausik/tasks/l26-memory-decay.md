@@ -17,6 +17,7 @@ scope_paths:
   - "scripts/service_knowledge.py"
   - "scripts/memory_cleanup.py"
 scope_tools: []
+depends_on: []
 completed_at: null
 ---
 

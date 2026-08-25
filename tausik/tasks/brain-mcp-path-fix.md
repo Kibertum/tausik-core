@@ -20,6 +20,7 @@ relevant_files:
   - "tests/test_brain_mcp_installed_layout.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-23T13:47:12Z"
 ---
 

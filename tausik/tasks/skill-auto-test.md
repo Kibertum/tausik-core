@@ -16,6 +16,7 @@ relevant_files:
   - "agents/skills/skill-test/SKILL.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-12T17:01:56Z"
 ---
 

@@ -15,6 +15,7 @@ scope_exclude: "git push в Kibertum/tausik-skills (deferred post-1.4); per-bund
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-07T09:32:49Z"
 ---
 

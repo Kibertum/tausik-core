@@ -15,6 +15,7 @@ scope_exclude: ".qwen/* (uncache only via git rm), source files (отдельн�
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-03T11:53:52Z"
 ---
 

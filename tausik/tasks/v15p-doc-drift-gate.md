@@ -18,6 +18,7 @@ relevant_files:
   - "scripts/mcp_tool_counts.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-13T09:39:28Z"
 ---
 

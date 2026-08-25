@@ -17,6 +17,7 @@ relevant_files:
   - "tests/test_audit_unused_python.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-02T11:17:51Z"
 ---
 

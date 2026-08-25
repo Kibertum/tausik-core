@@ -15,6 +15,7 @@ scope_exclude: "renar_conformance.py, gate wiring, CLI parsers, docs (no behavio
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-13T22:24:17Z"
 ---
 

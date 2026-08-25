@@ -16,6 +16,7 @@ relevant_files:
   - "tests/test_config_module_boundary.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-26T14:04:05Z"
 ---
 

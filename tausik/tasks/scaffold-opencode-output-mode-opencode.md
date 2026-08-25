@@ -17,6 +17,7 @@ relevant_files:
   - "tests/test_caveman_wiring_integration.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-16T20:35:08Z"
 ---
 

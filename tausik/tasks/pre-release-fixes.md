@@ -32,6 +32,7 @@ relevant_files:
   - "scripts/service_gates.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-06T10:25:39Z"
 ---
 

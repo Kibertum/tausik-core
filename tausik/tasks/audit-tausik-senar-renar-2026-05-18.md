@@ -15,6 +15,7 @@ scope_exclude: "scripts/*, .claude/*, tests/*, site/*"
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-20T09:39:18Z"
 ---
 

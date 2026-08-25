@@ -49,6 +49,7 @@ scope_paths:
   - "docs/ru/senar-compliance-matrix.md"
   - "docs/_generated/constants.json"
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-14T15:53:23Z"
 ---
 

@@ -21,6 +21,7 @@ relevant_files:
   - "tests/test_state_projection_tracks_db.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-08-03T09:21:52Z"
 ---
 

@@ -15,6 +15,7 @@ scope_exclude: "docs/en/* (no EN edits in this task); docs/ru/{stacks,upgrade,se
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-06T21:15:23Z"
 ---
 

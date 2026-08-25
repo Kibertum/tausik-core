@@ -15,6 +15,7 @@ scope_exclude: "всё остальное в CHANGELOG ниже шапки, лю
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-02T21:46:56Z"
 ---
 

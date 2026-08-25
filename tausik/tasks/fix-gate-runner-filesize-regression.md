@@ -15,6 +15,7 @@ scope_exclude: "gate_command_runner, gate_stack_dispatch, run_gates логику
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-14T00:30:23Z"
 ---
 

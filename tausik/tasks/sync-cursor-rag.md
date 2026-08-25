@@ -20,6 +20,7 @@ relevant_files:
   - "agents/cursor/mcp/codebase-rag/rag_store_chroma.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-03-14T12:48:56Z"
 ---
 

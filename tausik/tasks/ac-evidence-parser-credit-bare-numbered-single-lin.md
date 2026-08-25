@@ -15,6 +15,7 @@ scope_exclude: "parse_ac_text (already fixed), gate_ac_check, AC storage format"
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-14T09:16:31Z"
 ---
 

@@ -22,6 +22,7 @@ relevant_files:
   - "docs/ru/verify-glossary.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-01T17:22:38Z"
 ---
 

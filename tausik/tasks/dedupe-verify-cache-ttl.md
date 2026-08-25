@@ -15,6 +15,7 @@ scope_exclude: "scripts/service_gates.py, логику has_fresh_verify_run, з�
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-13T23:56:26Z"
 ---
 

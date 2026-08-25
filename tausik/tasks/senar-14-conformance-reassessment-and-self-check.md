@@ -21,6 +21,7 @@ scope_paths:
   - README.md
   - CLAUDE.md
 scope_tools: []
+depends_on: []
 completed_at: null
 ---
 

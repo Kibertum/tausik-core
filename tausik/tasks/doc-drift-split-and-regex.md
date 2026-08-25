@@ -20,6 +20,7 @@ relevant_files:
   - "tests/test_doc_write_fixes.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-26T11:11:32Z"
 ---
 

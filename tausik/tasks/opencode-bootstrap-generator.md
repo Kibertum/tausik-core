@@ -17,6 +17,7 @@ relevant_files:
   - "tests/test_opencode_bootstrap.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-14T13:02:47Z"
 ---
 

@@ -16,6 +16,7 @@ relevant_files:
   - "scripts/nudge_escalation.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-13T09:43:28Z"
 ---
 

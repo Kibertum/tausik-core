@@ -20,6 +20,7 @@ relevant_files:
   - "tests/test_self_correcting_cli.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-11T23:52:08Z"
 ---
 

@@ -15,6 +15,7 @@ scope_exclude: "любые .py файлы, docs/, tests/, agents/, bootstrap/, s
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-02T21:54:03Z"
 ---
 

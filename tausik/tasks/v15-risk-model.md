@@ -20,6 +20,7 @@ scope_paths:
   - "docs/ru/research/risk-model.md"
   - "tests/*"
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-12T01:28:13Z"
 ---
 

@@ -17,6 +17,7 @@ relevant_files:
 scope_paths:
   - "tests/test_defect_escape.py"
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-20T23:57:47Z"
 ---
 

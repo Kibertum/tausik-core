@@ -21,6 +21,7 @@ relevant_files:
 scope_paths:
   - "scripts/service_export.py"
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-28T19:37:27Z"
 ---
 

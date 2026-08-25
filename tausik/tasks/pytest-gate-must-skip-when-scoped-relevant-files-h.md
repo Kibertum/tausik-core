@@ -20,6 +20,7 @@ relevant_files:
   - CLAUDE.md
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-25T15:36:47Z"
 ---
 

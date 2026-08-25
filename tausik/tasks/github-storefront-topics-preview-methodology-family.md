@@ -28,6 +28,7 @@ scope_paths:
   - "*.json"
   - "*.py"
 scope_tools: []
+depends_on: []
 completed_at: "2026-08-11T17:22:14Z"
 ---
 

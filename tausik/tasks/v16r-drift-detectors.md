@@ -18,6 +18,7 @@ relevant_files:
   - "scripts/project_cli_drift.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-13T21:54:29Z"
 ---
 

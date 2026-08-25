@@ -15,6 +15,7 @@ scope_exclude: "task_gate.py, scope_write_gate.py, memory_pretool_block.py â€” Ñ
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-23T23:37:50Z"
 ---
 

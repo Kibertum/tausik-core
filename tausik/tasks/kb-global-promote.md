@@ -16,6 +16,7 @@ relevant_files: []
 scope_paths:
   - "scripts/service_knowledge.py"
 scope_tools: []
+depends_on: []
 completed_at: null
 ---
 

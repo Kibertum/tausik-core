@@ -19,6 +19,7 @@ scope_paths:
   - "tests/test_migrations.py"
   - "tests/test_memory_cq_rows.py"
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-18T11:25:11Z"
 ---
 

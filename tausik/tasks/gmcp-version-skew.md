@@ -19,6 +19,7 @@ scope_paths:
   - "docs/ru/research/global-version-skew.md"
   - "tests/*"
 scope_tools: []
+depends_on: []
 completed_at: null
 ---
 

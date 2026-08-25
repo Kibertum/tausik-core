@@ -21,6 +21,7 @@ relevant_files:
   - "tests/test_bootstrap_drift_gate.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-20T23:34:44Z"
 ---
 

@@ -16,6 +16,7 @@ relevant_files:
   - "tests/test_brain_mcp_write.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-24T19:24:38Z"
 ---
 

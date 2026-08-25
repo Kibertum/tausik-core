@@ -17,6 +17,7 @@ relevant_files:
   - "bootstrap/bootstrap_copy.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-05T13:21:54Z"
 ---
 

@@ -20,6 +20,7 @@ relevant_files:
   - "agents/cursor/mcp/project/handlers.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-01T11:05:01Z"
 ---
 

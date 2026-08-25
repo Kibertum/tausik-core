@@ -19,6 +19,7 @@ scope_paths:
   - "docs/ru/*.md"
   - "docs/en/*.md"
 scope_tools: []
+depends_on: []
 completed_at: null
 ---
 

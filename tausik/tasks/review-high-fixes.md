@@ -20,6 +20,7 @@ relevant_files:
   - "tests/test_review_high_fixes.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-25T14:17:56Z"
 ---
 

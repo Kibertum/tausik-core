@@ -15,6 +15,7 @@ scope_exclude: "прочие service_*.py миксины, логику epic/stor
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-14T00:25:03Z"
 ---
 

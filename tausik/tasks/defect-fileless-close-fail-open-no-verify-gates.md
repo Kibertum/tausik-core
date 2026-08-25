@@ -19,6 +19,7 @@ scope_paths:
   - "scripts/gate_verify_first.py"
   - "tests/test_fileless_close.py"
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-21T00:14:35Z"
 ---
 

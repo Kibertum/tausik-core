@@ -22,6 +22,7 @@ relevant_files:
   - "tests/test_memory_block.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-16T21:59:25Z"
 ---
 

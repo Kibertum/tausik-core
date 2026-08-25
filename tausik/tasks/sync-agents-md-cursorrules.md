@@ -21,6 +21,7 @@ relevant_files:
   - "tests/test_bootstrap_generate.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-16T20:28:43Z"
 ---
 

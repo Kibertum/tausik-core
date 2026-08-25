@@ -17,6 +17,7 @@ relevant_files:
   - README.md
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-14T12:20:01Z"
 ---
 

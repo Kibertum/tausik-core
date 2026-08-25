@@ -17,6 +17,7 @@ relevant_files:
   - "scripts/service_decide.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-08-01T11:10:50Z"
 ---
 

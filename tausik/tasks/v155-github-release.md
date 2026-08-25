@@ -15,6 +15,7 @@ scope_exclude: "Не трогать gitlab origin (уже зарелизен); �
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-19T10:18:41Z"
 ---
 

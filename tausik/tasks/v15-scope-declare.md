@@ -30,6 +30,7 @@ scope_paths:
 scope_tools:
   - Edit
   - Write
+depends_on: []
 completed_at: "2026-06-12T01:05:19Z"
 ---
 

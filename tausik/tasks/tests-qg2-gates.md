@@ -16,6 +16,7 @@ relevant_files:
   - "tests/test_qg2_gates.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-05T19:37:21Z"
 ---
 

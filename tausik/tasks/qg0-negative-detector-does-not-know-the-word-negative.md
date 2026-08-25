@@ -17,6 +17,7 @@ relevant_files:
   - "tests/test_negative_scenario_parity.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-26T23:05:48Z"
 ---
 

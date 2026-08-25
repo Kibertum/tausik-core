@@ -16,6 +16,7 @@ relevant_files:
   - "scripts/hooks/session_cleanup_check.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-26T00:52:40Z"
 ---
 

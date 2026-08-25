@@ -30,6 +30,7 @@ scope_paths:
   - CHANGELOG.md
   - CHANGELOG.ru.md
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-25T17:14:17Z"
 ---
 

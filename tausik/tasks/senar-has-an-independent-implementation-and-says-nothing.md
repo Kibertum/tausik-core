@@ -17,6 +17,7 @@ scope_paths:
   - "docs/**"
   - "*.md"
 scope_tools: []
+depends_on: []
 completed_at: null
 ---
 

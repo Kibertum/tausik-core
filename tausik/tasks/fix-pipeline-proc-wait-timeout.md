@@ -17,6 +17,7 @@ relevant_files:
   - "tests/test_gate_pipeline_reap.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-13T13:49:05Z"
 ---
 

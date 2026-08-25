@@ -45,6 +45,7 @@ relevant_files:
   - "docs/ru/security.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-24T12:00:32Z"
 ---
 

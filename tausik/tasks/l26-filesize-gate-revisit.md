@@ -28,6 +28,7 @@ scope_paths:
   - CLAUDE.md
   - "bootstrap/bootstrap_templates.py"
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-27T16:57:02Z"
 ---
 

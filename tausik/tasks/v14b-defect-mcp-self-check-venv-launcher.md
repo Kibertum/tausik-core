@@ -15,6 +15,7 @@ scope_exclude: "scripts/service_*.py, brain modules, any v14b-tail tasks unrelat
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-04T11:40:32Z"
 ---
 

@@ -15,6 +15,7 @@ scope_exclude: "scripts/hooks/* (lower priority — hooks spawn from IDE directl
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-04T11:08:16Z"
 ---
 

@@ -18,6 +18,7 @@ scope_paths:
   - "*.md"
   - ".gitignore"
 scope_tools: []
+depends_on: []
 completed_at: null
 ---
 

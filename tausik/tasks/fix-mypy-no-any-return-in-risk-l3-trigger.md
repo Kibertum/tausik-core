@@ -17,6 +17,7 @@ relevant_files:
   - "tests/test_risk_l3_trigger.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-12T02:00:19Z"
 ---
 

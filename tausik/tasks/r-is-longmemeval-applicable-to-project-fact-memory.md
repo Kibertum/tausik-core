@@ -18,6 +18,7 @@ scope_paths:
   - "docs/en/research/*.md"
   - "scripts/*.py"
 scope_tools: []
+depends_on: []
 completed_at: null
 ---
 

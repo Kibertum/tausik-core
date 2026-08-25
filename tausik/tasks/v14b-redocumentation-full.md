@@ -15,6 +15,7 @@ scope_exclude: "deep rewrite of docs to add new content beyond v14b-tail batch; 
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-07T09:38:47Z"
 ---
 

@@ -15,6 +15,7 @@ scope_exclude: "scripts/gate_runner.py + scripts/default_gates.py (gate-fixer is
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-07T09:11:00Z"
 ---
 

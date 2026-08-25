@@ -15,6 +15,7 @@ scope_exclude: "любые docs/{en,ru}/*.md (содержимое не трог
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-03T09:33:23Z"
 ---
 

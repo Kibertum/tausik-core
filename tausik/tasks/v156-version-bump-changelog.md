@@ -24,6 +24,7 @@ relevant_files:
   - "harness/cursor/mcp/project/handlers.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-19T19:39:56Z"
 ---
 

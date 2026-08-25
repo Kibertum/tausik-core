@@ -24,6 +24,7 @@ relevant_files:
   - "tests/test_v34_hashchain_backfill.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-21T08:28:19Z"
 ---
 

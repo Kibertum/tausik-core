@@ -15,6 +15,7 @@ scope_exclude: "scripts/project_cli_doctor.py (logic не трогаем, тол
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-02T21:59:03Z"
 ---
 

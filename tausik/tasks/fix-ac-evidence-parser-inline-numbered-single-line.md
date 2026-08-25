@@ -15,6 +15,7 @@ scope_exclude: "acceptance_criteria storage format (do not migrate stored AC); o
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-14T09:11:14Z"
 ---
 

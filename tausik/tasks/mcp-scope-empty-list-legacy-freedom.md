@@ -19,6 +19,7 @@ scope_paths:
   - "scripts/mcp_tool_scope.py"
   - "tests/test_mcp_tool_scope.py"
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-27T13:42:38Z"
 ---
 

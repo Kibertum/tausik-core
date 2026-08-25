@@ -17,6 +17,7 @@ relevant_files:
   - "tests/test_stack_iac.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-26T12:02:07Z"
 ---
 

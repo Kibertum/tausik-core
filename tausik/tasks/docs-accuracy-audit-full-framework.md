@@ -15,6 +15,7 @@ scope_exclude: null
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-15T13:19:11Z"
 ---
 

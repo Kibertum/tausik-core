@@ -15,6 +15,7 @@ scope_exclude: "bootstrap/**, agents/overrides/qwen/**, agents/overrides/claude/
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-28T16:06:47Z"
 ---
 

@@ -15,6 +15,7 @@ scope_exclude: "логика _bundle_body не меняется; никаких 
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-07T09:43:52Z"
 ---
 

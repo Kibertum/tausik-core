@@ -25,6 +25,7 @@ relevant_files:
   - "references/QUICKSTART.en.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-06T10:40:06Z"
 ---
 

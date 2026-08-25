@@ -15,6 +15,7 @@ scope_exclude: "scripts/project_cli_extra.py (update-claudemd логика), boo
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-02T21:49:35Z"
 ---
 

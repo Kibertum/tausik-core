@@ -18,6 +18,7 @@ relevant_files:
   - "scripts/README.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-03-14T12:50:41Z"
 ---
 

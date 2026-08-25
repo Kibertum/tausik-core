@@ -15,6 +15,7 @@ scope_exclude: "scripts/brain_*, scripts/service_*, scripts/memory_*, harness/{c
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-07T00:36:03Z"
 ---
 

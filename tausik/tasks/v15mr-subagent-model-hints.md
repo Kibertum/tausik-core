@@ -29,6 +29,7 @@ scope_paths:
   - README.md
   - "docs/_generated/constants.json"
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-14T15:23:38Z"
 ---
 

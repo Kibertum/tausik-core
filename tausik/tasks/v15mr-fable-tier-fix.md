@@ -19,6 +19,7 @@ scope_paths:
   - "scripts/model_routing_session.py"
   - "tests/*"
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-13T09:18:36Z"
 ---
 

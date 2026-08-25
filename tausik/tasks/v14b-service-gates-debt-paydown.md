@@ -15,6 +15,7 @@ scope_exclude: "scripts/service_verification.py (consumer, not split target); sc
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-06T20:22:07Z"
 ---
 

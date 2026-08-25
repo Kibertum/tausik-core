@@ -17,6 +17,7 @@ relevant_files:
   - "stacks/kubernetes/guide.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-26T10:23:42Z"
 ---
 

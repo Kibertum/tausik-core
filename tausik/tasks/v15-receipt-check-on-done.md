@@ -18,6 +18,7 @@ relevant_files:
   - "tests/test_verify_receipt_check.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-12T00:59:14Z"
 ---
 

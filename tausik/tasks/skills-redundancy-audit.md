@@ -28,6 +28,7 @@ relevant_files:
   - "tests/test_skills_no_boilerplate.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-16T22:58:35Z"
 ---
 

@@ -23,6 +23,7 @@ relevant_files:
   - AGENTS.md
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-04-07T20:15:28Z"
 ---
 

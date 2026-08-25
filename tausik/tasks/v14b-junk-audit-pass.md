@@ -15,6 +15,7 @@ scope_exclude: ".claude/, .cursor/, .qwen/, scripts/service_*.py, scripts/backen
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-03T22:21:03Z"
 ---
 

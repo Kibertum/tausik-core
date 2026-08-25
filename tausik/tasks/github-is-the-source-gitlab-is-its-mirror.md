@@ -23,6 +23,7 @@ scope_paths:
   - "bootstrap/*.py"
   - ".gitignore"
 scope_tools: []
+depends_on: []
 completed_at: null
 ---
 

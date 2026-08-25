@@ -22,6 +22,7 @@ relevant_files:
   - "tests/test_wrapper_smoke.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-06-19T19:10:34Z"
 ---
 

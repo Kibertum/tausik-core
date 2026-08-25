@@ -17,6 +17,7 @@ relevant_files:
 scope_paths:
   - prompt.md
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-18T15:32:44Z"
 ---
 

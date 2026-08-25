@@ -20,6 +20,7 @@ scope_paths:
   - "docs/ru/cli.md"
   - "docs/en/cli.md"
 scope_tools: []
+depends_on: []
 completed_at: null
 ---
 

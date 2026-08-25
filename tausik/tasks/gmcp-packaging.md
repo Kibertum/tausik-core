@@ -19,6 +19,7 @@ scope_paths:
   - "scripts/project.py"
   - "tests/*"
 scope_tools: []
+depends_on: []
 completed_at: null
 ---
 

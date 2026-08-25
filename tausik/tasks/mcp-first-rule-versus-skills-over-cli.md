@@ -20,6 +20,7 @@ scope_paths:
   - "docs/en/*.md"
   - "harness/*"
 scope_tools: []
+depends_on: []
 completed_at: null
 ---
 

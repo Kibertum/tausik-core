@@ -26,6 +26,7 @@ relevant_files:
   - "docs/ru/mcp.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-01T17:38:31Z"
 ---
 

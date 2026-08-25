@@ -18,6 +18,7 @@ relevant_files:
   - "docs/ru/troubleshooting.md"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-01T01:33:40Z"
 ---
 

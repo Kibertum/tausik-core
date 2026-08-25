@@ -18,6 +18,7 @@ scope_paths:
   - "tausik/decisions/*"
   - "tausik/tasks/*"
 scope_tools: []
+depends_on: []
 completed_at: "2026-08-03T13:32:34Z"
 ---
 

@@ -18,6 +18,7 @@ scope_paths:
   - "scripts/backend_migrations.py"
   - "tests/test_migrations.py"
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-18T10:51:48Z"
 ---
 

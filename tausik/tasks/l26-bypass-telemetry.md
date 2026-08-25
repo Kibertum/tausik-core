@@ -48,6 +48,7 @@ scope_paths:
   - "scripts/project_cli_ops.py"
   - "tests/test_bypass_telemetry.py"
 scope_tools: []
+depends_on: []
 completed_at: "2026-07-21T09:33:26Z"
 ---
 

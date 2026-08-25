@@ -15,6 +15,7 @@ scope_exclude: "scripts/hooks/task_done_verify.py (логика не меняе�
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-02T21:55:43Z"
 ---
 

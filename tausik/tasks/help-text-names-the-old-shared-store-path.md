@@ -21,6 +21,7 @@ relevant_files:
   - "tests/test_help_text_names_the_current_shared_store.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-08-03T08:52:03Z"
 ---
 

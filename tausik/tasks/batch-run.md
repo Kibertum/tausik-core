@@ -21,6 +21,7 @@ relevant_files:
   - "tests/test_plan_parser.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-03-29T18:03:34Z"
 ---
 

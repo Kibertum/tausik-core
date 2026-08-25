@@ -21,6 +21,7 @@ relevant_files:
   - "scripts/service_task_done.py"
 scope_paths: []
 scope_tools: []
+depends_on: []
 completed_at: "2026-05-06T10:50:42Z"
 ---
 
