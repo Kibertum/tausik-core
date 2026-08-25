@@ -40,7 +40,8 @@ def _run(server_path: str, project_arg: str, timeout: float = 5.0):
         [sys.executable, server_path, "--project", project_arg],
         input="",
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         timeout=timeout,
     )
 
@@ -92,13 +93,24 @@ def test_project_server_minimal_text_reply_on_exception():
     been failing in main since before v1.7.0 and nobody saw it: the module is
     `pytest.mark.slow`, and `addopts = "-m 'not slow'"` deselects that lane by default.
 
-    Assert the INTENT instead of the spelling: the reply is built from the exception
-    message, and the traceback goes to stderr only.
+    It was pinned a SECOND time, to `reply = f"Error: {e}"`, and reddened again the
+    moment mcp-server-drops-unknown-arguments-silently moved that line into
+    `_error_reply` so both refusal paths could share one shape. Twice is a pattern,
+    and the pattern is the method: a source grep asserts the spelling of the day,
+    not the promise. So CALL the thing instead — the reply is built from the
+    exception message, and the traceback goes to stderr only.
     """
     src = open(SERVER, encoding="utf-8").read()
-    assert 'reply = f"Error: {e}"' in src, (
-        "agent reply must be built from the exception message, not the traceback"
-    )
+
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("tausik_mcp_server_reply_shape", SERVER)
+    server_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(server_module)
+
+    reply = server_module._error_reply([], "some_tool", ValueError("boom went the handler"))
+    assert reply.startswith("Error: boom went the handler"), reply
+    assert "Traceback" not in reply and 'File "' not in reply, reply
     # traceback.format_exc() may appear ONLY on the stderr path, never in a TextContent.
     for line in src.splitlines():
         if "format_exc()" in line:
