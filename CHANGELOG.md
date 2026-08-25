@@ -9,6 +9,40 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the MCP server accepted an undeclared argument and dropped it silently
+
+`tausik_task_add` declares `story_slug`; the call arrived with `story`. It
+SUCCEEDED and returned a task with no story attached, and nothing anywhere said
+a word. Seven tasks of the artifact-graph epic were created that way, invisible
+to roadmap, and the release count read them as missing. A typo in a parameter
+name looked exactly like success. The CLI answers the same slip with a loud
+refusal listing its options, so the two surfaces disagreed about whether it was
+an error at all.
+
+`call_tool` now checks the call's keys against the tool's `inputSchema` BEFORE
+the handler: after it, the write has happened and there is nothing left to
+refuse. One point in the dispatcher rather than a check per tool — the
+swallowing was a property of the way any tool is called, not of any one of
+them. The refusal names every undeclared key, and the declared name it probably
+meant when there is one: `story` → `story_slug`.
+
+The list of legal names is not restated anywhere. `declared_arguments` is the
+single unfolding of a tool schema in the module, and `_usage_hint`, which used
+to unfold it separately, now reads the same one. Declaring a new parameter is
+still an edit to the schema and to nothing else — proved by mutation, not
+promised.
+
+The boundary is stated: only UNDECLARED names are checked. Values of declared
+arguments already refuse loudly today (a 70-character slug against a limit of
+64 is named and answered with usage), and a second copy of a working check is
+the copy that drifts. An unknown TOOL passes the guard untouched: that is the
+dispatcher's refusal to make, and complaining about a parameter would send the
+agent to fix the wrong half of the call.
+
+Measured before the change: 119 tools, 119 dispatch entries, zero handlers
+reading a key their schema does not declare — so there was no legitimate call
+to break.
+
 ### Fixed — the skill CLI's negative tests were answering a question nobody asked
 
 Three `tausik skill ...` refusal scenarios ran the CLI from a directory holding
