@@ -2,8 +2,8 @@
 slug: senar-14-conformance-reassessment-and-self-check
 title: "Переоценка соответствия SENAR 1.4 обязательна, и §13.7 говорит, как её проверить"
 status: planning
-epic: standards-window
-story: senar-14-conformance
+epic: release-19-renar-conformance
+story: gates-declare-what-they-prevent
 complexity: complex
 role: architect
 stack: python

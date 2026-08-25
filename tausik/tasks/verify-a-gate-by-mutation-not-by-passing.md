@@ -2,8 +2,8 @@
 slug: verify-a-gate-by-mutation-not-by-passing
 title: "Гейт проверяется мутацией, а не тем, что он зелёный"
 status: planning
-epic: standards-window
-story: senar-14-conformance
+epic: release-19-renar-conformance
+story: gates-declare-what-they-prevent
 complexity: medium
 role: qa
 stack: python

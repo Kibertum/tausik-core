@@ -2,8 +2,8 @@
 slug: senar-14-direct-edit-is-a-recorded-gate-bypass
 title: "Прямая правка артефакта — записанный обход гейта, включая правку владельцем"
 status: planning
-epic: standards-window
-story: senar-14-conformance
+epic: release-19-renar-conformance
+story: gates-declare-what-they-prevent
 complexity: complex
 role: architect
 stack: python

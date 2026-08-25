@@ -2,8 +2,8 @@
 slug: senar-14-gates-declare-the-effect-they-prevent
 title: "Гейты не объявляют эффект, который предотвращают, — только чем они его ловят"
 status: planning
-epic: standards-window
-story: senar-14-conformance
+epic: release-19-renar-conformance
+story: gates-declare-what-they-prevent
 complexity: medium
 role: architect
 stack: python

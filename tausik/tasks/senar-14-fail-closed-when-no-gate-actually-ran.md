@@ -2,8 +2,8 @@
 slug: senar-14-fail-closed-when-no-gate-actually-ran
 title: "Ноль выполненных гейтов даёт положительный вердикт — это не fail-closed"
 status: planning
-epic: standards-window
-story: senar-14-conformance
+epic: release-19-renar-conformance
+story: gates-declare-what-they-prevent
 complexity: medium
 role: backend
 stack: python
