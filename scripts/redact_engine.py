@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import redact_scope
-from tausik_utils import utcnow_iso
+from tausik_utils import ServiceError, utcnow_iso
 
 
 @dataclass(frozen=True)
@@ -73,7 +73,35 @@ class RedactionResult:
 
 
 def _compiled(req: RedactionRequest) -> re.Pattern[str]:
-    return re.compile(req.pattern if req.regex else re.escape(req.pattern))
+    """The pattern, or a refusal phrased for the person who typed it.
+
+    `re.error` is neither `ServiceError` nor `ValueError`, so it travelled
+    straight past the CLI's handler and the caller got seven frames of
+    `re._compiler` internals. The answer was in there -- "unterminated character
+    set at position 5" -- but addressed to whoever wrote the command, not to
+    whoever ran it. A refusal nobody phrased is indistinguishable from a broken
+    tool, and this command already phrases the neighbouring case (zero matches
+    has its own sentence and is not passed off as success).
+
+    Only the `--regex` branch can fail: a literal pattern goes through
+    `re.escape` and is valid by construction.
+
+    Raised BEFORE any read or write, so an unparseable pattern cannot leave a
+    half-run behind -- and, in particular, cannot be mistaken for "found
+    nothing", which is a different answer with a different remedy.
+    """
+    try:
+        return re.compile(req.pattern if req.regex else re.escape(req.pattern))
+    except re.error as exc:
+        # The pattern is echoed AS TYPED, not through `!r`. `re` reports the
+        # fault by POSITION ("at position 5"), and repr doubles every backslash,
+        # so the quoted form would shift every index past the first one and
+        # point the caller at the wrong character. A message that misdescribes
+        # what was typed is a smaller copy of the defect it replaces.
+        raise ServiceError(
+            f"--regex pattern <{req.pattern}> is not a valid regular expression: "
+            f"{exc}. Nothing was read and nothing was changed."
+        ) from exc
 
 
 def _tables(svc: Any) -> dict[str, tuple[str, ...]]:

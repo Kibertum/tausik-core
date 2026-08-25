@@ -26,6 +26,7 @@ import redact_scope  # noqa: E402
 from project_backend import SQLiteBackend  # noqa: E402
 from project_service import ProjectService  # noqa: E402
 from redact_engine import RedactionRequest, apply_redaction, plan_redaction  # noqa: E402
+from tausik_utils import ServiceError  # noqa: E402
 
 # Opt-out, not an omission: the `os.walk` below traverses a projection this test
 # just exported under `tmp_path`, never the repository's own sources. The scoped
@@ -224,3 +225,55 @@ class TestProjectionIsRebuiltFromTheRedactedDatabase:
                 if redact_scope.marker("internal-host") in text:
                     found = True
         assert found, "the exported projection must show the marker"
+
+
+class TestAnInvalidPatternIsRefusedInWordsNotInAStackTrace:
+    """A refusal nobody phrased is indistinguishable from a broken tool.
+
+    `redact` already gets the neighbouring case right: zero matches has its own
+    sentence and is not passed off as success (AC7 of the task that built it).
+    An unparseable `--regex` had no sentence at all -- `re.compile` raised
+    straight through the CLI's handler, which catches ServiceError and
+    ValueError, and the caller got seven frames of `re._compiler` internals.
+    The answer existed; it was addressed to the author of the command rather
+    than to the person running it.
+    """
+
+    BAD = "[Dd]:[/\]Work"  # unterminated character set: the backslash escapes `]`
+
+    def test_an_unparseable_regex_raises_a_named_refusal(self, svc):
+        # The TYPE is the whole point, not merely "it failed": `main()` prints a
+        # traceback for anything outside (ServiceError, ValueError), so asserting
+        # a non-zero outcome would have accepted the defect unchanged.
+        with pytest.raises(ServiceError):
+            plan_redaction(svc, _req(pattern=self.BAD, regex=True))
+
+    def test_the_refusal_carries_the_reason_the_pattern_is_invalid(self, svc):
+        with pytest.raises(ServiceError) as excinfo:
+            plan_redaction(svc, _req(pattern=self.BAD, regex=True))
+        message = str(excinfo.value)
+        # re's own words: "unterminated character set at position 5". Repeating
+        # "invalid pattern" without them would tell the caller the same thing
+        # they already know.
+        assert "character set" in message or "position" in message
+        assert self.BAD in message
+
+    def test_nothing_is_written_when_the_pattern_will_not_compile(self, svc):
+        before = svc.be._conn.execute("SELECT count(*) FROM redactions").fetchone()[0]
+        with pytest.raises(ServiceError):
+            apply_redaction(svc, _req(pattern=self.BAD, regex=True))
+        after = svc.be._conn.execute("SELECT count(*) FROM redactions").fetchone()[0]
+        assert after == before
+
+    def test_a_valid_regex_still_works(self, svc):
+        """The negative that keeps the fix from closing `--regex` altogether."""
+        result = apply_redaction(svc, _req(pattern="gitlab\.internal\.\w+", regex=True))
+        assert result.matched is True
+        assert result.occurrences > 0
+
+    def test_an_invalid_pattern_is_not_reported_as_zero_matches(self, svc):
+        """The conflation next door: "will not compile" is not "found nothing"."""
+        empty = apply_redaction(svc, _req(pattern="a-string-present-nowhere"))
+        assert empty.matched is False
+        with pytest.raises(ServiceError):
+            apply_redaction(svc, _req(pattern=self.BAD, regex=True))

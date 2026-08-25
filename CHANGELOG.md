@@ -9,6 +9,23 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — `redact --regex` refuses an invalid pattern in words instead of a stack trace
+
+`re.error` is neither `ServiceError` nor `ValueError`, so an unparseable
+`--regex` pattern travelled straight past the CLI's error handler and the caller
+got seven frames of `re._compiler` internals. The answer was in there --
+"unterminated character set at position 5" -- but addressed to whoever wrote the
+command rather than to whoever ran it. A refusal nobody phrased is
+indistinguishable from a broken tool, and this command already phrases the
+neighbouring case: zero matches has its own sentence and is never passed off as
+success.
+
+The refusal names the pattern AS TYPED, not through `repr`: `re` reports the
+fault by position, and `repr` doubles every backslash, which would shift every
+index past the first one and point the caller at the wrong character. It is
+raised before any read or write, so an unparseable pattern cannot be mistaken
+for "found nothing" -- a different answer with a different remedy.
+
 ### Added — `task depends`: a plan's ORDER is now expressible in the system that carries the plan
 
 `task next` was one SQL line: the highest complexity score among unclaimed
