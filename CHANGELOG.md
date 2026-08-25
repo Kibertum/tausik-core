@@ -296,8 +296,8 @@ user's choice.
 
 The first version of this fix compared paths AS STRINGS and the defect survived
 it. The climb arrives from `TMP` written in 8.3 short form —
-`C:\Users\AYUMAS~1\.tausik` — while `expanduser` returns the long
-`C:\Users\ayumashev`. Different spellings, same directory. The question here is
+`C:\Users\DEVELO~1\.tausik` — while `expanduser` returns the long
+`C:\Users\developer`. Different spellings, same directory. The question here is
 directory IDENTITY, not path form, so the comparison resolves via `realpath`.
 
 The second version derived the tier's address from `config_trust.user_config_path`

@@ -10,7 +10,7 @@ stack: null
 tier: substantial
 call_budget: 90
 defect_of: null
-scope: "tausik/site репо (d:/Work/Personal/tausik-site): .gitlab-ci.yml, Dockerfile, .dockerignore, README; GitLab API (deploy token core, CI vars site)"
+scope: "tausik/site репо ([вычеркнуто: local-path]): .gitlab-ci.yml, Dockerfile, .dockerignore, README; GitLab API (deploy token core, CI vars site)"
 scope_exclude: "core-репо файлы; gitlab core настройки; github"
 relevant_files: []
 scope_paths: []

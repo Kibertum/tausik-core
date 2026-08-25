@@ -46,8 +46,8 @@ def _index_prefix(artifact_dir: str) -> str | None:
 
     Deliberately asks git instead of doing `os.path.relpath` against
     `--show-toplevel`: on Windows the toplevel comes back as a long path
-    (`C:/Users/ayumashev/...`) while `artifact_dir` may be the 8.3 short form
-    (`AYUMAS~1`), and relpath between the two produces nonsense.
+    (`C:/Users/developer/...`) while `artifact_dir` may be the 8.3 short form
+    (`DEVELO~1`), and relpath between the two produces nonsense.
     """
     try:
         result = _git(artifact_dir, "rev-parse", "--show-prefix")

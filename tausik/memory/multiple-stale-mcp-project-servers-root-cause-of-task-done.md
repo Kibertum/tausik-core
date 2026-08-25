@@ -13,7 +13,7 @@ task: null
 edges: []
 ---
 
-Investigated session #47: 3 pairs of MCP project servers running concurrently for D:/Work/Personal/claude (PIDs 8712 from 16:58, 43904 from 19:30, 41596 from 23:07 — yesterday). Each VSCode/Claude window respawn leaves the previous MCP child unkilled.
+Investigated session #47: 3 pairs of MCP project servers running concurrently for [вычеркнуто: local-path] (PIDs 8712 from 16:58, 43904 from 19:30, 41596 from 23:07 — yesterday). Each VSCode/Claude window respawn leaves the previous MCP child unkilled.
 
 Why this hangs `tausik_task_done_v2` (and possibly other MCP calls): when `service_verification.py` (mtime 22:48) and `gate_runner.py` (mtime 23:00) are modified between MCP startups, the OLDER servers (16:58, 19:30) hold stale Python modules. Stale modules predate v1.4 changes — including the extracted `security_pattern.py` / `verify_cache.py` / `gate_command_runner.py` re-exports AND possibly the envelope-timeout wrapper itself. Without envelope timeout, gates can run indefinitely.
 

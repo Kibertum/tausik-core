@@ -290,12 +290,12 @@ def test_builders_strip_empty_multiselect_entries():
 
 
 def test_scrub_inputs_joins_text_fields(cfg):
-    cfg["project_names"] = ["laplandka"]
+    cfg["project_names"] = ["acmeproj"]
     r = brain_mcp_write.scrub_inputs(
         "decisions",
         {
             "name": "X",
-            "decision": "we use Laplandka's setup",
+            "decision": "we use Acmeproj's setup",
             "context": "",
             "rationale": "",
         },

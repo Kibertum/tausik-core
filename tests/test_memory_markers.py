@@ -22,7 +22,7 @@ class TestPositive:
     @pytest.mark.parametrize(
         "text,expected_kind",
         [
-            ("path D:/Work/Personal/claude/scripts/project.py:42", "abs_path"),
+            ("path D:/Work/Sample/proj/scripts/project.py:42", "abs_path"),
             ("/home/alice/projects/thing/main.py crashed", "abs_path"),
             ("C:/Users/bob/src/app/handler.py", "abs_path"),
             ("task mem-pretool-hook done", "slug"),
@@ -47,7 +47,7 @@ class TestPositive:
         assert m.span[0] >= 0 and m.span[1] > m.span[0]
 
     def test_matches_sorted_by_position(self):
-        text = "first edit scripts/a.py then slug mem-foo-bar-baz then path D:/Work/Personal/x/b.py"
+        text = "first edit scripts/a.py then slug mem-foo-bar-baz then path D:/Work/Sample/x/b.py"
         matches = detect_markers(text)
         positions = [m.span[0] for m in matches]
         assert positions == sorted(positions)
@@ -164,7 +164,7 @@ class TestTwoSegmentSlugs:
 class TestPerformance:
     def test_large_text_under_budget(self):
         big = (
-            "D:/Work/Personal/claude/scripts/project.py:42 " * 500
+            "D:/Work/Sample/proj/scripts/project.py:42 " * 500
             + "task mem-pretool-hook done " * 500
             + "user prefers Russian " * 500
         )

@@ -144,7 +144,7 @@ Three layers, strict separation: **CLI never touches DB. Service validates. Back
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: none | Branch: v1-9-wave | Version: 1.8.0
+Session: #181 (active) | Branch: v1-9-wave | Version: 1.8.0
 Tasks: 1227/1388 done, 0 active, 2 blocked
 Blocked: release-18-breaking-change-notes, github-is-the-source-gitlab-is-its-mirror
 
