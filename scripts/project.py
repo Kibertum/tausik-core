@@ -43,6 +43,7 @@ def main() -> None:
     from project_cli_config import cmd_config
     from project_cli_doctor import cmd_doctor
     from project_cli_hygiene import cmd_hygiene
+    from project_cli_redact import cmd_redact
     from project_cli_role import cmd_role
     from project_cli_verify import cmd_verify
     from project_cli_audit import cmd_audit
@@ -122,6 +123,7 @@ def main() -> None:
         "run": cmd_run,
         "review": cmd_review,
         "hygiene": cmd_hygiene,
+        "redact": cmd_redact,
         "config": cmd_config,
         "db": cmd_db,
         "push-ok": cmd_push_ok,

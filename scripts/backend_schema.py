@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 44
+SCHEMA_VERSION = 45
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -371,6 +371,19 @@ CREATE TRIGGER IF NOT EXISTS tasks_audit_status AFTER UPDATE OF status ON tasks 
     VALUES ('task', new.slug, 'status_changed', new.claimed_by,
             json_object('from', old.status, 'to', new.status));
 END;
+CREATE TABLE IF NOT EXISTS redactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entity_type TEXT NOT NULL,
+    entity_id INTEGER NOT NULL,
+    field TEXT NOT NULL,
+    -- The CLASS of what was struck out, never its value: a trace quoting the
+    -- secret would put the leak back into the database it was removed from.
+    label TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    occurrences INTEGER NOT NULL,
+    redacted_at TEXT NOT NULL
+);
+
 CREATE TRIGGER IF NOT EXISTS tasks_audit_claim AFTER UPDATE OF claimed_by ON tasks
     WHEN old.claimed_by IS NOT new.claimed_by BEGIN
     INSERT INTO events(entity_type, entity_id, action, actor, details)

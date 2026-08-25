@@ -9,6 +9,41 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — `tausik redact`: the framework can now strike a line out of its own memory
+
+TAUSIK could not remove a single line from its own memory. The task journal is
+append-only by design, `memory` has `add` and `delete` but no `update`, and
+`decisions` has only `list`. Measured against a real need — publishing the state
+projection to a public repository — 46 of 69 leaking lines were unreachable by
+any command the CLI shipped.
+
+That is not an inconvenience but a missing half of a contract. An append-only
+journal is evidence precisely because a row cannot be quietly rewritten; without
+a paired mechanism, the first mistakenly-recorded line is permanent, and
+publishing such a journal publishes everything that ever landed in it.
+
+`redact` is that mechanism, and it is an OVERWRITE THAT LEAVES A TRACE rather
+than a deletion (decision #258). The match is replaced by a visible
+`[вычеркнуто: <label>]` marker — a silently shortened sentence would be
+indistinguishable from one that was always that short — and every touched column
+gets a row in the new `redactions` table naming the entity, the field, the CLASS
+removed, the reason, the count and the instant. The label carries the class and
+never the value: a trace quoting the secret would put the leak back into the
+database it was removed from.
+
+Dry-run is the default; `--apply` is the only path to the irreversible half. The
+original is kept nowhere — not in the trace, not in a shadow column — so the only
+way back is a database backup taken beforehand, and the dry run says so before it
+lets anyone write. A pattern that matches nothing is a NAMED outcome, not a clean
+exit: a caller who believes a leak exists must learn that the pattern was wrong.
+
+Scope is declared in one place (`scripts/redact_scope.py`) and checked against
+the live schema by test, so a renamed column cannot silently narrow what a
+redaction reaches. Structural columns are excluded on purpose: they are
+addresses, not prose.
+
+Schema v45 adds the `redactions` table — additive, no column touched.
+
 ### Fixed — `--no-file-changes` was unreachable: the mandatory journal dirtied the tree
 
 `task done --no-file-changes` proves an empty scope through git rather than the

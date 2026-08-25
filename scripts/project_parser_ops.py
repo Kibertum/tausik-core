@@ -330,6 +330,44 @@ def add_hygiene(sub: argparse._SubParsersAction) -> None:
     )
 
 
+def add_redact(sub: argparse._SubParsersAction) -> None:
+    """`tausik redact` — strike a string out of project memory (decision #258).
+
+    Dry-run by default. The irreversible half is reached only through `--apply`,
+    because a command that writes unless told not to gets its destructive half
+    run by accident. `redact list` reads the trace back.
+    """
+    r_p = sub.add_parser(
+        "redact",
+        help="Strike a string out of project memory, leaving a trace (dry-run by default)",
+    )
+    r_sub = r_p.add_subparsers(dest="redact_cmd")
+    r_list = r_sub.add_parser("list", help="Show what has been struck out of this project")
+    r_list.add_argument("--limit", type=int, default=50)
+    r_p.add_argument("--pattern", help="Literal string to strike out (or a regex with --regex)")
+    r_p.add_argument(
+        "--label",
+        help=(
+            "The CLASS of the thing removed (e.g. internal-host). Carried by the "
+            "marker and the trace forever; never the value itself."
+        ),
+    )
+    r_p.add_argument("--reason", help="Why this is being struck out. Required.")
+    r_p.add_argument(
+        "--regex",
+        action="store_true",
+        help="Treat --pattern as a regular expression instead of a literal string.",
+    )
+    r_p.add_argument(
+        "--apply",
+        action="store_true",
+        help=(
+            "Perform the overwrite. IRREVERSIBLE: the original is kept nowhere. "
+            "Without it the command only reports what it would touch."
+        ),
+    )
+
+
 def add_push_ok(sub: argparse._SubParsersAction) -> None:
     """`tausik push-ok [--ttl SECONDS]` — write a single-use push ticket.
 

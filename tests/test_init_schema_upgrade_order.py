@@ -102,9 +102,28 @@ class TestUpgradePathRuns:
         test above exercised a REAL upgrade rather than a no-op."""
         conn = sqlite3.connect(legacy_db)
         try:
-            before = {r[1] for r in conn.execute("PRAGMA table_info(verification_runs)")}
+            # Measured over the WHOLE schema — every (table, column) pair —
+            # instead of over whichever table the newest migration happens to
+            # touch. The narrow form named `verification_runs` because v44 added
+            # columns there, and it went red the moment v45 added a table
+            # instead: a guard that must be rewritten for each migration stops
+            # guarding and starts costing.
+            def fingerprint(c):
+                names = [
+                    r[0]
+                    for r in c.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table'"
+                    ).fetchall()
+                ]
+                return {
+                    (t, r[1])
+                    for t in names
+                    for r in c.execute(f"PRAGMA table_info({t})").fetchall()
+                }
+
+            before = fingerprint(conn)
             init_schema(conn)
-            after = {r[1] for r in conn.execute("PRAGMA table_info(verification_runs)")}
+            after = fingerprint(conn)
             assert after > before, "the fixture was already at HEAD — nothing was upgraded"
         finally:
             conn.close()

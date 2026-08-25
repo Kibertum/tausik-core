@@ -439,6 +439,7 @@ def build_parser() -> argparse.ArgumentParser:
         add_hygiene,
         add_metrics,
         add_push_ok,
+        add_redact,
         add_review,
         add_run,
         add_skill,
@@ -456,5 +457,6 @@ def build_parser() -> argparse.ArgumentParser:
     add_review(sub)
     add_config(sub)
     add_push_ok(sub)
+    add_redact(sub)
 
     return p
