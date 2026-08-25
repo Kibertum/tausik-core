@@ -1,7 +1,7 @@
 ---
 slug: github-primary-gitlab-mirror
 title: "Направление публикации: GitHub — источник, GitLab — его зеркало"
-status: open
+status: active
 epic: release-19-renar-conformance
 ---
 

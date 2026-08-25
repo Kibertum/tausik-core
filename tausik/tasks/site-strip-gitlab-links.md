@@ -20,7 +20,7 @@ completed_at: "2026-05-15T13:00:31Z"
 
 ## Goal
 
-Срочно убрать gitlab.yumash.ru ссылки из публичного сайта (HomeLanding.vue footer, README, brief). _archive остаётся как есть — снимок старого landing.
+Срочно убрать [вычеркнуто: internal-host] ссылки из публичного сайта (HomeLanding.vue footer, README, brief). _archive остаётся как есть — снимок старого landing.
 
 ## Acceptance Criteria
 
@@ -32,4 +32,4 @@ completed_at: "2026-05-15T13:00:31Z"
 
 ## Journal
 
-- 2026-05-15T13:00:30Z [implementation] — AC verified: (1) ✓ HomeLanding.vue 2 правки. (2) ✓ README.md 3 правки. (3) ✓ brief.md строка удалена. (4) ✓ _archive не тронут. (5) ✓ pnpm build 4.4s, dist без gitlab.yumash.ru. (6) ✓ Generic mentions в quickstart не правил.
+- 2026-05-15T13:00:30Z [implementation] — AC verified: (1) ✓ HomeLanding.vue 2 правки. (2) ✓ README.md 3 правки. (3) ✓ brief.md строка удалена. (4) ✓ _archive не тронут. (5) ✓ pnpm build 4.4s, dist без [вычеркнуто: internal-host]. (6) ✓ Generic mentions в quickstart не правил.

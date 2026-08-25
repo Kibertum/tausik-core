@@ -22,11 +22,11 @@ completed_at: "2026-04-24T19:56:07Z"
 
 ## Goal
 
-Регэкс {2,} упускает 2-сегментные slug'и (hystolab-ru, my-app, brain-init). Опустить до {1,} и положиться на higher-precision детекторы для precision
+Регэкс {2,} упускает 2-сегментные slug'и ([вычеркнуто: third-party-project]-ru, my-app, brain-init). Опустить до {1,} и положиться на higher-precision детекторы для precision
 
 ## Acceptance Criteria
 
-1. _SLUG_RE расширен с {2,} до {1,} — ловит 2-сегментные slug'и (my-app, brain-init, hystolab-ru)
+1. _SLUG_RE расширен с {2,} до {1,} — ловит 2-сегментные slug'и (my-app, brain-init, [вычеркнуто: third-party-project]-ru)
 2. Precision guard: 2-сегментные slug'и попадают в результат detect_markers ТОЛЬКО если (a) их больше/>=3-сегментный slug тоже сработал, ИЛИ (b) хотя бы один higher-precision детектор (abs_path, src_file, tausik_cmd) сработал в том же тексте
 3. Регрессия: все существующие позитивные тесты (3+ seg slug'и типа 'mem-pretool-hook', 'gate-false-positives-ruff-filesize') продолжают проходить
 4. Регрессия: все существующие negative-тесты ('kebab-case', 'ts-node', 'switch-case', 'double-quoted', 'single-quoted') продолжают проходить (английские kebab-compounds не флагуются)

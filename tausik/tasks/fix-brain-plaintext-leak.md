@@ -26,7 +26,7 @@ Extend scrub_inputs haystack to include tags, stack, domain, severity, evidence_
 
 ## Acceptance Criteria
 
-1. brain_mcp_write.scrub_inputs haystack includes ALL string-valued props; 2. tags/stack/domain/severity/evidence_url/query/name fields are scrubbed; 3. Test: project name in tags array is rejected by scrubber; 4. Negative: tags=['princess', 'kibertum.ru'] is blocked by scrub layer.
+1. brain_mcp_write.scrub_inputs haystack includes ALL string-valued props; 2. tags/stack/domain/severity/evidence_url/query/name fields are scrubbed; 3. Test: project name in tags array is rejected by scrubber; 4. Negative: tags=['[вычеркнуто: third-party-project]', 'kibertum.ru'] is blocked by scrub layer.
 
 ## Plan
 

@@ -42,6 +42,6 @@ completed_at: "2026-04-07T09:13:25Z"
 ## Journal
 
 - 2026-04-06T20:32:02Z [implementation] — Preparing to push to new GitLab repos: tausik/core.git + tausik/skills.git. Dropping old yumatech/claude remote entirely.
-- 2026-04-06T20:33:45Z [implementation] — Both repos pushed successfully. Core: gitlab.yumash.ru/tausik/core (342 files, v3.0). Skills: gitlab.yumash.ru/tausik/skills (27 files, 20 skills + registry).
+- 2026-04-06T20:33:45Z [implementation] — Both repos pushed successfully. Core: [вычеркнуто: internal-host]/tausik/core (342 files, v3.0). Skills: [вычеркнуто: internal-host]/tausik/skills (27 files, 20 skills + registry).
 - 2026-04-07T08:47:51Z [implementation] — Implementing 6 core skill fixes: ship→full review, task done→ship redirect, commit simplify, end→MCP-first, end→uses checkpoint, task→suggest ship
 - 2026-04-07T09:09:44Z [implementation] — AC verified: 1. Core=11 skills (start,end,checkpoint,task,plan,commit,explore,review,test,ship,debug) ✓ 2. 22 official skills in skills-official/ with registry.json ✓ 3. Bootstrap resolves core→adjacent→vendor ✓ 4. On-demand loading designed but not implemented yet (deferred) 5. skills.json format not updated yet (deferred) 6. Tests pass 832/832 ✓ 7. Error message for missing skill not implemented (deferred)

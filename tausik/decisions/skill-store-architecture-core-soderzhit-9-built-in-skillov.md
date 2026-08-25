@@ -7,7 +7,7 @@ edges: []
 
 ## Decision
 
-Skill Store Architecture: core содержит ~9 built-in скиллов. Остальные скиллы живут в отдельном GitLab репо (gitlab.yumash.ru/tausik/skills). Skills загружаются on-demand через skills.json + bootstrap. MCP серверы скиллов (jira, bitrix24) хранятся рядом со скиллом в skills repo. Версионирование по ref repo. Adjacent dir convention (../skills/) для local dev.
+Skill Store Architecture: core содержит ~9 built-in скиллов. Остальные скиллы живут в отдельном GitLab репо ([вычеркнуто: internal-host]/tausik/skills). Skills загружаются on-demand через skills.json + bootstrap. MCP серверы скиллов (jira, bitrix24) хранятся рядом со скиллом в skills repo. Версионирование по ref repo. Adjacent dir convention (../skills/) для local dev.
 
 ## Rationale
 

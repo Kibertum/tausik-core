@@ -28,7 +28,7 @@ completed_at: "2026-04-24T11:10:42Z"
 
 AC1: Helper _normalize_for_match(s) в scripts/brain_scrubbing.py — NFKC + strip zero-width + Cyrillic/Greek homoglyph→Latin + lowercase.
 AC2: _detect_blocklist проверяет как нормализованный haystack, так и urldecoded haystack.
-AC3: Новый тест: 'рrincess' (Cyrillic 'р') блокируется blocklist=['princess'].
+AC3: Новый тест: 'рrincess' (Cyrillic 'р') блокируется blocklist=['[вычеркнуто: third-party-project]'].
 AC4: Новый тест: 'pri\\u200bncess' (zero-width между letters) блокируется.
 AC5: Новый тест: '%70rincess' (URL-encoded 'p') блокируется.
 AC6: Новый тест: 'Р\\u200brincess' (Cyrillic + zero-width) блокируется.

@@ -41,7 +41,7 @@ AC4 (HIGH-2a): marker_present_anchored не split'ит по U+2028/U+2029 (ис�
 AC5 (HIGH-2b): Fence regex покрывает ``` И ~~~. Test: marker внутри ~~~block~~~ → False.
 AC6 (HIGH-2c): Indented (4-space / tab) marker line отвергается. Test: 4-space indented 'confirm: cross-project' → False.
 AC7 (MED-1): Новый тест parses brain_schema.SCHEMA_SQL и assert'ит что _ALLOWED_COLS_OF[cat] == schema_cols - {'id'} для всех 4 категорий.
-AC8 (MED-2): _detect_blocklist применяет unquote в цикле до стабильности (bound 3) И html.unescape. Test: '%2570rincess' + '&#112;rincess' блокируются ['princess'].
+AC8 (MED-2): _detect_blocklist применяет unquote в цикле до стабильности (bound 3) И html.unescape. Test: '%2570rincess' + '&#112;rincess' блокируются ['[вычеркнуто: third-party-project]'].
 AC9 (MED-4a): brain_search_proactive.py ловит sqlite3.Error (broader), обе функции _lookup_* обёрнуты try/except.
 AC10 (MED-4b): ORDER BY fetched_at переписан на Python-sort через _parse_iso_to_epoch. Test: 2 row с '...Z' и '....000Z' — freshest выигрывает.
 AC11 (MED-4c): stdin чтение через .read(cap) с size limit (1MB). Test: 2MB stdin → graceful exit 0.

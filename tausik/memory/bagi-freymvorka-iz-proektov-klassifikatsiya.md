@@ -10,18 +10,18 @@ edges: []
 ## Баги найденные при использовании Frai в проектах (март 2026)
 
 ### MCP (4 бага — самая проблемная область)
-1. _get_service() hang — MCP сервер зависал при инициализации (princess, laplandka)
-2. MCP timeout — таймаут при долгих операциях (princess)
+1. _get_service() hang — MCP сервер зависал при инициализации ([вычеркнуто: third-party-project], [вычеркнуто: third-party-project])
+2. MCP timeout — таймаут при долгих операциях ([вычеркнуто: third-party-project])
 3. async context manager — stdio_server требовал async with (frai)
 4. RAG subprocess hang на Windows — subprocess.run для git зависал, заменено на прямое чтение .git/HEAD + asyncio.to_thread (frai)
 
 ### Bootstrap (3 бага)
-5. Path resolution — неправильные пути при bootstrap в подпроектах (princess, laplandka)
-6. Scripts copy — не все скрипты копировались при bootstrap (princess, laplandka)
+5. Path resolution — неправильные пути при bootstrap в подпроектах ([вычеркнуто: third-party-project], [вычеркнуто: third-party-project])
+6. Scripts copy — не все скрипты копировались при bootstrap ([вычеркнуто: third-party-project], [вычеркнуто: third-party-project])
 7. Unicode arrow на Windows — charmap codec error cp1252 при выводе стрелки (frai)
 
 ### DB/Backend (2 бага)
-8. Auto-create DB on project_register — БД не создавалась автоматически (princess, laplandka)
+8. Auto-create DB on project_register — БД не создавалась автоматически ([вычеркнуто: third-party-project], [вычеркнуто: third-party-project])
 9. task_slug FK validation — отсутствовала валидация внешнего ключа (frai)
 
 ### CLI (2 бага)
