@@ -9,6 +9,30 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the skill CLI's negative tests were answering a question nobody asked
+
+Three `tausik skill ...` refusal scenarios ran the CLI from a directory holding
+no TAUSIK project, so `assert_project_exists` refused first and the skill layer
+was never reached. Two of them asserted the refusal's CONTENT -- the unknown
+skill's name, the `--force` remediation hint -- and had been red since the guard
+landed on 2026-08-12, thirteen days before anything reported it. The file is
+marked `slow`, the default lane is `-m 'not slow'`, and a local run therefore
+prints `5 deselected` rather than a failure: the first CI full-lane run is what
+finally said so.
+
+The third scenario is the instructive one. It asserted only that stderr starts
+with `Error: `, which the wrong layer's refusal satisfies word for word, so it
+stayed GREEN throughout. A test that checks a prefix does not check less than
+one that checks content -- it hides the same regression its neighbours report.
+All three now assert content, and a shared guard asserts that the refusal came
+from the skill layer at all, deriving the sentinel from
+`project_config.project_missing_message` so a reworded message carries the guard
+with it instead of stranding it on text the product no longer prints.
+
+Isolation is unchanged: each scenario stands up a real, empty project in
+`tmp_path` through the public `tausik init` -- the one command permitted to
+create one -- rather than laying out files by hand.
+
 ### Fixed — `redact --regex` refuses an invalid pattern in words instead of a stack trace
 
 `re.error` is neither `ServiceError` nor `ValueError`, so an unparseable
