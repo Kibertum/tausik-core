@@ -21,6 +21,7 @@ adding an exemption no longer requires editing this source file.
 
 from __future__ import annotations
 
+import codecs
 import json
 import os
 
@@ -32,12 +33,62 @@ DEFAULT_MAX_LINES = 500
 
 
 def count_lines(filepath: str) -> int:
-    """Count lines in a file."""
+    """Count lines in a file.
+
+    Counts 0x0A occurrences and nothing more: ``errors="replace"`` means this
+    never raises on non-text input, it just returns a meaningless number. Ask
+    ``is_binary_file`` FIRST — the caller, not this function, is responsible for
+    only asking about files where a line has a meaning.
+    """
     try:
         with open(filepath, encoding="utf-8", errors="replace") as f:
             return sum(1 for _ in f)
     except OSError:
         return 0
+
+
+# How much of the file's head decides text-vs-binary. Large enough that any real
+# binary format shows its hand (magic bytes, a NUL, or an undecodable sequence)
+# and small enough that the gate stays cheap on a large source file.
+_BINARY_SNIFF_BYTES = 8192
+
+
+def is_binary_file(filepath: str) -> bool:
+    """True when *filepath* is not text, judged BY CONTENT.
+
+    Deliberately not an extension list (task
+    filesize-gate-counts-lines-in-binary-files, AC3): extensions cannot be
+    enumerated, and the next binary format arrives with the next task. Two
+    content signals, in order:
+
+    1. a NUL byte in the sniffed head — no text encoding we accept emits one;
+    2. failure to decode that head as UTF-8.
+
+    Signal (2) uses an INCREMENTAL decoder without ``final=True`` on purpose. A
+    fixed-size read can cut a multi-byte character in half, and a plain
+    ``bytes.decode()`` would raise on that truncation — reporting every long
+    Cyrillic source file in this repo as binary and silencing the cap on exactly
+    the files it exists for (AC6). The incremental decoder buffers the partial
+    trailing sequence instead of erroring on it.
+
+    An unreadable file returns ``False`` (treated as text): the gate's existing
+    behaviour for such a file is already ``count_lines`` → 0 → no violation, and
+    an I/O error is not evidence of being binary.
+    """
+    try:
+        with open(filepath, "rb") as fh:
+            chunk = fh.read(_BINARY_SNIFF_BYTES)
+    except OSError:
+        return False
+    if not chunk:
+        return False
+    if b"\x00" in chunk:
+        return True
+    try:
+        codecs.getincrementaldecoder("utf-8")().decode(chunk)
+    except UnicodeDecodeError:
+        return True
+    return False
 
 
 # Hardcoded FALLBACK exempts — used when the committed tausik/gates.json is
@@ -229,6 +280,12 @@ def run_filesize_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
         if canon in exempt_paths or basename in exempt_basenames:
             continue
         if basename in exempt_basenames_cfg:
+            continue
+        # A line cap is a rule about SOURCE TEXT. Applied to a binary file it
+        # counts 0x0A bytes in a compressed stream and refuses a close for a
+        # violation that does not exist (observed live, session #177: a PDF in
+        # relevant_files reported as "9897 lines (max 500)").
+        if is_binary_file(f):
             continue
         lines = count_lines(f)
         if lines > max_lines:

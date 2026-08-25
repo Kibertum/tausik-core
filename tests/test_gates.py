@@ -381,6 +381,98 @@ class TestGateRunner:
         # and return None — never the outer foreign config.
         assert gate_filesize._committed_gates_config_path(str(sub)) is None
 
+    # --- filesize-gate-counts-lines-in-binary-files: the cap is a SOURCE rule ---
+
+    @staticmethod
+    def _write_binary_pdf(path, lines=600):
+        """A real (small) binary file: PDF magic, the binary comment bytes every
+        real PDF carries, and NUL bytes inside the payload. Deterministic — the
+        fixture does not depend on what a compressor happens to emit.
+        """
+        path.write_bytes(b"%PDF-1.7\n%\xe2\xe3\xcf\xd3\n" + (b"\x00\x01\n" * lines))
+        return path
+
+    def test_binary_file_does_not_violate_the_line_cap(self, tmp_path):
+        # AC1 reproduction (observed live in session #177): task done with a PDF in
+        # relevant_files failed as 'N lines (max 500)'. Those were 0x0A bytes in a
+        # compressed stream, not source lines — a refusal for a violation that does
+        # not exist. RED before the type filter: count_lines reports 602.
+        pdf = self._write_binary_pdf(tmp_path / "TAUSIK-report-survey.pdf")
+        passed, output = run_filesize_gate({"max_lines": 500}, [str(pdf)])
+        assert passed is True, output
+
+    def test_binary_detection_reads_content_not_the_extension(self, tmp_path):
+        # AC3: the decision is content-driven. An extension list is never complete —
+        # the next binary format arrives with the next task. Here a binary payload
+        # wears a .md name and must still be recognised as non-text.
+        disguised = self._write_binary_pdf(tmp_path / "notes.md")
+        assert run_filesize_gate({"max_lines": 500}, [str(disguised)])[0] is True
+
+    def test_long_text_wearing_a_binary_extension_still_blocks(self, tmp_path):
+        # AC3, the other direction: content decides, so a plain-text file named
+        # .pdf is still source as far as the cap is concerned. An extension-based
+        # implementation would wrongly let this through.
+        textish = tmp_path / "handbook.pdf"
+        textish.write_text("x\n" * 900, encoding="utf-8")
+        passed, output = run_filesize_gate({"max_lines": 500}, [str(textish)])
+        assert passed is False
+        assert "900 lines" in output
+
+    def test_long_text_file_still_violates_the_cap(self, tmp_path):
+        # AC5: the relaxation must not lift the gate off sources — that is what it
+        # was raised for (decision #190). A long .py is unaffected by the type filter.
+        src = tmp_path / "god_object.py"
+        src.write_text("def f():\n    pass\n" * 400, encoding="utf-8")
+        passed, output = run_filesize_gate({"max_lines": 500}, [str(src)])
+        assert passed is False
+        assert "800 lines" in output
+
+    def test_utf8_cyrillic_source_is_not_mistaken_for_binary(self, tmp_path):
+        # AC6: half this repo's sources carry Cyrillic docstrings. A naive
+        # 'decodes as ascii' check would call them binary and silence the gate on
+        # them. The NUL/UTF-8 signal must not.
+        import gate_filesize
+
+        ru = tmp_path / "модуль.py"
+        ru.write_text('"""Гейт размера считает строки."""\n' * 600, encoding="utf-8")
+        assert gate_filesize.is_binary_file(str(ru)) is False
+        passed, output = run_filesize_gate({"max_lines": 500}, [str(ru)])
+        assert passed is False
+        assert "600 lines" in output
+
+    def test_multibyte_char_straddling_the_sniff_boundary_is_not_binary(self, tmp_path):
+        # AC6, the trap inside the trap: the sniff reads a fixed prefix, so a
+        # 2-byte Cyrillic character can be cut in half at the boundary. A plain
+        # bytes.decode() on that prefix raises and would report every long Russian
+        # file as binary. Padding is sized so the boundary lands mid-character.
+        import gate_filesize
+
+        f = tmp_path / "straddle.py"
+        pad = gate_filesize._BINARY_SNIFF_BYTES - 1
+        f.write_bytes(b"#" * pad + "я".encode() + b"\n# tail\n" * 600)
+        assert gate_filesize.is_binary_file(str(f)) is False
+        assert run_filesize_gate({"max_lines": 500}, [str(f)])[0] is False
+
+    def test_undecodable_bytes_without_a_nul_are_binary(self, tmp_path):
+        # AC3: the NUL check alone is not enough — some binary formats carry no NUL
+        # in their first kilobytes. Failure to decode as UTF-8 is the second signal.
+        import gate_filesize
+
+        f = tmp_path / "image.dat"
+        f.write_bytes(b"\xff\xd8\xff\xe0" + (b"\xc3\x28\n" * 600))
+        assert gate_filesize.is_binary_file(str(f)) is True
+        assert run_filesize_gate({"max_lines": 500}, [str(f)])[0] is True
+
+    def test_empty_file_is_not_binary(self, tmp_path):
+        # Degenerate input: an empty file has no evidence of being non-text, and it
+        # cannot violate a line cap either way. It must not crash the sniff.
+        import gate_filesize
+
+        f = tmp_path / "empty.py"
+        f.write_bytes(b"")
+        assert gate_filesize.is_binary_file(str(f)) is False
+        assert run_filesize_gate({"max_lines": 500}, [str(f)])[0] is True
+
     def test_command_gate_pass(self):
         gate = {"command": "python -c \"print('ok')\""}
         passed, output = run_command_gate(gate, [])
