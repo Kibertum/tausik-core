@@ -55,7 +55,8 @@ branch-agnostic и расцепляет стейт с кодом.
 Едет (намерение и результат): `slug`, `title`, `status`, `stack`,
 `complexity`, `role`, `tier`, `goal`, `plan`, `acceptance_criteria`,
 `rollback_plan`, `scope`, `scope_exclude`, `scope_paths`, `scope_tools`,
-`relevant_files`, `defect_of`, `call_budget`, `completed_at`, ссылка на story.
+`relevant_files`, `defect_of`, `depends_on`, `call_budget`, `completed_at`,
+ссылка на story.
 
 НЕ едет (локальный рантайм/телеметрия): `id`, `score`, `attempts`,
 `claimed_by`, `call_actual`, `cost_budget_usd`, `cost_actual_usd`,

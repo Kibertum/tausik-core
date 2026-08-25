@@ -59,6 +59,12 @@ def _git(repo_root: str, *args: str) -> subprocess.CompletedProcess[str]:
         text=True,
         encoding="utf-8",
         timeout=_TIMEOUT,
+        # Without this a git subcommand that decides to prompt (credentials, a
+        # pager, an editor) inherits the caller's stdin and waits forever. In an
+        # MCP-reachable module there is no terminal to answer it, so the hang is
+        # indistinguishable from a slow repository. Pinned by
+        # tests/test_risk_compute_stdin.py, which caught this exact omission.
+        stdin=subprocess.DEVNULL,
     )
 
 

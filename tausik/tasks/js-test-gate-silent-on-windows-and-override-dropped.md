@@ -15,6 +15,8 @@ scope_exclude: null
 relevant_files: []
 scope_paths: []
 scope_tools: []
+depends_on:
+  - check-result-conflates-could-not-run-with-passed
 completed_at: null
 ---
 

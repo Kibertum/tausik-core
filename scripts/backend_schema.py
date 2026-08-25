@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 45
+SCHEMA_VERSION = 46
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -150,6 +150,21 @@ CREATE TABLE IF NOT EXISTS memory_edges (
     valid_to TEXT,
     invalidated_by INTEGER REFERENCES memory_edges(id) ON DELETE SET NULL,
     created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS task_deps (
+    -- "this task comes after that one". An EDGE, because that is the shape of
+    -- every ordering statement the plan and the decision log already make.
+    -- Keyed by slug like every other child of `tasks`: `id` is a local
+    -- autoincrement that does not travel to git, and this edge does.
+    task_slug TEXT NOT NULL REFERENCES tasks(slug) ON DELETE CASCADE,
+    depends_on_slug TEXT NOT NULL REFERENCES tasks(slug) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    -- Re-declaring an edge converges instead of accumulating, so a plan can be
+    -- replayed. A stale edge would hold its dependent out of `task next`
+    -- forever with no visible cause, hence CASCADE on both endpoints.
+    PRIMARY KEY (task_slug, depends_on_slug),
+    CHECK (task_slug <> depends_on_slug)
 );
 
 CREATE TABLE IF NOT EXISTS task_logs (

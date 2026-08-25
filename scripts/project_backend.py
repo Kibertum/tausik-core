@@ -16,6 +16,7 @@ from backend_events_chain import BackendEventsChainMixin
 from backend_graph import BackendGraphMixin
 from backend_init import init_schema
 from backend_queries import BackendQueriesMixin
+from backend_task_deps import BackendTaskDepsMixin
 from tausik_utils import utcnow_iso
 
 logger = logging.getLogger("tausik.backend")
@@ -77,6 +78,7 @@ class SQLiteBackend(
     SpecsCrudMixin,
     AdaptsCrudMixin,
     BackendEventsChainMixin,
+    BackendTaskDepsMixin,
 ):
     """All DB operations for TAUSIK. Single SQLite file, FTS5 search."""
 
@@ -406,13 +408,6 @@ class SQLiteBackend(
             ),
         )
         return slug
-
-    def task_next_candidate(self) -> dict[str, Any] | None:
-        """Get highest-score unclaimed planning task (single SQL query)."""
-        return self._q1(
-            "SELECT * FROM tasks WHERE status='planning' AND claimed_by IS NULL "
-            "ORDER BY score DESC LIMIT 1"
-        )
 
     def task_get(self, slug: str) -> dict[str, Any] | None:
         return self._q1("SELECT * FROM tasks WHERE slug=?", (slug,))

@@ -40,14 +40,48 @@ def _do_task_quick(svc: Any, args: dict) -> str:
     )
 
 
+def _order() -> Any:
+    """The ordering module, imported lazily.
+
+    Ordering functions are module-level rather than `ProjectService` methods
+    (its public surface is ratcheted and may only shrink), so there is no
+    `svc.` to reach them through. Imported inside the call so the MCP server
+    keeps its current import graph.
+    """
+    import service_task_order
+
+    return service_task_order
+
+
 def _do_task_next(svc: Any, args: dict) -> str:
-    task = svc.task_next(args.get("agent_id"))
-    if task:
+    """Answer with the backlog STATE, not just a task.
+
+    "No available tasks" used to cover three different situations, one of which
+    ("everything waits on something unfinished") is a stalled plan that reads
+    exactly like a finished one. This handler and the CLI print the same three
+    states, so the two surfaces cannot tell an agent different stories.
+    """
+    report = _order().task_next_report(svc)
+    if report["state"] == "ready":
+        task = svc.task_next(args.get("agent_id"))
         action = "claimed and started" if args.get("agent_id") else "suggested"
         lines = [f"Next task ({action}): {task['slug']} — {task['title']}"]
+        lines.append(f"Chosen by: {report['basis']}")
+        if report["blocked"]:
+            lines.append(
+                f"Withheld: {len(report['blocked'])} task(s) waiting on an unfinished predecessor"
+            )
         mh = task.get("model_hint")
         if mh:
             lines.append(f"Model hint: {mh['display']} ({mh['model']})")
+        return "\n".join(lines)
+    if report["state"] == "all-blocked":
+        lines = [
+            f"No task can start: all {len(report['blocked'])} open task(s) wait on an "
+            "unfinished predecessor."
+        ]
+        for slug in report["blocked"]:
+            lines.append(f"  {slug} — after: {', '.join(_order().task_deps(svc, slug))}")
         return "\n".join(lines)
     return "No available tasks."
 
@@ -166,6 +200,12 @@ TASK_HANDLERS = {
     "tausik_task_add": _do_task_add,
     "tausik_task_quick": _do_task_quick,
     "tausik_task_next": _do_task_next,
+    "tausik_task_depends": lambda svc, args: _order().task_depends(
+        svc, args["slug"], args["after"]
+    ),
+    "tausik_task_undepends": lambda svc, args: _order().task_undepends(
+        svc, args["slug"], args["after"]
+    ),
     "tausik_task_start": lambda svc, args: svc.task_start(args["slug"]),
     "tausik_task_done": _do_task_done,
     "tausik_task_block": lambda svc, args: svc.task_block(args["slug"], args.get("reason")),

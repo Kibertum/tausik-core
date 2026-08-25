@@ -9,6 +9,41 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — `task depends`: a plan's ORDER is now expressible in the system that carries the plan
+
+`task next` was one SQL line: the highest complexity score among unclaimed
+planning tasks. Complexity is not order. This project states order in decisions
+and in the release plan — "this one first", "that one only after it" — and none
+of it reached the query, so an agent that trusted the command started in the
+middle of a sequence whose every step assumed the previous one had landed. The
+header said "Next task (suggested)", which a reader takes for priority; the
+mechanism computed "heaviest of what is left".
+
+The fix takes the shape of the statement it has to carry. The plan says "after",
+so the mechanism is an EDGE, not a priority number: `task depends B --after A`.
+A number would have to be re-derived for the whole queue on every insertion, and
+it would record the order while losing the reason.
+
+- A predecessor holds its dependent back until it is `done` — not started, not
+  in review. "After" is a statement about completed work.
+- Cycles are refused at DECLARATION and the message prints the whole path. A
+  cycle admitted to the table would make every later reader responsible for
+  surviving it.
+- Re-declaring an edge converges instead of accumulating, so a plan script can
+  be replayed.
+- `task next` now names what it ordered by and how many tasks it withheld behind
+  unfinished predecessors.
+- `task next` distinguishes three states that used to collapse into "No
+  available tasks": empty backlog; backlog where everything waits on an
+  unfinished predecessor; a task is available. The second is a stalled plan, and
+  reporting it as a finished one is the conflation this release is about.
+- The edge travels in the git projection (`depends_on` frontmatter) and survives
+  a round trip. A plan that evaporates on clone is the original defect.
+- Both surfaces move together: CLI `task depends` / `task undepends` and MCP
+  `tausik_task_depends` / `tausik_task_undepends`.
+
+Schema v46 adds one table, `task_deps`. Nothing existing is touched.
+
 ### Added — `tausik redact`: the framework can now strike a line out of its own memory
 
 TAUSIK could not remove a single line from its own memory. The task journal is

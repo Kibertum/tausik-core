@@ -27,6 +27,17 @@ from project_backend import SQLiteBackend  # noqa: E402
 from project_service import ProjectService  # noqa: E402
 from redact_engine import RedactionRequest, apply_redaction, plan_redaction  # noqa: E402
 
+# Opt-out, not an omission: the `os.walk` below traverses a projection this test
+# just exported under `tmp_path`, never the repository's own sources. The scoped
+# pytest gate has nothing to guard here, and declaring a path prefix would claim
+# coverage this file does not provide. Flagged red by
+# tests/test_crosscutting_registry.py when the declaration was simply missing.
+#
+# Written WITHOUT an annotation on purpose: `read_crosscutting_scope` matches
+# `ast.Assign` only, so the annotated form `CROSSCUTTING_SCOPE: list[str] = []`
+# reads as "declares nothing" — a silent miss, filed separately.
+CROSSCUTTING_SCOPE = []
+
 SECRET = "gitlab.internal.example"
 
 

@@ -25,6 +25,7 @@ from backend_migrations_v42 import MIGRATION_V42
 from backend_migrations_v43 import MIGRATION_V43
 from backend_migrations_v44 import MIGRATION_V44
 from backend_migrations_v45 import MIGRATION_V45
+from backend_migrations_v46 import MIGRATION_V46
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -360,6 +361,9 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     # (nothing-can-redact-the-memory-the-framework-publishes, decision #258).
     # One additive table; nothing existing is touched.
     45: MIGRATION_V45,
+    # v46: the edge that makes a plan's ORDER expressible
+    # (task-next-cannot-express-plan-order). One additive table.
+    46: MIGRATION_V46,
 }
 
 

@@ -149,6 +149,9 @@ def _task_doc(task: dict[str, Any], story_slug: str | None, epic_slug: str | Non
         ("relevant_files", _dedup_preserve(_json_list(task.get("relevant_files")))),
         ("scope_paths", _dedup_preserve(_json_list(task.get("scope_paths")))),
         ("scope_tools", _dedup_preserve(_json_list(task.get("scope_tools")))),
+        # Ordering is INTENT, so it travels. A plan that evaporates on clone is
+        # the very defect task-next-cannot-express-plan-order was filed about.
+        ("depends_on", sorted(task.get("_depends_on") or [])),
         ("completed_at", normalize_ts(task.get("completed_at"))),
     ]
     body = join_sections(
@@ -236,6 +239,7 @@ def build_tree(svc: ProjectService) -> tuple[dict[str, str], list[str]]:
         "FROM tasks"
     )
     task_logs = q("SELECT task_slug, message, phase, created_at, id FROM task_logs")
+    deps_by_task = svc.be._task_deps_all()
     decisions = q("SELECT id, slug, decision, task_slug, rationale, created_at FROM decisions")
     memory = q(
         "SELECT id, slug, type, title, content, tags, task_slug "
@@ -278,7 +282,11 @@ def build_tree(svc: ProjectService) -> tuple[dict[str, str], list[str]]:
         tree[f"stories/{s['slug']}.md"] = _story_doc(s, epic_by_id.get(s["epic_id"]))
     for t in sorted(tasks, key=lambda r: r["slug"]):
         story_slug, epic_slug = story_by_id.get(t["story_id"], (None, None))
-        t = {**t, "_journal": logs_by_task.get(t["slug"], [])}
+        t = {
+            **t,
+            "_journal": logs_by_task.get(t["slug"], []),
+            "_depends_on": deps_by_task.get(t["slug"], []),
+        }
         tree[f"tasks/{t['slug']}.md"] = _task_doc(t, story_slug, epic_slug)
     for d in sorted(decisions, key=lambda r: r["slug"]):
         edge_rows = _edge_rows(
@@ -349,6 +357,7 @@ def export_one(svc: ProjectService, kind: str, slug: str) -> tuple[str, str] | N
             )
         )
         t["_journal"] = logs
+        t["_depends_on"] = svc.be._task_deps_of(slug)
         return f"tasks/{slug}.md", _task_doc(t, story_slug, epic_slug)
     if kind in ("decisions", "memory"):
         return _export_one_knowledge(q, kind, slug)

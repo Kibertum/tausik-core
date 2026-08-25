@@ -59,7 +59,11 @@ task add <title> [--story STORY_SLUG] [--slug SLUG] [--stack STACK]
                  [--defect-of PARENT_SLUG]
                  [--call-budget N] [--tier {trivial,light,moderate,substantial,deep}]
 task quick <title> [--goal TEXT] [--role ROLE] [--stack STACK]
-task next [--agent AGENT_ID]    # Pick next planning task (by score)
+task next [--agent AGENT_ID]    # Next planning task: declared order first, then
+                                # score. Names the basis of the choice and how
+                                # many tasks were withheld behind predecessors
+task depends <slug> --after <slug>    # Declare that a task comes AFTER another
+task undepends <slug> --after <slug>  # Withdraw a declared order
 task list [--status STATUS] [--story STORY] [--epic EPIC] [--role ROLE] [--stack STACK] [--limit N]
           [--full] [--top-n N] [--max-lines N]   # >25 rows roll up by status/role; --full = full table
 task show <slug>                # Full info: plan, notes, decisions, defect_of, AC
@@ -95,6 +99,31 @@ task move <slug> <new_story>    # Move task to another story
 task claim <slug> <agent_id>    # Multi-agent: claim a task
 task unclaim <slug>             # Release a task
 ```
+
+### Work order is an edge, not a number
+
+`task depends B --after A` means: B is not offered until A is `done`. Not
+`active`, not `review` -- done. "After" is a statement about COMPLETED work, and
+handing out B while A is still being written hands it into an unready world.
+
+An edge rather than a priority integer, because that is the shape the plan
+already uses: "this one first", "that one only after it". A number would have to
+be re-derived for the whole queue on every insertion, and it would record the
+order while losing the reason.
+
+A cycle is refused at declaration and the message prints the whole path --
+"cycle detected" tells an author they are wrong without telling them WHICH of
+their earlier statements the new one contradicts. Re-declaring the same edge is
+not an error: a plan script must converge on re-run, not fail halfway.
+
+`task next` now distinguishes three states that used to collapse into "No
+available tasks": the backlog is empty; the backlog exists but every task waits
+on an unfinished predecessor; a task is available. The second is a stalled plan,
+and reading it as a finished one is the failure this replaced.
+
+The edge TRAVELS in the projection (`depends_on` in the task frontmatter),
+because it is intent rather than telemetry: a plan that evaporates on clone is
+the defect the mechanism was built against.
 
 **Optional Claude model hints:** When `.tausik/config.json` contains `{"task_next":{"model_hint":true}}`, `task next` and `hud` print an extra non-blocking line recommending a Claude model from task complexity (same mapping as `suggest-model`). Opt-in only; missing key or `false` preserves previous behavior.
 

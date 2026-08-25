@@ -134,7 +134,7 @@ TAUSIK создавался самим TAUSIK — каждая фича, реф�
 <details>
 <summary>Сырые цифры</summary>
 
-- **124 MCP-инструмента** (117 project + 7 brain) — полный программный доступ к базе проекта.
+- **126 MCP-инструментов** (119 project + 7 brain) — полный программный доступ к базе проекта.
 - **22 real-time-хука** — task gate, bash firewall, push gate, auto-format, drift detection, memory pre/post audit и другие.
 - **25 stack-aware verify-наборов** — pytest, ruff, mypy, tsc, eslint, cargo, go vet, phpstan, helm-lint, hadolint и прочие, по затронутым файлам.
 - **13 core-скиллов** разворачиваются автоматически (+ `/brain` после настройки); 20 official-скиллов по запросу через `bootstrap --include-official` или `tausik skill install <name>`.
@@ -150,14 +150,14 @@ TAUSIK создавался самим TAUSIK — каждая фича, реф�
 
 | IDE | MCP-инструменты | Скиллы | Хуки | Статус |
 |---|---|---|---|---|
-| **Claude Code** | 124 | 13 core + по запросу | 21 (полностью) | First-class |
-| **Qwen Code** | 124 | 13 core + по запросу | 21 (паритет с Claude) | First-class |
-| **Kilo Code** (+ [z.ai GLM](docs/ru/kilo-zai.md)) | 124 | 13 core + по запросу | — (гейты на task start/done) | First-class через MCP |
-| **Cursor** | 124 | 13 core + по запросу | — (гейты на task start/done) | Через MCP |
-| VSCode + Claude Extension | 124 | 13 core + по запросу | 21 | Прогнано E2E |
+| **Claude Code** | 126 | 13 core + по запросу | 21 (полностью) | First-class |
+| **Qwen Code** | 126 | 13 core + по запросу | 21 (паритет с Claude) | First-class |
+| **Kilo Code** (+ [z.ai GLM](docs/ru/kilo-zai.md)) | 126 | 13 core + по запросу | — (гейты на task start/done) | First-class через MCP |
+| **Cursor** | 126 | 13 core + по запросу | — (гейты на task start/done) | Через MCP |
+| VSCode + Claude Extension | 126 | 13 core + по запросу | 21 | Прогнано E2E |
 | Windsurf / Codex-подобные | MCP + правила | зависит от хоста | специфично для хоста | Ожидается / вручную |
 
-Хуки — это real-time-рельсы (нет кода без задачи, bash-firewall, push gate) — работают в **Claude Code и Qwen Code**. Kilo, Cursor, Windsurf и другие MCP-хосты получают те же 124 инструмента и скиллы, с quality gates на `task start` и `task done`.
+Хуки — это real-time-рельсы (нет кода без задачи, bash-firewall, push gate) — работают в **Claude Code и Qwen Code**. Kilo, Cursor, Windsurf и другие MCP-хосты получают те же 126 инструментов и скиллы, с quality gates на `task start` и `task done`.
 
 **Kilo Code + z.ai (GLM):** bootstrap с `--ide kilo` — и TAUSIK работает как first-class MCP-хост на моделях GLM; роутинг рекомендует в рамках семейства активной модели (сессия `glm-*` получает вердикты по GLM), всё как данные, без правки кода. См. **[Kilo + z.ai →](docs/ru/kilo-zai.md)**.
 

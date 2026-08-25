@@ -13,6 +13,11 @@ import json
 import sys
 from typing import TYPE_CHECKING, Any
 
+# Ordering lives OUTSIDE ProjectService: the class carries a public-surface
+# ratchet that only turns down, so the feature is module-level functions
+# taking `svc` -- the same shape `redact` used for the same reason.
+from service_task_order import task_depends, task_deps, task_next_report, task_undepends
+
 if TYPE_CHECKING:
     from project_service import ProjectService
 
@@ -227,15 +232,38 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
             )
         )
     elif c == "next":
-        next_task = svc.task_next(args.agent)
+        # The report, not the bare task: "no task" used to mean three different
+        # things, and a stalled plan read exactly like a finished one.
+        report = task_next_report(svc)
+        next_task = svc.task_next(args.agent) if report["state"] == "ready" else None
         if next_task:
             action = "claimed and started" if args.agent else "suggested"
             print(f"Next task ({action}): {next_task['slug']} — {next_task['title']}")
+            print(f"Chosen by: {report['basis']}")
+            if report["blocked"]:
+                print(
+                    f"Withheld: {len(report['blocked'])} task(s) waiting on an "
+                    f"unfinished predecessor ({', '.join(report['blocked'][:5])}"
+                    + (", ..." if len(report["blocked"]) > 5 else "")
+                    + ")"
+                )
             mh = next_task.get("model_hint")
             if mh:
                 print(f"Model hint: {mh['display']} ({mh['model']})")
+        elif report["state"] == "all-blocked":
+            print(
+                f"No task can start: all {len(report['blocked'])} open task(s) wait on an "
+                "unfinished predecessor."
+            )
+            for slug in report["blocked"]:
+                waits = ", ".join(task_deps(svc, slug))
+                print(f"  {slug} — after: {waits}")
         else:
             print("No available tasks.")
+    elif c == "depends":
+        print(task_depends(svc, args.slug, args.after))
+    elif c == "undepends":
+        print(task_undepends(svc, args.slug, args.after))
     elif c == "reason-step":
         print(svc.reasoning_step_add(args.slug, args.kind, args.content))
     elif c == "replay":
@@ -251,7 +279,7 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                 phase_tag = f" [{entry['phase']}]" if entry.get("phase") else ""
                 print(f"[{entry['created_at']}]{phase_tag} {entry['message']}")
     else:
-        subcmds = "add, list, show, start, done, block, unblock, review, update, delete, delegate, undelegate, handoff, summary-back, plan, step, quick, next, move, claim, unclaim, reason-step, replay, log, logs"
+        subcmds = "add, list, show, start, done, block, unblock, review, update, delete, delegate, undelegate, handoff, summary-back, plan, step, quick, next, depends, undepends, move, claim, unclaim, reason-step, replay, log, logs"
         if c:
             from difflib import get_close_matches
 

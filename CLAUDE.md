@@ -66,8 +66,9 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 <!-- DYNAMIC:START -->
 ## Current State
 Session: #181 (active) | Branch: v1-9-wave | Version: 1.8.0
-Tasks: 1227/1388 done, 0 active, 2 blocked
-Blocked: release-18-breaking-change-notes, github-is-the-source-gitlab-is-its-mirror
+Tasks: 1227/1391 done, 1 active, 1 blocked
+Active: github-is-the-source-gitlab-is-its-mirror
+Blocked: release-18-breaking-change-notes
 
 ### Memory tail
 Context (5):

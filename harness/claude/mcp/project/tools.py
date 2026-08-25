@@ -864,7 +864,11 @@ TOOLS = [
     },
     {
         "name": "tausik_task_next",
-        "description": "Pick next available planning task. With agent_id, auto-claim and start it",
+        "description": (
+            "Pick next available planning task, honouring declared order. With "
+            "agent_id, auto-claim and start it. Distinguishes an empty backlog "
+            "from one where every task waits on an unfinished predecessor."
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -873,6 +877,33 @@ TOOLS = [
                     "description": "Agent ID to auto-claim the task",
                 },
             },
+        },
+    },
+    {
+        "name": "tausik_task_depends",
+        "description": (
+            "Declare that a task comes AFTER another. `task next` will not offer "
+            "the dependent until the predecessor is done. Refuses cycles."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string", "description": "Task that comes second"},
+                "after": {"type": "string", "description": "Task that must be done first"},
+            },
+            "required": ["slug", "after"],
+        },
+    },
+    {
+        "name": "tausik_task_undepends",
+        "description": "Withdraw an ordering edge between two tasks",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string", "description": "Task that came second"},
+                "after": {"type": "string", "description": "Predecessor to detach"},
+            },
+            "required": ["slug", "after"],
         },
     },
     {
