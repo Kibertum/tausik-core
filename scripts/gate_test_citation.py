@@ -14,6 +14,9 @@ from __future__ import annotations
 import os
 import re
 
+from gate_test_resolver import test_roots
+
+
 def _project_root(root: str | None = None) -> str:
     """The project's root directory — NOT the directory the process stands in.
 
@@ -65,19 +68,42 @@ def _test_ref_exists(ref: str, root: str | None = None) -> bool:
     if not path:
         return False
     base = os.path.abspath(_project_root(root))
-    tests_dir = os.path.join(base, "tests")
+    roots = [os.path.abspath(r) for r in test_roots(base)]
+    if not roots:
+        return False  # корней нет → цитату не с чем сверить → fail-closed
+
     candidate = os.path.normpath(os.path.join(base, path))
     if not os.path.isfile(candidate):
-        # `test_foo.py` written without its directory — resolved ONLY inside
-        # tests/, never as a free-floating name anywhere in the tree.
-        candidate = os.path.normpath(os.path.join(tests_dir, os.path.basename(path)))
-        if not os.path.isfile(candidate):
+        # `test_foo.py` written without its directory — resolved ONLY внутри
+        # корней с тестами, никогда как свободное имя где угодно в дереве.
+        # Корни ОБНАРУЖИВАЮТСЯ, а не предполагаются равными `<base>/tests`:
+        # у проекта с раскладкой backend/tests такая ссылка не разрешалась
+        # вовсе, и честная цитата на существующий тест читалась как выдуманная.
+        for tests_dir in roots:
+            guess = os.path.normpath(os.path.join(tests_dir, os.path.basename(path)))
+            if os.path.isfile(guess):
+                candidate = guess
+                break
+        else:
             return False
+
     # Traversal check AFTER normalisation: `tests/../scripts/x.py` normalises
-    # out of the test tree, and that is exactly what must not count.
-    if os.path.commonpath([candidate, tests_dir]) != tests_dir:
+    # out of the test tree, and that is exactly what must not count. Проверяем
+    # против ВСЕХ корней: файл обязан лежать внутри одного из них. Прежняя
+    # редакция сверяла с единственной переменной цикла — при разрешении первой
+    # веткой она осталась бы неопределённой (NameError), а при нескольких
+    # корнях сверяла бы с последним просмотренным.
+    if not any(_inside(candidate, r) for r in roots):
         return False
     return _named_test_defined(candidate, ref)
+
+
+def _inside(path: str, root: str) -> bool:
+    """True когда `path` лежит внутри `root`. Разные тома — не внутри."""
+    try:
+        return os.path.commonpath([path, root]) == root
+    except ValueError:
+        return False  # разные диски на Windows → commonpath бросает
 
 
 def _named_test_defined(path: str, ref: str) -> bool:
@@ -113,4 +139,3 @@ def _named_test_defined(path: str, ref: str) -> bool:
         ):
             return False
     return True
-

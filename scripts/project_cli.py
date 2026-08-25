@@ -7,9 +7,9 @@ import os
 import sys
 from typing import Any
 
-from project_config import find_tausik_dir, get_config_path, save_config
+from project_config import TAUSIK_DIR, find_tausik_dir, get_config_path, save_config
 from project_service import ProjectService
-from tausik_utils import format_status_compact_json
+from tausik_utils import ServiceError, format_status_compact_json
 
 
 def _print_table(rows: list[dict[str, Any]], columns: list[str]) -> None:
@@ -23,6 +23,37 @@ def _print_table(rows: list[dict[str, Any]], columns: list[str]) -> None:
     print("-" * len(header))
     for r in rows:
         print("  ".join(str(r.get(c, "")).ljust(widths[c]) for c in columns))
+
+
+def _init_target(here: bool) -> str:
+    """Куда `init` РАЗВОРАЧИВАЕТ проект — всегда текущий каталог.
+
+    Раньше здесь стоял `find_tausik_dir()`, то есть init ИСКАЛ вместо того,
+    чтобы СОЗДАВАТЬ. Поиск отдавал ему первый `.tausik` выше по дереву, и в
+    пустом каталоге команда печатала «Project 'probe' initialized», не создав
+    ничего: конфигурация и база оставались чужими. Сообщение об успехе было
+    ложным — самый дорогой вид тихого отказа, потому что проверять его никто не
+    станет.
+
+    Усыновление предка — это отдельный вопрос, и на него отвечают вслух. Если
+    текущий каталог лежит ВНУТРИ другого проекта, второй проект рядом обычно не
+    нужен: у него будет своя база, и половина работы уедет не туда. Поэтому
+    отказ называет найденный корень, а `--here` остаётся для тех, кому вложенный
+    проект нужен на самом деле.
+    """
+    target = os.path.join(os.getcwd(), TAUSIK_DIR)
+    if os.path.isdir(target) or here:
+        return target
+    enclosing = find_tausik_dir()
+    if not os.path.isdir(enclosing):
+        return target
+    raise ServiceError(
+        f"Текущий каталог уже внутри проекта TAUSIK: {os.path.dirname(enclosing)}\n"
+        "Ничего не создано. Вложенный проект завёл бы ВТОРУЮ базу, и часть работы "
+        "уехала бы в неё незаметно.\n"
+        "Работайте в найденном проекте, либо повторите с `--here`, если вложенный "
+        "проект нужен намеренно."
+    )
 
 
 def cmd_init(svc: ProjectService, args: Any) -> None:
@@ -43,11 +74,11 @@ def cmd_init(svc: ProjectService, args: Any) -> None:
         # Derive from directory name: "My Project" -> "my-project"
         raw = os.path.basename(os.getcwd())
         name = re.sub(r"[^a-z0-9]+", "-", raw.lower()).strip("-") or "my-project"
-    tausik_dir = find_tausik_dir()
+    tausik_dir = _init_target(here=getattr(args, "here", False))
     os.makedirs(tausik_dir, exist_ok=True)
-    cfg_path = get_config_path()
+    cfg_path = get_config_path(tausik_dir)
     if not os.path.exists(cfg_path):
-        save_config({"project": name, "version": 1})
+        save_config({"project": name, "version": 1}, tausik_dir)
         print(f"Config created: {cfg_path}")
     else:
         print(f"Config already exists: {cfg_path}")

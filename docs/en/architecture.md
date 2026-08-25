@@ -106,7 +106,7 @@ inheritance, which a per-file cap structurally cannot see. Highlights:
 | `harness/claude/mcp/project/handlers_<domain>.py` | Handlers by domain: `task`, `session`, `status`, `knowledge`, `hierarchy`, `stack`, `role`, `verification`, `cq`, `skill`, `spec`, `adapt`. Each module exports `<DOMAIN>_HANDLERS`; `handlers.py` merges them into `_DISPATCH` |
 | `harness/claude/mcp/project/handlers_render.py` | Shared list rendering (`render_list`) — an empty result must read as "nothing here", not as an empty string |
 
-Total MCP surface: **117 project tools + 7 brain tools = 124** (optional `codebase-rag` adds 7 more; not part of the main count).
+Total MCP surface: **119 project tools + 7 brain tools = 124** (optional `codebase-rag` adds 7 more; not part of the main count).
 
 ### Contextual chunk headers (codebase-rag)
 

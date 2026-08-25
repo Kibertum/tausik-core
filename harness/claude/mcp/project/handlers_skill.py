@@ -209,87 +209,30 @@ def handle_skill_repo_list() -> str:
 
 
 def handle_update_claudemd(svc) -> str:
+    """Обновить секцию DYNAMIC в CLAUDE.md и её побратиме AGENTS.md.
+
+    Ни блок, ни запись файла здесь не собираются заново: и то и другое живёт в
+    `claudemd_state` / `claudemd_writer` вместе с командой CLI. Эта функция
+    БЫЛА второй копией — и разошлась с оригиналом на впрыске хвоста памяти и на
+    обновлении AGENTS.md, из-за чего /start молча стирал из CLAUDE.md блок
+    памяти, который сам же обещает впрыснуть
+    (mcp-update-claudemd-erases-the-memory-tail).
+    """
+    from claudemd_state import build_dynamic_state, resolve_claudemd
+    from claudemd_writer import apply_dynamic_section, resolve_sibling_targets
+
     project_dir = _project_dir()
-
-    tasks = svc.task_list()
-    session = svc.session_current()
-
-    active = [t for t in tasks if t["status"] == "active"]
-    blocked = [t for t in tasks if t["status"] == "blocked"]
-    done_count = sum(1 for t in tasks if t["status"] == "done")
-    total = len(tasks)
-
-    try:
-        head = os.path.join(project_dir, ".git", "HEAD")
-        with open(head, encoding="utf-8") as f:
-            ref = f.read().strip()
-        branch = ref.replace("ref: refs/heads/", "") if ref.startswith("ref:") else ref[:8]
-    except Exception:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
-        branch = "unknown"
-
-    try:
-        from tausik_version import __version__ as version
-    except Exception:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
-        version = "unknown"
-
-    session_info = f"#{session['id']} (active)" if session else "none"
-    lines = [
-        "## Current State",
-        f"Session: {session_info} | Branch: {branch} | Version: {version}",
-        f"Tasks: {done_count}/{total} done, {len(active)} active, {len(blocked)} blocked",
-    ]
-    if active:
-        lines.append(f"Active: {', '.join(t['slug'] for t in active)}")
-    if blocked:
-        lines.append(f"Blocked: {', '.join(t['slug'] for t in blocked)}")
-
-    dynamic_content = "\n".join(lines)
-
-    # Find and update CLAUDE.md
-    claudemd = None
-    try:
-        from ide_utils import detect_ide, get_ide_dir
-
-        _ide = detect_ide(project_dir)
-        _ide_dir = get_ide_dir(project_dir, _ide)
-        _ide_candidates = [
-            os.path.join(project_dir, "CLAUDE.md"),
-            os.path.join(_ide_dir, "CLAUDE.md"),
-        ]
-    except ImportError:
-        _ide_candidates = [
-            os.path.join(project_dir, "CLAUDE.md"),
-            os.path.join(project_dir, ".claude", "CLAUDE.md"),
-        ]
-    for candidate in _ide_candidates:
-        if os.path.exists(candidate):
-            claudemd = candidate
-            break
+    claudemd = resolve_claudemd(project_dir)
     if not claudemd:
         return "Warning: CLAUDE.md not found."
 
-    with open(claudemd, encoding="utf-8") as f:
-        content = f.read()
+    dynamic_content = build_dynamic_state(svc, project_dir)
 
-    marker_start_prefix = "<!-- DYNAMIC:START"
-    marker_end = "<!-- DYNAMIC:END -->"
-
-    start_idx = content.find(marker_start_prefix)
-    if start_idx == -1:
-        return "Warning: <!-- DYNAMIC:START --> marker not found in CLAUDE.md"
-    start_line_end = content.index("\n", start_idx) if "\n" in content[start_idx:] else len(content)
-
-    if marker_end in content:
-        before = content[:start_line_end]
-        after = content[content.index(marker_end) :]
-        content = f"{before}\n{dynamic_content}\n{after}"
-    else:
-        before = content[:start_line_end]
-        content = f"{before}\n{dynamic_content}\n{marker_end}\n"
-
-    with open(claudemd, "w", encoding="utf-8") as f:
-        f.write(content)
-    return f"CLAUDE.md updated ({claudemd})."
+    messages = [
+        apply_dynamic_section(path, dynamic_content, False)[0]
+        for path in resolve_sibling_targets(claudemd)
+    ]
+    return " ".join(messages)
 
 
 def handle_list(items: list, fmt, empty_msg: str = "None.") -> str:

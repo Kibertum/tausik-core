@@ -1,4 +1,11 @@
-"""TAUSIK MCP self-check — detect stale in-memory modules + sibling MCP servers.
+"""TAUSIK MCP self-check — detect stale in-memory modules.
+
+Sibling-MCP enumeration used to live here too, and the docstring said so —
+two entities in one line, which convention #348 names as the sign of a bad
+cut. It now lives in `sibling_mcp`; this module only ASKS it a question and
+carries the answer into the report. The old names are deliberately NOT
+re-exported: a test still patching `self_check._enumerate_sibling_mcps`
+must fail loudly on the missing attribute rather than patch nothing.
 
 Background: gotchas #77, #79, #80 describe `tausik_verify` and
 `tausik_task_done` hanging silently when the running MCP project server
@@ -26,8 +33,17 @@ from __future__ import annotations
 import datetime as _dt
 import os
 import sys
-import time
 from typing import Any
+
+# Плоский импорт, как у остальных модулей сервера. Каталог кладётся на путь
+# ЗДЕСЬ, а не в `_eager_import_watch_list`: импорт соседа выполняется раньше
+# любой функции этого файла, и полагаться на то, что путь уже пополнил кто-то
+# другой, значит зависеть от порядка загрузки.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
+
+import sibling_mcp  # noqa: E402 — путь пополняется строкой выше
 
 # --- Eager-import critical modules ----------------------------------------
 #
@@ -211,189 +227,6 @@ def _compute_drift(
     return drift, current
 
 
-def _enumerate_sibling_mcps(self_pid: int, project_dir: str) -> dict[str, Any]:
-    """Best-effort sibling enumeration. Returns `{count, pids, error}`.
-
-    `count == -1` means we could not introspect — the agent should treat
-    this as "unknown, check manually" rather than "no siblings".
-
-    v14b-defect-mcp-self-check-venv-launcher: also exclude the direct
-    parent PID. On Windows, `venv\\Scripts\\python.exe` is a launcher
-    shim that re-execs the real interpreter as a child while keeping the
-    same command line; the parent process matches the same needle/project
-    filter as the child and would otherwise count as a "sibling MCP",
-    producing a chronic +1 false-positive that masquerades as a real
-    leak. POSIX rarely shows the same shape (venv usually returns the
-    interpreter's PID directly), but `os.getppid()` works on all
-    platforms so the guard is uniform.
-    """
-    needle = "mcp/project/server.py"
-    project_norm = os.path.normpath(project_dir)
-    pids: list[int] = []
-    err: str | None = None
-    try:
-        parent_pid = os.getppid()
-    except Exception:  # noqa: BLE001
-        parent_pid = -1  # never matches a real PID — guard becomes a no-op
-    if sys.platform == "win32":
-        # Two introspection paths in priority order:
-        #   1. wmic.exe — present on legacy Windows / older Win11 builds
-        #   2. PowerShell `Get-CimInstance Win32_Process` — modern Windows
-        #      (Win11 24H2+ removed wmic from the base image)
-        # Each fallback ONLY fires when the prior one raised FileNotFoundError
-        # (binary missing). Real failures (permission, hang) propagate as the
-        # `err` string and stop the chain — we do not paper over genuine
-        # errors with the next backend.
-        import subprocess
-
-        wmic_used = False
-        try:
-            r = subprocess.run(
-                [
-                    "wmic",
-                    "process",
-                    "where",
-                    "name='python.exe'",
-                    "get",
-                    "ProcessId,CommandLine",
-                    "/FORMAT:CSV",
-                ],
-                capture_output=True,
-                text=True,
-                timeout=4,
-            )
-            wmic_used = True
-            for line in r.stdout.splitlines():
-                if needle not in line:
-                    continue
-                parts = line.rsplit(",", 1)
-                if len(parts) != 2:
-                    continue
-                cmd, raw_pid = parts
-                try:
-                    pid = int(raw_pid.strip())
-                except ValueError:
-                    continue
-                if pid == self_pid or pid == parent_pid:
-                    continue
-                if project_norm.replace("\\", "/").lower() in cmd.replace("\\", "/").lower():
-                    pids.append(pid)
-        except FileNotFoundError:
-            # wmic absent → try PowerShell.
-            try:
-                ps_query = (
-                    "Get-CimInstance Win32_Process -Filter \"Name = 'python.exe'\" | "
-                    'ForEach-Object { "$($_.ProcessId)|$($_.CommandLine)" }'
-                )
-                r = subprocess.run(
-                    [
-                        "powershell",
-                        "-NoProfile",
-                        "-NonInteractive",
-                        "-Command",
-                        ps_query,
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=8,
-                )
-                for line in r.stdout.splitlines():
-                    if needle not in line:
-                        continue
-                    raw_pid, _, cmd = line.partition("|")
-                    try:
-                        pid = int(raw_pid.strip())
-                    except ValueError:
-                        continue
-                    if pid == self_pid or pid == parent_pid:
-                        continue
-                    if project_norm.replace("\\", "/").lower() in cmd.replace("\\", "/").lower():
-                        pids.append(pid)
-            except FileNotFoundError as e:
-                err = f"wmic and powershell both missing: {e}"
-            except Exception as e:  # noqa: BLE001
-                err = f"powershell Get-CimInstance failed: {e}"
-        except Exception as e:  # noqa: BLE001
-            if wmic_used:
-                err = f"wmic introspection failed: {e}"
-            else:
-                err = f"wmic startup failed: {e}"
-    else:
-        # POSIX: prefer /proc, fall back to ps.
-        try:
-            for entry in os.listdir("/proc"):
-                if not entry.isdigit():
-                    continue
-                pid = int(entry)
-                if pid == self_pid or pid == parent_pid:
-                    continue
-                try:
-                    with open(f"/proc/{pid}/cmdline", "rb") as f:
-                        cmdline = f.read().decode("utf-8", errors="replace")
-                except OSError:
-                    continue
-                if needle in cmdline and project_norm in cmdline:
-                    pids.append(pid)
-        except FileNotFoundError:
-            try:
-                import subprocess
-
-                r = subprocess.run(
-                    ["ps", "-A", "-o", "pid=,command="],
-                    capture_output=True,
-                    text=True,
-                    timeout=4,
-                )
-                for line in r.stdout.splitlines():
-                    if needle not in line or project_norm not in line:
-                        continue
-                    parts = line.strip().split(None, 1)
-                    if len(parts) < 2:
-                        continue
-                    try:
-                        pid = int(parts[0])
-                    except ValueError:
-                        continue
-                    if pid != self_pid and pid != parent_pid:
-                        pids.append(pid)
-            except Exception as e:  # noqa: BLE001
-                err = f"ps fallback failed: {e}"
-        except Exception as e:  # noqa: BLE001
-            err = f"/proc walk failed: {e}"
-    return {
-        "count": len(pids) if err is None else -1,
-        "pids": pids,
-        "error": err,
-    }
-
-
-# Process-scoped TTL cache for the sibling enumeration. The enumeration spawns a
-# PowerShell Get-CimInstance on modern Windows (wmic is gone from Win11 26200),
-# ~0.6-1s over 100+ processes — paying that on EVERY self_check made /start look
-# like a hang. Memoized per project_dir so repeated checks in a session reuse it.
-_SIBLING_ENUM_CACHE: dict[str, tuple[float, Any]] = {}
-
-
-def _enumerate_sibling_mcps_cached(self_pid: int, project_dir: str) -> dict[str, Any]:
-    """TTL-cached wrapper over `_enumerate_sibling_mcps` (AC3, decision #189).
-
-    Falls back to a direct (uncached) call if the reaper helper is unavailable —
-    correctness before latency, and the MCP server must never crash on a tool
-    call because an optional helper failed to import.
-    """
-    try:
-        from mcp_reaper import SIBLING_ENUM_TTL_SECONDS, cached_enumerate
-    except Exception:  # noqa: BLE001 — helper missing → just enumerate directly
-        return _enumerate_sibling_mcps(self_pid, project_dir)
-    return cached_enumerate(
-        os.path.normpath(project_dir),
-        lambda: _enumerate_sibling_mcps(self_pid, project_dir),
-        ttl=SIBLING_ENUM_TTL_SECONDS,
-        now=time.monotonic(),
-        cache=_SIBLING_ENUM_CACHE,
-    )
-
-
 def collect() -> dict[str, Any]:
     """Return diagnostic snapshot for `tausik_self_check`.
 
@@ -416,7 +249,7 @@ def collect() -> dict[str, Any]:
     # crash the MCP server on a tool call, so any failure in the (cached)
     # enumeration degrades to "unknown" (count == -1), not an exception (AC5).
     try:
-        siblings = _enumerate_sibling_mcps_cached(os.getpid(), project_dir)
+        siblings = sibling_mcp._enumerate_sibling_mcps_cached(os.getpid(), project_dir)
     except Exception:  # noqa: BLE001 — enumeration failure → "unknown", never crash
         siblings = {"count": -1, "pids": [], "error": "sibling enumeration raised"}
     sibling_count = siblings["count"]

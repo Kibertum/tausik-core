@@ -400,6 +400,7 @@ def import_tree(svc: ProjectService, root: str, dry: bool = False) -> dict[str, 
                 parse_journal(parse_sections(rec["body"], TASK_SECTIONS)["Journal"]),
                 now,
             )
+        _apply_task_deps(ap, parsed, now)
         cur = ap._rows("decisions")
         dec_id: dict[str, int | None] = {}
         for rec in parsed["decisions"]:
@@ -430,6 +431,39 @@ def import_tree(svc: ProjectService, root: str, dry: bool = False) -> dict[str, 
             svc.be.rollback_tx()
         raise
     return ap.report
+
+
+def _apply_task_deps(ap: _Applier, parsed: dict, now: str) -> None:
+    """Reconstruct task_deps from the `depends_on` frontmatter of task files.
+
+    Runs AFTER every task row is applied: an edge names two slugs, and the
+    second one may sit later in slug order. Doing it inline would have made
+    the plan's order depend on the alphabet.
+
+    Like every other import path this ADDS and never deletes -- import is
+    incremental, not a mirror. An edge naming a task the tree does not carry is
+    reported under `skipped_task_deps` rather than dropped: a partial tree is a
+    real situation, and a silently missing ordering constraint would let a task
+    be offered early with nothing on record to explain why.
+    """
+    known = {rec["slug"] for rec in parsed["tasks"]}
+    for rec in parsed["tasks"]:
+        raw = rec["fm"].get("depends_on") or []
+        for dep in raw if isinstance(raw, list) else [raw]:
+            dep = str(dep).strip()
+            if not dep:
+                continue
+            if dep not in known:
+                ap.report.setdefault("skipped_task_deps", []).append(f"{rec['slug']} -> {dep}")
+                continue
+            ap.report.setdefault("task_deps", []).append(f"{rec['slug']} -> {dep}")
+            if ap.dry:
+                continue
+            ap.conn.execute(
+                "INSERT OR IGNORE INTO task_deps(task_slug, depends_on_slug, created_at) "
+                "VALUES(?, ?, ?)",
+                (rec["slug"], dep, now),
+            )
 
 
 def _apply_edges(ap: _Applier, parsed: dict, id_maps: dict[str, dict], now: str) -> None:

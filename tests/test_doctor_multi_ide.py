@@ -141,11 +141,15 @@ class TestNoNewClaudeLiterals:
             "the .claude/mcp/ exemption the architecture audit flagged as hiding a "
             "1289-line module — owned by l26-filesize-gate-revisit, not this task"
         ),
-        "project_cli_extra.py": (
-            "the main path already resolves the onboarding file via ide_utils; the "
-            "remaining .claude/CLAUDE.md literal is the documented ide_utils-unimportable "
-            "fallback. Generalising it to get_rules_file would change behaviour for "
-            "AGENTS.md/.cursorrules — a deliberate no-op (engine-claude-literals-followup)"
+        "claudemd_state.py": (
+            "the main path resolves the onboarding file via ide_utils; the remaining "
+            ".claude/CLAUDE.md literal is the documented ide_utils-unimportable fallback. "
+            "The exemption MOVED HERE from project_cli_extra.py, which no longer holds a "
+            "literal: the lookup was consolidated together with the dynamic-block builder "
+            "so the CLI and the MCP handler stop carrying private copies "
+            "(mcp-update-claudemd-erases-the-memory-tail). Generalising it to "
+            "get_rules_file would change behaviour for AGENTS.md/.cursorrules — a "
+            "deliberate no-op (engine-claude-literals-followup)"
         ),
         # The following reference ~/.claude in the user's HOME — Claude Code's
         # own auto-memory store, a Claude-specific feature with no .cursor/.qwen

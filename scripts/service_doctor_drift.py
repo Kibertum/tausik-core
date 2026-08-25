@@ -10,6 +10,8 @@ import os
 import sys
 from typing import TypedDict
 
+from tausik_utils import library_source
+
 
 class ClaudemdDriftReport(TypedDict):
     """Verdict of :func:`claudemd_drift_report` — see it for the semantics."""
@@ -93,8 +95,21 @@ def claudemd_drift_report(project_dir: str) -> ClaudemdDriftReport | None:
     except OSError:
         return None
     try:
-        sys.path.insert(0, os.path.join(project_dir, ".tausik-lib", "bootstrap"))
-        sys.path.insert(0, os.path.join(project_dir, "bootstrap"))
+        # Через `library_source`, как и `scripts_drift_names` тремя десятками
+        # строк выше. Здесь было своё вычисление, и оно давало ОБРАТНЫЙ
+        # приоритет: два `sys.path.insert(0, …)` подряд, из которых второй —
+        # путь проекта — оказывался первым в списке. То есть та самая копия
+        # правила, которую сведение к общей функции и убирало, пережила его
+        # в соседней функции того же файла. Проверки `isdir` тоже не было.
+        #
+        # Отсутствие каталога — НЕ повод сдаться: `bootstrap_templates` может
+        # быть уже доступен по пути (так и происходит, когда проверку зовут из
+        # самого движка). Ранняя версия этой правки возвращала здесь None и
+        # погасила тринадцать проверок разом — каталога у временного проекта
+        # нет, а шаблон был достижим и раньше.
+        bootstrap_src = library_source(project_dir, "bootstrap")
+        if bootstrap_src is not None:
+            sys.path.insert(0, bootstrap_src)
         import importlib  # noqa: PLC0415
 
         try:
@@ -324,8 +339,11 @@ def scripts_drift_names(project_dir: str) -> list[str] | None:
     profile is such a copy. An absent profile is skipped; a present one is
     mandatory.
     """
-    src = os.path.join(project_dir, "scripts")
-    if not os.path.isdir(src):
+    # Источник — то дерево, ИЗ КОТОРОГО копирует bootstrap, а не то, что лежит
+    # рядом. Разрешается общей функцией, чтобы doctor и одноимённый гейт не
+    # расходились: см. library_source и конвенцию #266.
+    src = library_source(project_dir, "scripts")
+    if src is None:
         return None
     src_files = _deployed_relpaths(src)
     drift: list[str] = []

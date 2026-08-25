@@ -83,7 +83,28 @@ REVIEW-REPORT-*.md
 # Scratch next-session prompt (not tracked)
 prompt.md
 
+# Presentation decks — build artifacts of a narrative, not source. The story
+# they tell lives in README, whats-new and the changelog; a PDF in the tree
+# would be a fourth copy of the same claims with no gate keeping it true.
+# Presentation and storefront artifacts, assembled locally and published by
+# hand elsewhere (GitHub settings, org profile, decks). They are BUILDS of a
+# narrative whose source lives in README, whats-new and the changelog — where
+# gates keep it true. A copy in the tree would be one more place for the same
+# claims to drift, with nothing watching it.
+TAUSIK-deck-*.pdf
+*-social-preview.png
+RENAR-readme-draft.md
+TAUSIK-pending-*.md
+TAUSIK-report-*.md
+TAUSIK-report-*.pdf
+TAUSIK-roadmap*.pdf
+KIBERTUM-org-profile.md
+
 # Confidential / internal — must NOT ship in the public repo (v151 release-readiness)
 docs/audit/
 tausik_systemwide_analysis.md
-docs/research/_internal/
+# Research lives in three parallel trees (docs/research/, docs/ru/research/,
+# docs/en/research/). The sink rule named only the first, so a note moved into
+# the sink of a localised tree stayed tracked — the rule looked applied and was
+# not. Match the sink wherever it sits instead of naming one of the three.
+docs/**/research/_internal/

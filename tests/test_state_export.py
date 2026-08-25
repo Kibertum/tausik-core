@@ -120,6 +120,9 @@ def test_fixed_frontmatter_key_order_for_task(svc):
         "relevant_files",
         "scope_paths",
         "scope_tools",
+        # Ordering intent travels with the task (task-next-cannot-express-plan-order):
+        # a plan that evaporates on clone is the defect that feature was filed about.
+        "depends_on",
         "completed_at",
     ]
 

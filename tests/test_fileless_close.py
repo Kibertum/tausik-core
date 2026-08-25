@@ -34,6 +34,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
 import verify_git_diff as vgd  # noqa: E402
 from gate_verify_first import enforce_verify_first  # noqa: E402
+from state_serialize import ENTITY_DIRS  # noqa: E402
 from project_backend import SQLiteBackend  # noqa: E402
 from project_service import ProjectService  # noqa: E402
 from tausik_utils import ServiceError  # noqa: E402
@@ -318,3 +319,149 @@ class TestContractDocMatchesBehavior:
         assert "БЛОКИРУЕТ" in text
         assert "--no-file-changes" in text
         assert "no_file_changes_declared" in text
+
+    def test_contract_retires_the_commit_for_the_sake_of_closing_workaround(self):
+        # AC6: until this task the only way to reach the flag was to commit first,
+        # and the next agent will repeat that by inertia unless the doc says the
+        # workaround is retired. Naming it is the point — a silent fix leaves the
+        # habit in place.
+        text = self.CONTRACT.read_text(encoding="utf-8")
+        assert "БОЛЬШЕ НЕ НУЖЕН" in text
+        assert "не повторяй его по инерции" in text
+
+    def test_contract_names_the_exclusion_and_its_boundary(self):
+        # AC2 + AC5: the doc must say WHAT is excluded and where the exclusion
+        # stops, so a reader does not assume all of tausik/ rides through.
+        text = self.CONTRACT.read_text(encoding="utf-8")
+        assert "ИСКЛЮЧЕНА" in text
+        assert "tausik/gates.json" in text
+        assert "неотличима от авто-экспорта" in text
+
+
+# --- no-file-changes-unreachable-journaling-dirties-the-tree ---------------
+#
+# The flag was unreachable in practice: CLAUDE.md mandates `task log` after every
+# step, `task log` auto-exports the journal to tausik/tasks/<slug>.md, and the
+# git check then reported THAT file as the task's uncommitted work. The check
+# could not tell the task's WORK from the framework's own bookkeeping.
+
+
+@pytest.fixture
+def proj_svc(tmp_path):
+    """A service whose project layout lets the projection root resolve.
+
+    `_tree_root` answers None unless the backend's directory is literally named
+    `.tausik` — so the plain `svc` fixture above (a bare db in tmp_path) cannot
+    exercise the exclusion at all. A `.git` marker is present so the repo-root
+    walk terminates at the project root, as it does in a real clone.
+    """
+    proj = tmp_path / "proj"
+    (proj / ".tausik").mkdir(parents=True)
+    (proj / ".git").mkdir()
+    be = SQLiteBackend(str(proj / ".tausik" / "tausik.db"))
+    s = ProjectService(be)
+    s.epic_add("e", "E")
+    s.story_add("e", "s", "S")
+    s.task_add("s", "t", "Reformulate premise", goal="Reformulate premise", role="architect")
+    s.task_update(
+        "t",
+        acceptance_criteria="1. premise restated\n2. blocked when the git scope is dirty",
+    )
+    s.task_start("t")
+    s.task_log("t", "AC verified: 1. premise restated ✓ 2. dirty scope blocks ✓")
+    return s
+
+
+class TestProjectionIsNotTheTasksWork:
+    def _report(self):
+        return {
+            "passed": True,
+            "results": [],
+            "cache_status": None,
+            "blocking_failures": [],
+            "scope": None,
+        }
+
+    def test_own_journal_projection_does_not_block_the_close(self, proj_svc, monkeypatch):
+        # AC1 reproduction (observed live, session #177): clean tree → `task log`
+        # → `task done --no-file-changes` → refused, naming tausik/tasks/<slug>.md.
+        # That file is the journal of THIS task, written by the framework itself
+        # while obeying its own hard rule about continuous journaling.
+        _stub_verify_gates(monkeypatch)
+        monkeypatch.setattr(vgd, "uncommitted_changes", lambda *a, **k: ["tausik/tasks/t.md"])
+        report = self._report()
+        enforce_verify_first(proj_svc, report, "t", None, no_file_changes=True)
+        assert report["passed"] is True, report["blocking_failures"]
+        assert report["blocking_failures"] == []
+
+    def test_every_projected_kind_is_excluded_not_just_tasks(self, proj_svc, monkeypatch):
+        # AC2: the auto-export writes five kinds, and a task that records a
+        # decision or a memory entry dirties those too.
+        _stub_verify_gates(monkeypatch)
+        dirty = [f"tausik/{d}/x.md" for d in ENTITY_DIRS]
+        monkeypatch.setattr(vgd, "uncommitted_changes", lambda *a, **k: dirty)
+        report = self._report()
+        enforce_verify_first(proj_svc, report, "t", None, no_file_changes=True)
+        assert report["passed"] is True, report["blocking_failures"]
+
+    def test_source_edit_still_blocks_under_the_flag(self, proj_svc, monkeypatch):
+        # AC4, the test that must STAY red: a relaxation which lets real code
+        # through is worse than an unreachable flag. Mixed scope — the journal
+        # AND a source edit — must block, and must name the source file.
+        _stub_verify_gates(monkeypatch)
+        monkeypatch.setattr(
+            vgd,
+            "uncommitted_changes",
+            lambda *a, **k: ["scripts/real_work.py", "tausik/tasks/t.md"],
+        )
+        report = self._report()
+        enforce_verify_first(proj_svc, report, "t", None, no_file_changes=True)
+        assert report["passed"] is False
+        out = report["blocking_failures"][0]["output"]
+        assert "scripts/real_work.py" in out
+        # The message must not accuse the framework's own bookkeeping.
+        assert "tausik/tasks/t.md" not in out
+
+    def test_hand_written_file_under_tausik_but_outside_the_projection_blocks(
+        self, proj_svc, monkeypatch
+    ):
+        # AC5: the exclusion is scoped to the five directories the exporter OWNS,
+        # not to `tausik/` wholesale. tausik/gates.json is hand-maintained and
+        # committed — an edit to it is real work and still blocks.
+        _stub_verify_gates(monkeypatch)
+        monkeypatch.setattr(vgd, "uncommitted_changes", lambda *a, **k: ["tausik/gates.json"])
+        report = self._report()
+        enforce_verify_first(proj_svc, report, "t", None, no_file_changes=True)
+        assert report["passed"] is False
+        assert "tausik/gates.json" in report["blocking_failures"][0]["output"]
+
+    def test_unresolvable_projection_root_excludes_nothing(self, svc, monkeypatch):
+        # Fail-closed on the exclusion itself: when the projection root cannot be
+        # resolved (the `svc` fixture's db is not in a `.tausik/` dir), nothing is
+        # excluded and the check behaves exactly as it did before this task.
+        _stub_verify_gates(monkeypatch)
+        monkeypatch.setattr(vgd, "uncommitted_changes", lambda *a, **k: ["tausik/tasks/t.md"])
+        report = self._report()
+        enforce_verify_first(svc, report, "t", None, no_file_changes=True)
+        assert report["passed"] is False
+
+    def test_prefixes_are_derived_from_entity_dirs_not_a_literal_list(self, proj_svc):
+        # AC3: the excluded paths are DERIVED from where the projection lives and
+        # from the exporter's own directory registry. A literal list here would
+        # be a second declaration, free to drift from the exporter (#249).
+        import gate_verify_first as gvf
+
+        got = gvf._projection_prefixes(proj_svc)
+        assert {p.rsplit("/", 2)[-2] for p in got} == set(ENTITY_DIRS)
+        assert all(p.startswith("tausik/") and p.endswith("/") for p in got)
+
+    def test_the_boundary_of_the_exclusion_is_named_in_the_docstring(self):
+        # AC5, stated rather than hidden: a hand edit to a file INSIDE the five
+        # projected directories is byte-identical to an auto-export and cannot be
+        # told apart. That limit is written down where the exclusion is defined,
+        # so the next reader does not have to rediscover it.
+        import gate_verify_first as gvf
+
+        doc = gvf._projection_prefixes.__doc__ or ""
+        assert "cannot" in doc.lower()
+        assert "hand" in doc.lower()

@@ -24,6 +24,8 @@ from backend_migrations_v41 import MIGRATION_V41
 from backend_migrations_v42 import MIGRATION_V42
 from backend_migrations_v43 import MIGRATION_V43
 from backend_migrations_v44 import MIGRATION_V44
+from backend_migrations_v45 import MIGRATION_V45
+from backend_migrations_v46 import MIGRATION_V46
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -355,6 +357,13 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     # v44: explicit state handle on verify runs (v2-verify-receipt-as-argument,
     # decision #218 / SEP-2567). Three nullable columns; no rebuild.
     44: MIGRATION_V44,
+    # v45: the trace a redaction leaves behind
+    # (nothing-can-redact-the-memory-the-framework-publishes, decision #258).
+    # One additive table; nothing existing is touched.
+    45: MIGRATION_V45,
+    # v46: the edge that makes a plan's ORDER expressible
+    # (task-next-cannot-express-plan-order). One additive table.
+    46: MIGRATION_V46,
 }
 
 

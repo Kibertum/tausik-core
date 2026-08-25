@@ -264,6 +264,18 @@ def add_task(sub: argparse._SubParsersAction) -> None:
     tnext = task_sub.add_parser("next", help="Pick next available task")
     tnext.add_argument("--agent", default=None, help="Agent ID to auto-claim")
 
+    tdep = task_sub.add_parser(
+        "depends",
+        help="Declare that a task comes AFTER another (plan order)",
+        epilog="Example: tausik task depends four-copies --after honest-gates",
+    )
+    tdep.add_argument("slug", help="Task that comes second")
+    tdep.add_argument("--after", required=True, help="Task that must be done first")
+
+    tundep = task_sub.add_parser("undepends", help="Withdraw an ordering edge")
+    tundep.add_argument("slug", help="Task that came second")
+    tundep.add_argument("--after", required=True, help="Predecessor to detach")
+
     tlog = task_sub.add_parser(
         "log",
         epilog='Example: tausik task log my-task "Implemented auth middleware"',

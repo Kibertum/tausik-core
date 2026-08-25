@@ -55,7 +55,8 @@ bound to a specific machine/run and goes stale fast.
 Travels (intent and outcome): `slug`, `title`, `status`, `stack`,
 `complexity`, `role`, `tier`, `goal`, `plan`, `acceptance_criteria`,
 `rollback_plan`, `scope`, `scope_exclude`, `scope_paths`, `scope_tools`,
-`relevant_files`, `defect_of`, `call_budget`, `completed_at`, story link.
+`relevant_files`, `defect_of`, `depends_on`, `call_budget`, `completed_at`,
+story link.
 
 Does NOT travel (local runtime/telemetry): `id`, `score`, `attempts`,
 `claimed_by`, `call_actual`, `cost_budget_usd`, `cost_actual_usd`,

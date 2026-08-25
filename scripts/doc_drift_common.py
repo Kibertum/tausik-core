@@ -24,8 +24,8 @@ _FENCED_BLOCK_RE = re.compile(r"^```.*?^```", re.MULTILINE | re.DOTALL)
 # Python source files that hardcode a `__version__ = "X.Y.Z"` literal which
 # must track pyproject's project.version. gen_doc_constants treats pyproject as
 # the single source of truth; these modules duplicate it for runtime use (the
-# CLI 'Current State' line via project_cli_extra._get_version and the MCP
-# version handler). The literal stays a literal — the running copy under
+# 'Current State' line via claudemd_state.resolve_version, shared by the CLI and
+# the MCP handler, and the MCP version handler). The literal stays a literal — the running copy under
 # `.claude/scripts/` has no pyproject to read — but it silently drifted once
 # (tausik_version.py stuck at 1.4.0 across the 1.4.1/1.4.2 releases), so the
 # scanner below makes that drift visible at `--check` time.

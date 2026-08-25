@@ -15,6 +15,7 @@ raise `ServiceError` for hard-gate failures. The mixin methods on
 from __future__ import annotations
 
 import json
+import os
 from typing import Any
 
 from gate_qg0_check import SECURITY_KEYWORDS
@@ -263,7 +264,39 @@ def checklist_hard_block(
     real_test, _activity, total = _evidence_strength(task, verified_run_ids)
     if total and real_test:
         return False, ""
-    return True, (
+    return True, _no_real_test_message(tier) + _no_test_roots_hint()
+
+
+def _no_test_roots_hint() -> str:
+    """Приписка о НАСТОЯЩЕЙ причине, когда корней с тестами не нашлось вовсе.
+
+    Без неё отказ выглядел одинаково в двух разных случаях: цитата не совпала с
+    реальным тестом — и сверять было не с чем. Второй случай наступает у
+    проекта с раскладкой глубже той, до которой достаёт обнаружение, и
+    совершенно честная ссылка `services/api/tests/test_billing.py::test_charge`
+    читалась как выдуманная. Совет в общем тексте («поправьте цитату») в этом
+    случае неисполним, а настоящее лекарство — `testing.roots` — не назван.
+    """
+    try:
+        from gate_test_citation import _project_root
+        from gate_test_resolver import test_roots
+
+        if test_roots(os.path.abspath(_project_root(None))):
+            return ""
+    except Exception:  # noqa: BLE001 — подсказка не обязана ронять сам гейт
+        return ""
+    return (
+        "\nПРИЧИНА, СКОРЕЕ ВСЕГО, НЕ В ЦИТАТЕ: в этом проекте не найдено ни "
+        "одного каталога с тестами, поэтому сверять ссылку не с чем и ЛЮБАЯ "
+        "цитата читается как неразрешимая. Обнаружение достаёт до трёх "
+        "сегментов пути (`tests`, `backend/tests`, `services/api/tests`); если "
+        "тесты лежат иначе, назовите корни явно: `testing.roots` в "
+        "`.tausik/config.json`."
+    )
+
+
+def _no_real_test_message(tier: str) -> str:
+    return (
         f"QG-2 SENAR Rule 5: planning tier '{tier}' requires at least one "
         f"acceptance criterion backed by a test that EXISTS (or a green "
         f"verification_run #NNNN for this task) — none found. Log it as "

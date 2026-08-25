@@ -48,7 +48,7 @@ def test_posix_home_path_blocked_with_match_substring():
             "Config at /Users/bob/projects/top-secret", False, id="posix_users_path_blocked"
         ),
         pytest.param(
-            "Open D:\\Work\\Kibertum\\laplandka\\foo.py", False, id="windows_drive_path_blocked"
+            "Open D:\\Work\\Kibertum\\acmeproj\\foo.py", False, id="windows_drive_path_blocked"
         ),
         pytest.param(
             "See C:/Users/carol/code/bank/api.py",
@@ -122,22 +122,22 @@ def test_invalid_regex_in_patterns_ignored():
 
 def test_project_name_exact_substring_blocked():
     r = brain_scrubbing.scrub(
-        "Ran into this in Laplandka last week.",
-        project_names=["laplandka"],
+        "Ran into this in Acmeproj last week.",
+        project_names=["acmeproj"],
     )
     assert r["ok"] is False
     assert r["issues"][0]["detector"] == "project_names_blocklist"
 
 
 def test_project_name_empty_blocklist_passes():
-    r = brain_scrubbing.scrub("Laplandka deployment", project_names=[])
+    r = brain_scrubbing.scrub("Acmeproj deployment", project_names=[])
     assert r["ok"] is True
 
 
 def test_project_name_multiple_matches_dedup():
     r = brain_scrubbing.scrub(
-        "Laplandka did it. Laplandka again. LAPLANDKA once more.",
-        project_names=["laplandka"],
+        "Acmeproj did it. Acmeproj again. ACMEPROJ once more.",
+        project_names=["acmeproj"],
     )
     block_issues = [i for i in r["issues"] if i["detector"] == "project_names_blocklist"]
     assert len(block_issues) == 1  # dedup by needle
@@ -147,7 +147,7 @@ def test_project_name_ignores_non_string_entries():
     # simulate malformed config
     r = brain_scrubbing.scrub(
         "No match here",
-        project_names=["laplandka", None, 42, ""],  # type: ignore[list-item]
+        project_names=["acmeproj", None, 42, ""],  # type: ignore[list-item]
     )
     assert r["ok"] is True
 

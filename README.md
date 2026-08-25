@@ -135,7 +135,7 @@ Those are **suggestions** — text the agent reads and is free to ignore the mom
 <details>
 <summary>Raw counts</summary>
 
-- **124 MCP tools** (117 project + 7 brain) — full programmatic access to the project database.
+- **126 MCP tools** (119 project + 7 brain) — full programmatic access to the project database.
 - **22 real-time hooks** — task gate, bash firewall, push gate, auto-format, drift detection, memory pre/post audit, and more.
 - **25 stack-aware verify suites** — pytest, ruff, mypy, tsc, eslint, cargo, go vet, phpstan, helm-lint, hadolint, and others, scoped to the files you touched.
 - **13 core skills** auto-deployed (+ `/brain` once configured); 20 official skills opt-in via `bootstrap --include-official` or `tausik skill install <name>`.
@@ -158,7 +158,7 @@ Multi-IDE by design, but we're honest about what's validated end-to-end.
 | VSCode + Claude Extension | 124 | 13 core + opt-in | 21 | Tested E2E |
 | Windsurf / Codex-style | MCP + rules | host-dependent | host-specific | Expected / manual |
 
-Hooks — the real-time rails (no code without a task, bash firewall, push gate) — run in **Claude Code and Qwen Code**. Kilo, Cursor, Windsurf and other MCP hosts get the same 124 tools and skills, with quality gates applied at `task start` and `task done`.
+Hooks — the real-time rails (no code without a task, bash firewall, push gate) — run in **Claude Code and Qwen Code**. Kilo, Cursor, Windsurf and other MCP hosts get the same 126 tools and skills, with quality gates applied at `task start` and `task done`.
 
 **Kilo Code + z.ai (GLM):** bootstrap with `--ide kilo` and TAUSIK runs as a first-class MCP host driven by GLM models — model routing recommends within the active model's family (a `glm-*` session gets GLM verdicts), all as data, no code change. See **[Kilo + z.ai →](docs/en/kilo-zai.md)**.
 

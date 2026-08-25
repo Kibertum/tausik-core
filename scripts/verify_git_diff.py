@@ -37,6 +37,29 @@ def _is_repo_root(base: str) -> bool:
     return os.path.exists(os.path.join(base, ".git"))
 
 
+def repo_root(base: str) -> str | None:
+    """The git repository root at or above *base*, or None if there is none.
+
+    Porcelain output is relative to the REPOSITORY root, while callers here hand
+    git a PROJECT root — the two coincide in a plain clone and diverge when a
+    project sits inside a larger repository. A caller that wants to compare a
+    porcelain path against a path of its own needs this to bridge them.
+
+    Uses the same repo test as everything else in this module, so the
+    worktree/submodule lesson (`.git` is a FILE there, not a directory) is
+    learned once rather than re-learned per caller.
+    """
+    d = os.path.abspath(base)
+    for _ in range(64):
+        if _is_repo_root(d):
+            return d
+        parent = os.path.dirname(d)
+        if parent == d:
+            return None
+        d = parent
+    return None
+
+
 def _normalize_repo_path(raw: str) -> str:
     """Normalize a path string for set comparison against git output.
 

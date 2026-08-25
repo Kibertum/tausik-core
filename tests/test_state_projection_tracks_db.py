@@ -670,6 +670,26 @@ _UNREACHABLE: dict[tuple[str, str], str] = {
         "shape is tuning the sample until it agrees, which is what this file exists "
         "to not do"
     ),
+    ("task_deps", "UPDATE"): (
+        "there is no update path at all: an ordering edge is declared "
+        "(INSERT OR IGNORE) or withdrawn (DELETE), and it carries nothing that "
+        "could be edited in place"
+    ),
+    ("task_deps", "INSERT"): (
+        "reason is the observation SCOPE, not the absence of the path. "
+        "`task_depends` does project (it calls `_project_task`, and the edge is "
+        "serialised into the task's `depends_on` frontmatter), proven in "
+        "tests/test_task_dependencies.py::TestOrderTravelsWithTheProjection. It is "
+        "not added to `_OPS` because dead end #370 measured what that costs: a new "
+        "operation shifts every later draw in the generator, and `start-task-in-"
+        "open-story` stopped being reached across four seed sets. Fishing for a "
+        "seed that restores a shape is tuning the sample until it agrees"
+    ),
+    ("task_deps", "DELETE"): (
+        "same observation SCOPE as the INSERT above — `task_undepends` projects "
+        "through `_project_task`, covered by the same test module, and `_OPS` is "
+        "left alone for the reason dead end #370 records"
+    ),
     ("memory_edges", "DELETE"): (
         "no SERVICE method deletes an edge — the service layer soft-invalidates "
         "(`valid_to`). Migrations do issue `DELETE FROM memory_edges` "

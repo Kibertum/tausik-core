@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 44
+SCHEMA_VERSION = 46
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -150,6 +150,21 @@ CREATE TABLE IF NOT EXISTS memory_edges (
     valid_to TEXT,
     invalidated_by INTEGER REFERENCES memory_edges(id) ON DELETE SET NULL,
     created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS task_deps (
+    -- "this task comes after that one". An EDGE, because that is the shape of
+    -- every ordering statement the plan and the decision log already make.
+    -- Keyed by slug like every other child of `tasks`: `id` is a local
+    -- autoincrement that does not travel to git, and this edge does.
+    task_slug TEXT NOT NULL REFERENCES tasks(slug) ON DELETE CASCADE,
+    depends_on_slug TEXT NOT NULL REFERENCES tasks(slug) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    -- Re-declaring an edge converges instead of accumulating, so a plan can be
+    -- replayed. A stale edge would hold its dependent out of `task next`
+    -- forever with no visible cause, hence CASCADE on both endpoints.
+    PRIMARY KEY (task_slug, depends_on_slug),
+    CHECK (task_slug <> depends_on_slug)
 );
 
 CREATE TABLE IF NOT EXISTS task_logs (
@@ -371,6 +386,19 @@ CREATE TRIGGER IF NOT EXISTS tasks_audit_status AFTER UPDATE OF status ON tasks 
     VALUES ('task', new.slug, 'status_changed', new.claimed_by,
             json_object('from', old.status, 'to', new.status));
 END;
+CREATE TABLE IF NOT EXISTS redactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entity_type TEXT NOT NULL,
+    entity_id INTEGER NOT NULL,
+    field TEXT NOT NULL,
+    -- The CLASS of what was struck out, never its value: a trace quoting the
+    -- secret would put the leak back into the database it was removed from.
+    label TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    occurrences INTEGER NOT NULL,
+    redacted_at TEXT NOT NULL
+);
+
 CREATE TRIGGER IF NOT EXISTS tasks_audit_claim AFTER UPDATE OF claimed_by ON tasks
     WHEN old.claimed_by IS NOT new.claimed_by BEGIN
     INSERT INTO events(entity_type, entity_id, action, actor, details)

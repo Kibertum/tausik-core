@@ -29,14 +29,26 @@ def _resolve_venv_python(tausik_dir: str) -> str | None:
     receives only `scripts/`: importing it from a sibling `bootstrap/` finds
     nothing there. That ImportError used to be swallowed, so pip dependencies
     declared by a skill were never installed and nothing said why.
+
+    Порядок кандидатов: сперва `library_source` — общая функция, отвечающая на
+    вопрос «где библиотека», библиотека побеждает проект. Здесь был свой список,
+    проверявший проектные пути ПЕРЕД сабмодулем: третья копия того же правила,
+    с обратным приоритетом. Относительные `__file__`-кандидаты остаются после
+    неё и отвечают на ДРУГОЙ вопрос — «лежит ли этот скрипт внутри самого
+    чекаута движка», на который `library_source`, считающая от каталога
+    проекта, ответить не может.
     """
     here = os.path.dirname(os.path.abspath(__file__))
     project_dir = os.path.dirname(os.path.abspath(tausik_dir))
+    from tausik_utils import library_source  # noqa: PLC0415
+
     for cand in (
+        library_source(project_dir, "bootstrap") or "",
         os.path.join(here, "..", "bootstrap"),
         os.path.join(here, "..", "..", "bootstrap"),
-        os.path.join(project_dir, ".tausik-lib", "bootstrap"),
     ):
+        if not cand:
+            continue
         if not os.path.isdir(cand):
             continue
         if cand not in sys.path:

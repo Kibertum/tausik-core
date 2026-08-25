@@ -88,6 +88,48 @@ def _enforce_handle(svc: Any, report: dict[str, Any], slug: str, handle: str) ->
     )
 
 
+def _projection_prefixes(svc: Any) -> tuple[str, ...]:
+    """Repo-relative prefixes that the framework's OWN state export writes into.
+
+    Derived, never listed: `state_triggers.projection_dirs` answers where the
+    exporter puts things, and this only rebases those absolute paths onto the
+    repository root that porcelain output is relative to. Adding a projected kind
+    therefore cannot leave this check behind.
+
+    NAMED BOUNDARY — the honest limit of the exclusion. A file inside these
+    directories that a HAND wrote is byte-for-byte the same kind of thing as one
+    the auto-export wrote, and an uncommitted change carries no author, so the two
+    cannot be told apart. A hand edit to `tausik/tasks/x.md` does ride through a
+    `--no-file-changes` close. This is stated rather than hidden because the
+    alternative — an unreachable flag — was measurably worse, and because the
+    excluded tree holds the framework's bookkeeping, not the product's code.
+    Everything else under `tausik/` (a hand-maintained `gates.json`, a README) is
+    OUTSIDE the exclusion and still blocks.
+
+    Returns `()` when the projection root or the repository root cannot be
+    resolved: nothing is excluded and the check behaves exactly as before.
+    """
+    try:
+        from state_triggers import projection_dirs
+        from verify_git_diff import repo_root
+
+        dirs = projection_dirs(svc)
+        if not dirs:
+            return ()
+        base = repo_root(os.path.dirname(os.path.dirname(dirs[0])))
+        if not base:
+            return ()
+        prefixes = []
+        for d in dirs:
+            rel = os.path.relpath(d, base).replace(os.sep, "/")
+            if rel.startswith(".."):
+                return ()
+            prefixes.append(rel.rstrip("/") + "/")
+        return tuple(prefixes)
+    except Exception:  # noqa: BLE001 — an unresolvable layout excludes nothing
+        return ()
+
+
 def _enforce_no_file_changes(
     svc: Any,
     report: dict[str, Any],
@@ -121,6 +163,16 @@ def _enforce_no_file_changes(
         return
     root = os.path.dirname(tausik_dir())
     dirty = uncommitted_changes(relevant_files, root=root)
+    if dirty:
+        # The framework's own bookkeeping is not the task's work. `task log` is a
+        # HARD RULE of this project and it auto-exports the journal to
+        # tausik/tasks/<slug>.md, so obeying the rule dirtied the very tree this
+        # check reads — the flag could not be reached without first committing
+        # for the sake of closing. See `_projection_prefixes` for the exclusion's
+        # named boundary.
+        excluded = _projection_prefixes(svc)
+        if excluded:
+            dirty = [p for p in dirty if not p.startswith(excluded)]
     scope_desc = (
         "declared paths " + ", ".join(relevant_files) if relevant_files else "the working tree"
     )

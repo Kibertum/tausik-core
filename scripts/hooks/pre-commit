@@ -1,32 +1,143 @@
 #!/bin/bash
-# KAI pre-commit hook: mypy type checking
-# Blocks commit if type errors are found in scripts/
+# TAUSIK pre-commit hook: memory-route gate, mypy, incremental RAG reindex.
 #
-# Install: cp scripts/hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
-# Or: git config core.hooksPath scripts/hooks
+# Install (dev repo): git config core.hooksPath scripts/hooks
+# Install (consumer): git config core.hooksPath .tausik-lib/scripts/hooks
+#   — in a consumer project `scripts/` belongs to the PROJECT, not the harness,
+#   and git treats a missing hook file as absence rather than an error, so the
+#   dev-repo command there installs nothing and says nothing. See docs/ru/hooks.md.
 
-# memory-route gate (layer 1, IDE-agnostic): refuse a commit that carries
-# project knowledge into another agent's memory. Runs FIRST and blocks — it is
-# cheap (one `git status`), and a knowledge leak is not worth type-checking
-# before catching. Honors `gates.memory_route.enabled` in .tausik/config.json,
-# so a project that turned the gate off is not blocked by a second reader.
-# Inert when scripts/ is absent (a consumer that vendors only .tausik/).
-MEMORY_ROUTE_GATE=""
-for p in "scripts/gate_memory_route.py" ".tausik-lib/scripts/gate_memory_route.py"; do
-    [ -f "$p" ] && MEMORY_ROUTE_GATE="$p" && break
+# --- Python interpreter ------------------------------------------------------
+# Resolved ONCE, before anything needs it: the checks below used to re-resolve it
+# each in their own copy.
+#
+# `TAUSIK_PYTHON` comes first because the guesses below are guesses. The last of
+# them, bare `python`, is not on PATH in every shell that runs git hooks — Git
+# Bash on Windows commonly has no `python` at all — and when it fails, every
+# check that needed it degrades. An override is the difference between "the
+# hook cannot find an interpreter" and "the user could not tell it where one is".
+#
+# On Windows give it a POSIX-style path — `C:/Python311/python.exe`, not
+# `C:\Python311\python.exe`. Git Bash refuses to execute the backslash form
+# with "command not found", and every check that needed Python then degrades
+# for a reason that never surfaces.
+PY=""
+for _cand in \
+    "${TAUSIK_PYTHON:-}" \
+    ".tausik/venv/Scripts/python.exe" \
+    ".tausik/venv/bin/python" \
+    python3 \
+    python \
+    py; do
+    [ -n "$_cand" ] || continue
+    # Кандидат ЗАПУСКАЕТСЯ, а не проверяется на существование файла. Прежняя
+    # цепочка спрашивала `[ -f ]` и заканчивалась голым `python`, которого в
+    # Git Bash под Windows в PATH нет вовсе; проверка «файл существует» на имя
+    # команды не отвечает вообще, а на путь отвечает не на тот вопрос —
+    # `C:/Python311/python.exe` существует и при этом не запускается, потому
+    # что MSYS ждёт форму `/c/Python311/python.exe`. Единственный честный
+    # способ узнать, годится ли интерпретатор, — позвать его.
+    if "$_cand" -c "" >/dev/null 2>&1; then
+        PY="$_cand"
+        break
+    fi
 done
+
+# --- where the engine lives --------------------------------------------------
+# ONE rule for every engine file this hook needs. There were two, and both were
+# wrong in different ways: the memory-route gate looked only in `scripts/` and
+# `.tausik-lib/scripts/`, the RAG server only in `.claude/` and `harness/`.
+#
+# Neither tried the DEPLOYED profile the bootstrap actually installs. In the
+# consumer layout — `.tausik-lib` present but empty (a clone without
+# --recurse-submodules) and `scripts/` belonging to the project — the
+# memory-route gate resolved to nothing and the whole security control silently
+# never ran, while docs/en/security.md promises it enforces the deny-list
+# "IDE-agnostically over the working tree".
+#
+# Profiles are found by GLOB rather than by a hand-written list. A list here
+# would name `.claude` and miss the other six, and there is no cheap way to ask
+# `ide_utils.all_profile_dirs()` from a shell script that has not yet located
+# the engine it would import that from. The filesystem is asked instead, and it
+# answers for whatever profile is actually deployed.
+#
+# The SOURCE tree is tried first, and only then the deployed copies. These file
+# names belong to the engine, so `scripts/gate_memory_route.py` existing at all
+# means this IS the engine's own repository — and there the deployed profile is
+# a copy that lags every edit, which would mean committing against yesterday's
+# gate. In a consumer project that same path holds nothing (its `scripts/` is
+# its own), so the search falls straight through to the deployed profile, which
+# is exactly where the consumer's engine lives.
+#
+# The glob is `.[!.]*` rather than `.*`: `.*` expands to `..` as well, and the
+# search would step out into the PARENT directory — someone else's tree.
+find_engine_file() {
+    # $1 — path relative to an engine root, e.g. "scripts/gate_memory_route.py"
+    local rel="$1" p
+    for p in \
+        "$rel" \
+        ./.[!.]*/"$rel" \
+        ".tausik-lib/$rel" \
+        ".tausik-lib/harness/claude/$rel" \
+        "harness/claude/$rel"; do
+        [ -f "$p" ] && printf '%s' "$p" && return 0
+    done
+    return 1
+}
+
+# --- memory-route gate (layer 1, IDE-agnostic) -------------------------------
+# Refuses a commit that carries project knowledge into another agent's memory.
+# Runs FIRST and blocks — it is cheap (one `git status`), and a knowledge leak is
+# not worth type-checking before catching. Honors `gates.memory_route.enabled`
+# in .tausik/config.json, so a project that turned the gate off is not blocked.
+MEMORY_ROUTE_GATE="$(find_engine_file scripts/gate_memory_route.py)"
 if [ -n "$MEMORY_ROUTE_GATE" ]; then
-    PY=".tausik/venv/Scripts/python.exe"
-    [ -f "$PY" ] || PY=".tausik/venv/bin/python"
-    [ -f "$PY" ] || PY="python"
     "$PY" "$MEMORY_ROUTE_GATE" || exit 1
+else
+    # NOT FOUND MEANS SAID. Silence here is what let the control disappear: a
+    # security check that cannot find itself must not look identical to one that
+    # ran and passed. We warn rather than block — blocking would invent a new
+    # failure for projects that never had the engine — but the user learns the
+    # deny-list is not being enforced on this commit.
+    #
+    # Stays quiet when the gate is explicitly disabled: "off by decision" and
+    # "missing by accident" are different states and must read differently.
+    # `-c` со строкой, а НЕ heredoc: конструкция `$( "$PY" - <<'EOF' … EOF )`
+    # под Git Bash отдавала пустой ответ молча, и «выключен» превращалось в
+    # «не смог прочитать» — то есть в предупреждение там, где его быть не
+    # должно. Проверено: сам интерпретатор и сам конфиг при этом читались.
+    GATE_OFF="$("$PY" -c 'import json, sys
+try:
+    with open(".tausik/config.json", encoding="utf-8") as fh:
+        cfg = json.load(fh)
+    gate = (cfg.get("gates") or {}).get("memory_route") or {}
+    sys.stdout.write("off" if gate.get("enabled") is False else "")
+except Exception:
+    pass' 2>/dev/null)"
+    if [ -z "$PY" ]; then
+        echo "WARNING: no working Python found — the memory-route gate cannot run." >&2
+        echo "  Tried TAUSIK_PYTHON, .tausik/venv, python3, python, py." >&2
+    elif [ "$GATE_OFF" != "off" ]; then
+        echo "WARNING: memory-route gate not found — the memory deny-list is NOT" >&2
+        echo "  enforced on this commit. Looked for scripts/gate_memory_route.py under" >&2
+        echo "  the deployed IDE profile, .tausik-lib/, harness/claude/ and the project." >&2
+        echo "  Run bootstrap, or init the .tausik-lib submodule." >&2
+    fi
 fi
 
 echo "Running mypy type check..."
 
-# Run mypy using project config from pyproject.toml
-python -m mypy 2>&1
-MYPY_EXIT=$?
+# Run mypy using project config from pyproject.toml. Через тот же `$PY`, что и
+# всё остальное: голое `python` здесь было четвёртой копией той же догадки, и
+# на хосте без `python` в PATH коммит падал бы «mypy не найден» вместо того,
+# чтобы проверить типы найденным интерпретатором.
+if [ -n "$PY" ]; then
+    "$PY" -m mypy 2>&1
+    MYPY_EXIT=$?
+else
+    echo "mypy: skipped (no working Python found)" >&2
+    MYPY_EXIT=0
+fi
 
 if [ $MYPY_EXIT -ne 0 ]; then
     echo ""
@@ -40,15 +151,11 @@ echo "mypy: OK"
 # Optional: incremental RAG reindex (warn-only, max 5s).
 # Keeps codebase-rag index aligned with each commit so the next session's
 # search_code reflects what was just committed. Soft-fails — never blocks
-# the commit, even on timeout or missing rag deps.
-RAG_SERVER=""
-for p in ".claude/mcp/codebase-rag/server.py" "harness/claude/mcp/codebase-rag/server.py"; do
-    [ -f "$p" ] && RAG_SERVER="$p" && break
-done
+# the commit, even on timeout or missing rag deps. Absence is NOT reported:
+# unlike the gate above this is a convenience, and a missing index costs
+# freshness, not enforcement.
+RAG_SERVER="$(find_engine_file mcp/codebase-rag/server.py)"
 if [ -n "$RAG_SERVER" ]; then
-    PY=".tausik/venv/Scripts/python.exe"
-    [ -f "$PY" ] || PY=".tausik/venv/bin/python"
-    [ -f "$PY" ] || PY="python"
     timeout 5 "$PY" -c "
 import sys, os
 sys.path.insert(0, os.path.dirname('$RAG_SERVER'))

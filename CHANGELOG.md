@@ -9,7 +9,529 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed — `redact --regex` refuses an invalid pattern in words instead of a stack trace
+
+`re.error` is neither `ServiceError` nor `ValueError`, so an unparseable
+`--regex` pattern travelled straight past the CLI's error handler and the caller
+got seven frames of `re._compiler` internals. The answer was in there --
+"unterminated character set at position 5" -- but addressed to whoever wrote the
+command rather than to whoever ran it. A refusal nobody phrased is
+indistinguishable from a broken tool, and this command already phrases the
+neighbouring case: zero matches has its own sentence and is never passed off as
+success.
+
+The refusal names the pattern AS TYPED, not through `repr`: `re` reports the
+fault by position, and `repr` doubles every backslash, which would shift every
+index past the first one and point the caller at the wrong character. It is
+raised before any read or write, so an unparseable pattern cannot be mistaken
+for "found nothing" -- a different answer with a different remedy.
+
+### Added — `task depends`: a plan's ORDER is now expressible in the system that carries the plan
+
+`task next` was one SQL line: the highest complexity score among unclaimed
+planning tasks. Complexity is not order. This project states order in decisions
+and in the release plan — "this one first", "that one only after it" — and none
+of it reached the query, so an agent that trusted the command started in the
+middle of a sequence whose every step assumed the previous one had landed. The
+header said "Next task (suggested)", which a reader takes for priority; the
+mechanism computed "heaviest of what is left".
+
+The fix takes the shape of the statement it has to carry. The plan says "after",
+so the mechanism is an EDGE, not a priority number: `task depends B --after A`.
+A number would have to be re-derived for the whole queue on every insertion, and
+it would record the order while losing the reason.
+
+- A predecessor holds its dependent back until it is `done` — not started, not
+  in review. "After" is a statement about completed work.
+- Cycles are refused at DECLARATION and the message prints the whole path. A
+  cycle admitted to the table would make every later reader responsible for
+  surviving it.
+- Re-declaring an edge converges instead of accumulating, so a plan script can
+  be replayed.
+- `task next` now names what it ordered by and how many tasks it withheld behind
+  unfinished predecessors.
+- `task next` distinguishes three states that used to collapse into "No
+  available tasks": empty backlog; backlog where everything waits on an
+  unfinished predecessor; a task is available. The second is a stalled plan, and
+  reporting it as a finished one is the conflation this release is about.
+- The edge travels in the git projection (`depends_on` frontmatter) and survives
+  a round trip. A plan that evaporates on clone is the original defect.
+- Both surfaces move together: CLI `task depends` / `task undepends` and MCP
+  `tausik_task_depends` / `tausik_task_undepends`.
+
+Schema v46 adds one table, `task_deps`. Nothing existing is touched.
+
+### Added — `tausik redact`: the framework can now strike a line out of its own memory
+
+TAUSIK could not remove a single line from its own memory. The task journal is
+append-only by design, `memory` has `add` and `delete` but no `update`, and
+`decisions` has only `list`. Measured against a real need — publishing the state
+projection to a public repository — 46 of 69 leaking lines were unreachable by
+any command the CLI shipped.
+
+That is not an inconvenience but a missing half of a contract. An append-only
+journal is evidence precisely because a row cannot be quietly rewritten; without
+a paired mechanism, the first mistakenly-recorded line is permanent, and
+publishing such a journal publishes everything that ever landed in it.
+
+`redact` is that mechanism, and it is an OVERWRITE THAT LEAVES A TRACE rather
+than a deletion (decision #258). The match is replaced by a visible
+`[вычеркнуто: <label>]` marker — a silently shortened sentence would be
+indistinguishable from one that was always that short — and every touched column
+gets a row in the new `redactions` table naming the entity, the field, the CLASS
+removed, the reason, the count and the instant. The label carries the class and
+never the value: a trace quoting the secret would put the leak back into the
+database it was removed from.
+
+Dry-run is the default; `--apply` is the only path to the irreversible half. The
+original is kept nowhere — not in the trace, not in a shadow column — so the only
+way back is a database backup taken beforehand, and the dry run says so before it
+lets anyone write. A pattern that matches nothing is a NAMED outcome, not a clean
+exit: a caller who believes a leak exists must learn that the pattern was wrong.
+
+Scope is declared in one place (`scripts/redact_scope.py`) and checked against
+the live schema by test, so a renamed column cannot silently narrow what a
+redaction reaches. Structural columns are excluded on purpose: they are
+addresses, not prose.
+
+Schema v45 adds the `redactions` table — additive, no column touched.
+
+### Fixed — `--no-file-changes` was unreachable: the mandatory journal dirtied the tree
+
+`task done --no-file-changes` proves an empty scope through git rather than the
+agent's word — a good rule that could not be obeyed. This project mandates
+`task log` after every step, `task log` auto-exports the journal to
+`tausik/tasks/<slug>.md`, and the git check then reported that very file as the
+task's uncommitted work. Observed live in session #177: a clean tree, one
+`task log`, and the close refused with
+`git reports uncommitted changes in the working tree: tausik/tasks/<slug>.md`.
+The only way through was to commit for the sake of closing — a workaround that
+had quietly become the normal path.
+
+The check now separates the task's WORK from the framework's own bookkeeping.
+The five directories the state export owns —
+`tausik/{epics,stories,tasks,decisions,memory}/` — are excluded from it. The
+excluded paths are DERIVED, never listed: the address comes from the same
+`_tree_root` the exporter uses to decide where a row lands, and the
+subdirectory names from `state_serialize.ENTITY_DIRS`, so adding a projected
+kind cannot leave this check behind.
+
+The flag is not weakened. A source edit still blocks under the flag, and when
+the scope mixes real work with the journal, the refusal names the source file
+and stops accusing the bookkeeping. Anything under `tausik/` that the exporter
+does NOT own — a hand-maintained `gates.json`, a README — is outside the
+exclusion and blocks as before. An unresolvable projection or repository root
+excludes nothing at all, so the check degrades to its previous behaviour.
+
+The boundary is stated rather than hidden, in the code and in
+`docs/ru/agent-contract.md`: a hand edit INSIDE those five directories is
+byte-for-byte the same thing as an auto-export, and an uncommitted change
+carries no author, so the two cannot be told apart and a hand edit does ride
+through. The contract also records that the commit-to-close workaround is
+retired, so the next agent does not repeat it out of habit.
+
+### Fixed — the line cap was counted in binary files and refused a close for it
+
+`run_filesize_gate` filtered candidates by exempt directory, exact path and
+basename, and by nothing else. There was no filter by file TYPE at all, so the
+500-line source rule was applied to whatever landed in `relevant_files` — a PDF,
+an image, an archive. `count_lines` opens with `errors="replace"`, so it never
+raised on such a file; it silently counted 0x0A bytes inside a compressed stream
+and returned a number.
+
+Observed live in session #177: closing a task whose declared scope held two
+report PDFs failed with `TAUSIK-report-survey.pdf: 9897 lines (max 500)`. That
+is not a violation of a source limit. It is a refusal for a violation that does
+not exist, and it blocked two finished tasks.
+
+The gate now asks `is_binary_file` before counting. The decision is made on
+CONTENT, not on an extension list: extensions cannot be enumerated and the next
+binary format arrives with the next task. Two signals — a NUL byte in the first
+8 KB, or failure to decode that head as UTF-8.
+
+The second signal uses an incremental UTF-8 decoder without `final=True`, on
+purpose. A fixed-size read can cut a multi-byte character in half, and a plain
+`bytes.decode()` would raise on that truncation — which would report every long
+Cyrillic source file in this repository as binary and silence the cap on exactly
+the files it exists for. The relaxation does not reach text: a long `.py`, a
+long Cyrillic `.py`, and a plain-text file merely NAMED `.pdf` all still block.
+
+### Fixed — /start erased the memory tail it promises to inject
+
+The MCP handler `tausik_update_claudemd` was a SECOND, independent copy of the
+CLI's `cmd_update_claudemd`, and the copy had drifted: it built the Current
+State lines and nothing else. The CLI appends the compact memory tail —
+contexts, decisions, conventions, dead ends, shared knowledge — and refreshes
+the `AGENTS.md` sibling; neither survived in the copy.
+
+Both losses land on the path the project mandates. `/start` Phase 2 calls the
+MCP tool and no other, MCP-first is a hard rule, and the skill's own text says
+the call "injects compact memory tail … so memory persists across sessions".
+So every session start deleted 34 lines of project memory from CLAUDE.md — and
+reported `CLAUDE.md updated`. The tail only ever came back when someone ran the
+CLI, so the block oscillated between sessions instead of persisting.
+
+The fix is not a corrected copy. Both callers now build the block through
+`claudemd_state.build_dynamic_state`, so a third divergence has nothing left to
+diverge from. Two smaller differences went with the merge: branch resolution now
+asks git instead of reading `.git/HEAD` (a git worktree stores a FILE there, so
+the MCP path reported `unknown` in every worktree), and the MCP path resolves
+CLAUDE.md from absolute candidates rather than cwd-relative ones.
+
+`build_compact_memory_tail` already carried a docstring warning that its two
+consumers "cannot drift apart again — which is precisely what had already
+happened by the time this was written". The drift that mattered was one level
+up: the MCP handler never called it.
+
+The regression test pins PARITY of the two paths, not the presence of a
+substring. A test asserting "the block mentions Memory tail" would have missed
+this loss exactly as the existing tests did — they exercised
+`build_compact_memory_tail` directly and never asked who calls it. Verified red
+on the unfixed handler first.
+
+### Fixed — two private copies of the "where is the library" rule survived the consolidation
+
+`scripts_drift_names` was routed through `library_source`, while
+`claudemd_drift_report` in the SAME file, thirty-odd lines below, kept its own
+computation — with the priority REVERSED: two consecutive
+`sys.path.insert(0, …)` calls, the second of which, the project path, ended up
+first in the list. There was no directory-existence check at all. The commit
+whose message read "one copy of the rule FEWER" left a copy in the neighbouring
+function.
+
+The third copy lived in `skill_deps._resolve_venv_python`, whose candidate list
+checked project paths BEFORE the submodule. Both now go through
+`library_source`. The `__file__`-relative candidates in `skill_deps` stay: they
+answer a DIFFERENT question — whether this script sits inside the engine's own
+checkout — which a function counting from the project directory cannot answer.
+
+The regression is pinned on the CALL rather than the result, deliberately: both
+revisions return the same result on the consumer fixture, so a result test would
+have been green before the fix and therefore checked nothing. Verified by running
+it against the reverted code — red.
+
+`docs/ru/hooks.md` no longer teaches consumers `git config core.hooksPath
+scripts/hooks`: in the consumer layout that directory belongs to the project,
+there is no `pre-commit` in it, and git treats a missing hook as absence rather
+than an error — the install silently did nothing.
+
+### Fixed — the pre-commit security gate could not find itself in a consumer project and silently never ran
+
+The hook looked for `scripts/gate_memory_route.py` and
+`.tausik-lib/scripts/gate_memory_route.py`. In the consumer layout the first
+belongs to the PROJECT and holds no gate, and the second is empty in a clone
+without `--recurse-submodules`. The deployed copy in the IDE profile was never
+tried at all.
+
+The variable stayed empty, `[ -n "$MEMORY_ROUTE_GATE" ]` did not hold, and the
+whole control was silently skipped — while `docs/en/security.md` promises the
+deny-list is enforced "IDE-agnostically over the working tree". A comment in the
+hook declared that inertness acceptable; for a security control it is not. Found
+by the adversarial batch review.
+
+The file held TWO engine-lookup rules, both incomplete: the gate never tried the
+profile, the RAG reindex tried only `.claude` out of seven. One rule remains.
+Profiles are found by glob, not by a list: a list would name `.claude` and miss
+the other six, and there is nowhere to ask `ide_utils.all_profile_dirs()` from a
+shell script that has not yet found the engine. The glob is `.[!.]*`, not `.*` —
+the latter expands to `..` and the search would step into the PARENT directory.
+
+The source tree wins over the deployed copy. These file names belong to the
+engine, so `scripts/gate_memory_route.py` existing means this IS its own
+repository, where the deployed profile lags every edit. In a consumer project
+that path is empty and the search falls straight through to the profile, which is
+where that engine lives.
+
+NOT FOUND MEANS SAID. A missing gate is reported on stderr but does not block the
+commit: blocking would invent a new failure for projects that never had the
+engine. A gate switched off by decision (`gates.memory_route.enabled=false`) stays
+quiet — "off" and "gone" are different states, and noise that cannot be silenced
+stops being read along with the real warnings.
+
+The Python interpreter is now RUN rather than tested for file existence. The old
+chain asked `[ -f ]` and ended at a bare `python`, which Git Bash on Windows does
+not have on PATH at all; "the file exists" does not answer the question for a
+command name, and answers the wrong question for a path —
+`C:/Python311/python.exe` exists and yet will not execute, because MSYS wants the
+`/c/Python311/python.exe` form. A `TAUSIK_PYTHON` override and `python3`/`py`
+candidates were added. mypy runs through the same interpreter — a fourth copy of
+the same guess lived there.
+
+### Fixed — test-root discovery promised a depth it did not reach
+
+The limit stood at two path segments (`backend/tests`), while the docstring named
+`services/api/tests` as a working case — that is three. `test_roots()` returned
+an empty list on such a tree.
+
+The defect has the same shape as the hardcoded `<root>/tests` that discovery was
+written to fix, one level down, and the false promise arrived in the same commit
+as the depth itself. Found by the adversarial batch review.
+
+The consequences travelled down the chain: the citation gate read a perfectly
+honest reference `services/api/tests/test_billing.py::test_charge` as fabricated,
+and the command gate degenerated into a SKIP.
+
+The limit is raised to three segments — exactly what was promised. We do not go
+deeper on purpose: walking the whole tree is expensive and the risk of harvesting
+someone else's `tests/` grows faster than the benefit; anyone who needs deeper
+sets `testing.roots`. Measured walk on this repository: 1 ms.
+
+The citation gate's refusal now distinguishes two cases that used to look
+identical: "the citation did not match" and "there was nothing to match against."
+In the second case, the advice to fix the citation is unusable, and the actual
+remedy — `testing.roots` — was never named at all.
+
+Configured roots are normalised to the platform separator. They are written with
+`/` even on Windows while discovered ones arrive with the platform separator, so
+one function returned roots in two spellings depending on whether they were
+configured or found.
+
+### Fixed — `init` adopted an enclosing project and reported success
+
+`cmd_init` called `find_tausik_dir()` — it SEARCHED where it should have
+CREATED. The search handed it the first `.tausik` up the tree, and `init`
+deployed the project somewhere other than where the user was standing.
+
+`init` now creates the project in the CURRENT directory. If that directory is
+already inside another project, the command refuses and NAMES the root it found:
+a nested project would get its own database, and part of the work would quietly
+end up in it. A message without the address would leave the user guessing what
+had been found.
+
+The refusal is overridable with `--here`. A nested project is rare but
+legitimate, and there is no reason to lock it out entirely: a refusal that cannot
+be overridden turns the cure into a new disease.
+
+A repeat `init` in an already-initialized directory stays idempotent and destroys
+nothing.
+
+### Fixed — a command run outside a project silently attached to the home directory, or created a project where you stood
+
+`config_trust` deliberately places the user config tier under the same
+`.tausik/config.json` layout as a project, only rooted at home. The upward
+project search could not tell them apart. On Windows this fired ALWAYS: every
+temp directory lives under `C:\Users\<user>`, and a ten-level climb reaches home
+with room to spare.
+
+Three consequences followed, all of them silent.
+
+`tausik status`, typed in an arbitrary directory, showed the user tier's summary
+instead of refusing. An empty summary is indistinguishable from the summary of a
+genuinely empty project.
+
+`tausik init` in an empty directory printed "Project 'probe' initialized" having
+created nothing: `Database: C:\Users\<user>\.tausik\tausik.db`. The new
+project's data went into the tier, and the success message was false.
+
+Worse, `SQLiteBackend` creates the directory and deploys the schema as a side
+effect of connecting — correct for `init`, but it meant a READ command created
+`.tausik/tausik.db` wherever it was typed and reported "Tasks: 0/0 done". The
+side effect stayed on disk.
+
+Our own test suite wrote into the developer's `~/.tausik/tausik.db` — the file's
+hash changed after a run. The `conftest` isolation moved the config FILE
+(`TAUSIK_USER_CONFIG`) but never touched project discovery, so it did not cover
+this side.
+
+There are three rules now, each answering its own question. `~/.tausik` is never
+offered as a project. The climb STOPS at home: home is checked, but above it the
+user's ownership ends — without the stop, the ban on the tier itself was simply
+stepped over and the first thing found higher up got adopted. A command that is
+not `init` refuses out loud when no project exists and creates nothing; the
+decision about who may create belongs to the command layer, not the backend.
+
+The boundary is drawn by EQUALITY with the tier directory, not by containment in
+home: projects living in the home directory are ordinary, and a ban on everything
+under home would break the legitimate case more often than it fixed the defect.
+An explicit `TAUSIK_DIR` keeps working — the ban is on GUESSING, not on the
+user's choice.
+
+The first version of this fix compared paths AS STRINGS and the defect survived
+it. The climb arrives from `TMP` written in 8.3 short form —
+`C:\Users\DEVELO~1\.tausik` — while `expanduser` returns the long
+`C:\Users\developer`. Different spellings, same directory. The question here is
+directory IDENTITY, not path form, so the comparison resolves via `realpath`.
+
+The second version derived the tier's address from `config_trust.user_config_path`
+for a single source of truth — and was likewise refuted by a run: under pytest the
+override moves the tier to a throwaway path, and home becomes a "project" again.
+The override moves the FILE, not the HOME DIRECTORY, and it was the directory
+being asked about.
+
+### Fixed — the sibling-MCP detector always reported zero
+
+Matching a process to the project required the ABSOLUTE project path to appear in
+another process's command line. Servers launch relatively —
+`python ./.claude/mcp/project/server.py --project .` — and no absolute path is there,
+nor will be. The condition never held: measured on a live machine, ten running
+processes and a count of "0 siblings".
+
+A zero that means "cannot count" is indistinguishable from a zero that means "no
+siblings", and the whole check quietly became decoration.
+
+Matching is extracted into a predicate, `_command_belongs_to_project`, and ALL FOUR
+process-enumeration sites now call it: two Windows branches (wmic and PowerShell) and
+two POSIX (`/proc` and `ps`). Fixing one would have closed the defect on one platform
+and left it on three.
+
+A match is now either the absolute path in the command line (the previous method,
+still correct and kept) or the process's working directory equal to the project. The
+working directory is passed to the predicate as an ARGUMENT rather than read by it:
+the absence of exactly that seam is why the defect could not be closed by a test. It
+is read only in the `/proc` branch, because only there does the OS hand it over as a
+single link; elsewhere it stays `None`.
+
+An unknown working directory does NOT count as a match. Guessing instead of measuring
+would produce the same useless counter from the other side: instead of a permanent
+zero, a permanent overcount — and a spurious "sibling" reads as a process leak.
+
+Sibling enumeration also moved out of `self_check` into its own `sibling_mcp` module.
+The filesize gate presented the bill on exactly this change, but the cut had been
+named earlier — by `self_check`'s own docstring, which listed TWO entities at once:
+stale in-memory modules and sibling servers. Watching module mtimes and walking other
+processes share not one line of state. The old names are deliberately NOT re-exported:
+a test still patching the enumeration at the former address must fail loudly on the
+missing attribute rather than silently patch nothing.
+
+
+### Fixed — doctor accused foreign scripts and was blind to real drift
+
+The copier `bootstrap_copy.copy_scripts` deploys from `<lib>/scripts`, while the drift
+check read `<project>/scripts`. At home these are one directory, so it agreed. At a
+consumer they are two DIFFERENT trees: `<project>/scripts` belongs to the project.
+
+The result was double. False alarm: doctor reported drift on `deploy.sh` and
+`pg_backup.sh`, which are not and never were part of the harness, and that warning had
+no cure — no amount of re-running bootstrap brings foreign files into a profile. And
+blindness, which is worse: the ~300 files bootstrap actually deploys from `.tausik-lib`
+were never compared AT ALL. A half-landed deploy — the very failure this check exists
+for — reported clean.
+
+The source is now resolved by one shared function, `tausik_utils.library_source`: the
+library wins, falling back to the project itself. The order is load-bearing — the old
+"project first" produced both halves of the defect at once.
+
+Rather than adding a third copy of the rule, there is now one FEWER: the
+`bootstrap_drift` gate, which had its own source resolution with the opposite order, is
+folded into the same function. Divergence between such copies is exactly what convention
+#266 forbids.
+
+Both halves verified separately: zero accusations against the project's own scripts, and
+real drift in a deployed copy is detected.
+
+
+### Fixed — the blocking pytest gate silently checked nothing outside <root>/tests
+
+The path `<base>/tests` was hardcoded in three places: `gate_test_resolver._crosscutting_index`,
+`gate_test_resolver.build_tests_index` and `gate_test_citation._test_ref_exists`. In a project
+laid out as `backend/tests/` the test index came back empty, `run_command_gate` fell into the
+"no mapped tests" branch and returned SKIP — indistinguishable from an honest "this change
+genuinely maps to no test". The gate was enabled, resolved, listed in `gates status`, and
+verified NOTHING.
+
+Test roots are now discovered. An explicit `testing.roots` in `.tausik/config.json` wins; without
+it the previous behaviour holds (`<base>/tests`), and failing that a bounded search two levels
+deep runs, skipping vendored and tooling directories. Configuration alone is not enough: someone
+laid out as `backend/tests` does not know it must be set — for them nothing is checked, silently.
+
+A distinct outcome `NoTestRootsError` is introduced: "no test roots found" is no longer reported
+with the same SKIP as "no test maps to this change". The first is a misconfiguration, the second
+a legitimate result, and collapsing them hides the first behind the second.
+
+Also closed: a defect introduced by this very change and caught by review before commit — the
+traversal check compared against a loop variable that would have been undefined when the path
+resolved on the first branch. The path is now checked against ALL discovered roots, and separate
+volumes on Windows no longer make `commonpath` raise.
+
+### Fixed — two tests were red on any machine that has ~/.tausik
+
+`test_real_test_reference_clears_the_gate` and `test_checklist_missing_reads_evidence_not_vocabulary`
+chdir into a temp directory, but the project root was resolved by discovery, which walks UP the
+tree and accepts `~/.tausik` — the user-tier config directory — as a project root. The home
+directory became the root and the chdir lost its effect. CI has no such directory, so the defect
+was visible only on a developer machine. The tests now pin the root explicitly; the root cause
+stays with user-tier-config-recreates-the-directory-18-removed.
+
+
+### Added — a consumer-layout fixture that is red on live defects
+
+TAUSIK is developed where it IS the project: library and project are one
+directory, `scripts/` belongs to the harness, tests live at `<root>/tests`. It is
+installed into the opposite: the library arrives as a submodule, `scripts/`
+belongs to the project, tests may live anywhere. Every path assumption that
+holds at home inverts at a consumer — and inverts SILENTLY, because at home
+every test is green.
+
+`tests/consumer_layout.py` builds that layout; `tests/test_consumer_layout.py`
+runs four defects of one class against it. On landing: three green, two xfail.
+Green are the fixture's own realism, hook reachability (already fixed — it
+serves as the control) and an explicitly named absence of a seam for the
+sibling-MCP detector. Red are the pytest gate degenerating to a no-op outside
+`<root>/tests`, and doctor accusing the project's own scripts.
+
+The xfail markers are `strict=True`: the moment a defect is fixed, the expected
+failure becomes an XPASS and fails the run, demanding the marker be removed. The
+fixture cannot drift silently out of step with the code.
+
+The missing sibling-detector check is stated by its OWN test rather than passed
+over in silence: there is no callable predicate to exercise, and that test turns
+red the day the seam appears — so the check gets added instead of forgotten.
+
+
+### Fixed — a plain clone ran NO hooks at all, and the config looked configured
+
+Both settings generators took the hook address from the LIBRARY —
+`lib_dir/scripts/hooks`. In this repository the library and the project are the
+same directory, so it worked at home. In a consumer project the library arrives
+as a submodule under `.tausik-lib`, and a submodule contributes exactly one entry
+to the git index — its gitlink. A clone without `--recurse-submodules` therefore
+got a tree with nothing at those paths: no task gate, no secret scan, no push
+gate. Meanwhile the same bootstrap wrote a `CLAUDE.md` declaring Rule 1 enforced
+by a PreToolUse hook.
+
+Measured on a live consumer project: **22 hook commands pointing into
+`.tausik-lib`, 1 file tracked there**, and right next to them **26 byte-identical
+hooks that git does track** — deployed by that same bootstrap.
+
+Both generators now point at the deployed copy. Two responsibilities are split
+apart: `deployed_hooks_dir` computes the address, `assert_hooks_deployed` checks
+that the deploy happened and is called by the orchestrator after `copy_scripts`.
+A config naming hooks that are not on disk is no longer written silently — the
+refusal is loud, because such a file is indistinguishable from a working one
+until the first edit slips through unguarded.
+
+**Worth naming separately: why the defect survived so long.** A test pinned it.
+`test_claude_hooks_are_rename_proof` required commands to contain
+`${CLAUDE_PROJECT_DIR}/.tausik-lib/scripts/hooks/`. It fixed the broken wiring in
+place as a rule and stayed green the whole time. That test is corrected, and hook
+reachability in a plain clone is now pinned by a new
+`tests/test_hooks_survive_a_plain_clone.py`: it builds a layout with an EMPTY
+library and asserts every command names a file that exists — a property, not a
+spelling.
+
+
+### Added — a review of the owner's bookmark corpus, and what it is worth taking
+
+284 saved links on agent harnessing, read against what TAUSIK already does. The
+result is `docs/ru/research/bookmark-corpus-review-2026-08.md`: what the field
+has that we lack, what we already have under another name, and — the half worth
+keeping — ten classes of borrowing rejected with a reason, so nobody files them
+again.
+
+The method turned out to matter more than the corpus. The slicing by keyword put
+the three most relevant sources into the wrong slices; the reviewers noticed and
+went to the primary sources — the specification in full, the protocol changelog,
+READMEs over the API — instead of the summaries. Reading our OWN code produced
+more findings than reading anyone else's: a placeholder our `.mcp.json` carries
+that a packaging standard forbids, a debt `knowledge_write.py` tracks in its own
+docstring, a hook whose docstring calls itself "a coaching signal, not a censor".
+
+A side result outweighs part of the findings: the `Calibration` line in `status`
+is computed over a window of ten and is unfit for planning — on one day it read
+both "calibrated 1.06" and "overestimating 0.63". Planning belongs on the
+per-tier aggregate over 502 closures (0.63), where the larger the task the more
+we OVERestimate. Recorded as convention #384.
+
 
 ## [1.8.0] — 2026-08-03
 

@@ -7,7 +7,7 @@ import os
 import sys
 from typing import Any
 
-from bootstrap_hooks import build_hooks_dict
+from bootstrap_hooks import build_hooks_dict, deployed_hooks_dir
 from bootstrap_paths import portable_path
 
 # Workspace variables each host expands at launch — used to keep generated
@@ -29,10 +29,13 @@ def generate_settings_claude(target_dir: str, project_dir: str, lib_dir: str | N
     lib_dir: path to TAUSIK library (submodule). Auto-detected from bootstrap location.
     Hooks reference ${CLAUDE_PROJECT_DIR} when in-project (rename-proof), else absolute.
     """
-    # Determine library path relative to project
+    # Point at the DEPLOYED hooks, not the library's. See deployed_hooks_dir:
+    # in a consumer project the library is a submodule, and a plain clone
+    # leaves those paths empty — every hook command would name a file that is
+    # not there. lib_dir is still accepted and used elsewhere in this function.
     if lib_dir is None:
         lib_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    hooks_dir = os.path.join(lib_dir, "scripts", "hooks")
+    hooks_dir = deployed_hooks_dir(target_dir)
 
     # Reference hooks via ${CLAUDE_PROJECT_DIR} when they live inside the project
     # (always set in the hook environment) so a folder rename doesn't break them;

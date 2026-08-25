@@ -37,6 +37,25 @@ def self_check_mod():
     return mod
 
 
+@pytest.fixture
+def sibling_mod(self_check_mod):
+    """Модуль обхода соседей — теперь ОТДЕЛЬНЫЙ, и подменять надо в нём.
+
+    Перечисление соседей уехало из self_check в `sibling_mcp`: докстринг
+    старого файла называл две сущности сразу, и гейт размера предъявил счёт.
+    Имена наружу намеренно не реэкспортированы — подмена по старому адресу
+    падает на отсутствующем атрибуте, а не подменяет ничего молча.
+
+    Кэш перечисления чистится ЗДЕСЬ. Раньше его обнулял перезапуск self_check,
+    и изоляция тестов держалась на побочном эффекте соседнего модуля; теперь
+    сосед живёт своей жизнью и переживает перезагрузку, поэтому ответ,
+    посчитанный одним тестом, дотёк бы до следующего внутри окна TTL.
+    """
+    mod = self_check_mod.sibling_mcp
+    mod._SIBLING_ENUM_CACHE.clear()
+    return mod
+
+
 def test_startup_snapshot_populated(self_check_mod):
     """Eager-import + snapshot must run at module import.
 
@@ -110,7 +129,7 @@ def test_sibling_count_is_safe_int(self_check_mod):
     assert isinstance(report["sibling_mcp_pids"], list)
 
 
-def test_remediation_silent_when_count_unknown(self_check_mod, monkeypatch):
+def test_remediation_silent_when_count_unknown(self_check_mod, sibling_mod, monkeypatch):
     """When sibling introspection failed (count=-1) and no drift, the
     remediation must NOT contain 'Restart your IDE' — that would be a
     false positive on hosts where wmic/PowerShell aren't usable.
@@ -118,7 +137,7 @@ def test_remediation_silent_when_count_unknown(self_check_mod, monkeypatch):
     # Force unknown-sibling state and zero drift.
     monkeypatch.setattr(self_check_mod, "_MODULE_MTIMES_AT_STARTUP", {})
     monkeypatch.setattr(
-        self_check_mod,
+        sibling_mod,
         "_enumerate_sibling_mcps",
         lambda pid, project: {
             "count": -1,
@@ -133,7 +152,7 @@ def test_remediation_silent_when_count_unknown(self_check_mod, monkeypatch):
     assert "drift check" in report["remediation"].lower()
 
 
-def test_remediation_fires_on_real_drift(self_check_mod, tmp_path, monkeypatch):
+def test_remediation_fires_on_real_drift(self_check_mod, sibling_mod, tmp_path, monkeypatch):
     """With real drift, the remediation MUST tell the user to restart.
 
     Pinpoints the regression: previously, count=-1 also fired this path.
@@ -147,7 +166,7 @@ def test_remediation_fires_on_real_drift(self_check_mod, tmp_path, monkeypatch):
         {str(fake): snap},
     )
     monkeypatch.setattr(
-        self_check_mod,
+        sibling_mod,
         "_enumerate_sibling_mcps",
         lambda pid, project: {"count": 0, "pids": [], "error": None},
     )
@@ -228,7 +247,9 @@ def test_watch_set_comes_from_producer_not_hand_list(self_check_mod, tmp_path, m
     assert os.path.normcase(str(f)) in {os.path.normcase(p) for p in loaded.values()}
 
 
-def test_reproduces_todays_case_module_outside_old_eleven(self_check_mod, tmp_path, monkeypatch):
+def test_reproduces_todays_case_module_outside_old_eleven(
+    self_check_mod, sibling_mod, tmp_path, monkeypatch
+):
     """AC2: reproduce the session #135 case — a module that was NOT in the old
     hard list of eleven (e.g. `complexity_understatement`) is edited after
     startup and MUST surface as drift, named in stale_modules.
@@ -255,7 +276,7 @@ def test_reproduces_todays_case_module_outside_old_eleven(self_check_mod, tmp_pa
     # Snapshot taken at "startup" — module present, unchanged.
     monkeypatch.setattr(self_check_mod, "_MODULE_MTIMES_AT_STARTUP", {str(victim): snap})
     monkeypatch.setattr(
-        self_check_mod,
+        sibling_mod,
         "_enumerate_sibling_mcps",
         lambda pid, project: {"count": 0, "pids": [], "error": None},
     )
@@ -358,7 +379,7 @@ def test_deleted_file_getmtime_error_swallowed(self_check_mod):
     assert "/nonexistent/ghost.py" not in cur
 
 
-def test_any_getmtime_exception_does_not_crash_collect(self_check_mod, monkeypatch):
+def test_any_getmtime_exception_does_not_crash_collect(self_check_mod, sibling_mod, monkeypatch):
     """AC5: ANY error inside the check must not crash the MCP server. Patch
     os.path.getmtime to raise a non-OSError; collect() must still return a
     report dict, not propagate."""
@@ -369,7 +390,7 @@ def test_any_getmtime_exception_does_not_crash_collect(self_check_mod, monkeypat
 
     monkeypatch.setattr(self_check_mod.os.path, "getmtime", boom)
     monkeypatch.setattr(
-        self_check_mod,
+        sibling_mod,
         "_enumerate_sibling_mcps",
         lambda pid, project: {"count": 0, "pids": [], "error": None},
     )
@@ -403,7 +424,9 @@ def test_self_check_module_walk_cost_under_budget(self_check_mod):
     assert elapsed_ms < 100, f"module walk too slow: {elapsed_ms:.2f} ms"
 
 
-def test_enumerate_excludes_parent_pid_venv_launcher(self_check_mod, monkeypatch, tmp_path):
+def test_enumerate_excludes_parent_pid_venv_launcher(
+    self_check_mod, sibling_mod, monkeypatch, tmp_path
+):
     """Regression for v14b-defect-mcp-self-check-venv-launcher.
 
     On Windows, `venv\\Scripts\\python.exe` is a launcher shim that re-execs
@@ -444,7 +467,7 @@ def test_enumerate_excludes_parent_pid_venv_launcher(self_check_mod, monkeypatch
     monkeypatch.setattr(self_check_mod.sys, "platform", "win32")
     monkeypatch.setattr("subprocess.run", fake_run)
 
-    out = self_check_mod._enumerate_sibling_mcps(self_pid, str(tmp_path))
+    out = sibling_mod._enumerate_sibling_mcps(self_pid, str(tmp_path))
 
     assert out["error"] is None
     assert parent_pid not in out["pids"], (
@@ -467,7 +490,7 @@ def _put_scripts_on_path() -> None:
         sys.path.insert(0, scripts)
 
 
-def test_sibling_enumeration_is_ttl_cached(self_check_mod, monkeypatch):
+def test_sibling_enumeration_is_ttl_cached(self_check_mod, sibling_mod, monkeypatch):
     """AC3: the expensive enumeration is not re-run on every collect() call.
 
     On Win11 26200 each enumeration spawns a fresh PowerShell Get-CimInstance
@@ -475,29 +498,29 @@ def test_sibling_enumeration_is_ttl_cached(self_check_mod, monkeypatch):
     the TTL window a second collect() must reuse the cached result.
     """
     _put_scripts_on_path()
-    self_check_mod._SIBLING_ENUM_CACHE.clear()
+    sibling_mod._SIBLING_ENUM_CACHE.clear()
     calls = {"n": 0}
 
     def counting_enum(pid, project):
         calls["n"] += 1
         return {"count": 0, "pids": [], "error": None}
 
-    monkeypatch.setattr(self_check_mod, "_enumerate_sibling_mcps", counting_enum)
+    monkeypatch.setattr(sibling_mod, "_enumerate_sibling_mcps", counting_enum)
 
     self_check_mod.collect()
     self_check_mod.collect()
     assert calls["n"] == 1, "enumeration ran more than once inside the TTL window"
 
 
-def test_sibling_count_over_threshold_reports_warning(self_check_mod, monkeypatch):
+def test_sibling_count_over_threshold_reports_warning(self_check_mod, sibling_mod, monkeypatch):
     """AC2: an accumulation above threshold surfaces a report-only warning that
     is prepended to remediation — and never claims the framework killed anything.
     """
     _put_scripts_on_path()
-    self_check_mod._SIBLING_ENUM_CACHE.clear()
+    sibling_mod._SIBLING_ENUM_CACHE.clear()
 
     monkeypatch.setattr(
-        self_check_mod,
+        sibling_mod,
         "_enumerate_sibling_mcps",
         lambda pid, project: {"count": 5, "pids": [11, 22, 33, 44, 55], "error": None},
     )
@@ -510,14 +533,14 @@ def test_sibling_count_over_threshold_reports_warning(self_check_mod, monkeypatc
     assert report["remediation"].startswith(report["sibling_warning"])
 
 
-def test_sibling_count_within_threshold_no_warning(self_check_mod, monkeypatch):
+def test_sibling_count_within_threshold_no_warning(self_check_mod, sibling_mod, monkeypatch):
     """NEGATIVE (AC2): a normal sibling count raises no warning and leaves
     remediation untouched."""
     _put_scripts_on_path()
-    self_check_mod._SIBLING_ENUM_CACHE.clear()
+    sibling_mod._SIBLING_ENUM_CACHE.clear()
 
     monkeypatch.setattr(
-        self_check_mod,
+        sibling_mod,
         "_enumerate_sibling_mcps",
         lambda pid, project: {"count": 2, "pids": [11, 22], "error": None},
     )
@@ -526,7 +549,7 @@ def test_sibling_count_within_threshold_no_warning(self_check_mod, monkeypatch):
     assert report["sibling_warning"] == ""
 
 
-def test_enumeration_exception_degrades_to_unknown(self_check_mod, monkeypatch):
+def test_enumeration_exception_degrades_to_unknown(self_check_mod, sibling_mod, monkeypatch):
     """s146 review LOW: if the cached enumeration itself raises, collect() must
     degrade to count == -1 (unknown), never crash the MCP diagnostic (AC5)."""
     _put_scripts_on_path()
@@ -534,7 +557,7 @@ def test_enumeration_exception_degrades_to_unknown(self_check_mod, monkeypatch):
     def boom(pid, project):
         raise RuntimeError("enumeration blew up")
 
-    monkeypatch.setattr(self_check_mod, "_enumerate_sibling_mcps_cached", boom)
+    monkeypatch.setattr(sibling_mod, "_enumerate_sibling_mcps_cached", boom)
     report = self_check_mod.collect()
     assert report["sibling_mcp_count"] == -1
     assert report["drift_detected"] is False

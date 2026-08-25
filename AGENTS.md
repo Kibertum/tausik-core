@@ -41,7 +41,7 @@ Same governance everywhere; only the **wrapper** (hooks vs self-serve) changes. 
 
 | Model / host | Primary TAUSIK surface | Main `tausik_*` tools (two servers) | Notes |
 |----------------|------------------------|-------------------------------------|------|
-| Claude (Code, VS Code Extension) | MCP `tausik-project` + `tausik-brain` | **124** (117 project + 7 brain) | Hooks + MCP |
+| Claude (Code, VS Code Extension) | MCP `tausik-project` + `tausik-brain` | **126** (119 project + 7 brain) | Hooks + MCP |
 | Cursor / Composer / GPT-5.5+ / OpenCode | Same MCP (project MCP config); CLI fallback `.tausik/tausik` | **100** (93+7) | Rule 1 self-serve if no hooks |
 | Qwen Code | MCP + skills under `.qwen/skills/` | **100** (93+7) | Subset of hooks |
 | Codex CLI / headless agents | Prefer MCP if exposed; else mirror CLI | **100** (93+7) | [docs/en/cli.md](docs/en/cli.md) |
@@ -96,7 +96,7 @@ Canonical narrative + branching detail: **[docs/en/workflow.md](docs/en/workflow
 | **CLI command reference** | [docs/en/cli.md](docs/en/cli.md) (EN) / [docs/ru/cli.md](docs/ru/cli.md) (RU) |
 | **Architecture & internals** | [docs/en/architecture.md](docs/en/architecture.md) (EN) / [docs/ru/architecture.md](docs/ru/architecture.md) (RU) |
 | **Testing principles (scoped pytest, when to add tests)** | [docs/en/testing-principles.md](docs/en/testing-principles.md) (EN) / [docs/ru/testing-principles.md](docs/ru/testing-principles.md) (RU) |
-| **MCP tools (117 project + 7 brain = 124; verify-first contract)** | [docs/en/mcp.md](docs/en/mcp.md) |
+| **MCP tools (119 project + 7 brain = 126; verify-first contract)** | [docs/en/mcp.md](docs/en/mcp.md) |
 | **Skills reference (12 core + brain conditional, 25+ official opt-in)** | [docs/en/skills.md](docs/en/skills.md) |
 | **Quality gates** | [docs/en/hooks.md](docs/en/hooks.md) |
 | **User-facing docs index** | [docs/README.md](docs/README.md) |
@@ -112,7 +112,7 @@ harness/           Shared resources for all IDEs (renamed from agents/ in v1.4 t
   roles/           5 role profiles (developer, architect, qa, tech-writer, ui-ux)
   stacks/          25 stack guides (python, react, go, rust, ansible, terraform, ...)
   overrides/       IDE-specific overrides (claude/, cursor/, qwen/)
-  claude/mcp/      tausik-project (117) + tausik-brain (7) = 124 main; optional codebase-rag +7 → 131 total — see docs/en/mcp.md
+  claude/mcp/      tausik-project (119) + tausik-brain (7) = 126 main; optional codebase-rag +7 -> 133 total — see docs/en/mcp.md
 bootstrap/         One-command project setup
 tests/             pytest suite (3355 tests)
 .tausik/           Runtime data (DB, config) — gitignored
@@ -144,39 +144,45 @@ Three layers, strict separation: **CLI never touches DB. Service validates. Back
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #163 (active) | Branch: release/1.8-batch-s126 | Version: 1.8.0
-Tasks: 1197/1262 done, 0 active, 1 blocked
+Session: #181 (active) | Branch: v1-9-wave | Version: 1.8.0
+Tasks: 1229/1393 done, 1 active, 1 blocked
+Active: github-is-the-source-gitlab-is-its-mirror
 Blocked: release-18-breaking-change-notes
 
 ### Memory tail
 Context (5):
-- #369 Аудит качества сессии #158: четыре находки, три из них — тихие отказы разной глубины
-- #363 Аудит объёма 1.8 по запросу владельца (сессия #155): на shared brain идёт 180 вызовов из 1927, а 85%
-- #362 Учёт остатка 1.8 на сессию #155: 1927 вызовов не сдвинулись, потому что вся работа шла по блокерам т
-- #358 Аудит качества сессии #153: ревью партии #152 нашло девять дефектов, четыре из них блокируют тег 1.8
-- #337 Quality sweep сессии #147: репо чистое, накопленный незакоммиченный батч размывает расписки
+- #414 Аудит качества сессий #177-#181: страховочная сеть полного прогона натянута в CI и отключена от розе
+- #412 Замер трекеров #179: внешних авторов у пяти исправленных тикетов нет — посылка плана 1.9 неверна
+- #406 Разбор поля 178: три оси августовского обзора, которые не вернулись, прогнаны — четыре находки, две 
+- #404 Замер вырожденности наших контролей по принципу RENAR §13.9.4: три контроля дают нулевое или почти н
+- #397 Аудит качества сессии #176: шесть закрытий, две находки гигиены, один дефект приехал из собственной 
 Decisions (5):
-- #230 Задача throwaway-db-guard-has-no-caller-while-its-docstring-names-one ВЫНОСИТСЯ В 1.9 явным решением, а не остаётся молч
-- #229 Задача verify-certifies-a-run-that-touched-no-test-of-the-subject ВЫНОСИТСЯ В 1.9 явным решением, а не оставляется молча
-- #228 Задача orphaned-edges-never-converge-so-every-departure-pays-for-them ВЫНОСИТСЯ В 1.9 явным решением. Она попала в эпик 
-- #227 Решение #226 ЧАСТИЧНО ОТМЕНЯЕТСЯ по итогам ревью: две задачи из восьми возвращаются в 1.8, признак разделения оказался н
-- #226 Восемь дефектов достоверности сигналов ОБЪЯВЛЕНЫ ВНЕ 1.8 вслух, а не молчанием места хранения: task-update-accepts-empty
+- #259 ПОРЯДОК РАБОТ ВЫРАЖАЕТСЯ РЕБРОМ МЕЖДУ ЗАДАЧАМИ, А НЕ ЧИСЛОМ ПРИОРИТЕТА. Из трёх вариантов задачи task-next-cannot-expres
+- #258 ВЫЧЕРКИВАНИЕ В ПАМЯТИ ЕСТЬ НАДПИСЬ ПОВЕРХ СО СЛЕДОМ, А НЕ УДАЛЕНИЕ. Текст записи меняется, но остаётся проверяемая запис
+- #257 GITHUB СТАНОВИТСЯ ОСНОВНЫМ МЕСТОМ РАЗРАБОТКИ, GITLAB — ЗЕРКАЛО И САЙТ. Проекция tausik/ ПУБЛИКУЕТСЯ. Историю НЕ переписы
+- #256 1.9 ПЕРЕОПРЕДЕЛЁН: ЭТО МАЖОРНЫЙ РЕФАКТОРИНГ ЯДРА ДОКАЗАТЕЛЬСТВА, А НЕ ПАРТИЯ ДЕФЕКТОВ. Глобальная установка, пакет и mul
+- #255 СТРОИМ ТОЛЬКО ПО ПРИНЯТЫМ ADR RENAR; ШЕСТЬ ПРЕДЛОЖЕННЫХ НЕ РЕАЛИЗУЮТСЯ, ПОКА ПРЕДЛОЖЕНЫ. RENAR идёт по ветке v1-1-wave, 
 Conventions (5):
-- #375 Дефект относят к релизу по ДОСТУПНОСТИ СНАРУЖИ, а не по месту кода
-- #371 Одноразовый токен тратится ОПЕРАЦИЕЙ, а не проверкой
-- #365 Извлечение функции ради тестируемости обязано ДОБАВИТЬ тест на её ВЫЗЫВАЮЩЕГО: четыре теста чистой ф
-- #364 Ревью ведут ДВЕ линзы минимум, и одна из них обязательно «утверждения против кода» — она приносит на
-- #361 Чиня частичную запись, закрывай ФОРМУ, а не найденный отказ: перечисли все точки, способные бросить 
+- #413 Отчёт о вычеркивании, перечисляющий вычеркнутое, есть новая утечка — включая доказательство чистоты
+- #409 Проверка, читающая рабочее дерево, обязана вычесть из него бухгалтерию самого фреймворка
+- #408 Документы владельца живут в репозитории, а не во внешних артефактах
+- #394 Число в константе и обещание в докстринге рядом с ней — одно утверждение, и проверять надо оба
+- #392 Вопрос о ТОЖДЕСТВЕ каталога решается realpath; написание сравнивают только тогда, когда спрашивают о
 Dead ends (3):
-- #370 Добавить decision_delete в _OPS генератора test_state_projection_tracks_db, чтобы храповик наблюдал
-- #355 Рэтчет покрытия через AST: искать в сервисных модулях методы, вызывающие self.be.&lt;метод с литерал
-- #324 Исправить «2× байтовый штраф за кириллицу» в лимите поля decision (tausik_decide)
+- #407 Дозаполнить 5722 существующие функции pytest ссылками на нормативные утверждения, чтобы они стали TC
+- #400 Объявить бинарный PDF в relevant_files, чтобы закрыть задачу через verify вместо флага --no-file-cha
+- #396 Отсутствие каталога-источника считать поводом отказаться от проверки дрейфа
 
-**Shared knowledge — from other projects (6):**
+**Shared knowledge — from other projects (11):**
 - [decision] v139-D (клиентский mux) НЕ делается в 1.3.9 как «фикс троттлинга». Предпосылка задачи неверна для на
 - [decision] Дефект brain move, найденный внутри задачи о property-тесте проекции, заведён отдельной задачей, а н
 - [decision] Коэффициент калибровки на окне n=10 непригоден для прогноза срока релиза: за одну сессию #153 он про
-- [gotcha] Mobile mux must be opt-in: yamux optimistic-open can't detect non-mux servers
-- [gotcha] FTS5 MATCH dash trap
-- [pattern] Mixin composition for Service layer
+- [convention] Windows: команду с вложенными кавычками писать ФАЙЛОМ, а не однострочником
+- [convention] TAUSIK 1.8: verify --task без --relevant-files не сертифицирует закрытие задачи
+- [gotcha] iptables-persistent и Docker на одной машине конфликтуют
+- [gotcha] Ansible copy кладёт файлы побайтово — CRLF ломает шебанг
+- [gotcha] Ansible молча игнорирует ansible.cfg в world-writable каталоге
+- [pattern] Проверять содержимое ответа, а не только HTTP-код
+- [pattern] Мониторинг без heartbeat неотличим от мёртвого
+- [pattern] TAUSIK 1.8: обёртка команды гейта обязана НАЗЫВАТЬСЯ именем инструмента
 <!-- DYNAMIC:END -->
