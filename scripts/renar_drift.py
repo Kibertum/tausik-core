@@ -194,29 +194,64 @@ def detect_schema_drift(conn: sqlite3.Connection) -> list[Finding]:
 def detect_provenance_drift(conn: sqlite3.Connection) -> list[Finding]:
     """Detect stale task↔SPEC verification provenance.
 
-    ISO timestamps are UTC and lexicographically ordered, so a string ``>``
-    compare on (spec.updated_at, link.created_at) is a valid recency test; the
-    compare is strict, so a spec linked and last-edited in the same instant
-    (updated_at == created_at) is NOT flagged. ``stale-verification`` is scoped
-    to ``active`` specs only — a spec deprecated after a task finished is a
-    settled requirement, not a stale verification (it would otherwise double-
-    report alongside ``deprecated-requirement`` for in-flight tasks).
+    THE OPERAND, NOT THE ARITHMETIC, WAS WRONG (Sortula #49, our #10). This
+    used to compare ``spec.updated_at`` against ``link.created_at`` and called
+    that "a valid recency test". The claim is true about STRINGS and false
+    about MEANING: ``task_specs.created_at`` is when the task was LINKED to the
+    requirement, and it says nothing about when the task was verified. A task
+    finished a day AFTER a SPEC edit was therefore declared stale, and the gate
+    failed on every single ``task done``. Worse than noise: the false positive
+    MASKED a real one, which surfaced at the consumer only once this was fixed.
+
+    The honest reference point already existed in the schema — nothing here is
+    invented: ``verification_runs.ran_at`` is when the task was ACTUALLY
+    verified, which is precisely what this detector's name claims to be about.
+
+    THE FALLBACK IS NAMED, NOT IMPLIED (a task with no verification run at
+    all): ``tasks.completed_at`` — an honest second approximation, because a
+    task cannot have been verified after it was closed. Falling back to
+    ``link.created_at`` is FORBIDDEN: it is not a worse approximation, it is
+    not an approximation of verification time at all, and reinstating it would
+    return this defect wearing compatibility's clothes.
+
+    A row datable by NEITHER is reported separately as ``undateable-
+    verification`` rather than passing quietly. Silence there would be the very
+    reading this release exists to remove: "could not be checked" is not
+    "checked and fine" (SENAR 1.4 §8.6(e)).
+
+    ISO timestamps are UTC and lexicographically ordered, so the string ``>``
+    compare remains a valid recency test on the NEW operand. The compare stays
+    STRICT, deliberately and unchanged: a spec verified and last-edited in the
+    same instant is NOT flagged. ``stale-verification`` is scoped to ``active``
+    specs only — a spec deprecated after a task finished is a settled
+    requirement, not a stale verification (it would otherwise double-report
+    alongside ``deprecated-requirement`` for in-flight tasks).
     """
     findings: list[Finding] = []
     det = "drift-7-provenance"
 
+    # When the task was actually verified: the latest recorded run, else the
+    # moment it was closed. Spelled once and reused by both queries so the
+    # filter and the reported value can never disagree.
+    _VERIFIED_AT = (
+        "COALESCE("
+        "(SELECT MAX(vr.ran_at) FROM verification_runs vr WHERE vr.task_slug = ts.task_slug),"
+        " t.completed_at)"
+    )
+
     stale = _rows(
         conn,
-        """
+        f"""
         SELECT ts.task_slug AS task, ts.spec_slug AS spec,
-               ts.created_at AS linked_at, s.updated_at AS spec_updated,
+               {_VERIFIED_AT} AS verified_at, s.updated_at AS spec_updated,
                s.version AS spec_version
           FROM task_specs ts
           JOIN specs s ON s.slug = ts.spec_slug
           JOIN tasks t ON t.slug = ts.task_slug
          WHERE t.status = 'done'
            AND s.status = 'active'
-           AND s.updated_at > ts.created_at
+           AND {_VERIFIED_AT} IS NOT NULL
+           AND s.updated_at > {_VERIFIED_AT}
         """,
     )
     for r in stale:
@@ -226,9 +261,38 @@ def detect_provenance_drift(conn: sqlite3.Connection) -> list[Finding]:
                 "stale-verification",
                 f"task:{r['task']}->spec:{r['spec']}",
                 (
-                    f"done task verified against SPEC {r['spec']} linked {r['linked_at']}, "
+                    f"done task last verified {r['verified_at']} against SPEC {r['spec']}, "
                     f"but SPEC was edited {r['spec_updated']} (now {r['spec_version']}) — "
                     "verification predates current requirement version"
+                ),
+            )
+        )
+
+    # Datable by neither a run nor a close time. Reported, not skipped: the
+    # detector cannot say this verification is current, and saying nothing
+    # would read as saying it is fine.
+    undateable = _rows(
+        conn,
+        f"""
+        SELECT ts.task_slug AS task, ts.spec_slug AS spec
+          FROM task_specs ts
+          JOIN specs s ON s.slug = ts.spec_slug
+          JOIN tasks t ON t.slug = ts.task_slug
+         WHERE t.status = 'done'
+           AND s.status = 'active'
+           AND {_VERIFIED_AT} IS NULL
+        """,
+    )
+    for r in undateable:
+        findings.append(
+            _finding(
+                det,
+                "undateable-verification",
+                f"task:{r['task']}->spec:{r['spec']}",
+                (
+                    "done task has neither a recorded verification run nor a completion "
+                    f"time, so its verification against SPEC {r['spec']} cannot be dated — "
+                    "provenance is unknown, not current"
                 ),
             )
         )

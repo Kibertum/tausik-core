@@ -181,10 +181,20 @@ def _seed_linked(svc, task="t1", spec="sp1", spec_status="active"):
 
 
 def test_stale_verification(svc):
-    """Done task linked to a SPEC edited after the link → stale provenance."""
+    """Done task whose SPEC was edited after the VERIFICATION → stale provenance.
+
+    drift7-dates-the-link-not-the-verification: the detector now dates the
+    verification, not the link, so this fixture has to state WHEN the task was
+    verified. It closed the task with a bare UPDATE, which leaves
+    `completed_at` NULL and records no verification run — under the corrected
+    rule that row is not stale, it is undateable, and it is now reported as
+    such. Setting a completion time expresses what this test always meant.
+    """
     _seed_linked(svc)
-    # Mark task done and bump the spec's updated_at past the link timestamp.
-    svc.be._conn.execute("UPDATE tasks SET status='done' WHERE slug='t1'")
+    # Close the task at a known instant, then bump the spec's updated_at past it.
+    svc.be._conn.execute(
+        "UPDATE tasks SET status='done', completed_at='2026-01-01T00:00:00Z' WHERE slug='t1'"
+    )
     svc.be._conn.execute("UPDATE specs SET updated_at='9999-12-31T00:00:00Z' WHERE slug='sp1'")
     svc.be._conn.commit()
     findings = detect_provenance_drift(svc.be._conn)
