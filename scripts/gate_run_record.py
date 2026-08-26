@@ -51,6 +51,12 @@ def record_gate_runs(
             1 if r.get("skipped") else 0,
             r.get("duration_ms"),
             stamp,
+            # v47: the outcome is what a later reader decides on. A result dict
+            # from an older caller carries neither field and stores NULL —
+            # honestly "recorded before the distinction existed", never guessed
+            # from the booleans, which is the conflation being retired.
+            r.get("outcome") or None,
+            r.get("reason_code") or None,
         )
         for r in gate_results
     ]
@@ -58,8 +64,8 @@ def record_gate_runs(
         """
         INSERT INTO gate_runs
             (verification_run_id, task_slug, trigger, gate_name, severity,
-             passed, skipped, duration_ms, ran_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+             passed, skipped, duration_ms, ran_at, outcome, reason_code)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         rows,
     )

@@ -78,4 +78,5 @@ CREATE INDEX IF NOT EXISTS idx_verify_no_tests_declared
     ON verification_runs(no_tests_declared);
 CREATE INDEX IF NOT EXISTS idx_verify_handle
     ON verification_runs(handle_nonce, handle_redeemed_at);
+CREATE INDEX IF NOT EXISTS idx_gate_runs_outcome ON gate_runs(outcome);
 """

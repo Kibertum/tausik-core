@@ -239,7 +239,11 @@ class TestAnInvalidPatternIsRefusedInWordsNotInAStackTrace:
     than to the person running it.
     """
 
-    BAD = "[Dd]:[/\]Work"  # unterminated character set: the backslash escapes `]`
+    # Raw string: the value is unchanged, but `"\]"` is an INVALID escape
+    # sequence and Python has been deprecating it — it warns today and becomes
+    # a SyntaxError in a future version. The malformedness under test belongs to
+    # the REGEX, not to the Python literal that carries it.
+    BAD = r"[Dd]:[/\]Work"  # unterminated character set: the backslash escapes `]`
 
     def test_an_unparseable_regex_raises_a_named_refusal(self, svc):
         # The TYPE is the whole point, not merely "it failed": `main()` prints a
@@ -267,7 +271,7 @@ class TestAnInvalidPatternIsRefusedInWordsNotInAStackTrace:
 
     def test_a_valid_regex_still_works(self, svc):
         """The negative that keeps the fix from closing `--regex` altogether."""
-        result = apply_redaction(svc, _req(pattern="gitlab\.internal\.\w+", regex=True))
+        result = apply_redaction(svc, _req(pattern=r"gitlab\.internal\.\w+", regex=True))
         assert result.matched is True
         assert result.occurrences > 0
 

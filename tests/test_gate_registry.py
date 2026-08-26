@@ -219,17 +219,26 @@ class TestDispatch:
         assert passed is False
         assert results[0]["output"] == "probe says no"
 
-    def test_gate_with_no_impl_and_no_command_is_skip_not_pass(self, monkeypatch):
-        """It used to answer "No command configured." as a PASS — a gate that
-        never executed reporting success, the reading `gate_verdict` forbids."""
+    def test_gate_with_no_impl_and_no_command_cannot_run_and_blocks(self, monkeypatch):
+        """It used to answer "No command configured." as a PASS, then as a SKIP.
+
+        Both readings let a check that never executed sign a receipt.
+        check-result-conflates-could-not-run-with-passed makes it COULD_NOT_RUN:
+        it names its reason and it BLOCKS, because a gate that produced no
+        evidence cannot certify (SENAR 1.4 §8.6(e)).
+        """
+        import gate_outcome
+
         gate = {"name": "hollow", "enabled": True, "severity": "block", "trigger": ["task-done"]}
         monkeypatch.setattr(gate_runner, "get_gates_for_trigger", lambda *a, **k: [gate])
         monkeypatch.setattr(gate_runner, "load_config", lambda *a, **k: {})
 
-        _passed, results = run_gates("task-done", ["a.py"])
-        assert results[0]["skipped"] is True
-        assert gate_verdict(results[0]) == "SKIP"
+        passed, results = run_gates("task-done", ["a.py"])
+        assert results[0]["outcome"] == gate_outcome.COULD_NOT_RUN
+        assert results[0]["reason_code"] == gate_outcome.REASON_NO_GATE_IMPLEMENTATION
+        assert gate_verdict(results[0]) == "CANNOT-RUN"
         assert "ships no implementation" in results[0]["output"]
+        assert passed is False, "a block-severity gate that could not run must not certify"
 
 
 # --- AC4 / AC5: visible in status, excluded from the scoped runner ----------

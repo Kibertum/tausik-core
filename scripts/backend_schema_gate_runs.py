@@ -37,7 +37,9 @@ CREATE TABLE IF NOT EXISTS gate_runs (
     passed INTEGER NOT NULL CHECK(passed IN (0, 1)),
     skipped INTEGER NOT NULL DEFAULT 0 CHECK(skipped IN (0, 1)),
     duration_ms INTEGER,
-    ran_at TEXT NOT NULL
+    ran_at TEXT NOT NULL,
+    outcome TEXT,
+    reason_code TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_gate_runs_name ON gate_runs(gate_name);

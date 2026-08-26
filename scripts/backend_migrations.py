@@ -26,6 +26,7 @@ from backend_migrations_v43 import MIGRATION_V43
 from backend_migrations_v44 import MIGRATION_V44
 from backend_migrations_v45 import MIGRATION_V45
 from backend_migrations_v46 import MIGRATION_V46
+from backend_migrations_v47 import MIGRATION_V47
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -364,6 +365,9 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     # v46: the edge that makes a plan's ORDER expressible
     # (task-next-cannot-express-plan-order). One additive table.
     46: MIGRATION_V46,
+    # v47: a gate row records its OUTCOME and its REASON, so a check that
+    # could not run stops being stored as one that passed
+    47: MIGRATION_V47,
 }
 
 
