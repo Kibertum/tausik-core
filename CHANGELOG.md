@@ -9,6 +9,45 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — `tausik audit evidence`: closure-receipt citations no longer rot in silence
+
+The closure gate checks the FORM of a citation (`path::name`) and never checked
+that it leads anywhere. One test rename turned a receipt into prose and nothing
+noticed. The new subcommand resolves every citation in closed-task journals and
+prints what broke. Read-only and non-blocking: renaming a test is legitimate;
+the point is that decay becomes VISIBLE, not that refactoring gets punished.
+
+Three decisions paid for by measurement rather than argument:
+
+* The extractor is the PRODUCT'S — `service_ac_evidence.parse_evidence_lines`,
+  the same code the closure gate reads citations with. A private regex saw 474
+  citations where the product's sees 2683, and audit and gate would have become
+  two judges of one question (convention #301).
+* Path resolution is a named policy: a bare file name is looked up across the
+  test tree. Gluing it to the repo root produced 202 false "file not found" out
+  of 977.
+* The command prints NO single "broken" count, because there are two causes with
+  different cures, and git history — not an exemption list — tells them apart:
+  `ROTTED` means the target was in history and is gone (renamed or deleted after
+  closure); `NEVER_EXISTED` means it was never there, i.e. either a synthetic
+  path legitimately quoted by a task whose subject IS the citation format, or an
+  address invented at closure time. Merging them would plant a dozen permanent
+  false alarms, and a control that cries wolf stops being read.
+
+For a name miss in a live file the report offers a plausible successor and calls
+it a CANDIDATE outright: name similarity suggests, it does not rule.
+
+Baseline at introduction: 1236 closed tasks, 512 citing a test, 2683 citations
+(985 unique), 945 resolving; `ROTTED` 16, `NEVER_EXISTED` 24. Seven references
+with a manually confirmed successor were reconciled by APPENDING a line to the
+journal — original receipts are not rewritten, closure history stays history.
+Two automatic candidates were rejected on review as different checks, and the
+rejection is recorded.
+
+A known limitation is stated in the module docstring: a reconciled reference
+does not retire from the report, so the counters are a floor rather than a
+health bar; the signal is the delta between runs.
+
 ### Fixed — drift-7 dated the link, not the verification (Sortula #49 → #10)
 
 The provenance detector compared `spec.updated_at` against

@@ -61,6 +61,26 @@ def add_audit(sub: argparse._SubParsersAction) -> None:
         dest="as_json",
         help="Emit JSON instead of human-readable report",
     )
+    ae = audit_sub.add_parser(
+        "evidence",
+        help="Audit whether closure-receipt test citations still resolve (read-only, never blocks)",
+    )
+    ae.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Emit JSON instead of human-readable report",
+    )
+    ae.add_argument(
+        "--no-git",
+        action="store_true",
+        dest="no_git",
+        help=(
+            "Skip the git-history question. Without it a rename cannot be told "
+            "from a path that never existed, so every miss is reported as "
+            "unknown_history rather than guessed at."
+        ),
+    )
 
 
 def add_review(sub: argparse._SubParsersAction) -> None:
