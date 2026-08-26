@@ -89,9 +89,24 @@ _SCOPED: tuple[GateSpec, ...] = (
         default_config={
             "enabled": True,
             "severity": "block",
-            "trigger": ["commit"],
+            # lint-error-shipped-because-ruff-is-not-a-closing-gate: `verify`
+            # was ADDED here deliberately (release 1.9), and this is a
+            # behaviour change, not a refactor. The gate was already enabled
+            # and already `block`, but it only ran on `commit` — so a task
+            # could be verified, closed and its receipt signed over a tree the
+            # linter had never looked at. Measured, not supposed: an F541
+            # introduced in session #183 survived the full suite (7386
+            # passed), `verify --task`, `task done` with six gates, and a
+            # signed receipt, because no closing gate runs a linter and the
+            # defect changes no behaviour a test could observe.
+            #
+            # It runs at `verify` rather than `task-done` because that is where
+            # evidence is produced, and it is scoped by `{files}` like the
+            # pytest gate, so it costs a lint of the declared scope, not of the
+            # tree.
+            "trigger": ["commit", "verify"],
             "command": "ruff check {files}",
-            "description": "Lint with ruff before commit",
+            "description": "Lint with ruff before commit and at verify",
             "file_extensions": [".py"],
         },
     ),

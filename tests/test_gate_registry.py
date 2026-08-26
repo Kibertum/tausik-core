@@ -58,12 +58,19 @@ from gate_runner import gate_verdict, run_gates  # noqa: E402
 # (commit e69fdd0). Do not regenerate from the registry — see the module
 # docstring on why an expectation derived from the subject proves nothing.
 _UNIVERSAL_GATES_BEFORE = {
+    # DELIBERATE POST-REFACTOR CHANGE, not drift. `trigger` and `description`
+    # were changed by lint-error-shipped-because-ruff-is-not-a-closing-gate
+    # (release 1.9): `verify` was added so a closure stops certifying a tree no
+    # linter ever read. Everything else is still the frozen pre-registry
+    # literal, which is what this expectation exists to pin — the point of the
+    # snapshot is that a change has to be argued for HERE, in the open, rather
+    # than ride along inside a refactor.
     "ruff": {
         "enabled": True,
         "severity": "block",
-        "trigger": ["commit"],
+        "trigger": ["commit", "verify"],
         "command": "ruff check {files}",
-        "description": "Lint with ruff before commit",
+        "description": "Lint with ruff before commit and at verify",
         "file_extensions": [".py"],
     },
     "mypy": {
@@ -144,7 +151,26 @@ class TestDerivedMetadata:
         first["ruff"]["trigger"].append("review")
         second = reg.defaults_for_phase(reg.PHASE_SCOPED)
         assert second["filesize"]["max_lines"] == 500
-        assert second["ruff"]["trigger"] == ["commit"]
+        assert second["ruff"]["trigger"] == ["commit", "verify"]
+
+    def test_a_linter_runs_at_verify(self):
+        """A closure must not certify a tree no linter ever read.
+
+        lint-error-shipped-because-ruff-is-not-a-closing-gate: `ruff` was
+        enabled and `block`, but triggered only on `commit`. Since commits here
+        need explicit approval, it effectively never ran — and an F541
+        introduced in session #183 survived the full suite, `verify --task`,
+        `task done` and a signed receipt. A lint defect changes no behaviour a
+        test can observe, so tests can never be the thing that catches it.
+
+        Asserted through the public trigger resolution rather than by reading
+        the registry literal, because what matters is which gates a `verify`
+        ACTUALLY runs.
+        """
+        from project_config import get_gates_for_trigger
+
+        names = {g["name"] for g in get_gates_for_trigger("verify")}
+        assert "ruff" in names, "no linter runs at verify — a closure would certify unlinted code"
 
     def test_every_spec_impl_resolves(self):
         """A typo in a dotted impl path must fail here, not at close time."""
