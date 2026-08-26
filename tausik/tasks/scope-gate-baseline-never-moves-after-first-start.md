@@ -2,8 +2,8 @@
 slug: scope-gate-baseline-never-moves-after-first-start
 title: "Sortula #49, открытый вопрос: гейт рамок меряет от первой активации, поэтому долгоживущая задача не закрывается никогда"
 status: planning
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: gates-declare-what-they-prevent
 complexity: complex
 role: architect
 stack: python

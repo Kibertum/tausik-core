@@ -9,6 +9,129 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — drift-7 dated the link, not the verification (Sortula #49 → #10)
+
+The provenance detector compared `spec.updated_at` against
+`task_specs.created_at` — when the task was LINKED to the requirement, which
+says nothing about when it was verified. A task finished a day AFTER a SPEC
+edit was declared stale, and the gate failed on every `task done`. The old
+docstring called the comparison "a valid recency test", and it was: the
+arithmetic was right and the operand was wrong. Worse than noise — the false
+positive MASKED a real one, which surfaced at the consumer only once this was
+fixed.
+
+The honest reference point already existed in the schema:
+`verification_runs.ran_at`, the moment the task was actually verified, which is
+what the detector's name claims to be about. A task with no recorded run falls
+back to `tasks.completed_at` — an honest second approximation, since a task
+cannot have been verified after it was closed. Falling back to the link time is
+forbidden: it is not a worse approximation, it is not an approximation of
+verification time at all.
+
+A row datable by neither is now reported as `undateable-verification` instead
+of passing quietly, because "could not be checked" is not "checked and fine".
+The strict comparison is unchanged and deliberately so: a spec verified and
+last-edited in the same instant is still not flagged.
+
+### Changed — the `ruff` gate now also runs at `verify` (behaviour change)
+
+`ruff` was already enabled and already `block`, but its only trigger was
+`commit`. A task could therefore be verified, closed, and its receipt signed
+over a tree no linter had ever read. Measured rather than supposed: an F541
+introduced in one session survived the full suite (7386 passed), `verify
+--task`, `task done` with six gates, and a signed receipt — because no closing
+gate runs a linter, and a lint defect changes no behaviour a test can observe.
+Tests were never going to catch this; that is the point of having a linter.
+
+It runs at `verify` rather than `task-done` because that is where evidence is
+produced, and it is scoped by `{files}` exactly like the pytest gate — so the
+cost is a lint of the declared scope, not of the tree.
+
+MIGRATION. A project with existing lint debt will see `verify` block where it
+previously passed. The gate names the violations and `ruff check --fix` clears
+the mechanical ones. To opt out, set `gates.ruff.trigger` back to
+`["commit"]` — or `gates.ruff.enabled: false` — in `.tausik/config.json`.
+
+### Fixed — a gate could fail to start, and say nothing (GitLab #9)
+
+Two silent halves of one class. On Windows, `subprocess` spawns through
+`CreateProcess`, which does not consult PATHEXT — so a gate configured as
+`npm test` died with `[WinError 2]` although npm was installed and on PATH.
+CreateProcess appends `.exe` by itself, which is why this never showed up for
+`python` or `ruff` and always showed up for npm, yarn and pnpm: those ship as
+`.CMD` launchers. All 26 command-carrying gates across every shipped stack name
+their tool by bare name, so this was the whole class, not one gate.
+
+argv[0] is now resolved on PATH in the one place both spawn paths share. The
+allow-list is untouched: `npm.cmd` was NOT added to it — GitLab #9 names that
+as the worst available fix, since it treats the symptom, makes the user
+responsible for knowing the platform, and has to be repeated for every tool
+after npm. The same approved name is resolved instead, so the guard keeps
+guarding. A name that resolves to nothing is left exactly as written, so a
+genuinely missing tool still reports COULD_NOT_RUN rather than being replaced
+by something launchable.
+
+The second half: a command override that failed validation was consumed by a
+`logger.warning` and dropped, and the gate then ran the BUILT-IN DEFAULT and
+reported that run as its verdict. The refusal was invisible precisely because
+the default produced a result of its own for the reader to look at instead. A
+refused override is now the gate's outcome — COULD_NOT_RUN, naming the
+refusal — and the default is not run in its place. Reporting one check's
+verdict under another check's name is the substitution this framework exists to
+refuse.
+
+### Fixed — the result of a check could not tell "did not run" from "passed"
+
+A gate result was `(passed: bool, output: str)`, with a third state smuggled
+through the string channel as a private sentinel. Two booleans cannot spell
+four events, so the missing one leaked in both directions. A gate with no
+implementation and no command answered PASS, then SKIP — a check that never
+executed, signing a receipt. And a scoped run over a `slow`-marked test file
+answered `[FAIL] pytest (block)` on `5 deselected`: no test failed, none ran.
+pytest had already said so in its exit code (5, `EXIT_NOTESTSCOLLECTED`); the
+runner collapsed every nonzero code into `False` and threw the distinction
+away. The refusal named neither the cause nor the cure, and the distance
+between "blocking failure" and "all green" was one environment variable it
+never mentioned.
+
+The outcome is now a type with four values: PASSED, FAILED, NOT_APPLICABLE and
+COULD_NOT_RUN. The task asks for three; the fourth exists because a legitimate
+skip — a change that honestly matches no test — must stay expressible and must
+not block. Collapsing it into the blocking state would replace one
+indistinguishability with another, which is the failure this work exists to
+stop.
+
+COULD_NOT_RUN blocks by default (SENAR 1.4 §8.6(e): the absence of a negative
+finding is not a positive verdict) and cannot be constructed without a reason —
+refused at construction, because a reasonless non-execution has already lost
+what made it actionable. `gate_runs` stores the outcome and the reason;
+pre-existing rows stay NULL rather than being backfilled with a guess about
+which of the two skip meanings they carried.
+
+The sentinels are retired as transports. The type unpacks as the historical
+`(passed, output)` pair, so the ~48 call sites that destructure it were not
+touched — callers that need the distinction read `.outcome` instead of the
+first slot.
+
+Undeclared scope stays non-blocking on purpose: certification of an unscoped
+run is already refused upstream, and blocking there would redden every
+`gate_runner <trigger>` call without `--files`. It is now distinguishable by
+its own reason code, which is where the real indistinguishability was.
+
+### Fixed — a migration built today's schema instead of its own
+
+`backend_migrations_v39` derived its DDL from the live `GATE_RUNS_SQL`, so that
+"drift between the paths is impossible". That invariant held only while the
+table never changed again. Adding two columns to the fresh-DB DDL made step 39
+create the NEW shape, and the `ALTER TABLE` that followed it in the same chain
+died on `duplicate column name` — an upgrade from any older version could not
+complete at all. The test guarding the coupling was green throughout, because
+it asserted exactly the harmful invariant.
+
+A migration is a historical fact: it builds what the schema looked like AT THAT
+VERSION. The equivalence that matters is between the fresh path and the END of
+the chain, not any single step of it.
+
 ### Fixed — the MCP server accepted an undeclared argument and dropped it silently
 
 `tausik_task_add` declares `story_slug`; the call arrived with `story`. It

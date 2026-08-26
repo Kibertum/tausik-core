@@ -2,8 +2,8 @@
 slug: hang-guard-promises-eleven-times-headroom-and-has-one
 title: "Сторож зависаний обещает рядом с собой запас 11x, а на полной ленте запас 1.09x — и он рубит полный прогон на Windows"
 status: planning
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: gates-declare-what-they-prevent
 complexity: medium
 role: developer
 stack: python

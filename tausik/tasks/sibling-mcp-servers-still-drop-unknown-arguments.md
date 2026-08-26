@@ -2,8 +2,8 @@
 slug: sibling-mcp-servers-still-drop-unknown-arguments
 title: "Два соседних MCP-сервера по-прежнему принимают необъявленный параметр молча"
 status: planning
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: evidence-primitives
 complexity: medium
 role: developer
 stack: python

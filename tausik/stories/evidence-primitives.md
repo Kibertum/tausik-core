@@ -1,7 +1,7 @@
 ---
 slug: evidence-primitives
 title: "Примитивы доказательства: один вердикт, три исхода, одна реализация"
-status: open
+status: active
 epic: release-19-renar-conformance
 ---
 
