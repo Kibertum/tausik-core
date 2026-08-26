@@ -376,8 +376,21 @@ def load_gates(cfg: dict | None = None, tausik_dir: str | None = None) -> dict[s
                     name, override.get("command"), defaults.get("command")
                 )
                 if error:
+                    # GitLab #9 / js-test-gate-silent-on-windows-and-override-
+                    # dropped: this used to END here. The refusal went to a
+                    # logger nobody reads, the rejected command was dropped, and
+                    # the gate quietly ran the DEFAULT instead — reporting that
+                    # run as the verdict of the gate the user had configured.
+                    # A silently substituted check is the thing this framework
+                    # exists to refuse.
+                    #
+                    # The refusal now travels ON the gate, so the runner can put
+                    # it in the gate's final status instead of a log line. The
+                    # command is still dropped: it did not pass validation and
+                    # must not execute.
                     logger.warning("Ignoring command override: %s", error)
                     override = {k: v for k, v in override.items() if k != "command"}
+                    gate["command_override_rejected"] = error
             gate.update(override)
         elif override is not None:
             logger.warning("Gate '%s' override must be an object — ignored", name)

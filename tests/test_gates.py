@@ -596,10 +596,18 @@ class TestGateRunner:
             "override must be injected right after the pytest token, not at the leading executable"
         )
 
-    def test_command_gate_normalizes_argv0_separator(self, monkeypatch):
-        """Windows fix: argv[0] is normpath'd so a configured forward-slash venv
-        path (backend/.venv/Scripts/python.exe) resolves; bare executables are
-        unaffected because normpath is a no-op on a name without a directory."""
+    def test_command_gate_resolves_argv0(self, monkeypatch):
+        """argv[0] is made launchable by a shell-less spawn.
+
+        Two promises, one place. A configured forward-slash venv path
+        (backend/.venv/Scripts/python.exe) is normpath'd — the original Windows
+        fix. A BARE executable is now resolved on PATH as well
+        (js-test-gate-silent-on-windows-and-override-dropped, GitLab #9): this
+        test used to assert "bare executable must be untouched", and untouched
+        is precisely what made every `npm`/`yarn` gate die with [WinError 2],
+        because CreateProcess does not consult PATHEXT and npm ships as
+        `npm.CMD`. Leaving the name alone was the defect, not the contract.
+        """
         import gate_runner
 
         captured: dict = {}
@@ -616,7 +624,17 @@ class TestGateRunner:
         assert captured["cmd"][0] == os.path.normpath("backend/.venv/Scripts/python.exe")
 
         run_command_gate({"command": "ruff check ."}, [])
-        assert captured["cmd"][0] == "ruff", "bare executable must be untouched"
+        resolved = captured["cmd"][0]
+        assert os.path.isabs(resolved), (
+            "a bare executable must be resolved to something CreateProcess can "
+            f"launch, got {resolved!r}"
+        )
+        assert os.path.basename(resolved).lower().startswith("ruff")
+
+        # An unresolvable name stays as written, so the caller can report
+        # COULD_NOT_RUN / command_not_runnable instead of a substituted tool.
+        run_command_gate({"command": "definitely-not-installed-xyz check"}, [])
+        assert captured["cmd"][0] == "definitely-not-installed-xyz"
 
     def test_format_results_empty(self):
         assert "No gates" in format_results([])

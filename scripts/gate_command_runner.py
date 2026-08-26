@@ -17,6 +17,7 @@ from __future__ import annotations
 import os
 import re
 import shlex
+import shutil
 import subprocess
 from typing import IO
 
@@ -191,11 +192,47 @@ def _split_tokens(tokens: list[str], op: str) -> list[list[str]]:
     return groups
 
 
+def _resolve_argv0(argv0: str) -> str:
+    """Make a configured program name launchable by a shell-less spawn.
+
+    js-test-gate-silent-on-windows-and-override-dropped (GitLab #9).
+
+    TWO DISTINCT FAILURES, ONE PLACE. `os.path.normpath` was already here for
+    configured paths written with forward slashes. The second failure is
+    Windows-only and was invisible: `subprocess` spawns through `CreateProcess`,
+    which does NOT consult PATHEXT, so a gate configured as `npm ...` dies with
+    `[WinError 2]` even though npm is installed and on PATH. Measured, not
+    assumed: `shutil.which("npm")` answers `...\\npm.CMD` on this machine while
+    `subprocess.run(["npm"])` raises FileNotFoundError for the same name.
+
+    WHY THIS AND NOT AN ALLOW-LIST ENTRY. Adding `npm.cmd` to
+    ALLOWED_GATE_EXECUTABLES is the fix GitLab #9 explicitly names as the worst
+    one: it treats the symptom, it makes the user responsible for knowing the
+    platform, and it has to be repeated for yarn, pnpm, bun and every tool
+    after them. Resolution happens here, on the SAME name the allow-list
+    already approved — the guard keeps guarding, and it keeps guarding the
+    bare name, because `_validate_custom_gate` runs against the command string
+    long before this function sees an argv.
+
+    THE WHOLE CLASS, NOT npm. All 26 command-carrying gates across every
+    shipped stack name their tool by bare name (measured), so this is the one
+    place that makes any of them launchable rather than a per-tool patch.
+
+    An unresolvable name is returned unchanged ON PURPOSE: the caller's
+    FileNotFoundError path turns it into COULD_NOT_RUN with the reason
+    `command_not_runnable`, which is the honest answer for a tool that is
+    genuinely not installed. Substituting something launchable here would hide
+    that behind a different error.
+    """
+    normalised = os.path.normpath(argv0)
+    return shutil.which(normalised) or normalised
+
+
 def _exec_pipeline(stages: list[list[str]], timeout: int) -> tuple[int, str]:
     """Run one `|`-connected pipeline (argv stages). Returns (rc, output)."""
     if len(stages) == 1:
         argv = list(stages[0])
-        argv[0] = os.path.normpath(argv[0])
+        argv[0] = _resolve_argv0(argv[0])
         r = subprocess.run(
             argv,
             capture_output=True,
@@ -214,7 +251,7 @@ def _exec_pipeline(stages: list[list[str]], timeout: int) -> tuple[int, str]:
     prev_stdout: IO[str] | None = None
     for i, raw in enumerate(stages):
         argv = list(raw)
-        argv[0] = os.path.normpath(argv[0])
+        argv[0] = _resolve_argv0(argv[0])
         is_last = i == len(stages) - 1
         proc = subprocess.Popen(
             argv,
