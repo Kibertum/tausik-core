@@ -9,6 +9,52 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — scoped test selection follows IMPORTS, so half the suite stops being unreachable
+
+A scoped run is only worth trusting if you know what it cannot see. Measured on
+this repository: of 408 test files, **200 (49%) could not be selected by ANY
+change to ANY of the 3142 tracked source files**. The basename heuristic maps
+`scripts/foo.py` to `tests/test_foo.py`, and a guard named after the RELATION it
+pins — `test_ddl_fixture_parity`, which holds `backend_schema.SCHEMA_SQL` against
+the fixtures — is named after neither side, so nothing ever mapped to it.
+
+`resolve_test_files_for_relevant` now has three additive edges instead of one:
+basename, **import** (a test that imports the changed module is selected, whatever
+the two files are called), and declared `CROSSCUTTING_SCOPE`. The import edge
+revives 180 of those 200, and it costs nothing in scope discipline: the median
+module still pulls 1 test, 281 of 285 pull 20 or fewer, and exactly three pull
+more — `project_backend` 121, `project_service` 105, `tausik_utils` 58 — because
+those changes genuinely are broad.
+
+**Depth one, deliberately.** Imports are not followed transitively, and a test
+pins that so it cannot be "fixed" on intuition: following the chain takes the
+median module's fan-out from 1 test to 177 of 408, which is the full lane wearing
+a scope's clothes.
+
+The workaround this retires was a line in the shift handover telling humans to
+hand-mix five file names into every scoped run (memory #421, now superseded by
+#425). It had already been forgotten once — that is how it came to be written
+down. Five names in a person's head are now zero.
+
+### Changed — the visibility ratchet gained a second detector: tests no change can select
+
+`tests/test_crosscutting_registry.py` asked one narrow question — does this test
+WALK a source tree? — and was blind to guards that walk nothing and simply assert
+two artifacts agree. It now also asks the only question that matters: **is there
+any change that would select you?** Not by modelling the resolver's rules but by
+calling the resolver over the whole universe of tracked sources (~1.2 s), so the
+gate cannot keep passing while selection changes underneath it.
+
+That distinction was not theoretical. The first implementation re-derived the
+edges locally; mutation testing ripped the import edge out of the resolver and the
+ratchet stayed green. A guard that models the thing it guards will drift from it.
+
+18 tests remain selectable by nothing — they import no product code and only read
+files and configs. They are frozen in `_INVISIBLE_BASELINE`, a ratchet that may
+only shrink. A new test reachable by neither basename, import, nor declaration
+now reddens the build; the entire cost of a false positive is one line of
+`CROSSCUTTING_SCOPE`.
+
 ### Added — `tausik audit evidence`: closure-receipt citations no longer rot in silence
 
 The closure gate checks the FORM of a citation (`path::name`) and never checked

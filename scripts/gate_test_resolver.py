@@ -246,6 +246,87 @@ def _crosscutting_index(base: str) -> dict[str, list[str]]:
     return index
 
 
+def top_level_imports(text: str) -> set[str]:
+    """Top-level module names a source imports, or empty when it does not parse.
+
+    `import backend_schema` and `from backend_schema import SCHEMA_SQL` both yield
+    `backend_schema`. Relative imports (`from . import x`) name no module of their
+    own and are skipped. Parsed with AST, never by substring: a substring match
+    hits the name inside a comment, a string or a longer word, and a check that
+    asserts a literal breaks on the next rename (convention #417).
+    """
+    try:
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError):
+        return set()
+    out: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            out.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+            out.add(node.module.split(".")[0])
+    return out
+
+
+def _tests_importing(base: str, modules: set[str], tests_index: dict[str, list[str]]) -> set[str]:
+    """Tests that IMPORT a changed module — the edge a basename can never carry.
+
+    `tests/test_ddl_fixture_parity.py` guards `scripts/backend_schema.py`, and no
+    naming rule maps one to the other: the guard is named after the RELATION it
+    pins, not after either side of it. Measured on this repo before the edge
+    existed: of 408 test files, 200 (49%) could not be selected by ANY change to
+    any of the 3142 tracked source files. The import edge revives 180 of those 200.
+
+    DEPTH ONE, DELIBERATELY — and this is a real limitation, not an oversight. A
+    test importing `handlers_task`, which imports `project_service`, is NOT pulled
+    in by a change to `project_service`. Transitive closure was measured and
+    rejected: it takes the median module's fan-out from 1 test to 177 of 408, which
+    is the full lane wearing a scope's clothes. At depth one the median module
+    pulls 1 test, 281 of 285 modules pull <= 20, and exactly three pull more —
+    project_backend 121, project_service 105, tausik_utils 58 — all three being
+    changes that genuinely are broad. What depth one cannot reach stays visible
+    instead of silent: `tests/test_crosscutting_registry.py` fails the build for a
+    test reachable by neither basename nor import unless it declares its scope.
+
+    Cost: parsing all 408 test files costs ~920 ms, so the read is prefiltered by
+    substring first and only candidates are parsed — the substring decides what to
+    PARSE, never what to select.
+    """
+    if not modules:
+        return set()
+    out: set[str] = set()
+    for paths in tests_index.values():
+        for rel in paths:
+            try:
+                with open(os.path.join(base, rel.replace("/", os.sep)), encoding="utf-8") as fh:
+                    text = fh.read()
+            except OSError:
+                continue
+            if not any(m in text for m in modules):
+                continue
+            if modules & top_level_imports(text):
+                out.add(rel)
+    return out
+
+
+def _basename_matches(stem: str, tests_index: dict[str, list[str]]) -> list[str]:
+    """Test files a source file named `<stem>.<ext>` pulls in by NAME alone.
+
+    Exact `test_<stem>.py` plus suffix variants `test_<stem>_*.py`, at any depth.
+    Extracted so `resolve_test_files_for_relevant` and the visibility ratchet in
+    `tests/test_crosscutting_registry.py` cannot answer "would a change select
+    this test?" differently — a ratchet running its own copy of the rule would
+    keep passing while the real selection quietly changed underneath it.
+    """
+    out: list[str] = []
+    out.extend(tests_index.get(f"test_{stem}.py", []))
+    prefix = f"test_{stem}_"
+    for fn, paths in tests_index.items():
+        if fn.startswith(prefix) and fn.endswith(".py"):
+            out.extend(paths)
+    return out
+
+
 def _under_prefix(path: str, prefix: str) -> bool:
     """True when `path` lies at or under `prefix`, respecting directory bounds:
     `scripts/hooks/` matches `scripts/hooks/x.py` but not `scripts/hooks_x/y.py`."""
@@ -289,11 +370,16 @@ def count_test_files(root: str | None = None) -> int:
 def resolve_test_files_for_relevant(
     relevant_files: list[str] | None, *, root: str | None = None
 ) -> list[str]:
-    """Map source files → existing test files via basename heuristic.
+    """Map source files → existing test files. THREE edges, all additive.
 
-    For each `relevant_files` entry like `scripts/brain_init.py`, look for
-    `tests/test_brain_init.py` and `tests/test_brain_init_*.py`. Also matches
-    when the relevant file IS already a test file (returns it as-is).
+    1. BASENAME. For `scripts/brain_init.py`, look for `tests/test_brain_init.py`
+       and `tests/test_brain_init_*.py`. An entry that IS a test file is returned
+       as-is.
+    2. IMPORT. Any test that imports the changed module at top level (see
+       `_tests_importing`). This is what makes a guard named after a relation —
+       `test_ddl_fixture_parity` for `backend_schema` — selectable at all.
+    3. DECLARED SCOPE. A test whose `CROSSCUTTING_SCOPE` prefix contains a changed
+       path, for the guards that import nothing and only read files.
 
     Returns a deduplicated list of existing test file paths (forward-slashed).
     Empty list = no mapping; caller decides whether to fall back to the full
@@ -313,6 +399,7 @@ def resolve_test_files_for_relevant(
         found.append(norm)
 
     tests_index = build_tests_index(base)
+    changed_modules: set[str] = set()
 
     for raw in relevant_files:
         if not raw or not isinstance(raw, str):
@@ -327,15 +414,16 @@ def resolve_test_files_for_relevant(
         stem = os.path.splitext(os.path.basename(rel))[0]
         if not stem:
             continue
-        # Exact match: test_<stem>.py at any depth.
-        for path in tests_index.get(f"test_{stem}.py", []):
+        if rel.endswith(".py"):
+            changed_modules.add(stem)
+        for path in _basename_matches(stem, tests_index):
             _add(path)
-        # Glob suffix variants: test_<stem>_*.py at any depth.
-        prefix = f"test_{stem}_"
-        for fn, paths in tests_index.items():
-            if fn.startswith(prefix) and fn.endswith(".py"):
-                for path in paths:
-                    _add(path)
+
+    # Import edge: a changed module pulls in every test that imports it, whatever
+    # either one is called. Additive like the rest — a module nobody imports adds
+    # nothing, and no branch here can widen the run to the whole suite.
+    for test_rel in sorted(_tests_importing(base, changed_modules, tests_index)):
+        _add(test_rel)
 
     # Cross-cutting tests: a declared CROSSCUTTING_SCOPE prefix that any changed
     # file falls under pulls the test in — BY PATH, not basename. This is additive
