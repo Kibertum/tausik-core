@@ -2,8 +2,8 @@
 slug: history-to-harness-loop-deterministic-candidates-human-verdict
 title: "Петля «история → обвязка»: кандидаты производятся детерминированно, вердикт выносит человек"
 status: planning
-epic: release-110-proof-outward
-story: proof-outward
+epic: release-19-renar-conformance
+story: knowledge-records-what-failed-19
 complexity: complex
 role: architect
 stack: null

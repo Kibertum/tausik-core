@@ -4,7 +4,7 @@ title: "ADAPT требует двойной подписи — норму, ко�
 status: planning
 epic: release-19-renar-conformance
 story: renar-debt-implemented-wrong
-complexity: null
+complexity: complex
 role: developer
 stack: python
 tier: moderate
@@ -15,7 +15,8 @@ scope_exclude: null
 relevant_files: []
 scope_paths: []
 scope_tools: []
-depends_on: []
+depends_on:
+  - actz-the-contract-contour-artifact-is-missing
 completed_at: null
 ---
 
@@ -28,5 +29,7 @@ completed_at: null
 ## Plan
 
 ## Rollback
+
+Изъятие подписи клиента и состояния client-ready из машины состояний ADAPT с миграцией уже подписанных. Откат: обратная миграция возвращает состояние и подписи, git revert возвращает справку и код. ОПАСНОЕ МЕСТО — уже подписанные ADAPT в живых базах потребителей: миграция обязана быть обратимой БЕЗ потери подписей, и это проверяется до выпуска.
 
 ## Journal

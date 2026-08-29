@@ -2,8 +2,8 @@
 slug: ag-artifacts-and-edges-with-provenance
 title: "[1.9] Подложка: артефакты и рёбра в той же БД, у каждого ребра — происхождение"
 status: planning
-epic: artifact-graph
-story: ag-substrate
+epic: release-19-renar-conformance
+story: evidence-primitives
 complexity: complex
 role: developer
 stack: python
@@ -38,5 +38,7 @@ completed_at: null
 ## Plan
 
 ## Rollback
+
+Новые таблицы артефактов, символов и рёбер плюс поштучная свежесть. Откат: обратная миграция удаляет таблицы; существующие сущности и memory_edges не трогаются, потому что граф расширяет их, а не заменяет.
 
 ## Journal

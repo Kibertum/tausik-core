@@ -4,7 +4,7 @@ title: "Размножение тестов ловится отчётом, а н
 status: planning
 epic: release-19-renar-conformance
 story: test-evidence-not-test-volume
-complexity: null
+complexity: simple
 role: developer
 stack: python
 tier: substantial
@@ -28,5 +28,7 @@ completed_at: null
 ## Plan
 
 ## Rollback
+
+Существующий детектор становится гейтом с храповиком. Откат: отключение гейта в конфиге. Известные 683 структурно одинаковых теста фиксируются числом и при откате остаются в отчёте, то есть знание не теряется.
 
 ## Journal

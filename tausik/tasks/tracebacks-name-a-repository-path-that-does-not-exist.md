@@ -2,8 +2,8 @@
 slug: tracebacks-name-a-repository-path-that-does-not-exist
 title: "Трассировки называют путь репозитория, которого не существует: устаревшие .pyc пережили переезд дерева и врут об именах файлов"
 status: planning
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: evidence-primitives
 complexity: medium
 role: developer
 stack: python
@@ -46,5 +46,7 @@ completed_at: null
 ## Plan
 
 ## Rollback
+
+Чистка устаревших .pyc и защита от их появления. Откат: git revert для кода; удалённые .pyc восстанавливаются самим интерпретатором при следующем запуске, потерять нечего.
 
 ## Journal

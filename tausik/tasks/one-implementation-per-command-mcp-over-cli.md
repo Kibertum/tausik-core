@@ -4,7 +4,7 @@ title: "Одна реализация на команду: MCP обязан бы
 status: planning
 epic: release-19-renar-conformance
 story: evidence-primitives
-complexity: null
+complexity: complex
 role: architect
 stack: python
 tier: substantial
@@ -36,5 +36,7 @@ completed_at: null
 ## Plan
 
 ## Rollback
+
+Обработчики MCP становятся транспортом над функциями CLI. Откат: git revert. Поверхность из 117 инструментов сохраняет имена и схемы — меняется только тело обработчика, поэтому клиенты не ломаются ни при внедрении, ни при откате.
 
 ## Journal

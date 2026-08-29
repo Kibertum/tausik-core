@@ -2,9 +2,9 @@
 slug: pytest-asyncio-default-loop-scope-unset-warns-on-every-run
 title: "pytest-asyncio предупреждает на КАЖДОМ прогоне: asyncio_default_fixture_loop_scope не задан"
 status: planning
-epic: release-19-renar-conformance
-story: gates-declare-what-they-prevent
-complexity: null
+epic: release-19-agent-effectiveness
+story: verification-off-the-critical-path
+complexity: simple
 role: developer
 stack: python
 tier: trivial
@@ -38,5 +38,7 @@ completed_at: null
 ## Plan
 
 ## Rollback
+
+Одна строка asyncio_default_fixture_loop_scope в pyproject. Откат: git revert. Значение function совпадает с будущим умолчанием плагина, поэтому откат возвращает предупреждение, а не меняет поведение фикстур.
 
 ## Journal

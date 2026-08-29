@@ -2,8 +2,8 @@
 slug: pr5-was-promised-a-merge-and-planned-as-a-reimplementation
 title: "Внешнему автору публично обещан МЕРЖ его коммитов, а запланирован ПЕРЕНОС чужими руками — обещанию 25 дней, PR открыт"
 status: planning
-epic: null
-story: null
+epic: release-19-agent-effectiveness
+story: the-loop-closes-outward
 complexity: complex
 role: architect
 stack: null
@@ -52,5 +52,7 @@ completed_at: null
 ## Plan
 
 ## Rollback
+
+Исход задачи — либо мерж коммитов автора, либо явное объяснение автору, почему перенос. Откат мержа — git revert коммитов с сохранением авторства (Co-Authored-By остаётся в истории). Откат объяснения не требуется: сказанное автору не отзывается, а дополняется.
 
 ## Journal

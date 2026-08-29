@@ -2,8 +2,8 @@
 slug: we-say-discipline-layer-field-says-harness-engineering
 title: "Мы называем себя discipline layer, поле называет эту дисциплину harness engineering — и не находит нас"
 status: planning
-epic: release-110-proof-outward
-story: proof-outward
+epic: release-19-renar-conformance
+story: proof-and-positioning-outward
 complexity: medium
 role: tech-writer
 stack: null

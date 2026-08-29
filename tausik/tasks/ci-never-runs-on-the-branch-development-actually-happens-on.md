@@ -2,9 +2,9 @@
 slug: ci-never-runs-on-the-branch-development-actually-happens-on
 title: "CI не запускается на ветке, где идёт разработка: сеть натянута и отключена от розетки"
 status: planning
-epic: null
-story: null
-complexity: null
+epic: release-19-agent-effectiveness
+story: verification-off-the-critical-path
+complexity: simple
 role: architect
 stack: null
 tier: moderate
@@ -15,7 +15,8 @@ scope_exclude: null
 relevant_files: []
 scope_paths: []
 scope_tools: []
-depends_on: []
+depends_on:
+  - full-lane-runs-serial-on-a-twenty-core-machine
 completed_at: null
 ---
 
@@ -45,6 +46,8 @@ completed_at: null
 ## Plan
 
 ## Rollback
+
+Вариант MR-first не меняет конфиг вовсе — правило merge_request_event уже есть, откат есть закрытие MR. Если выбран вариант с правилом на рабочие ветки: одна строка в .gitlab-ci.yml, откат git revert.
 
 ## Journal
 

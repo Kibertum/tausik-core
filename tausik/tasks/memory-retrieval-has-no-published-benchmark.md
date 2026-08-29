@@ -2,8 +2,8 @@
 slug: memory-retrieval-has-no-published-benchmark
 title: "У поиска по памяти нет опубликованного бенчмарка: единственное обещание фреймворка, которое он не доказывает"
 status: planning
-epic: release-110-proof-outward
-story: proof-outward
+epic: release-19-renar-conformance
+story: proof-and-positioning-outward
 complexity: complex
 role: backend
 stack: null

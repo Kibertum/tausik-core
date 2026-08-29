@@ -2,8 +2,8 @@
 slug: repeated-reads-are-paid-for-in-full-every-time
 title: "Повторное чтение файла оплачивается полностью каждый раз: хук про раздутый вывод только советует"
 status: planning
-epic: release-110-proof-outward
-story: proof-outward
+epic: release-19-agent-effectiveness
+story: context-carries-over-between-sessions
 complexity: medium
 role: backend
 stack: null

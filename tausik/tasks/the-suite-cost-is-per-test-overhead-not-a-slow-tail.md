@@ -2,8 +2,8 @@
 slug: the-suite-cost-is-per-test-overhead-not-a-slow-tail
 title: "[1.9] Полный прогон: 1003 секунды сидят в накладных расходах НА ТЕСТ, а не в медленных тестах — замер опроверг гипотезу"
 status: planning
-epic: release-19-renar-conformance
-story: test-evidence-not-test-volume
+epic: arch-debt-post-18
+story: adp18-suite-cost
 complexity: medium
 role: developer
 stack: python

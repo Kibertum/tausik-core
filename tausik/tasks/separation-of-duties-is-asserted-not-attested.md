@@ -4,7 +4,7 @@ title: "Разделение обязанностей объявлено, но �
 status: planning
 epic: release-19-renar-conformance
 story: renar-contract-contour
-complexity: null
+complexity: complex
 role: architect
 stack: python
 tier: substantial
@@ -32,5 +32,7 @@ completed_at: null
 ## Plan
 
 ## Rollback
+
+Идентичность деятеля как подписант квитанции. Откат: обратная миграция. Старые квитанции остаются валидными, потому что поле ДОБАВЛЯЕТСЯ, а проверка прежних схем сохраняется — иначе откат обесценил бы историю закрытий.
 
 ## Journal

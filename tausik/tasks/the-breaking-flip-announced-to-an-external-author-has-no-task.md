@@ -2,8 +2,8 @@
 slug: the-breaking-flip-announced-to-an-external-author-has-no-task
 title: "Слом умолчания хуков объявлен внешнему автору как входящий в 1.9, но задачи на него нет и код по-прежнему fail-open"
 status: planning
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: gates-declare-what-they-prevent
 complexity: complex
 role: developer
 stack: python
@@ -43,5 +43,7 @@ completed_at: null
 ## Plan
 
 ## Rollback
+
+Слом умолчания хуков с fail-open на fail-closed. Откат: возврат умолчания в конфиге БЕЗ отката кода, то есть без потери самой проверки — это главное свойство отката здесь. Внешнему автору изменение уже объявлено, поэтому откат обязан быть объявлен ему так же явно, а не молча.
 
 ## Journal

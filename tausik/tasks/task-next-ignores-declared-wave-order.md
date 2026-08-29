@@ -2,9 +2,9 @@
 slug: task-next-ignores-declared-wave-order
 title: "task next не уважает объявленный порядок волны: голова волны не выдаётся, выигрывает несвязанная задача"
 status: planning
-epic: release-19-renar-conformance
-story: evidence-primitives
-complexity: null
+epic: release-19-agent-effectiveness
+story: parallel-work-runs-without-collisions
+complexity: medium
 role: architect
 stack: python
 tier: moderate
@@ -37,4 +37,8 @@ completed_at: null
 
 ## Rollback
 
+Правка порядка выдачи в task next. Откат: git revert. Данные о порядке (рёбра task_deps) не изменяются — меняется только их прочтение, поэтому откат ничего не теряет.
+
 ## Journal
+
+- 2026-08-29T14:22:52Z [planning] — [#189] ВЕРНУТА В 1.9 ПОСЛЕ ПРОВЕРКИ ПЛАНА. Прогнал task next на готовом плане релиза: он предложил brainh-reliability — задачу из ЧУЖОГО эпика (brain-hardening, Notion sync), при 53 свободных задачах 1.9 и объявленном порядке в 28 рёбрах. Строка обоснования печатает «Chosen by: declared order first, then complexity score», но выбор идёт по ВСЕМУ бэклогу из 190+ открытых задач, а не по релизу. Следствие прямое: при многоагентной работе агенты разберут случайные задачи из разных эпиков вместо ленты релиза, и объявленный порядок работ окажется декорацией. Это делает задачу условием выполнимости плана, а не улучшением удобства — потому она переезжает из arch-debt в историю про параллельную работу.

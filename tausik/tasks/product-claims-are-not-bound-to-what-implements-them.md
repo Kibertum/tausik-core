@@ -4,7 +4,7 @@ title: "Утверждения продукта ни к чему не привя
 status: planning
 epic: release-19-renar-conformance
 story: evidence-primitives
-complexity: null
+complexity: complex
 role: architect
 stack: python
 tier: substantial
@@ -15,7 +15,8 @@ scope_exclude: null
 relevant_files: []
 scope_paths: []
 scope_tools: []
-depends_on: []
+depends_on:
+  - ag-artifacts-and-edges-with-provenance
 completed_at: null
 ---
 
@@ -36,5 +37,7 @@ README дважды обещает офлайновую проверку кви�
 ## Plan
 
 ## Rollback
+
+Утверждения продукта как сущность с рёбрами на исполняющий артефакт. Откат: обратная миграция плюс git revert. Тексты README и справки этой задачей НЕ переписываются, только связываются, поэтому откат не возвращает никакой лжи.
 
 ## Journal

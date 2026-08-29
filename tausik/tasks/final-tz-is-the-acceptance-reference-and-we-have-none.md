@@ -4,7 +4,7 @@ title: "Итоговое ТЗ — эталон сдачи-приёмки: у н�
 status: planning
 epic: release-19-renar-conformance
 story: renar-contract-contour
-complexity: null
+complexity: complex
 role: architect
 stack: python
 tier: substantial
@@ -15,7 +15,8 @@ scope_exclude: null
 relevant_files: []
 scope_paths: []
 scope_tools: []
-depends_on: []
+depends_on:
+  - actz-the-contract-contour-artifact-is-missing
 completed_at: null
 ---
 
@@ -28,5 +29,7 @@ RENAR §5A.4: итоговое ТЗ есть начальное ТЗ с прил
 ## Plan
 
 ## Rollback
+
+Производное представление; третьей копии текста не заводится. Откат: git revert. ACTZ и начальное ТЗ остаются нетронутыми, потому что итоговое ТЗ ВЫЧИСЛЯЕТСЯ, а не хранится.
 
 ## Journal

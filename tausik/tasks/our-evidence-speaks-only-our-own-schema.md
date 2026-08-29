@@ -4,7 +4,7 @@ title: "Наши следы говорят только на нашем язык
 status: planning
 epic: release-19-renar-conformance
 story: standards-drift-detection
-complexity: null
+complexity: medium
 role: architect
 stack: python
 tier: substantial
@@ -32,5 +32,7 @@ completed_at: null
 ## Plan
 
 ## Rollback
+
+Излучение спанов через ОДИН слой отображения, экспортер выключен по умолчанию. Откат: git revert либо отключение экспортера; внутренняя схема событий не меняется, поэтому история остаётся читаемой.
 
 ## Journal

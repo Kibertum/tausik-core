@@ -2,9 +2,9 @@
 slug: full-lane-runs-serial-on-a-twenty-core-machine
 title: "Полная лента идёт в один поток на двадцатиядерной машине: 32 минуты вместо четырёх"
 status: planning
-epic: null
-story: null
-complexity: null
+epic: release-19-agent-effectiveness
+story: verification-off-the-critical-path
+complexity: simple
 role: developer
 stack: python
 tier: moderate
@@ -15,7 +15,8 @@ scope_exclude: null
 relevant_files: []
 scope_paths: []
 scope_tools: []
-depends_on: []
+depends_on:
+  - hang-guard-promises-eleven-times-headroom-and-has-one
 completed_at: null
 ---
 
@@ -42,6 +43,8 @@ pytest-xdist не установлен и не упомянут НИГДЕ: ни
 ## Plan
 
 ## Rollback
+
+Строка -n auto в pyproject плюс pytest-xdist в requirements. Откат: git revert возвращает последовательный прогон; результат тестов от способа запуска не зависит, поэтому откат не меняет вердиктов.
 
 ## Journal
 

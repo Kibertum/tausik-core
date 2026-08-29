@@ -2,8 +2,8 @@
 slug: tags-diverged-between-the-public-and-the-private-line
 title: "Теги двух репозиториев разошлись: наружу уехало 9 из 22, и два одноимённых указывают на разное"
 status: planning
-epic: release-19-renar-conformance
-story: github-primary-gitlab-mirror
+epic: release-19-agent-effectiveness
+story: the-loop-closes-outward
 complexity: medium
 role: architect
 stack: null
@@ -36,6 +36,8 @@ completed_at: null
 ## Plan
 
 ## Rollback
+
+Правка процедуры выпуска в документации. Опубликованные теги этой задачей НЕ перевыпускаются ни при каком варианте. Откат: git revert.
 
 ## Journal
 

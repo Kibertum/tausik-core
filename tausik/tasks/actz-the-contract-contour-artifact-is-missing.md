@@ -4,7 +4,7 @@ title: "ACTZ — протокол уточнения ТЗ: контрактно�
 status: planning
 epic: release-19-renar-conformance
 story: renar-contract-contour
-complexity: null
+complexity: complex
 role: architect
 stack: python
 tier: substantial
@@ -15,7 +15,8 @@ scope_exclude: null
 relevant_files: []
 scope_paths: []
 scope_tools: []
-depends_on: []
+depends_on:
+  - four-accepted-adrs-were-never-assessed
 completed_at: null
 ---
 
@@ -28,5 +29,7 @@ RENAR §5A (ADR-011, accepted) вводит ACTZ — артефакт контр
 ## Plan
 
 ## Rollback
+
+Новая сущность со своей таблицей и миграцией. Откат: обратная миграция плюс git revert; существующие ADAPT не затрагиваются, потому что ребро decided-in ДОБАВЛЯЕТСЯ, а не заменяет имеющиеся связи.
 
 ## Journal

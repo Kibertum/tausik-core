@@ -3,8 +3,8 @@ slug: pdd-paper-unread-blocks-the-uniqueness-claim
 title: "Ближайший академический сосед не прочитан, а обзор запретил публиковать вывод без этой оси"
 status: planning
 epic: release-19-renar-conformance
-story: external-proof-and-open-axes
-complexity: null
+story: proof-and-positioning-outward
+complexity: simple
 role: architect
 stack: null
 tier: substantial
@@ -32,5 +32,7 @@ completed_at: null
 ## Plan
 
 ## Rollback
+
+Результат — прочтение и записанный вердикт, кода не трогает. Отката не требуется; вердикт остаётся записью в журнале задачи и при отмене решения просто перестаёт использоваться.
 
 ## Journal

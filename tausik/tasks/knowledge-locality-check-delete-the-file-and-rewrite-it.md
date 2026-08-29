@@ -2,8 +2,8 @@
 slug: knowledge-locality-check-delete-the-file-and-rewrite-it
 title: "Знание живёт в требованиях или в коде: проверка «удали файл и перепиши по докам и тестам»"
 status: planning
-epic: release-110-proof-outward
-story: proof-outward
+epic: release-19-renar-conformance
+story: knowledge-records-what-failed-19
 complexity: complex
 role: architect
 stack: null

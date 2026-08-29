@@ -2,8 +2,8 @@
 slug: release-19-notes-page-does-not-exist-yet
 title: "Заметок к 1.9 не существует: восемь изменений поведения живут только в CHANGELOG"
 status: planning
-epic: null
-story: null
+epic: release-19-agent-effectiveness
+story: the-loop-closes-outward
 complexity: simple
 role: tech-writer
 stack: null

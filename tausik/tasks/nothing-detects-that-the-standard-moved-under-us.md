@@ -4,7 +4,7 @@ title: "Никто не замечает, что стандарт ушёл вп�
 status: planning
 epic: release-19-renar-conformance
 story: standards-drift-detection
-complexity: null
+complexity: medium
 role: developer
 stack: python
 tier: substantial
@@ -28,5 +28,7 @@ completed_at: null
 ## Plan
 
 ## Rollback
+
+Новая проверка дрейфа стандарта, read-only. Откат: git revert либо отключение в конфиге гейтов. Локальный корпус standards/renar не изменяется ни при каких условиях.
 
 ## Journal

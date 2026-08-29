@@ -4,7 +4,7 @@ title: "P9 красная история: тест, ни разу не бывш�
 status: planning
 epic: release-19-renar-conformance
 story: test-evidence-not-test-volume
-complexity: null
+complexity: medium
 role: developer
 stack: python
 tier: substantial
@@ -28,5 +28,7 @@ RENAR §9.18.2 (ADR-012, accepted). Изоляция авторства гара
 ## Plan
 
 ## Rollback
+
+Хранение исхода ПО ТЕСТУ плюс храповик для новых тестов. Откат: обратная миграция. 5722 существующих теста не переоцениваются ни на каком шаге, поэтому откат не обесценивает ни одного закрытия.
 
 ## Journal

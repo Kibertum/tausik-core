@@ -4,7 +4,7 @@ title: "Закрытый список типов SPEC у нас девять, в
 status: planning
 epic: release-19-renar-conformance
 story: renar-debt-implemented-wrong
-complexity: null
+complexity: medium
 role: developer
 stack: python
 tier: moderate
@@ -28,5 +28,7 @@ completed_at: null
 ## Plan
 
 ## Rollback
+
+Два новых типа SPEC плюс миграция. Откат: обратная миграция возможна ТОЛЬКО при отсутствии записей новых типов, и это обязано быть проверено до применения у потребителя. Если записи есть, откат требует их переноса в существующие типы с явным решением, а не молча.
 
 ## Journal

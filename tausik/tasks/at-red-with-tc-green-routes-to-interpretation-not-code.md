@@ -4,7 +4,7 @@ title: "Матрица маршрутизации провалов и релиз
 status: planning
 epic: release-19-renar-conformance
 story: renar-contract-contour
-complexity: null
+complexity: medium
 role: architect
 stack: python
 tier: moderate
@@ -15,7 +15,9 @@ scope_exclude: null
 relevant_files: []
 scope_paths: []
 scope_tools: []
-depends_on: []
+depends_on:
+  - at-acceptance-tests-derived-by-an-isolated-agent
+  - tc-as-a-first-class-artifact-coverage-from-statements
 completed_at: null
 ---
 
@@ -28,5 +30,7 @@ RENAR §8A.4 и §10.4.3. Расхождение уровней проверки
 ## Plan
 
 ## Rollback
+
+Машинный вывод из состояния двух наборов плюс релизный гейт. Откат: гейт отключается в конфиге и вывод маршрутизации остаётся справочным; git revert для кода.
 
 ## Journal

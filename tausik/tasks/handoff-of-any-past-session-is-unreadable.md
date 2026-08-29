@@ -2,8 +2,8 @@
 slug: handoff-of-any-past-session-is-unreadable
 title: "Хэндофф любой сессии, кроме последней, не читается ни CLI, ни MCP"
 status: planning
-epic: release-19-renar-conformance
-story: github-primary-gitlab-mirror
+epic: arch-debt-post-18
+story: adp18-module-boundaries
 complexity: simple
 role: backend
 stack: null

@@ -2,8 +2,8 @@
 slug: redact-exists-in-cli-and-is-absent-from-mcp
 title: "redact есть в CLI и отсутствует в MCP: поверхности разошлись на новой команде"
 status: planning
-epic: release-19-renar-conformance
-story: github-primary-gitlab-mirror
+epic: arch-debt-post-18
+story: adp18-module-boundaries
 complexity: simple
 role: backend
 stack: null

@@ -2,8 +2,8 @@
 slug: skills-do-not-anticipate-the-rationalization
 title: "Скиллы не предвосхищают рационализацию: гейт ловит срезанный угол уже после того, как агент себя уговорил"
 status: planning
-epic: release-110-proof-outward
-story: proof-outward
+epic: release-19-renar-conformance
+story: gates-declare-what-they-prevent
 complexity: simple
 role: tech-writer
 stack: null

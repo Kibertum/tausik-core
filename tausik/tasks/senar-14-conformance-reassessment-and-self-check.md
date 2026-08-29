@@ -21,7 +21,9 @@ scope_paths:
   - README.md
   - CLAUDE.md
 scope_tools: []
-depends_on: []
+depends_on:
+  - senar-14-fail-closed-when-no-gate-actually-ran
+  - senar-14-gates-declare-the-effect-they-prevent
 completed_at: null
 ---
 

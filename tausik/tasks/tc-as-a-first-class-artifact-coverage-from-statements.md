@@ -4,7 +4,7 @@ title: "TC как артефакт: покрытие считается от у�
 status: planning
 epic: release-19-renar-conformance
 story: test-evidence-not-test-volume
-complexity: null
+complexity: complex
 role: architect
 stack: python
 tier: deep
@@ -15,7 +15,8 @@ scope_exclude: null
 relevant_files: []
 scope_paths: []
 scope_tools: []
-depends_on: []
+depends_on:
+  - four-accepted-adrs-were-never-assessed
 completed_at: null
 ---
 
@@ -40,5 +41,7 @@ completed_at: null
 ## Plan
 
 ## Rollback
+
+Новая сущность TC со своим жизненным циклом. Откат: обратная миграция. 5722 функции pytest продолжают работать как ИНСТРУМЕНТАЛЬНАЯ половина, потому что нормативная добавляется рядом, а не заменяет их — прогон тестов при откате не ломается.
 
 ## Journal

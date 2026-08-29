@@ -2,8 +2,8 @@
 slug: rag-index-never-prunes-deleted-paths
 title: "Индекс RAG не вычищает удалённые файлы: search_code первым результатом отдаёт путь, которого нет"
 status: planning
-epic: null
-story: null
+epic: arch-debt-post-18
+story: adp18-quality-signals
 complexity: medium
 role: developer
 stack: python

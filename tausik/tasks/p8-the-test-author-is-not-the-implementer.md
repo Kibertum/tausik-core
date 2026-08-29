@@ -4,7 +4,7 @@ title: "P8 изоляция авторства: тест заморожен до
 status: planning
 epic: release-19-renar-conformance
 story: test-evidence-not-test-volume
-complexity: null
+complexity: complex
 role: architect
 stack: python
 tier: substantial
@@ -15,7 +15,8 @@ scope_exclude: null
 relevant_files: []
 scope_paths: []
 scope_tools: []
-depends_on: []
+depends_on:
+  - separation-of-duties-is-asserted-not-attested
 completed_at: null
 ---
 
@@ -28,5 +29,7 @@ RENAR §9.18.1 (ADR-012, accepted), три оси: тест заморожен �
 ## Plan
 
 ## Rollback
+
+Три оси авторства проверяются по УЖЕ хранимому порядку записей и по существующему внешнему ревьюеру. Откат: git revert; написанные тесты остаются, снимается только требование к авторству. Обесценивания сделанной работы при откате не происходит.
 
 ## Journal

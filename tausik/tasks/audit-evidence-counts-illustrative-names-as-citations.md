@@ -2,8 +2,8 @@
 slug: audit-evidence-counts-illustrative-names-as-citations
 title: "audit evidence считает иллюстративные имена из прозы сгнившими ссылками: корзина NEVER_EXISTED в основном шум"
 status: planning
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: standards-drift-detection
 complexity: simple
 role: developer
 stack: python

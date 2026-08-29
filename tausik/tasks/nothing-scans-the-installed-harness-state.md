@@ -2,8 +2,8 @@
 slug: nothing-scans-the-installed-harness-state
 title: "Никто не сканирует установленную обвязку: мы проверяем входящее и не смотрим на то, что уже лежит"
 status: planning
-epic: release-110-proof-outward
-story: proof-outward
+epic: release-19-renar-conformance
+story: guarantees-are-not-claude-only
 complexity: medium
 role: backend
 stack: null

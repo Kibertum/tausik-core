@@ -3,8 +3,8 @@ slug: score-tausik-on-repocompliancebench
 title: "Внешний бенчмарк дисциплины уже существует — RepoComplianceBench меряет ровно то, что мы продаём"
 status: planning
 epic: release-19-renar-conformance
-story: external-proof-and-open-axes
-complexity: null
+story: proof-and-positioning-outward
+complexity: medium
 role: qa
 stack: python
 tier: substantial
@@ -32,5 +32,7 @@ arXiv 2607.26819, «A First Look at Coding Agents Compliance with AI Contributio
 ## Plan
 
 ## Rollback
+
+Прогон внешнего бенчмарка и запись результата; кода не трогает. Отката не требуется. Публикация результата наружу — отдельное согласие владельца и в эту задачу не входит.
 
 ## Journal

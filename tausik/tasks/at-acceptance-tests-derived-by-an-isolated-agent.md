@@ -4,7 +4,7 @@ title: "AT — приёмочный тест от контракта: вывод
 status: planning
 epic: release-19-renar-conformance
 story: renar-contract-contour
-complexity: null
+complexity: complex
 role: architect
 stack: python
 tier: substantial
@@ -15,7 +15,8 @@ scope_exclude: null
 relevant_files: []
 scope_paths: []
 scope_tools: []
-depends_on: []
+depends_on:
+  - final-tz-is-the-acceptance-reference-and-we-have-none
 completed_at: null
 ---
 
@@ -28,5 +29,7 @@ RENAR §8A (ADR-012, accepted). Прослеживаемость TC замкну
 ## Plan
 
 ## Rollback
+
+Новая сущность AT с генерацией изолированным по входу агентом. Откат: обратная миграция плюс git revert; TC и SPEC не затрагиваются, AT читает итоговое ТЗ и ничего в него не пишет.
 
 ## Journal

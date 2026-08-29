@@ -2,8 +2,8 @@
 slug: senar-has-an-independent-implementation-and-says-nothing
 title: "У SENAR есть независимое внедрение, и об этом не сказано ни на сайте, ни в README"
 status: planning
-epic: release-110-proof-outward
-story: proof-outward
+epic: release-19-renar-conformance
+story: proof-and-positioning-outward
 complexity: simple
 role: tech-writer
 stack: null

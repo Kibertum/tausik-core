@@ -2,8 +2,8 @@
 slug: nobody-asks-whether-the-repository-is-still-coherent
 title: "Ревью смотрит на задачу и на диф, но никто не спрашивает, цел ли репозиторий как целое"
 status: planning
-epic: release-110-proof-outward
-story: proof-outward
+epic: release-19-renar-conformance
+story: evidence-primitives
 complexity: complex
 role: architect
 stack: null
