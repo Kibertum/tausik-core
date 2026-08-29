@@ -22,7 +22,8 @@ scope_paths:
   - CHANGELOG.md
   - CHANGELOG.ru.md
 scope_tools: []
-depends_on: []
+depends_on:
+  - pr5-was-promised-a-merge-and-planned-as-a-reimplementation
 completed_at: null
 ---
 
