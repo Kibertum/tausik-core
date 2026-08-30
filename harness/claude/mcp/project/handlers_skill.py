@@ -218,10 +218,25 @@ def handle_update_claudemd(svc) -> str:
     памяти, который сам же обещает впрыснуть
     (mcp-update-claudemd-erases-the-memory-tail).
     """
-    from claudemd_state import build_dynamic_state, resolve_claudemd
+    from claudemd_state import build_dynamic_state, resolve_claudemd, resolve_project_dir
     from claudemd_writer import apply_dynamic_section, resolve_sibling_targets
 
-    project_dir = _project_dir()
+    # НЕ `_project_dir()`, то есть НЕ cwd. Адрес брался из текущего каталога
+    # процесса, а содержимое — из `svc`: два источника вместо одного. Пока
+    # сервер стоит в своём проекте, они совпадают; когда не совпадают, этот
+    # обработчик пишет состояние ЧУЖОЙ базы в НАСТОЯЩИЕ файлы репозитория.
+    # Так и происходило — аудит-хук поймал здесь единственную запись на всю
+    # ленту, и её источником был контрактный тест, зовущий каждый инструмент
+    # MCP с временным проектом при cwd в корне репозитория
+    # (claudemd-dynamic-block-wiped-to-an-empty-project). Теперь адрес выводится
+    # из той же базы, что даёт содержимое, и разойтись им больше негде.
+    project_dir = resolve_project_dir(svc)
+    if project_dir is None:
+        return (
+            "Refused: cannot tell which project this database describes "
+            "(no db_path, or it does not live in .tausik/). Refusing rather than "
+            "writing one project's state into another's CLAUDE.md."
+        )
     claudemd = resolve_claudemd(project_dir)
     if not claudemd:
         return "Warning: CLAUDE.md not found."

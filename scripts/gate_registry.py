@@ -265,6 +265,26 @@ _SCOPED: tuple[GateSpec, ...] = (
             "description": "Fail if the tausik/ git-native state drifts from the DB export",
         },
     ),
+    # Refuses a close/commit whose CLAUDE.md DYNAMIC block was NOT rendered from
+    # this database — the block with its memory tail wiped, i.e. the shape of an
+    # empty/foreign project. BLOCK: the wipe reached twenty commits between v1.0.0
+    # and 2026-08 while every suite stayed green, and a fresh agent reads that file
+    # first and believes it. Unlike state_roundtrip this runs at task-done TOO: the
+    # check is immune to staleness (it asks whether a tail exists, not whether the
+    # counters are current), so a close cannot flag its own write. Read-only,
+    # fail-open, inert without a DB / CLAUDE.md / markers. See gate_claudemd_state.py.
+    GateSpec(
+        name="claudemd_state_drift",
+        phase=PHASE_SCOPED,
+        impl="gate_claudemd_state:run_claudemd_state_gate_for",
+        default_config={
+            "enabled": True,
+            "severity": "block",
+            "trigger": ["task-done", "commit"],
+            "command": None,
+            "description": "Fail if the CLAUDE.md dynamic block was not rendered from the live DB",
+        },
+    ),
     # Fails a close/commit when a changed SKILL.md breaks the agentskills.io canon
     # (name/dir + sizes). INERT unless a SKILL.md changed; hygiene, not trust.
     GateSpec(

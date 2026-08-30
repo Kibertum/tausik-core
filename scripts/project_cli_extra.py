@@ -259,14 +259,29 @@ def cmd_update_claudemd(svc: ProjectService, args: Any) -> None:
     # MCP handler. Each side used to carry its own copy, and the copies drifted
     # silently — the MCP one lost the memory tail and the AGENTS.md refresh
     # (mcp-update-claudemd-erases-the-memory-tail).
-    from claudemd_state import build_dynamic_state, resolve_claudemd
+    from claudemd_state import build_dynamic_state, resolve_claudemd, resolve_project_dir
 
-    claudemd = args.claudemd or resolve_claudemd(os.getcwd())
+    # Адрес выводится ИЗ БАЗЫ, а не из cwd. Здесь стояло `os.getcwd()` в обеих
+    # строках — тот же дефект, что в MCP-обработчике: содержимое из `svc`, адрес
+    # из текущего каталога. Заодно это чинит запуск из подкаталога проекта:
+    # раньше `resolve_claudemd(os.getcwd())` там не находил файла, хотя база
+    # находилась подъёмом (claudemd-dynamic-block-wiped-to-an-empty-project).
+    # Явный `--claudemd` уважается: это высказанное намерение пользователя.
+    project_dir = resolve_project_dir(svc)
+    if project_dir is None and not args.claudemd:
+        print(
+            "Error: cannot tell which project this database describes "
+            "(no db_path, or it does not live in .tausik/). Use --claudemd to "
+            "specify the file explicitly."
+        )
+        return
+
+    claudemd = args.claudemd or resolve_claudemd(project_dir or "")
     if not claudemd or not os.path.exists(claudemd):
         print("Error: CLAUDE.md not found. Use --claudemd to specify path.")
         return
 
-    dynamic_content = build_dynamic_state(svc, os.getcwd())
+    dynamic_content = build_dynamic_state(svc, project_dir or os.path.dirname(claudemd))
 
     # Refresh CLAUDE.md AND its AGENTS.md sibling from the same dynamic source so
     # no IDE's onboarding file goes stale mid-session (v15p-agents-md-bootstrap).

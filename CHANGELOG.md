@@ -9,6 +9,85 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — `update-claudemd` wrote into whatever directory the process stood in
+
+`CLAUDE.md`'s dynamic block was being overwritten with the state of an **empty**
+project — `Tasks: 0/1 done`, the whole memory tail gone. It reached **twenty
+commits** between the v1.0.0 release (2026-04-10) and 2026-08-26.
+
+Both writers — the MCP handler `tausik_update_claudemd` and the CLI
+`update-claudemd` — took the **address** from `os.getcwd()` and the **content**
+from the service they were handed. Two sources where there must be one. While the
+process stands in its own project they agree; when they do not, one project's
+state lands in another project's real files.
+
+Caught with a stack, not deduced. An `open`-event audit hook installed through
+`sitecustomize` (so it covers subprocesses too) recorded exactly **two writes
+across the whole 7452-test lane** — `CLAUDE.md` and `AGENTS.md`, one pid — and
+named the caller: `tests/test_mcp_integration.py::test_every_tool_name_has_handler`,
+a contract test that stands up a *temporary* project and calls every MCP tool,
+while pytest's cwd is the repository root. The test is sound; the product was not.
+
+Both halves of the corruption's signature are explained by that one split. The
+`0/1` counter came from the temporary database; `Branch: v1-9-wave` came from git
+asked in the cwd. Had the address been derived from the database, the branch would
+have read `unknown` — a temp directory is not a git repository.
+
+Two things kept it invisible for four months. `test_mcp_integration.py` is
+`pytest.mark.slow`, and the default lane is `-m 'not slow'`, so only a full run
+triggered it. And `apply_dynamic_section` does not write when the content already
+matches, so the corruption is idempotent: it happens once and then every later run
+looks clean.
+
+The fix is one invariant, in one place: `claudemd_state.resolve_project_dir(svc)`
+derives the destination from the database that supplies the content
+(`<project>/.tausik/tausik.db` → `<project>`). When it cannot tell which project a
+database describes, both callers **refuse** and say so rather than falling back to
+the cwd — falling back is the same defect under another name. A side benefit,
+tested: running `update-claudemd` from a subdirectory of your project now works,
+where the cwd lookup used to find no file at all.
+
+### Added — a gate that refuses a `CLAUDE.md` block which is not this project's
+
+`CLAUDE.md` is the first file a fresh agent reads and the only one it reads
+guaranteed. Its `DYNAMIC` block claims to be a rendering of the project database.
+Nothing checked that claim, and the bill is measured rather than feared: the block
+has been overwritten with the shape of an **empty** project — `Tasks: 0/1 done`,
+the whole memory tail gone — and that wipe reached **twenty commits** between the
+v1.0.0 release (2026-04-10) and 2026-08-26, passing through v1.2.0, v1.3.x,
+v1.4.0 and v1.7.0. Full green suites, signed verify receipts and QG-2 closes with
+every blocking gate went over the live corruption without a word.
+
+The failure is expensive precisely because it is quiet. A wiped block does not
+look broken; it looks like a young project. The agent gets no error — it gets the
+wrong context and works from it confidently.
+
+The new `claudemd_state_drift` gate (block, on `task-done` and `commit`) asks one
+question with no threshold in it: **if the live database has knowledge, does the
+block carry a memory tail?** Counters are deliberately *not* compared — the block
+is refreshed at checkpoint and session end, so lagging counters are the normal
+state of every session, and a gate that reddens on ordinary staleness is a gate
+that gets switched off in a day. The tail is a boolean fact staleness cannot flip:
+a block rendered from a database that holds knowledge always carries one, whenever
+it was rendered. A block without one came from a different database.
+
+Paths and markers come from the writer's own resolvers, and "does this project
+have knowledge" is answered by the producer of the tail itself — the guard asks
+the thing it guards instead of keeping a second copy of the rule (dead end #427).
+
+The first design was killed by measurement and is recorded here so it is not
+retried: it accepted any `Tasks:` line found in the file's git history and
+reddened on strangers, per the convention that git history filters false
+positives. The corrupted line **is** in that history — ten times. History works as
+a filter only when the history is clean by construction; this artifact rotted
+inside it.
+
+Proved on real bytes, not fixtures: green on the repository's own files, red after
+the block is wiped in place (restored from a byte copy, `sha256` identical before
+and after), and red on three of the twenty corrupted snapshots pulled out of git
+history across four months — so the gate would have caught this for the whole life
+of the project, not only in the shape it wore today.
+
 ### Changed — the test suite runs in parallel by default (`-n auto` in `addopts`)
 
 Nineteen of twenty cores idled through every full run. Measured, not assumed
