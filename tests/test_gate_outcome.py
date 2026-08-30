@@ -198,9 +198,11 @@ class TestTheRefusalIsActionable:
         message = run_command_gate(gate, ["a.py"]).message
 
         assert "TAUSIK_VERIFY_FULL=1" in message
-        # `verify --full` DOES NOT EXIST (pyproject.toml:34 promises it,
-        # `verify --help` does not list it). Naming it here would send the
-        # reader to a flag the product refuses — a separate, still-open defect.
+        # `verify --full` DOES NOT EXIST — `verify --help` lists --task, --scope,
+        # --relevant-files and --no-tests-expected, and nothing else. Naming it
+        # here would send the reader to a flag the product refuses. pyproject.toml
+        # carried the same false promise until it was deleted rather than
+        # implemented, so the environment variable is the only name in the tree.
         assert "--full" not in message
 
 

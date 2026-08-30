@@ -9,6 +9,99 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — the test suite runs in parallel by default (`-n auto` in `addopts`)
+
+Nineteen of twenty cores idled through every full run. Measured, not assumed
+(session #186, same tree, same box): the full lane took **32m24s serially against
+3m48s under `-n auto` — 8.5x**. This is the only lever that acts on the whole
+suite, because the suite's cost is FLAT: the 30 slowest tests are 10% of it and
+the rest is ~0.09 s x 5700, so there is no fat tail to cut. Deleting a thousand
+tests — weeks of judgement, and a real chance of removing a live guard — would
+have bought about five minutes. One config line buys twenty-eight.
+
+It went into `addopts`, not into a command line, deliberately. Every previous
+speed-up in this project lived in whatever command someone happened to type,
+which means it applied on one machine and nowhere else. `pytest tests/` now
+parallelises for CI, for the agent and for a first-time contributor alike; `-n0`
+turns it off for a debugger.
+
+**The price is stated because it is paid on every verify**: booting the workers
+is a fixed cost, so a *narrow* scoped run gets slower — `tests/test_gate_outcome.py`
+(20 tests) goes 1.68 s -> 6.80 s. Roughly five seconds on each scoped gate against
+tens of minutes on each whole-lane run.
+
+`pytest-xdist` is therefore a hard dependency of every run in this repository:
+without it pytest exits on `unrecognized arguments: -n` before collecting
+anything. There were **five** install paths to fix, not the two that are obvious —
+`.github/workflows/tests.yml` installs deps twice, `.github/workflows/test-coverage.yml`
+is a third workflow that runs pytest with its own list (and swallows failures with
+`|| true`, so it would have reported "no coverage data" instead of dying),
+`.gitlab-ci.yml`, and both `CONTRIBUTING.md` blocks — a new contributor's very
+first `pytest` would otherwise have failed. A ratchet in
+`tests/test_ci_lanes_are_honest.py` derives the requirement from `addopts` itself
+and names any lane that installs pytest without it; proved by mutation (removing
+the plugin from two of the five files fails the test and names both). It is **not**
+in `requirements.txt`: that file is the MCP server's runtime venv, where every
+requirement needs an upper bound, not the test toolchain.
+
+One consequence had to be fixed with it: `TAUSIK_VERIFY_FULL=1` used to inject
+`--override-ini=addopts=`, which wiped the marker filter *and everything standing
+beside it*. The one run in the project that is supposed to be the full battery
+would have been the only one back on a single core. It now injects `-m ''`, which
+beats the addopts marker because it is parsed later — measured as identical
+selection (7459 collected, against the fast lane's 7317) while the parallelism
+survives. Consumers keep whatever else their own `addopts` holds, too.
+
+### Fixed — `pyproject.toml` stopped promising a `tausik verify --full` that has never existed
+
+The comment above `addopts`, and the `slow` marker's own description, both told
+the reader to run the full battery with `tausik verify --full`. `verify --help`
+lists `--task`, `--scope`, `--relevant-files` and `--no-tests-expected` — and
+nothing else. The flag was deleted from the text rather than added to the CLI: a
+config comment is not the place to design a command, and `TAUSIK_VERIFY_FULL=1`
+already does the job under a name that is true. Two comments that referenced the
+false promise as "a separate, still-open defect"
+(`scripts/gate_command_runner.py`, `tests/test_gate_outcome.py`) were corrected
+with it, so nothing in the tree points at the flag any more.
+
+**The other half of this task was refused, and the measurement is why.** It asked
+for `asyncio_default_fixture_loop_scope = "function"` to silence a
+`PytestDeprecationWarning` said to appear on *every* run. Measured on the current
+toolchain, all three of its premises fail: under pytest 9.0.2 that warning is
+never printed (pytest-asyncio raises it in `pytest_configure`, before the warnings
+plugin is catching, and it is visible only via `python -W error::DeprecationWarning`);
+the tree contains **zero** async tests, so the future default it warns about
+cannot reach us; and pytest-asyncio is not declared in any install path — it is
+ambient on one developer's machine, not a dependency of this project. Adding the
+key would therefore have traded an invisible warning on one machine for a visible
+`PytestConfigWarning: Unknown config option` in every environment WITHOUT the
+plugin — every CI cell, and every contributor who follows CONTRIBUTING.md
+(measured with `-o asyncio_default_fixture_loop_scope=function -p no:asyncio`).
+The config is left alone.
+
+### Fixed — a test's own subprocess budget was the hang guard's mistake, one floor down
+
+Turning the suite parallel made the next instance of the same defect visible on
+the very first full run: `tests/test_bootstrap_real.py` gave each real bootstrap
+spawn (venv + `pip install`) a `subprocess.run` timeout of **120 s**, written as a
+bare literal four times. `test_bootstrap_init_creates_session` costs **63.23 s
+alone**, so that looked like 1.9x of headroom — but this file only ever runs
+inside the FULL lane, where this tree's measured load inflation is **1.7-1.8x**
+(#189/#190: 43.43 -> 77.09 and 55.23 -> 93.57 for the same test alone versus under
+the full run). 63.23 x 1.8 is 114 s. The budget stood four seconds above the
+expected worst case, so the lane passed twice in #190 and failed the third time
+with `subprocess.TimeoutExpired ... timed out after 120 seconds` — a coin toss
+reported as a bug in bootstrap.
+
+Sized in isolation, armed under load: exactly what the 60 s hang guard did, so the
+number now lives beside it in `tests/hang_guard_contract.py` rather than as four
+literals. **200 s** is 3.2x the isolated cost — the margin decision #275 chose for
+the guard (300 / 93.57). Two properties are asserted rather than remembered: the
+inner budget stays strictly **below** `faulthandler_timeout` (cross them and the
+guard kills the process first, so the report says "worker crashed" instead of
+naming the subprocess that overran), and a wedged child is still cut. Proved by
+mutation — moved to 400 s, the ordering test fails and names both numbers.
+
 ### Fixed — the hang guard stopped killing healthy tests, and its promise is now machine-checked
 
 `faulthandler_timeout` was **60 s**, and the comment beside it promised that this

@@ -28,6 +28,7 @@ import sys
 import pytest
 
 from hang_guard_contract import (
+    BOOTSTRAP_SUBPROCESS_BUDGET_S,
     DECLARED_HEADROOM,
     SLOWEST_IN_ISOLATION_SECONDS,
     SLOWEST_UNDER_LOAD_SECONDS,
@@ -208,3 +209,46 @@ class TestARealStallIsStillKilled:
             f"the dump does not name the test that stalled, so it cannot be acted "
             f"on:\n{output[-800:]}"
         )
+
+
+class TestTheInnerBudgetIsOrderedUnderTheGuard:
+    """One floor down: a test's own subprocess budget, and the same old mistake.
+
+    ``tests/test_bootstrap_real.py`` gives each real bootstrap spawn
+    ``BOOTSTRAP_SUBPROCESS_BUDGET_S``. It used to be 120 s — 1.9x of the 63.23 s
+    the test costs alone, and BELOW the 114 s it costs under full-lane load, so
+    the lane passed twice and failed the third time (#190/#191). The number moved;
+    what has to stay true is the ORDER of the two limits and the fact that the
+    inner one still cuts.
+    """
+
+    def test_the_subprocess_budget_stays_under_the_hang_guard(self, request):
+        """If they cross, the wrong limit speaks first.
+
+        The guard kills the whole process and the report says "worker crashed";
+        the subprocess budget names the child that overran. The cheaper, more
+        specific message must always be the one that fires, so this compares
+        against the RUNNING configuration rather than against a copy of it.
+        """
+        timeout = float(_ini(request.config, "faulthandler_timeout") or 0.0)
+        assert 0 < BOOTSTRAP_SUBPROCESS_BUDGET_S < timeout, (
+            f"the bootstrap subprocess budget ({BOOTSTRAP_SUBPROCESS_BUDGET_S}s) is not "
+            f"strictly inside faulthandler_timeout ({timeout}s): the hang guard would "
+            f"fire first and the failure would be reported as a crashed worker instead "
+            f"of naming the subprocess that overran."
+        )
+
+    def test_a_wedged_child_is_still_cut(self):
+        """Proved by wedging a child, not by reading the constant back.
+
+        A bigger budget must not mean a disarmed one: the mechanism the four
+        bootstrap calls rely on is ``subprocess.run(timeout=...)``, and this
+        stalls a child under a deliberately tiny budget to show it still raises
+        rather than waiting forever.
+        """
+        with pytest.raises(subprocess.TimeoutExpired):
+            subprocess.run(
+                [sys.executable, "-c", "import time; time.sleep(30)"],
+                capture_output=True,
+                timeout=1,
+            )

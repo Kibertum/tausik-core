@@ -49,8 +49,11 @@ _PYTEST_TOKEN = re.compile(r"(^|\s)pytest(\s|$)")
 
 # The remedy the #182 refusal never named. Kept next to the reason it belongs
 # to so the two cannot drift apart, and spelled as the environment variable
-# because `--full` DOES NOT EXIST (pyproject.toml:34 promises it; `verify
-# --help` does not list it — a separate defect, a separate task).
+# because `--full` DOES NOT EXIST: `verify --help` lists --task, --scope,
+# --relevant-files and --no-tests-expected, and nothing else. pyproject.toml
+# used to promise the flag as well; that promise was DELETED rather than
+# implemented, so the environment variable is now the single true name for the
+# full lane and this string cannot send anyone to a flag the product refuses.
 _FULL_LANE_REMEDY = (
     "No test ran: the default lane is `-m 'not slow'` (pyproject.toml addopts) "
     "and every collected test was deselected. This is not a failure — nothing "
@@ -412,8 +415,18 @@ def run_command_gate(gate: dict, files: list[str]) -> GateOutcome:
     # (pyproject.toml addopts="-m 'not slow'") and runs the full battery. Detect
     # pytest as a TOKEN (works for `pytest …` AND `python.exe -m pytest …`) and
     # inject the override right after it; count=0 leaves non-pytest gates untouched.
+    #
+    # IT IS `-m ''`, NOT `--override-ini=addopts=`, SINCE full-lane-runs-serial-on-
+    # a-twenty-core-machine. Wiping addopts removed the marker filter AND everything
+    # else standing beside it — here `-n auto`, so the "full battery" was the one
+    # run in the project that went back to a single core (32m24s against 3m48s,
+    # measured session #186). A marker expression on the command line beats the one
+    # in addopts because it is parsed later and -m keeps only the last value:
+    # measured on this tree, `-m ''` and `--override-ini=addopts=` both collect
+    # 7459 against the fast lane's 7317. Whatever else a consumer put in addopts
+    # (coverage, timeouts, their own -p flags) now survives the full lane too.
     if os.environ.get("TAUSIK_VERIFY_FULL"):
-        cmd = re.subn(r"(^|\s)pytest(\s|$)", r"\1pytest --override-ini=addopts=\2", cmd, count=1)[0]
+        cmd = re.subn(r"(^|\s)pytest(\s|$)", r"\1pytest -m ''\2", cmd, count=1)[0]
     # Cross-platform truncation: strip `[2>&1] | head/tail -N`, filter later.
     # Windows note: shlex (posix) strips backslashes from paths and subprocess
     # cannot launch a relative forward-slash executable (WinError 2); the

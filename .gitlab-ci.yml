@@ -67,13 +67,17 @@ workflow:
 #            That is exactly 4540 - 4504, the drift the first Linux run reported.
 #            The count is a function of installed packages, not of the platform.
 #   ruff   — `test_ble001_enforced` shells out to `python -m ruff` over the tree
+#   pytest-xdist — pyproject's addopts carry `-n auto`. Without the plugin pytest
+#            exits on `unrecognized arguments: -n` before collecting anything, so
+#            this is a hard dependency of every lane, not a speed option. The
+#            ratchet is tests/test_ci_lanes_are_honest.py.
 .venv: &venv
   - python3 --version
   - python3 -m venv --help > /dev/null || { echo "python3-venv is not installed on this runner"; exit 1; }
   - python3 -m venv "$VENV_DIR"
   - . "$VENV_DIR/bin/activate"
   - python -m pip install --quiet --upgrade pip
-  - pip install --quiet pytest PyYAML ruff
+  - pip install --quiet pytest pytest-xdist PyYAML ruff
   # requirements.txt (mcp) is not optional here. `test_mcp_no_deprecated_primitives`
   # imports the MCP server to read the primitives it advertises; without the
   # package the test does not skip, it ERRORS with ModuleNotFoundError — a red

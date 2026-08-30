@@ -22,7 +22,11 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install pytest pytest-cov
+        # pytest-xdist is required, not optional: pyproject's addopts carry `-n auto`,
+        # and without the plugin pytest exits on `unrecognized arguments: -n` before
+        # collecting anything. The `|| true` on the run step below would then swallow
+        # that death and this job would report "no coverage data" instead of a failure.
+        run: pip install pytest pytest-xdist pytest-cov
 
       - name: Run tests with coverage
         run: |

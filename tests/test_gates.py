@@ -509,7 +509,14 @@ class TestGateRunner:
 
     def test_pytest_gate_full_lane_env_var_injects_override(self, tmp_path, monkeypatch):
         """v14b-pytest-fast-lane: TAUSIK_VERIFY_FULL=1 makes pytest gate run the
-        full battery (override pyproject.toml addopts='-m not slow')."""
+        full battery (override pyproject.toml addopts='-m not slow').
+
+        The override is a MARKER expression, not an addopts wipe. Wiping addopts
+        also deleted everything else standing in it — in this repository `-n auto`,
+        so the one run that was supposed to be the full battery was the only one
+        that went back to a single core. `-m ''` beats the addopts marker because
+        it is parsed later, and leaves the rest of the line alone.
+        """
         monkeypatch.setenv("TAUSIK_VERIFY_FULL", "1")
         # Use a python -c stub that prints argv, dressed up as a 'pytest' command
         # so the env-var branch fires (the check is on the leading executable).
@@ -529,9 +536,17 @@ class TestGateRunner:
         monkeypatch.setattr(gate_runner.subprocess, "run", fake_run)
         passed, _ = run_command_gate(gate, [])
         assert passed is True
-        assert "--override-ini=addopts=" in captured["cmd"], (
-            "TAUSIK_VERIFY_FULL must inject --override-ini=addopts= so pytest "
-            "ignores the fast-lane addopts in pyproject.toml"
+        # argv[0] is resolved to a launchable path (…/Scripts/pytest.EXE), so the
+        # runner is recognised by its basename rather than by the literal token.
+        argv = list(captured["cmd"])
+        assert os.path.basename(argv[0]).lower().startswith("pytest"), argv
+        assert argv[1:3] == ["-m", ""], (
+            "TAUSIK_VERIFY_FULL must inject `-m ''` right after the pytest token so "
+            f"the marker filter in addopts is overridden; got {argv}"
+        )
+        assert not any(a.startswith("--override-ini=addopts") for a in argv), (
+            "the full lane must not WIPE addopts: that also deletes -n auto and "
+            f"runs the full battery serially; got {argv}"
         )
 
     def test_pytest_gate_default_does_not_inject_override(self, tmp_path, monkeypatch):
@@ -552,6 +567,9 @@ class TestGateRunner:
         passed, _ = run_command_gate(gate, [])
         assert passed is True
         assert "--override-ini" not in captured["cmd"]
+        assert "-m" not in captured["cmd"], (
+            "no TAUSIK_VERIFY_FULL, no marker override — the fast lane stays"
+        )
 
     def test_full_env_var_does_not_affect_non_pytest_gates(self, tmp_path, monkeypatch):
         """Negative scenario: TAUSIK_VERIFY_FULL only injects into pytest cmd."""
@@ -570,6 +588,9 @@ class TestGateRunner:
         monkeypatch.setattr(gate_runner.subprocess, "run", fake_run)
         run_command_gate(gate, [])
         assert "--override-ini" not in captured["cmd"]
+        assert "-m" not in captured["cmd"], (
+            "ruff has no -m; injecting one would make the gate refuse to start"
+        )
 
     def test_pytest_via_python_m_gets_override(self, monkeypatch):
         """Windows fix: pytest is detected as a TOKEN, so `python.exe -m pytest`
@@ -590,10 +611,17 @@ class TestGateRunner:
         monkeypatch.setattr(gate_runner.subprocess, "run", fake_run)
         passed, _ = run_command_gate(gate, [])
         assert passed is True
-        # argv form (no shell operators) — cmd is the argv list; join to inspect
-        joined = " ".join(captured["cmd"])
-        assert "pytest --override-ini=addopts= -q" in joined, (
-            "override must be injected right after the pytest token, not at the leading executable"
+        # argv form (no shell operators) — cmd is the argv list. Compared as a
+        # SEQUENCE, not as a joined string: the injected marker expression is the
+        # empty argument, which a join renders as nothing at all.
+        argv = list(captured["cmd"])
+        i = argv.index("pytest")
+        assert argv[i - 1] == "-m" and "python" in argv[i - 2].lower(), (
+            f"this case is about `python -m pytest`; got {argv}"
+        )
+        assert argv[i + 1 : i + 4] == ["-m", "", "-q"], (
+            "the override must be injected right after the pytest TOKEN, not at the "
+            f"leading executable; got {argv}"
         )
 
     def test_command_gate_resolves_argv0(self, monkeypatch):

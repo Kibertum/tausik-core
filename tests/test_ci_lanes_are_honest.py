@@ -201,3 +201,97 @@ class TestNoCiLaneExcludesTestFiles:
                 f"reachable by nothing, so the excluded tests run in NO lane at all. That "
                 f"is how twelve tests went unexecuted for a year (decision #275)."
             )
+
+
+class TestEveryLaneInstallsWhatTheAddoptsDemand:
+    """``addopts`` is a promise every runner has to be able to keep.
+
+    ``-n auto`` moved into ``[tool.pytest.ini_options]`` so the suite is parallel
+    wherever it runs, not only where somebody typed the flag. The cost of that is
+    a HARD dependency: without pytest-xdist pytest exits on ``unrecognized
+    arguments: -n`` before collecting a single test. That failure is loud, but it
+    is loud in the wrong place — in CI, on a push, after the change that forgot it.
+
+    There are FIVE install paths, and the two obvious ones are not the whole set:
+    ``.github/workflows/tests.yml`` installs deps twice (fast lane and full lane),
+    ``.github/workflows/test-coverage.yml`` is a third workflow that runs pytest
+    with its own dependency list, ``.gitlab-ci.yml`` is the development gate, and
+    ``CONTRIBUTING.md`` is what a new contributor's first ``pytest`` obeys. A
+    ratchet that watched only the two CI files would have left a contributor
+    meeting `unrecognized arguments: -n` as their first impression of the repo.
+
+    The rule is derived from the config rather than hard-coded, so it retires
+    itself: drop ``-n`` from addopts and nothing here demands the plugin.
+    """
+
+    _INSTALL_SOURCES = (
+        Path(".github/workflows/tests.yml"),
+        Path(".github/workflows/test-coverage.yml"),
+        Path(".gitlab-ci.yml"),
+        Path("CONTRIBUTING.md"),
+    )
+
+    # A flag in addopts -> the distribution that provides it.
+    _FLAG_REQUIRES = {"-n": "pytest-xdist"}
+
+    @staticmethod
+    def _addopts() -> str:
+        import tomllib
+
+        with (_ROOT / "pyproject.toml").open("rb") as fh:
+            data = tomllib.load(fh)
+        return str(data["tool"]["pytest"]["ini_options"].get("addopts", ""))
+
+    @staticmethod
+    def _install_lines(path: Path) -> list[list[str]]:
+        """Tokenised `pip install` command lines, comments and prose excluded."""
+        out: list[list[str]] = []
+        for raw in path.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if line.startswith("#") or line.startswith(">"):
+                continue  # a comment or a markdown quote DESCRIBES an install
+            if "pip install" not in line:
+                continue
+            tokens = line.split("pip install", 1)[1].split()
+            # Package names only: flags, and the file that follows `-r`, are not.
+            packages, skip_next = [], False
+            for tok in tokens:
+                if skip_next:
+                    skip_next = False
+                    continue
+                if tok in ("-r", "--requirement"):
+                    skip_next = True
+                    continue
+                if tok.startswith("-"):
+                    continue
+                packages.append(tok)
+            out.append(packages)
+        return out
+
+    def test_every_install_of_pytest_also_installs_what_addopts_needs(self):
+        addopts = self._addopts()
+        required = [
+            dist for flag, dist in self._FLAG_REQUIRES.items() if f"{flag} " in f"{addopts} "
+        ]
+        if not required:
+            return  # addopts asks for no plugin — the rule retires itself
+        offenders = []
+        checked = 0
+        for rel in self._INSTALL_SOURCES:
+            path = _ROOT / rel
+            assert path.exists(), f"{rel} is missing — the install paths cannot be checked"
+            for packages in self._install_lines(path):
+                if "pytest" not in packages:
+                    continue  # installs something else entirely
+                checked += 1
+                missing = [dist for dist in required if dist not in packages]
+                if missing:
+                    offenders.append(f"{rel.as_posix()}: {' '.join(packages)} misses {missing}")
+        assert checked >= 5, (
+            f"only {checked} pytest install lines found across {[p.as_posix() for p in self._INSTALL_SOURCES]}"
+            " — a lane was renamed or moved and this ratchet is now guarding less than it thinks"
+        )
+        assert not offenders, (
+            f"addopts is {addopts!r}, so every lane needs {required}. These install pytest "
+            f"without it and will die on `unrecognized arguments`: {offenders}"
+        )

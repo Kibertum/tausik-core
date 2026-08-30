@@ -109,3 +109,29 @@ def headroom_breach(
         f"(c) lower DECLARED_HEADROOM, which is a decision about how much warning "
         f"you want, and belongs in a recorded decision, not in a quiet edit."
     )
+
+
+# --- one floor down: the budget a single subprocess gets inside a test --------
+#
+# tests/test_bootstrap_real.py spawns a real bootstrap (venv + pip install) four
+# times and gives each spawn a subprocess.run timeout. That number was 120 s,
+# repeated as a bare literal, and it repeated this module's own mistake one floor
+# down: SIZED IN ISOLATION, ARMED UNDER LOAD.
+#
+# Measured, session #191. `test_bootstrap_init_creates_session` takes 63.23 s on
+# its own (`-n0`), which makes 120 s look like 1.9x of headroom. But this file
+# only ever executes inside the FULL lane, and this tree's load inflation there is
+# measured at 1.7-1.8x (#189/#190: 43.43 -> 77.09 and 55.23 -> 93.57 for the same
+# test alone versus under the full run). 63.23 x 1.8 = 114 s. The budget stood
+# four seconds above the expected worst case — so the full lane passed twice in
+# #190 and failed the third time with `subprocess.TimeoutExpired: ...
+# bootstrap.py --init ... timed out after 120 seconds`. A coin toss, reported as
+# a bug in bootstrap.
+#
+# 200 s is 3.2x the isolated cost — the same margin decision #275 chose for the
+# guard above (300 / 93.57 = 3.2x). It stays STRICTLY BELOW faulthandler_timeout
+# on purpose, and test_pytest_hang_guard.py asserts that ordering against the
+# RUNNING configuration: if the two ever cross, the guard fires first, kills the
+# whole process, and the report says "worker crashed" instead of naming the
+# subprocess that overran. The cheaper limit must always be the one that speaks.
+BOOTSTRAP_SUBPROCESS_BUDGET_S = 200
