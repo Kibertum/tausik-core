@@ -213,3 +213,63 @@ def canonical_ddl(table: str) -> str:
 
 
 VERIFICATION_RUNS_DDL = canonical_ddl("verification_runs")
+
+
+# --- hang guard: the threshold is checked against THIS run, not against a memory ---
+#
+# See tests/hang_guard_contract.py for why. In short: the promise beside
+# faulthandler_timeout was calibrated on the fast lane, went false on the full
+# lane, and stayed green for months because both sides of the comparison were
+# frozen constants. These hooks feed the check the duration the running suite
+# actually produced, so drift toward the threshold reddens the run BEFORE the
+# guard starts killing healthy tests.
+
+_slowest_by_nodeid: dict[str, float] = {}
+
+
+def pytest_runtest_logreport(report):
+    """Accumulate setup+call+teardown per test.
+
+    Summed, not maxed, because pytest's faulthandler arms its timer around the
+    whole item protocol — so the window the guard watches is the sum, and
+    comparing against the call phase alone would flatter us.
+
+    Under xdist this fires on the CONTROLLER for every worker's report, so one
+    process sees the whole tree; the per-worker duplicate is suppressed below.
+    """
+    _slowest_by_nodeid[report.nodeid] = _slowest_by_nodeid.get(report.nodeid, 0.0) + report.duration
+
+
+def _hang_guard_breach(config) -> str | None:
+    """None, or the message explaining that the declared margin is gone."""
+    if hasattr(config, "workerinput"):
+        return None  # xdist worker: the controller has every report, it checks once
+    if not _slowest_by_nodeid:
+        return None  # --collect-only, or a run that executed nothing
+    from hang_guard_contract import headroom_breach
+
+    nodeid, seconds = max(_slowest_by_nodeid.items(), key=lambda kv: kv[1])
+    try:
+        timeout = float(config.getini("faulthandler_timeout") or 0.0)
+    except ValueError:
+        return None  # pytest too old to know the key; test_pytest_hang_guard says so
+    return headroom_breach(timeout, nodeid, seconds)
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_terminal_summary(terminalreporter, exitstatus, config):
+    breach = _hang_guard_breach(config)
+    if breach is not None:
+        terminalreporter.section("hang guard headroom", sep="=", red=True, bold=True)
+        terminalreporter.write_line(breach)
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Turn the breach into a non-zero exit.
+
+    `wrap_session` returns `session.exitstatus` AFTER this hook runs, so mutating
+    it here is what makes the warning bite. A message alone would scroll past —
+    that is how the previous version of this problem survived three sessions.
+    """
+    if session.exitstatus == 0 and _hang_guard_breach(session.config) is not None:
+        session.exitstatus = 1

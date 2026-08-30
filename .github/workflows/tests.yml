@@ -68,7 +68,11 @@ jobs:
       - name: Doc-constants drift check
         run: python scripts/gen_doc_constants.py --check --skip-test-count
       - name: Run fast lane
-        run: pytest tests/ -v --tb=short --ignore=tests/test_bootstrap_skills_coverage.py --ignore=tests/test_bootstrap_real.py
+        # No `--ignore` here: both bootstrap modules are `pytestmark = pytest.mark.slow`,
+        # so `-m 'not slow'` (inherited from addopts) already deselects them. The flag was
+        # a SECOND exclusion on top of the marker, and having two meant neither had to be
+        # justified — see the comment on the full lane below.
+        run: pytest tests/ -v --tb=short
 
   # Full lane (slow tests INCLUDED) on one representative cell. The slow-marked tests are
   # the project's own critical regression tests (wiring, MCP integration, subprocess
@@ -108,4 +112,15 @@ jobs:
       - name: Doc-constants drift check
         run: python scripts/gen_doc_constants.py --check --skip-test-count
       - name: Run FULL lane (fast + slow)
-        run: pytest tests/ -m '' --tb=short --ignore=tests/test_bootstrap_skills_coverage.py --ignore=tests/test_bootstrap_real.py
+        # `--ignore=tests/test_bootstrap_skills_coverage.py --ignore=tests/test_bootstrap_real.py`
+        # REMOVED by decision #275, and this is the job where removing it actually runs
+        # something new: twelve tests that were executed NOWHERE. They were --ignore'd here,
+        # deselected as slow in the fast lane, and killed by the hang guard in a local full
+        # run — three different silences that together looked like green.
+        #
+        # The exclusion was never decided. Git says both flags arrived in 3189f67 (a
+        # combined v1.3 release commit) without a word of justification; the first version
+        # of this file, a158380, did not have them. Session #189 then measured the two
+        # modules with the guard lifted: 22 passed in 824 s, exit 0. They are SLOW, not
+        # broken — so the only thing the exclusion ever bought was the appearance of speed.
+        run: pytest tests/ -m '' --tb=short

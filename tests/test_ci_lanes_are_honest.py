@@ -160,3 +160,44 @@ class TestWorkflowStructureIsHonest:
             "no CI job runs the full lane (`pytest -m ''`). The slow-marked regression "
             "tests — the ones that catch this project's own critical bugs — go ungated."
         )
+
+
+class TestNoCiLaneExcludesTestFiles:
+    """A ratchet against the exclusion that was added silently once already.
+
+    Twelve tests — all of test_bootstrap_skills_coverage.py and all of
+    test_bootstrap_real.py — ran NOWHERE for months. Three independent silences
+    stacked into one: ``--ignore`` in both CI files, the ``slow`` marker in the
+    fast lane, and the hang guard killing them in a local full run. None of the
+    three was wrong on its own; together they meant twelve green tests that no
+    machine had executed, and green-because-unrun is indistinguishable from
+    green-because-passing in every report we produce.
+
+    The exclusion was never decided. ``git log -S`` puts both flags in 3189f67, a
+    combined v1.3 release commit that does not mention them; the first version of
+    the workflow (a158380) had none. They were then copied into .gitlab-ci.yml
+    (fd803f3) and into local measurement commands, so a choice nobody made
+    propagated for a year. Decision #275 removed them after session #189 measured
+    the two modules with the guard lifted: 22 passed, 824 s, exit 0 — slow, not
+    broken.
+
+    ``slow`` is this project's sanctioned way to say "not in the fast lane", and
+    it is honest because ``-m ''`` still reaches it. ``--ignore`` is unreachable
+    by any marker expression, so it hides tests from the lane whose entire job is
+    to run everything. Hence: no CI lane may exclude a test file by path.
+    """
+
+    def test_no_ci_command_ignores_a_test_file(self):
+        for path in (_WORKFLOW, _ROOT / ".gitlab-ci.yml"):
+            assert path.exists(), f"{path} is missing — CI honesty cannot be checked"
+            offenders = [
+                line.strip()
+                for line in path.read_text(encoding="utf-8").splitlines()
+                if "--ignore" in line and "tests/" in line and not line.strip().startswith("#")
+            ]
+            assert not offenders, (
+                f"{path.name} excludes test files by path: {offenders}. Use the `slow` "
+                f"marker instead — `-m ''` still reaches slow tests, while `--ignore` is "
+                f"reachable by nothing, so the excluded tests run in NO lane at all. That "
+                f"is how twelve tests went unexecuted for a year (decision #275)."
+            )

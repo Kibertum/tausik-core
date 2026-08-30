@@ -34,18 +34,41 @@ pythonpath = ["scripts"]
 # Run the full battery via `pytest -m ''` or `tausik verify --full` (env:
 # TAUSIK_VERIFY_FULL=1). See docs/{en,ru}/cli.md for the full contract.
 addopts = "-m 'not slow'"
-# full-pytest-hangs-while-scoped-pytest-is-green. The full suite takes ~9-10
-# minutes of wall clock (5759 passed / 554 s measured in session #135) and the
-# cost is FLAT: the 30 slowest tests are 10% of it, the rest is ~0.09 s x 5700.
-# Three sessions read "slower than my timeout" as "hung" and killed the run at
-# 200/420/600 s, then wrote conclusions about a hang that never happened.
-# A stall is now told apart from slowness mechanically instead of by guessing:
-# any single test over 60 s (11x the slowest real one, 5.3 s) dumps the
-# tracebacks of every thread and exits non-zero. Silence therefore MEANS "not
-# stuck, just long" — budget the ten minutes rather than shortening the timeout.
+# full-pytest-hangs-while-scoped-pytest-is-green. The cost of the suite is FLAT:
+# the 30 slowest tests are 10% of it, the rest is ~0.09 s x 5700. Three sessions
+# read "slower than my timeout" as "hung" and killed the run at 200/420/600 s,
+# then wrote conclusions about a hang that never happened. A stall is told apart
+# from slowness mechanically instead of by guessing: any single test over the
+# threshold dumps the tracebacks of every thread and exits non-zero. Silence
+# therefore MEANS "not stuck, just long".
+#
+# THE THRESHOLD IS 300 s BY DECISION #275, AND THE NUMBER BESIDE IT IS MEASURED.
+# The previous value, 60 s, promised "11x the slowest real one, 5.3 s". Both
+# halves were wrong: 5.3 s came from the FAST lane, where this guard is not
+# needed, and the guard was armed over the FULL lane, where the slowest test is
+# 93.57 s under the load of the full run (session #190). The real headroom was
+# 0.64x — the threshold sat BELOW the maximum — and the guard killed fourteen
+# healthy tests on every full run for months while every test of it stayed green.
+#
+# That 93.57 s could not be measured until the fix was in: every earlier figure
+# came from a run in which twelve of these tests were being killed at 60 s, i.e.
+# under lighter load than the tree really carries. The defect was hiding its own
+# cost. First clean full run on Windows: 7434 passed, 24 skipped, exit 0, 793 s.
+#
+# 300 s is not a multiple, it is a GAP: this suite has no test whatsoever between
+# 93.57 s and 300 s, whereas 60 s cut through the middle of a cluster of twelve
+# spanning 52-65 s in isolation. A threshold on a slope kills part of the
+# distribution; a threshold in an empty interval does not. The errors are also
+# asymmetric — too low poisons EVERY run, too high costs minutes RARELY — so it
+# is biased high.
+#
+# The promise is no longer maintained by hand. tests/hang_guard_contract.py holds
+# the measurements and a declared 2x ALARM floor, and conftest.py compares it
+# against the slowest test the RUNNING suite actually executed, so drift reddens
+# the run instead of rotting quietly. That is what failed last time, not the number.
 # `faulthandler_exit_on_timeout` needs pytest >= 9.0; older installs warn about
 # an unknown option and tests/test_pytest_hang_guard.py says so in words.
-faulthandler_timeout = 60
+faulthandler_timeout = 300
 faulthandler_exit_on_timeout = true
 markers = [
     "verify_first: opt the test in to v1.4 Verify-First Contract enforcement (default conftest fixture sets auto_verify=True for backward compat)",

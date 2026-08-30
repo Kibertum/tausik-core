@@ -9,6 +9,55 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the hang guard stopped killing healthy tests, and its promise is now machine-checked
+
+`faulthandler_timeout` was **60 s**, and the comment beside it promised that this
+was "11x the slowest real one, 5.3 s". Both halves were false in the same way:
+5.3 s was measured on the FAST lane, where the guard is not needed, and the guard
+was armed over the FULL lane, where the slowest test takes **93.57 s under the
+load of the full run**. The real headroom was **0.64x** — the threshold sat
+*below* the maximum.
+
+That 93.57 s could not be known until the fix landed, which is the sharpest part
+of this bug: every previous measurement came from a run in which twelve of these
+tests were being killed at 60 s, so the tree was carrying less than its true load
+and reported a smaller worst case (77.09 s). **The defect was concealing its own
+cost.**
+
+The cost was not theoretical. A full local run on Windows never reached a summary
+line: fourteen tests were killed every time, each with `Timeout (0:01:00)!` and a
+dump of every thread's stack — which reads exactly like the hang the guard was
+installed to stop three sessions from imagining. Twelve of those fourteen (all of
+`test_bootstrap_skills_coverage.py` and all of `test_bootstrap_real.py`) ran
+**nowhere at all**: `--ignore`d in CI, deselected as slow in the fast lane, killed
+in the full one. Measured with the guard lifted, all of them pass — 22 tests in
+824 s, exit 0. They were slow, not broken.
+
+The threshold is now **300 s**. The argument is not a multiplier but the shape of
+the distribution: this suite has ~5700 tests around 0.09 s and a cluster of twelve
+spanning 52–65 s in isolation, and **no test at all between 93.57 s and 300 s**.
+60 s cut through the middle of that cluster (seven of them exceeded it even
+unloaded, so they were doomed always rather than occasionally); 300 s sits in the
+empty gap. The errors are asymmetric too — a threshold that is too low poisons
+*every* run, one that is too high costs minutes *rarely* — so it is deliberately
+biased high. The full lane on Windows now reaches a summary line with no
+workaround for the first time: **7434 passed, 24 skipped, exit 0, in 793 s**.
+
+The half that survives is not the number. `tests/hang_guard_contract.py` now holds
+the measurements and a declared **2x alarm floor**, and `conftest.py` compares it
+against the slowest test the *running* suite actually executed, failing the run
+with an explanatory section when the margin is eaten. Previously both sides of
+every check were frozen constants, which is precisely why a false promise stayed
+green for months. Verified by mutation: the same passing test exits 0 normally and
+exits 1 under a threshold that leaves it inside the margin.
+
+Also removed: the undocumented `--ignore` of the two bootstrap modules in
+`.github/workflows/tests.yml` and `.gitlab-ci.yml`. Git shows both flags arrived in
+a combined v1.3 release commit without a word of justification and were never
+decided on their merits. Note precisely what this buys: the twelve tests return to
+GitHub's `test-full` job. On GitLab they stay unrun, because that lane has no full
+run at all — a separate, still-open defect.
+
 ### Changed — scoped test selection follows IMPORTS, so half the suite stops being unreachable
 
 A scoped run is only worth trusting if you know what it cannot see. Measured on

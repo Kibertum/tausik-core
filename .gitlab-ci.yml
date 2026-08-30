@@ -127,7 +127,12 @@ tests:
     # silently drop claude.
     - python bootstrap/bootstrap.py --no-detect --ide all
   script:
+    # The two `--ignore` flags for the bootstrap modules are REMOVED (decision #275).
+    # Be precise about what that buys HERE: nothing yet. This lane inherits
+    # addopts = -m 'not slow' and both modules are module-level slow-marked, so they
+    # were already deselected — the flags were a redundant second exclusion, copied
+    # from GitHub in fd803f3. GitLab still has no full lane at all, which is why those
+    # twelve tests remain unrun on this line; that is the separate open defect
+    # `gitlab-has-no-full-lane-at-all`, and removing the flags does not close it.
     - >
       pytest tests/ -q --tb=short
-      --ignore=tests/test_bootstrap_skills_coverage.py
-      --ignore=tests/test_bootstrap_real.py
