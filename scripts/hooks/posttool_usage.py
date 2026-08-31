@@ -7,6 +7,8 @@ across the whole pipeline — never blocks the harness:
 
   - Stdin malformed/empty → exit 0, nothing inserted.
   - No active task → row inserted with task_slug=NULL.
+  - No open session → row inserted with session_id=NULL (v48; it used to
+    be dropped whole, losing the task attribution it already had).
   - Unknown model_id (not in cost_pricing) → cost_usd=0.0 + stderr warn.
   - DB locked → up to 3 retries, then stderr warn + exit 0.
   - No `.tausik/tausik.db` (not a TAUSIK project) → exit 0 silently.
@@ -91,7 +93,7 @@ def _current_session_id(conn: sqlite3.Connection) -> int | None:
 
 def _insert_event(
     conn: sqlite3.Connection,
-    session_id: int,
+    session_id: int | None,
     task_slug: str | None,
     model_id: str | None,
     tokens_input: int,
@@ -123,7 +125,7 @@ def _insert_event(
 
 def _record_with_retries(
     db_path: str,
-    session_id: int,
+    session_id: int | None,
     task_slug: str | None,
     model_id: str | None,
     tokens_input: int,
@@ -197,9 +199,15 @@ def main() -> int:
         print(f"posttool_usage: cannot read session: {exc}", file=sys.stderr)
         return 0
 
-    if session_id is None:
-        return 0
-
+    # NO DROP WHEN THERE IS NO OPEN SESSION. Until v48 this read
+    # `if session_id is None: return 0` — the event was thrown away WHOLE even
+    # though `task_slug` was already known one line above. The schema forced it:
+    # `usage_events.session_id` was NOT NULL, so there was nowhere to put an
+    # event that belonged to a task but to no session. v48 makes the column
+    # optional and the task the primary attribution, so the row is simply
+    # written with session_id=NULL. An event with neither task nor session is
+    # written too, and surfaces in the «вне задачи» bucket of
+    # `tausik metrics cost` — it is not allowed to disappear quietly either.
     _record_with_retries(
         db_path,
         session_id,

@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 47
+SCHEMA_VERSION = 48
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -274,7 +274,7 @@ CREATE TABLE IF NOT EXISTS session_usage_metrics (
 
 CREATE TABLE IF NOT EXISTS usage_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    session_id INTEGER REFERENCES sessions(id) ON DELETE SET NULL,
     task_slug TEXT REFERENCES tasks(slug) ON DELETE SET NULL,
     model_id TEXT,
     tokens_input INTEGER NOT NULL CHECK(tokens_input >= 0),

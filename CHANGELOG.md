@@ -9,6 +9,51 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — usage is attributed to the TASK, not the session (schema v48) (BREAKING)
+
+`usage_events` declared `session_id INTEGER NOT NULL REFERENCES sessions(id)`
+and `task_slug TEXT` — the session mandatory, the task optional. That is exactly
+backwards for what the table exists to measure. The attribution target already
+existed and was never the session: `tasks` carries `cost_actual_usd`,
+`tokens_actual`, `started_model_id`, `started_at`. The `NOT NULL` was inherited
+from v23, where the table was conceived as a session ledger, and it outlived the
+per-tool attribution that arrived one version later in v24.
+
+**What it cost, measured.** `scripts/hooks/posttool_usage.py` had nowhere to put
+an event when no session was open, so it dropped the event whole — `if
+session_id is None: return 0` — *while `task_slug` was already known one line
+above*. Work done without an open session therefore recorded a ZERO rather than
+an error, and `docs/ru/sessions.md` documented four more mechanisms failing the
+same silent way alongside it. The worst of them is not the empty one: the brain
+slice "for this session" was computed over all time and presented itself as
+session-scoped — not empty, but WRONG.
+
+**Migration v48** rebuilds `usage_events` (SQLite cannot drop `NOT NULL` in
+place — the same reason v24 rebuilt this same table). `session_id` becomes
+optional; the hook writes the row with `session_id=NULL` instead of discarding
+it. The foreign key to `sessions` also changes from `ON DELETE CASCADE` to
+`ON DELETE SET NULL`: under the old meaning an event belonged to its session, so
+cascading was coherent; under the new one it would delete spend attributed to a
+task that is still alive and whose `cost_actual_usd` is summed from those very
+rows.
+
+**The event that belongs to nothing does not get to vanish either.** An event
+with neither task nor session is now written, and `tausik metrics cost` prints
+an explicit *«вне задачи»* bucket for it, broken out by how many of those had no
+session at all. The bucket prints even when the per-task table is empty — that
+window is precisely where unattributed work is most likely to exist and most
+likely to be missed, and the old early return would have printed *"No usage
+data"* over a non-empty bucket. It excludes `source='session_record'` mirror
+rows, without which the report would re-run the ~2× double count that
+`test_usage_events_double_count.py` was written to pin.
+
+**Why BREAKING.** The schema moves 47 → 48. Migrations here are one-way by
+design; no downward migration exists and none is needed by the data — v47 code
+always wrote a non-NULL `session_id` and none of its reads depend on `NOT NULL`.
+Reverting the code additionally needs one manual line, because `backend_init`
+refuses a database newer than the code:
+`UPDATE meta SET value='47' WHERE key='schema_version'`.
+
 ### Fixed — the `mypy` gate measured something the project never asked to measure
 
 The gate was declared `mypy {files}` and handed mypy the **changed** files.

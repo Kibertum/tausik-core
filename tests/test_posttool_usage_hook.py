@@ -241,8 +241,53 @@ class TestEnvOverrides:
         # Nothing inserted.
         assert _read_events(db) == []
 
-    def test_no_open_session_skips_insert(self, tmp_path):
+    def test_no_open_session_still_records_the_task(self, tmp_path):
+        """ПЕРЕВЁРНУТЫЙ ХРАПОВИК. Раньше звался test_no_open_session_skips_insert.
+
+        ПРЕЖНИЙ КОНТРАКТ, который он закреплял: без открытой сессии хук не
+        вставляет НИЧЕГО (`if session_id is None: return 0`). Это был не выбор,
+        а следствие схемы — `usage_events.session_id` объявлялся NOT NULL, и
+        событию, принадлежащему ЗАДАЧЕ, но не сессии, некуда было лечь. Цена:
+        вся работа вне сессии записывала НОЛЬ вместо ошибки, а `task_slug` в
+        момент дропа был уже известен строкой выше.
+
+        Миграция v48 (usage-attribution-is-keyed-by-task-not-session) сняла
+        NOT NULL и сделала задачу основной атрибуцией, поэтому утверждение
+        перевёрнуто, а не снято: событие пишется с session_id=NULL и живым
+        task_slug.
+
+        КУДА ПЕРЕЕХАЛА НАСТОЯЩАЯ ЗАЩИТА, которую прежний храповик нёс. Он
+        сторожил одно: событие не должно попасть в БД непонятно к чему
+        привязанным. Это по-прежнему сторожится, но уже не дропом, а
+        ВИДИМОСТЬЮ — строка без задачи И без сессии обязана быть предъявлена в
+        отчёте, и это пинают tests/test_usage_events_unattributed_bucket.py
+        (корзина «вне задачи» печатается, в том числе когда таблица по задачам
+        пуста) и test_usage_events_double_count.py (корзина не удваивает суммы).
+        """
         project_dir, db = _seed_project(tmp_path, end_session=True)
         result = _run_hook(project_dir, {"tool_name": "Read", "tool_response": {}})
         assert result.returncode == 0
-        assert _read_events(db) == []
+        events = _read_events(db)
+        assert len(events) == 1, "событие без открытой сессии больше не дропается"
+        assert events[0]["session_id"] is None
+        assert events[0]["task_slug"] == "demo", (
+            "атрибуция задачей — единственная причина не дропать это событие"
+        )
+
+    def test_no_session_and_no_task_is_still_written(self, tmp_path):
+        """НЕГАТИВНЫЙ СЦЕНАРИЙ: ни задачи, ни сессии — строка всё равно есть.
+
+        Самый тихий из возможных дропов и потому единственный, ради которого
+        стоит отдельный тест: раньше такое событие исчезало дважды — сначала по
+        отсутствию сессии, а если бы прошло, то по отсутствию задачи оно всё
+        равно не попало бы ни в один отчёт. Здесь пинается первая половина
+        (строка записана); вторую — что её ВИДНО — пинает
+        tests/test_usage_events_unattributed_bucket.py.
+        """
+        project_dir, db = _seed_project(tmp_path, with_active_task=False, end_session=True)
+        result = _run_hook(project_dir, {"tool_name": "Read", "tool_response": {}})
+        assert result.returncode == 0
+        events = _read_events(db)
+        assert len(events) == 1
+        assert events[0]["session_id"] is None
+        assert events[0]["task_slug"] is None

@@ -73,7 +73,7 @@ def _table_ddl(conn: sqlite3.Connection, table: str) -> str:
     return row[0] if row else ""
 
 
-def _norm_ddl(sql: str) -> str:
+def _norm_ddl(sql: str, table: str = "tasks") -> str:
     """Canonicalise a CREATE TABLE for comparison ACROSS the fresh/migrated paths.
 
     PRAGMA table_info only exposes (name, type, notnull, default) — it is BLIND to
@@ -86,7 +86,7 @@ def _norm_ddl(sql: str) -> str:
     constraints the column check cannot see."""
     sql = re.sub(r"--[^\n]*", "", sql)  # strip line comments
     sql = re.sub(r"\bIF NOT EXISTS\b", "", sql, flags=re.I)
-    sql = sql.replace('"tasks"', "tasks").replace("tasks_new", "tasks")
+    sql = sql.replace(f'"{table}"', table).replace(f"{table}_new", table)
     sql = re.sub(r"\s+", " ", sql)  # collapse whitespace
     sql = re.sub(r"\s*([(),])\s*", r"\1", sql)  # strip space around punctuation
     return sql.strip().lower()
@@ -163,17 +163,26 @@ class TestUpgradePathMatchesFreshSchema:
             "быть объяснено в докстринге модуля и заведено задачей"
         )
 
-    def test_rebuilt_tasks_ddl_matches_including_constraints(self, fresh, migrated):
-        """Полный DDL tasks, а не только (имя,тип,notnull,default).
+    @pytest.mark.parametrize("table", ["tasks", "usage_events"])
+    def test_rebuilt_ddl_matches_including_constraints(self, table, fresh, migrated):
+        """Полный DDL перестроенной таблицы, а не только (имя,тип,notnull,default).
 
-        v43 перестраивает tasks по РУКОПИСНОМУ снимку DDL. Тест колонок выше слеп
-        к CHECK/FK/UNIQUE — они есть только в тексте DDL. Прямое сравнение
-        нормализованных CREATE ловит именно тот дрейф ограничений между снимком
-        v43 и SCHEMA_SQL, который PRAGMA table_info пропустил бы — зелено там, где
-        проверяют, subtly-wrong на центральной таблице там, где работают."""
-        assert _norm_ddl(_table_ddl(fresh, "tasks")) == _norm_ddl(_table_ddl(migrated, "tasks")), (
-            "DDL tasks на пути миграции разошёлся со свежей схемой по ограничению "
-            "(CHECK/FK/UNIQUE) — снимок v43 _CREATE_TASKS_NEW отстал от SCHEMA_SQL"
+        v43 перестраивает tasks, v48 — usage_events, обе по РУКОПИСНОМУ снимку
+        DDL. Тест колонок выше слеп к CHECK/FK/UNIQUE — они есть только в тексте
+        DDL. Прямое сравнение нормализованных CREATE ловит именно тот дрейф
+        ограничений между снимком миграции и SCHEMA_SQL, который PRAGMA
+        table_info пропустил бы — зелено там, где проверяют, subtly-wrong там,
+        где работают. Для usage_events это ловит и то, ради чего v48 написана:
+        FK на sessions обязан быть SET NULL на ОБОИХ путях, а не CASCADE на
+        одном из них — PRAGMA table_info про FK не знает вовсе.
+
+        Список параметров — это список таблиц, которые кто-либо перестраивал;
+        новая перестройка обязана дописать себя сюда."""
+        assert _norm_ddl(_table_ddl(fresh, table), table) == _norm_ddl(
+            _table_ddl(migrated, table), table
+        ), (
+            f"DDL {table} на пути миграции разошёлся со свежей схемой по ограничению "
+            "(CHECK/FK/UNIQUE) — рукописный снимок в миграции отстал от SCHEMA_SQL"
         )
 
 

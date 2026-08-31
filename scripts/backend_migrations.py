@@ -27,6 +27,7 @@ from backend_migrations_v44 import MIGRATION_V44
 from backend_migrations_v45 import MIGRATION_V45
 from backend_migrations_v46 import MIGRATION_V46
 from backend_migrations_v47 import MIGRATION_V47
+from backend_migrations_v48 import MIGRATION_V48
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -368,6 +369,11 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     # v47: a gate row records its OUTCOME and its REASON, so a check that
     # could not run stops being stored as one that passed
     47: MIGRATION_V47,
+    # v48: атрибуция расхода ключуется ЗАДАЧЕЙ, а не сессией
+    # (usage-attribution-is-keyed-by-task-not-session). Список пуст намеренно —
+    # перестройка usage_events живёт охраняемым пост-шагом, чтобы уметь
+    # пропустить себя на частичной фикстуре без этой таблицы (см. v48-модуль).
+    48: MIGRATION_V48,
 }
 
 

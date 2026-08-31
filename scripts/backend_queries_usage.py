@@ -21,7 +21,7 @@ class BackendQueriesUsageMixin:
 
     def usage_event_append(
         self,
-        session_id: int,
+        session_id: int | None,
         task_slug: str | None,
         tokens_input: int,
         tokens_output: int,
@@ -33,7 +33,15 @@ class BackendQueriesUsageMixin:
         recorded_at: str | None = None,
         tool_name: str | None = None,
     ) -> int:
-        """Insert one usage_events row; return new row id."""
+        """Insert one usage_events row; return new row id.
+
+        ``session_id`` is optional since v48. The row's attribution is the
+        TASK — that is what carries ``cost_actual_usd``/``tokens_actual`` — and
+        the session is a derived report of activity mileage. Before v48 the
+        column was ``NOT NULL``, so a caller with a known task but no open
+        session had nowhere to put the event and dropped it whole
+        (usage-attribution-is-keyed-by-task-not-session).
+        """
         when = recorded_at or utcnow_iso()
         slug = (task_slug or "").strip() or None
         ti, to, tt = int(tokens_input), int(tokens_output), int(tokens_total)
@@ -48,7 +56,7 @@ class BackendQueriesUsageMixin:
                 "cost_usd,tool_calls,source,recorded_at,tool_name"
                 ") VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                 (
-                    int(session_id),
+                    None if session_id is None else int(session_id),
                     slug,
                     mid,
                     ti,
@@ -287,3 +295,68 @@ class BackendQueriesUsageMixin:
             "tool_calls": int(agg.get("tool_calls") or 0),
             "last_session": last,
         }
+
+
+def usage_events_unattributed_rollup(
+    backend: Any,
+    since: str | None = None,
+    until: str | None = None,
+) -> dict[str, Any]:
+    """The «вне задачи» bucket: real events that no task claims.
+
+    WHY A MODULE-LEVEL FUNCTION AND NOT A BACKEND METHOD. `SQLiteBackend` is one
+    of the two classes baselined by the class-surface ratchet (tausik/gates.json,
+    129 members), and that baseline may only turn DOWN — a 130th public member is
+    exactly the regression the gate exists to catch. Renaming it private to slip
+    under the count would evade the rule instead of honouring it. So the query
+    stays in the layer it belongs to (this module owns the usage_events SQL) but
+    stops being API on a class that is already too wide.
+
+    WHY IT EXISTS AT ALL. The per-task rollup answers `WHERE task_slug IS NOT
+    NULL`, which is correct for what it reports and is the reason it never
+    double-counts. But it means the complement — an event with no task — is
+    invisible in every report we print. Until v48 that hardly mattered, because
+    the hook dropped such an event before it reached the table; now that the row
+    is written, silence here would trade one silent drop for another, which is
+    the very thing that task set out to stop.
+
+    WHAT IT COUNTS. `task_slug IS NULL` AND `source <> 'session_record'`. The
+    source filter is not cosmetic: `session_usage_record` writes a MIRROR row of
+    the session total, always with a NULL task_slug. Counting those here would
+    report the session's whole spend a second time — the ~2x error
+    `tests/test_usage_events_double_count.py` was written to pin. So the bucket
+    holds only genuine, unclaimed work.
+
+    WHY `sessionless_events` IS BROKEN OUT. Two different situations wear the
+    same NULL task_slug: work done inside a session but outside any task, and
+    work done with neither. The second is what v48 newly made representable, so
+    the report has to be able to name it rather than fold it into one anonymous
+    total.
+    """
+    clauses = ["task_slug IS NULL", "source <> 'session_record'"]
+    params: list[Any] = []
+    if since:
+        clauses.append("recorded_at >= ?")
+        params.append(since)
+    if until:
+        clauses.append("recorded_at <= ?")
+        params.append(until)
+    where_sql = " AND ".join(clauses)
+    row = (
+        backend._q1(
+            "SELECT COUNT(*) AS event_count, "
+            "COALESCE(SUM(tokens_total), 0) AS tokens_total, "
+            "COALESCE(SUM(cost_usd), 0) AS cost_usd, "
+            "COALESCE(SUM(CASE WHEN session_id IS NULL THEN 1 ELSE 0 END), 0) "
+            "AS sessionless_events "
+            f"FROM usage_events WHERE {where_sql}",
+            tuple(params),
+        )
+        or {}
+    )
+    return {
+        "event_count": int(row.get("event_count") or 0),
+        "tokens_total": int(row.get("tokens_total") or 0),
+        "cost_usd": float(row.get("cost_usd") or 0.0),
+        "sessionless_events": int(row.get("sessionless_events") or 0),
+    }

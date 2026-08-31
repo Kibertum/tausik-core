@@ -11,8 +11,38 @@ from __future__ import annotations
 
 from typing import Any
 
+from backend_queries_usage import usage_events_unattributed_rollup
 from model_pinning import format_model_usage_section
-from project_service import ProjectService
+from project_service import ProjectService, normalize_usage_time_bound
+
+
+def _print_unattributed_bucket(svc: ProjectService, since: str | None, until: str | None) -> None:
+    """Print the «вне задачи» bucket — the events the table above cannot show.
+
+    The per-task rollup selects `task_slug IS NOT NULL`, so work that no task
+    claims is absent from it by construction. Since v48 the hook writes such an
+    event instead of dropping it (usage-attribution-is-keyed-by-task-not-session),
+    and an unprinted bucket would simply move the silence from the write path to
+    the read path. Printed only when it is non-empty: a permanent "0" line is
+    noise, and there is nothing to hide when there is nothing in it.
+    """
+    # The SAME window as the table above it: a bucket computed over a different
+    # one would be worse than no bucket. Ordering (`since` > `until`) is already
+    # refused by the per-task rollup, which runs first on both paths through
+    # `_print_usage_cost_rollup`, so the bad-bound case never reaches here.
+    bucket = usage_events_unattributed_rollup(
+        svc.be,
+        normalize_usage_time_bound("since", since),
+        normalize_usage_time_bound("until", until),
+    )
+    if not bucket["event_count"]:
+        return
+    sessionless = bucket["sessionless_events"]
+    tail = f", из них вне сессии: {sessionless}" if sessionless else ""
+    print(
+        f"\nвне задачи: {bucket['event_count']} событий{tail}, "
+        f"{bucket['tokens_total']:,} токенов, {bucket['cost_usd']:.4f} usd"
+    )
 
 
 def _print_usage_cost_rollup(svc: ProjectService, since: str | None, until: str | None) -> None:
@@ -21,6 +51,12 @@ def _print_usage_cost_rollup(svc: ProjectService, since: str | None, until: str 
         print(
             "No usage data for tasks in the selected window (usage_events with non-null task_slug)."
         )
+        # NO early return. An empty per-task table is precisely the window in
+        # which unattributed work is most likely to exist and most likely to be
+        # missed — returning here would print "no usage data" over a bucket that
+        # is not empty, which is a lie the old code could not tell only because
+        # the hook dropped those events before they were ever written.
+        _print_unattributed_bucket(svc, since, until)
         return
     print("task_slug".ljust(32), "events".rjust(8), "tokens".rjust(12), "cost_usd".rjust(12))
     for r in rows:
@@ -34,6 +70,7 @@ def _print_usage_cost_rollup(svc: ProjectService, since: str | None, until: str 
             f"{tok:,}".rjust(12),
             f"{cost:.4f}".rjust(12),
         )
+    _print_unattributed_bucket(svc, since, until)
 
 
 def cmd_metrics(svc: ProjectService, args: Any) -> None:

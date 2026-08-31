@@ -1,7 +1,7 @@
 ---
 slug: parallel-work-runs-without-collisions
 title: "Параллельная работа возможна: бюджеты не смешиваются, владение задачей выражено, изоляция названа"
-status: open
+status: active
 epic: release-19-agent-effectiveness
 ---
 
