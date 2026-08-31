@@ -341,8 +341,16 @@ def run_command_gate(gate: dict, files: list[str]) -> GateOutcome:
 
     scope_label = ""
 
+    # `file_extensions` объявляет, КОГДА гейт применим, и это не зависит от
+    # того, подставляет ли команда {files}. Прежнее условие требовало наличия
+    # подстановки, поэтому у гейта без неё объявление «я про .py» не значило
+    # НИЧЕГО и молча игнорировалось — гейт запускался на любой коммит. Сегодня
+    # такой гейт ровно один (mypy, который проверяет набор источников из
+    # pyproject целиком, а не переданные файлы), и для него область обязана
+    # сохраниться: «проверяю проект целиком» и «проверяю на КАЖДЫЙ коммит» —
+    # разные утверждения.
     file_exts_raw = gate.get("file_extensions") or []
-    if file_exts_raw and "{files}" in cmd:
+    if file_exts_raw:
         allowed = {(e if e.startswith(".") else "." + e).lower() for e in file_exts_raw}
         files = [f for f in files if os.path.splitext(f)[1].lower() in allowed]
         if not files:
@@ -355,7 +363,7 @@ def run_command_gate(gate: dict, files: list[str]) -> GateOutcome:
     # (Dockerfile, Containerfile, Makefile...). Without this, an empty match
     # left {files} = "." and e.g. `hadolint .` choked on the directory.
     patterns_raw = gate.get("file_patterns") or []
-    if patterns_raw and "{files}" in cmd:
+    if patterns_raw:
         import fnmatch
 
         files = [

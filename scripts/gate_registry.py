@@ -118,8 +118,29 @@ _SCOPED: tuple[GateSpec, ...] = (
             "enabled": False,
             "severity": "warn",
             "trigger": ["commit"],
-            "command": "mypy {files}",
-            "description": "Type-check with mypy before commit",
+            # NO {files} — DELIBERATE. `mypy {files}` handed mypy the CHANGED
+            # files, while pyproject.toml declares its own source set
+            # (files = ["scripts", "harness/claude/mcp/project"], exclude =
+            # ["scripts/hooks/"]). Two sources of truth about WHAT is checked —
+            # the same defect class this release fixed in CLAUDE.md (decision
+            # #277: address from one source, content from another).
+            #
+            # A file passed explicitly is checked OUTSIDE the source set, so
+            # imports that resolve in the normal run stop resolving: measured on
+            # tests/conftest.py — three errors as an argument, zero in the
+            # project run, because tests/ is not in the set at all. `exclude`
+            # does not apply to explicit arguments either, so scripts/hooks/,
+            # excluded on purpose, would be checked too.
+            #
+            # The project run also catches MORE: a change in one module that
+            # breaks the types of another is invisible to a per-file run.
+            # Measured cost of the whole project: 0.93 s.
+            #
+            # `file_extensions` still scopes WHEN the gate applies — a commit
+            # touching no .py does not run it. That works without {files} since
+            # mypy-gate-measures-differently-than-mypy-itself.
+            "command": "mypy",
+            "description": "Type-check the project's configured source set before commit",
             "file_extensions": [".py"],
         },
     ),

@@ -983,17 +983,45 @@ class TestCommandGateFileExtensions:
         assert len(calls) == 1
         assert "Main.PY" in calls[0]
 
-    def test_no_placeholder_filter_not_applied(self, monkeypatch):
-        """If command has no {files}, filter must not early-return."""
+    def test_no_placeholder_still_honours_the_declared_scope(self, monkeypatch):
+        """A declared `file_extensions` scopes the gate WHETHER OR NOT the
+        command interpolates {files}.
+
+        THIS TEST WAS INVERTED, DELIBERATELY, and the old contract is named so
+        the next reader does not think it was lost by accident. It used to be
+        `test_no_placeholder_filter_not_applied` and pinned the opposite: "if
+        command has no {files}, filter must not early-return". That made
+        `file_extensions` mean NOTHING for such a gate — a declaration the
+        runner silently ignored, so the gate ran on every commit no matter what
+        changed.
+
+        Nothing depended on the old behaviour: at the time of the inversion all
+        three command gates (ruff, mypy, bandit) interpolated {files}, so the
+        branch was unreachable in production and only this test observed it. It
+        became reachable when the mypy gate dropped {files} on purpose
+        (mypy-gate-measures-differently-than-mypy-itself) to type-check the
+        source set pyproject.toml declares rather than the changed files.
+
+        The protection the old test really carried — a gate that declares NO
+        scope must never be skipped — is not weakened: it lives in
+        `test_no_extensions_config_behaves_as_before` and in
+        `tests/test_mypy_gate_scope.py::test_gate_without_scope_declaration_always_runs`.
+        """
         calls = []
         monkeypatch.setattr(
             "gate_runner.subprocess.run",
             lambda cmd, **kw: calls.append(cmd) or self._FakeOk(),
         )
         gate = {"command": "ruff check .", "file_extensions": [".py"]}
-        passed, _ = run_command_gate(gate, ["a.yml"])
+        passed, output = run_command_gate(gate, ["a.yml"])
+        assert passed is True, "empty scope is legitimate emptiness — it must not block"
+        assert calls == [], "the gate ran although nothing it declared an interest in changed"
+        assert "No files matching" in output, output
+
+        # ...and it DOES run once a file it declared an interest in appears.
+        passed, _ = run_command_gate(gate, ["a.yml", "b.py"])
         assert passed is True
-        assert len(calls) == 1  # ran despite no matching files
+        assert len(calls) == 1
 
     def test_no_extensions_config_behaves_as_before(self, monkeypatch):
         """Backward compat: gate without file_extensions runs on everything."""

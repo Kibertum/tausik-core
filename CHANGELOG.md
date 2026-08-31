@@ -9,6 +9,92 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the `mypy` gate measured something the project never asked to measure
+
+The gate was declared `mypy {files}` and handed mypy the **changed** files.
+`pyproject.toml` declares its own source set — `files = ["scripts",
+"harness/claude/mcp/project"]`, `exclude = ["scripts/hooks/"]`. Two sources of
+truth about *what* is checked: the same defect class this release already fixed
+in `CLAUDE.md`, where the address came from one source and the content from
+another.
+
+A file handed to mypy as an argument is checked **outside** that source set, so
+imports that resolve in the normal run stop resolving. Measured:
+`python -m mypy` → *Success: no issues found in 341 source files*;
+`python -m mypy tests/conftest.py` → three errors (`service_gates` not found at
+:71, `backend_schema` not found at :207, `no-any-return` at :212). `exclude`
+does not apply to explicit arguments either, so `scripts/hooks/` — left out on
+purpose — would have been checked too.
+
+Those three errors travelled from handoff to handoff as *"pre-release type debt
+in conftest"*. The diagnosis was wrong: there was nothing to fix in the types.
+Worse, the false positive was **conditional** — the same file checked together
+with a `scripts/*.py` file comes out clean, because the other argument drags the
+package path back in. A gate whose verdict depends on what else happened to be
+in the commit is not a type check.
+
+The command is now plain `mypy`: one source of truth, and it catches strictly
+more — a change in one module that breaks the types of another is invisible to a
+per-file run.
+
+**Second half of the same defect.** `gate_command_runner` applied
+`file_extensions` / `file_patterns` **only** when the command interpolated
+`{files}`. For a gate without that placeholder the declaration meant nothing and
+was silently ignored, so the gate would run on every commit regardless of what
+changed. Scoping is now honoured either way — *"I check the whole project"* and
+*"I run on every commit"* are different claims, and only the first was intended.
+A gate that declares no scope still runs on everything, and that is pinned by
+its own test.
+
+Cost, measured rather than asserted: the project-wide run is 0.46 s against
+0.19-0.42 s for the per-file form — up to +0.27 s. A commit touching no `.py`
+costs 0.00 s, exactly as before, because the gate is skipped.
+
+One existing ratchet was **inverted on purpose** and says so in its own
+docstring: `test_no_placeholder_filter_not_applied` pinned the behaviour now
+identified as the defect. The protection it actually carried — a gate declaring
+no scope must never be skipped — is kept in two tests. Nothing depended on the
+old behaviour: all three command gates interpolated `{files}`, so the branch was
+unreachable in production and only that test observed it.
+
+### Added — the audit hook that named the writer now lives in the tree
+
+The tool that found the `update-claudemd` defect existed only in a scratch
+directory: `sitecustomize.py` with an `open`-event audit hook. It is now
+`tests/tools/claudemd_audit/sitecustomize.py`.
+
+It is **not** a root `sitecustomize.py`, and that is the whole design decision.
+The name is what makes the tool work — the interpreter imports it on its own
+when it is on `sys.path`, so the hook stands up in subprocesses nobody
+instrumented, which is exactly where the corruption came from. The same
+property is why it must not sit at the repository root: a module by that name
+there would shadow the system `sitecustomize` for every Python process started
+from this tree. It lives in its own directory and is armed explicitly:
+
+```
+export PYTHONPATH="$PWD/tests/tools/claudemd_audit:$PYTHONPATH"
+export CLAUDEMD_AUDIT_ROOT="$PWD"
+export CLAUDEMD_AUDIT_LOG="$PWD/.tausik/tmp/claudemd-audit.jsonl"
+```
+
+Without **both** environment variables it does not install at all — it never
+calls `sys.addaudithook`, rather than installing and staying quiet. Nothing is
+blocked and nothing is repaired; one JSON line per write is all it does.
+
+It does not replace `tests/claudemd_watch.py`. The sha256 trap answers *did the
+file change*; on the real lane it produced 42 events inside one second across 19
+xdist workers and could not name an author. The hook answers *who changed it*:
+two events on the whole lane, one pid, with the stack that pointed straight at
+`handlers_skill.py` → `claudemd_writer.py`. Both are cheap in different ways and
+both stay.
+
+21 regression tests in `tests/test_claudemd_audit_hook.py` cover both directions
+— that it catches a write, including one from a *grandchild* process, and that
+it stays silent on reads, on other files, on a same-named file in another
+directory, and when it is not armed. Every one of them runs against a temporary
+directory: a test that asserts something about writes to the real `CLAUDE.md`
+would corrupt that very file when it fails.
+
 ### Fixed — `update-claudemd` wrote into whatever directory the process stood in
 
 `CLAUDE.md`'s dynamic block was being overwritten with the state of an **empty**

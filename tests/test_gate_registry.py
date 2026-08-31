@@ -73,12 +73,21 @@ _UNIVERSAL_GATES_BEFORE = {
         "description": "Lint with ruff before commit and at verify",
         "file_extensions": [".py"],
     },
+    # DELIBERATE DEPARTURE FROM THE FROZEN SNAPSHOT, and the only one.
+    # `command` was "mypy {files}" and `description` "Type-check with mypy
+    # before commit" when this snapshot was taken. Both changed in
+    # mypy-gate-measures-differently-than-mypy-itself: handing mypy the CHANGED
+    # files contradicted pyproject.toml, which declares its own source set, so
+    # the gate measured something the project never asked to be measured — and
+    # produced three phantom errors on tests/conftest.py, a file the normal run
+    # does not check at all. Everything else about the gate is still pinned:
+    # enabled, severity, trigger and file_extensions must not drift.
     "mypy": {
         "enabled": False,
         "severity": "warn",
         "trigger": ["commit"],
-        "command": "mypy {files}",
-        "description": "Type-check with mypy before commit",
+        "command": "mypy",
+        "description": "Type-check the project's configured source set before commit",
         "file_extensions": [".py"],
     },
     "filesize": {
