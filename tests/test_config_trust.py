@@ -151,8 +151,17 @@ class TestOffByAnotherSpelling:
 class TestBuiltinGateCommandOverride:
     """`_validate_custom_gate` used to run only for gate names absent from
     DEFAULT_GATES, so overriding a built-in gate's command skipped the
-    allowed-executable check entirely. `.tausik/config.json` travels with the
-    repo, so a clone could point `ruff.command` at any binary.
+    allowed-executable check entirely. The PROJECT TIER travels with the repo,
+    so a clone could point `ruff.command` at any binary.
+
+    NAMED PRECISELY, because the shorter sentence described two incompatible
+    worlds at once. The tier is TWO files. `tausik/policy.json` is committed and
+    reaches every clone. `.tausik/config.json` reaches a clone only where
+    `.tausik/` is tracked — true of consumer projects, FALSE of this repository,
+    whose `.gitignore` ignores the whole directory. The threat model rests on
+    the tier arriving with the repo, and that holds for the tier; it does not
+    hold for either file alone (this-repos-strictness-lives-in-a-gitignored-file,
+    decision #287).
     """
 
     def _command(self, project, gate):

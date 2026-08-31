@@ -9,9 +9,14 @@ file. The premise was already recorded in one spot (``bootstrap_opencode.py``:
 *".tausik/config.json travels with the repo, so the override is UNTRUSTED"*);
 this module generalizes it.
 
-THE RULE. Config is read from three tiers, least to most trusted: project
-(``.tausik/config.json``, travels with the repo), user (``~/.tausik/config.json``),
-managed (``$TAUSIK_MANAGED_CONFIG``). Higher tiers win on merge, EXCEPT that on a
+THE RULE. Config is read from three tiers, least to most trusted: project, user
+(``~/.tausik/config.json``), managed (``$TAUSIK_MANAGED_CONFIG``). The project
+tier is TWO files, and the distinction is load-bearing rather than cosmetic:
+``tausik/policy.json`` is committed and therefore reaches every clone, while
+``.tausik/config.json`` reaches a clone only where ``.tausik/`` is tracked — which
+is true of consumer projects and NOT of this repository, where ``.gitignore``
+ignores the whole directory. Composition and the reason for the split live in
+``config_policy``. Higher tiers win on merge, EXCEPT that on a
 guarded key the stricter value wins in both directions — a project may tighten
 freely and may not weaken, and a tightening it already earned is not undone by a
 trusted tier that merely restates a default.
@@ -21,9 +26,11 @@ while losing every trigger never fires, and one whose ``file_extensions`` is
 narrowed to nothing never receives input. Both are "off" spelled differently, so
 those keys are guarded as sets the project may extend but not shrink.
 
-THREAT SURFACE. Closed: **a repository cannot grant itself authority.**
-``.tausik/config.json`` arrives with every clone, fork and PR;
-``~/.tausik/config.json`` does not. NOT closed, stated plainly rather than
+THREAT SURFACE. Closed: **a repository cannot grant itself authority.** The
+project tier arrives with every clone, fork and PR — that is precisely why both
+of its files are untrusted, and why moving a tightening into the committed one
+buys reach without buying power; ``~/.tausik/config.json`` does not arrive.
+NOT closed, stated plainly rather than
 implied: an agent that can run shell commands can write the user tier or export
 ``TAUSIK_MANAGED_CONFIG`` itself. Tiers are **not a sandbox**. What they buy is a
 raised bar and, above all, visibility — weakening must now happen outside the
@@ -364,7 +371,7 @@ def enforce_project_tier(project: dict, trusted: dict) -> tuple[dict, list[Rejec
     return cleaned, rejections
 
 
-def _restore_project_tightenings(merged: dict, cleaned: dict, trusted: dict) -> None:
+def restore_tightenings(merged: dict, cleaned: dict, trusted: dict) -> None:
     """Let a surviving project value stand where the merge made things laxer.
 
     `deep_merge` gives the trusted tier the last word on every key it names,
@@ -374,6 +381,12 @@ def _restore_project_tightenings(merged: dict, cleaned: dict, trusted: dict) -> 
     undo a project's `true` — a tightening the policy had already approved, with
     no rejection to show for it. "Project may only tighten" has to hold in this
     direction too: on guarded keys the STRICTER of the two wins.
+
+    Public because the project tier is composed of two files, not one
+    (`config_policy`): the committed `tausik/policy.json` and the machine-local
+    `.tausik/config.json` need this same "stricter wins" arbitration between
+    themselves, and spelling it a second time there would be a copy of the rule
+    that drifts (convention #266).
     """
     for guard in GUARDS:
         for path in _expand(guard, cleaned):
@@ -395,7 +408,7 @@ def resolve(project: dict, trusted: dict | None = None) -> tuple[dict, list[Reje
         trusted = load_trusted_layers()
     cleaned, rejections = enforce_project_tier(project, trusted)
     merged = deep_merge(cleaned, trusted)
-    _restore_project_tightenings(merged, cleaned, trusted)
+    restore_tightenings(merged, cleaned, trusted)
     return merged, rejections
 
 
@@ -409,4 +422,3 @@ def is_guarded(path: tuple[str, ...] | str) -> Guard | None:
         if all(g == "*" or g == p for g, p in zip(guard.path, parts)):
             return guard
     return None
-

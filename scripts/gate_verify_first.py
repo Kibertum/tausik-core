@@ -325,8 +325,8 @@ def enforce_verify_first(
     # hole intact behind a config flag: that path runs the gates inline,
     # `gate_runner` skips the scoped ones for want of declared files, and a
     # scope-independent gate going green would close the task on a run that
-    # examined nothing. `.tausik/config.json` travels with the repository,
-    # so "legacy opt-out" is not a safe place to keep a bypass.
+    # examined nothing. The PROJECT TIER travels with the repository, so
+    # "legacy opt-out" is not a safe place to keep a bypass.
     #
     # It also has to be its own message. The generic block below tells the
     # agent to run `tausik verify` — advice that can never succeed while the

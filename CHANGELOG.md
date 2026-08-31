@@ -9,6 +9,51 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — this repository's own strictness lived in a gitignored file
+
+Two keys had restored this repository's enforcement: `task_done.auto_verify:
+false` (closing a task on an inline run bypasses the signed receipt) and
+`gates.bootstrap_drift.enabled: true` (a source edit that never reached the copy
+that runs). Both were written into `.tausik/config.json`, and `.gitignore:25`
+ignores `.tausik/` wholesale. The strictness of a release whose thesis is
+evidence existed in exactly one working copy.
+
+**Measured, not inferred.** A fresh `git worktree` of HEAD, resolved against a
+user tier carrying `task_done.auto_verify: true` — as this machine's does, for an
+unrelated project — returned `auto_verify` **True** and `bootstrap_drift`
+**False**, with **zero** rejections, because an absent project tier has nothing
+to reject. `tausik doctor` in that state says *"no project-scope key weakens
+enforcement"*, which was true and useless.
+
+**The two rejected repairs are on the record.** Making the strict values
+framework DEFAULTS cannot work: `auto_verify: False` already is the default, and
+a default loses to any trusted tier that speaks — only the project tier is
+compared, strictness-wise, against the trusted ones. Un-ignoring
+`.tausik/config.json` would commit a GENERATED file: `_meta.generated_at`,
+`_meta.lib_commit`, `installed_skills` and `brain.database_ids` would dirty the
+tree on every bootstrap.
+
+**The fix: the project tier is now two files.** `tausik/policy.json` joins the
+non-dotted, branch-coupled projection that already carries `gates.json` — whose
+own comment states the precedent verbatim, *"so a fresh clone carries it"* — and
+is composed UNDER `.tausik/config.json` by the config loader (`config_policy`),
+rather than left for a third gate to re-implement. The local file wins on
+ordinary keys; on a **guarded** key the stricter of the two wins, so a gitignored
+file cannot quietly undo a committed rule. Same measurement after: **False** and
+**True**, from a copy with no `.tausik/` at all. Decision #287.
+
+**No new authority.** `policy.json` is not a fourth tier — it is the project
+tier, the UNTRUSTED one, judged by the same guards and permitted only to tighten.
+Measured rather than asserted: a hostile `policy.json` and the identical hostile
+`.tausik/config.json` resolve to the same values, rejection for rejection. The
+move buys reach, not power.
+
+**One sentence had been describing two incompatible worlds.** *"`.tausik/config.
+json` travels with the repo"* appeared in eight places and underpins the
+executable-validation threat model. It is true for consumer projects, false here.
+All eight now name the *tier* rather than one of its two files.
+
+
 ### Fixed — a task's parent story counted as work the agent did not declare
 
 `tausik verify` reported one undeclared file on a closure whose declared scope

@@ -4,7 +4,8 @@ The allow-list answers "is this executable tolerable at all?". It cannot
 answer "is this still the gate it claims to be?" — every entry on the list
 is legitimate, so `gates.ruff.command = "python -c pass"` passes it and
 leaves a gate that is enabled, fires on its triggers, and is green forever.
-Since `.tausik/config.json` travels with the repository, a clone could
+Since the PROJECT TIER travels with the repository — `tausik/policy.json`
+always, `.tausik/config.json` wherever `.tausik/` is tracked — a clone could
 neuter the framework's own supervision without tripping anything.
 
 The guard here constrains the executable of a *default* gate to stay the

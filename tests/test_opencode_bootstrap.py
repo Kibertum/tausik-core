@@ -390,8 +390,9 @@ class TestScaffoldOrchestrator:
 
 
 class TestRulesPathIsUntrusted:
-    """`.tausik/config.json` travels with the repo. A tampered one (malicious PR, cloned
-    template) must not turn `bootstrap --ide opencode` into an arbitrary-file-write."""
+    """The project tier travels with the repo. A tampered one (malicious PR,
+    cloned template) must not turn `bootstrap --ide opencode` into an
+    arbitrary-file-write."""
 
     @pytest.mark.parametrize(
         "evil",
