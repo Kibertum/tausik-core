@@ -231,7 +231,7 @@ def test_arms_itself_in_a_grandchild_process(tmp_path: Path) -> None:
         "import subprocess, sys, os, json\n"
         "p = subprocess.run([sys.executable, '-c', "
         "\"import pathlib; pathlib.Path('CLAUDE.md').write_text('x', encoding='utf-8')\"],\n"
-        "    capture_output=True, text=True)\n"
+        "    capture_output=True, text=True, encoding='utf-8')\n"
         "assert p.returncode == 0, p.stderr\n"
         "print(json.dumps({'parent_pid': os.getpid()}))\n"
     )
