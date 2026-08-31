@@ -174,15 +174,54 @@ def test_build_does_not_mutate_db(svc):
     assert (len(svc.spec_list()), len(svc.adapt_list())) == before
 
 
+def _satisfy_clause_13_3_3(svc):
+    """Move the seeded store onto the "no findings, no clarifications" branch.
+
+    A bare ``adapt_create`` used to confirm §13.3.3 because it was measured as a
+    count of rows; it no longer does (renar_clause_reactive_adapt). The two
+    assertions that follow are about the DERIVED VIEW, not about §13.3.3, so
+    they build a conformant state explicitly.
+
+    ``_seed`` puts the store on the OTHER branch: its ADAPT carries a backward
+    finding and only a client signature, which §13.3.3 p.77 answers with
+    "approved + Architect signature". That state is unreachable here — the
+    ``adapts.status`` CHECK does not admit ``approved``, which is the subject of
+    adapt-status-enum-diverged-from-the-standards-closed-list. So the finding is
+    withdrawn and the store takes the p.78 branch instead: no finding, an AR
+    issued with verdict ``no-findings``, and SPECs carrying ``source.tz-section``
+    plus ``source.adversarial-review-ref``. That is a real branch of the clause,
+    not a stub — and no test that renders findings calls this helper.
+    """
+    conn = svc.be._conn
+    conn.execute("DELETE FROM adapt_findings WHERE adapt_slug='adapt-one'")
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS adversarial_reviews "
+        "(id INTEGER PRIMARY KEY, tz_ref TEXT, verdict TEXT, status TEXT)"
+    )
+    conn.execute(
+        "INSERT INTO adversarial_reviews (tz_ref, verdict, status) "
+        "VALUES ('TZ-2026-001','no-findings','issued')"
+    )
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(specs)")]
+    for col in ("source_tz_section", "source_adversarial_review_ref"):
+        if col not in cols:
+            conn.execute(f"ALTER TABLE specs ADD COLUMN {col} TEXT")
+    conn.execute(
+        "UPDATE specs SET source_tz_section='TZ-2026-001 §1', source_adversarial_review_ref='AR-1'"
+    )
+    conn.commit()
+
+
 def test_conformance_is_date_free(svc):
     _seed(svc)
+    _satisfy_clause_13_3_3(svc)
     doc = build_tree(svc)["conformance.md"]
     front = yaml.safe_load(doc.split("---\n")[1])
     assert front["artifact"] == "conformance"
     assert "assessment-date" not in front
     assert "next-assessment-due" not in front
     assert "manifest-id" not in front
-    # adapt-per-tz now satisfied (1 ADAPT) — clause confirmed in the derived view
+    # §13.3.3 satisfied by the state built above — clause confirmed in the view
     assert front["mandatory-clauses-confirmed"]["adapt-per-tz"] is True
 
 
@@ -313,6 +352,7 @@ class TestDerivedViewDeclaresNonConformance:
 
         monkeypatch.setattr(renar_conformance, "SCOPE_EXCLUSION", None)
         _seed(svc)
+        _satisfy_clause_13_3_3(svc)
         doc = build_tree(svc)["conformance.md"]
         assert "Level: **RENAR-1**" in doc
         assert "NON-CONFORMANT" not in doc

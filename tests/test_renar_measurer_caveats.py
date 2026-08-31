@@ -51,9 +51,10 @@ def _manifest() -> dict:
 def test_registry_is_not_empty():
     """Guards a vacuous pass: an empty registry would satisfy every check below.
 
-    There are two known-unearned confirmations today. If this ever legitimately
-    drops to zero, the drop belongs in the same commit that closes the last task
-    — not in a silent edit here.
+    One known-unearned confirmation remains today (§13.3.4); §13.3.3 left the
+    registry when its measurer was repaired, in that repair's own commit. If
+    this ever legitimately drops to zero, the drop belongs in the same commit
+    that closes the last task — not in a silent edit here.
     """
     assert len(MEASURER_CAVEATS) >= 1
     assert caveats_section(), "a non-empty registry must produce a section"

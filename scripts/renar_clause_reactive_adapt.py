@@ -1,0 +1,329 @@
+"""Mandatory clause §13.3.3 (reactive ADAPT) — a measurer that can go red.
+
+`renar_conformance` used to confirm this clause with ``adapts > 0``. A count of
+rows goes red on none of the violations the clause exists to catch, which is the
+degeneracy ADR-021 names: a control that has forgotten how to fail passes its
+whole happy path. This module replaces the count with NAMED sub-checks, each
+carrying its own outcome and its own evidence, so a red says *which* half of the
+clause is broken rather than "the number is zero".
+
+What §13.3.3 actually requires (corpus verified, `standard/13-conformance.md`):
+
+* p.73 — every ТЗ must pass adversarial review (§7.10.2); the outcome must be
+  ISSUED as an AR — an adversarial-review record in status ``issued``.
+* p.77 — on verdict "findings present" (≥1 backward finding of the seven
+  categories closed at §7.4.4) the ADAPT is mandatory in status ``approved``
+  with an Architect signature (§7.5).
+* p.80 — creating BR / SR / SPEC from a ТЗ with no recorded verdict violates
+  the standard; p.90 states the negative scenario literally — BR/SR/SPEC
+  produced with neither ``source.tz-section`` nor ``source.adapt``.
+
+Vacuity is NOT available here, and that distinction is the reason this module
+exists rather than a one-line vacuous-true beside `tc-pos-neg-pairing`. The
+first half of the clause is indeed vacuous for us — our one ADAPT's ``tz_ref``
+points at ``decisions#109``, a record, and ТЗ does not exist here as a class.
+The second half is not: SPEC exists as a class and three of them are live, so
+the provenance obligation has a subject and that subject violates it. A clause
+with a live subject may not be declared vacuously true.
+
+Read-only. Every function here queries; none writes. Introspection over
+``sqlite_master``/``PRAGMA table_info`` is deliberate: for two of the four
+sub-checks the violation is that the substrate has nowhere to PUT the required
+state, and a query against a missing column would raise where it must report.
+"""
+
+from __future__ import annotations
+
+import sqlite3
+from dataclasses import dataclass, field
+from typing import Any
+
+# §7.4.4 closed list, v1.0. A finding in any of these categories puts the
+# owning ADAPT on the "findings present" branch of the §13.3.3 table (p.77).
+BACKWARD_FINDING_CATEGORIES = (
+    "contradiction",
+    "gap",
+    "hidden-assumption",
+    "feasibility",
+    "regulatory",
+    "terminology",
+    "scope",
+)
+
+# Provenance fields §13.3.3 p.77/p.78 admits on a derived BR/SR/SPEC. Either
+# branch is satisfiable; carrying none of them is the p.90 negative scenario.
+SPEC_PROVENANCE_FIELDS = ("source_adapt", "source_tz_section", "source_adversarial_review_ref")
+
+# Tables that would hold adversarial-review records (AR, §7.4.6) if the class
+# existed here. Named rather than pattern-matched: a LIKE '%ar%' probe matches
+# unrelated tables and would confirm the clause by accident.
+AR_TABLE_CANDIDATES = ("adversarial_reviews", "ar_records", "renar_ar")
+
+
+@dataclass(frozen=True)
+class Subcheck:
+    """One named half-obligation of §13.3.3 with its own verdict."""
+
+    name: str
+    ok: bool
+    citation: str
+    evidence: str
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "check": self.name,
+            "ok": self.ok,
+            "citation": self.citation,
+            "evidence": self.evidence,
+        }
+
+
+@dataclass(frozen=True)
+class ReactiveAdaptState:
+    """The substrate facts §13.3.3 is evaluated against.
+
+    Split from :func:`evaluate` on purpose. The evaluator is then a pure
+    function of declared facts, so a control can hand it a state that MUST go
+    green — which is the only way to tell a working measurer from one that
+    returns false unconditionally.
+    """
+
+    ar_table: str | None = None
+    ar_issued_count: int = 0
+    # ADAPT slugs carrying ≥1 backward finding → their status / signature roles.
+    adapts_with_findings: dict[str, str] = field(default_factory=dict)
+    adapt_signature_roles: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    spec_count: int = 0
+    spec_provenance_columns: tuple[str, ...] = ()
+    specs_without_provenance: int = 0
+    adapt_status_domain: tuple[str, ...] = ()
+
+
+def _table_names(conn: sqlite3.Connection) -> set[str]:
+    rows = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+    return {str(r[0]) for r in rows}
+
+
+def _columns(conn: sqlite3.Connection, table: str) -> tuple[str, ...]:
+    return tuple(str(r[1]) for r in conn.execute(f"PRAGMA table_info({table})"))
+
+
+def _status_domain(conn: sqlite3.Connection) -> tuple[str, ...]:
+    """Values the ``adapts.status`` CHECK admits, parsed from the stored DDL.
+
+    Reported because a status the schema cannot hold is a stronger finding than
+    a row that merely has the wrong one: it says the required state is
+    unreachable, not merely absent.
+    """
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='adapts'"
+    ).fetchone()
+    if not row or not row[0]:
+        return ()
+    ddl = str(row[0])
+    marker = "status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN"
+    at = ddl.find(marker)
+    if at < 0:
+        return ()
+    chunk = ddl[at + len(marker) : ddl.find(")", at + len(marker))]
+    return tuple(part.strip().strip("'") for part in chunk.strip(" (\n").split(",") if part.strip())
+
+
+def collect_state(conn: sqlite3.Connection) -> ReactiveAdaptState:
+    """Read the live substrate into a :class:`ReactiveAdaptState`."""
+    tables = _table_names(conn)
+
+    ar_table = next((t for t in AR_TABLE_CANDIDATES if t in tables), None)
+    ar_issued = 0
+    if ar_table is not None:
+        cols = _columns(conn, ar_table)
+        if "status" in cols:
+            row = conn.execute(f"SELECT COUNT(*) FROM {ar_table} WHERE status='issued'").fetchone()
+            ar_issued = int(row[0]) if row else 0
+
+    with_findings: dict[str, str] = {}
+    if {"adapts", "adapt_findings"} <= tables:
+        placeholders = ",".join("?" for _ in BACKWARD_FINDING_CATEGORIES)
+        for slug, status in conn.execute(
+            "SELECT a.slug, a.status FROM adapts a WHERE EXISTS ("
+            "  SELECT 1 FROM adapt_findings f"
+            f"  WHERE f.adapt_slug = a.slug AND f.category IN ({placeholders}))",
+            BACKWARD_FINDING_CATEGORIES,
+        ):
+            with_findings[str(slug)] = str(status)
+
+    sig_roles: dict[str, tuple[str, ...]] = {}
+    if "adapt_signatures" in tables:
+        for slug in with_findings:
+            roles = conn.execute(
+                "SELECT role FROM adapt_signatures WHERE adapt_slug=?", (slug,)
+            ).fetchall()
+            sig_roles[slug] = tuple(str(r[0]) for r in roles)
+
+    spec_count = 0
+    prov_cols: tuple[str, ...] = ()
+    specs_bare = 0
+    if "specs" in tables:
+        row = conn.execute("SELECT COUNT(*) FROM specs").fetchone()
+        spec_count = int(row[0]) if row else 0
+        cols = _columns(conn, "specs")
+        prov_cols = tuple(c for c in SPEC_PROVENANCE_FIELDS if c in cols)
+        if prov_cols:
+            missing = " AND ".join(f"({c} IS NULL OR {c}='')" for c in prov_cols)
+            row = conn.execute(f"SELECT COUNT(*) FROM specs WHERE {missing}").fetchone()
+            specs_bare = int(row[0]) if row else 0
+        else:
+            # No provenance column at all: every SPEC is bare by construction.
+            specs_bare = spec_count
+
+    return ReactiveAdaptState(
+        ar_table=ar_table,
+        ar_issued_count=ar_issued,
+        adapts_with_findings=with_findings,
+        adapt_signature_roles=sig_roles,
+        spec_count=spec_count,
+        spec_provenance_columns=prov_cols,
+        specs_without_provenance=specs_bare,
+        adapt_status_domain=_status_domain(conn) if "adapts" in tables else (),
+    )
+
+
+def _check_ar_issued(st: ReactiveAdaptState) -> Subcheck:
+    if st.ar_table is None:
+        return Subcheck(
+            "adversarial-review-issued",
+            False,
+            "§13.3.3 p.73, p.80",
+            "AR does not exist as an artifact class (no adversarial-review table in the "
+            f"substrate; probed {list(AR_TABLE_CANDIDATES)}) — no derivation can carry a "
+            "recorded verdict. The reviews table is NOT counted: it records review of a "
+            "task closure and its code, and an AR is the verdict of a ТЗ review.",
+        )
+    if st.ar_issued_count == 0:
+        return Subcheck(
+            "adversarial-review-issued",
+            False,
+            "§13.3.3 p.73",
+            f"{st.ar_table} exists but holds zero AR in status 'issued' — a verdict that "
+            "was never issued is not a fixed verdict (§7.4.6).",
+        )
+    return Subcheck(
+        "adversarial-review-issued",
+        True,
+        "§13.3.3 p.73",
+        f"{st.ar_issued_count} AR record(s) in status 'issued' in {st.ar_table}",
+    )
+
+
+def _check_adapt_approved(st: ReactiveAdaptState) -> Subcheck:
+    unreachable = "approved" not in st.adapt_status_domain if st.adapt_status_domain else False
+    bad = {s: v for s, v in st.adapts_with_findings.items() if v != "approved"}
+    if bad:
+        detail = ", ".join(f"{s}={v}" for s, v in sorted(bad.items()))
+        extra = (
+            f" The substrate cannot even hold the required state: adapts.status admits "
+            f"{list(st.adapt_status_domain)}, and 'approved' is not among them."
+            if unreachable
+            else ""
+        )
+        return Subcheck(
+            "adapt-approved-when-findings",
+            False,
+            "§13.3.3 p.77",
+            f"{len(bad)} ADAPT(s) carry backward findings but are not 'approved' ({detail})."
+            + extra,
+        )
+    return Subcheck(
+        "adapt-approved-when-findings",
+        True,
+        "§13.3.3 p.77",
+        f"{len(st.adapts_with_findings)} ADAPT(s) with backward findings, all 'approved'"
+        if st.adapts_with_findings
+        else "no ADAPT carries a backward finding — the 'findings present' branch has no subject",
+    )
+
+
+def _check_architect_signature(st: ReactiveAdaptState) -> Subcheck:
+    unsigned = [
+        s for s in st.adapts_with_findings if "architect" not in st.adapt_signature_roles.get(s, ())
+    ]
+    if unsigned:
+        return Subcheck(
+            "architect-signature-when-findings",
+            False,
+            "§13.3.3 p.77 → §7.5",
+            f"{len(unsigned)} ADAPT(s) with backward findings carry no Architect signature "
+            f"({', '.join(sorted(unsigned))}).",
+        )
+    return Subcheck(
+        "architect-signature-when-findings",
+        True,
+        "§13.3.3 p.77 → §7.5",
+        f"{len(st.adapts_with_findings)} ADAPT(s) with backward findings, all signed by the "
+        "Architect"
+        if st.adapts_with_findings
+        else "no ADAPT carries a backward finding — the signature obligation has no subject",
+    )
+
+
+def _check_spec_provenance(st: ReactiveAdaptState) -> Subcheck:
+    if st.spec_count == 0:
+        return Subcheck(
+            "spec-provenance-source",
+            True,
+            "§13.3.3 p.77/p.78, negative scenario p.90",
+            "no SPEC exists — the provenance obligation has no subject",
+        )
+    if not st.spec_provenance_columns:
+        return Subcheck(
+            "spec-provenance-source",
+            False,
+            "§13.3.3 p.90",
+            f"{st.spec_count} live SPEC(s) and the specs table has NO provenance column at "
+            f"all (looked for {list(SPEC_PROVENANCE_FIELDS)}) — neither source.adapt nor "
+            "source.tz-section nor source.adversarial-review-ref can be stored, which is the "
+            "negative scenario stated literally.",
+        )
+    if st.specs_without_provenance:
+        return Subcheck(
+            "spec-provenance-source",
+            False,
+            "§13.3.3 p.90",
+            f"{st.specs_without_provenance} of {st.spec_count} SPEC(s) carry none of "
+            f"{list(st.spec_provenance_columns)}.",
+        )
+    return Subcheck(
+        "spec-provenance-source",
+        True,
+        "§13.3.3 p.77/p.78",
+        f"all {st.spec_count} SPEC(s) carry a provenance source",
+    )
+
+
+def evaluate(st: ReactiveAdaptState) -> list[Subcheck]:
+    """Every §13.3.3 sub-check against `st`, in citation order. Pure."""
+    return [
+        _check_ar_issued(st),
+        _check_adapt_approved(st),
+        _check_architect_signature(st),
+        _check_spec_provenance(st),
+    ]
+
+
+def assess(conn: sqlite3.Connection) -> dict[str, Any]:
+    """The §13.3.3 clause verdict for the manifest: confirmed + per-check detail."""
+    checks = evaluate(collect_state(conn))
+    failed = [c for c in checks if not c.ok]
+    if failed:
+        evidence = f"{len(failed)} of {len(checks)} §13.3.3 sub-check(s) unmet: " + "; ".join(
+            f"[{c.name}] {c.evidence}" for c in failed
+        )
+    else:
+        evidence = f"all {len(checks)} §13.3.3 sub-checks met: " + "; ".join(
+            f"[{c.name}] {c.evidence}" for c in checks
+        )
+    return {
+        "confirmed": not failed,
+        "evidence": evidence,
+        "subchecks": [c.as_dict() for c in checks],
+    }

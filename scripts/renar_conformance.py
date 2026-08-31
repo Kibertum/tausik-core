@@ -32,6 +32,7 @@ from datetime import date, timedelta
 from typing import Any
 
 
+from renar_clause_reactive_adapt import assess as assess_reactive_adapt
 from renar_measurer_caveats import caveats_section
 from service_specs import SPEC_TYPES
 
@@ -116,7 +117,6 @@ def scope_exclusion() -> dict[str, str] | None:
     return dict(SCOPE_EXCLUSION) if SCOPE_EXCLUSION else None
 
 
-
 def _scalar(conn: sqlite3.Connection, sql: str) -> int:
     """COUNT-style scalar query; 0 if the table is absent (forward-looking)."""
     try:
@@ -153,6 +153,7 @@ def gather_signals(conn: sqlite3.Connection) -> dict[str, Any]:
     reasoning = _scalar(conn, "SELECT COUNT(DISTINCT task_slug) FROM reasoning_steps")
     mem_edges = _scalar(conn, "SELECT COUNT(*) FROM memory_edges")
     verifs = _scalar(conn, "SELECT COUNT(*) FROM verification_runs")
+    clause_333 = assess_reactive_adapt(conn)
 
     raw = {
         "specs_count": specs,
@@ -170,7 +171,8 @@ def gather_signals(conn: sqlite3.Connection) -> dict[str, Any]:
     signals = {
         # mandatory / RENAR-1
         "substrate_v1_v6": True,  # git + sqlite WAL: V1–V6 (machinery)
-        "adapt_per_tz": adapts > 0,  # data: needs ≥1 ADAPT in the substrate
+        # §13.3.3 named sub-checks, NOT a row count (renar_clause_reactive_adapt)
+        "adapt_per_tz": clause_333["confirmed"],
         # RENAR-2
         "frontmatter_structured": specs > 0,  # specs carry typed structured fields
         "tz_immutable": adapts_signed > 0,  # §7.5: a draft ADAPT is not a fixed TZ
@@ -196,13 +198,12 @@ def gather_signals(conn: sqlite3.Connection) -> dict[str, Any]:
         "knowledge_graph_primary": False,
         "hallucination_rate_tracked": False,
     }
-    return {"raw": raw, "signals": signals}
+    return {"raw": raw, "signals": signals, "clause_13_3_3": clause_333}
 
 
 # Mandatory clause → (confirmed bool, evidence). §13.3.1–§13.3.7.
 def eval_mandatory_clauses(bundle: dict[str, Any]) -> dict[str, dict[str, Any]]:
     s = bundle["signals"]
-    r = bundle["raw"]
     return {
         # §13.3.1 — policy clause (requirements > code, enforced via QG-0
         # task-before-code + QG-2 verify-first). Machinery-confirmed.
@@ -211,15 +212,11 @@ def eval_mandatory_clauses(bundle: dict[str, Any]) -> dict[str, dict[str, Any]]:
             "evidence": "QG-0 task-before-code + QG-2 verify-first policy enforced",
         },
         "substrate-v1-v6": {"confirmed": s["substrate_v1_v6"], "evidence": "git + sqlite WAL"},
-        # §13.3.3 — DATA clause: a ТЗ without its ADAPT is the canonical gap
-        # (the adoption audit). This is the honest gate that keeps a substrate without
-        # tracked requirements at pre-adoption.
-        "adapt-per-tz": {
-            "confirmed": s["adapt_per_tz"],
-            "evidence": f"{r['adapts_count']} ADAPT artifact(s)"
-            if r["adapts_count"]
-            else "no ADAPT artifacts — no ТЗ tracked in the requirements substrate",
-        },
+        # §13.3.3 — DATA clause, evaluated by named sub-checks that each carry
+        # their own verdict and evidence (renar_clause_reactive_adapt). It used
+        # to be `adapts > 0`, which reddens on none of the violations it exists
+        # to catch; see that module's docstring for what the clause requires.
+        "adapt-per-tz": bundle["clause_13_3_3"],
         "spec-types-closed-list": {
             "confirmed": True,
             "evidence": "9 closed SPEC types enforced (service + DB CHECK)",
@@ -368,6 +365,8 @@ def build_manifest(
             "unmet-clauses": verdict["unmet_clauses"],
             "raw-counts": bundle["raw"],
             "level-signals": {k: bool(v) for k, v in s.items()},
+            # Per-sub-check detail: a red names WHICH half of §13.3.3 broke.
+            "clause-13-3-3": bundle["clause_13_3_3"]["subchecks"],
         },
         "replaced-by": None,
         # §13.4.2 back-link into the audit journal, in the clause's own form.

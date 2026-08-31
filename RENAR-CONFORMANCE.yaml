@@ -13,7 +13,7 @@
 # cannot go red, and the open task carrying the fix.
 renar-version: '1.0'
 senar-version: '1.3'
-manifest-version: 2
+manifest-version: 3
 manifest-id: CFM-2026-08-31-tausik
 level: null
 level-target: null
@@ -28,7 +28,7 @@ next-assessment-due: '2026-11-29'
 mandatory-clauses-confirmed:
   sot-inversion: true
   substrate-v1-v6: true
-  adapt-per-tz: true
+  adapt-per-tz: false
   spec-types-closed-list: true
   tc-pos-neg-pairing: true
   quality-gates-closed-list: true
@@ -38,15 +38,6 @@ measurer-caveats:
     on the violations it exists to catch. This section is a DISCLOSURE, not a repair:
     it does not fix the measurers and does not substitute for closing the named tasks.'
   unearned-confirmations:
-  - clause: adapt-per-tz
-    measured-as: count of ADAPT rows > 0
-    why-degenerate: '§13.3.3 requires an adversarial review per ТЗ issued as an AR,
-      an approved ADAPT signed by the Architect when findings exist, and decided-in
-      on a signed ACTZ. Measured live: AR does not exist as an artifact class; our
-      one ADAPT is draft with NON-EMPTY backward findings; it carries zero Architect
-      signatures; SPECs have no provenance column at all. A count of rows goes red
-      on none of the four.'
-    open-task: mandatory-clause-13-3-3-is-checked-by-counting-artifacts
   - clause: spec-types-closed-list
     measured-as: the 9 SPEC types this project enforces
     why-degenerate: §13.3.4 closes the list at ELEVEN types. Nine of eleven is not
@@ -89,11 +80,11 @@ assessment-evidence:
     delta_adapts_count: 0
     task_specs_count: 2
     reasoning_tasks_count: 2
-    memory_edges_count: 16
-    verification_runs_count: 1924
+    memory_edges_count: 18
+    verification_runs_count: 1926
   level-signals:
     substrate_v1_v6: true
-    adapt_per_tz: true
+    adapt_per_tz: false
     frontmatter_structured: true
     tz_immutable: false
     delta_tz_artifact: false
@@ -113,8 +104,34 @@ assessment-evidence:
     multi_model_must: false
     knowledge_graph_primary: false
     hallucination_rate_tracked: false
+  clause-13-3-3:
+  - check: adversarial-review-issued
+    ok: false
+    citation: §13.3.3 p.73, p.80
+    evidence: 'AR does not exist as an artifact class (no adversarial-review table
+      in the substrate; probed [''adversarial_reviews'', ''ar_records'', ''renar_ar''])
+      — no derivation can carry a recorded verdict. The reviews table is NOT counted:
+      it records review of a task closure and its code, and an AR is the verdict of
+      a ТЗ review.'
+  - check: adapt-approved-when-findings
+    ok: false
+    citation: §13.3.3 p.77
+    evidence: '1 ADAPT(s) carry backward findings but are not ''approved'' (adapt-renar-adoption=draft).
+      The substrate cannot even hold the required state: adapts.status admits [''draft'',
+      ''signed'', ''superseded''], and ''approved'' is not among them.'
+  - check: architect-signature-when-findings
+    ok: false
+    citation: §13.3.3 p.77 → §7.5
+    evidence: 1 ADAPT(s) with backward findings carry no Architect signature (adapt-renar-adoption).
+  - check: spec-provenance-source
+    ok: false
+    citation: §13.3.3 p.90
+    evidence: 3 live SPEC(s) and the specs table has NO provenance column at all (looked
+      for ['source_adapt', 'source_tz_section', 'source_adversarial_review_ref'])
+      — neither source.adapt nor source.tz-section nor source.adversarial-review-ref
+      can be stored, which is the negative scenario stated literally.
 replaced-by: <unknown-state>
-replaces: CFM-2026-08-31-tausik@v1
+replaces: CFM-2026-08-31-tausik@v2
 conformance-declaration: non-conformant
 scope-exclusion:
   clause: §1.5.4

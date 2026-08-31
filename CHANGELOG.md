@@ -9,6 +9,42 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — §13.3.3 is no longer confirmed by counting ADAPT rows
+
+`mandatory-clauses-confirmed.adapt-per-tz` was computed as `adapts > 0`. That
+measurer reddens on none of the violations the clause exists to catch, which is
+the degeneracy ADR-021 names. It now reads `false`, and it reads false because
+four NAMED sub-checks say so, each carrying its own verdict and its own evidence
+(`scripts/renar_clause_reactive_adapt.py`, published under
+`assessment-evidence.clause-13-3-3` so a red says WHICH half of the clause broke):
+
+- **adversarial-review-issued** (§13.3.3 p.73, p.80) — AR does not exist as an
+  artifact class, so no derivation carries a recorded verdict. The `reviews`
+  table is deliberately not counted in our favour: it reviews task closures and
+  code, an AR is the verdict of a ТЗ review (decisions#291).
+- **adapt-approved-when-findings** (p.77) — our one ADAPT carries backward
+  findings and is `draft`. Stronger than a wrong value: `adapts.status` has no
+  `approved` in its CHECK, so the required state is unreachable, not merely
+  absent.
+- **architect-signature-when-findings** (p.77 → §7.5) — zero Architect signatures.
+- **spec-provenance-source** (p.90, the negative scenario stated literally) —
+  three live SPECs and no provenance column on `specs` at all.
+
+Vacuity was NOT available here, and that is why this is a repair rather than a
+one-line declaration beside `tc-pos-neg-pairing`. The clause's first half is
+vacuous for us (our ADAPT's `tz_ref` names a decision record; ТЗ is not a class
+here), but its second half has a live subject — SPEC exists and three of them
+violate the obligation. A clause with a live subject may not be declared
+vacuously true.
+
+`adapt-per-tz` accordingly leaves `measurer-caveats`: an entry departs that
+registry only when its measurer is repaired, in the repair's own commit.
+`RENAR-CONFORMANCE.yaml` is reissued at v3. Nothing was sent to the standard's
+tracker: the correction moves us toward MORE non-conformance, and a correction
+that only weakens our own claim leaves the corpus holding nothing overstated on
+our behalf (decisions#295). The reverse direction would oblige a message.
+
+
 ### Added — the manifest now says which of its own confirmations are unearned
 
 Committing `RENAR-CONFORMANCE.yaml` to the repo root turned

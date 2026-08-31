@@ -56,6 +56,33 @@ def _gen(svc):
     return generate(svc.be._conn, "architect-test", "2026-06-14")
 
 
+def _satisfy_clause_13_3_3(svc):
+    """Bring the store to a state §13.3.3 actually admits.
+
+    Before the clause had real sub-checks, a bare ``adapt_create`` confirmed it
+    and every ladder test below rode on that. The ladder tests are about the
+    §11.4.3-§11.8.2 observable signals, not about §13.3.3, so they say so here
+    explicitly rather than depending on a measurer that could not go red.
+
+    The state built is conformant, not stubbed: an adversarial review issued
+    (§13.3.3 p.73), an ADAPT with no backward finding (so the "findings
+    present" branch has no subject, p.78), and every SPEC carrying provenance
+    (p.90). Two of those need DDL because the production schema cannot yet hold
+    them - the subject of adapt-status-enum-diverged-from-the-standards-closed-list
+    and our-only-spec-is-derived-without-either-allowed-source-field.
+    """
+    conn = svc.be._conn
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS adversarial_reviews "
+        "(id INTEGER PRIMARY KEY, tz_ref TEXT, status TEXT)"
+    )
+    conn.execute("INSERT INTO adversarial_reviews (tz_ref, status) VALUES ('TZ-1','issued')")
+    if "source_adapt" not in [r[1] for r in conn.execute("PRAGMA table_info(specs)")]:
+        conn.execute("ALTER TABLE specs ADD COLUMN source_adapt TEXT")
+    conn.execute("UPDATE specs SET source_adapt='ad1'")
+    conn.commit()
+
+
 # --- manifest shape ---------------------------------------------------------
 
 
@@ -95,8 +122,9 @@ def test_empty_db_is_pre_adoption(svc, in_scope):
 
 
 def test_single_adapt_reaches_renar_1(svc, in_scope):
-    """One ADAPT satisfies every mandatory clause → RENAR-1 (RENAR-2 needs SPEC)."""
+    """A §13.3.3-conformant store satisfies every mandatory clause → RENAR-1."""
     svc.adapt_create("ad1", "Adapt 1", "TZ-1")
+    _satisfy_clause_13_3_3(svc)
     manifest, _ = _gen(svc)
     assert manifest["mandatory-clauses-confirmed"]["adapt-per-tz"] is True
     assert manifest["level"] == "RENAR-1"
@@ -104,11 +132,29 @@ def test_single_adapt_reaches_renar_1(svc, in_scope):
     assert manifest["assessment-evidence"]["blocked-at"] == "RENAR-2"
 
 
+def test_a_bare_adapt_no_longer_buys_renar_1(svc, in_scope):
+    """The removed degeneracy, pinned at the ladder level.
+
+    A single ADAPT row used to confirm §13.3.3 and lift the store to RENAR-1.
+    It no longer does: the ADAPT's ТЗ never passed an adversarial review, so the
+    clause is unmet and the store stays pre-adoption. Without this the suite
+    would pass against the old count-based measurer.
+    """
+    svc.adapt_create("ad1", "Adapt 1", "TZ-1")
+    manifest, _ = _gen(svc)
+    assert manifest["mandatory-clauses-confirmed"]["adapt-per-tz"] is False
+    assert manifest["level"] is None
+    assert manifest["pre-adoption"] is True
+    subchecks = manifest["assessment-evidence"]["clause-13-3-3"]
+    assert [c["check"] for c in subchecks if not c["ok"]] == ["adversarial-review-issued"]
+
+
 def test_draft_adapt_does_not_reach_renar_2(svc, in_scope):
     """A draft ADAPT is not an immutable TZ (§7.5) → tz_immutable stays False."""
     svc.adapt_create("ad1", "Adapt 1", "TZ-1")
     svc.adapt_delta("ad1", "ad1-d1", "Delta 1", "TZ-1")
     svc.spec_add("sp1", "API", "Spec 1", "v1", status="active")
+    _satisfy_clause_13_3_3(svc)
     manifest, _ = _gen(svc)
     assert manifest["assessment-evidence"]["level-signals"]["tz_immutable"] is False
     assert manifest["level"] == "RENAR-1"  # blocked at RENAR-2 by tz_immutable
@@ -122,6 +168,7 @@ def test_signed_adapt_spec_delta_reach_renar_2(svc, in_scope):
     # Simulate a signed (immutable) ADAPT without the ed25519 key ceremony.
     svc.be._conn.execute("UPDATE adapts SET status='signed' WHERE slug='ad1'")
     svc.be._conn.commit()
+    _satisfy_clause_13_3_3(svc)
     manifest, _ = _gen(svc)
     assert manifest["level"] == "RENAR-2"
     assert manifest["assessment-evidence"]["blocked-at"] == "RENAR-3"
@@ -136,6 +183,7 @@ def test_signed_adapt_spec_delta_reach_renar_2(svc, in_scope):
 
 def test_level_target_advances_when_conformant(svc, in_scope):
     svc.adapt_create("ad1", "Adapt 1", "TZ-1")  # RENAR-1, pre_adoption False
+    _satisfy_clause_13_3_3(svc)
     manifest, _ = _gen(svc)
     assert manifest["level-target"] == "RENAR-2"
 
@@ -203,6 +251,7 @@ class TestStatusLine:
 
     def test_current_level_reaches_renar1_with_adapt(self, svc, in_scope):
         svc.adapt_create("ad1", "Adapt 1", "TZ-1")
+        _satisfy_clause_13_3_3(svc)
         v = current_level(svc.be._conn)
         assert v["level"] == "RENAR-1"
         assert format_status_line(v).startswith("RENAR: RENAR-1")
@@ -250,6 +299,7 @@ class TestScopeApplicability:
         apart.
         """
         svc.adapt_create("ad1", "Adapt 1", "TZ-1")
+        _satisfy_clause_13_3_3(svc)
         manifest, _ = _gen(svc)
         assert manifest["level"] == "RENAR-1"
 
