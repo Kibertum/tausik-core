@@ -8,10 +8,7 @@ tags:
   - inventory
   - renar
 task: four-accepted-adrs-were-never-assessed
-edges:
-  - relation: supersedes
-    target_type: memory
-    target: inventar-adr-renar-prinyatyh-dvenadtsat-otsenivali-tri
+edges: []
 ---
 
 ЗАМЕНЯЕТ СЧЁТ ИЗ ПАМЯТИ #432 («принятых двенадцать, оценивали три»). Снято машинно со статусов ВСЕХ 22 файлов ../../standards/renar/research/decisions/ в сессии #191, а не по памяти.
