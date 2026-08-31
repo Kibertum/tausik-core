@@ -9,6 +9,38 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — six sentences still counted the SPEC types by hand, and the detector that was supposed to catch them read one phrasing
+
+The entry below consolidated the SPEC type list into one place and derived its
+length from `len(SPEC_TYPES)`. Self-review found the repair incomplete within
+minutes of closing it: the §13.3.4 clause evidence in `renar_conformance.py`
+still read `"9 closed SPEC types enforced"` — the very string a since-withdrawn
+measurer caveat had cited as proof the confirmation was unearned. Fixing a
+measurer and fixing its EVIDENCE are two edits, and the second is the one that
+gets forgotten.
+
+**The detector was the larger defect.** It searched for the literal phrase
+`closed list of N`, so it was checking a formulation rather than a property, and
+five further sentences saying the same thing in other words walked straight past
+it — including one in `service_specs.py`, the single source the list had just
+been consolidated into, and one spelled out as a word (`"our closed list has
+nine"`) that `\d+` cannot see at all. All six are now derived or rephrased.
+
+The matcher is now a pure function over a string, and it reads the property: a
+count of the closed list, written out, in either word order, as a digit or as a
+word, in English or Russian. It stays silent on the only acceptable form — a
+count formatted from `len(SPEC_TYPES)`, which leaves no literal to drift — and
+on digits that count nothing (`v49`, `§8.3`, `ADR-013`). Counts that are
+genuinely historical, such as a migration recording what it built, are declared
+in `ALLOWED_WRITTEN_COUNTS` with the reason, never baselined away.
+
+Mutation testing earned its place here. Stripping the guard that separates a
+count from a version tag left the suite green: every "green" sample happened to
+be rejected by some *other* part of the matcher, so that branch was declared but
+measured by nothing. Four samples were added in which the guard is the only
+thing standing between the line and a match. Declaring a green branch and
+measuring one are different things, and only the mutation showed the difference.
+
 ### Fixed — the closed SPEC-type list reaches the standard's eleven (schema v49)
 
 `tausik spec add --help` printed "Closed list of 9 RENAR types" and the DB CHECK

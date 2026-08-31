@@ -220,7 +220,7 @@ def eval_mandatory_clauses(bundle: dict[str, Any]) -> dict[str, dict[str, Any]]:
         "adapt-per-tz": bundle["clause_13_3_3"],
         "spec-types-closed-list": {
             "confirmed": True,
-            "evidence": "9 closed SPEC types enforced (service + DB CHECK)",
+            "evidence": f"SPEC type list closed at {len(SPEC_TYPES)} (service + DB CHECK)",
         },
         # §13.3.5 — conditional clause: pos/neg pairing is required for each
         # normative assertion *covered by at least one TC*. TAUSIK has no

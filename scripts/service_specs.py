@@ -58,7 +58,7 @@ class SpecsMixin:
         content_ref: str | None = None,
         status: str = "draft",
     ) -> str:
-        """Create a SPEC. ``type_`` must be one of the 9 closed RENAR types.
+        """Create a SPEC. ``type_`` must be one of the closed RENAR types above.
 
         Validated against the closed list here (friendly error) and again by the
         DB CHECK constraint (hard guarantee).

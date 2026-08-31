@@ -8,13 +8,7 @@ tags:
   - python
   - windows
 task: our-conformance-claim-rests-on-a-mode-the-standard-removed
-edges:
-  - relation: relates_to
-    target_type: memory
-    target: derevo-so-smeshannymi-perevodami-strok-yakornyy-patch
-  - relation: supersedes
-    target_type: memory
-    target: derevo-so-smeshannymi-perevodami-strok-yakornyy-patch
+edges: []
 ---
 
 ПАМЯТЬ #466 ПРЕДПИСЫВАЕТ eol = "\r\n" if "\r\n" in s else "\n". ЭТО НЕ РАБОТАЕТ, если s прочитан обычным open(p, encoding="utf-8"): режим universal newlines разворачивает \r\n в \n ПРИ ЧТЕНИИ, поэтому "\r\n" in s ВСЕГДА False. Условие вырождено, ветка CRLF недостижима, и всякий CRLF-файл молча переписывается в LF.

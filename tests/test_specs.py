@@ -1,4 +1,4 @@
-"""v16r-spec-types: RENAR SPEC artifacts (9 closed types).
+"""v16r-spec-types: RENAR SPEC artifacts, typed from a closed list.
 
 Covers the v35 migration, CRUD + closed-type/relation enforcement (CHECK +
 service validation), task↔SPEC linking, task_show integration, FTS5 search,
@@ -40,7 +40,7 @@ def _seed_task(svc, slug: str = "t1") -> None:
     svc.task_add("s1", slug, "Task 1", role="developer", goal="g")
 
 
-# === AC: closed list is exactly the 9 RENAR types ===
+# === AC: closed list is exactly the RENAR types the standard names ===
 
 
 def test_spec_types_are_the_closed_list_the_service_enforces():
@@ -71,12 +71,8 @@ def test_migration_v35_creates_tables_clean(tmp_path):
     # not just the one under test here.
     conn.execute("CREATE TABLE verification_runs(id INTEGER PRIMARY KEY AUTOINCREMENT)")
     # ALTER + backfill targets for v42 (slug identity): the chain reaches them too.
-    conn.execute(
-        "CREATE TABLE decisions(id INTEGER PRIMARY KEY AUTOINCREMENT)"
-    )
-    conn.execute(
-        "CREATE TABLE memory(id INTEGER PRIMARY KEY AUTOINCREMENT)"
-    )
+    conn.execute("CREATE TABLE decisions(id INTEGER PRIMARY KEY AUTOINCREMENT)")
+    conn.execute("CREATE TABLE memory(id INTEGER PRIMARY KEY AUTOINCREMENT)")
 
     new_ver = run_migrations(conn, 34)
     assert new_ver >= 35

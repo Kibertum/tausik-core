@@ -9,10 +9,7 @@ tags:
   - testing
   - verify
 task: full-pytest-hangs-while-scoped-pytest-is-green
-edges:
-  - relation: supersedes
-    target_type: memory
-    target: podpisannyy-zelenyy-chek-verify-i-nerabotayuschiy-test
+edges: []
 ---
 
 ФАКТ. Полный `python -m pytest -q` в этом репозитории завершается за ~554 s: 5759 passed, 23 skipped, 140 deselected. Он НИКОГДА не висел. Сессии #133–#134 убивали его таймаутами 200/420/600 s, видели остановку на 38%/77%/64% и записали «виснет» в задачу, в handoff и в память #303. Плавающая точка остановки — это дисперсия скорости машины (в одном из прогонов параллельно шёл фоновый RAG-реиндекс), а не гонка.

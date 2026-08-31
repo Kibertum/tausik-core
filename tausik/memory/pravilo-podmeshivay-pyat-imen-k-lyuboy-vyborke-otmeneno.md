@@ -9,10 +9,7 @@ tags:
   - scoped-tests
   - supersedes-421
 task: invariant-guards-are-invisible-to-the-visibility-ratchet
-edges:
-  - relation: supersedes
-    target_type: memory
-    target: vyborka-testov-po-imeni-fayla-ne-vidit-geytov-svyazannyh-so
+edges: []
 ---
 
 ОТМЕНЯЕТ ручную часть памяти #421. Больше НЕ НАДО помнить и дописывать к выборке test_ddl_fixture_parity, test_schema_upgrade_parity, test_schema_index_parity, test_consumer_layout, test_crosscutting_registry. Правило, требующее помнить пять имён файлов, было забыто один раз — так оно и появилось, — и держать его в голове второй раз незачем.

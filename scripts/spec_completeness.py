@@ -35,13 +35,14 @@ WHAT IT REPORTS. The concrete SPEC and the concrete omission, by name — never 
 coverage percentage. "83% covered" tells a reader nothing they can act on, and
 the criterion asks for the missing element, not its cardinality.
 
-REACH IS STATED AS A NUMBER AND THE NUMBER IS NINE. The standard names eleven
-SPEC types; our closed list has nine (`service_specs.SPEC_TYPES`), because
-SPEC-TEST and SPEC-DOC do not exist here. A control that reported "all types
-covered" would be committing the very narrowing §8.4.1 forbids — selecting the
-convenient subset and calling it the whole. `reach()` says nine of eleven and
-names the two. Widening it is `spec-closed-list-is-nine-while-the-standard-has-
-eleven`, linked as a dependency in the database rather than mentioned in prose.
+REACH IS STATED AS A NUMBER, AND THE NUMBER IS DERIVED. `reach()` reports both
+cardinalities from `len()` and names, by type, everything the standard closes
+over that our own list omits. Since v49 that omission is empty: ADR-013 admitted
+SPEC-TEST and SPEC-DOC, and `service_specs.SPEC_TYPES` now carries §8.3 in full.
+The mechanism stays precisely BECAUSE the shortfall is gone — a control that
+hard-coded "all types covered" would commit the very narrowing §8.4.1 forbids,
+selecting the convenient subset and calling it the whole, on the day the
+standard is next amended. Arithmetic reports what prose used to assert.
 
 A SPEC WITH NO ENTRY IS UNCHECKED, NOT PASSING. The absence of a negative
 finding is not a positive verdict (SENAR 1.4 §8.6(e)), so a SPEC this registry
@@ -60,7 +61,7 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 # The standard's eleven, transcribed from §8.3 — NOT derived from our own
-# SPEC_TYPES. Ours now carries the same eleven (v49 / ADR-013), and that is
+# SPEC_TYPES. Ours matches it in full (v49 / ADR-013), and that agreement is
 # exactly why the literal stays: a denominator computed from the numerator can
 # never report a shortfall, so the next amendment of the standard would move
 # both sides together and go unnoticed. Their agreement is a FACT this module
@@ -189,7 +190,7 @@ def reach(known_types: tuple[str, ...] | None = None) -> dict:
             f"covers {len(known_types)} of {len(STANDARD_SPEC_TYPES)} SPEC types; "
             + (
                 f"{', '.join('SPEC-' + t for t in absent)} absent from our closed list "
-                "(spec-closed-list-is-nine-while-the-standard-has-eleven)"
+                "(service_specs.SPEC_TYPES must be widened to match §8.3)"
                 if absent
                 else "none absent"
             )

@@ -8,10 +8,7 @@ tags:
   - inventory
   - renar
 task: six-more-accepted-adrs-have-no-assessment-record
-edges:
-  - relation: supersedes
-    target_type: memory
-    target: inventar-adr-renar-pereschitannyy-mashinoy-prinyatyh
+edges: []
 ---
 
 Замер #198. Учёт оценки принятых ADR RENAR ЗАКРЫТ ПОЛНОСТЬЮ. Вытесняет #441 (там было «оценено семь, непроверенных шесть»).
