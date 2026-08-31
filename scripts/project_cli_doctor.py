@@ -218,6 +218,23 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
         _print_warn("Backlog hygiene", f"could not validate: {e}")
         warnings += 1
 
+    # Commit hooks — alive, off by choice, or DEAD and silent. The third state
+    # is the one this exists for: a `core.hooksPath` pointing nowhere makes git
+    # run nothing and report nothing, so `memory_route` (blocking), mypy and the
+    # RAG reindex skip every commit while `gates status` still prints them [ON].
+    try:
+        from service_doctor_hooks import check_commit_hooks
+
+        for severity, label, detail in check_commit_hooks(project_dir):
+            if severity == "warn":
+                _print_warn(label, detail)
+                warnings += 1
+            else:
+                _print_ok(label, detail)
+    except Exception as e:  # noqa: BLE001 — best-effort: a check bug must not crash doctor
+        _print_warn("Commit hooks", f"could not validate: {e}")
+        warnings += 1
+
     skills_dir = os.path.join(project_dir, ide_rel, "skills")
     if os.path.isdir(skills_dir):
         skills = [d for d in os.listdir(skills_dir) if os.path.isdir(os.path.join(skills_dir, d))]

@@ -9,6 +9,41 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — `doctor` tells a dead commit hook apart from one switched off on purpose
+
+`core.hooksPath` in this repository's `.git/config` pointed at
+`D:\Work\Personal\claude\.git\hooks` — a repository that does not exist on the
+machine. Git treats a hook it cannot find exactly like a hook that is not there:
+it runs nothing and reports nothing. So every commit skipped `memory_route` (a
+BLOCKING control against project knowledge leaking into another agent's memory),
+mypy, and the incremental RAG reindex — while `tausik gates status` kept
+printing eight gates as `[ON]`.
+
+**How many commits went past it is not known, and is not guessed here.** The
+mtime of `.git/config` is 2026-08-26 08:54, which is an upper bound on when the
+value was last written and nothing more. Inventing a count would be the same
+species of error as the defect.
+
+The setting itself was repaired by the owner on 2026-08-31. That fixed the
+setting, not the defect: nothing in the project would have noticed, and nothing
+would notice a recurrence. `doctor` now distinguishes **three** states, because
+a boolean would have to call one of them by the wrong name:
+
+* **alive** — the path resolves a `pre-commit`; the value is printed.
+* **off by choice** — `core.hooksPath` unset. A PASS, and deliberately so:
+  docs/ru/hooks.md:107 prescribes exactly this for CI runners without mypy.
+  Reddening there teaches the reader to skip the line on every CI box, which is
+  how a real red gets missed.
+* **dead** — the path is *set* and no `pre-commit` resolves under it. Nobody
+  decided this. It is the only warning, it names the offending path, and it
+  prints the documented repair for both a dev checkout and a consumer project.
+
+The check **probes** for the hook file rather than running it. The measurement
+in the task used `git hook run pre-commit`, which executes mypy, the reindex and
+the gates — a diagnostic that runs what it diagnoses is a side effect, not a
+diagnostic. A test pins this: a hook that would write a file and exit 1 is still
+only found, never executed.
+
 ### Fixed — the remaining three gates stop signing non-execution as a pass
 
 `claudemd_state_drift` was fixed first; the trick was the whole layer's, not one
