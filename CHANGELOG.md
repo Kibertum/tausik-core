@@ -9,6 +9,34 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the self-correcting CLI hint was itself wrong, and now every hint is executed before it is printed
+
+`SelfCorrectingParser` prints known-good invocations on an argument error so an
+agent recovers in one retry instead of guessing. The entry for `tausik task add`
+advertised three positionals — `<story-slug> <task-slug> "Title"` — while the
+real signature takes one positional and passes story and slug as options. An
+agent followed the hint and got the identical error a second time, then fell
+back to `--help`. The hint lengthened the path to a fix rather than shortening
+it, which is worse than no hint: it looks authoritative.
+
+This matters more than a typo would, because the project's own rule — *do not
+guess CLI arguments; read the hint or `docs/ru/cli.md`* — is enforced through
+exactly this channel. A wrong hint undermines the mechanism, not a string.
+
+Measured before the fix: 2 of 23 registry entries did not parse. The second was
+`tausik memory add {context,convention,dead_end,gotcha,pattern} <title>
+<content>` — a signature sketch, not an invocation, since `{a,b,c}` is the set
+of allowed values rather than a value. An unrunnable entry in a registry of
+known-good invocations is the same defect in a milder form, so it is replaced by
+a real call that shows `--task`.
+
+`tests/test_cli_examples_parse.py` now feeds every entry to the real parser.
+The registry is hand-written text sitting next to a parser that changes, so
+drift is the default state rather than an accident; executing the claim removes
+it. The test carries its own red-proof in-process (a wrong-arity example must be
+rejected, a correct one accepted) and refuses to pass on an empty registry —
+zero examples and twenty-four healthy ones must not look alike.
+
 ### Added — RENAR-CONFORMANCE.yaml at the root, and a version chain that does not break
 
 The task was filed as "the manifest is absent where the standard requires it".
