@@ -2,8 +2,8 @@
 slug: six-more-accepted-adrs-have-no-assessment-record
 title: "Ещё шесть принятых ADR не имеют ни одной записи об оценке: пропуск вдвое больше, чем считалось"
 status: planning
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: external-proof-and-open-axes
 complexity: complex
 role: architect
 stack: null

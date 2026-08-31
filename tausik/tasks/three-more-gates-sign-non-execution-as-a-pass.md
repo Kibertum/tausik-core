@@ -2,8 +2,8 @@
 slug: three-more-gates-sign-non-execution-as-a-pass
 title: "Ещё три гейта пишут проход, когда исполниться не смогли — два из них блокирующие"
 status: planning
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: evidence-primitives
 complexity: medium
 role: developer
 stack: python

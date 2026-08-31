@@ -9,6 +9,48 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — this repository takes back the strictness a foreign project's config had relaxed
+
+Two keys in the machine-wide `~/.tausik/config.json` were set for a *different*
+project and were quietly in force here:
+
+* `task_done.auto_verify = true` — a switch whose safe position is off. It
+  closes a task on an inline run, **skipping the signed receipt** the whole
+  Verify-First contract rests on. The framework default is `false`.
+* `gates.bootstrap_drift.enabled = false` — a `block` gate, silenced.
+
+Both were set for legitimate reasons, recorded in that file: a security
+classifier that marks a payments codebase sensitive so verification never
+caches, and a drift-gate misfire on a submodule layout. Both notes say the tier
+is shared across every project on the machine, and the drift one says outright
+that in the TAUSIK repository itself "the gate works correctly and disabling it
+here is a loss".
+
+**The cost, measured this session.** Five deployed IDE profiles were carrying
+pre-v48 code from the previous shift; they were found by comparing files by
+hand. An enabled `bootstrap_drift` names that in one line — and did, once
+switched back on.
+
+The fix touches no one else's project. `.tausik/config.json` now sets both keys
+to the strict value, each with a `_reason` field stating why this repository is
+stricter than the user tier and what would retire the override. The trust rule
+allows exactly this: layers merge `project < user < managed`, but a project
+value for a guarded key applies when it is *at least as strict*.
+
+Both directions were measured, since a rule that only ever says yes is not a
+rule. Tightening applies with zero rejections. An attempt to *weaken* from the
+project tier (`risk.l3_block_on_high=false`, `qg0.scope_hard_gate=false`) is
+refused by name — "project scope may only tighten …; True applied" — and the
+strict value is forced back.
+
+**A boundary worth stating.** By weakening a guarded key, the user tier moves
+the baseline the project is compared against, so afterwards the project has
+nothing left to weaken and no rejection is raised. The mechanism guards against
+weakening from *below*, not from *above* — its docstring calls this an honest
+threat boundary. What is missing is not protection but visibility: `doctor`
+reported "no project-scope key weakens enforcement", literally true and
+therefore misleading. Tracked separately.
+
 ### Fixed — the visibility ratchet measured a universe that excluded its own subject
 
 The full lane was red — one test out of 7374 — and had been since 2026-08-30.

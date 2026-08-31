@@ -2,8 +2,8 @@
 slug: bootstrap-drift-gate-off-source-edits-never-reach-the-cli
 title: "Гейт bootstrap_drift ВЫКЛЮЧЕН — правка в scripts/ не доезжает до работающего CLI и MCP, и об этом никто не узнаёт"
 status: planning
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: gates-declare-what-they-prevent
 complexity: medium
 role: developer
 stack: python

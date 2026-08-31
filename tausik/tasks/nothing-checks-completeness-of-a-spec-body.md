@@ -2,8 +2,8 @@
 slug: nothing-checks-completeness-of-a-spec-body
 title: "Полноту тела SPEC не проверяет ни один гейт — §8.4.1 применим к нам, соответствие не доказано"
 status: planning
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: renar-contract-contour
 complexity: medium
 role: architect
 stack: python

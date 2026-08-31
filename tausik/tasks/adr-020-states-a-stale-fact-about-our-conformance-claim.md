@@ -2,8 +2,8 @@
 slug: adr-020-states-a-stale-fact-about-our-conformance-claim
 title: "ADR-020 §3 строит вывод на устаревшем факте о нас: путь заявки и состояние pre-adoption названы неверно"
 status: planning
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: external-proof-and-open-axes
 complexity: simple
 role: architect
 stack: null

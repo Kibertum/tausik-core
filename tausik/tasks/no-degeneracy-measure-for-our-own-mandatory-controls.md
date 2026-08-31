@@ -2,8 +2,8 @@
 slug: no-degeneracy-measure-for-our-own-mandatory-controls
 title: "У наших обязательных контролей нет измерителя вырожденности — три случая одного класса за одну смену"
 status: planning
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: gates-declare-what-they-prevent
 complexity: medium
 role: architect
 stack: python

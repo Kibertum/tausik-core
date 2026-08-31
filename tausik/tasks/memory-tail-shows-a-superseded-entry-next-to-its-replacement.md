@@ -2,8 +2,8 @@
 slug: memory-tail-shows-a-superseded-entry-next-to-its-replacement
 title: "Хвост памяти в CLAUDE.md печатает опровергнутую запись рядом с той, что её заменила: ребро supersedes не читается"
 status: planning
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: knowledge-records-what-failed-19
 complexity: medium
 role: developer
 stack: python

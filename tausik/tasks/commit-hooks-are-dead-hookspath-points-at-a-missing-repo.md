@@ -2,8 +2,8 @@
 slug: commit-hooks-are-dead-hookspath-points-at-a-missing-repo
 title: "core.hooksPath ведёт в несуществующий репозиторий — ни один pre-commit хук не исполняется, и git об этом молчит"
 status: planning
-epic: null
-story: null
+epic: landscape-2026-h2
+story: l26-silent-failures-in-shipped-commands
 complexity: medium
 role: developer
 stack: python

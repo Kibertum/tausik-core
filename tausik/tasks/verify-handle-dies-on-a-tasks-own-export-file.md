@@ -2,8 +2,8 @@
 slug: verify-handle-dies-on-a-tasks-own-export-file
 title: "Хендл verify гибнет от собственного экспорта задачи: объявил свой tausik/tasks/*.md областью — закрыться нельзя никогда"
 status: planning
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: evidence-primitives
 complexity: medium
 role: developer
 stack: python
