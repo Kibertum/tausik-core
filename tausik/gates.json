@@ -32,5 +32,53 @@
       "SQLiteBackend": 129,
       "ProjectService": 118
     }
+  },
+  "red_proofs": {
+    "_comment": "RED-PROOF REGISTRY. For every blocking gate IN FORCE: the test that hands it a VIOLATION and requires red. Not 'is covered by tests' — a gate that has forgotten how to fail passes its whole happy path. Read by scripts/gate_degeneracy.py, which resolves every `test` node against the tree's AST and reddens, naming the gate, when an entry is missing, unresolvable, or names a gate the live registry no longer blocks on. BORROWED from ADR-021, NOT owed to it: §3.1 of that ADR rejects the 'for every mandatory control' form and its norm lives in §13.9.4, the procedure for amending the STANDARD, which we are not doing. Adding a blocking gate means adding a line here. See task no-degeneracy-measure-for-our-own-mandatory-controls.",
+    "_command_gate_note": "ruff and pytest are COMMAND gates: the framework's share of the contract is 'a nonzero exit becomes a blocking FAIL', and that is what their proof feeds. Whether the TOOL detects a given violation is the tool's business, not this registry's. Naming that limit beats a proof that pretends to cover it.",
+    "ruff": {
+      "test": "tests/test_gates.py::TestGateRunner::test_command_gate_fail",
+      "violation": "a command that exits nonzero — the only shape of violation a command gate can perceive"
+    },
+    "pytest": {
+      "test": "tests/test_gates.py::TestGateRunner::test_command_gate_fail",
+      "violation": "same command-gate contract as ruff; see _command_gate_note"
+    },
+    "filesize": {
+      "test": "tests/test_gates.py::TestGateRunner::test_filesize_gate_fail",
+      "violation": "a file longer than the configured max_lines"
+    },
+    "class_surface": {
+      "test": "tests/test_gate_class_surface.py::test_new_god_class_is_blocked_outright_not_baselined",
+      "violation": "a new class whose composed public surface exceeds the cap and is not in the baseline"
+    },
+    "bootstrap_drift": {
+      "test": "tests/test_bootstrap_drift_gate.py::TestGateRunner::test_fails_and_names_the_file_and_command_on_drift",
+      "violation": "a source file edited without redeploying it to the profile that actually runs"
+    },
+    "memory_route": {
+      "test": "tests/test_memory_sinks.py::TestGate::test_foreign_sink_in_tree_blocks",
+      "violation": "project knowledge written into a foreign agent's memory sink (.cursor/rules/learned.mdc)"
+    },
+    "state_roundtrip": {
+      "test": "tests/test_state_roundtrip_gate.py::TestStateRoundtripGate::test_red_on_single_field_hand_edit",
+      "violation": "one hand-edited field in the committed tausik/ projection, diverging from the DB export"
+    },
+    "claudemd_state_drift": {
+      "test": "tests/test_claudemd_state_gate.py::TestTheWipeIsCaught::test_replacing_the_block_with_an_empty_project_reds",
+      "violation": "a dynamic block replaced by an empty-project rendering — carries no memory tail"
+    },
+    "skill_spec_conformance": {
+      "test": "tests/test_skill_spec_conformance.py::TestGate::test_gate_fails_on_broken_skill",
+      "violation": "a changed SKILL.md violating the agentskills.io name/size canon"
+    },
+    "verify_first": {
+      "test": "tests/test_verify_first_contract.py::TestVerifyFirstEnforcement::test_no_verify_run_blocks",
+      "violation": "a close attempted with no fresh signed verify green behind it"
+    },
+    "changelog": {
+      "test": "tests/test_changelog_gate.py::TestEnforceChangelog::test_neither_file_written_blocks_naming_both",
+      "violation": "a close whose diff touches neither CHANGELOG.md nor CHANGELOG.ru.md"
+    }
   }
 }

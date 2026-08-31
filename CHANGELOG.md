@@ -9,6 +9,54 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — a degeneracy measure for our own blocking gates
+
+Three findings of one class inside a single shift (#191), which is the signature
+of a missing practice rather than a coincidence: `bootstrap_drift` was severity
+`block` and stood `[OFF]`; `claudemd_state_drift` shipped in this release as
+`block` and `[ON]` with nothing named that would tell us it had degenerated into
+a tautology; and the eight `commit`-trigger gates were executed by exactly one
+consumer, a git hook, while `core.hooksPath` pointed at a repository that does
+not exist (memory #439).
+
+**The rule.** Every blocking gate that is IN FORCE names a test that hands it a
+VIOLATION and requires red — not "is covered by tests", because a gate's happy
+path is usually well covered and a gate that has forgotten how to fail passes all
+of it. The proofs live in the committed `tausik/gates.json` under `red_proofs`,
+one entry per gate with the test node and the violation it feeds. Eleven blocking
+gates are in force here; all eleven are covered, and all eleven proofs were run
+live rather than read.
+
+**The teeth are citation resolution.** `scripts/gate_degeneracy.py` resolves
+every cited test node against the tree's AST. Without that the registry would be
+a list of strings anybody could satisfy by typing one — and the session #196
+audit already counted the price of trusting such strings: 19 rotted and 25
+NEVER-EXISTENT test citations across 1258 closed tasks (memory #463).
+
+**It refuses on four independent grounds and each names the gate:** `DISABLED`,
+`NO_PROOF`, `UNRESOLVABLE_PROOF`, `STALE_ENTRY`. A measure that answers "yes" on
+every input is the exact defect this was opened against, so nine mutations were
+run against it: five strip the measure of one branch each, one empties a
+registry entry, and three deprive a REAL gate (`filesize`, `memory_route`,
+`class_surface`) of its ability to go red. All nine were killed — the last three
+are what make the registry evidence instead of a list.
+
+**`DISABLED` is reported first, and the ordering is an argument.** A gate that is
+declared blocking and switched off is WORSE than a degenerate one: a degenerate
+gate still executes, still occupies a line in the receipt, and can be caught the
+moment somebody reads what it actually asserted. A gate that is off emits no line
+at all, and nothing is indistinguishable from "ran and found no problem". A
+stack-scoped gate that is off because the project does not use that stack is not
+this case — that is scoping, not silence, and it is reported as dormant (14 here).
+
+**Borrowed from ADR-021, not owed to it.** The verdict on that ADR (#191) was
+*not applicable as a conformance norm*: its line 27 puts the norm in §13.9.4, the
+procedure for amending the STANDARD, and §3.1 explicitly rejects the "for every
+mandatory control" form. We are not amending the standard, so reporting
+"conforms to ADR-021" would be false. The idea is taken because the debt is real.
+Decision #288.
+
+
 ### Fixed — this repository's own strictness lived in a gitignored file
 
 Two keys had restored this repository's enforcement: `task_done.auto_verify:
