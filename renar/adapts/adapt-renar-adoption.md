@@ -22,6 +22,8 @@ updated_at: '2026-06-14T11:00:33Z'
 
 Source ТЗ: `decisions#109` · status **draft** · delta **0**
 
+> ⚠ **This ADAPT carries 1 regulatory finding(s).** An external norm changed after parts of the interpretation below were recorded, so a resolution here is not current merely because it is written here. Read *Backward findings → regulatory* before treating any resolution below as a live basis.
+
 ## Forward interpretations
 
 ### decisions#109 §architecture — "sqlite = single source of truth for RENAR artifacts; ONE-WAY git-exported renar/ tree = V3 diff&review + V4 branching"
@@ -77,3 +79,9 @@ Resolution: Out of RENAR-3 scope. Noted as a RENAR-4 prerequisite: if pursued, �
 The audit (§7.3) notes RENAR's §11.4 substrate mapping covers V1–V6 well for code/document substrates but only partially for analytical/streaming substrates (ClickHouse, Kafka, Delta) where V3/V4 are not first-class. This is a scope concern for RENAR generally.
 
 Resolution: Out of scope for TAUSIK: its substrate is git + sqlite (+ v34 hash-chain), which fully satisfies V1–V6 (audit §7.2 calls §11 the strongest chapter for code/document substrates). No analytical substrate is in play, so the partial-mapping risk does not apply here — recorded for completeness, not as a TAUSIK gap.
+
+### [regulatory] (RENAR §1.5.4 / ADR-005)
+
+ОСНОВАНИЕ, НА КОТОРОМ СТОЯЛА ЭТА ИНТЕРПРЕТАЦИЯ, СНЯТО СТАНДАРТОМ. Резолюция выше — «Declare core-mode explicitly (Decision #109)» — ссылается на механизм core-mode, которого в RENAR больше НЕТ: его снял ADR-005 (accepted), правка исполнена, грep по standard/, guide/, reference/ даёт НОЛЬ вхождений. На его месте §1.5.4: internal product без независимого представителя клиента «не имеет права заявлять соответствие RENAR-N; манифест либо не существует, либо явно декларирует несоответствие», а попытка объявить RENAR-N названа несоответствующей прямо (§13.8). Решение #109 было честным на свою дату — механизм отменили, мы не заметили два месяца.
+
+Resolution: РЕЗОЛЮЦИЯ «Declare core-mode explicitly» НЕДЕЙСТВИТЕЛЬНА и заменена решением #292: заявка уровня снимается, генератор объявляет несоответствие по §1.5.4. Практики RENAR остаются в силе локально — §1.5.4 это прямо разрешает; уходит только заявление уровня. Право заявлять теперь проверяется МАШИНОЙ: предусловие применимости в renar_conformance.SCOPE_EXCLUSION вычисляется впереди лестницы уровней, и никакое состояние сигналов не даёт RENAR-N, пока исключение держится. Возврат — не шаг по лестнице, а выход в §1.4.2: нужен ACTZ, подписанный ДВУМЯ независимыми лицами (§5.5.3). Односторонняя приёмка разбирается в ADR-017, но он status: proposed, нормативные правки не внесены — основанием служить не может.

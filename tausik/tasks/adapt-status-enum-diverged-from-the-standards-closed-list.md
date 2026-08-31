@@ -2,8 +2,8 @@
 slug: adapt-status-enum-diverged-from-the-standards-closed-list
 title: "Закрытый перечень статусов ADAPT разошёлся со стандартом в обе стороны: лишний signed есть, обязательного approved нет"
 status: planning
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: renar-debt-implemented-wrong
 complexity: complex
 role: developer
 stack: python

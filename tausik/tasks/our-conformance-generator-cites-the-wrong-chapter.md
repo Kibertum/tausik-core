@@ -2,8 +2,8 @@
 slug: our-conformance-generator-cites-the-wrong-chapter
 title: "Все нормативные ссылки генератора соответствия указывают на главу 14 вместо 13: четырнадцать цитат, ни одна не резолвится"
 status: planning
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: renar-debt-implemented-wrong
 complexity: medium
 role: architect
 stack: null

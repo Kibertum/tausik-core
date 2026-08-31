@@ -2,8 +2,8 @@
 slug: mandatory-clause-13-3-3-is-checked-by-counting-artifacts
 title: "Обязательное положение §13.3.3 проверяется у нас счётом «ADAPT больше нуля» — измеритель не способен покраснеть ни на одном нарушении"
 status: planning
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: renar-debt-implemented-wrong
 complexity: complex
 role: architect
 stack: null

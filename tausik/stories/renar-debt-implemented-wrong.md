@@ -1,7 +1,7 @@
 ---
 slug: renar-debt-implemented-wrong
 title: "Долг: реализовано по норме, которую стандарт отозвал"
-status: open
+status: active
 epic: release-19-renar-conformance
 ---
 

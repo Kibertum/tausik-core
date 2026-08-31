@@ -110,7 +110,12 @@ def cmd_renar(svc: ProjectService, args: Any) -> None:
         os.replace(tmp, path)  # atomic — no partial-write corruption
         print(f"Wrote {path} (manifest-version {manifest_version})")
 
-    level = manifest["level"] or "(none — pre-adoption)"
+    excl = manifest.get("scope-exclusion")
+    level = manifest["level"] or (
+        f"(none — non-conformant by declaration, {excl['clause']})"
+        if excl
+        else "(none — pre-adoption)"
+    )
     print(text)
     print(f"# inferred level: {level} | pre_adoption: {manifest['pre-adoption']}")
     if manifest["assessment-evidence"]["blocked-at"]:

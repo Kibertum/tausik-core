@@ -9,6 +9,61 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — the RENAR-1 claim is withdrawn, and the generator can no longer print a level we have no right to print
+
+A conformance level has two conditions and they live in different documents. The
+VALUE — do the §12.9 signals hold? — lives in our own data. The RIGHT — does the
+standard's scope of application admit this project at all? — lives in §1.5. A
+generator that reads only its own data sees the first and is blind to the second
+BY CONSTRUCTION, and that blindness is not a bug in a query: it is a whole
+half of the question that never gets asked.
+
+We had been printing `Level: **RENAR-1**` on the strength of `core-mode`, a
+mechanism the standard removed in ADR-005 more than two months ago. The removal
+was carried out: `core-mode` appears zero times across `standard/`, `guide/` and
+`reference/`. What stands in its place is §1.5.4 — an internal product with no
+independent client representative "may apply a subset of RENAR practices
+locally, but has no right to claim RENAR-N; the manifest either does not exist
+or explicitly declares non-conformance", and attempting to claim RENAR-N is
+named non-conformant outright.
+
+**The fork was closed by withdrawal (decisions#292).** Exiting into §1.4.2 needs
+an ACTZ signed by two independent persons (§5.5.3) — a human signature act, not
+something an agent may assume. Waiting for ADR-017 (`status: proposed`) is not a
+neutral state: it leaves RENAR-1 printed meanwhile. Withdrawal is the only path
+executable now, and it forecloses nothing — §1.5.4 itself routes the project
+into §1.4.2 the moment a two-party ACTZ exists.
+
+**The fix is in what the machine is capable of printing, not in the text of an
+artifact.** `renar_conformance` evaluates a scope precondition AHEAD of the
+level ladder: while the §1.5.4 exclusion holds, no state of the signals yields a
+RENAR-N. The red-proof drives a store that reaches RENAR-2 and forces every
+§12.9 signal True — the verdict still refuses a level; the counter-control lifts
+the exclusion and watches the same store print one again.
+
+The manifest declares non-conformance explicitly: `level: null`,
+`conformance-declaration: non-conformant`, the excluding clause named, and
+`replaced-by: "<unknown-state>"`. That sentinel is BORROWED from §13.8.2 as an
+encoding — the §13.4.2 schema offers no representation for "no level is held" —
+and the code says so. It is not a claim that the §13.8 loss-of-conformance
+procedure ran: §13.8 describes the degradation of a conformance once HELD, and
+we never held the right for a day (decisions#293).
+
+Two reader-facing consequences. `renar/conformance.md` prints the declaration
+ABOVE the level line, not below it — a caveat trailing the number it qualifies
+is read second or not at all. And an ADAPT carrying a `regulatory` finding now
+opens with a banner: the body is append-only, so a reader meets the withdrawn
+resolution first, and that is precisely how a dead basis keeps reading as a live
+one.
+
+The promise standing in the external tracker was kept the same day
+(renar#47, note_4855) — after the tree was green, so what was reported was a
+fact rather than an intention.
+
+Note for readers of the entry below: its "our RENAR-1 does not cut it off"
+describes the state before this change. The ADR-023 obligation it names is
+unaffected — §1.5.4 removes our claim to a level, not the practices.
+
 ### Added — a control that asks whether a SPEC body describes its subject exhaustively
 
 ADR-023 is the one of the four unassessed accepted ADRs that actually BINDS us:

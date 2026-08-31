@@ -69,6 +69,49 @@ _LEVEL_REQUIRED: dict[str, list[str]] = {
 }
 _LEVEL_ORDER = ["RENAR-1", "RENAR-2", "RENAR-3", "RENAR-4", "RENAR-5"]
 
+# --- §1.5 applicability precondition (scope, not signals) -------------------
+# A conformance level has TWO conditions, and they live in different documents.
+# The VALUE — do the signals hold? — lives in our own data and is read here.
+# The RIGHT — is this project inside the standard's scope of application at
+# all? — lives in the standard's §1.5. A generator that reads only its own data
+# sees the first and is blind to the second BY CONSTRUCTION. That blindness is
+# what put a fact into an external tracker that had to be withdrawn an hour
+# later (session #198). So the right is evaluated FIRST, ahead of the ladder.
+#
+# Set to None the moment the exclusion stops holding (an ACTZ signed by two
+# independent persons appears → §1.5.4 itself routes the project into §1.4.2).
+# Do not weaken it any other way: §13.9.2 forbids claiming a level above the
+# one actually held, and a level claimed outside §1.5 is not "above" — it is
+# not a claim the standard recognises at all.
+SCOPE_EXCLUSION: dict[str, str] | None = {
+    "clause": "§1.5.4",
+    "scenario": "Internal product без external client",
+    "finding": (
+        "no independent client representative exists, so the two-party ACTZ "
+        "signature (§5.5.3) is structurally impossible; §1.5.4 withholds the "
+        "right to claim RENAR-N and requires the manifest to declare "
+        "non-conformance explicitly"
+    ),
+    "decided-in": "decisions#292",
+    "supersedes": (
+        "decisions#109 core-mode — the mechanism it rested on was removed by "
+        "ADR-005; zero occurrences remain in standard/, guide/, reference/"
+    ),
+}
+
+# §13.8.2 step 2 sentinel. Borrowed as the ENCODING for "no level is held" —
+# the §13.4.2 schema offers no other representation. NOT a claim that the
+# §13.8 loss-of-conformance procedure was executed: this is the withdrawal of
+# a claim made outside the scope of applicability, not the downgrade of a
+# claim once validly held.
+UNKNOWN_STATE_SENTINEL = "<unknown-state>"
+
+
+def scope_exclusion() -> dict[str, str] | None:
+    """The §1.5 exclusion in force, or None when the project is in scope."""
+    return dict(SCOPE_EXCLUSION) if SCOPE_EXCLUSION else None
+
+
 
 def _scalar(conn: sqlite3.Connection, sql: str) -> int:
     """COUNT-style scalar query; 0 if the table is absent (forward-looking)."""
@@ -204,6 +247,20 @@ def infer_level(bundle: dict[str, Any], clauses: dict[str, dict[str, Any]]) -> d
     pre_adoption when any mandatory clause is unmet (§14.4.3). Otherwise the
     level is the highest RENAR-N whose cumulative §12.9 required signals all hold.
     """
+    excl = scope_exclusion()
+    if excl is not None:
+        return {
+            "level": None,
+            "pre_adoption": False,
+            "unmet_clauses": [],
+            "blocked_at": "scope-applicability",
+            "scope_exclusion": excl,
+            "reason": (
+                f"outside the standard's scope of application ({excl['clause']}) — "
+                "no RENAR-N may be claimed regardless of signals"
+            ),
+        }
+
     signals = bundle["signals"]
     unmet = [name for name, c in clauses.items() if not c["confirmed"]]
     if unmet:
@@ -238,9 +295,14 @@ def infer_level(bundle: dict[str, Any], clauses: dict[str, dict[str, Any]]) -> d
 
 def _next_level_target(verdict: dict[str, Any]) -> str | None:
     """The next level to aim for: RENAR-1 from pre-adoption, else level+1, None at top."""
+    if verdict.get("scope_exclusion"):
+        # Not a path-planning target: re-entry runs through §1.4.2, not the ladder.
+        return None
     if verdict["pre_adoption"]:
         return "RENAR-1"
     level = verdict["level"]
+    if level is None:  # blocked before RENAR-1 without pre_adoption — no target
+        return "RENAR-1"
     idx = _LEVEL_ORDER.index(level)
     return _LEVEL_ORDER[idx + 1] if idx + 1 < len(_LEVEL_ORDER) else None
 
@@ -302,6 +364,16 @@ def build_manifest(
         "replaced-by": None,
         "replaces": None,
     }
+    excl = verdict.get("scope_exclusion")
+    if excl:
+        # §1.5.4: "манифест либо не существует, либо явно декларирует
+        # «несоответствие»". The manifest exists (§13.9.2 forbids a claim
+        # without one), so the declaration must be explicit and unmissable.
+        manifest["level"] = None
+        manifest["level-target"] = None
+        manifest["conformance-declaration"] = "non-conformant"
+        manifest["scope-exclusion"] = dict(excl)
+        manifest["replaced-by"] = UNKNOWN_STATE_SENTINEL
     return manifest
 
 
@@ -388,6 +460,12 @@ def format_status_line(verdict: dict[str, Any]) -> str:
     missing = verdict.get("missing_signals") or []
     tail = f": {', '.join(missing)}" if missing else ""
     if level is None:
+        excl = verdict.get("scope_exclusion")
+        if excl:
+            return (
+                f"RENAR: non-conformant by declaration ({excl['clause']} — "
+                "internal product without an independent client representative)"
+            )
         if blocked and blocked != "mandatory-clauses":
             return f"RENAR: pre-adoption (blocked at {blocked}{tail})"
         n = len(verdict.get("unmet_clauses") or [])

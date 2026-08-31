@@ -2,8 +2,8 @@
 slug: our-only-spec-is-derived-without-either-allowed-source-field
 title: "Единственный SPEC выведен без обоих допустимых источников: ни source.tz-section, ни source.adapt — дословный негативный сценарий §13.3.3"
 status: planning
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: renar-debt-implemented-wrong
 complexity: medium
 role: developer
 stack: python

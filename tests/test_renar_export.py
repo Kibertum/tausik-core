@@ -277,3 +277,67 @@ def test_prune_removes_nested_empty_dirs(svc, tmp_path):
     write_tree(out, build_tree(svc))  # prune pass runs after write
     assert not os.path.exists(os.path.join(out, "specs", "sub"))
     assert os.path.isdir(os.path.join(out, "specs"))  # non-empty dir kept
+
+
+# --- decisions#292: the derived view stops printing a level -------------------
+
+
+class TestDerivedViewDeclaresNonConformance:
+    """§1.5.4 requires the declaration to be explicit in what a reader sees.
+
+    The manifest carries the machine-readable form; conformance.md is the form a
+    human opens. A declaration present only in YAML would leave the visible
+    artifact still reading `Level: **RENAR-1**`.
+    """
+
+    def test_no_renar_n_level_in_frontmatter_or_body(self, svc):
+        _seed(svc)  # a seeded store reaches RENAR-1 on signals alone
+        doc = build_tree(svc)["conformance.md"]
+        front = yaml.safe_load(doc.split("---\n")[1])
+        assert front["level"] is None
+        assert front["conformance-declaration"] == "non-conformant"
+        assert front["scope-exclusion"]["clause"] == "§1.5.4"
+        assert "Level: **RENAR-1**" not in doc
+        assert "NON-CONFORMANT" in doc
+        assert "§1.5.4" in doc
+
+    def test_declaration_precedes_the_level_line(self, svc):
+        """Order matters: the caveat must not trail the number it qualifies."""
+        _seed(svc)
+        doc = build_tree(svc)["conformance.md"]
+        assert doc.index("NON-CONFORMANT") < doc.index("Level: **")
+
+    def test_lifting_the_exclusion_prints_a_level_again(self, svc, monkeypatch):
+        """Counter-control: the view is silent because of the exclusion, not a bug."""
+        import renar_conformance
+
+        monkeypatch.setattr(renar_conformance, "SCOPE_EXCLUSION", None)
+        _seed(svc)
+        doc = build_tree(svc)["conformance.md"]
+        assert "Level: **RENAR-1**" in doc
+        assert "NON-CONFORMANT" not in doc
+
+
+class TestRegulatoryFindingBanner:
+    """An append-only body meets its reader oldest-first.
+
+    A `regulatory` finding records that an external norm moved AFTER the
+    resolutions above it were written. Without a banner the reader meets the
+    withdrawn resolution first and has no signal that it is void — the exact
+    failure mode decisions#292 was raised on.
+    """
+
+    def _adapt_with(self, svc, category):
+        svc.adapt_create("ad1", "Adapt 1", "TZ-1")
+        svc.adapt_finding("ad1", category, "norm moved", resolution="superseded")
+        return build_tree(svc)["adapts/ad1.md"]
+
+    def test_banner_precedes_the_findings_it_qualifies(self, svc):
+        doc = self._adapt_with(svc, "regulatory")
+        assert "regulatory finding(s)" in doc
+        assert doc.index("regulatory finding(s)") < doc.index("## Backward findings")
+
+    def test_no_banner_without_a_regulatory_finding(self, svc):
+        """Counter-control: the banner is earned, not unconditional."""
+        doc = self._adapt_with(svc, "contradiction")
+        assert "regulatory finding(s)" not in doc

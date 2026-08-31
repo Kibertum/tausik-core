@@ -2,8 +2,8 @@
 slug: conformance-manifest-is-absent-where-the-standard-requires-it
 title: "Манифест соответствия у нас не лежит нигде: §13.4.1 требует RENAR-CONFORMANCE.yaml в корне носителя, в дереве его нет"
 status: planning
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: renar-debt-implemented-wrong
 complexity: medium
 role: architect
 stack: null
