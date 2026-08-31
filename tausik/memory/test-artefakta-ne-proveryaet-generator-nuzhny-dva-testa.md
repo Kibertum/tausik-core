@@ -8,7 +8,10 @@ tags:
   - mutation
   - testing
 task: spec-closed-list-is-nine-while-the-standard-has-eleven
-edges: []
+edges:
+  - relation: relates_to
+    target_type: memory
+    target: snyal-ogovorku-perechitay-tekst-kotoryy-ona-tsitirovala-kak
 ---
 
 Тест, читающий СГЕНЕРИРОВАННЫЙ АРТЕФАКТ, проверяет не генератор, а факт перевыпуска артефакта. Пока файл перевыпускают вручную рядом с правкой, эти два утверждения совпадают — и расхождение не наблюдается ни одним тестом. Замерено мутацией в #200: подмена ветви в renar_measurer_caveats.header_lines() (шапка продолжает заявлять незаслуженные подтверждения при ПУСТОМ реестре) ВЫЖИЛА, потому что единственный тест шапки открывал закоммиченный RENAR-CONFORMANCE.yaml, а тот был перевыпущен минутой раньше и содержал верный текст. Убито добавлением теста, вызывающего header_lines() НАПРЯМУЮ.

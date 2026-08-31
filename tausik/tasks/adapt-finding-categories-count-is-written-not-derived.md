@@ -15,7 +15,8 @@ scope_exclude: null
 relevant_files: []
 scope_paths: []
 scope_tools: []
-depends_on: []
+depends_on:
+  - clause-evidence-string-still-says-nine-spec-types
 completed_at: null
 ---
 
