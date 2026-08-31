@@ -15,6 +15,7 @@ from backend_migrations_v34 import maybe_backfill_v34
 from backend_migrations_v42_backfill import maybe_backfill_v42
 from backend_migrations_v43 import maybe_rebuild_tasks_v43
 from backend_migrations_v48 import maybe_rebuild_usage_events_v48
+from backend_migrations_v49 import maybe_widen_spec_types_v49
 
 
 def run_post_migrations(conn: sqlite3.Connection, current_version: int) -> None:
@@ -63,3 +64,5 @@ def run_post_migrations(conn: sqlite3.Connection, current_version: int) -> None:
         maybe_rebuild_tasks_v43(conn)
     if current_version >= 48:  # relax usage_events.session_id to optional (guarded rebuild)
         maybe_rebuild_usage_events_v48(conn)
+    if current_version >= 49:  # widen specs.type to the standard's eleven (guarded rebuild)
+        maybe_widen_spec_types_v49(conn)

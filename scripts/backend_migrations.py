@@ -28,6 +28,7 @@ from backend_migrations_v45 import MIGRATION_V45
 from backend_migrations_v46 import MIGRATION_V46
 from backend_migrations_v47 import MIGRATION_V47
 from backend_migrations_v48 import MIGRATION_V48
+from backend_migrations_v49 import MIGRATION_V49
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -374,6 +375,10 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     # перестройка usage_events живёт охраняемым пост-шагом, чтобы уметь
     # пропустить себя на частичной фикстуре без этой таблицы (см. v48-модуль).
     48: MIGRATION_V48,
+    # v49: закрытый перечень типов SPEC доводится до одиннадцати (ADR-013).
+    # Список пуст намеренно — перестройка specs живёт охраняемым пост-шагом,
+    # чтобы уметь пропустить себя на частичной фикстуре (см. v49-модуль).
+    49: MIGRATION_V49,
 }
 
 

@@ -1,7 +1,8 @@
 """TAUSIK CLI handler for `tausik spec` subcommands (v16r-spec-types).
 
 RENAR SPEC artifacts: add / list / show / update / delete / link / unlink /
-search. ``type`` is a closed list of 9 enforced by the service + DB CHECK.
+search. ``type`` is a closed list enforced by the service + DB CHECK; its
+length is read from SPEC_TYPES rather than written here.
 """
 
 from __future__ import annotations

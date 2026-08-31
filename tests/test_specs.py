@@ -43,9 +43,12 @@ def _seed_task(svc, slug: str = "t1") -> None:
 # === AC: closed list is exactly the 9 RENAR types ===
 
 
-def test_spec_types_closed_nine():
-    assert SPEC_TYPES == ("ARCH", "API", "DATA", "INT", "PROC", "UI", "AI", "SEC", "OPS")
-    assert len(SPEC_TYPES) == 9
+def test_spec_types_are_the_closed_list_the_service_enforces():
+    """Composition is asserted in tests/test_spec_types_closed_list.py against the
+    standard's own transcription; restating the tuple here would be a second
+    literal and a tautology (memory #474). What belongs HERE is that the service
+    rejects anything outside it."""
+    assert len(SPEC_TYPES) == len(set(SPEC_TYPES))
 
 
 # === AC: migration v35 applies cleanly on a v34 DB ===

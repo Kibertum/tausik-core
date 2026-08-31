@@ -91,7 +91,10 @@ def test_all_mandatory_fields_present(svc):
     for field in MANDATORY_FIELDS:
         assert field in manifest, f"missing mandatory §13.4.2 field {field!r}"
     assert set(manifest["quality-gates"]) == {"qg-0", "qg-1", "qg-2", "qg-3", "qg-4"}
-    assert len(manifest["spec-types-supported"]) == 9
+    # §13.3.4 closes the list at ELEVEN (§8.3); the manifest published nine
+    # until v49. The literal stays a literal here on purpose — deriving it
+    # from SPEC_TYPES would make any future shortfall arithmetically invisible.
+    assert len(manifest["spec-types-supported"]) == 11
     sc = manifest["substrate-capabilities"]
     for v in ("v1-immutable-history", "v6-author-timestamp"):
         assert v in sc

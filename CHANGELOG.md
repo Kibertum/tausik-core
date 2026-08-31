@@ -9,6 +9,58 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the closed SPEC-type list reaches the standard's eleven (schema v49)
+
+`tausik spec add --help` printed "Closed list of 9 RENAR types" and the DB CHECK
+enforced nine. §8.3 closes the list at ELEVEN: ADR-013 added `SPEC-TEST` (test
+benches and data) and `SPEC-DOC` (delivered documentation). The standard's
+argument is mechanical — §10.5.4 invalidates `verified` on ANY version increment,
+so binding a TC to a bench through SPEC-OPS would have dropped every TC on that
+SPEC-OPS to `approved` whenever an unrelated deploy procedure changed. A separate
+type keeps invalidation precise.
+
+The shortfall had stopped being cosmetic. ADR-023 wrote "во всех ОДИННАДЦАТИ
+типах" into §8.4.1, and a rule about eleven types cannot be executed by a system
+that knows nine — for two of them there was no subject to execute it on.
+
+**The list now lives in exactly one place.** It was in five: the service
+constant, the baseline DDL, the v35 migration, the MCP tool schema, and the
+completeness denominator — with the count hand-written beside it in four more
+strings. That duplication is the mechanism by which the prose came to disagree
+with the code, so the count is now formatted from `len(SPEC_TYPES)` everywhere,
+the MCP module reads the list instead of mirroring it, and a test reds on any
+second literal list AND on any hand-written count — including one whose number is
+currently correct. A correct literal is the same defect with the clock reset.
+
+`scripts/spec_completeness.py` keeps its independent transcription of the
+standard's eleven on purpose: a denominator computed from the numerator can never
+report a shortfall.
+
+Migration v49 rebuilds `specs` (SQLite cannot widen a CHECK with ALTER — the path
+v24 and v48 took). The list is WIDENED, not opened: a type outside the eleven is
+still rejected, asserted on the migrated schema and not only the fresh one, and
+both schemas are checked to declare the same CHECK.
+
+ADR-013 brought two CONDITIONAL obligations with those types —
+`TC.environment-ref` on SPEC-TEST when `automation.kind: dynamic`, and a doc lint
+for SPEC-DOC. Both are inapplicable today (TC does not exist here as a class; we
+hold zero SPEC-DOC), and that is DECLARED rather than skipped: a test reds the
+moment either subject appears, so the declaration expires by machine rather than
+by memory.
+
+### Changed — an empty measurer-caveats registry is now a declared state
+
+`spec-types-closed-list` was the last entry, and it left the registry the only
+way an entry may: its measurer was repaired. That empties the registry, and an
+empty registry is the dangerous state — "nothing disclosed" and "nothing to
+disclose" render identically. So `REGISTRY_EMPTIED_BY` must name the repair that
+emptied it, and that task must exist and be underway; the manifest drops the
+`measurer-caveats` key entirely rather than publishing `{}` (which would read as
+searched-and-found-none); and the header no longer claims unearned confirmations
+that no longer exist, while stating explicitly that an empty registry is a claim
+about our MEASURERS and not a claim of conformance.
+
+
 ### Fixed — §13.3.3 is no longer confirmed by counting ADAPT rows
 
 `mandatory-clauses-confirmed.adapt-per-tz` was computed as `adapts > 0`. That

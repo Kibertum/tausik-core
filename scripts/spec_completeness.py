@@ -59,9 +59,12 @@ import re
 from dataclasses import dataclass, field
 from typing import Callable
 
-# The standard's eleven; ours is the first nine. Kept here as the honest
-# denominator rather than derived from our own list, which would make the
-# shortfall arithmetically invisible.
+# The standard's eleven, transcribed from §8.3 — NOT derived from our own
+# SPEC_TYPES. Ours now carries the same eleven (v49 / ADR-013), and that is
+# exactly why the literal stays: a denominator computed from the numerator can
+# never report a shortfall, so the next amendment of the standard would move
+# both sides together and go unnoticed. Their agreement is a FACT this module
+# lets a test check, not an identity it assumes.
 STANDARD_SPEC_TYPES: tuple[str, ...] = (
     "ARCH",
     "API",
@@ -184,8 +187,12 @@ def reach(known_types: tuple[str, ...] | None = None) -> dict:
         "absent": absent,
         "note": (
             f"covers {len(known_types)} of {len(STANDARD_SPEC_TYPES)} SPEC types; "
-            f"{', '.join('SPEC-' + t for t in absent) or 'none'} absent from our closed list "
-            "(spec-closed-list-is-nine-while-the-standard-has-eleven)"
+            + (
+                f"{', '.join('SPEC-' + t for t in absent)} absent from our closed list "
+                "(spec-closed-list-is-nine-while-the-standard-has-eleven)"
+                if absent
+                else "none absent"
+            )
         ),
     }
 

@@ -8,12 +8,13 @@
 # parallel file-history mechanism is kept. Read an earlier version with
 # `git log --follow -p RENAR-CONFORMANCE.yaml`; `replaces` names it.
 #
-# NOT every `true` under mandatory-clauses-confirmed is earned: see
-# `measurer-caveats` below — it names each confirmation whose measurer
-# cannot go red, and the open task carrying the fix.
+# Every `true` under mandatory-clauses-confirmed is EARNED as far as we
+# know: the measurer-caveats registry is empty, so no section appears
+# below. That is a statement about our MEASURERS, not a claim of
+# conformance — for that read `level` and `conformance-declaration`.
 renar-version: '1.0'
 senar-version: '1.3'
-manifest-version: 3
+manifest-version: 7
 manifest-id: CFM-2026-08-31-tausik
 level: null
 level-target: null
@@ -33,17 +34,6 @@ mandatory-clauses-confirmed:
   tc-pos-neg-pairing: true
   quality-gates-closed-list: true
   closed-lists-backward-findings: true
-measurer-caveats:
-  disclaimer: 'These confirmations are printed by a measurer we know cannot go red
-    on the violations it exists to catch. This section is a DISCLOSURE, not a repair:
-    it does not fix the measurers and does not substitute for closing the named tasks.'
-  unearned-confirmations:
-  - clause: spec-types-closed-list
-    measured-as: the 9 SPEC types this project enforces
-    why-degenerate: §13.3.4 closes the list at ELEVEN types. Nine of eleven is not
-      a confirmation of the closed list; the evidence string says 9 and the confirmation
-      says true.
-    open-task: spec-closed-list-is-nine-while-the-standard-has-eleven
 quality-gates:
   qg-0: required
   qg-1: required
@@ -68,6 +58,8 @@ spec-types-supported:
 - SPEC-AI
 - SPEC-SEC
 - SPEC-OPS
+- SPEC-TEST
+- SPEC-DOC
 assessment-evidence:
   blocked-at: scope-applicability
   reason: outside the standard's scope of application (§1.5.4) — no RENAR-N may be
@@ -80,8 +72,8 @@ assessment-evidence:
     delta_adapts_count: 0
     task_specs_count: 2
     reasoning_tasks_count: 2
-    memory_edges_count: 18
-    verification_runs_count: 1926
+    memory_edges_count: 20
+    verification_runs_count: 1928
   level-signals:
     substrate_v1_v6: true
     adapt_per_tz: false
@@ -131,7 +123,7 @@ assessment-evidence:
       — neither source.adapt nor source.tz-section nor source.adversarial-review-ref
       can be stored, which is the negative scenario stated literally.
 replaced-by: <unknown-state>
-replaces: CFM-2026-08-31-tausik@v2
+replaces: CFM-2026-08-31-tausik@v6
 conformance-declaration: non-conformant
 scope-exclusion:
   clause: §1.5.4

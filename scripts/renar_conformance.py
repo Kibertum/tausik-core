@@ -34,6 +34,7 @@ from typing import Any
 
 from renar_clause_reactive_adapt import assess as assess_reactive_adapt
 from renar_measurer_caveats import caveats_section
+from renar_measurer_caveats import header_lines as caveats_header_lines
 from service_specs import SPEC_TYPES
 
 RENAR_VERSION = "1.0"
@@ -338,9 +339,11 @@ def build_manifest(
         "assessor": {"id": assessor_id, "role": "architect", "signature-ref": None},
         "next-assessment-due": due,
         "mandatory-clauses-confirmed": {name: c["confirmed"] for name, c in clauses.items()},
-        # Which of those confirmations their measurer has not earned. Sits
-        # directly under the block it qualifies, not at the end of the file.
-        "measurer-caveats": caveats_section(),
+        # Which confirmations their measurer has not earned — directly under
+        # the block it qualifies. Dropped entirely when empty: a bare
+        # `measurer-caveats: {}` reads as searched-and-found-none, a stronger
+        # claim than an absent registry supports (header says what absence means).
+        **({"measurer-caveats": caveats_section()} if caveats_section() else {}),
         "quality-gates": {
             "qg-0": "required",
             "qg-1": "required",
@@ -431,10 +434,7 @@ def render_yaml(manifest: dict[str, Any]) -> str:
         "# history (§3.3.1) is exactly the guarantee that clause asks for, so no\n"
         "# parallel file-history mechanism is kept. Read an earlier version with\n"
         "# `git log --follow -p RENAR-CONFORMANCE.yaml`; `replaces` names it.\n"
-        "#\n"
-        "# NOT every `true` under mandatory-clauses-confirmed is earned: see\n"
-        "# `measurer-caveats` below — it names each confirmation whose measurer\n"
-        "# cannot go red, and the open task carrying the fix.\n"
+        "#\n" + caveats_header_lines()
     )
     body: str = yaml.safe_dump(
         manifest, sort_keys=False, allow_unicode=True, default_flow_style=False
