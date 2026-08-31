@@ -1,7 +1,7 @@
 ---
 slug: external-proof-and-open-axes
 title: "Доказательство чужой линейкой и закрытие осей, которые обзор не прогнал"
-status: open
+status: active
 epic: release-19-renar-conformance
 ---
 
