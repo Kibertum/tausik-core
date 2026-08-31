@@ -301,12 +301,14 @@ def _expand(guard: Guard, project: dict) -> list[tuple[str, ...]]:
     return [prefix + (name,) + suffix for name in node]
 
 
-def _baseline_for(guard: Guard, path: tuple[str, ...], trusted: dict) -> Any:
-    """The value a project override is measured against: what the trusted tiers
-    say, else the framework default."""
-    found, value = _dig(trusted, path)
-    if found:
-        return value
+def framework_default(guard: Guard, path: tuple[str, ...]) -> Any:
+    """The framework's own value for a guarded key, consulting no tier at all.
+
+    Split out of `_baseline_for` unchanged, and public because a reader that
+    judges a TRUSTED tier cannot use `_baseline_for`: that one consults the
+    trusted tiers first, so a tier compared against itself is never weaker than
+    itself. See `config_trust_weakening`.
+    """
     if guard.default is not None:
         return guard.default
     # Per-gate guards: the default lives in DEFAULT_GATES.
@@ -322,6 +324,15 @@ def _baseline_for(guard: Guard, path: tuple[str, ...], trusted: dict) -> Any:
         # disabled.
         return None
     return None
+
+
+def _baseline_for(guard: Guard, path: tuple[str, ...], trusted: dict) -> Any:
+    """The value a project override is measured against: what the trusted tiers
+    say, else the framework default."""
+    found, value = _dig(trusted, path)
+    if found:
+        return value
+    return framework_default(guard, path)
 
 
 def enforce_project_tier(project: dict, trusted: dict) -> tuple[dict, list[Rejection]]:
@@ -398,3 +409,4 @@ def is_guarded(path: tuple[str, ...] | str) -> Guard | None:
         if all(g == "*" or g == p for g, p in zip(guard.path, parts)):
             return guard
     return None
+

@@ -327,15 +327,23 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
         if av_hint:
             _print_warn("Verify-First profile", av_hint)
             warnings += 1
-        # Trust tiers: a project-scope key that tried to weaken enforcement is
-        # dropped on read. Silent dropping would look like the setting works,
-        # so every rejection is named here.
-        if trust_rejections:
-            for r in trust_rejections:
-                _print_warn("Config trust tier", r.describe())
-            warnings += len(trust_rejections)
-        else:
-            _print_ok("Config trust tier", "no project-scope key weakens enforcement")
+        # THREE states, not two. A project-scope key that tried to weaken
+        # enforcement is dropped on read, and silent dropping would look like the
+        # setting works — so every rejection is named. A key a TRUSTED tier holds
+        # weaker is NOT dropped; saying nothing of it let the OK line read as
+        # "nothing is weakened" while QG-2 was being bypassed. WARN and never
+        # FAIL: those tiers are the operator's word, and doctor owes visibility
+        # here, not a verdict.
+        from config_trust_weakening import summary
+
+        weak_lines, weak_ok = summary(cfg)
+        for r in trust_rejections:
+            _print_warn("Config trust tier", r.describe())
+        for line in weak_lines:
+            _print_warn("Config trust tier", line)
+        warnings += len(trust_rejections) + len(weak_lines)
+        if not trust_rejections and weak_ok:
+            _print_ok("Config trust tier", weak_ok)
     except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         _print_warn("Config knobs", f"load failed: {e}")
         warnings += 1

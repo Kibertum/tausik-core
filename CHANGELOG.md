@@ -9,6 +9,47 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — `doctor` reported nothing was weakening enforcement while a trusted tier was
+
+`tausik doctor` printed `OK Config trust tier — no project-scope key weakens
+enforcement` at the moment `task_done.auto_verify=true` from
+`~/.tausik/config.json` was closing tasks past the signed QG-2 receipt in this
+repository, and `gates.bootstrap_drift.enabled=false` was holding a blocking
+gate off. The sentence is **literally true** — the weakening did not come from
+the project tier — and that is exactly why it misled: a reader takes it to mean
+nothing is weakened at all.
+
+**The mechanism was right; the report was blind.** Trust tiers are asymmetric on
+purpose: a project may tighten freely and may not weaken, measured in session
+#193 as zero rejections for tightening and two forced restorations for
+weakening. But the baseline a candidate is measured against IS the trusted
+tiers, so once the user tier weakens a guarded key there is nothing left for the
+project to weaken — and a tier compared against itself is never weaker than
+itself. Protection from below, none from above, and the module docstring already
+called that an honest threat boundary. What was missing was not protection: the
+weakening had no machine-readable trace of any kind, and was found by reading
+`~/.tausik/config.json` with human eyes.
+
+**Three states now, not two.** Nothing weakened — `OK`, and the line no longer
+says "project-scope", because it now covers all three tiers. A project-scope key
+dropped on read — `WARN`, wording unchanged, it was always correct. A guarded key
+a trusted tier holds weaker than the framework default — `WARN` naming the tier
+(`user` / `managed`), the key, the value in effect, the framework default, the
+file that supplies it, and the reason recorded beside it. Weakening with a
+recorded reason and weakening without one are different events, so a key with no
+`_reason` / `_disabled_reason` / `_<key>_reason` beside it prints `NO REASON
+RECORDED` rather than a blank.
+
+`WARN` and never `FAIL`, deliberately. The tiers above the project are the
+machine owner's word, set for reasons that are legitimate elsewhere — the two
+keys above were set for another project and are correct there. `doctor` is not
+entitled to call somebody's decision an error; it is obliged to make it visible.
+No resolution rule, effective value, gate behavior, schema or datum changes.
+
+New reader: `scripts/config_trust_weakening.py`. It shares `GUARDS` with the
+resolver rather than re-deriving which keys are guarded — a second answer to
+that question would drift the first time a guard is added.
+
 ### Fixed — a task that declared its own export file could never be closed
 
 A task is free to name `tausik/tasks/<slug>.md` in `--relevant-files`, and for a
