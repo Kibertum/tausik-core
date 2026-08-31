@@ -52,6 +52,7 @@ def _run(code: str, tmp_path: Path, *, arm: bool = True, worker: str | None = No
         cwd=str(tmp_path),
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=120,
     )
     assert proc.returncode == 0, f"подпроцесс упал: {proc.stderr}"
@@ -194,6 +195,7 @@ def test_not_installed_with_root_but_no_log(tmp_path: Path) -> None:
         cwd=str(tmp_path),
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=120,
     )
     assert proc.returncode == 0, proc.stderr
@@ -231,6 +233,7 @@ def test_arms_itself_in_a_grandchild_process(tmp_path: Path) -> None:
         cwd=str(tmp_path),
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=120,
     )
     assert proc.returncode == 0, proc.stderr
