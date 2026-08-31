@@ -292,8 +292,11 @@ _SCOPED: tuple[GateSpec, ...] = (
     # and 2026-08 while every suite stayed green, and a fresh agent reads that file
     # first and believes it. Unlike state_roundtrip this runs at task-done TOO: the
     # check is immune to staleness (it asks whether a tail exists, not whether the
-    # counters are current), so a close cannot flag its own write. Read-only,
-    # fail-open, inert without a DB / CLAUDE.md / markers. See gate_claudemd_state.py.
+    # counters are current), so a close cannot flag its own write. Read-only, and
+    # inert without a DB / CLAUDE.md / markers — those are NOT_APPLICABLE and pass.
+    # NOT fail-open: a fault that stops the check from running is COULD_NOT_RUN and
+    # BLOCKS (claudemd-state-gate-reports-passed-when-it-could-not-run — it used to
+    # be signed as PASSED). See gate_claudemd_state.py.
     GateSpec(
         name="claudemd_state_drift",
         phase=PHASE_SCOPED,

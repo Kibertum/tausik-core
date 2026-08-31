@@ -42,7 +42,12 @@ and the markers from the writer's own constants, so the gate looks exactly where
 the writer writes; "does the project have knowledge" is answered by the producer
 of the tail itself. The gate keeps no file list, no SQL and no copy of the format.
 
-Read-only and fail-open: a gate must never crash the commit it guards.
+Read-only, and it never lets an exception escape — a gate must not crash the
+commit it guards. That is NOT the same as fail-open, and the difference is the
+whole of claudemd-state-gate-reports-passed-when-it-could-not-run: a caught
+fault is recorded as COULD_NOT_RUN and BLOCKS, because a check that produced no
+evidence cannot certify. Only the honest empty states — no database, no
+CLAUDE.md, no markers, no knowledge — pass, as NOT_APPLICABLE.
 """
 
 from __future__ import annotations
