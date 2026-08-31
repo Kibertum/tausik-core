@@ -35,6 +35,7 @@ from typing import Any
 from renar_clause_reactive_adapt import assess as assess_reactive_adapt
 from renar_measurer_caveats import caveats_section
 from renar_measurer_caveats import header_lines as caveats_header_lines
+from renar_tc_premise import pairing_clause
 from service_adapts import FINDING_CATEGORIES
 from service_specs import SPEC_TYPES
 
@@ -156,6 +157,7 @@ def gather_signals(conn: sqlite3.Connection) -> dict[str, Any]:
     mem_edges = _scalar(conn, "SELECT COUNT(*) FROM memory_edges")
     verifs = _scalar(conn, "SELECT COUNT(*) FROM verification_runs")
     clause_333 = assess_reactive_adapt(conn)
+    clause_335 = pairing_clause(conn)
 
     raw = {
         "specs_count": specs,
@@ -200,7 +202,12 @@ def gather_signals(conn: sqlite3.Connection) -> dict[str, Any]:
         "knowledge_graph_primary": False,
         "hallucination_rate_tracked": False,
     }
-    return {"raw": raw, "signals": signals, "clause_13_3_3": clause_333}
+    return {
+        "raw": raw,
+        "signals": signals,
+        "clause_13_3_3": clause_333,
+        "clause_13_3_5": clause_335,
+    }
 
 
 # Mandatory clause → (confirmed bool, evidence). §13.3.1–§13.3.7.
@@ -223,16 +230,9 @@ def eval_mandatory_clauses(bundle: dict[str, Any]) -> dict[str, dict[str, Any]]:
             "confirmed": True,
             "evidence": f"SPEC type list closed at {len(SPEC_TYPES)} (service + DB CHECK)",
         },
-        # §13.3.5 — conditional clause: pos/neg pairing is required for each
-        # normative assertion *covered by at least one TC*. TAUSIK has no
-        # first-class TC artifacts, so the pairing obligation is vacuous (no
-        # TC-covered assertion exists to violate it). Honest vacuous-true — NOT
-        # a claim that gate_negative_scenario (a QG-0 check on task AC text)
-        # enforces artifact-level TC pairing.
-        "tc-pos-neg-pairing": {
-            "confirmed": True,
-            "evidence": "no first-class TC artifacts → pairing obligation vacuous (§13.3.5)",
-        },
+        # §13.3.5 — vacuous only while no TC exists to hold it, so DERIVED from
+        # the premise; it was a literal True, premise in a comment (renar_tc_premise).
+        "tc-pos-neg-pairing": bundle["clause_13_3_5"],
         "quality-gates-closed-list": {
             "confirmed": True,
             "evidence": "QG-0/QG-2 task-lifecycle gates (closed list)",

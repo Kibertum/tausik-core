@@ -315,30 +315,47 @@ def test_adr_013_conditional_obligations_are_still_vacuous():
     * a doc lint for SPEC-DOC — we hold zero SPEC-DOC artifacts, and
       scripts/docs_lint.py is warning-only and not bound to the type.
 
-    This reds the moment either subject appears, which is exactly when the duty
-    becomes live. It is deliberately NOT skipped when the project DB is absent
-    in a way that hides the check — an absent DB means no subject either.
+    WHAT THIS TEST USED TO DO, AND WHY IT WAS CHANGED. It looked for a table
+    named `test_cases` or prefixed `tc_`, and claimed that reddened "the moment
+    either subject appears". A mutation showed otherwise: a table `spec_tests`
+    carrying `assertion_ref`, `polarity` and `environment_ref`, with a row in it,
+    left this test GREEN. The cut was a guess at two names; the promise was about
+    a subject. Convention #495 — an announced boundary is measured, not reasoned.
+
+    The premise now has ONE measurer (scripts/renar_tc_premise), read by this
+    test and by the manifest clause that rests on the same premise. A third
+    consumer imports it rather than cutting again.
     """
     db = os.path.join(ROOT, ".tausik", "tausik.db")
     if not os.path.isfile(db):
-        pytest.skip("project DB absent — no artifacts to hold an obligation")
+        pytest.skip("project DB absent — nothing to measure, and no subject either")
     import sqlite3
+
+    from renar_tc_premise import classes_appeared, tc_evidence
 
     conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     try:
-        tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-        tc_tables = sorted(t for t in tables if t == "test_cases" or t.startswith("tc_"))
-        spec_docs = conn.execute("SELECT COUNT(*) FROM specs WHERE type='DOC'").fetchone()[0]
+        evidence = tc_evidence(conn)
+        appeared = classes_appeared(conn)
     finally:
         conn.close()
 
-    assert not tc_tables, (
-        "TC now exists as an artifact class "
-        f"({tc_tables}) — TC.environment-ref on SPEC-TEST stops being vacuous. "
-        "See adr-013-conditional-obligations-expire-when-subject-appears."
+    # The class ratchet has exactly one consumer, and this is it. The manifest
+    # clause cannot carry it: it is generated from whatever database it is given,
+    # and the declaration is about THIS one.
+    assert not appeared, (
+        f"artifact class(es) absent when TC was declared absent have appeared: "
+        f"{', '.join(appeared)}. Is any of them a TC? If so, §13.3.5 pos/neg pairing "
+        "and ADR-013's TC.environment-ref duty are both live and neither has an "
+        "executor. If not, say so and add the name to CLASSES_AT_DECLARATION in "
+        "scripts/renar_tc_premise.py. See "
+        "adr-013-conditional-obligations-expire-when-subject-appears."
     )
-    assert spec_docs == 0, (
-        f"{spec_docs} SPEC-DOC artifact(s) exist — the doc-lint obligation is now "
-        "live and docs_lint.py is warning-only and unbound. See "
+    assert not evidence, (
+        "ADR-013's conditional obligations are no longer vacuous:\n  - "
+        + "\n  - ".join(evidence)
+        + "\nTwo declarations expire together here — this one and the manifest's "
+        "tc-pos-neg-pairing, which is derived from the same measurer and has "
+        "just started publishing `false`. See "
         "adr-013-conditional-obligations-expire-when-subject-appears."
     )

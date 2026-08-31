@@ -9,6 +9,40 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — two declarations rested on "TC does not exist", and nothing watched for it
+
+ADR-013 admitted the SPEC-TEST and SPEC-DOC types, and each brought a CONDITIONAL
+duty we declared inapplicable: `TC.environment-ref` (§9 p.119) and a doc lint for
+SPEC-DOC. The premise is true and was re-measured — no TC table exists under any
+name, `specs` holds no DOC or TEST row, and `scripts/docs_lint.py` returns 0
+unconditionally. What was missing is the machine that expires the declaration.
+
+The guard test written for it promised to red "the moment either subject
+appears". A mutation showed it did not: a table `spec_tests` carrying
+`assertion_ref`, `polarity` and `environment_ref`, with a row in it, left the
+test GREEN. The cut was a guess at two table names (`test_cases`, `tc_*`) while
+the promise was about a subject — the third time in three sessions that an
+announced boundary named the wrong one.
+
+The same premise had a SECOND consumer, and it is published: `tc-pos-neg-pairing`
+in the conformance manifest was the literal `True` among derived neighbours, with
+its premise in a comment no measurer read. Nothing in the tree watched it.
+
+`scripts/renar_tc_premise.py` now measures the premise once for both. A cut by
+column name was rejected on merit rather than taste: `environment-ref` is the
+field the duty DEMANDS, so a detector keyed on it reddens on a compliant TC and
+stays silent on a violating one. The bounded question is whether an artifact
+class ABSENT at declaration time has appeared, which no naming can dodge; FTS
+shadow tables are excluded by deriving them from the virtual table that owns
+them, never by an `fts_` prefix that a TC table could hide behind.
+
+That ratchet is a statement about OUR declaration, not about a database, and the
+suite proved it: wired into the published clause it announced an arrival for
+every fixture, including one that creates tables by DDL on purpose. It now has a
+single consumer — the repository's guard test, against the live database — and
+the clause rests only on facts of the database it describes. The evidence string
+says so, so the published field does not claim a check that happens elsewhere.
+
 ### Fixed — the Bash write gate said it checked writes and checked names in a string
 
 `bash_write_gate` decides which paths a command writes by PARSING THE COMMAND

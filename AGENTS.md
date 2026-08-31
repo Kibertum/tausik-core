@@ -144,7 +144,7 @@ Three layers, strict separation: **CLI never touches DB. Service validates. Back
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: none | Branch: v1-9-wave | Version: 1.8.0
+Session: #202 (active) | Branch: v1-9-wave | Version: 1.8.0
 Tasks: 1274/1487 done, 0 active, 0 blocked
 
 ### Memory tail
