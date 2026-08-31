@@ -7,8 +7,9 @@ gate — the enforcement/DB half lives there, the command-parsing half here.
 
 `write_targets(command)` is the public entry point. Everything else is a
 best-effort detector for one write vector (redirection, tee, dd, sed -i, cp/mv,
-curl/wget/tar/unzip, a literal open() in an interpreter payload). The documented
-residual boundary (obfuscation, computed paths) lives in docs/ru/agent-contract.md.
+curl/wget/tar/unzip, a literal open() in an interpreter payload OR in the Python
+script that payload runs). The documented residual boundary lives in
+docs/ru/enforcement-coverage.md.
 """
 
 from __future__ import annotations
@@ -39,6 +40,69 @@ _OPEN_RE = re.compile(
     r"""open\(\s*['"]([^'"]+)['"]\s*,\s*['"][^'"]*[wax]""",
     re.IGNORECASE,
 )
+
+# A Python script the command RUNS, as opposed to code it carries inline.
+#
+# `python -c "open('x','w')"` was caught because the code sits in the command
+# text; `python helper.py` writing the exact same path was not, because the code
+# sits on disk and this parser only ever read the command. The documented
+# residual named the wrong cut — "a computed path, not a literal open()" — when
+# the real one was INLINE versus IN A FILE, and running a script from a file is
+# the ordinary way to run code, not obfuscation. Measured live in session #200:
+# `cp x .claude/...` was refused with the ACL printed, and `python helper.py`
+# writing that same path returned zero and made the edit.
+#
+# Python only, and that is a competence boundary rather than a preference:
+# _OPEN_RE reads Python. A shell script's redirections and a Node script's
+# fs.writeFileSync are the same defect on substrates this expression cannot
+# read, and they stay in the residual (see docs/ru/enforcement-coverage.md).
+_SCRIPT_SUFFIXES = (".py",)
+_MAX_SCRIPT_BYTES = 256 * 1024
+_PYTHON_NAMES = frozenset({"python", "python2", "python3", "py"})
+# `-m mod` and `-c code` mean there is NO script file; every later positional is
+# an argument to something else. Reading one anyway is how this would have
+# blocked `python -m pytest tests/test_x.py` — a test file is full of literal
+# open(..., "w") calls, none of which THIS command performs.
+_NO_SCRIPT_FLAGS = frozenset({"-m", "-c"})
+
+
+def _script_file_writes(sub: list[str]) -> list[str]:
+    """Literal write targets found inside the script file `sub` runs.
+
+    Recognises exactly `python [options] script.py [args]` — the interpreter in
+    command position, the script as the FIRST positional. Narrow on purpose:
+    _OPEN_RE reads Python, so claiming to read a script means claiming to read a
+    PYTHON script, and every widening past that is a chance to name a file the
+    command never writes.
+
+    FAIL-SOFT BY DESIGN: an absent, unreadable or oversized file yields nothing
+    rather than raising or guessing. This runs in a PreToolUse hook on every
+    Bash command, and the cost of being wrong is asymmetric — a miss leaves the
+    gate exactly where it already stood, while a false block on an everyday
+    command stops the work, and a gate that stops the work is one an agent
+    learns to switch off.
+    """
+    if not sub:
+        return []
+    base = os.path.basename(sub[0]).lower().removesuffix(".exe")
+    if base not in _PYTHON_NAMES:
+        return []
+    args = sub[1:]
+    if any(a in _NO_SCRIPT_FLAGS for a in args):
+        return []
+    script = next((a for a in _positionals(args) if a.lower().endswith(_SCRIPT_SUFFIXES)), None)
+    if script is None:
+        return []
+    project_dir = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
+    path = script if os.path.isabs(script) else os.path.join(project_dir, script)
+    try:
+        if os.path.getsize(path) > _MAX_SCRIPT_BYTES:
+            return []
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            body = fh.read()
+    except OSError:
+        return []
+    return list(_OPEN_RE.findall(body))
 
 
 # Opening marker of a heredoc. Group 1 = the `-` of `<<-` (tab-stripping form)
@@ -290,9 +354,11 @@ def _writers_in(sub: list[str]) -> list[str]:
         v = _opt_value(head, "-d", None)
         if v is not None:
             targets.append(v)
-    # 2) interpreter payload: a literal open(path, 'w'/'a'/'x').
+    # 2) interpreter payload: a literal open(path, 'w'/'a'/'x') — inline in the
+    # command text, and (see _script_file_writes) inside a script file it runs.
     if _mentions_interpreter(sub):
         targets += _OPEN_RE.findall(" ".join(sub))
+        targets += _script_file_writes(sub)
     return targets
 
 

@@ -249,7 +249,9 @@ class TestShellWrapperRecursion:
     def _wt(self):
         import sys as _sys
 
-        hooks = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "hooks")
+        hooks = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "hooks"
+        )
         if hooks not in _sys.path:
             _sys.path.insert(0, hooks)
         from bash_write_parse import write_targets
@@ -261,9 +263,9 @@ class TestShellWrapperRecursion:
         [
             ("bash -c 'printf x > scripts/foo.py'", ["scripts/foo.py"]),
             ('sh -c "echo x > a.py"', ["a.py"]),
-            ("bash -lc 'echo x > b.py'", ["b.py"]),          # combined short flags
+            ("bash -lc 'echo x > b.py'", ["b.py"]),  # combined short flags
             ("bash -ec 'echo x > c.py'", ["c.py"]),
-            ("zsh -c 'tee d.py'", ["d.py"]),                  # a writer, not a redirect
+            ("zsh -c 'tee d.py'", ["d.py"]),  # a writer, not a redirect
             ("dash -c 'sed -i s/a/b/ e.py'", ["e.py"]),
             ("bash -c \"bash -c 'echo x > f.py'\"", ["f.py"]),  # nested wrapper
         ],
@@ -275,10 +277,10 @@ class TestShellWrapperRecursion:
         "command",
         [
             "bash --version",
-            "bash script.sh",                       # no -c: the arg is a file to RUN
-            "bash -c 'pytest -q'",                  # payload writes nothing
-            "echo 'bash -c \"x > y\"'",             # a quoted MENTION is not a write
-            "bash --color=auto -c 'pytest -q'",     # long option is not a short cluster
+            "bash script.sh",  # no -c: the arg is a file to RUN
+            "bash -c 'pytest -q'",  # payload writes nothing
+            "echo 'bash -c \"x > y\"'",  # a quoted MENTION is not a write
+            "bash --color=auto -c 'pytest -q'",  # long option is not a short cluster
             "python -m pytest -q",
         ],
     )
@@ -291,7 +293,9 @@ class TestShellWrapperRecursion:
         # decision rather than a RecursionError.
         import sys as _sys
 
-        hooks = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "hooks")
+        hooks = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "hooks"
+        )
         if hooks not in _sys.path:
             _sys.path.insert(0, hooks)
         from bash_write_parse import _MAX_WRAPPER_DEPTH
@@ -305,7 +309,9 @@ class TestShellWrapperRecursion:
     def test_unparseable_payload_degrades_the_whole_confidence(self):
         import sys as _sys
 
-        hooks = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "hooks")
+        hooks = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "hooks"
+        )
         if hooks not in _sys.path:
             _sys.path.insert(0, hooks)
         from bash_write_parse import CONFIDENCE_REGEX_FALLBACK, write_targets_with_confidence
@@ -313,7 +319,7 @@ class TestShellWrapperRecursion:
         # Outer tokenizes, payload does not. Answering `parsed` would be the
         # more confident of two readings — the wrong one for a caller that
         # fails closed on uncertainty.
-        _t, conf = write_targets_with_confidence("bash -c \"awk '{print $1} > x.py\"")
+        _t, conf = write_targets_with_confidence('bash -c "awk \'{print $1} > x.py"')
         assert conf == CONFIDENCE_REGEX_FALLBACK
 
 
@@ -363,7 +369,7 @@ class TestTransparentCommandPrefixes:
             "sudo -v",
             "timeout --help",
             "nice",
-            "python environment.py",   # a NAME that starts like a prefix
+            "python environment.py",  # a NAME that starts like a prefix
             "./timeout_test.sh",
             "env bash -c 'pytest -q'",  # prefix + wrapper, payload writes nothing
             "exec pytest -q",
@@ -382,3 +388,117 @@ class TestTransparentCommandPrefixes:
         wt = self._wt()
         assert wt("echo f.py | xargs -I{} bash -c 'echo x > {}'") == []
         assert wt("ssh host 'echo x > /remote/f.py'") == []
+
+
+class TestWriteFromInsideAScriptFile:
+    """The write is in the SCRIPT, not in the command text.
+
+    Session #200 measured both halves of this on the same path: `cp x
+    .claude/mcp/project/tools_spec.py` was refused with the ACL printed, and
+    `python helper.py` writing that same path returned zero and made the edit.
+    The gate's own docstring called that gap "obfuscated writes" and claimed the
+    bar was "must actively obfuscate" — but running a script from a file is the
+    ordinary way to run code. A gate that overstates what it prevents is worse
+    than one that prevents less: the agent reading the refusal concludes the ACL
+    is closed.
+    """
+
+    @staticmethod
+    def _script(tmp_path, body):
+        """Returns a PROJECT-RELATIVE name, and that is not incidental.
+
+        An absolute Windows path inside a Bash command loses its backslashes
+        to posix tokenisation, so the parser would look for a file that is not
+        there, degrade softly, and the test would pass or fail for a reason
+        having nothing to do with the gate. The measured command in #200 was
+        `python /tmp/edit2.py` — a slash path — and this is the shape agents
+        actually write.
+        """
+        (tmp_path / "helper.py").write_text(body, encoding="utf-8")
+        return "helper.py"
+
+    def test_a_write_from_a_script_is_blocked_like_a_direct_write(self, tmp_path):
+        """AC3 — the negative scenario, run through the REAL hook.
+
+        Not a unit test on the parser: this is the same subprocess invocation
+        that returned zero when it was measured, so a fix that only satisfies a
+        parser assertion cannot pass it.
+        """
+        _make_db(tmp_path, [("t1", "active", '["scripts/"]')])
+        script = self._script(tmp_path, 'open("harness/x.py", "w").write("x")\n')
+        r = _run_hook(tmp_path, "python " + script)
+        assert r.returncode == 2, r.stderr
+        assert "harness/x.py" in r.stderr
+        assert "declared scope" in r.stderr
+
+    def test_a_write_from_a_script_inside_the_acl_is_allowed(self, tmp_path):
+        """The green branch, and it is measured: the ONLY difference from the
+        test above is which path the script writes, so a gate that blocked
+        every `python <script>` would fail here."""
+        _make_db(tmp_path, [("t1", "active", '["scripts/"]')])
+        script = self._script(tmp_path, 'open("scripts/x.py", "w").write("x")\n')
+        r = _run_hook(tmp_path, "python " + script)
+        assert r.returncode == 0, r.stderr
+
+    def test_no_active_task_is_blocked_too(self, tmp_path):
+        """QG-0 parity — the rule the direct-write path already enforced."""
+        _make_db(tmp_path, [("t1", "done", None)])
+        script = self._script(tmp_path, 'open("scripts/a.py", "w").write("x")\n')
+        r = _run_hook(tmp_path, "python " + script)
+        assert r.returncode == 2, r.stderr
+        assert "No active task" in r.stderr
+
+    def test_dash_m_does_not_read_its_argument_as_a_script(self, tmp_path):
+        """`python -m pytest tests/test_x.py` must not be blocked by literal
+        open(..., "w") calls INSIDE that test file — the command runs none of
+        them. This is the false block the narrow rule exists to prevent, and it
+        is the reason `-m` is refused a script rather than merely deprioritised."""
+        _make_db(tmp_path, [("t1", "active", '["scripts/"]')])
+        target = tmp_path / "tests"
+        target.mkdir()
+        (target / "test_x.py").write_text('open("harness/y.py", "w")\n', encoding="utf-8")
+        r = _run_hook(tmp_path, "python -m pytest tests/test_x.py")
+        assert r.returncode == 0, r.stderr
+
+    def test_an_absent_script_degrades_softly(self, tmp_path):
+        """Fail-soft, and the asymmetry is deliberate: a miss leaves the gate
+        where it stood, a false block stops the work."""
+        _make_db(tmp_path, [("t1", "active", '["scripts/"]')])
+        r = _run_hook(tmp_path, "python nope.py")
+        assert r.returncode == 0, r.stderr
+
+
+class TestScriptFileParserBoundaries:
+    """Unit-level, on the parser, for the limits the hook tests cannot show."""
+
+    def test_an_oversized_script_is_not_read(self, tmp_path, monkeypatch):
+        import bash_write_parse as P
+
+        big = tmp_path / "big.py"
+        big.write_text(
+            'open("harness/x.py", "w")\n' + ("# pad\n" * 60000),
+            encoding="utf-8",
+        )
+        assert big.stat().st_size > P._MAX_SCRIPT_BYTES
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+        assert P._script_file_writes(["python", str(big)]) == []
+
+    def test_a_script_just_under_the_cap_is_read(self, tmp_path, monkeypatch):
+        """Pairs with the test above: without it, a cap of zero would pass."""
+        import bash_write_parse as P
+
+        small = tmp_path / "small.py"
+        small.write_text('open("harness/x.py", "w")\n', encoding="utf-8")
+        assert small.stat().st_size < P._MAX_SCRIPT_BYTES
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+        assert P._script_file_writes(["python", str(small)]) == ["harness/x.py"]
+
+    def test_a_non_python_interpreter_is_not_claimed_to_be_read(self, tmp_path, monkeypatch):
+        """_OPEN_RE reads Python. A parser that cannot read a substrate must not
+        report on it — the shell and Node cases stay in the declared residual."""
+        import bash_write_parse as P
+
+        js = tmp_path / "w.js"
+        js.write_text('fs.writeFileSync("harness/x.py", "x")\n', encoding="utf-8")
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+        assert P._script_file_writes(["node", str(js)]) == []

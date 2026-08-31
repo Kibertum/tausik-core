@@ -9,6 +9,39 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the Bash write gate said it checked writes and checked names in a string
+
+`bash_write_gate` decides which paths a command writes by PARSING THE COMMAND
+TEXT. A write performed inside a script the command runs is not in that text, so
+it went through the task ACL untouched. Measured live in session #200 on one
+path: `cp x .claude/mcp/project/tools_spec.py` was refused with the ACL printed,
+and `python helper.py`, writing that same path, returned zero and made the edit.
+
+The larger defect was the promise. The gate's own docstring called the gap
+"obfuscated writes" and claimed the bar had been raised to "must actively
+obfuscate" — but running a script from a file is the ordinary way to run code.
+The documented residual named the wrong cut, "a literal `open()` versus a
+computed path", when the real one was INLINE versus IN A FILE. A gate that
+overstates what it prevents is worse than one that prevents less: the agent
+reading the refusal concludes the ACL is closed. The boundary paragraph now says
+what is actually true, and says why it used to say otherwise.
+
+The hole is closed for the measured shape. `python [options] script.py` has the
+script read and its literal write targets put through the same ACL decision as a
+direct write. Narrow on purpose: the interpreter must be Python in command
+position and the script the first positional, because the expression that reads
+it reads Python — a parser that cannot read a substrate should not report on it,
+so shell and Node scripts stay in the declared residual. `-m` and `-c` are
+refused a script file outright, which is what stops `python -m pytest
+tests/test_x.py` from being blocked by literal `open(..., "w")` calls inside a
+test file that the command never performs.
+
+Fail-soft throughout: an absent, unreadable or oversized script yields nothing
+rather than raising. The asymmetry is deliberate — a miss leaves the gate where
+it already stood, while a false block on an everyday command stops the work, and
+a gate that stops the work is one an agent learns to switch off. Three
+mutations, three killed.
+
 ### Fixed — the ADAPT finding-category count is derived too, and the detector is now one implementation for both lists
 
 §7.4.4 closes the backward-finding categories at seven and we carry seven, so

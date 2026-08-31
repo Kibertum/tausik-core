@@ -15,13 +15,27 @@ decision the Write gates apply — by importing THEIR functions (scope_write_gat
 not by re-deriving the rule. A second copy of the rule would drift from the
 first (conv #266: judge with the real producer, not a second copy).
 
-Residual boundary — documented in docs/ru/agent-contract.md (AC2): obfuscated
-writes are NOT caught — a path built in a shell variable, `base64 -d | sh`, a
-writer hidden behind a wrapper (`sudo tee`), arbitrary interpreter code beyond
-a literal `open(...)`. Shell is Turing-complete; a total gate is impossible.
-AC2 permits "close it OR document the boundary explicitly"; only silence is
-forbidden. This raises the bar from "trivially bypass with a heredoc" to "must
-actively obfuscate", and names what remains.
+Residual boundary — documented in docs/ru/enforcement-coverage.md (AC2). Shell
+is Turing-complete, so a total gate is impossible; AC2 permits "close it OR
+document the boundary explicitly", and only silence is forbidden.
+
+NOT caught: a path built in a shell variable, `base64 -d | sh`, a command
+assembled from stdin, and — inside a script the command runs — any write that
+is not a literal `open(path, 'w'|'a'|'x')` in Python. A script written in shell
+or Node is likewise unread: `_OPEN_RE` reads Python, and a parser that cannot
+read a substrate should not claim to have checked it.
+
+What this paragraph used to say, and why it was wrong: it called the gap
+"obfuscated writes" and claimed the bar was raised to "must actively obfuscate".
+Session #200 measured the opposite. `python helper.py`, with the write in the
+script, walked straight through while `cp x .claude/...` was refused with the
+ACL printed — and running a script from a file is the ordinary way to run code,
+not obfuscation. The cut was never "literal versus computed `open()`"; it was
+INLINE versus IN A FILE, and nothing said so. A gate that overstates what it
+prevents is worse than one that prevents less, because the agent reading the
+refusal concludes the ACL is closed. `bash_write_parse._script_file_writes` now
+reads the script, which is what makes the sentence above true rather than
+aspirational.
 
 Exit codes: 0 = allow, 2 = block. Skipped via TAUSIK_SKIP_HOOKS=1.
 """
