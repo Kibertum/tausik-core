@@ -30,6 +30,19 @@ Two deliberate departures from the old boolean (Decision #139):
    security predicate blocks, because that is the half of the original v1.3.4
    hole which refusing the cache never closed: undeclared `scripts/auth.py`
    is skipped by the scoped gates entirely.
+
+3. **A task's own export is not a change the agent made** (Decision #283).
+   The exporter rewrites `tausik/tasks/<slug>.md` between `task start` and the
+   verify — `started_at`, every `task log`, the declared scope, the receipt —
+   so git reports it changed on essentially every close. Counting it as
+   undeclared made `complete` unreachable by construction for any task that
+   kept a journal, which is precisely the shape departure 2 forbids: a status
+   every closure shares distinguishes nothing, and this one is signed into the
+   receipt (measured in session #195 on `#1892`, whose only undeclared file was
+   its own export). The subtraction reaches ONE path — the task's own — and is
+   derived by `verify_own_export`, never spelled here (#249). Somebody else's
+   export stays undeclared: a planning task that re-parented ten tasks really
+   did produce those files, and this run did not touch them.
 """
 
 from __future__ import annotations
@@ -40,6 +53,7 @@ from typing import Any, Callable
 import verify_git_diff
 from security_pattern import is_security_sensitive
 from verify_git_diff import _normalize_repo_path
+from verify_own_export import coverage_files, own_export_display
 
 STATUS_COMPLETE = "complete"
 STATUS_UNDER_DECLARED = "under-declared"
@@ -57,6 +71,7 @@ def describe_declared_scope(
     *,
     root: str | None = None,
     runner: Callable[..., subprocess.CompletedProcess] | None = None,
+    task_slug: str | None = None,
 ) -> dict[str, Any]:
     """Describe how the declared file set relates to what git says changed.
 
@@ -73,6 +88,14 @@ def describe_declared_scope(
     `status` is `unknown` — never `complete` — whenever the comparison could
     not actually be made. `undeclared` is empty for every status except
     `under-declared`.
+
+    `task_slug` names WHOSE export to subtract (Decision #283). A slug and not
+    a ready-made path on purpose: a path parameter would hand every caller the
+    right to spell `tausik/tasks/…` itself, which is the second declaration of
+    the layout #249 exists to prevent, and two callers spelling it differently
+    would subtract different files while both looking correct. Omitted or None
+    subtracts nothing and reproduces the pre-#283 answer exactly, so a caller
+    that has no slug (a full-suite run) is degraded, not broken.
     """
     empty: dict[str, Any] = {
         "undeclared": [],
@@ -96,7 +119,42 @@ def describe_declared_scope(
         # PATH" and "git call failed" into None. All three mean the same to us:
         # unverifiable, therefore unknown.
         return {"status": STATUS_UNKNOWN, "reason": "git unavailable", **empty}
+    # Decision #283, the fourth site of it. `coverage_files` is called rather
+    # than a path comparison written here: it resolves both sides through
+    # abspath+normcase, which on Windows also settles the case question that a
+    # raw repo-path string compare gets wrong, and it is the SAME seam the
+    # three sites of #194 subtract through, so they cannot come to disagree
+    # about which file is the task's own. `root` is handed on: git reports its
+    # paths relative to it, and the export address is resolved from the ambient
+    # `.tausik/`, so a `root` that is not the cwd matches nothing and subtracts
+    # nothing — the pre-#283 answer, never a wrong file. Both live callers pass
+    # root=None, where the two bases are the same cwd by construction.
+    # Holds the export's spelling once the subtraction actually fired, so the
+    # branch below has a `str` and not a `str | None` that a reader (and mypy)
+    # must re-derive the non-emptiness of.
+    own_subtracted: str | None = None
+    if task_slug:
+        covered = set(coverage_files(sorted(actual), task_slug, root=root))
+        if covered != actual:
+            own_subtracted = own_export_display(task_slug, root=root) or task_slug
+        actual = covered
     if not actual:
+        # Memory #454: an emptied set must not inherit the message that
+        # belonged to a set which was never populated. "The agent changed
+        # nothing git can see" and "everything that changed was the
+        # framework's own bookkeeping" are different facts about the run, and
+        # only the first is what the old sentence claims. Both are `complete`
+        # — nothing was left undeclared either way — but a reader who cannot
+        # tell them apart cannot tell whether the export subtraction fired.
+        if own_subtracted:
+            return {
+                "status": STATUS_COMPLETE,
+                "reason": (
+                    "no git-visible changes since task start beyond this task's "
+                    f"own export ({own_subtracted})"
+                ),
+                **empty,
+            }
         return {
             "status": STATUS_COMPLETE,
             "reason": "no git-visible changes since task start",

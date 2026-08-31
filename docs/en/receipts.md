@@ -102,7 +102,7 @@ receipt for `README.md`.
 - `undeclared_count` — the full count, **never** truncated. When it exceeds the
   length of the list, the list is showing only part of the picture.
 
-Two properties that matter when reading someone else's receipt:
+Three properties that matter when reading someone else's receipt:
 
 1. **`unknown` is not `complete`.** A measurement that did not happen is never
    credited as confirmed coverage. Schema `v1` receipts issued before this
@@ -115,6 +115,14 @@ Two properties that matter when reading someone else's receipt:
    security predicate: gates scoped to the declared list would not have checked
    it at all, so that run fails with status `scope-security-mismatch` and asks
    for the file to be added to `relevant_files`.
+3. **The task's own export does not count against it.** `tausik/tasks/<slug>.md`
+   is rewritten by the framework itself between `task start` and the verify —
+   `started_at`, every `task log`, the declared scope, the receipt — so git
+   reports it changed on essentially every close. It is subtracted before the
+   comparison, and only the CURRENT task's own file is: somebody else's export
+   is a real product of a planning task and stays listed. When that subtraction
+   is the only reason nothing is left, the reason says so instead of claiming
+   the tree never moved.
 
 The receipt is **canonical** (JCS / RFC 8785 spirit): keys sorted at every
 level, no whitespace, ASCII-only, floats rejected. The same logical receipt

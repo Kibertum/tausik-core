@@ -9,6 +9,39 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — every receipt said "under-declared", because a task's own export counted against it
+
+`tausik verify` printed `NOTE: 1 file(s) changed since task start but not
+declared in relevant_files` on a closure whose declared scope was exact, and
+that one file was `tausik/tasks/<slug>.md` — the task's own export. The
+framework writes it itself: `task start` records `started_at`, and every
+`task log` re-serializes the row. So git reported it changed on essentially
+every close, `declared_scope_status` was `under-declared` for any task that
+kept a journal, and `complete` was unreachable by construction.
+
+That is the failure mode Decision #138 already refuses to ship — a rule firing
+on ~100% of honest work gets disabled on first contact — except this verdict is
+signed into the receipt and read back when a verify handle is redeemed. A status
+everyone shares distinguishes nothing.
+
+`describe_declared_scope` now subtracts the task's own export before comparing,
+through the same `verify_own_export` seam the coverage hash has used since
+v1.8's `verify-handle-dies-on-a-tasks-own-export-file`, so the two cannot come
+to disagree about which file is the task's own. Both callers — the recording
+side and the handle redemption — name whose export to subtract; a caller with no
+slug subtracts nothing and gets the previous answer.
+
+**Only the current task's own export.** Somebody else's is a real product of a
+planning task, and it stays listed: subtracting all of `tausik/tasks/` would
+zero the coverage of a closure that declared nine foreign exports. And when the
+subtraction is the only reason nothing is left, the reason says so — "no
+git-visible changes since task start" and "everything that changed was the
+framework's own bookkeeping" are different facts about a run, and the second has
+no right to print as the first.
+
+Measured on this repository: the closure of this task is the first here to
+record `declared_scope_status=complete` with `undeclared_count=0`.
+
 ### Fixed — `doctor` reported nothing was weakening enforcement while a trusted tier was
 
 `tausik doctor` printed `OK Config trust tier — no project-scope key weakens

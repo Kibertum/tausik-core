@@ -403,7 +403,10 @@ def _check_git_scope(
     started = task_created_at
     if started is None:
         started = _task_started_at(run)
-    scope_desc = describe_declared_scope(files, started)
+    # `task_slug` for Decision #283: the run being redeemed wrote this task's
+    # own export, and the redemption must subtract exactly what the recording
+    # side subtracted or the two halves of one proof would disagree.
+    scope_desc = describe_declared_scope(files, started, task_slug=task_slug)
     blocked = security_block_reason(scope_desc)
     if blocked:
         return _no(

@@ -456,7 +456,7 @@ class TestGitScopeIsRecheckedAtRedemption:
         _, handle, _ = _make_run(conn, keyed_project, files=("scripts/demo.py",))
         monkeypatch.setattr(
             "verify_scope_honesty.describe_declared_scope",
-            lambda files, started: {
+            lambda files, started, **kw: {
                 "status": "under-declared",
                 "undeclared": ["auth/login.py"],
                 "undeclared_count": 1,
@@ -480,7 +480,7 @@ class TestGitScopeIsRecheckedAtRedemption:
         _, handle, _ = _make_run(conn, keyed_project, files=("scripts/demo.py",))
         monkeypatch.setattr(
             "verify_scope_honesty.describe_declared_scope",
-            lambda files, started: {
+            lambda files, started, **kw: {
                 "status": "under-declared",
                 "undeclared": ["CHANGELOG.md"],
                 "undeclared_count": 1,
@@ -490,6 +490,29 @@ class TestGitScopeIsRecheckedAtRedemption:
         assert verdict.ok, verdict.reason
         assert "outside this receipt's scope" in verdict.reason
         assert "non-blocking" in verdict.reason
+
+    def test_redemption_names_whose_export_to_subtract(self, conn, keyed_project, monkeypatch):
+        """Decision #283 — the redemption half of the subtraction.
+
+        The recording side (`verify_cached_run`) already subtracts this task's
+        own export from the coverage it hashes. If the redemption asked the
+        scope description WITHOUT the slug, the two halves of one proof would
+        answer differently about the same file: the receipt would cover a set
+        the redemption calls under-declared. What is pinned is the argument,
+        because that is the whole of the wiring — the subtraction itself is
+        `verify_scope_honesty`'s, tested there.
+        """
+        _, handle, _ = _make_run(conn, keyed_project, files=("scripts/demo.py",))
+        seen: dict = {}
+
+        def _record(files, started, **kw):
+            seen.update(kw)
+            return {"status": "complete", "undeclared": [], "undeclared_count": 0}
+
+        monkeypatch.setattr("verify_scope_honesty.describe_declared_scope", _record)
+        verdict = check_handle(conn, handle, task_slug="demo-task", project_dir=keyed_project)
+        assert verdict.ok, verdict.reason
+        assert seen.get("task_slug") == "demo-task"
 
 
 class TestKeylessProjectIsANamedMode:

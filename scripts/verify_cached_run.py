@@ -168,7 +168,13 @@ def run_gates_with_cache(
     # blind the receipt in the highest-risk path. Cheap when it cannot apply:
     # describe_declared_scope returns "unknown" without touching git when
     # task_created_at or the declared list is missing.
-    scope_desc = describe_declared_scope(files, task_created_at)
+    #
+    # `slug` is passed for the same reason `coverage_files` got it above
+    # (Decision #283): this run rewrites the task's own export, so git reports
+    # that file changed on every close and the receipt would say
+    # "under-declared" about work nobody did. The subtraction is the callee's,
+    # not restated here.
+    scope_desc = describe_declared_scope(files, task_created_at, task_slug=slug)
     if details is not None:
         details["scope_description"] = scope_desc
     git_diff_consistent = scope_desc["status"] != STATUS_UNDER_DECLARED
