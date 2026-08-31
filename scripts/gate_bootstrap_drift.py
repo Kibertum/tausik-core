@@ -21,10 +21,19 @@ under the filesize cap.
 from __future__ import annotations
 
 import os
-
-from tausik_utils import library_source
 import sys
 from typing import cast
+
+import gate_outcome
+from tausik_utils import library_source
+
+# What a reader of a CANNOT-RUN row is supposed to DO. Both non-execution paths
+# owe the same answer; a refusal without a next action is a dead end wearing a
+# better name (#182).
+_CANNOT_RUN_REMEDY = (
+    "This gate produced no evidence, so it certifies nothing. Re-run once the "
+    "fault above is gone; if it persists, the drift is unknown, not absent."
+)
 
 
 def _harness_drift_names(project_dir: str) -> list[str]:
@@ -53,7 +62,7 @@ def _harness_drift_names(project_dir: str) -> list[str]:
     return cast("list[str]", check_deployed_trees(lib_dir, project_dir))
 
 
-def run_bootstrap_drift_gate_for(gate: dict, files: list[str]) -> tuple[bool, str]:
+def run_bootstrap_drift_gate_for(gate: dict, files: list[str]) -> gate_outcome.GateOutcome:
     """Registry-uniform ``(gate, files)`` entrypoint (gate-registry-single-source).
 
     Both arguments are ignored: the scan compares the deployed profiles against
@@ -63,7 +72,7 @@ def run_bootstrap_drift_gate_for(gate: dict, files: list[str]) -> tuple[bool, st
     return run_bootstrap_drift_gate()
 
 
-def run_bootstrap_drift_gate() -> tuple[bool, str]:
+def run_bootstrap_drift_gate() -> gate_outcome.GateOutcome:
     """Fail iff a present IDE profile's deployed source drifts from `scripts/` or
     the `harness/` fan-out.
 
@@ -81,18 +90,25 @@ def run_bootstrap_drift_gate() -> tuple[bool, str]:
         project_dir = os.path.dirname(os.path.abspath(find_tausik_dir()))
         scripts = scripts_drift_names(project_dir)
         harness = _harness_drift_names(project_dir)
-    except Exception as e:  # noqa: BLE001 — a gate must never crash task-done
-        return True, f"Bootstrap drift check unavailable ({type(e).__name__}: {e})."
+    except Exception as e:  # noqa: BLE001 — caught, but recorded as non-execution, not as a pass
+        return gate_outcome.could_not_run(
+            gate_outcome.REASON_RUNNER_ERROR,
+            f"Bootstrap drift check unavailable ({type(e).__name__}: {e}).",
+            remedy=_CANNOT_RUN_REMEDY,
+        )
 
     if scripts is None and not harness:
-        return True, "No scripts/ source dir — bootstrap drift check skipped."
+        return gate_outcome.not_applicable(
+            gate_outcome.REASON_NO_SOURCE_DIR,
+            "No scripts/ source dir — bootstrap drift check skipped.",
+        )
     names = sorted(set((scripts or []) + harness))
     if not names:
-        return True, "No bootstrap drift — deployed profiles match source."
+        return gate_outcome.passed("No bootstrap drift — deployed profiles match source.")
 
     shown = "\n  ".join(names[:20])
     more = f"\n  … (+{len(names) - 20} more)" if len(names) > 20 else ""
-    return False, (
+    return gate_outcome.failed(
         f"Bootstrap drift: {len(names)} deployed file(s) do NOT match source — "
         "the edit did not reach the copy that runs (hooks/MCP load from the "
         "profile, not from scripts/ or harness/):\n  "

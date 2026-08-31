@@ -104,6 +104,11 @@ REASON_NO_DATABASE = "no_database"
 REASON_NO_INSTRUCTION_FILE = "no_instruction_file"
 REASON_NO_DYNAMIC_BLOCK = "no_dynamic_block"
 REASON_EMPTY_KNOWLEDGE_BASE = "empty_knowledge_base"
+# The two remaining "nothing to compare" states, from the drift gates. Same
+# reasoning as the four above: a fresh clone has no deployed profile and no
+# materialized projection, and is not at fault for either.
+REASON_NO_SOURCE_DIR = "no_source_dir"
+REASON_NO_PROJECTION = "no_projection"
 
 
 @dataclass(frozen=True)

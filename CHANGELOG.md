@@ -9,6 +9,38 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the remaining three gates stop signing non-execution as a pass
+
+`claudemd_state_drift` was fixed first; the trick was the whole layer's, not one
+file's. `bootstrap_drift` and `state_roundtrip` (both `block`) and `renar_drift`
+(`warn`) answered every caught exception with
+`(True, "… check unavailable …")` — a check announcing its own non-execution,
+counted as evidence. All of them now return `could_not_run(RUNNER_ERROR, …)`
+with a remedy, and their honest empty states return `not_applicable` with codes
+of their own (`no_source_dir`, `no_projection`, `no_database`).
+
+**The `warn` gate was decided, not swept along.** Its fail-open costs less, so
+it earned a separate answer. Measured rather than assumed: `gate_runner` raises
+a blocking failure only when `outcome.blocks AND severity == "block"`, so a
+`warn` gate that reports CANNOT-RUN stops nothing at all. The truthful receipt
+is free — while `PASSED` would put a false green exactly where a reader checks
+whether drift was looked for. Both halves are pinned by tests.
+
+**Mutation found a fifth site the plan did not have.** `run_renar_drift_gate`
+answered an unmapped gate name with `(True, "Unknown RENAR drift gate … —
+skipped")`. That is not a skip: the caller named a gate this module has no
+detector for, so nothing was checked, and the word "skipped" filed it beside the
+honest empty states of a fresh clone. It is now `COULD_NOT_RUN` with
+`no_gate_implementation` — the code the runner already uses for its own version
+of that event.
+
+Each of the five sites was reverted separately and each reddens the suite on its
+own; a per-file mutation would have signed one site with another's red.
+`test_internal_fault_fails_open_never_raises` was **inverted, not deleted**: it
+asserted `passed` on a raised exception, i.e. it pinned the defect. Two claims
+were tangled there and only the first is true — the exception must not escape
+(kept), therefore the run counts as a pass (false). They are now separate tests.
+
 ### Fixed — this repository takes back the strictness a foreign project's config had relaxed
 
 Two keys in the machine-wide `~/.tausik/config.json` were set for a *different*
