@@ -1,7 +1,7 @@
 """TAUSIK CLI handler for `tausik renar` (v16r-conformance-yaml).
 
 `tausik renar conformance` generates a RENAR-CONFORMANCE.yaml self-assessment
-whose level is computed from live DB state (§14.4.3), not declared. Prints to
+whose level is computed from live DB state (§13.4.3), not declared. Prints to
 stdout; `--write` persists to RENAR-CONFORMANCE.yaml at the project root.
 """
 
@@ -97,7 +97,7 @@ def cmd_renar(svc: ProjectService, args: Any) -> None:
 
         root = os.path.dirname(find_tausik_dir())
         path = os.path.join(root, "RENAR-CONFORMANCE.yaml")
-        # §14.4.1 immutability: never reset the version. Bump from the existing
+        # §13.4.1 immutability: never reset the version. Bump from the existing
         # manifest so each --write is a new version, not a silent overwrite-to-1.
         manifest_version = _existing_version(path) + 1
 

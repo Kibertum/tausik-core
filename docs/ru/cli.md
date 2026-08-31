@@ -232,9 +232,9 @@ gates enable <name>             # Включить gate
 gates disable <name>            # Выключить gate
 ```
 
-## RENAR drift-детекторы (§3.11)
+## RENAR drift-детекторы (§4.11)
 
-RENAR §3.11 определяет 8 классов дрифта. Реализованы 2 (рекомендация R4 аудита),
+RENAR §4.11 определяет 8 классов дрифта. Реализованы 2 (рекомендация R4 аудита),
 оба в **warning-режиме** — находки не блокируют, агент читает листинг и реагирует.
 
 ```bash
@@ -257,7 +257,7 @@ drift --detector provenance    # Только drift-7 (провенанс TC↔�
 Также подключены как gates `renar_drift_schema` / `renar_drift_provenance`
 (severity=warn, trigger=task-done). Остальные 6 классов — вне scope.
 
-## RENAR conformance (§14.4)
+## RENAR conformance (§13.4)
 
 ```bash
 renar conformance              # Сгенерировать RENAR-CONFORMANCE.yaml (в stdout)
@@ -266,10 +266,10 @@ renar conformance --assessor <id>
 renar export [--out DIR] [--check]  # Сериализовать specs+adapts+conformance в дерево renar/; --check — CI drift-гейт (exit 1 при stale)
 ```
 
-Self-assessment-манифест со всеми mandatory-полями §14.4.2. Уровень RENAR-1..5
-вычисляется **честно из live-БД** (§14.4.3), не декларативно: нарушение любой
+Self-assessment-манифест со всеми mandatory-полями §13.4.2. Уровень RENAR-1..5
+вычисляется **честно из live-БД** (§13.4.3), не декларативно: нарушение любой
 mandatory clause → `pre_adoption: true` + `level: null` (паттерн kai, аудит
-§0.2.3). Секция `assessment-evidence` показывает raw-counts + per-signal met/unmet
+аудите принятия). Секция `assessment-evidence` показывает raw-counts + per-signal met/unmet
 и где именно заблокирован уровень — агенту видно, что нужно до следующего уровня.
 Машинные клаузы (closed-lists, V1–V6, QG-0/QG-2, schema-validation hook = наш
 drift-1) подтверждаются capability; data-клаузы (`adapt-per-tz`) — только при

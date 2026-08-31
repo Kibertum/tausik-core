@@ -1,8 +1,8 @@
 """v16r-conformance-yaml: honest RENAR-CONFORMANCE.yaml self-assessment.
 
-Asserts (1) the manifest always carries every §14.4.2 mandatory field and
+Asserts (1) the manifest always carries every §13.4.2 mandatory field and
 round-trips through YAML, (2) the level is derived from live DB state — an empty
-artifact store yields pre-adoption (adapt-per-tz unmet, §14.4.3), and (3) the
+artifact store yields pre-adoption (adapt-per-tz unmet, §13.4.3), and (3) the
 level rises honestly as ADAPT/SPEC/delta artifacts appear.
 """
 
@@ -44,7 +44,7 @@ def in_scope(monkeypatch):
     """Lift the §1.5.4 scope exclusion.
 
     The ladder tests below assert the VALUE half of a conformance level — do the
-    §12.9 signals rise honestly as artifacts appear. That question only arises
+    §11.4.3–§11.8.2 observable signals rise honestly as artifacts appear. That question only arises
     for a project the standard's scope of application admits, so they run with
     the exclusion lifted. The RIGHT half (may a level be claimed at all) is
     asserted separately in TestScopeApplicability.
@@ -62,7 +62,7 @@ def _gen(svc):
 def test_all_mandatory_fields_present(svc):
     manifest, _ = _gen(svc)
     for field in MANDATORY_FIELDS:
-        assert field in manifest, f"missing mandatory §14.4.2 field {field!r}"
+        assert field in manifest, f"missing mandatory §13.4.2 field {field!r}"
     assert set(manifest["quality-gates"]) == {"qg-0", "qg-1", "qg-2", "qg-3", "qg-4"}
     assert len(manifest["spec-types-supported"]) == 9
     sc = manifest["substrate-capabilities"]
@@ -105,7 +105,7 @@ def test_single_adapt_reaches_renar_1(svc, in_scope):
 
 
 def test_draft_adapt_does_not_reach_renar_2(svc, in_scope):
-    """A draft ADAPT is not an immutable TZ (§12.5.1) → tz_immutable stays False."""
+    """A draft ADAPT is not an immutable TZ (§7.5) → tz_immutable stays False."""
     svc.adapt_create("ad1", "Adapt 1", "TZ-1")
     svc.adapt_delta("ad1", "ad1-d1", "Delta 1", "TZ-1")
     svc.spec_add("sp1", "API", "Spec 1", "v1", status="active")
@@ -221,7 +221,7 @@ class TestScopeApplicability:
         """AC-1 red-proof: not one signal state may produce a RENAR-N.
 
         Drives the store to the richest state the ladder recognises (signed
-        ADAPT + SPEC + non-superseded delta) AND forces every §12.9 signal
+        ADAPT + SPEC + non-superseded delta) AND forces every level signal
         True, then asserts the verdict still refuses a level. Without the
         precondition this store alone reaches RENAR-2.
         """

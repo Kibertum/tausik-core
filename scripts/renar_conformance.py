@@ -1,13 +1,16 @@
 """RENAR-CONFORMANCE.yaml self-assessment generator (v16r-conformance-yaml).
 
-Generates a RENAR conformance manifest (standard §14.4.2) whose level is
-computed **honestly from live DB state**, never declared. The audit (§0.2.3)
-found kai's hand-written manifest stuck at pre-adoption; this closes the gap by
+Generates a RENAR conformance manifest (standard §13.4.2) whose level is
+computed **honestly from live DB state**, never declared. The RENAR adoption
+audit (a document no longer carried in the corpus — cited by name, not by a
+section anchor that cannot resolve) found kai's hand-written manifest stuck at
+pre-adoption; this closes the gap by
 deriving every signal from the project DB so the claim cannot drift from reality.
 
-Honesty contract (§14.4.3): a manifest claims a ``level`` only when ALL seven
-mandatory clauses (§14.3) hold AND every required comparative-table signal
-(§12.9) for that level is met on real data. The moment one mandatory clause is
+Honesty contract (§13.4.3): a manifest claims a ``level`` only when ALL seven
+mandatory clauses (§13.3) hold AND every required comparative-table signal
+(the level's observable signals, §11.4.3–§11.8.2) for that level is met on
+real data. The moment one mandatory clause is
 unmet, the generator emits ``pre_adoption: true`` + ``level: null`` instead of
 overstating — the canonical resolution kai adopted (a level below RENAR-1 is not
 in the closed list, so "not yet conformant" is expressed as pre-adoption).
@@ -38,7 +41,8 @@ SENAR_VERSION = "1.3"
 # Derived from the canonical closed list (single source) → "SPEC-<TYPE>" labels.
 SPEC_TYPES_SUPPORTED = [f"SPEC-{t}" for t in SPEC_TYPES]
 
-# Comparative-table (§12.9) signal keys required at each level, cumulative. A
+# Observable-signal keys required at each level, cumulative (§11.4.3 RENAR-1,
+# §11.5.3 RENAR-2, §11.6.2 RENAR-3, §11.7.2 RENAR-4, §11.8.2 RENAR-5). A
 # level is reachable only when every key for it and all lower levels is met.
 # Keys map to booleans produced by gather_signals(); see _LEVEL_REQUIRED.
 _LEVEL_REQUIRED: dict[str, list[str]] = {
@@ -128,7 +132,7 @@ def _scalar(conn: sqlite3.Connection, sql: str) -> int:
 
 
 def gather_signals(conn: sqlite3.Connection) -> dict[str, Any]:
-    """Collect raw counts + derived §12.9 signal booleans from the live DB.
+    """Collect raw counts + derived level-signal booleans from the live DB.
 
     Capability signals (schema_validation_hook, qg*_enforced, closed lists,
     knowledge_graph, adversarial_gate) reflect TAUSIK machinery that exists
@@ -137,7 +141,7 @@ def gather_signals(conn: sqlite3.Connection) -> dict[str, Any]:
     specs = _scalar(conn, "SELECT COUNT(*) FROM specs")
     # Actively transitioned specs — at least one out of the initial 'draft'
     # state. The bare "status IN (closed-set)" is a tautology (DB CHECK already
-    # guarantees it); §12.6.1 wants statuses *used*, i.e. real transitions.
+    # guarantees it); §11.6.2 wants statuses *used*, i.e. real transitions.
     specs_transitioned = _scalar(conn, "SELECT COUNT(*) FROM specs WHERE status != 'draft'")
     adapts = _scalar(conn, "SELECT COUNT(*) FROM adapts")
     adapts_signed = _scalar(conn, "SELECT COUNT(*) FROM adapts WHERE status='signed'")
@@ -161,7 +165,7 @@ def gather_signals(conn: sqlite3.Connection) -> dict[str, Any]:
         "verification_runs_count": verifs,
     }
 
-    # §12.9 signal booleans. Machinery-backed signals are unconditionally True
+    # Level-signal booleans (§11.4.3–§11.8.2). Machinery-backed signals are True
     # because the running framework provides the hook/closed-list/gate.
     signals = {
         # mandatory / RENAR-1
@@ -169,11 +173,11 @@ def gather_signals(conn: sqlite3.Connection) -> dict[str, Any]:
         "adapt_per_tz": adapts > 0,  # data: needs ≥1 ADAPT in the substrate
         # RENAR-2
         "frontmatter_structured": specs > 0,  # specs carry typed structured fields
-        "tz_immutable": adapts_signed > 0,  # §12.5.1: a draft ADAPT is not a fixed TZ
+        "tz_immutable": adapts_signed > 0,  # §7.5: a draft ADAPT is not a fixed TZ
         "delta_tz_artifact": deltas > 0,  # non-superseded delta-ADAPT change-set (§7.6)
         # RENAR-3
         "schema_validation_hook": True,  # drift-1 detector (renar_drift.py) — machinery
-        "lifecycle_statuses_used": specs_transitioned > 0,  # §12.6.1: statuses really used
+        "lifecycle_statuses_used": specs_transitioned > 0,  # §11.6.2: statuses really used
         "coverage_autogen": False,  # no COVERAGE artifact in TAUSIK yet
         "reference_validation_hook": True,  # spec_link/adapt dangling-guard — machinery
         "verifies_version_pin": False,  # task_specs has no requirement-version pin (V5)
@@ -184,31 +188,31 @@ def gather_signals(conn: sqlite3.Connection) -> dict[str, Any]:
         "qg2_enforced": True,  # QG-2 Verify-First enforced — machinery
         "ai_provenance": False,  # specs/adapts carry no ai-provenance frontmatter
         "source_citation": False,
-        "continuous_reconciliation": False,  # no scheduled reconciliation hook (§12.7.1)
+        "continuous_reconciliation": False,  # no reconciliation cadence (§12.3.10)
         # RENAR-5
         "adversarial_gate": False,  # tausik-reviewer exists but not an artifact promote-gate
         "multi_model_must": False,
-        # row existence ≠ graph-first enforcement (§12.8.1); honest False
+        # row existence ≠ graph-first enforcement (§11.8.2); honest False
         "knowledge_graph_primary": False,
         "hallucination_rate_tracked": False,
     }
     return {"raw": raw, "signals": signals}
 
 
-# Mandatory clause → (confirmed bool, evidence). §14.3.1–§14.3.7.
+# Mandatory clause → (confirmed bool, evidence). §13.3.1–§13.3.7.
 def eval_mandatory_clauses(bundle: dict[str, Any]) -> dict[str, dict[str, Any]]:
     s = bundle["signals"]
     r = bundle["raw"]
     return {
-        # §14.3.1 — policy clause (requirements > code, enforced via QG-0
+        # §13.3.1 — policy clause (requirements > code, enforced via QG-0
         # task-before-code + QG-2 verify-first). Machinery-confirmed.
         "sot-inversion": {
             "confirmed": True,
             "evidence": "QG-0 task-before-code + QG-2 verify-first policy enforced",
         },
         "substrate-v1-v6": {"confirmed": s["substrate_v1_v6"], "evidence": "git + sqlite WAL"},
-        # §14.3.3 — DATA clause: a ТЗ without its ADAPT is the canonical gap
-        # (audit §0.2.3). This is the honest gate that keeps a substrate without
+        # §13.3.3 — DATA clause: a ТЗ without its ADAPT is the canonical gap
+        # (the adoption audit). This is the honest gate that keeps a substrate without
         # tracked requirements at pre-adoption.
         "adapt-per-tz": {
             "confirmed": s["adapt_per_tz"],
@@ -220,7 +224,7 @@ def eval_mandatory_clauses(bundle: dict[str, Any]) -> dict[str, dict[str, Any]]:
             "confirmed": True,
             "evidence": "9 closed SPEC types enforced (service + DB CHECK)",
         },
-        # §14.3.5 — conditional clause: pos/neg pairing is required for each
+        # §13.3.5 — conditional clause: pos/neg pairing is required for each
         # normative assertion *covered by at least one TC*. TAUSIK has no
         # first-class TC artifacts, so the pairing obligation is vacuous (no
         # TC-covered assertion exists to violate it). Honest vacuous-true — NOT
@@ -228,7 +232,7 @@ def eval_mandatory_clauses(bundle: dict[str, Any]) -> dict[str, dict[str, Any]]:
         # enforces artifact-level TC pairing.
         "tc-pos-neg-pairing": {
             "confirmed": True,
-            "evidence": "no first-class TC artifacts → pairing obligation vacuous (§14.3.5)",
+            "evidence": "no first-class TC artifacts → pairing obligation vacuous (§13.3.5)",
         },
         "quality-gates-closed-list": {
             "confirmed": True,
@@ -244,8 +248,9 @@ def eval_mandatory_clauses(bundle: dict[str, Any]) -> dict[str, dict[str, Any]]:
 def infer_level(bundle: dict[str, Any], clauses: dict[str, dict[str, Any]]) -> dict[str, Any]:
     """Return {level, pre_adoption, unmet_clauses, blocked_at, reason}.
 
-    pre_adoption when any mandatory clause is unmet (§14.4.3). Otherwise the
-    level is the highest RENAR-N whose cumulative §12.9 required signals all hold.
+    pre_adoption when any mandatory clause is unmet (§13.4.3). Otherwise the
+    level is the highest RENAR-N whose cumulative observable signals all hold
+    (§11.4.3–§11.8.2).
     """
     excl = scope_exclusion()
     if excl is not None:
@@ -269,7 +274,7 @@ def infer_level(bundle: dict[str, Any], clauses: dict[str, dict[str, Any]]) -> d
             "pre_adoption": True,
             "unmet_clauses": unmet,
             "blocked_at": "mandatory-clauses",
-            "reason": f"{len(unmet)} mandatory clause(s) unmet → conformance absent (§14.4.3)",
+            "reason": f"{len(unmet)} mandatory clause(s) unmet → conformance absent (§13.4.3)",
         }
 
     achieved: str | None = None
@@ -315,9 +320,9 @@ def build_manifest(
     assessment_date: str,
     manifest_version: int = 1,
 ) -> dict[str, Any]:
-    """Assemble the §14.4.2 manifest dict (all mandatory fields always present)."""
+    """Assemble the §13.4.2 manifest dict (all mandatory fields always present)."""
     s = bundle["signals"]
-    # §14.7 default cadence — 3 months from the assessment date.
+    # §13.7 default cadence — 3 months from the assessment date.
     try:
         due = (date.fromisoformat(assessment_date) + timedelta(days=90)).isoformat()
     except ValueError:
@@ -377,7 +382,7 @@ def build_manifest(
     return manifest
 
 
-# Mandatory §14.4.2 keys a valid manifest must always carry.
+# Mandatory §13.4.2 keys a valid manifest must always carry.
 MANDATORY_FIELDS = (
     "renar-version",
     "manifest-version",
@@ -406,11 +411,11 @@ def _require_yaml():  # type: ignore[no-untyped-def]
 
 
 def render_yaml(manifest: dict[str, Any]) -> str:
-    """Serialize to YAML 1.2 (§14.4.1). Stable key order, block style."""
+    """Serialize to YAML 1.2 (§13.4.1). Stable key order, block style."""
     yaml = _require_yaml()
     header = (
         "# RENAR Conformance Manifest — auto-generated by `tausik renar conformance`.\n"
-        "# Level is computed from live DB state (§14.4.3), not declared. Do not\n"
+        "# Level is computed from live DB state (§13.4.3), not declared. Do not\n"
         "# hand-edit `level` / `mandatory-clauses-confirmed` — regenerate instead.\n"
     )
     body: str = yaml.safe_dump(
@@ -439,7 +444,7 @@ def current_level(conn: sqlite3.Connection) -> dict[str, Any]:
     """Read-only conformance verdict for display (no manifest / assessor / date).
 
     Returns :func:`infer_level`'s verdict plus a ``missing_signals`` list — the
-    unmet §12.9 keys blocking the next level — so a status line can name them.
+    unmet signal keys blocking the next level — so a status line can name them.
     """
     bundle = gather_signals(conn)
     verdict = dict(infer_level(bundle, eval_mandatory_clauses(bundle)))

@@ -219,9 +219,9 @@ gates enable <name>             # Enable gate
 gates disable <name>            # Disable gate
 ```
 
-## RENAR drift detectors (§3.11)
+## RENAR drift detectors (§4.11)
 
-RENAR §3.11 defines 8 drift classes. 2 are implemented (audit recommendation R4),
+RENAR §4.11 defines 8 drift classes. 2 are implemented (audit recommendation R4),
 both in **warning mode** — findings never block; the agent reads the listing and
 reacts.
 
@@ -246,7 +246,7 @@ drift --detector provenance    # drift-7 only (TC↔requirement provenance)
 Also wired as gates `renar_drift_schema` / `renar_drift_provenance`
 (severity=warn, trigger=task-done). The other 6 classes are out of scope.
 
-## RENAR conformance (§14.4)
+## RENAR conformance (§13.4)
 
 ```bash
 renar conformance              # Generate RENAR-CONFORMANCE.yaml (to stdout)
@@ -255,10 +255,10 @@ renar conformance --assessor <id>
 renar export [--out DIR] [--check]  # Serialize specs+adapts+conformance to a derived renar/ tree; --check is a CI drift gate (exit 1 if stale)
 ```
 
-A self-assessment manifest with every §14.4.2 mandatory field. The RENAR-1..5
-level is **computed honestly from live DB state** (§14.4.3), never declared: any
+A self-assessment manifest with every §13.4.2 mandatory field. The RENAR-1..5
+level is **computed honestly from live DB state** (§13.4.3), never declared: any
 unmet mandatory clause → `pre_adoption: true` + `level: null` (the kai pattern,
-audit §0.2.3). The `assessment-evidence` section reports raw counts + per-signal
+the adoption audit). The `assessment-evidence` section reports raw counts + per-signal
 met/unmet and exactly where the level is blocked, so an agent sees what is missing
 to reach the next level. Machinery clauses (closed lists, V1–V6, QG-0/QG-2,
 schema-validation hook = our drift-1) are confirmed by capability; data clauses

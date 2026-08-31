@@ -1,10 +1,10 @@
 """RENAR drift detectors — drift-1 (schema) + drift-7 (TC↔requirement provenance).
 
-RENAR §3.11 defines 8 classes of drift a conformant substrate must detect.
+RENAR §4.11 defines 8 classes of drift a conformant substrate must detect.
 This module implements 2 of them as **warning-mode** read-only detectors over
 TAUSIK's own RENAR artifact store (specs / adapts / task↔spec links):
 
-  * **drift-1 — schema drift** (§3.11.1): a stored artifact violates a schema
+  * **drift-1 — schema drift** (§4.11.1): a stored artifact violates a schema
     invariant. DB CHECK constraints catch enum membership *at insert time*, but
     cannot express cross-field rules (delta_n ↔ parent_adapt, signed ↔ dual
     signature) and do not re-validate legacy rows after a migration tightens the
@@ -12,7 +12,7 @@ TAUSIK's own RENAR artifact store (specs / adapts / task↔spec links):
     lists + cross-field invariants, so direct-DB tampering or a migration gap
     surfaces instead of silently passing.
 
-  * **drift-7 — TC↔requirement provenance drift** (§3.11.7): a verification's
+  * **drift-7 — TC↔requirement provenance drift** (§4.11.7): a verification's
     link to its requirement has gone stale. TAUSIK has no first-class TC table;
     the verification unit is a task (its acceptance_criteria == the "TC") linked
     to a SPEC (the requirement) via ``task_specs``. Two stale-provenance signals:
@@ -27,7 +27,7 @@ PURE: they take a sqlite3.Connection and return a list of Finding dicts. They
 never write. On a DB missing the artifact tables (older schema) they return [].
 
 The other 6 drift classes (lifecycle / SoT / impl / terminology / order / test-
-fitting) are out of scope for this task — see RENAR §3.11 and docs/audit.
+fitting) are out of scope for this task — see RENAR §4.11 and docs/audit.
 """
 
 from __future__ import annotations

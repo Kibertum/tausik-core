@@ -9,6 +9,49 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — every normative citation now resolves, and a test keeps it that way
+
+The task said "fourteen citations point at chapter 14 instead of 13, an offset
+of exactly one chapter". Measured against the live corpus — 534 headings, 31
+distinct citations across our sources — the premise was narrower than the
+defect. Twelve citations were wrong, in three classes, and only one of them is
+an offset.
+
+**Resolving to unrelated text is worse than dangling.** `§14.4.2` read in our
+code as "the manifest schema"; in the corpus it is *ISO/IEC/IEEE 29148:2018*.
+`§14.4.3` read as "the honesty contract"; it is *ISO/IEC 25010:2023*. A reader
+who follows a dangling reference learns something is broken. A reader who
+follows this one lands on a real, authoritative section and believes it. The
+same class caught `§12.5.1` (cited for "a draft ADAPT is not a fixed TZ", but
+titled "Outcome 1 — reduced decomposition lead time") and `§12.6.1`.
+
+**`§12.9` does not exist, and it was carrying the level ladder** — eight
+citations, including the one over `_LEVEL_REQUIRED` itself. The subject lives in
+chapter 11: the per-level observable signals, §11.4.3 through §11.8.2. The only
+§12.9 anywhere in the corpus is in `reference/12-document-templates.md`, titled
+"SPEC templates — deferred".
+
+**A blind 14→13 shift would have been wrong.** Chapter 14 exists — it is
+"Normative references" — and §13.4.2 legitimately cites §14.4 and §14.6. Each
+replacement was made against the target heading read verbatim, not by
+arithmetic.
+
+`§0.2.3` cited "the audit", a document the corpus no longer carries. There is
+nowhere to move it, so the anchor is dropped and the document named in prose —
+an unresolvable anchor is worse than an honest sentence.
+
+`tests/test_renar_citations_resolve.py` builds its section index from the live
+corpus (headings, plus closed-list table row ids — §4.11.1 is a row of the §4.11
+drift table, not a heading) and fails on any citation that resolves to nothing.
+It states plainly what it cannot do: it cannot tell "resolves" from "resolves to
+the right subject", so the first class above stays a reading act.
+
+Its own red-proof found a hole in it. Pointing the corpus path at a typo made
+the control SKIP — and a skip in a green suite is indistinguishable from a pass,
+which is precisely the failure the control exists to prevent. Absence and
+misconfiguration are now separated: no sibling checkout at all skips and says
+the control is dormant; a sibling checkout with a bad path fails loudly.
+
 ### Changed — the RENAR-1 claim is withdrawn, and the generator can no longer print a level we have no right to print
 
 A conformance level has two conditions and they live in different documents. The
