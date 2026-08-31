@@ -9,6 +9,68 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a task that declared its own export file could never be closed
+
+A task is free to name `tausik/tasks/<slug>.md` in `--relevant-files`, and for a
+task whose product IS records — an analysis, a set of verdicts, decisions,
+planning — that is the natural scope to declare. Until now such a declaration
+made the task impossible to close **in principle**. The `verify` run writes into
+the task itself (the declared scope, the run number, the receipt); the exporter
+re-serializes the task from that write; and the handle presented a moment later
+covered a file the act of verifying had already moved. Retrying did not
+converge — each run pushed the hash further along: `870e9d910c7c ->
+edd0acd46e7b -> e8d9e08ecc20`, measured across two runs in session #191.
+
+The refusal was accurate about its facts and useless as an instruction. It said
+"the files this receipt covers have changed since verify run #N", which is true
+of an ordinary stale scope and of an unsatisfiable one alike, so an agent caught
+in the loop had every reason to blame the cache — and no way to learn that the
+condition could not be met by any sequence of commands.
+
+**The repair, and what it does NOT do.** Exactly one file is now subtracted from
+the coverage a receipt claims: the task's own export. This is convention #409
+applied where it already applied next door — a check whose subject is "what did
+the AGENT change" must subtract what the framework itself wrote. A task's export
+is not the task's product; it is a render of the task's own bookkeeping, and
+hashing it asks whether measuring changed the measured. It always did.
+
+Somebody else's export is untouched and stays a legitimate subject: a planning
+task that re-parents ten tasks really does produce those files, the current run
+does not write them, and their hash therefore means exactly what it says.
+Subtracting all of `tausik/` would have zeroed such a receipt's coverage and
+lied about what was checked.
+
+The subtraction happens on **both** sides — when the run is recorded
+(`verify_cached_run`) and when a handle is redeemed (`verify_handle_check`) —
+plus in the non-handle freshness lookup (`verify_cache`). A repair applied to
+only one side would have turned a circular refusal into an inconsistent one,
+which reads like forgery rather than like a defect.
+
+**The boundary is stated, not hidden.** A HAND edit to that same export, made
+between `verify` and the close, is no longer noticed. That is the identical
+limit `--no-file-changes` already declares for the projection, and for the same
+reason: an uncommitted change carries no author, so a hand edit inside the
+projection is byte-for-byte what the auto-export writes.
+
+**A declaration consisting of nothing but the own export now refuses, by name.**
+After subtraction it covers zero files, and `compute_files_hash([])` is a stable
+empty-marker no edit ever moves — the exact stale-green class the empty-scope
+guards exist to reject. The refusal names the cause and both exits: declare the
+files the task actually changed, or close with `--no-file-changes`. The run is
+still recorded (observability is not cache eligibility, decision #146) but
+stamped `noncacheable|`.
+
+The address is derived, never listed: the directory comes from the exporter's
+own resolver (`state_triggers.projection_dirs`) and the suffix from
+`state_serialize.MANAGED_SUFFIX`, so a literal `"tausik/tasks/"` — a second
+declaration of the layout, free to drift from the first (#249) — appears
+nowhere, including inside the refusal messages. An unresolvable projection
+subtracts nothing and restores the previous behaviour exactly: here fail-open is
+the strict direction, costing convenience and never coverage.
+
+New: `scripts/verify_own_export.py`, `tests/test_verify_own_export.py`.
+Documented under QG-2 in `docs/ru/agent-contract.md`.
+
 ### Added — `doctor` tells a dead commit hook apart from one switched off on purpose
 
 `core.hooksPath` in this repository's `.git/config` pointed at

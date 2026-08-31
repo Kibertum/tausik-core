@@ -275,6 +275,7 @@ def _check_coverage(
     """Re-derive coverage from LIVE state and compare it to the document."""
     from verify_cache import is_cache_allowed, resolve_gate_signature
     from verify_files_hash import compute_files_hash
+    from verify_own_export import coverage_files, declares_own_export, own_export_display
 
     run_id = run["id"]
     files = [str(f) for f in (receipt.get("files") or [])]
@@ -294,13 +295,43 @@ def _check_coverage(
             files,
         )
 
-    live_hash = compute_files_hash(files)
+    # verify-handle-dies-on-a-tasks-own-export-file: the REDEMPTION half of the
+    # subtraction, and it must mirror `verify_cached_run`'s write half exactly —
+    # a receipt whose two sides hashed different sets would refuse for a reason
+    # neither the tree nor the agent could act on.
+    own_export_declared = declares_own_export(files, task_slug)
+    own_export_path = own_export_display(task_slug) or f"{task_slug}.md"
+    coverage = coverage_files(files, task_slug)
+    if files and not coverage:
+        return _no(
+            f"verify-handle: run #{run_id} declared nothing but this task's own "
+            f"export ({own_export_path}), which is subtracted from "
+            "coverage because every verify run rewrites it — so the receipt "
+            "covers no file at all and certifies nothing. Declare the files the "
+            f"task actually changed: `tausik verify --task {task_slug} "
+            "--relevant-files <paths...>`. If the task genuinely changed no "
+            "source, close it with `--no-file-changes` instead of a handle.",
+            run,
+            files,
+        )
+    live_hash = compute_files_hash(coverage)
     if live_hash != run.get("files_hash"):
         return _no(
             f"verify-handle: the files this receipt covers have changed since "
             f"verify run #{run_id} (files_hash {str(run.get('files_hash'))[:12]} "
             f"-> {live_hash[:12]}). This is the substantive refusal, not a cache "
-            f"miss: re-run `tausik verify --task {task_slug}`.",
+            f"miss: re-run `tausik verify --task {task_slug}`."
+            + (
+                # #409, closing clause: a mixed scope's refusal must name the
+                # SOURCE and not the journal. The task's own export is already
+                # out of the coverage, so saying so stops the reader re-running
+                # verify against a file that could not have caused this.
+                f" (This task's own export {own_export_path} is NOT part of the "
+                "coverage and is not what moved — a declared source file "
+                "changed.)"
+                if own_export_declared
+                else ""
+            ),
             run,
             files,
         )

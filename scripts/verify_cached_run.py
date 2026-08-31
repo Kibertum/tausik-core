@@ -36,6 +36,7 @@ from verify_envelope import (  # noqa: F401
 )
 from verify_constants import DEFAULT_CACHE_TTL_S
 from verify_files_hash import compute_files_hash
+from verify_own_export import coverage_files
 from verify_recent_lookup import lookup_recent_for_task
 from verify_no_test_mapped import handle_no_test_mapped
 from verify_run_record import (
@@ -148,7 +149,15 @@ def run_gates_with_cache(
     from gate_runner import run_gates
 
     files = relevant_files or []
-    files_hash = compute_files_hash(files)
+    # verify-handle-dies-on-a-tasks-own-export-file: the WRITE half of the
+    # subtraction. This very run rewrites `tausik/tasks/<slug>.md` (declared
+    # scope, run number, receipt), so a hash that included it could not agree
+    # with itself one moment later. The redemption side subtracts identically —
+    # if only one side did, the circular refusal would become an inconsistent
+    # one, which reads like forgery rather than a defect. `verify_own_export`
+    # carries the reasoning and the named boundary.
+    coverage = coverage_files(files, slug)
+    files_hash = compute_files_hash(coverage)
     cache_command = _build_cache_command(trigger, files)
     cache_ok = is_cache_allowed(files)
 
@@ -310,7 +319,16 @@ def run_gates_with_cache(
     # gate (filesize, hadolint) can pass while the scoped gates are skipped for
     # want of declared files — that combination satisfied `has_real_pass` and
     # got cached under the empty-marker hash, which no subsequent edit moves.
-    cacheable = passed and cache_ok and has_real_pass and bool(files)
+    #
+    # `bool(coverage)` rather than `bool(files)` since
+    # verify-handle-dies-on-a-tasks-own-export-file: once the hash is taken over
+    # the declared list MINUS this task's own export, a declaration consisting of
+    # nothing but that export is non-empty while covering nothing, and
+    # `bool(files)` stopped being the question. Such a run is recorded — the
+    # gates did execute against the declared file — but stamped `noncacheable|`,
+    # so neither the strict lookup nor a presented handle can replay it
+    # (`verify_handle_check` honours the same prefix).
+    cacheable = passed and cache_ok and has_real_pass and bool(coverage)
     # Record whenever gates actually ran — cache eligibility governs *reuse*,
     # not observability. Tying the two together meant a blocking failure from
     # this path was never written down, so "how often does this gate block?"
