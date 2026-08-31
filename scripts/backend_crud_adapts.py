@@ -112,7 +112,7 @@ class AdaptsCrudMixin:
             (adapt_slug,),
         )
 
-    # --- backward findings (closed-7 §7) ---
+    # --- backward findings (closed category list, §7) ---
 
     def finding_add(
         self,
@@ -122,7 +122,7 @@ class AdaptsCrudMixin:
         tz_ref: str | None = None,
         resolution: str | None = None,
     ) -> int:
-        """Insert a backward finding; ``category`` enforced as closed-7 by CHECK."""
+        """Insert a backward finding; ``category`` enforced against the closed list by CHECK."""
         return self._ins(
             "INSERT INTO adapt_findings(adapt_slug, category, description, tz_ref, "
             "resolution, created_at) VALUES(?,?,?,?,?,?)",

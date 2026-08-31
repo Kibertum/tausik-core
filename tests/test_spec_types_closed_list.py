@@ -17,7 +17,6 @@ the same defect as a hand-written "9", merely not yet observable.
 
 from __future__ import annotations
 
-import io
 import os
 import re
 import sys
@@ -27,6 +26,9 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 
+from closed_list_counts import SPEC_TYPE_LIST, scan_tree  # noqa: E402
+from closed_list_counts import sources as _sources  # noqa: E402
+from closed_list_counts import written_counts as _written_counts  # noqa: E402
 from service_specs import SPEC_TYPES  # noqa: E402
 
 # Transcribed from standard/08-specifications.md §8.3 — deliberately NOT derived
@@ -82,71 +84,22 @@ LIST_RE = re.compile(
 )
 # --- the count, as a PROPERTY rather than a phrasing -------------------------
 #
-# What stood here matched the literal phrase "closed list of N". It was written
-# against the one sentence that happened to be wrong the day it was written, so
-# it read a PHRASING and not a property — and four other sentences saying the
-# same thing in other words walked straight past it, including one in
-# service_specs.py, the single source itself, and one spelled out as a word
-# rather than a digit. A detector shaped to one formulation checks the
-# formulation (memory #488).
+# THE MATCHER NOW LIVES IN tests/closed_list_counts.py, parameterised by subject.
+# It moved there when the ADAPT backward-finding categories turned out to need
+# exactly the same guard: a second matcher written for them would have been the
+# defect THIS FILE EXISTS TO CATCH, one level up — a second literal copy, free
+# to drift from the first. What stays here is the SPEC list's own declared
+# exceptions and its fixtures.
 #
-# The property is: A COUNT OF THE CLOSED LIST, WRITTEN OUT. Its negation — the
-# only acceptable form — is a count formatted from len(SPEC_TYPES), and that
-# form by construction leaves no literal in the source at all. This is what
-# makes the green branch expressible rather than merely hoped for: the derived
-# form contains no number to find.
+# What stood here before matched the literal phrase "closed list of N", so it
+# read a FORMULATION and not a property, and five sentences saying the same
+# thing in other words walked straight past it (memory #488).
 #
-# Scoped to SPEC on purpose. The ADAPT backward-finding categories carry the
-# identical defect with a currently-correct number ("CLOSED list of 7" in
-# service_adapts.py / tools_adapt.py); that is filed as
-# adapt-finding-categories-count-is-written-not-derived, which GENERALISES this
-# matcher rather than copying it. Widening it here would widen that task
-# silently, so _SPEC_SUBJECT below deliberately does not fire on ADAPT prose.
-
-# A decimal that is a COUNT, and not something else that merely carries digits.
-# Rejected by the lookarounds: v49 and v16r-spec-types (glued to an identifier),
-# §8.3 and 1.5 (part of a dotted number), ADR-013 and QG-0 (a hyphenated
-# designator). Each of those sets a digit beside the subject while asserting
-# nothing whatever about how many types there are.
-_DIGIT = r"(?<![0-9A-Za-z_.§-])[0-9]{1,3}(?![0-9A-Za-z_.-])"
-
-# Counts spelled as words. "our closed list has nine" is the form the docstring
-# of spec_completeness.py lied in, and `\d+` does not see it. Russian is here
-# because half the prose in this tree is Russian and the defect does not care
-# which language it is written in.
-#
-# THE FLOOR AT THREE IS DELIBERATE, AND IS A DECLARED LIMIT rather than an
-# oversight: English "one" and "two" are pronouns far more often than counts
-# ("one of the closed types"), so admitting them would buy two more catchable
-# phrasings at the price of a matcher too noisy to keep. No closed list in this
-# codebase is shorter than seven.
-_NUMBER_WORDS = (
-    r"three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen"
-    r"|fifteen|sixteen|seventeen|eighteen|nineteen|twenty"
-    r"|тр[её]х|четыр\w*|пят\w*|шест\w*|сем\w*|восьм\w*|восем\w*|девят\w*"
-    r"|десят\w*|одиннадцат\w*|двенадцат\w*|тринадцат\w*|двадцат\w*"
-)
-_NUM = r"(?:" + _DIGIT + r"|(?:" + _NUMBER_WORDS + r"))"
-
-# The orders this codebase has actually written the count in — number first and
-# number last are the same claim, which is exactly what the old pattern missed.
-_COUNT_FORMS = (
-    # "9 closed SPEC types", "eleven RENAR types", "9 closed types"
-    re.compile(_NUM + r"(?:\s+\w+){0,2}\s+types?\b", re.IGNORECASE),
-    # "closed list of 9 RENAR types", "list of eleven"
-    re.compile(r"list\s+of\s+" + _NUM + r"\b", re.IGNORECASE),
-    # "our closed list has nine", "Ours now carries the same eleven"
-    re.compile(
-        r"\b(?:has|have|carries|carry|holds|hold|contains|contain|enumerated|numbers)\s+"
-        r"(?:the\s+same\s+|only\s+|now\s+|just\s+)?" + _NUM + r"\b",
-        re.IGNORECASE,
-    ),
-    # Russian: "доводится до одиннадцати", "в системе, знающей девять"
-    re.compile(r"(?:до|из|в|на|знающ\w*)\s+(?:" + _NUMBER_WORDS + r")\b", re.IGNORECASE),
-)
-
-# A line is a claim about the SPEC type list only if it is talking about it.
-_SPEC_SUBJECT = re.compile(r"SPEC|RENAR\s+type|перечн|тип", re.IGNORECASE)
+# LIST_RE above is STILL SPEC-only, and deliberately so. The ADAPT categories
+# carry that defect too — their list is in three literal copies — but that is
+# adapt-category-list-lives-in-three-literal-copies, a task of its own size.
+# Generalising LIST_RE here would drag that work into this change silently,
+# which is exactly what splitting the count matcher out was meant to avoid.
 
 # Where a written count is legitimate, and why. TWO CLASSES ONLY, and neither of
 # them is "not got round to it yet": an entry admitted for a live present-tense
@@ -165,41 +118,18 @@ ALLOWED_WRITTEN_COUNTS = {
         "enumerated nine' describes what WAS, and asserts nothing about what is"
     ),
     "tests/test_spec_types_closed_list.py": "this file: the fixtures below",
+    "tests/closed_list_counts.py": "the matcher's own explanation of the forms",
+    "tests/test_adapts.py": (
+        "the ADAPT guard's fixtures — counts of the OTHER closed list, held "
+        "there on purpose. Symmetric: this file is likewise declared in that "
+        "guard's ALLOWED_ADAPT_COUNTS. Neither is a live claim about SPEC types."
+    ),
 }
 
 
 def written_counts(text: str) -> list[str]:
-    """Every literal count of the SPEC type list in ``text``.
-
-    Split out from the tree walk deliberately (memory #484). A detector that can
-    only be run against the repository has no expressible green branch — the
-    tree cannot be made to *not* contain a counting phrase — so a matcher that
-    always reported a finding would be indistinguishable from one that works.
-    Handed a string, it can be shown to stay silent on the derived form.
-    """
-    found = []
-    for line in text.splitlines():
-        if not _SPEC_SUBJECT.search(line):
-            continue
-        for rx in _COUNT_FORMS:
-            m = rx.search(line)
-            if m:
-                found.append(m.group(0).strip())
-                break
-    return found
-
-
-def _sources():
-    for d in SCAN_DIRS:
-        for dirpath, dirnames, filenames in os.walk(os.path.join(ROOT, d)):
-            dirnames[:] = [x for x in dirnames if x != "__pycache__"]
-            for fn in filenames:
-                if not fn.endswith(".py"):
-                    continue
-                full = os.path.join(dirpath, fn)
-                rel = os.path.relpath(full, ROOT).replace(os.sep, "/")
-                with io.open(full, encoding="utf-8", newline="") as fh:
-                    yield rel, fh.read()
+    """The shared matcher, bound to this file's subject."""
+    return _written_counts(text, SPEC_TYPE_LIST)
 
 
 # --- composition -------------------------------------------------------------
@@ -259,12 +189,7 @@ def test_no_hand_written_count_beside_the_list():
     The number being right today is not the property under test — being DERIVED
     is. A correct literal is the same defect, deferred to the next amendment.
     """
-    offenders = []
-    for rel, src in _sources():
-        if rel in ALLOWED_WRITTEN_COUNTS:
-            continue
-        for frag in written_counts(src):
-            offenders.append(f"{rel}: {frag!r}")
+    offenders = scan_tree(SPEC_TYPE_LIST, ALLOWED_WRITTEN_COUNTS)
     assert not offenders, (
         "the count of SPEC types must be formatted from len(SPEC_TYPES), never "
         f"written beside the list: {offenders}. If a count is genuinely "

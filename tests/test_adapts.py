@@ -1,6 +1,6 @@
 """v16r-adapt: RENAR ADAPT artifacts (full §7, path A — no 'lite').
 
-Covers the v36 migration, header/body CRUD, closed-7 finding categories + 2
+Covers the v36 migration, header/body CRUD, closed finding categories + 2
 signature roles (CHECK + service validation), forward interpretation §7.4.3,
 dual signature §7.5 (architect ed25519 over canonical body), delta workflow §7.6
 + §7.6.4 dangling-ref guard, task_show integration, FTS5 search, CLI parser
@@ -21,6 +21,8 @@ from backend_migrations import run_migrations  # noqa: E402
 from backend_schema import SCHEMA_VERSION  # noqa: E402
 from project_backend import SQLiteBackend  # noqa: E402
 from project_service import ProjectService  # noqa: E402
+from closed_list_counts import ADAPT_FINDING_CATEGORY_LIST, scan_tree  # noqa: E402
+from closed_list_counts import written_counts as _written_counts  # noqa: E402
 from service_adapts import FINDING_CATEGORIES, LINK_TARGETS, SIGNATURE_ROLES  # noqa: E402
 from tausik_utils import ServiceError  # noqa: E402
 
@@ -99,12 +101,8 @@ def test_migration_v36_creates_tables_clean(tmp_path):
     # not just the one under test here.
     conn.execute("CREATE TABLE verification_runs(id INTEGER PRIMARY KEY AUTOINCREMENT)")
     # ALTER + backfill targets for v42 (slug identity): the chain reaches them too.
-    conn.execute(
-        "CREATE TABLE decisions(id INTEGER PRIMARY KEY AUTOINCREMENT)"
-    )
-    conn.execute(
-        "CREATE TABLE memory(id INTEGER PRIMARY KEY AUTOINCREMENT)"
-    )
+    conn.execute("CREATE TABLE decisions(id INTEGER PRIMARY KEY AUTOINCREMENT)")
+    conn.execute("CREATE TABLE memory(id INTEGER PRIMARY KEY AUTOINCREMENT)")
 
     new_ver = run_migrations(conn, 35)
     assert new_ver >= 36
@@ -405,3 +403,128 @@ def test_mcp_handler_invalid_category_returns_error(svc):
         svc, {"adapt_slug": "a1", "category": "bogus", "description": "x"}
     )
     assert out.startswith("Error:")
+
+
+# === AC: the count of finding categories is derived, never written ===========
+#
+# §7.4.4 closes the categories at seven and we carry seven, so nothing is
+# observably wrong today. That is exactly the state the SPEC type list was in
+# before ADR-013 widened it: every written copy was correct until the day it was
+# not, and then each one lied separately, in its own file. A correct literal is
+# the same defect, deferred to the next amendment of a standard we do not
+# control.
+#
+# The matcher is SHARED with the SPEC guard (tests/closed_list_counts.py) and
+# parameterised by subject. Writing a second matcher here would have been this
+# very defect one level up — a second copy, free to drift from the first.
+
+# Where a written count of THIS list is legitimate, and why. Two classes only
+# (memory #478 — declare the exception, never baseline the gap).
+ALLOWED_ADAPT_COUNTS = {
+    "scripts/backend_migrations_v36.py": (
+        "the v36 record: it built the CHECK with seven categories and must say "
+        "so — a migration that stops describing what it built is not a journal"
+    ),
+    "tests/closed_list_counts.py": "the matcher's own worked examples",
+    "tests/test_adapts.py": "this file: the fixtures below",
+}
+
+# This test walks the source tree, so no import edge selects it from the change
+# that would reintroduce a written count. Declared, not opted out of.
+CROSSCUTTING_SCOPE = ["scripts/", "harness/", "tests/"]
+
+
+def written_counts(text):
+    """The shared matcher, bound to the ADAPT finding categories."""
+    return _written_counts(text, ADAPT_FINDING_CATEGORY_LIST)
+
+
+def test_no_hand_written_count_of_finding_categories():
+    offenders = scan_tree(ADAPT_FINDING_CATEGORY_LIST, ALLOWED_ADAPT_COUNTS)
+    assert not offenders, (
+        "the count of backward-finding categories must be formatted from "
+        f"len(FINDING_CATEGORIES), never written beside the list: {offenders}. "
+        "If a count is genuinely historical — a migration recording what it "
+        "built — add the path to ALLOWED_ADAPT_COUNTS with that reason; never "
+        "to silence a live claim."
+    )
+
+
+class TestTheCategoryCountMatcher:
+    """Fixtures are STRINGS, and that is the point (memory #485).
+
+    A degenerate measurer is repaired by changing the substrate a test hands it,
+    never by relaxing the assertion; a diff that touches the `assert` is the tell
+    that a fix was fitted to the test. Every red sample below is a line this
+    repository actually carried before this change.
+    """
+
+    @pytest.mark.parametrize(
+        "sample",
+        [
+            # Number LAST.
+            # The service error, verbatim in shape: the constant is named on
+            # the same line, which is what makes it a claim ABOUT this list.
+            'f"Valid (closed list of 7): " + ", ".join(FINDING_CATEGORIES)',
+            '"Add a backward finding to an ADAPT. category is a CLOSED list of 7"',
+            # Number FIRST — the order a phrase-shaped matcher misses.
+            '"""Add a backward finding. ``category`` must be one of the 7 closed types."""',
+            "# RENAR backward-finding categories — CLOSED list of 7 (mirrors the DB CHECK).",
+            # HYPHENATED — seven of the eleven sites wrote it this way, and the
+            # digit guard rejects a digit after a hyphen ON PURPOSE (ADR-013).
+            "    # --- backward findings (closed-7 §7) ---",
+            '"""Insert a backward finding; ``category`` enforced as closed-7 by CHECK."""',
+            'help="Add a backward finding (closed-7 §7)"',
+            # "closed to N" — the clause-evidence phrasing.
+            '"evidence": "ADAPT backward-finding categories closed to 7"',
+        ],
+    )
+    def test_reds_on_a_written_count_in_every_form_this_repo_used(self, sample):
+        assert written_counts(sample), (
+            "the count is written out here; a matcher that misses it is reading "
+            f"one formulation and not the property: {sample!r}"
+        )
+
+    def test_reds_even_though_seven_is_currently_correct(self):
+        """The number agreeing with the list is not the property under test.
+
+        A matcher satisfied by agreement cannot tell a derived count from a
+        written one — the degenerate measurer of memory #484, facing the other
+        way. §7.4.4 closes the list at seven and so do we; both samples below are
+        RIGHT, and both must red.
+        """
+        assert len(FINDING_CATEGORIES) == 7, "the samples below agree with the list on purpose"
+        assert written_counts("a CLOSED list of 7 backward-finding categories")
+        assert written_counts("backward findings: closed-7 by CHECK")
+
+    @pytest.mark.parametrize(
+        "sample",
+        [
+            # The only acceptable form: no literal exists to drift.
+            'f"Valid (closed list of {len(FINDING_CATEGORIES)}): ..."',
+            'f"backward-finding categories closed at {len(FINDING_CATEGORIES)}"',
+            # THE DISCRIMINATION THIS LIST FORCED, and the reason the SPEC
+            # matcher could not simply be pointed at it: "closed-7" IS a count
+            # and "ADR-013" is NOT, though both put a digit after a hyphen. The
+            # cue is the word in front of it, not the punctuation. Remove that
+            # distinction and every line below becomes a false positive.
+            "# ADR-013 admitted two categories to the ADAPT finding list",
+            "# §7.4.4 closes the backward-finding categories, QG-0 does not",
+            "from backend_migrations_v36 import categories_check  # ADAPT findings",
+        ],
+    )
+    def test_stays_green_on_derived_counts_and_on_digits_that_count_nothing(self, sample):
+        """Without this branch a matcher returning a finding for every line would
+        pass every red case above and look identical to a working one."""
+        assert written_counts(sample) == [], (
+            "nothing here writes a count of the closed list; a matcher that reds "
+            f"on this is finding digits, not claims: {sample!r}"
+        )
+
+    def test_the_matcher_does_not_stray_onto_another_lists_count(self):
+        """The Shared Brain has its own four categories, and decision #256 puts
+        brain outside release 1.9 entirely. A subject broad enough to match
+        "Sync all 4 categories" would drag an unrelated closed list into this
+        task, which is how one task silently becomes three."""
+        brain = '"""Sync all 4 categories. One failure does not abort others."""'
+        assert written_counts(brain) == []

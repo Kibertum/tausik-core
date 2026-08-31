@@ -35,6 +35,7 @@ from typing import Any
 from renar_clause_reactive_adapt import assess as assess_reactive_adapt
 from renar_measurer_caveats import caveats_section
 from renar_measurer_caveats import header_lines as caveats_header_lines
+from service_adapts import FINDING_CATEGORIES
 from service_specs import SPEC_TYPES
 
 RENAR_VERSION = "1.0"
@@ -238,7 +239,7 @@ def eval_mandatory_clauses(bundle: dict[str, Any]) -> dict[str, dict[str, Any]]:
         },
         "closed-lists-backward-findings": {
             "confirmed": True,
-            "evidence": "ADAPT backward-finding categories closed to 7 (FINDING_CATEGORIES)",
+            "evidence": f"backward-finding categories closed at {len(FINDING_CATEGORIES)}",
         },
     }
 

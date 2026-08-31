@@ -9,6 +9,41 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the ADAPT finding-category count is derived too, and the detector is now one implementation for both lists
+
+§7.4.4 closes the backward-finding categories at seven and we carry seven, so
+nothing was observably wrong. That is precisely the state the SPEC type list was
+in before ADR-013 widened it — every written copy correct, until the day it was
+not, and then each one lying separately in its own file. Eleven sites in eight
+files wrote the count by hand, including the service error a user reads, the
+`tausik adapt finding` help text, the drift-report message, the §13.3.4 clause
+evidence and the MCP tool description an agent reads to pick a category.
+
+**The detector was generalised rather than copied.** A second matcher for a
+second closed list would have been this very defect one level up, so the matcher
+moved to `tests/closed_list_counts.py` and takes its subject as data; both
+guards now run one implementation. That immediately paid: the new hyphenated
+form caught `"type ... not in closed-9"` in `renar_drift.py` — a stale,
+user-visible message about the SPEC types, four lines under a comment promising
+that importing the constants "cannot silently desync the detector from the
+validator". It could, and did, because the count was written rather than
+imported.
+
+The hyphen forced a real distinction. `closed-7` is a count; `ADR-013` is not,
+though both put a digit after a hyphen. The discriminator is the word in front
+of it, not the punctuation.
+
+**A mutation found the hole this time too.** Writing the literal `7` back into
+the service error message survived the whole suite: `ruff` wraps that f-string,
+so the count landed on a line naming nothing, and the matcher's single-line
+subject rule — documented fifteen minutes earlier as a deliberate limit — turned
+out to remove the guard from the one message the change exists to protect. The
+subject window is now two lines, and the docstring records the measurement
+instead of the assumption. Four mutations, four killed.
+
+Consolidating the category *list* itself is a separate change and is filed as
+one: it lives in three literal copies plus a fourth enumeration in prose.
+
 ### Fixed — six sentences still counted the SPEC types by hand, and the detector that was supposed to catch them read one phrasing
 
 The entry below consolidated the SPEC type list into one place and derived its

@@ -1,8 +1,8 @@
 """TAUSIK AdaptsMixin — RENAR ADAPT-artifact service methods (v16r-adapt full §7).
 
 An ADAPT is the architect's reconciliation of a client TZ with engineering
-reality (renar.tech v1.0-draft §7): a forward interpretation (§7.4.3), a closed
-list of 7 backward findings (§7), and a dual signature (§7.5). Deltas (§7.6)
+reality (renar.tech v1.0-draft §7): a forward interpretation (§7.4.3), backward
+findings drawn from a closed category list (§7.4.4), and a dual signature (§7.5). Deltas (§7.6)
 supersede a prior ADAPT and a link to a superseded ADAPT is FATAL (§7.6.4).
 
 Closed lists (finding category, signature role, link target) are validated here
@@ -24,7 +24,9 @@ from tausik_utils import ServiceError, utcnow_iso, validate_length, validate_slu
 if TYPE_CHECKING:
     from project_backend import SQLiteBackend
 
-# RENAR backward-finding categories — CLOSED list of 7 (mirrors the DB CHECK).
+# RENAR backward-finding categories — the standard's CLOSED list §7.4.4
+# (mirrors the DB CHECK). The LENGTH is never written beside it: see
+# tests/closed_list_counts.py for why a written count is a deferred defect.
 FINDING_CATEGORIES: tuple[str, ...] = (
     "contradiction",
     "gap",
@@ -139,7 +141,7 @@ class AdaptsMixin:
         )
         return f"Interpretation for {tz_ref} added to ADAPT '{adapt_slug}'."
 
-    # --- backward findings (closed-7 §7) ---
+    # --- backward findings (closed category list, §7) ---
 
     def adapt_finding(
         self,
@@ -149,12 +151,13 @@ class AdaptsMixin:
         tz_ref: str | None = None,
         resolution: str | None = None,
     ) -> str:
-        """Add a backward finding. ``category`` must be one of the 7 closed types."""
+        """Add a backward finding. ``category`` must be in FINDING_CATEGORIES."""
         self._require_draft(adapt_slug)
         if category not in FINDING_CATEGORIES:
             raise ServiceError(
                 f"Invalid finding category '{category}'. "
-                f"Valid (closed list of 7): {', '.join(FINDING_CATEGORIES)}"
+                f"Valid (closed list of {len(FINDING_CATEGORIES)}): "
+                f"{', '.join(FINDING_CATEGORIES)}"
             )
         if not description or not description.strip():
             raise ServiceError("Finding description is required.")

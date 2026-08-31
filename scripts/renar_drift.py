@@ -90,11 +90,21 @@ def detect_schema_drift(conn: sqlite3.Connection) -> list[Finding]:
         ref = f"spec:{s['slug']}"
         if s["type"] not in SPEC_TYPES:
             findings.append(
-                _finding(det, "spec-type-invalid", ref, f"type {s['type']!r} not in closed-9")
+                _finding(
+                    det,
+                    "spec-type-invalid",
+                    ref,
+                    f"type {s['type']!r} not in the closed {len(SPEC_TYPES)}",
+                )
             )
         if s["status"] not in SPEC_STATUSES:
             findings.append(
-                _finding(det, "spec-status-invalid", ref, f"status {s['status']!r} not in closed-3")
+                _finding(
+                    det,
+                    "spec-status-invalid",
+                    ref,
+                    f"status {s['status']!r} not in the closed {len(SPEC_STATUSES)}",
+                )
             )
         if _blank(s["version"]):
             findings.append(_finding(det, "spec-version-missing", ref, "version is empty"))
@@ -121,7 +131,10 @@ def detect_schema_drift(conn: sqlite3.Connection) -> list[Finding]:
         if a["status"] not in ADAPT_STATUSES:
             findings.append(
                 _finding(
-                    det, "adapt-status-invalid", ref, f"status {a['status']!r} not in closed-3"
+                    det,
+                    "adapt-status-invalid",
+                    ref,
+                    f"status {a['status']!r} not in the closed {len(ADAPT_STATUSES)}",
                 )
             )
         # delta_n is SQLite-dynamic-typed; tolerate a numeric TEXT '2'. A truly
@@ -181,7 +194,7 @@ def detect_schema_drift(conn: sqlite3.Connection) -> list[Finding]:
                     det,
                     "finding-category-invalid",
                     f"adapt:{f['adapt_slug']}",
-                    f"finding category {f['category']!r} not in closed-7",
+                    f"finding category {f['category']!r} not in the closed {len(FINDING_CATEGORIES)}",
                 )
             )
 

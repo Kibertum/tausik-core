@@ -62,7 +62,12 @@ TOOLS_ADAPT = [
     },
     {
         "name": "tausik_adapt_finding",
-        "description": "Add a backward finding to an ADAPT. category is a CLOSED list of 7 (contradiction/gap/hidden-assumption/feasibility/regulatory/terminology/scope) — a new category requires a standard amendment.",
+        "description": (
+            "Add a backward finding to an ADAPT. category is a CLOSED list of "
+            f"{len(_FINDING_CATEGORIES)} "
+            f"({'/'.join(_FINDING_CATEGORIES)}) — a new category requires a "
+            "standard amendment."
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {

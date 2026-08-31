@@ -61,7 +61,10 @@ def build_adapt_subparsers(sub: Any) -> None:
     )
     ai.add_argument("--scenarios", default=None, help="Built-in/implied scenarios")
 
-    af = a_sub.add_parser("finding", help="Add a backward finding (closed-7 §7)")
+    af = a_sub.add_parser(
+        "finding",
+        help=f"Add a backward finding (closed list of {len(FINDING_CATEGORY_CHOICES)}, §7)",
+    )
     af.add_argument("adapt_slug")
     af.add_argument("category", choices=FINDING_CATEGORY_CHOICES)
     af.add_argument("description")
