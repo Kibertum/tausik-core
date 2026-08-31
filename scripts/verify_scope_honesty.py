@@ -53,7 +53,7 @@ from typing import Any, Callable
 import verify_git_diff
 from security_pattern import is_security_sensitive
 from verify_git_diff import _normalize_repo_path
-from verify_own_export import coverage_files, own_export_display
+from verify_own_export import subtract_own_bookkeeping
 
 STATUS_COMPLETE = "complete"
 STATUS_UNDER_DECLARED = "under-declared"
@@ -119,25 +119,27 @@ def describe_declared_scope(
         # PATH" and "git call failed" into None. All three mean the same to us:
         # unverifiable, therefore unknown.
         return {"status": STATUS_UNKNOWN, "reason": "git unavailable", **empty}
-    # Decision #283, the fourth site of it. `coverage_files` is called rather
-    # than a path comparison written here: it resolves both sides through
-    # abspath+normcase, which on Windows also settles the case question that a
-    # raw repo-path string compare gets wrong, and it is the SAME seam the
-    # three sites of #194 subtract through, so they cannot come to disagree
-    # about which file is the task's own. `root` is handed on: git reports its
-    # paths relative to it, and the export address is resolved from the ambient
-    # `.tausik/`, so a `root` that is not the cwd matches nothing and subtracts
-    # nothing — the pre-#283 answer, never a wrong file. Both live callers pass
-    # root=None, where the two bases are the same cwd by construction.
-    # Holds the export's spelling once the subtraction actually fired, so the
-    # branch below has a `str` and not a `str | None` that a reader (and mypy)
-    # must re-derive the non-emptiness of.
+    # Decisions #283 and #286. The subtraction is asked of `verify_own_export`
+    # rather than written here: it resolves both sides through abspath+normcase,
+    # which on Windows also settles the case question a raw repo-path string
+    # compare gets wrong, and it is the module that ENUMERATES what this task's
+    # own lifecycle wrote — the export and the parent story's projection — so a
+    # second member cannot be added in one place and missed in another (#249).
+    # `root` is handed on: git reports its paths relative to it while the
+    # addresses resolve from the ambient `.tausik/`, so a `root` that is not the
+    # cwd matches nothing and subtracts nothing — the pre-#283 answer, never a
+    # wrong file. Both live callers pass root=None, where the two bases are the
+    # same cwd by construction.
+    #
+    # `own_subtracted` holds the spelling of what was removed once the
+    # subtraction actually fired, so the branch below has a `str` rather than a
+    # `str | None` whose non-emptiness a reader (and mypy) must re-derive.
     own_subtracted: str | None = None
     if task_slug:
-        covered = set(coverage_files(sorted(actual), task_slug, root=root))
-        if covered != actual:
-            own_subtracted = own_export_display(task_slug, root=root) or task_slug
-        actual = covered
+        covered, removed = subtract_own_bookkeeping(sorted(actual), task_slug, root=root)
+        if removed:
+            own_subtracted = ", ".join(removed)
+        actual = set(covered)
     if not actual:
         # Memory #454: an emptied set must not inherit the message that
         # belonged to a set which was never populated. "The agent changed
@@ -151,7 +153,7 @@ def describe_declared_scope(
                 "status": STATUS_COMPLETE,
                 "reason": (
                     "no git-visible changes since task start beyond this task's "
-                    f"own export ({own_subtracted})"
+                    f"own bookkeeping ({own_subtracted})"
                 ),
                 **empty,
             }

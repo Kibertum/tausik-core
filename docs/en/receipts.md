@@ -115,14 +115,20 @@ Three properties that matter when reading someone else's receipt:
    security predicate: gates scoped to the declared list would not have checked
    it at all, so that run fails with status `scope-security-mismatch` and asks
    for the file to be added to `relevant_files`.
-3. **The task's own export does not count against it.** `tausik/tasks/<slug>.md`
-   is rewritten by the framework itself between `task start` and the verify —
-   `started_at`, every `task log`, the declared scope, the receipt — so git
-   reports it changed on essentially every close. It is subtracted before the
-   comparison, and only the CURRENT task's own file is: somebody else's export
-   is a real product of a planning task and stays listed. When that subtraction
-   is the only reason nothing is left, the reason says so instead of claiming
-   the tree never moved.
+3. **The task's own bookkeeping does not count against it.** Two files are
+   written by the framework rather than by the agent, and both are subtracted
+   before the comparison:
+   - `tausik/tasks/<slug>.md`, the task's own export — rewritten between
+     `task start` and the verify by `started_at`, every `task log`, the declared
+     scope and the receipt itself;
+   - `tausik/stories/<parent>.md`, the projection of the task's parent story —
+     `task start` flips its `status: open -> active`.
+
+   Only the CURRENT task's two files. Somebody else's export, and any other
+   story, is a real product of the task that edits it and stays listed. The
+   parent EPIC is not subtracted: a task's lifecycle was measured not to touch
+   it. When the subtraction is the only reason nothing is left, the reason names
+   the files instead of claiming the tree never moved.
 
 The receipt is **canonical** (JCS / RFC 8785 spirit): keys sorted at every
 level, no whitespace, ASCII-only, floats rejected. The same logical receipt

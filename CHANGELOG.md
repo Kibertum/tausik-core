@@ -9,6 +9,46 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a task's parent story counted as work the agent did not declare
+
+`tausik verify` reported one undeclared file on a closure whose declared scope
+was exact, and `git diff` showed exactly one changed line in it:
+`status: open -> active` in `tausik/stories/<parent>.md`, written by
+`task start` when it activated a task inside that story.
+
+This is the fifth site of the class Decision #283 opened, and the first OUTSIDE
+its stated boundary. #283 subtracts the task's own export and explicitly refuses
+to subtract anybody else's, because a foreign export is the real product of a
+task that produces records. A parent story is neither foreign nor a product: it
+changed because this task was activated, and it would have changed identically
+had the agent done nothing at all. The status flips on the first activation
+inside a story, so it lands on tasks that open their story — which is exactly
+where `complete` was unreachable for reasons the agent could not fix.
+
+**Three candidates, and the two rejected ones are on the record.** Subtracting
+any projection file the FRAMEWORK wrote reads better and cannot be built: an
+uncommitted change carries no author, and a hand edit inside the projection is
+byte-for-byte what the exporter writes — the same limit `verify_own_export`
+already declares for `--no-file-changes`. Refusing to subtract at all restores
+the uselessness #283 removed: a status nearly every closure shares. So the
+subtraction stays narrow — this task's parent, and nothing else.
+
+The parent EPIC is not subtracted, and that is measured rather than assumed:
+across a session of two `task start`, one `task done`, one `task add` and one
+`task move`, git never reported an epic projection changed. An epic lists its
+stories, not its tasks.
+
+The story slug is read from the task's own export with `state_parse` — the
+framework's own reader for its own format — rather than from a query, because
+neither caller of the scope description holds a connection and a path comparison
+should not acquire one. Both ways the projection can be stale are safe: with
+auto-export off nothing rewrote the story file either, and a task moved between
+stories has its export rewritten by the move.
+
+Measured, replaying the recorded input of the run that found this: undeclared
+went 2 → 1 → 0 as the two subtractions were added, and the closure that reported
+a file nobody wrote now records `complete`.
+
 ### Fixed — the memory recap printed a retired entry next to the one that retired it
 
 The dynamic block of `CLAUDE.md` picked the newest five entries per section BY

@@ -1,7 +1,7 @@
 ---
 slug: parent-story-projection-counts-as-undeclared-work
 title: "Проекция родительской истории переписывается task start и попадает в недекларированные"
-status: planning
+status: done
 epic: release-19-renar-conformance
 story: evidence-primitives
 complexity: simple
@@ -12,11 +12,18 @@ call_budget: null
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
+relevant_files:
+  - "scripts/verify_own_export.py"
+  - "scripts/verify_scope_honesty.py"
+  - "tests/test_verify_scope_honesty.py"
+  - "docs/en/receipts.md"
+  - "docs/ru/receipts.md"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
 scope_paths: []
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-08-31T14:04:51Z"
 ---
 
 ## Goal
@@ -44,3 +51,13 @@ AC7. Мутация на КАЖДОЕ исправленное место отд
 git revert коммита: вычитание точечное, откат возвращает прежний вывод квитанции
 
 ## Journal
+
+- 2026-08-31T14:04:15Z [implementation] — AC-1: ✓ решение #286 — три кандидата, два отвергнутых записаны с причинами: (б) вычитать всё, что написал фреймворк, неисполнимо (несохранённое изменение не несёт автора, ручная правка внутри проекции побайтово совпадает с записью экспортёра — та же граница, что у --no-file-changes); (в) не вычитать вовсе возвращает бесполезность, снятую #283. Выбран (а) — родитель ТЕКУЩЕЙ задачи.
+- 2026-08-31T14:04:16Z [implementation] — AC-2: ✓ адрес выводится через _projection_path (projection_dirs + MANAGED_SUFFIX), литерала tausik/stories/ в коде нет; тест тоже спрашивает адрес у модуля, а не пишет его. Слаг родителя читается из собственного экспорта задачи парсером state_parse — тем же читателем, которым пользуется импортёр.
+- 2026-08-31T14:04:16Z [implementation] — AC-3: ✓ tests/test_verify_scope_honesty.py::TestParentStoryIsNotUndeclared::test_someone_elses_story_stays_undeclared — чужая история остаётся недекларированной; мутация M4 (вычесть ВСЕ истории) убита именно этим тестом
+- 2026-08-31T14:04:16Z [implementation] — AC-4: ✓ ::test_emptied_coverage_names_both_files — опустевшее вычитанием покрытие называет ОБА файла, фраза честно пустого diff не переиспользуется; мутация M3 убита
+- 2026-08-31T14:04:17Z [implementation] — AC-5: ✓ ::test_security_undeclared_is_not_weakened и ::test_an_undeclared_source_still_reddens — чувствительный файл по-прежнему блокирует, реально необъявленный исходник по-прежнему краснеет
+- 2026-08-31T14:04:17Z [implementation] — AC-6: ✓ ::test_before_and_after_on_one_input плюс ЗАМЕР НА РЕАЛЬНОМ ДЕРЕВЕ: parent_story_slug живой проекции вернул evidence-primitives, адрес разрешился в tausik/stories/evidence-primitives.md. Повтор записанного входа прогона #1898: недекларированных 2 (без вычитаний) -> 1 (только #283, ровно то, что записала квитанция #1898) -> 0 (с #286), статус complete. Свежего переключения status: open -> active сегодня нет: история evidence-primitives уже была active, флип случается при ПЕРВОЙ активации в истории — это повтор замеренного момента, а не новый живой прогон, и назван так.
+- 2026-08-31T14:04:18Z [implementation] — AC-7: ✓ 6 мутаций, по одной на исправленное место, все убиты первым прогоном, SETUP-FAIL ноль, возврат побайтовый со сверкой sha256. M5 стоит регрессией на #283: собственный экспорт обязан остаться вычтенным.
+- 2026-08-31T14:04:18Z [implementation] — Domain: замерено, что эпик НЕ переписывается жизненным циклом задачи — за сессию #196 (два task start, task done, task add, task move) git ни разу не показал проекцию эпика изменённой. Эпик перечисляет истории, а не задачи. Вычитание оставлено двухчленным по замеру, а не по догадке.
+- 2026-08-31T14:04:18Z [implementation] — Root cause (edge-case): решение #283 назвало класс «бухгалтерия фреймворка» и перечислило его члены по одному найденному случаю — собственному экспорту. Родительскую историю пишет тот же жизненный цикл, но другой командой, и в инвентарь она не попала. Prevention: перечисляя члены класса, перечисляй не найденные файлы, а КОМАНДЫ, которые пишут в проекцию, и спрашивай про каждую, что именно она переписала — task start пишет ДВА файла, а не один.
