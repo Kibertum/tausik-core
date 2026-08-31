@@ -9,6 +9,42 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — RENAR-CONFORMANCE.yaml at the root, and a version chain that does not break
+
+The task was filed as "the manifest is absent where the standard requires it".
+decisions#292 moved that ground: §1.5.4 permits *either* form — "the manifest
+either does not exist or explicitly declares non-conformance" — so absence is no
+longer a violation, and §13.9.2's ban on claiming conformance without a manifest
+no longer reaches us, because there is no claim.
+
+The file exists by choice, not by compulsion. A state nobody outside the repo
+can read is a state that gets described wrongly by whoever tries — which is
+precisely how ADR-020 §3 came to describe our claim from stale data, and we said
+so in the ticket.
+
+**The real defect was never the missing file: it was the missing way to keep
+versions.** §13.4.1 calls the manifest immutable in the V1 sense — each claim
+makes a new version, and previous versions are NOT deleted, they stay in the
+substrate as an audit journal. `--write` bumped `manifest-version` and then
+overwrote the file, so the counter climbed while every earlier version vanished.
+
+The journal is **this file's git history**, and the manifest now says so in its
+own header. The substrate's V1 immutable history (§3.3.1) is exactly the
+guarantee §13.4.1 asks for, so no parallel file-history mechanism is invented.
+`replaces` carries the back-link in the clause's own form
+(`<manifest-id>@v<N-1>`); it had been hardcoded to `null` at every version.
+
+One thing worth naming: the standard overloads `replaced-by`. §13.4.1 uses it to
+point at the next manifest version; §13.8.2 uses it as the `<unknown-state>`
+sentinel. We are in the sentinel case, so it carries the sentinel — and a test
+pins that `replaces` keeps pointing backwards regardless.
+
+A stale committed manifest is worse than a missing one: it is a published false
+statement rather than a gap. `test_committed_manifest_is_not_stale` holds the
+file to what the live DB yields today, scoped to the claim-bearing fields —
+comparing the date-dependent ones would make it fail with the calendar rather
+than with the project.
+
 ### Fixed — every normative citation now resolves, and a test keeps it that way
 
 The task said "fourteen citations point at chapter 14 instead of 13, an offset
