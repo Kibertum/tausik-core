@@ -280,7 +280,16 @@ Brain hooks share helpers in `scripts/brain_hook_utils.py` — a single mirror-l
 `service_knowledge_aggregates.py` holds pure functions for memory re-injection:
 
 - `build_memory_block(be, ...)` — compact markdown (decisions + conventions + dead ends), ≤50 lines, called from `/start`, `/checkpoint`, and the SessionStart hook
+- `build_compact_memory_tail(be)` — the one-line-per-entry recap embedded in the CLAUDE.md dynamic block
 - `build_memory_compact(be, last_n)` — `task_logs` aggregation: phases + top words + top files
+
+Both recaps read the memory graph through `memory_supersedes.live_head`: an
+entry a LIVE `supersedes` edge has retired is not printed, its line goes to the
+next live entry, and the surviving entry says `(supersedes #N)` on the line it
+occupies anyway. Only that relation hides anything, and only when the
+superseding entry is itself unarchived — otherwise the older entry is the best
+knowledge left. An unreadable graph retires nothing, so the recap degrades to
+what it printed before the filter existed.
 
 Likewise `scripts/model_routing.py` and `plugin_data.py` are pure modules imported by CLI/MCP handlers.
 

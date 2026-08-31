@@ -9,6 +9,51 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the memory recap printed a retired entry next to the one that retired it
+
+The dynamic block of `CLAUDE.md` picked the newest five entries per section BY
+AGE and asked the memory graph nothing. So it carried, two lines apart, "#441
+ADR inventory recounted by machine: thirteen accepted, seven assessed" and "#432
+ADR inventory: twelve accepted, three assessed" — while
+`memory#441 --[supersedes]--> memory#432` had been in the database since the
+session that wrote both.
+
+That recap is the FIRST thing a fresh agent reads; it is injected into the
+context at session start. Two mutually exclusive facts arrived with no sign of
+which was alive, and the expensive outcome is not "reads the wrong one" but
+"believes the older one, because the rest of the history repeats it" — measured:
+the count "twelve accepted" is why `four-accepted-adrs-were-never-assessed`
+treated four ADRs as unassessed instead of ten.
+
+The mechanism existed and the consumer never asked. `memory lint` has reported
+`superseded` findings from these same edges since v15p; the renderer simply
+called nothing.
+
+Both recaps — the CLAUDE.md tail and `tausik_memory_block` — now read the graph
+through `memory_supersedes.live_head`, in every section: context, decisions,
+conventions, dead ends. Repairing one section would have traded the
+contradiction for a disagreement between sections, which is harder to notice and
+no more true.
+
+**Hidden, and the survivor says so.** Marking the dead entry instead was the
+alternative, and its argument is real — an entry that simply vanishes is
+indistinguishable from one that was lost. Its price settled it: a section is
+five lines, and spending one on knowledge already known to be wrong is a cost
+paid by exactly the projects that maintain their memory. So the retired entry is
+dropped, its line goes to the next LIVE entry, and the replacement carries
+`(supersedes #432)` on the line it occupies anyway.
+
+**Only a live edge, and only from a live entry.** A retracted edge
+(`memory unlink` soft-invalidates) retires nothing; neither does a replacement
+that was itself archived, because the older entry is then the best knowledge
+left. A chain `A supersedes B supersedes C` prints only A without walking the
+graph. An unreadable graph retires nothing at all — the recap degrades to what
+it printed before.
+
+Measured on this repository: with the sections widened to eight, the context
+recap dropped #432, marked #441, and filled the freed line with the next live
+entry; the conventions recap did the same for #421 under #425.
+
 ### Fixed — every receipt said "under-declared", because a task's own export counted against it
 
 `tausik verify` printed `NOTE: 1 file(s) changed since task start but not

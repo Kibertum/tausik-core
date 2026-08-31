@@ -286,7 +286,16 @@ Brain-хуки делят helpers в `scripts/brain_hook_utils.py` — одна 
 `service_knowledge_aggregates.py` содержит чистые функции для re-injection памяти:
 
 - `build_memory_block(be, ...)` — компактный markdown (decisions + conventions + dead ends) ≤50 строк, вызывается из `/start`, `/checkpoint`, SessionStart hook
+- `build_compact_memory_tail(be)` — построчная выжимка, встраиваемая в динамический блок CLAUDE.md
 - `build_memory_compact(be, last_n)` — агрегация `task_logs`: фазы + топ-слова + топ-файлы
+
+Обе выжимки спрашивают граф памяти через `memory_supersedes.live_head`: запись,
+которую отменило ЖИВОЕ ребро `supersedes`, не печатается, её строка достаётся
+следующей живой записи, а выжившая запись говорит `(supersedes #N)` на строке,
+которую занимает в любом случае. Скрывает только это отношение и только пока
+заменившая запись сама не заархивирована — иначе старая есть лучшее из
+оставшегося знания. Нечитаемый граф не отменяет ничего: выжимка вырождается в
+то, что печаталось до фильтра.
 
 Аналогично `scripts/model_routing.py` + `plugin_data.py` — чистые модули, импортируемые из CLI/MCP handlers.
 

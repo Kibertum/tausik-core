@@ -1,7 +1,7 @@
 ---
 slug: memory-tail-shows-a-superseded-entry-next-to-its-replacement
 title: "Хвост памяти в CLAUDE.md печатает опровергнутую запись рядом с той, что её заменила: ребро supersedes не читается"
-status: planning
+status: done
 epic: release-19-renar-conformance
 story: knowledge-records-what-failed-19
 complexity: medium
@@ -12,11 +12,18 @@ call_budget: 40
 defect_of: null
 scope: "scripts/ (рендер хвоста памяти для динамического блока), tests/, CHANGELOG.md, CHANGELOG.ru.md. После правки — bootstrap --ide all (память #438)."
 scope_exclude: "Сами записи памяти НЕ удаляются и НЕ правятся: #432 остаётся в базе как история пересмотра, чинится её ПОКАЗ. Механизм рёбер (memory_link) не трогается — он исправен, ребро #5 создано и лежит; не читает его потребитель. Формат динамического блока и его границы DYNAMIC:START/END не меняются: гейт claudemd_state_drift опирается на них."
-relevant_files: []
+relevant_files:
+  - "scripts/memory_supersedes.py"
+  - "scripts/service_knowledge_aggregates.py"
+  - "tests/test_memory_tail_supersedes.py"
+  - "docs/en/architecture.md"
+  - "docs/ru/architecture.md"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
 scope_paths: []
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-08-31T13:39:19Z"
 ---
 
 ## Goal
@@ -40,3 +47,17 @@ AC7. Мутация обязательна: с возвращённым дефе
 git revert коммита задачи плюс ОБЯЗАТЕЛЬНЫЙ bootstrap --ide all после отката — иначе развёрнутые профили останутся с новым рендером, а исходники со старым. Откат возвращает сегодняшнее поведение: хвост печатает опровергнутое рядом с живым. Содержимое CLAUDE.md при откате приводится в порядок обычным update-claudemd, отдельной миграции не нужно.
 
 ## Journal
+
+- 2026-08-31T13:19:13Z [implementation] — Разбор. Рендер хвоста — service_knowledge_aggregates.py: build_compact_memory_tail (4 раздела) и build_memory_block (те же 4). Оба тянут be.memory_list/decision_list по возрасту и графа не спрашивают. Рёбра живут в memory_edges, читаются be.edge_list(node_type,node_id,relation), мягкая инвалидация через valid_to. В живой БД ТРИ ребра supersedes: 304->303 (gotcha), 425->421 (convention), 441->432 (context, ребро #5 — предмет задачи). Узлы бывают двух типов (memory, decision), ребро может быть кросс-типовым. Новый код кладу МОДУЛЬНОЙ функцией (память #446: SQLiteBackend забаселайнен храповиком публичной поверхности).
+- 2026-08-31T13:29:02Z [implementation] — AC7: 14 мутаций, по одной на КАЖДОЕ исправленное место — 6 в предикате (нет фильтра / архивная замена всё равно скрывает / направление ребра / ТИП узла в идентичности / нет дозаполнения квоты / нет пометки) и 8 по разделам (4 в хвосте, 4 в блоке). Первым прогоном 13 убиты, ВЫЖИЛА M04 (тип узла). Тест-коллизия был построен неверно: ребро decision->decision вообще не возвращается запросом про memory, и охранник был недостижим. Переписан на настоящую форму — memory#1 supersedes decision#1: edge_list отдаёт это ребро при вопросе про memory#1 как про ИСТОЧНИК, и сравнение по одному id спрятало бы запись её же собственным ребром. После переписывания M04 убита. Конвенция #449 сработала ЧЕТВЁРТЫЙ раз подряд.
+- 2026-08-31T13:29:02Z [implementation] — Scope расширен явно (память #451): описание живёт также в docs/en/architecture.md и docs/ru/architecture.md — раздел Memory Aggregates не упоминал ни build_compact_memory_tail, ни граф; добавлены обе строки и абзац про правило.
+- 2026-08-31T13:37:31Z [implementation] — Полная лента 7470 passed, 24 skipped, 0 failed (было 7448 + 22 новых теста). По пути починены две ошибки mypy в новом модуле (memo типизирован, id строки разбирается функцией as_int, а не int() над Any) — гейт поймал их до закрытия. tests/test_verify_endpoint.py::test_unknown_path_is_404 упал один раз ConnectionAbortedError на сокете и прошёл при повторе — флак, не связан с правкой.
+- 2026-08-31T13:39:07Z [implementation] — AC-1: ✓ tests/test_memory_tail_supersedes.py::TestTheRealPair::test_retired_entry_is_not_printed_beside_its_replacement — настоящая пара воспроизведена дословным текстом обеих строк (тринадцать против двенадцати); плюс живой замер на реальной БД: раздел контекста выкинул #432
+- 2026-08-31T13:39:07Z [implementation] — AC-2: ✓ tests/test_memory_tail_supersedes.py::TestTheRealPair::test_the_replacement_says_what_it_replaced — выбор СКРЫТЬ + пометить ЗАМЕНУ записан решением #285 вместе с ценой: если заменившая запись не попала в этот раздел, пересмотр остаётся виден только в memory lint
+- 2026-08-31T13:39:08Z [implementation] — AC-3: ✓ tests/test_memory_tail_supersedes.py::TestFreedLineIsRefilled::test_next_live_entry_takes_the_freed_slot и ::test_a_section_of_corrections_does_not_shrink_the_tail — пять строк несут пять ЖИВЫХ фактов, выборка расширяется удвоением до исчерпания хранилища
+- 2026-08-31T13:39:08Z [implementation] — AC-4: ✓ tests/test_memory_tail_supersedes.py::TestNothingElseDisappears — (а) связанная пара теряет старую половину, (б) две несвязанные записи того же типа показаны ОБЕ, плюс: другое отношение не скрывает, источник не скрывает сам себя, кросс-типовое ребро не отменяет свой же источник
+- 2026-08-31T13:39:09Z [implementation] — AC-5: ✓ tests/test_memory_tail_supersedes.py::TestEverySection — все четыре раздела В ОБОИХ рендерах (8 тестов), мутации M07-M14 стоят по одной на каждый раздел каждого рендера
+- 2026-08-31T13:39:09Z [implementation] — AC-6: ✓ tests/test_memory_tail_supersedes.py::TestChains::test_only_the_head_of_a_three_link_chain_is_printed — цепочка A->B->C печатает только A, обхода графа не требуется: предикат задаётся каждой записи отдельно
+- 2026-08-31T13:39:09Z [implementation] — AC-7: ✓ 14 мутаций, по одной на каждое исправленное место; 13 убиты первым прогоном, M04 выжила и вскрыла недостижимый охранник — тест переписан, после чего убиты все 14
+- 2026-08-31T13:39:10Z [implementation] — Domain: выжимка снова несёт непротиворечивое знание. На реальной БД раздел контекста при восьми строках печатал #441 и #432 с несовместимыми счётами; теперь печатает #441 с пометкой (supersedes #432), а освободившуюся строку отдаёт #414 — восемь строк, восемь живых фактов. Проверка направления и типа узла не косметика: без них ребро скрыло бы собственный источник.
+- 2026-08-31T13:39:10Z [implementation] — Root cause (integration-mismatch): механизм опровержения существовал в БД (ребро supersedes, memory lint докладывает по нему с v15p), а единственный потребитель, от которого зависит контекст свежего агента, его не спрашивал — рендер выбирал записи по возрасту. Prevention: заводя механизм опровержения, называй ЕГО ПОТРЕБИТЕЛЕЙ поимённо и проверяй каждого; механизм без опрошенного потребителя неотличим от отсутствующего — тот же класс, что мёртвый потребитель гейтов триггера commit.
