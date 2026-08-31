@@ -9,6 +9,38 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the manifest now says which of its own confirmations are unearned
+
+Committing `RENAR-CONFORMANCE.yaml` to the repo root turned
+`mandatory-clauses-confirmed` into a PUBLISHED statement — and two of its seven
+`true`s are printed by measurers this same session proved incapable of going red
+on the violations they exist to catch.
+
+`adapt-per-tz` is measured as *count of ADAPT rows > 0*. §13.3.3 wants an
+adversarial review per ТЗ issued as an AR, an approved ADAPT signed by the
+Architect when findings exist, and `decided-in` on a signed ACTZ. Measured live:
+AR does not exist as an artifact class; our one ADAPT is `draft` with NON-EMPTY
+backward findings; it carries zero Architect signatures; SPECs have no
+provenance column at all. A row count goes red on none of the four.
+
+`spec-types-closed-list` is confirmed `true` while its own evidence string reads
+"9 closed SPEC types". §13.3.4 closes the list at eleven.
+
+**This is a disclosure, not a repair, and it says so in the artifact.** Both
+fixes are separate open tasks and both are heavier — one hit the session
+capacity gate, the other needs a schema migration. Before this change the false
+confirmation was an internal defect; after publishing the manifest it became a
+statement to whoever reads it, which is the very failure the RENAR-1 withdrawal
+was about (decisions#292) — a value printed without the right to print it. Only
+this time we were the ones printing it, into a file we had just told an external
+tracker to read.
+
+The caveat is kept from becoming a parking space for defects: every entry must
+name a task that exists AND is still open, so a test fails the moment a caveat
+outlives its fix or points at nothing. The header points the reader at the
+section, because a caveat sitting below the block it qualifies is read second or
+not at all.
+
 ### Fixed — the self-correcting CLI hint was itself wrong, and now every hint is executed before it is printed
 
 `SelfCorrectingParser` prints known-good invocations on an argument error so an

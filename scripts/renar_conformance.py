@@ -1,26 +1,25 @@
 """RENAR-CONFORMANCE.yaml self-assessment generator (v16r-conformance-yaml).
 
-Generates a RENAR conformance manifest (standard §13.4.2) whose level is
-computed **honestly from live DB state**, never declared. The RENAR adoption
-audit (a document no longer carried in the corpus — cited by name, not by a
-section anchor that cannot resolve) found kai's hand-written manifest stuck at
-pre-adoption; this closes the gap by
-deriving every signal from the project DB so the claim cannot drift from reality.
+Generates a RENAR conformance manifest (§13.4.2) whose level is computed
+**honestly from live DB state**, never declared. The RENAR adoption audit — a
+document the corpus no longer carries, so it is cited by name rather than by an
+anchor that cannot resolve — found kai's hand-written manifest stuck at
+pre-adoption; deriving every signal from the DB keeps the claim from drifting
+from reality.
 
-Honesty contract (§13.4.3): a manifest claims a ``level`` only when ALL seven
-mandatory clauses (§13.3) hold AND every required comparative-table signal
-(the level's observable signals, §11.4.3–§11.8.2) for that level is met on
-real data. The moment one mandatory clause is
-unmet, the generator emits ``pre_adoption: true`` + ``level: null`` instead of
-overstating — the canonical resolution kai adopted (a level below RENAR-1 is not
-in the closed list, so "not yet conformant" is expressed as pre-adoption).
+Honesty contract (§13.4.3): a level is claimed only when ALL seven mandatory
+clauses (§13.3) hold AND every observable signal that level requires
+(§11.4.3–§11.8.2) is met on real data. One unmet clause yields
+``pre_adoption: true`` + ``level: null`` rather than an overstatement — a level
+below RENAR-1 is not in the closed list, so "not yet conformant" is expressed as
+pre-adoption. Ahead of all of that sits the §1.5 applicability precondition: see
+SCOPE_EXCLUSION.
 
 Machinery vs data: some clauses are *capabilities* the substrate guarantees
 structurally (closed SPEC-type list, closed gate list, V1–V6 over git+sqlite);
-those are confirmed from machinery. Others are *data* facts (does an ADAPT exist
-per ТЗ, are there TC) — confirmed only when the rows actually exist. The evidence
-section reports both so a fresh agent sees exactly what is missing to reach
-RENAR-1.
+others are *data* facts confirmed only when the rows exist. The evidence section
+reports both. Which of those confirmations the measurer has NOT earned is
+disclosed separately — see renar_measurer_caveats.
 
 Read-only: queries the DB, never writes (the CLI's optional --write touches only
 RENAR-CONFORMANCE.yaml at the project root).
@@ -33,6 +32,7 @@ from datetime import date, timedelta
 from typing import Any
 
 
+from renar_measurer_caveats import caveats_section
 from service_specs import SPEC_TYPES
 
 RENAR_VERSION = "1.0"
@@ -341,6 +341,9 @@ def build_manifest(
         "assessor": {"id": assessor_id, "role": "architect", "signature-ref": None},
         "next-assessment-due": due,
         "mandatory-clauses-confirmed": {name: c["confirmed"] for name, c in clauses.items()},
+        # Which of those confirmations their measurer has not earned. Sits
+        # directly under the block it qualifies, not at the end of the file.
+        "measurer-caveats": caveats_section(),
         "quality-gates": {
             "qg-0": "required",
             "qg-1": "required",
@@ -429,6 +432,10 @@ def render_yaml(manifest: dict[str, Any]) -> str:
         "# history (§3.3.1) is exactly the guarantee that clause asks for, so no\n"
         "# parallel file-history mechanism is kept. Read an earlier version with\n"
         "# `git log --follow -p RENAR-CONFORMANCE.yaml`; `replaces` names it.\n"
+        "#\n"
+        "# NOT every `true` under mandatory-clauses-confirmed is earned: see\n"
+        "# `measurer-caveats` below — it names each confirmation whose measurer\n"
+        "# cannot go red, and the open task carrying the fix.\n"
     )
     body: str = yaml.safe_dump(
         manifest, sort_keys=False, allow_unicode=True, default_flow_style=False
