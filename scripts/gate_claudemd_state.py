@@ -49,10 +49,21 @@ from __future__ import annotations
 
 import os
 
+import gate_outcome
+
 # The writer's own markers, imported rather than copied: a guard that carries its
 # own idea of where the block starts is a second source of truth, and this file
 # exists because the first one was never checked. See the module docstring.
 from claudemd_writer import _MARKER_END, _MARKER_START
+
+# What a reader of a CANNOT-RUN row is supposed to DO. Named once because both
+# non-execution paths owe the same answer, and because #192's receipt is the
+# proof that a refusal without a next action is a dead end wearing a better name.
+_CANNOT_RUN_REMEDY = (
+    "This gate produced no evidence, so it certifies nothing. Usual cause: the "
+    "process holds code older than the database (restart the MCP server / re-run "
+    "the CLI). Re-run once the fault above is gone."
+)
 
 
 def extract_dynamic_block(text: str) -> str | None:
@@ -98,7 +109,7 @@ def _read(path: str) -> str | None:
         return None
 
 
-def run_claudemd_state_gate_for(gate: dict, files: list[str]) -> tuple[bool, str]:
+def run_claudemd_state_gate_for(gate: dict, files: list[str]) -> gate_outcome.GateOutcome:
     """Registry-uniform ``(gate, files)`` entrypoint (gate-registry-single-source).
 
     Both arguments are ignored, as in gate_state_roundtrip: the artifact under
@@ -110,14 +121,29 @@ def run_claudemd_state_gate_for(gate: dict, files: list[str]) -> tuple[bool, str
     return run_claudemd_state_gate()
 
 
-def run_claudemd_state_gate() -> tuple[bool, str]:
+def run_claudemd_state_gate() -> gate_outcome.GateOutcome:
     """Fail iff an agent-instruction file's DYNAMIC block has no memory tail
     while the live database has knowledge to render.
 
-    Returns ``(passed, message)``. Passes (skips) when there is nothing to judge:
-    no `.tausik/`, no database, no CLAUDE.md, no DYNAMIC markers, or a knowledge
-    base that is genuinely empty — a project with no memory has no tail owed to
-    it, and inventing a red there would punish a fresh clone for being fresh.
+    Returns a ``GateOutcome``, which still unpacks as the historical
+    ``(passed, message)`` pair for the call sites that destructure it.
+
+    THREE ANSWERS, NOT TWO (claudemd-state-gate-reports-passed-when-it-could-not-run).
+    This gate used to answer with a bool, and a bool cannot say "I did not run".
+    Session #192 measured the cost: the MCP process held code from before the
+    47->48 migration, `SQLiteBackend` refused the newer database, and the receipt
+    for that close recorded this gate — severity=block — as
+    ``{"outcome": "PASSED", "passed": true}`` with the text "check unavailable".
+    A check that announced its own non-execution was signed as evidence, and
+    nothing but a human reading the line could tell it from a real pass.
+
+    So non-execution now leaves through ``could_not_run`` (blocking, per SENAR
+    1.4 §8.6(e): the absence of a negative finding is not a positive verdict),
+    and the honest "nothing to judge" cases leave through ``not_applicable``
+    (non-blocking) — each with its OWN reason code, so the receipt distinguishes
+    "could not judge" from "nothing to judge" and one empty state from another.
+    Neither path lets an exception escape: what changed is HOW a caught fault is
+    recorded, not that it is caught.
     """
     try:
         from project_config import find_tausik_dir
@@ -126,9 +152,16 @@ def run_claudemd_state_gate() -> tuple[bool, str]:
         project_root = os.path.dirname(tausik_dir)
         db_path = os.path.join(tausik_dir, "tausik.db")
         if not os.path.isfile(db_path):
-            return True, "No tausik.db — CLAUDE.md dynamic-state check skipped."
+            return gate_outcome.not_applicable(
+                gate_outcome.REASON_NO_DATABASE,
+                "No tausik.db — CLAUDE.md dynamic-state check skipped.",
+            )
     except Exception as e:  # noqa: BLE001 — a gate must never crash the commit
-        return True, f"CLAUDE.md dynamic-state check unavailable ({type(e).__name__}: {e})."
+        return gate_outcome.could_not_run(
+            gate_outcome.REASON_RUNNER_ERROR,
+            f"CLAUDE.md dynamic-state check unavailable ({type(e).__name__}: {e}).",
+            remedy=_CANNOT_RUN_REMEDY,
+        )
 
     be = None
     try:
@@ -139,14 +172,18 @@ def run_claudemd_state_gate() -> tuple[bool, str]:
 
         primary = resolve_claudemd(project_root)
         if primary is None:
-            return True, "No CLAUDE.md — dynamic-state check skipped."
+            return gate_outcome.not_applicable(
+                gate_outcome.REASON_NO_INSTRUCTION_FILE,
+                "No CLAUDE.md — dynamic-state check skipped.",
+            )
 
         be = SQLiteBackend(db_path)
         tail = build_compact_memory_tail(be)
         if not tail:
-            return True, (
+            return gate_outcome.not_applicable(
+                gate_outcome.REASON_EMPTY_KNOWLEDGE_BASE,
                 "The knowledge base is empty — the dynamic block owes no memory "
-                "tail, nothing to compare."
+                "tail, nothing to compare.",
             )
         sentinel = tail[0]
 
@@ -162,8 +199,12 @@ def run_claudemd_state_gate() -> tuple[bool, str]:
             judged.append(path)
             if not block_carries_memory_tail(block, sentinel):
                 offenders.append(path)
-    except Exception as e:  # noqa: BLE001 — fail-open: never block a commit on an internal fault
-        return True, f"CLAUDE.md dynamic-state check unavailable ({type(e).__name__}: {e})."
+    except Exception as e:  # noqa: BLE001 — caught, but recorded as non-execution, not as a pass
+        return gate_outcome.could_not_run(
+            gate_outcome.REASON_RUNNER_ERROR,
+            f"CLAUDE.md dynamic-state check unavailable ({type(e).__name__}: {e}).",
+            remedy=_CANNOT_RUN_REMEDY,
+        )
     finally:
         if be is not None:
             try:
@@ -172,11 +213,14 @@ def run_claudemd_state_gate() -> tuple[bool, str]:
                 pass
 
     if not judged:
-        return True, "No DYNAMIC block in any agent-instruction file — check skipped."
+        return gate_outcome.not_applicable(
+            gate_outcome.REASON_NO_DYNAMIC_BLOCK,
+            "No DYNAMIC block in any agent-instruction file — check skipped.",
+        )
 
     if offenders:
         names = "\n  ".join(os.path.relpath(p, project_root) for p in offenders)
-        return False, (
+        return gate_outcome.failed(
             f"CLAUDE.md state drift: {len(offenders)} of {len(judged)} agent-instruction "
             "file(s) carry a DYNAMIC block with NO memory tail while this project's "
             f"database has knowledge to render:\n  {names}\n"
@@ -185,7 +229,7 @@ def run_claudemd_state_gate() -> tuple[bool, str]:
             "this one.\n"
             "Fix: tausik update-claudemd   (re-renders the block from the live DB)."
         )
-    return True, (
+    return gate_outcome.passed(
         f"CLAUDE.md dynamic block carries the memory tail in {len(judged)} file(s) — "
         "generated from this database."
     )

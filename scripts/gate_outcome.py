@@ -94,6 +94,16 @@ REASON_NO_TEST_MAPPING = "no_test_mapping"
 REASON_NO_SCOPE_DECLARED = "no_scope_declared"
 REASON_STACK_MISMATCH = "stack_mismatch"
 REASON_NO_MATCHING_FILES = "no_matching_files"
+# A state gate found no artifact to judge. FOUR codes and not one, because the
+# four say different things to whoever reads the receipt: a checkout with no
+# database is not a checkout whose CLAUDE.md has no DYNAMIC markers, and only a
+# code — not the sentence next to it — lets a query tell them apart. They are
+# NOT_APPLICABLE and not COULD_NOT_RUN on purpose: a fresh clone with nothing to
+# render is not a fault, and reddening there would punish it for being fresh.
+REASON_NO_DATABASE = "no_database"
+REASON_NO_INSTRUCTION_FILE = "no_instruction_file"
+REASON_NO_DYNAMIC_BLOCK = "no_dynamic_block"
+REASON_EMPTY_KNOWLEDGE_BASE = "empty_knowledge_base"
 
 
 @dataclass(frozen=True)

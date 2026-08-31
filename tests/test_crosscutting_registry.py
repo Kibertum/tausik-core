@@ -162,7 +162,26 @@ def _tracked_sources() -> list[str]:
             "`git ls-files` failed, so the set of source files this gate reasons "
             f"about is unknown — that is not the same as 'nothing is invisible':\n{proc.stderr}"
         )
-    files = [f for f in proc.stdout.splitlines() if f and not f.startswith("tests/")]
+    # `tests/tools/` IS source, and is the one exception to "outside tests/".
+    # Measured in #193: the audit hook lives at tests/tools/claudemd_audit/
+    # sitecustomize.py by decision #279, and its test guards nothing else. With
+    # the whole of tests/ struck from the universe, that test could NEVER be
+    # selected by any change — so it read as invisible no matter what it
+    # declared, and no CROSSCUTTING_SCOPE could rescue it. The gate was not
+    # catching a gap; it was measuring the wrong universe (convention #444: a
+    # check that does not match its own subject reports something else).
+    #
+    # This does NOT weaken the claim. Every test must still be reachable by some
+    # edge; what changes is which files count as a possible change. Files under
+    # tests/tools/ are hand-edited, tracked, and have tests of their own — they
+    # are tools, not tests. Widening cost exactly one file and made exactly one
+    # test visible (19 invisible -> 18); nothing became invisible, and no
+    # _INVISIBLE_BASELINE entry went stale.
+    files = [
+        f
+        for f in proc.stdout.splitlines()
+        if f and (not f.startswith("tests/") or f.startswith("tests/tools/"))
+    ]
     files = [f for f in files if "/tests/" not in f]
     if not files:
         raise RuntimeError("`git ls-files` returned no source files — the universe cannot be empty")

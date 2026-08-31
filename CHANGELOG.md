@@ -9,6 +9,78 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the visibility ratchet measured a universe that excluded its own subject
+
+The full lane was red — one test out of 7374 — and had been since 2026-08-30.
+`test_crosscutting_registry` reported that `tests/test_claudemd_audit_hook.py`
+is selected by no change to any source file, so a scoped run silently skips it.
+
+**Why it survived two sessions.** Both closed on a scoped run over their
+declared `relevant_files`, and a tree-wide ratchet is invisible to that
+selection (convention #421). The test that complains about invisibility was
+itself invisible to the selection that would have caught it, so the red reached
+`origin` and stood there.
+
+**Declaring a scope was not enough, and the reason is structural.** The audit
+hook lives at `tests/tools/claudemd_audit/sitecustomize.py` by decision #279,
+and `_tracked_sources()` built its universe of possible changes as "every
+tracked file *outside* `tests/`". With the whole of `tests/` struck out, a
+change to the hook was not a change at all, so no `CROSSCUTTING_SCOPE` could
+ever match. The gate was not catching a gap — it was measuring the wrong
+universe, the same class as convention #444.
+
+`tests/tools/` is now counted as source. It is: hand-edited, tracked, and
+covered by tests of its own — tools, not tests. **The detector's claim is
+untouched** (every test must still be reachable by some edge); only the set of
+files that count as a possible change grew. Measured before the edit: the
+universe gains exactly one file, 19 invisible tests become 18, exactly one test
+becomes visible, none becomes invisible, and no `_INVISIBLE_BASELINE` entry goes
+stale — so the frozen list neither grew nor rotted.
+
+### Fixed — a `block` gate that could not run was signed as a gate that passed
+
+The `claudemd_state_drift` gate answered every caught exception with
+`(True, "CLAUDE.md dynamic-state check unavailable (...)")`. The receipt for
+session #192's close therefore recorded it as
+`{"outcome": "PASSED", "passed": true, "reason_code": ""}` while its own text
+said the check had not executed — a check announcing its own non-execution,
+counted as evidence, at the one severity the project calls mandatory.
+
+**Nothing but a person reading the line could tell it from a real pass.** No
+counter separated the two, and the immediate trigger was ordinary: the MCP
+process held code from before the 47→48 migration, so `SQLiteBackend` refused
+the newer database and the gate fell into its `except`. Any environment fault —
+a stale process, a broken import, an unreachable database — produced a green
+receipt the same way.
+
+This is the class of defect migration v47 was written for: `gate_runs.outcome`
+and `reason_code` exist precisely so "could not run" stops being stored as
+"passed". The gate was not using them. The machinery needed no change — the
+runner already lifts a gate's answer through `gate_outcome.coerce` and persists
+both fields; the gate was still returning the legacy boolean pair, which
+`coerce` is obliged to read as `PASSED`.
+
+**Non-execution now blocks and says why.** Both fail-open sites return
+`could_not_run(REASON_RUNNER_ERROR, ...)` with a remedy, per SENAR 1.4 §8.6(e):
+the absence of a negative finding is not a positive verdict. The exception is
+still caught — what changed is how it is recorded, not that the gate stays out
+of the commit's way.
+
+**The honest skips stay passes, and stay distinguishable.** A checkout with no
+database, no `CLAUDE.md`, no `DYNAMIC` markers, or an empty knowledge base has
+nothing to judge and is not at fault for it. Those four leave through
+`not_applicable` — non-blocking, and with four *separate* reason codes
+(`no_database`, `no_instruction_file`, `no_dynamic_block`,
+`empty_knowledge_base`), because one code shared by four events would move the
+indistinguishability rather than remove it.
+
+Counted while fixing it: of the seven fail-open sites a first pass had listed,
+only four are gate verdicts. The other three (`gate_qg0_check`,
+`gate_qg0_renar`, `gate_registry`) return `True` to mean *the check stays
+enabled* — fail-**closed**, and deliberately so. The remaining three verdict
+sites (`bootstrap_drift` and `state_roundtrip`, both `block`; `renar_drift`,
+`warn`) are unchanged here and tracked separately.
+
 ### Changed — usage is attributed to the TASK, not the session (schema v48) (BREAKING)
 
 `usage_events` declared `session_id INTEGER NOT NULL REFERENCES sessions(id)`
