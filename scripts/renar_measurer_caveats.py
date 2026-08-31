@@ -11,11 +11,20 @@ count of ADAPT rows became named sub-checks in renar_clause_reactive_adapt, and
 the clause now reads false) and §13.3.4 (the closed list reached the standard's
 eleven, so the confirmation is earned).
 
-THE REGISTRY IS THEREFORE EMPTY, and an empty registry is the dangerous state:
-"nothing disclosed" and "nothing to disclose" render identically. So emptiness
-must be DECLARED and the declaration must name the repair that produced it —
-see REGISTRY_EMPTIED_BY. Deleting the last entry without saying what repaired
-it fails a test, exactly as adding an entry without an open task does.
+The registry was empty between sessions #200 and #202, and emptiness is the
+dangerous state: "nothing disclosed" and "nothing to disclose" render
+identically. So emptiness must be DECLARED and the declaration must name the
+repair that produced it — see REGISTRY_EMPTIED_BY, which is `None` again now
+that an entry is back. Deleting the last entry without saying what repaired it
+fails a test, exactly as adding an entry without an open task does.
+
+IT DID NOT STAY EMPTY, AND THE ENTRY IS NOT A RELAPSE. §13.3.5 was never
+assessed by this registry before: it rode as a literal `True` with its premise
+in a comment. Session #202 derived it, and the quality sweep of that same session
+measured that the derivation reddened on ADR-013's doc-lint duty — a different
+obligation — while remaining unable to red on its own. The verdict went back to a
+constant, which is the honest description of what the generator can see, and this
+entry is what keeps that constant from reading as a measured result.
 
 That is the same defect the RENAR-1 withdrawal was about: a value printed
 without the right to print it (decisions#292). The difference is only that here
@@ -35,7 +44,29 @@ from typing import Any
 # Not a place to park a defect. Every entry names an OPEN task, and a test fails
 # when the named task is missing or already closed — otherwise "disclosed"
 # quietly becomes a substitute for "fixed".
-MEASURER_CAVEATS: list[dict[str, str]] = []
+MEASURER_CAVEATS: list[dict[str, str]] = [
+    {
+        "clause": "tc-pos-neg-pairing",
+        "measured-as": (
+            "constant true: the clause is vacuous while no TC artifact class exists, "
+            "and the manifest generator cannot observe the arrival of one"
+        ),
+        "why-degenerate": (
+            "The premise is honest and re-measured — no TC table exists under any "
+            "name. What the CLAUSE cannot do is notice when that stops being true. "
+            "The ratchet that notices (renar_tc_premise.classes_appeared) compares "
+            "the live classes against OUR declaration, so it is meaningless on any "
+            "other database, and eval_mandatory_clauses runs on whatever database "
+            "it is handed — every fixture included. Deriving the verdict from the "
+            "remaining finding was tried in #202 and was worse: a SPEC-DOC artifact "
+            "belongs to ADR-013's doc-lint duty, so the clause reddened on an "
+            "unrelated obligation while still staying green on its own. It reds "
+            "today only via the ADR-013 guard test, on the live project database, "
+            "which CI does not have."
+        ),
+        "open-task": "db-gated-ratchets-never-run-in-ci",
+    }
+]
 
 # The counterpart ratchet. While MEASURER_CAVEATS is empty this must name the
 # task whose closure retired the LAST entry, and that task must exist and be
@@ -44,7 +75,7 @@ MEASURER_CAVEATS: list[dict[str, str]] = []
 # "we have no unearned confirmations".
 #
 # Set back to None the moment an entry is added again.
-REGISTRY_EMPTIED_BY: str | None = "spec-closed-list-is-nine-while-the-standard-has-eleven"
+REGISTRY_EMPTIED_BY: str | None = None
 
 DISCLAIMER = (
     "These confirmations are printed by a measurer we know cannot go red on the "

@@ -130,6 +130,12 @@ def test_a_spec_doc_artifact_reds_the_doc_lint_duty(db, monkeypatch):
 
     No table appears here, so the class ratchet stays silent: this branch reds on
     data alone, which is exactly why both branches are needed.
+
+    This test used to end by asserting that the same row reddened `pairing_clause`.
+    That line encoded the defect rather than the behaviour — §13.3.5 is about TC
+    pairing, and this row is ADR-013's doc-lint duty. What the clause does with a
+    SPEC-DOC is now asserted, correctly, in
+    `test_a_spec_doc_artifact_does_not_red_the_pairing_clause`.
     """
     _baseline(monkeypatch, db)
     db.execute("INSERT INTO specs (type, title) VALUES ('DOC', 'delivered handbook')")
@@ -139,7 +145,6 @@ def test_a_spec_doc_artifact_reds_the_doc_lint_duty(db, monkeypatch):
     assert evidence, "a SPEC-DOC artifact exists and the doc-lint duty stayed vacuous"
     assert "SPEC-DOC" in evidence[0], evidence
     assert "docs_lint" in evidence[0], "the finding must name the executor that does not exist"
-    assert premise.pairing_clause(db)["confirmed"] is False
 
 
 def test_the_untouched_premise_is_green_for_the_right_reason(db, monkeypatch):
@@ -159,4 +164,47 @@ def test_the_untouched_premise_is_green_for_the_right_reason(db, monkeypatch):
     assert premise.classes_appeared(db) != [], (
         "the green above was not produced by the class ratchet — removing the "
         "only thing it checks left it green"
+    )
+
+
+def test_a_spec_doc_artifact_does_not_red_the_pairing_clause(db, monkeypatch):
+    """§13.3.5 is about TC pairing. A SPEC-DOC artifact is a different obligation.
+
+    The regression this pins was live for one commit: `pairing_clause` derived its
+    verdict from `tc_evidence`, whose only finding is a SPEC-DOC row. Adding a
+    SPEC-DOC — legal since migration v49 — flipped a mandatory clause to `false`
+    and drove `infer_level` to pre-adoption, telling an external tracker we
+    violate a clause about test-case pairing because a document exists.
+
+    The finding itself is NOT deleted: it still reaches the ADR-013 guard test,
+    which is the duty it belongs to. Both halves are asserted here, so a "fix"
+    that simply dropped the finding would fail this test too.
+    """
+    _baseline(monkeypatch, db)
+    db.execute("INSERT INTO specs (type, title) VALUES ('DOC', 'delivered handbook')")
+    db.commit()
+
+    assert premise.pairing_clause(db)["confirmed"] is True, (
+        "a SPEC-DOC artifact reddened §13.3.5, which is not its clause"
+    )
+    evidence = premise.tc_evidence(db)
+    assert evidence and "SPEC-DOC" in evidence[0], (
+        "the doc-lint duty stopped being watched at all — the finding must stay, "
+        "it only must not drive this clause"
+    )
+
+
+def test_the_pairing_clause_is_disclosed_as_unearned(db):
+    """A constant `true` may be published only while a caveat says it is one.
+
+    `pairing_clause` cannot go red on any database, by construction. That is a
+    confirmation the measurer has not earned, and this project's mechanism for it
+    is the caveat registry — so the two must not drift apart.
+    """
+    import renar_measurer_caveats as caveats
+
+    assert premise.pairing_clause(db)["confirmed"] is True
+    assert "tc-pos-neg-pairing" in caveats.caveated_clauses(), (
+        "the clause returns a constant true and nothing discloses it; either "
+        "restore a caveat entry or make the verdict measured"
     )

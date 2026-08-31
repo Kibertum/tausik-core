@@ -9,6 +9,34 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — §13.3.5 reddened on a duty that is not its own, and stayed green on the one that is
+
+Found by the SENAR 9.5 quality sweep, on code shipped an hour earlier in the same
+session, and both halves were measured on a copy of the live database rather than
+argued.
+
+`pairing_clause` derived the published `tc-pos-neg-pairing` verdict from
+`tc_evidence`, whose only finding is a SPEC-DOC artifact. Adding a SPEC-DOC — an
+ordinary action that migration v49 had just legalised — flipped a mandatory clause
+to `false` and drove `infer_level` to pre-adoption, telling an external tracker
+that we violate a clause about TEST-CASE pairing because a document exists. In the
+other direction, a `spec_tests` table with `assertion_ref`, `polarity`,
+`environment_ref` and a row in it left the clause `true`: the very mutation the
+module was written to defeat survived in the PUBLISHED path.
+
+Separating the two questions was right; wiring the leftover one into the clause was
+not. The SPEC-DOC finding stays where it belongs — the ADR-013 guard test — and the
+clause is now the constant it honestly is. That constant is disclosed rather than
+dressed up: `MEASURER_CAVEATS` carries an entry naming the open task, the registry's
+emptiness declaration is retired, and the manifest header again tells the reader
+that not every `true` is earned.
+
+The evidence string was corrected too. It claimed the arrival is watched "in the
+same suite that must be green before this manifest can be committed" — measurably
+false: `.tausik/` is gitignored and no CI workflow creates the database, so that
+guard skips in CI entirely. It now names the environment where the watch really
+runs, and the gap is filed as its own task.
+
 ### Fixed — two declarations rested on "TC does not exist", and nothing watched for it
 
 ADR-013 admitted the SPEC-TEST and SPEC-DOC types, and each brought a CONDITIONAL

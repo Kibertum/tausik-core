@@ -213,26 +213,43 @@ def pairing_clause(conn: sqlite3.Connection) -> dict[str, object]:
     `len(FINDING_CATEGORIES)`, `adapt-per-tz` from a computed bundle. This one was
     the literal `True` among them, with its premise in a comment no measurer read.
 
-    WHAT THIS DOES NOT CHECK, said here because the manifest is published and a
-    published field is read as a claim (memory #483): it does not run
-    `classes_appeared`. That ratchet compares against OUR declaration and is
-    meaningless on a database the declaration was not made about, which includes
-    every fixture. On the live database it runs — in the repository's guard test,
-    in the same suite that must be green before this manifest can be committed.
-    The evidence string below says so rather than implying a check that is not
-    happening here.
+    IT TAKES NO ARGUMENT, AND THAT IS THE POINT — read the whole paragraph before
+    "simplifying" it back. The first version of this function derived the verdict
+    from `tc_evidence`, and the quality sweep of session #202 measured what that
+    actually did:
+
+      * FALSE RED. `tc_evidence`'s only finding is a SPEC-DOC artifact, which
+        belongs to ADR-013's doc-lint duty, NOT to §13.3.5. Adding a SPEC-DOC —
+        an ordinary action that migration v49 had just legalised — flipped this
+        mandatory clause to `false` and drove `infer_level` to pre-adoption. The
+        manifest would have told an external tracker we violate a clause about TC
+        pairing because a documentation artifact exists.
+      * FALSE GREEN. Measured on a copy of the live database: a `spec_tests` table
+        with `assertion_ref`, `polarity`, `environment_ref` and a row in it left
+        this clause `true`. The clause could not red on its OWN premise, and the
+        very mutation the module was written to defeat survived in the PUBLISHED
+        path.
+
+    So the clause is what it honestly is: vacuous while no TC exists, and unable
+    to see the arrival itself. `classes_appeared` cannot fill the gap — it compares
+    against OUR declaration and is meaningless on a database the declaration was
+    not made about, which includes every fixture. That is not a hole being hidden:
+    it is disclosed in `MEASURER_CAVEATS`, naming an open task, which is the
+    mechanism this project built for a confirmation its measurer has not earned.
+
+    The arrival IS watched, on the live database, by the repository's ADR-013 guard
+    test — but NOT everywhere the manifest may be generated. `.tausik/` is
+    gitignored and no CI workflow creates the database, so that guard skips in CI
+    (task db-gated-ratchets-never-run-in-ci). The evidence string says where the
+    watch really runs; the earlier wording claimed the suite gating every commit,
+    and that was measurably false.
     """
-    evidence = tc_evidence(conn)
-    if evidence:
-        return {
-            "confirmed": False,
-            "evidence": "TC premise no longer holds: " + " | ".join(evidence),
-        }
     return {
         "confirmed": True,
         "evidence": (
             "no first-class TC artifacts → pairing obligation vacuous (§13.3.5); "
-            "arrival of a new artifact class is watched by the repository's "
-            "ADR-013 guard test, not by this clause"
+            "this clause cannot observe the arrival itself — see measurer-caveats. "
+            "The ADR-013 guard test watches it on the live project database, "
+            "which CI does not have"
         ),
     }

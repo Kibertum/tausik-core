@@ -8,13 +8,12 @@
 # parallel file-history mechanism is kept. Read an earlier version with
 # `git log --follow -p RENAR-CONFORMANCE.yaml`; `replaces` names it.
 #
-# Every `true` under mandatory-clauses-confirmed is EARNED as far as we
-# know: the measurer-caveats registry is empty, so no section appears
-# below. That is a statement about our MEASURERS, not a claim of
-# conformance — for that read `level` and `conformance-declaration`.
+# NOT every `true` under mandatory-clauses-confirmed is earned: see
+# `measurer-caveats` below — it names each confirmation whose measurer
+# cannot go red, and the open task carrying the fix.
 renar-version: '1.0'
 senar-version: '1.3'
-manifest-version: 7
+manifest-version: 9
 manifest-id: CFM-2026-08-31-tausik
 level: null
 level-target: null
@@ -34,6 +33,24 @@ mandatory-clauses-confirmed:
   tc-pos-neg-pairing: true
   quality-gates-closed-list: true
   closed-lists-backward-findings: true
+measurer-caveats:
+  disclaimer: 'These confirmations are printed by a measurer we know cannot go red
+    on the violations it exists to catch. This section is a DISCLOSURE, not a repair:
+    it does not fix the measurers and does not substitute for closing the named tasks.'
+  unearned-confirmations:
+  - clause: tc-pos-neg-pairing
+    measured-as: 'constant true: the clause is vacuous while no TC artifact class
+      exists, and the manifest generator cannot observe the arrival of one'
+    why-degenerate: 'The premise is honest and re-measured — no TC table exists under
+      any name. What the CLAUSE cannot do is notice when that stops being true. The
+      ratchet that notices (renar_tc_premise.classes_appeared) compares the live classes
+      against OUR declaration, so it is meaningless on any other database, and eval_mandatory_clauses
+      runs on whatever database it is handed — every fixture included. Deriving the
+      verdict from the remaining finding was tried in #202 and was worse: a SPEC-DOC
+      artifact belongs to ADR-013''s doc-lint duty, so the clause reddened on an unrelated
+      obligation while still staying green on its own. It reds today only via the
+      ADR-013 guard test, on the live project database, which CI does not have.'
+    open-task: db-gated-ratchets-never-run-in-ci
 quality-gates:
   qg-0: required
   qg-1: required
@@ -72,8 +89,8 @@ assessment-evidence:
     delta_adapts_count: 0
     task_specs_count: 2
     reasoning_tasks_count: 2
-    memory_edges_count: 20
-    verification_runs_count: 1928
+    memory_edges_count: 22
+    verification_runs_count: 1945
   level-signals:
     substrate_v1_v6: true
     adapt_per_tz: false
@@ -123,7 +140,7 @@ assessment-evidence:
       — neither source.adapt nor source.tz-section nor source.adversarial-review-ref
       can be stored, which is the negative scenario stated literally.
 replaced-by: <unknown-state>
-replaces: CFM-2026-08-31-tausik@v6
+replaces: CFM-2026-08-31-tausik@v8
 conformance-declaration: non-conformant
 scope-exclusion:
   clause: §1.5.4
