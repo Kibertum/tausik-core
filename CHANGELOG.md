@@ -9,6 +9,49 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — a control that asks whether a SPEC body describes its subject exhaustively
+
+ADR-023 is the one of the four unassessed accepted ADRs that actually BINDS us:
+its §5 puts into §8.4.1 the provision that *the mandatory body describes the
+subject of the specification exhaustively; limiting coverage to a subset of
+elements by a subjective selection criterion is forbidden*. It carries no
+RENAR-level caveat, so our RENAR-1 does not cut it off — and nothing checked it.
+Measured on the live registry: SPEC artifacts are touched by exactly two gates,
+both `warn`, and both ask something else. `renar_drift_schema` validates the
+SCHEMA; `renar_drift_provenance` checks the FRESHNESS of task↔SPEC links;
+`renar_drift.py:91` compares `s["type"] not in SPEC_TYPES` — the type, not the
+exhaustiveness of the description.
+
+**By subject, never by vocabulary, and that is the whole design.** ADR-023 §4
+takes apart why a ban on words ("key", "critical", "core") is wrong in BOTH
+directions: the same adjectives are legitimate when they name a property OF the
+subject and illegitimate when they narrow what must be described, so a blacklist
+fails the criterion even if it catches every case we have today. Instead a SPEC
+declares, in the committed `tausik/spec_coverage.json`, the ENUMERABLE SET that
+constitutes its subject and how to enumerate it from the live code. An adjective
+removes no member: a body may call one element "the most critical" and stay
+green, while a body describing two of four guarded keys is red however neutrally
+it is phrased.
+
+**It names the SPEC and the element, never a percentage.** "83% covered" tells a
+reader nothing to act on; the criterion asks which element is missing.
+
+**Reach is stated as a number and the number is nine.** The standard names
+eleven SPEC types; our closed list has nine, because SPEC-TEST and SPEC-DOC do
+not exist here. Reporting "all types covered" would be the exact narrowing
+§8.4.1 forbids — picking the convenient subset and calling it the whole.
+
+**Its first finding is a real one.** Two SPEC bodies describe their subjects
+exhaustively; `renar-adoption` is reported UNCHECKED by name, because nothing
+names the enumerable subject its body owes a description of and its
+`content_ref` points at a record rather than a readable file. The absence of a
+negative finding is not a positive verdict.
+
+Eight mutations, all killed — one narrows a REAL body on disk and requires the
+live control to name the spec, then restores it byte-for-byte under a sha256
+check and requires green again.
+
+
 ### Added — a degeneracy measure for our own blocking gates
 
 Three findings of one class inside a single shift (#191), which is the signature
