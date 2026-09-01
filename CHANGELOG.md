@@ -9,6 +9,54 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a newline was not a command separator, so the write gate could be walked past
+
+`bash_cmd_scan._SEPARATORS` has always listed `"\n"` among the operators that end
+one command and start the next. **It could never match.** Tokens arrive from
+`shlex(..., whitespace_split=True)`, which treats a newline as whitespace and
+drops it — so the entry was dead code written for a tokenization that does not
+happen, the same shape as the `\d*` the previous release found in the
+redirection pattern.
+
+Everything on the second line was therefore absorbed as positional arguments of
+the command on the first. Measured over 9 separator forms × 10 writing commands
+= 90 cells: the operator forms (`;`, `&&`, `||`, `|`) lost nothing, and the four
+forms where only a newline separates — bare newline, blank line, indented line,
+CRLF — **lost the real target in 9 of 10 cells each, 36 in all**. Not a phantom
+target: a MISS. The single writer that survived a bare newline survived because
+a redirection target is recovered from the text and never depended on the token
+stream at all.
+
+That matters more than a false positive would. This gate is a containment
+control — it holds writes inside the task's declared scope. Verified against the
+live hook rather than the parser alone: a single-line write outside the ACL is
+refused, and **the same write with any command on a line above it went through
+and put 723 KB outside the declared scope**. A multi-line Bash call is the
+ordinary way to work, so nobody had to be clever to defeat this; you fell through
+it by accident.
+
+Statement boundaries are now recovered in `scripts/hooks/shell_statements.py`
+from the raw text, before tokenization — the same move as `shell_redirection`
+and `python_invocation`, and for the same reason: a signal the tokenizer
+destroys has to be read where it still exists. A newline outside quotes becomes
+a `;`, reusing a separator the splitter already handles instead of adding a
+second mechanism to keep in step with the first. What is deliberately *not* a
+boundary: a newline inside single or double quotes (a multi-line commit message
+is one argument, and splitting it would manufacture commands out of prose) and a
+newline after a backslash (a line continuation is the opposite of a boundary).
+All 90 cells now see the write, and none of the quoted-prose cases gain one.
+
+One mutation survived the first version of this and changed the code rather than
+the tests. The boundary branch originally handled CRLF separately; a mutation
+that removed it stayed green, and the first explanation — "a missing test" — was
+wrong on measurement: shlex counts `\r` as whitespace too, so the branch could
+not affect any result. It was removed as dead rather than pinned by a test,
+because writing a check for a condition that cannot fail is precisely the defect
+this entry is about. The carriage return in the *continuation* branch is a
+different matter — without it a `\`+CRLF continuation splits in two and the
+destination on the second line stops being one — so that case stayed, with a
+test that goes red without it.
+
 ### Fixed — the development gate did not build the branch development happens on
 
 `.gitlab-ci.yml` opens by calling itself "the development gate: one Linux, every

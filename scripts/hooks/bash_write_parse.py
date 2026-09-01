@@ -36,6 +36,7 @@ from bash_cmd_scan import _mentions_interpreter, _split_subcommands  # noqa: E40
 # `cp`/`mv`/`install`, as the destination itself). Openers of a process
 # substitution are not redirections and are handled where the word list is read.
 from shell_redirection import split_redirections, strip_fd_prefixes  # noqa: E402
+from shell_statements import split_statement_breaks  # noqa: E402
 
 _PROC_SUB = ("<(", ">(")
 
@@ -412,7 +413,14 @@ def _parse(command: str, depth: int) -> tuple[list[str], str]:
     # because that is the only place the evidence still exists: `cp a b 2>out`
     # and `cp a b 2 >out` tokenize identically and mean different things, and
     # bash tells them apart by adjacency alone. See `shell_redirection`.
-    stripped = strip_fd_prefixes(_strip_heredocs(command))
+    #
+    # Statement boundaries are recovered from the TEXT for the same reason and
+    # in the same place: shlex treats a newline as whitespace and drops it, so
+    # `_SEPARATORS` could never match the `"\n"` it has always listed. Measured
+    # over 9 separator forms x 10 writers: the four newline-only forms lost the
+    # real target in 9 of 10 cells each — a MISS, not a phantom. See
+    # `shell_statements`.
+    stripped = split_statement_breaks(strip_fd_prefixes(_strip_heredocs(command)))
     tokens = tokenize(stripped)
     if tokens is None:
         return _redir_targets_regex(stripped), CONFIDENCE_REGEX_FALLBACK
