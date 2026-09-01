@@ -36,6 +36,11 @@ _REDIR_RE = re.compile(r"^\d*>>?\|?$|^&>>?$")
 
 # Best-effort catch for a literal open(path, 'w'|'a'|'x') inside an interpreter
 # payload. A computed path (variable, concatenation) is the documented residual.
+#
+# It reads TEXT, not code, and that costs in the other direction too: a literal
+# sitting in a string, a docstring or a comment is reported as a write nothing
+# performs. Measured twice in #203, once on this very module's test harness.
+# Open as `write-gate-reads-open-literals-out-of-strings-and-comments`.
 _OPEN_RE = re.compile(
     r"""open\(\s*['"]([^'"]+)['"]\s*,\s*['"][^'"]*[wax]""",
     re.IGNORECASE,
@@ -56,24 +61,26 @@ _OPEN_RE = re.compile(
 # _OPEN_RE reads Python. A shell script's redirections and a Node script's
 # fs.writeFileSync are the same defect on substrates this expression cannot
 # read, and they stay in the residual (see docs/ru/enforcement-coverage.md).
-_SCRIPT_SUFFIXES = (".py",)
+#
+# Which names mean "the Python interpreter", and which argument is the script,
+# is a unit of its own — extracted to `python_invocation` for the filesize gate
+# the way `bash_cmd_norm` and `write_confidence` already were. Re-exported under
+# the private names this module has always used, so callers keep their names.
+from python_invocation import SCRIPT_SUFFIXES as _SCRIPT_SUFFIXES  # noqa: E402,F401
+from python_invocation import is_python as _is_python  # noqa: E402
+from python_invocation import python_script as _python_script  # noqa: E402
+
 _MAX_SCRIPT_BYTES = 256 * 1024
-_PYTHON_NAMES = frozenset({"python", "python2", "python3", "py"})
-# `-m mod` and `-c code` mean there is NO script file; every later positional is
-# an argument to something else. Reading one anyway is how this would have
-# blocked `python -m pytest tests/test_x.py` — a test file is full of literal
-# open(..., "w") calls, none of which THIS command performs.
-_NO_SCRIPT_FLAGS = frozenset({"-m", "-c"})
 
 
 def _script_file_writes(sub: list[str]) -> list[str]:
     """Literal write targets found inside the script file `sub` runs.
 
-    Recognises exactly `python [options] script.py [args]` — the interpreter in
-    command position, the script as the FIRST positional. Narrow on purpose:
-    _OPEN_RE reads Python, so claiming to read a script means claiming to read a
-    PYTHON script, and every widening past that is a chance to name a file the
-    command never writes.
+    Recognises `python [options] script.py [args]` — an interpreter named by
+    `python_invocation.is_python` in command position, the script as the first
+    positional. Narrow on purpose: _OPEN_RE reads Python, so claiming to read a
+    script means claiming to read a PYTHON script, and every widening past that
+    is a chance to name a file the command never writes.
 
     FAIL-SOFT BY DESIGN: an absent, unreadable or oversized file yields nothing
     rather than raising or guessing. This runs in a PreToolUse hook on every
@@ -85,12 +92,9 @@ def _script_file_writes(sub: list[str]) -> list[str]:
     if not sub:
         return []
     base = os.path.basename(sub[0]).lower().removesuffix(".exe")
-    if base not in _PYTHON_NAMES:
+    if not _is_python(base):
         return []
-    args = sub[1:]
-    if any(a in _NO_SCRIPT_FLAGS for a in args):
-        return []
-    script = next((a for a in _positionals(args) if a.lower().endswith(_SCRIPT_SUFFIXES)), None)
+    script = _python_script(sub[1:])
     if script is None:
         return []
     project_dir = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
@@ -356,8 +360,19 @@ def _writers_in(sub: list[str]) -> list[str]:
             targets.append(v)
     # 2) interpreter payload: a literal open(path, 'w'/'a'/'x') — inline in the
     # command text, and (see _script_file_writes) inside a script file it runs.
-    if _mentions_interpreter(sub):
+    #
+    # Both arms answer to THIS module's idea of a Python interpreter, not to the
+    # dangerous-command scanner's `_INTERPRETERS`. Borrowing that set is what
+    # made `py` and `python2` dead branches: the constant here claimed a
+    # coverage the CALLER did not permit, so the names were listed, believed and
+    # never reachable — and the same silence would have swallowed every name
+    # added later. `_INTERPRETERS` answers a different question (which programs
+    # execute their arguments) for a different gate, and widening it to fix this
+    # one would change what that gate scans.
+    is_python = _is_python(base)
+    if _mentions_interpreter(sub) or is_python:
         targets += _OPEN_RE.findall(" ".join(sub))
+    if is_python:
         targets += _script_file_writes(sub)
     return targets
 

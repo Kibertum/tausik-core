@@ -25,6 +25,15 @@ is not a literal `open(path, 'w'|'a'|'x')` in Python. A script written in shell
 or Node is likewise unread: `_OPEN_RE` reads Python, and a parser that cannot
 read a substrate should not claim to have checked it.
 
+The error in the OTHER direction is open and named, not a rumour: `_OPEN_RE`
+matches the TEXT of a script, so a literal `open(..., "w")` sitting inside a
+string, a docstring or even a COMMENT is reported as a write the command never
+performs. Measured in session #203 — the gate refused this task's own
+measurement harness, and refused a file whose only `open(` was in a comment.
+Held by `write-gate-reads-open-literals-out-of-strings-and-comments`, and
+written here because a false block is the costlier direction (see
+`_script_file_writes`) and must not be discovered by whoever it stops.
+
 What this paragraph used to say, and why it was wrong: it called the gap
 "obfuscated writes" and claimed the bar was raised to "must actively obfuscate".
 Session #200 measured the opposite. `python helper.py`, with the write in the

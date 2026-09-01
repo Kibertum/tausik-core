@@ -9,6 +9,45 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the Bash write gate held on `python script.py` and on nothing next to it
+
+One token, or a version number in the interpreter's name, and the gate that holds
+the task write-ACL stopped applying. Found by the SENAR 9.5 sweep on code shipped
+two sessions earlier, and measured through the real hook rather than read out of
+the source: of 17 ordinary ways to say "run this Python script", 10 walked past
+**both** of the gate's rules — the scope ACL (SENAR Rule 2) and the "no active
+task" refusal (QG-0) — while 2 more produced a false block.
+
+`python helper.py -m foo` was allowed. So were `python3.11 helper.py`,
+`pythonw helper.py`, `py -3 helper.py` and `python helper.py -c`. None of this
+needed obfuscation: `-c` is an everyday flag of an everyday program, and
+`python3.11` is the standard way to name an interpreter on most systems.
+
+Two causes, one class — the previous fix closed the form it had **measured** and
+never asked what stood next to it:
+
+- the scan for `-m`/`-c` read the whole argument list, so a flag belonging to the
+  **script** was mistaken for one belonging to the interpreter. Position decides
+  now: before the first positional the flag means "there is no script file";
+  after it, it means nothing about the interpreter;
+- the interpreter names came from a literal set, and the script reader sat behind
+  a check owned by a **different** gate whose set is narrower still. `py` and
+  `python2` were therefore listed, believed and unreachable — a constant claiming
+  coverage its caller did not permit.
+
+Names are now derived from the shape of the name, not enumerated; `-m`/`-c` are
+matched as letters, so the glued (`-mpytest`) and clustered (`-um`) spellings are
+covered — an exact-token set had been **false-blocking** both, reading a test file
+the command never writes; and the script reader answers to this module's own
+notion of Python. The invocation rules live in `scripts/hooks/python_invocation.py`,
+split out the way `bash_cmd_norm` and `write_confidence` already were.
+
+Seven mutations, seven killed, each checked to redden the tests for **its own**
+duty rather than merely to redden something. The residual is stated in the other
+direction too, and it is open rather than implied: the matcher reads text, so a
+literal `open(..., "w")` inside a string or a comment is still reported as a write
+— measured when the gate refused this task's own test harness.
+
 ### Fixed — §13.3.5 reddened on a duty that is not its own, and stayed green on the one that is
 
 Found by the SENAR 9.5 quality sweep, on code shipped an hour earlier in the same

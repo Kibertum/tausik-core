@@ -502,3 +502,136 @@ class TestScriptFileParserBoundaries:
         js.write_text('fs.writeFileSync("harness/x.py", "x")\n', encoding="utf-8")
         monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
         assert P._script_file_writes(["node", str(js)]) == []
+
+
+# Every ordinary way to say "run this Python script". The gate used to hold on
+# `python` and `python3` alone; each of the others was measured ALLOWED through
+# the real hook in session #203 with the script writing outside the ACL.
+_INTERPRETER_FORMS = [
+    "python {s}",
+    "python3 {s}",
+    "python3.11 {s}",
+    "python3.12 {s}",
+    "python2 {s}",
+    "pythonw {s}",
+    "py {s}",
+    "py -3 {s}",
+    "py -3.11 {s}",
+    "python.exe {s}",
+]
+
+# The same command, with a flag somewhere other than where the first fix looked.
+# A trailing `-m`/`-c` is an argument to the SCRIPT, not to the interpreter, and
+# reading it as the latter disarmed the gate on an everyday command line.
+_FLAG_POSITION_FORMS = [
+    "python {s} -m foo",
+    "python {s} --mode -c",
+    "python {s} -c",
+    "python -u {s}",
+    "python -W ignore {s}",
+    "python -X dev {s}",
+    "python -- {s}",
+]
+
+_RUNS_A_SCRIPT = _INTERPRETER_FORMS + _FLAG_POSITION_FORMS
+
+# `-m`/`-c` in OPTION position — before the first positional — really does mean
+# there is no script file. Every spelling of it, including the glued and the
+# clustered short forms, which the exact-token set did not cover.
+_RUNS_NO_SCRIPT = [
+    "python -m pytest tests/test_x.py",
+    "python -mpytest tests/test_x.py",
+    "python -um pytest tests/test_x.py",
+    "python3.11 -m pytest tests/test_x.py",
+    "py -3 -m pytest tests/test_x.py",
+]
+
+
+class TestNeighbouringFormsOfRunningAScript:
+    """The defect of `write-gate-parses-command-text-not-writes` (#201).
+
+    That task closed the form it MEASURED — `python script.py` — and left the
+    neighbours: one trailing token, or a versioned interpreter name, and the
+    same write went through. Measured, not read: 10 of 17 forms returned exit 0
+    with the script writing outside the ACL, and both of the gate's rules fell
+    together (SENAR Rule 2 and the QG-0 "no active task" refusal).
+
+    Parametrised on purpose. A per-form test is a per-form promise, and this is
+    the second visit to this file for exactly the sin of promising coverage of
+    a SHAPE while testing one spelling of it (memory #495).
+    """
+
+    @staticmethod
+    def _script(tmp_path, body):
+        (tmp_path / "helper.py").write_text(body, encoding="utf-8")
+        return "helper.py"
+
+    @pytest.mark.parametrize("form", _RUNS_A_SCRIPT)
+    def test_out_of_scope_write_is_blocked_in_every_form(self, tmp_path, form):
+        """AC2 — SENAR Rule 2 holds however the interpreter is spelled."""
+        _make_db(tmp_path, [("t1", "active", '["scripts/"]')])
+        script = self._script(tmp_path, 'open("harness/x.py", "w").write("x")\n')
+        r = _run_hook(tmp_path, form.format(s=script))
+        assert r.returncode == 2, f"{form}: {r.stderr}"
+        assert "harness/x.py" in r.stderr
+
+    @pytest.mark.parametrize("form", _RUNS_A_SCRIPT)
+    def test_no_active_task_is_blocked_in_every_form(self, tmp_path, form):
+        """AC11 — the OTHER rule the same hole disarmed. Measured separately
+        because a fix that only restored the ACL check would leave QG-0 open,
+        and the two failed together, so they must be shown to hold together."""
+        _make_db(tmp_path, [("t1", "done", None)])
+        script = self._script(tmp_path, 'open("harness/x.py", "w").write("x")\n')
+        r = _run_hook(tmp_path, form.format(s=script))
+        assert r.returncode == 2, f"{form}: {r.stderr}"
+        assert "No active task" in r.stderr
+
+    @pytest.mark.parametrize("form", _RUNS_A_SCRIPT)
+    def test_in_scope_write_is_allowed_in_every_form(self, tmp_path, form):
+        """AC3 — the green branch, and it has to be MEASURED to mean anything.
+
+        The only difference from the test above is the path the script writes,
+        so a parser widened into blocking every `python <anything>.py` fails
+        here. Before the fix this was green for the wrong reason — green
+        because nothing was checked at all (memory #491)."""
+        _make_db(tmp_path, [("t1", "active", '["scripts/"]')])
+        script = self._script(tmp_path, 'open("scripts/x.py", "w").write("x")\n')
+        r = _run_hook(tmp_path, form.format(s=script))
+        assert r.returncode == 0, f"{form}: {r.stderr}"
+
+    @pytest.mark.parametrize("command", _RUNS_NO_SCRIPT)
+    def test_no_script_flag_in_option_position_reads_nothing(self, tmp_path, command):
+        """AC4 — and two of these were ALREADY false-blocking before this task.
+
+        `python -mpytest tests/test_x.py` and `python -um pytest tests/test_x.py`
+        returned exit 2 on the measured baseline: the exact-token set {-m, -c}
+        did not recognise the glued or clustered spelling, so the parser fell
+        through to the first `.py` positional and reported literal open() calls
+        out of a file the command never writes."""
+        _make_db(tmp_path, [("t1", "active", '["scripts/"]')])
+        target = tmp_path / "tests"
+        target.mkdir(exist_ok=True)
+        (target / "test_x.py").write_text('open("harness/y.py", "w")\n', encoding="utf-8")
+        r = _run_hook(tmp_path, command)
+        assert r.returncode == 0, f"{command}: {r.stderr}"
+
+    def test_the_script_is_the_first_positional_not_the_first_py_file(self, tmp_path):
+        """A `.py` file further down the line is an ARGUMENT, not the script.
+
+        An extensionless Python entry point is not exotic — this repository's
+        own CLI is one (`.tausik/tausik`) — so `python <entrypoint>
+        tests/test_x.py` is an ordinary command here. Taking the first
+        positional that merely ENDS in .py reads the test file instead and
+        reports literal open() calls the command never performs.
+
+        Added because the mutation for this rule SURVIVED: the option walk
+        already covered every other measured form, so the rule was correct and
+        unmeasured — the same "declared but unreachable" shape this task exists
+        to remove (memory #492)."""
+        _make_db(tmp_path, [("t1", "active", '["scripts/"]')])
+        (tmp_path / "entrypoint").write_text("import sys\n", encoding="utf-8")
+        target = tmp_path / "tests"
+        target.mkdir(exist_ok=True)
+        (target / "test_x.py").write_text('open("harness/y.py", "w")\n', encoding="utf-8")
+        r = _run_hook(tmp_path, "python entrypoint tests/test_x.py")
+        assert r.returncode == 0, r.stderr
