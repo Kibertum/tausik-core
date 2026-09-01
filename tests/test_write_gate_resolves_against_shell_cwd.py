@@ -208,6 +208,94 @@ class TestTheMemoryRouteGateAgrees:
         )
 
 
+class TestTheScriptPathResolvesThere:
+    """The FOURTH site of the same identification, and the one an inventory
+    missed. `_script_file_writes` opens the script a command names, to read the
+    writes inside it — and resolved that path against `project_dir` too.
+
+    It was missed because the inventory grepped for the VARIABLE NAMES the other
+    three sites used (`expanded`, `path`); this one calls it `script`. Re-done by
+    CALL SITE, `join(project_dir, …)` appears many times in the hooks, but every
+    other one joins a CONSTANT internal path (`.tausik/tausik.db`, `.claude/…`)
+    and is correctly project-relative. This was the only one joining a path that
+    arrives from outside.
+
+    Measured before the fix, with the same script name in two trees: the parser
+    returned the MAIN tree's target while the shell stood in the other one, and
+    kept returning it even after the script was deleted from the tree the command
+    actually runs in — a phantom and a miss in one answer.
+    """
+
+    def _two_trees(self, tmp_path):
+        project = tmp_path / "core"
+        foreign = tmp_path / "worktree"
+        project.mkdir()
+        foreign.mkdir()
+        (project / "helper.py").write_text("open('PROJECT_TARGET.txt', 'w')\n", encoding="utf-8")
+        (foreign / "helper.py").write_text("open('FOREIGN_TARGET.txt', 'w')\n", encoding="utf-8")
+        return project, foreign
+
+    def test_the_script_is_read_from_the_directory_the_shell_stands_in(self, tmp_path, monkeypatch):
+        from bash_write_parse import write_targets
+
+        project, foreign = self._two_trees(tmp_path)
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project))
+        assert write_targets("python helper.py", str(foreign)) == ["FOREIGN_TARGET.txt"]
+
+    def test_without_a_base_directory_it_still_reads_the_project(self, tmp_path, monkeypatch):
+        """The fallback, pinned: a caller that supplies nothing gets exactly the
+        behaviour that stood before, so this change cannot quietly stop gating."""
+        from bash_write_parse import write_targets
+
+        project, _foreign = self._two_trees(tmp_path)
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project))
+        assert write_targets("python helper.py") == ["PROJECT_TARGET.txt"]
+
+    def test_a_script_only_the_project_has_is_not_attributed_to_a_foreign_shell(
+        self, tmp_path, monkeypatch
+    ):
+        """The sharper half of the defect: the command runs a script that does
+        not exist where it stands, and the gate still named the project's."""
+        from bash_write_parse import write_targets
+
+        project, foreign = self._two_trees(tmp_path)
+        (foreign / "helper.py").unlink()
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project))
+        assert write_targets("python helper.py", str(foreign)) == []
+
+    def test_the_gate_passes_the_shells_directory_through(self, tmp_path):
+        """End-to-end, through the real hook: a script run in another checkout
+        must not be judged by a same-named script in this project."""
+        project = _make_project(tmp_path, "core", ["docs/**"])
+        # The project's script names an ABSOLUTE in-project path. That is what
+        # separates the two readings: read the project's file and the gate sees
+        # an in-tree write and blocks; read the foreign one and it sees a write
+        # in another tree and stands down. With a relative target both readings
+        # land outside and the test could not tell them apart — which is exactly
+        # how the first version of it passed while the wiring was mutated away.
+        stolen = str(project / "scripts" / "stolen.py").replace("\\", "/")
+        (project / "helper.py").write_text(f"open({stolen!r}, 'w')\n", encoding="utf-8")
+        foreign = tmp_path / "worktree"
+        foreign.mkdir()
+        (foreign / "helper.py").write_text("open('own.txt', 'w')\n", encoding="utf-8")
+        result = _bash(project, "python helper.py", cwd=foreign)
+        assert result.returncode == 0, (
+            "a script run in another checkout was judged by this project's same-named "
+            f"file: {result.stdout} {result.stderr}"
+        )
+
+    def test_the_same_script_at_home_is_still_judged(self, tmp_path):
+        """The other side of it: standing in the project, the gate must still
+        read the script and still refuse a write outside the declared scope."""
+        project = _make_project(tmp_path, "core", ["docs/**"])
+        stolen = str(project / "scripts" / "stolen.py").replace("\\", "/")
+        (project / "helper.py").write_text(f"open({stolen!r}, 'w')\n", encoding="utf-8")
+        result = _bash(project, "python helper.py", cwd=project)
+        assert result.returncode == 2, (
+            f"the gate stopped reading a script run in the project: {result.stderr}"
+        )
+
+
 class TestTheQG0GateAgrees:
     """task_gate decides the same jurisdiction question for Write/Edit, and it
     carried the same identification. The two gates must not disagree about what

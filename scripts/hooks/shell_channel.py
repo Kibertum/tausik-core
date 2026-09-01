@@ -100,7 +100,7 @@ def tokenize(tool_name: str, command: str) -> list[str] | None:
     return module.tokenize(command)
 
 
-def write_targets(tool_name: str, command: str) -> list[str]:
+def write_targets(tool_name: str, command: str, base_dir: str | None = None) -> list[str]:
     """Paths `command` appears to write, read in the dialect `tool_name` speaks.
 
     Falls back to the POSIX parser for an unknown tool name. That direction is
@@ -109,6 +109,13 @@ def write_targets(tool_name: str, command: str) -> list[str]:
     returning nothing would reproduce the hole this module exists to close.
     """
     module = _DIALECTS.get(tool_name, bash_write_parse)
+    # `base_dir` is the directory a RELATIVE path in this command resolves
+    # against. Only the POSIX dialect needs it, because only it opens a script
+    # the command names in order to read the writes inside; the PowerShell
+    # parser reads the command text alone and has no path to resolve. Passing it
+    # to a dialect that cannot use it would claim a coverage that is not there.
+    if module is bash_write_parse:
+        return module.write_targets(command, base_dir)
     return module.write_targets(command)
 
 

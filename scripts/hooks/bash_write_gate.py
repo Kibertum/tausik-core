@@ -119,7 +119,7 @@ def main() -> int:
     # are governed elsewhere or not at all).
     base_dir = shell_cwd(event, project_dir)
     in_tree: list[str] = []
-    for raw in shell_channel.write_targets(tool_name, command):
+    for raw in shell_channel.write_targets(tool_name, command, base_dir):
         # A Bash redirect/target is relative to the SHELL's cwd, which the event
         # carries — not to wherever this hook process happened to launch, and
         # not to the project dir, which is what stood here and was only true

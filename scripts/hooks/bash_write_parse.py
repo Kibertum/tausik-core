@@ -79,7 +79,7 @@ from python_invocation import python_script as _python_script  # noqa: E402
 _MAX_SCRIPT_BYTES = 256 * 1024
 
 
-def _script_file_writes(sub: list[str]) -> list[str]:
+def _script_file_writes(sub: list[str], base_dir: str | None = None) -> list[str]:
     """Literal write targets found inside the script file `sub` runs.
 
     Recognises `python [options] script.py [args]` — an interpreter named by
@@ -103,8 +103,13 @@ def _script_file_writes(sub: list[str]) -> list[str]:
     script = _python_script(sub[1:])
     if script is None:
         return []
-    project_dir = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
-    path = script if os.path.isabs(script) else os.path.join(project_dir, script)
+    # The script path comes from the COMMAND, so it is relative to the shell's
+    # cwd — the caller passes it. Falling back to the project dir keeps the old
+    # behaviour when no caller supplied one. This was the FOURTH site of that
+    # identification, missed by an inventory that grepped for the variable
+    # names the other three happened to use.
+    root = base_dir or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
+    path = script if os.path.isabs(script) else os.path.join(root, script)
     try:
         if os.path.getsize(path) > _MAX_SCRIPT_BYTES:
             return []
@@ -294,7 +299,7 @@ from bash_cmd_norm import (  # noqa: E402,F401 — re-exported
 )
 
 
-def _writers_in(sub: list[str]) -> list[str]:
+def _writers_in(sub: list[str], base_dir: str | None = None) -> list[str]:
     """Write targets from ONE sub-command (already split on shell operators)."""
     # 1) Redirections, anywhere in the sub-command: they contribute their own
     # targets and are LIFTED OUT of the word list. Removing them is the half
@@ -379,7 +384,7 @@ def _writers_in(sub: list[str]) -> list[str]:
     if _mentions_interpreter(sub) or is_python:
         targets += _OPEN_RE.findall(" ".join(sub))
     if is_python:
-        targets += _script_file_writes(sub)
+        targets += _script_file_writes(sub, base_dir)
     return targets
 
 
@@ -394,13 +399,15 @@ from write_confidence import (  # noqa: E402,F401 — re-exported
 )
 
 
-def write_targets_with_confidence(command: str) -> tuple[list[str], str]:
+def write_targets_with_confidence(
+    command: str, base_dir: str | None = None
+) -> tuple[list[str], str]:
     """`(targets, confidence)` — see the constants above for what to do with it."""
-    cands, confidence = _parse(command, 0)
+    cands, confidence = _parse(command, 0, base_dir)
     return [t for t in cands if _plausible_path(t)], confidence
 
 
-def _parse(command: str, depth: int) -> tuple[list[str], str]:
+def _parse(command: str, depth: int, base_dir: str | None = None) -> tuple[list[str], str]:
     """One pass, plus a bounded descent into any shell `-c` payload it carries.
 
     A payload that fails to tokenize degrades the WHOLE answer to
@@ -427,18 +434,18 @@ def _parse(command: str, depth: int) -> tuple[list[str], str]:
     cands: list[str] = []
     confidence = CONFIDENCE_PARSED
     for sub in _split_subcommands(tokens):
-        cands += _writers_in(sub)
+        cands += _writers_in(sub, base_dir)
         if depth >= _MAX_WRAPPER_DEPTH:
             continue
         for payload in _shell_payloads(sub):
-            inner, inner_conf = _parse(payload, depth + 1)
+            inner, inner_conf = _parse(payload, depth + 1, base_dir)
             cands += inner
             if inner_conf == CONFIDENCE_REGEX_FALLBACK:
                 confidence = CONFIDENCE_REGEX_FALLBACK
     return cands, confidence
 
 
-def write_targets(command: str) -> list[str]:
+def write_targets(command: str, base_dir: str | None = None) -> list[str]:
     """Every path this Bash command appears to write. Best-effort by design.
 
     Heredoc bodies are stripped before parsing, and tokens carrying a shell
@@ -451,5 +458,5 @@ def write_targets(command: str) -> list[str]:
     A caller that cannot afford a false positive asks
     `write_targets_with_confidence` instead.
     """
-    targets, _confidence = write_targets_with_confidence(command)
+    targets, _confidence = write_targets_with_confidence(command, base_dir)
     return targets

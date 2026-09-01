@@ -9,6 +9,31 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the script a command runs was also looked up in the wrong tree
+
+The fourth site of the identification below, found immediately after the fix
+above shipped — and missed by that fix's own inventory. `_script_file_writes`
+opens the script a command names, to read the writes inside it, and resolved
+that path against `project_dir` too.
+
+It was missed because the inventory grepped for the VARIABLE NAMES the other
+three sites happened to use. This one calls it `script`. Redone by call site,
+`join(project_dir, …)` appears three dozen times across the hooks, and every
+other one joins a CONSTANT internal path — `.tausik/tausik.db`, `.claude/skills`
+— which is correctly project-relative. Exactly one joined a path arriving from
+outside, and it is this one. Four is what was measured, not a bound.
+
+Measured with the same script name in two trees: standing in the second
+checkout, `python helper.py` reported the MAIN tree's target — and kept
+reporting it after the script was deleted from the tree the command actually
+runs in. A phantom and a miss in a single answer.
+
+The base directory is now threaded from the event through `shell_channel` to the
+parser, and only to the POSIX dialect: the PowerShell parser reads command text
+alone and opens no script, so handing it a directory would claim a coverage it
+does not have. A caller that supplies nothing still gets the previous behaviour,
+pinned by its own test so this cannot quietly stop gating.
+
 ### Fixed — a relative write target belongs to the shell's directory, not the project's
 
 Three hooks — `bash_write_gate`, `memory_pretool_block`, `task_gate` — turned a
