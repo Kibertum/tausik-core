@@ -13,18 +13,18 @@
 # cannot go red, and the open task carrying the fix.
 renar-version: '1.0'
 senar-version: '1.3'
-manifest-version: 9
-manifest-id: CFM-2026-08-31-tausik
+manifest-version: 11
+manifest-id: CFM-2026-09-01-tausik
 level: null
 level-target: null
 pre-adoption: false
 assessment-mode: self
-assessment-date: '2026-08-31'
+assessment-date: '2026-09-01'
 assessor:
   id: Andrey Yumashev
   role: architect
   signature-ref: null
-next-assessment-due: '2026-11-29'
+next-assessment-due: '2026-11-30'
 mandatory-clauses-confirmed:
   sot-inversion: true
   substrate-v1-v6: true
@@ -48,9 +48,12 @@ measurer-caveats:
       runs on whatever database it is handed — every fixture included. Deriving the
       verdict from the remaining finding was tried in #202 and was worse: a SPEC-DOC
       artifact belongs to ADR-013''s doc-lint duty, so the clause reddened on an unrelated
-      obligation while still staying green on its own. It reds today only via the
-      ADR-013 guard test, on the live project database, which CI does not have.'
-    open-task: db-gated-ratchets-never-run-in-ci
+      obligation while still staying green on its own. It reds only via the ADR-013
+      guard test, which since #203 runs in any checkout — it reads the canonical schema
+      rather than a live database, so CI executes it. What remains is the clause itself:
+      it is a constant, one of five among seven mandatory clauses, and the header
+      publishes every true as earned.'
+    open-task: mandatory-clauses-are-constants-published-as-earned
 quality-gates:
   qg-0: required
   qg-1: required
@@ -90,7 +93,7 @@ assessment-evidence:
     task_specs_count: 2
     reasoning_tasks_count: 2
     memory_edges_count: 22
-    verification_runs_count: 1945
+    verification_runs_count: 1952
   level-signals:
     substrate_v1_v6: true
     adapt_per_tz: false
@@ -140,7 +143,7 @@ assessment-evidence:
       — neither source.adapt nor source.tz-section nor source.adversarial-review-ref
       can be stored, which is the negative scenario stated literally.
 replaced-by: <unknown-state>
-replaces: CFM-2026-08-31-tausik@v8
+replaces: CFM-2026-09-01-tausik@v10
 conformance-declaration: non-conformant
 scope-exclusion:
   clause: §1.5.4

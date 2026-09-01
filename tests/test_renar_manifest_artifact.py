@@ -33,6 +33,8 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_HERE)
 sys.path.insert(0, os.path.join(_ROOT, "scripts"))
 
+from conftest import DORMANT_WITHOUT_LIVE_DB  # noqa: E402
+
 from renar_conformance import generate  # noqa: E402
 
 # Reads the committed manifest and the project DB — no import edge selects this.
@@ -43,8 +45,15 @@ PROJECT_DB = os.path.join(_ROOT, ".tausik", "tausik.db")
 
 # Fields whose value is a function of WHEN the manifest was written, not of what
 # the project is. Comparing them would make the test fail every day at midnight.
-DATE_DEPENDENT = {"assessment-date", "manifest-id", "next-assessment-due",
-                  "manifest-version", "assessor", "replaces", "assessment-evidence"}
+DATE_DEPENDENT = {
+    "assessment-date",
+    "manifest-id",
+    "next-assessment-due",
+    "manifest-version",
+    "assessor",
+    "replaces",
+    "assessment-evidence",
+}
 
 
 def _committed() -> dict:
@@ -80,19 +89,31 @@ def test_header_names_where_previous_versions_live():
     assert "git log --follow -p RENAR-CONFORMANCE.yaml" in header
 
 
-@pytest.mark.skipif(not os.path.isfile(PROJECT_DB), reason="project DB absent")
+@pytest.mark.skipif(
+    not os.path.isfile(PROJECT_DB),
+    reason=DORMANT_WITHOUT_LIVE_DB,
+)
 def test_committed_manifest_is_not_stale():
     """Substantive fields must match what the live DB yields today.
 
     Scoped to the claim-bearing keys; the date-dependent ones move on their own
     and comparing them would make this fail with the calendar rather than with
     the project.
+
+    THE ONE CONTROL IN THIS FAMILY THAT CANNOT MOVE TO GIT, and the reason is in
+    the sentence above: its subject IS the working copy. "Does the committed
+    artifact still match what this database yields" has no answer where there is
+    no database — unlike "which classes does this project declare" or "is the
+    task this caveat names still open", both of which git answers and both of
+    which were moved there in session #203. So this one stays dormant in CI and
+    says so out loud, in the roster, instead of vanishing into the skip count.
     """
     committed = _committed()
     conn = sqlite3.connect(f"file:{PROJECT_DB}?mode=ro", uri=True)
     try:
-        fresh, _ = generate(conn, "test", committed["assessment-date"],
-                            committed["manifest-version"])
+        fresh, _ = generate(
+            conn, "test", committed["assessment-date"], committed["manifest-version"]
+        )
     finally:
         conn.close()
     drifted = {

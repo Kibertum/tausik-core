@@ -30,6 +30,8 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
+from conftest import DORMANT_WITHOUT_LIVE_DB  # noqa: E402
+
 from gate_claudemd_state import (  # noqa: E402
     block_carries_memory_tail,
     extract_dynamic_block,
@@ -128,7 +130,7 @@ class TestTheRealTreeIsIntact:
 
     def test_the_gate_is_green_end_to_end_on_this_repository(self):
         if not (REPO_ROOT / ".tausik" / "tausik.db").is_file():
-            pytest.skip("no .tausik/tausik.db in this checkout")
+            pytest.skip(DORMANT_WITHOUT_LIVE_DB)
         passed, message = run_claudemd_state_gate()
         assert passed, message
 
@@ -216,7 +218,7 @@ class TestItIsSilentWhereItCannotJudge:
 
     def test_no_claudemd_skips(self, monkeypatch):
         if not (REPO_ROOT / ".tausik" / "tausik.db").is_file():
-            pytest.skip("no .tausik/tausik.db in this checkout")
+            pytest.skip(DORMANT_WITHOUT_LIVE_DB)
         import claudemd_state
 
         monkeypatch.setattr(claudemd_state, "resolve_claudemd", lambda project_dir: None)
@@ -226,7 +228,7 @@ class TestItIsSilentWhereItCannotJudge:
 
     def test_an_empty_knowledge_base_owes_no_tail(self, monkeypatch):
         if not (REPO_ROOT / ".tausik" / "tausik.db").is_file():
-            pytest.skip("no .tausik/tausik.db in this checkout")
+            pytest.skip(DORMANT_WITHOUT_LIVE_DB)
         import service_knowledge_aggregates as ska
 
         monkeypatch.setattr(ska, "build_compact_memory_tail", lambda be: [])
@@ -255,7 +257,7 @@ class TestItNeverCrashesTheCommitItGuards:
 
     def test_an_internal_fault_does_not_escape(self, monkeypatch):
         if not (REPO_ROOT / ".tausik" / "tausik.db").is_file():
-            pytest.skip("no .tausik/tausik.db in this checkout")
+            pytest.skip(DORMANT_WITHOUT_LIVE_DB)
         import claudemd_state
 
         def _boom(project_dir):
@@ -268,7 +270,7 @@ class TestItNeverCrashesTheCommitItGuards:
 
     def test_an_internal_fault_is_recorded_as_non_execution_not_as_a_pass(self, monkeypatch):
         if not (REPO_ROOT / ".tausik" / "tausik.db").is_file():
-            pytest.skip("no .tausik/tausik.db in this checkout")
+            pytest.skip(DORMANT_WITHOUT_LIVE_DB)
         import claudemd_state
         import gate_outcome
 
@@ -346,7 +348,7 @@ class TestNothingToJudgeIsNotTheSameAsCouldNotJudge:
             expected = gate_outcome.REASON_NO_DATABASE
         else:
             if not (REPO_ROOT / ".tausik" / "tausik.db").is_file():
-                pytest.skip("no .tausik/tausik.db in this checkout")
+                pytest.skip(DORMANT_WITHOUT_LIVE_DB)
             if case == "no_claudemd":
                 import claudemd_state
 

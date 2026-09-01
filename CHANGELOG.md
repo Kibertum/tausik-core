@@ -9,6 +9,50 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the ratchets behind published claims did not run where the project is merely checked out
+
+`.tausik/` is gitignored and `bootstrap.py` — CI's only preparation step — does
+not create the project database. Both verified by running the CI steps in a clean
+`git worktree` rather than argued from the source. Every control that opened
+`.tausik/tausik.db` therefore stood down in CI, silently: **eleven test instances
+across four files**, not the two the defect was filed for. Among them the ratchet
+that `RENAR-CONFORMANCE.yaml` names, in its own evidence line, as the reason a
+published `true` is safe.
+
+It was not even consistent. Some test in the suite creates that database in the
+repository root as it runs, so a gated control ran or skipped depending on where
+it landed in the order — under `-n auto` and random ordering, a coin toss. A
+ratchet that sometimes measures nothing and always reports green is worse than
+one switched off, because the green gets believed.
+
+The fix cuts by the question a control asks, not by the file it lives in:
+
+- **"What does this project declare?"** is answered by git and must run
+  everywhere. Three controls moved: the ADR-013 vacuity ratchet now reads the
+  canonical schema `init_schema` builds (measured equivalent first — the live
+  database and the canonical schema yield the same 30 artifact classes, nothing
+  extra either way, and the canonical one carries no residue), and the two
+  disclosure ratchets read task status from the git-tracked `tausik/` projection
+  through the emitter's own parser rather than a second one.
+- **"What does this working copy hold?"** genuinely needs a live database. Those
+  eight stay dormant in a checkout — and now say so, citing one shared reason
+  that reads `DORMANT here, not passing` instead of vanishing into a skip count.
+
+`tests/test_no_silent_db_gated_skips.py` keeps it from happening again, and it
+walks the AST rather than grepping: the `claudemd` group hid for exactly as long
+as a phrase search, because it worded its skip differently — a grep found three
+sites out of ten. A newly gated control now fails until someone rosters it on
+purpose, and a roster entry for a control that is no longer gated fails too. That
+mirror duty caught an error in the roster on its first run.
+
+Five mutations, five killed **in the clean checkout** — the only place where
+killing them proves anything here.
+
+The disclosure this touches was re-pointed, not retired: closing the CI gap
+removed one of its two grounds, and the clause behind it is still a constant, one
+of five among seven mandatory clauses. `mandatory-clauses-are-constants-published-as-earned`
+now carries that remainder.
+
 ### Fixed — the Bash write gate held on `python script.py` and on nothing next to it
 
 One token, or a version number in the interpreter's name, and the gate that holds

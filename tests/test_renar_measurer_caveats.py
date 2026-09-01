@@ -16,7 +16,6 @@ remove the caveat honestly.
 from __future__ import annotations
 
 import os
-import sqlite3
 import sys
 
 import pytest
@@ -26,6 +25,8 @@ yaml = pytest.importorskip("yaml")
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_HERE)
 sys.path.insert(0, os.path.join(_ROOT, "scripts"))
+
+from conftest import projected_task_status  # noqa: E402
 
 from renar_measurer_caveats import (  # noqa: E402
     DISCLAIMER,
@@ -41,7 +42,9 @@ from renar_measurer_caveats import (  # noqa: E402
 CROSSCUTTING_SCOPE = ["scripts/", "RENAR-CONFORMANCE.yaml"]
 
 MANIFEST = os.path.join(_ROOT, "RENAR-CONFORMANCE.yaml")
-PROJECT_DB = os.path.join(_ROOT, ".tausik", "tausik.db")
+# No PROJECT_DB here any more. Both ratchets in this file read task status
+# from the git-tracked `tausik/` projection, so they run in a bare checkout —
+# which is where the manifest's disclosure ratchet has to hold.
 REQUIRED_KEYS = {"clause", "measured-as", "why-degenerate", "open-task"}
 
 
@@ -78,7 +81,6 @@ def test_registry_is_either_populated_or_declared_empty():
     assert not caveats_section(), "an empty registry must produce no section"
 
 
-@pytest.mark.skipif(not os.path.isfile(PROJECT_DB), reason="project DB absent")
 def test_the_task_that_emptied_the_registry_is_real_and_underway():
     """The mirror of the ratchet on entries, and the half that gives it teeth.
 
@@ -96,18 +98,12 @@ def test_the_task_that_emptied_the_registry_is_real_and_underway():
     """
     if MEASURER_CAVEATS:
         pytest.skip("registry is not empty")
-    conn = sqlite3.connect(f"file:{PROJECT_DB}?mode=ro", uri=True)
-    try:
-        row = conn.execute(
-            "SELECT status FROM tasks WHERE slug = ?", (REGISTRY_EMPTIED_BY,)
-        ).fetchone()
-    finally:
-        conn.close()
-    assert row is not None, (
+    status = projected_task_status(REGISTRY_EMPTIED_BY)
+    assert status is not None, (
         f"REGISTRY_EMPTIED_BY names task {REGISTRY_EMPTIED_BY!r}, which does not exist"
     )
-    assert row[0] in ("active", "done"), (
-        f"task {REGISTRY_EMPTIED_BY!r} is {row[0]!r} — the registry may not be "
+    assert status in ("active", "done"), (
+        f"task {REGISTRY_EMPTIED_BY!r} is {status!r} — the registry may not be "
         "emptied by a repair nobody has started"
     )
 
@@ -119,7 +115,6 @@ def test_every_caveat_is_fully_stated(caveat):
         assert value.strip(), f"{key} is empty — a caveat that says nothing discloses nothing"
 
 
-@pytest.mark.skipif(not os.path.isfile(PROJECT_DB), reason="project DB absent")
 @pytest.mark.parametrize("caveat", MEASURER_CAVEATS, ids=lambda c: c["clause"])
 def test_named_task_exists_and_is_still_open(caveat):
     """The ratchet: a caveat may only stand while its fix is outstanding.
@@ -127,18 +122,12 @@ def test_named_task_exists_and_is_still_open(caveat):
     Without this, `measurer-caveats` becomes the cheapest place in the codebase
     to park a defect forever — "disclosed" quietly replacing "fixed".
     """
-    conn = sqlite3.connect(f"file:{PROJECT_DB}?mode=ro", uri=True)
-    try:
-        row = conn.execute(
-            "SELECT status FROM tasks WHERE slug = ?", (caveat["open-task"],)
-        ).fetchone()
-    finally:
-        conn.close()
-    assert row is not None, (
+    status = projected_task_status(caveat["open-task"])
+    assert status is not None, (
         f"caveat for {caveat['clause']!r} names task {caveat['open-task']!r}, "
         "which does not exist — a disclosure pointing at nothing is not a disclosure"
     )
-    assert row[0] != "done", (
+    assert status != "done", (
         f"task {caveat['open-task']!r} is closed — remove the caveat for "
         f"{caveat['clause']!r} in the same change that fixed its measurer"
     )

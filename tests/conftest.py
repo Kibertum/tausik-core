@@ -215,6 +215,100 @@ def canonical_ddl(table: str) -> str:
 VERIFICATION_RUNS_DDL = canonical_ddl("verification_runs")
 
 
+# --- the project's own state, from GIT rather than from a working copy --------
+#
+# Both helpers exist for one reason, measured in session #203: a control that
+# reads `.tausik/tausik.db` does not run where the project is merely CHECKED
+# OUT. CI clones and runs `bootstrap.py`, which does NOT create that database —
+# verified by running the CI step in a clean `git worktree` — so eleven test
+# instances across four files skipped, and every one of them skipped SILENTLY.
+#
+# Worse than "never runs": it was not even deterministic. Some test in the suite
+# creates `.tausik/tausik.db` in the repo root as it goes, so a DB-gated control
+# ran or skipped depending on whether it was scheduled before or after that
+# test — under `-n auto` and random order, a coin toss. A ratchet that sometimes
+# checks nothing and always reports green is worse than one that is switched
+# off, because the green is believed.
+#
+# The cut is between two genuinely different questions. "What does THIS PROJECT
+# declare?" is answered by git and must run everywhere. "What does THIS WORKING
+# COPY currently hold?" needs a live database and is honestly dormant in a
+# checkout — but it must say so out loud, which is what
+# `tests/test_no_silent_db_gated_skips.py` enforces.
+
+
+#: The ONE reason string every control allowed to need a live database must
+#: give. A shared constant rather than a phrase each site retypes: the group in
+#: `test_claudemd_state_gate.py` went unnoticed for exactly that reason — it
+#: worded its skip differently from the others, so a grep for one phrase found
+#: three sites and missed seven. `test_no_silent_db_gated_skips.py` checks that
+#: this NAME is what the site cites, which no rewording can slip past.
+DORMANT_WITHOUT_LIVE_DB = (
+    "no .tausik/tausik.db in this checkout — this control is DORMANT here, not "
+    "passing. Its subject is the LIVE working copy, so a bare checkout has "
+    "nothing for it to measure. Rostered in tests/test_no_silent_db_gated_skips.py."
+)
+
+
+def canonical_schema_db():
+    """An in-memory connection carrying the schema a fresh install gets.
+
+    The same `init_schema` a real `tausik init` runs, so this IS the database
+    our declarations are made about — and it is built from git, not inherited
+    from whatever a developer's machine happens to hold. Measured equivalent to
+    the live database when introduced: both yielded the same 30 artifact
+    classes, zero difference either way.
+
+    Preferable to the live database rather than merely equal to it: the live one
+    carries residual state, and a control that reads residue tells you about the
+    machine it ran on instead of about the project.
+    """
+    import sqlite3
+    import sys
+
+    scripts = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts"))
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+    from backend_init import init_schema
+
+    conn = sqlite3.connect(":memory:")
+    init_schema(conn)
+    return conn
+
+
+def projected_task_status(slug: str) -> str | None:
+    """A task's status from the git-tracked `tausik/` projection, or None.
+
+    The projection is committed precisely so project state survives outside the
+    gitignored database — `.gitignore` says as much — so a ratchet asking "is
+    the task this caveat names still open?" has a source that exists in every
+    checkout. Parsed with the emitter's own `state_parse.parse_frontmatter`
+    rather than a second reader: a private copy of a format drifts from it
+    silently, and this file already carries that lesson for DDL.
+
+    None means the projection holds no such task — which is a real answer (the
+    slug names nothing), not an excuse to skip.
+    """
+    import sys
+
+    scripts = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts"))
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+    from state_parse import parse_frontmatter
+
+    path = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "tausik", "tasks", f"{slug}.md")
+    )
+    if not os.path.isfile(path):
+        return None
+    with open(path, encoding="utf-8") as fh:
+        text = fh.read()
+    if not text.startswith("---"):
+        return None
+    status = parse_frontmatter(text.split("---", 2)[1]).get("status")
+    return str(status) if status is not None else None
+
+
 # --- hang guard: the threshold is checked against THIS run, not against a memory ---
 #
 # See tests/hang_guard_contract.py for why. In short: the promise beside

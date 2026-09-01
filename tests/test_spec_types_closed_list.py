@@ -26,6 +26,8 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 
+from conftest import canonical_schema_db  # noqa: E402
+
 from closed_list_counts import SPEC_TYPE_LIST, scan_tree  # noqa: E402
 from closed_list_counts import sources as _sources  # noqa: E402
 from closed_list_counts import written_counts as _written_counts  # noqa: E402
@@ -326,14 +328,20 @@ def test_adr_013_conditional_obligations_are_still_vacuous():
     test and by the manifest clause that rests on the same premise. A third
     consumer imports it rather than cutting again.
     """
-    db = os.path.join(ROOT, ".tausik", "tausik.db")
-    if not os.path.isfile(db):
-        pytest.skip("project DB absent — nothing to measure, and no subject either")
-    import sqlite3
-
+    # WHERE THE DECLARATION IS READ FROM, AND WHY IT MOVED. This used to open
+    # `.tausik/tausik.db` and skip when it was absent — which is every checkout,
+    # CI included, since `bootstrap.py` does not create it. The manifest names
+    # this test as the reason its `tc-pos-neg-pairing` true is safe, so the
+    # evidence behind a published claim ran only on a developer's machine.
+    #
+    # `init_schema` is the canonical answer to "which classes does this project
+    # declare": it is what a real `tausik init` runs, it comes from git, and it
+    # carries no residue. Measured before the swap, not assumed — the live
+    # database and the canonical schema yielded the SAME 30 artifact classes,
+    # with nothing extra on either side. See `conftest.canonical_schema_db`.
     from renar_tc_premise import classes_appeared, tc_evidence
 
-    conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    conn = canonical_schema_db()
     try:
         evidence = tc_evidence(conn)
         appeared = classes_appeared(conn)

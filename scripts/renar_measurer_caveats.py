@@ -61,10 +61,21 @@ MEASURER_CAVEATS: list[dict[str, str]] = [
             "remaining finding was tried in #202 and was worse: a SPEC-DOC artifact "
             "belongs to ADR-013's doc-lint duty, so the clause reddened on an "
             "unrelated obligation while still staying green on its own. It reds "
-            "today only via the ADR-013 guard test, on the live project database, "
-            "which CI does not have."
+            "only via the ADR-013 guard test, which since #203 runs in any "
+            "checkout — it reads the canonical schema rather than a live database, "
+            "so CI executes it. What remains is the clause itself: it is a "
+            "constant, one of five among seven mandatory clauses, and the header "
+            "publishes every true as earned."
         ),
-        "open-task": "db-gated-ratchets-never-run-in-ci",
+        # RE-POINTED IN #203, NOT RETIRED. The sentence above used to end "which
+        # CI does not have", and closing db-gated-ratchets-never-run-in-ci made
+        # that false — so it was corrected rather than left standing. But that
+        # task fixed WHERE the ratchet runs, not the degeneracy this caveat
+        # discloses: the clause is still a constant that cannot notice a TC class
+        # arriving. Retiring the caveat because its old open-task closed would
+        # have been the deletion this registry exists to prevent, so it now names
+        # the task that actually holds the remaining problem.
+        "open-task": "mandatory-clauses-are-constants-published-as-earned",
     }
 ]
 
