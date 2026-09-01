@@ -9,6 +9,44 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the development gate did not build the branch development happens on
+
+`.gitlab-ci.yml` opens by calling itself "the development gate: one Linux, every
+push". Its rules said something much narrower — a branch push started a pipeline
+only when the branch *was* the default branch. Release 1.9 is written on
+`v1-9-wave`: not `main`, no tag since v1.8.0, no merge request open. None of the
+three rules could fire.
+
+Measured against the GitLab API rather than read off the file: **0 pipelines for
+79 pushed commits**, and no pipeline of any kind in this project for 20 days.
+The gate was declared, wired, and unreachable.
+
+That gap is not bookkeeping. The two defect classes closed just before this one
+live *only* in an environment that is not the maintainer's working copy — eleven
+ratchets that never executed in a clean checkout, and a blocking gate switched
+off for everyone who cloned the repository. The environment that would have
+shown them is exactly the one these rules declined to build, which is why both
+were found by hand, months late.
+
+The rules now say what the header always said: every branch push builds. The
+default-branch rule is gone because `$CI_COMMIT_BRANCH` subsumes it — `main` is
+a branch, and two ways to say one thing leave the next reader working out
+whether the narrower one still means something. A `when: never` guard suppresses
+the duplicate pipeline an open merge request would otherwise start; on this
+instance every runner is a shell executor sharing one workspace per project, so
+a duplicate is not merely a wasted slot — the two runs clean and rebuild the
+same directory underneath each other.
+
+The ratchet is `tests/test_ci_runs_where_development_happens.py`, and it
+evaluates rather than greps: it parses `workflow.rules` into ordered
+`(condition, when)` pairs and computes whether GitLab would start a pipeline for
+a given branch. A condition written in a grammar it does not implement raises
+instead of quietly returning false — a rule nobody can evaluate is the exact
+shape of the bug being guarded. It lives in its own module because the
+neighbouring workflow ratchets are `slow`-marked while GitLab runs the fast
+lane, and a guard on the GitLab trigger that GitLab itself never executes would
+repeat the mistake it exists to prevent.
+
 ### Fixed — a fresh clone was not green, and one blocking gate was not even on
 
 Run this repository's CI steps in a clean `git worktree` — checkout, then
