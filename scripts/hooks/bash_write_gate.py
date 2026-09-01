@@ -61,7 +61,7 @@ sys.path.insert(0, _HOOKS_DIR)
 sys.path.insert(1, os.path.dirname(_HOOKS_DIR))  # scripts/ — for scope_acl
 
 import shell_channel  # noqa: E402
-from _common import cli_invocation, is_tausik_project  # noqa: E402
+from _common import cli_invocation, is_tausik_project, shell_cwd  # noqa: E402
 from bash_write_parse import write_targets  # noqa: E402,F401 — re-exported for tests
 
 
@@ -117,14 +117,16 @@ def main() -> int:
     # Only in-tree writes are this gate's jurisdiction — identical rule to the
     # Write scope gate (out-of-tree paths, /dev/null, scratchpad, other repos
     # are governed elsewhere or not at all).
+    base_dir = shell_cwd(event, project_dir)
     in_tree: list[str] = []
     for raw in shell_channel.write_targets(tool_name, command):
-        # A Bash redirect/target is relative to the shell's cwd — the project
-        # dir — not to wherever this hook process happened to launch. Resolve it
-        # against project_dir before deciding jurisdiction (task_gate does the
-        # same for its file/notebook paths). Absolute targets are used as-is.
+        # A Bash redirect/target is relative to the SHELL's cwd, which the event
+        # carries — not to wherever this hook process happened to launch, and
+        # not to the project dir, which is what stood here and was only true
+        # until the agent worked in a second checkout. See `_common.shell_cwd`
+        # for the measurement. Absolute targets are used as-is.
         expanded = os.path.expanduser(raw)
-        cand = expanded if os.path.isabs(expanded) else os.path.join(project_dir, expanded)
+        cand = expanded if os.path.isabs(expanded) else os.path.join(base_dir, expanded)
         rel = _relative_to_project(cand, project_dir)
         if rel is not None and rel not in in_tree:
             in_tree.append(rel)

@@ -49,6 +49,7 @@ from _common import (  # noqa: E402
     is_tausik_project,
     last_user_prompt_text,
     marker_present_anchored,
+    shell_cwd,
 )
 from memory_sinks import (  # noqa: E402
     DEFAULT_SINKS,
@@ -166,13 +167,15 @@ def _targets(event: dict, project_dir: str) -> list[str]:
             )
         return []
 
+    base_dir = shell_cwd(event, project_dir)
     out: list[str] = []
     for raw in raw_targets:
-        # A shell redirect is relative to the shell's cwd — the project dir —
-        # not to wherever this hook process launched. Same resolution
-        # bash_write_gate applies, so the two agree on what a target is.
+        # A shell redirect is relative to the SHELL's cwd, which the event
+        # carries. Same resolution bash_write_gate applies, so the two agree on
+        # what a target is — including when the agent is working in a second
+        # checkout, where the project dir is the wrong answer.
         expanded = os.path.expanduser(raw)
-        cand = expanded if os.path.isabs(expanded) else os.path.join(project_dir, expanded)
+        cand = expanded if os.path.isabs(expanded) else os.path.join(base_dir, expanded)
         if cand not in out:
             out.append(cand)
     return out

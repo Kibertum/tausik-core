@@ -1,7 +1,7 @@
 ---
 slug: write-gate-resolves-relative-paths-against-the-wrong-directory
 title: "Гейт записи резолвит относительные пути от каталога проекта, а не от рабочего каталога команды: работа в чужой выгрузке блокируется"
-status: planning
+status: done
 epic: release-19-renar-conformance
 story: gates-declare-what-they-prevent
 complexity: medium
@@ -11,12 +11,26 @@ tier: moderate
 call_budget: 60
 defect_of: write-gate-parses-command-text-not-writes
 scope: null
-scope_exclude: null
-relevant_files: []
-scope_paths: []
+scope_exclude: "Не меняем набор команд-писателей и разбор перенаправлений: предмет — РЕЗОЛВ пути, а не его извлечение. Не трогаем shell_statements.py и shell_redirection.py."
+relevant_files:
+  - "scripts/hooks/_common.py"
+  - "scripts/hooks/bash_write_gate.py"
+  - "scripts/hooks/task_gate.py"
+  - "scripts/hooks/memory_pretool_block.py"
+  - "tests/test_write_gate_resolves_against_shell_cwd.py"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
+scope_paths:
+  - "scripts/hooks/bash_write_gate.py"
+  - "scripts/hooks/memory_pretool_block.py"
+  - "scripts/hooks/task_gate.py"
+  - "scripts/hooks/_common.py"
+  - "tests/**"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-01T16:45:22Z"
 ---
 
 ## Goal
@@ -37,8 +51,24 @@ completed_at: null
 
 ## Acceptance Criteria
 
+1. ПЕРВЫМ ДЕЛОМ И ДО ПРОЕКТИРОВАНИЯ: установлено ЗАМЕРОМ настоящего payload PreToolUse, несёт ли событие фактический рабочий каталог. Не по документации и не по догадке — прочитан реальный payload этой системы (урок #203). Предъявлен перечень полей.
+2. ИНВЕНТАРЬ МЕСТ ДО ОЦЕНКИ, ПО ПЕРЕЧНЮ, А НЕ ПО ОПИСАНИЮ ЗАДАЧИ. Проверены ОБА канала (bash и pwsh) и ОБА гейта (scope-ACL и QG-0 task_gate), а не только тот, что ударил. Для каждого места сказано, резолвит ли оно относительный путь от каталога проекта, и попадает ли в починку.
+3. ВОСПРОИЗВЕДЕНИЕ ДО ПОЧИНКИ. Ложный блок воспроизведён замером: команда, работающая в ДРУГОЙ выгрузке, объявляется записью в главный репозиторий. Предъявлено число мест, где это происходит.
+4. ПОЧИНЕНО БЕЗ ПРЕВРАЩЕНИЯ В ПОД-ОБНАРУЖЕНИЕ. Путь в чужом дереве не становится молча разрешённым: проверено тестом, что запись, которая ДОЛЖНА блокироваться, блокируется по-прежнему. Направление отказа сохранено.
+5. МУТАЦИИ. Каждая правка проверена мутацией на свой предмет; ни одна не ДОБАВЛЯЕТ проверку (память #503). Число мутаций и убитых предъявлено.
+6. ПРОВЕРЕНО НАСТОЯЩИМ ХУКОМ, А НЕ ТОЛЬКО ПАРСЕРОМ (урок #204): и ложный блок снят, и настоящий блок остался — обе формы проверены живым хуком.
+7. БЕЗОПАСНОСТЬ. Гейт есть контроль сдерживания. Починка не должна открывать запись за пределы объявленного объёма НИ в главном дереве, ни в чужом: проверено обеими формами. Если рабочий каталог установить нельзя, гейт обязан падать в сторону БЛОКИРОВКИ, а не пропуска.
+8. Полная лента зелёная, mypy чисто, doctor All clean.
+
 ## Plan
 
 ## Rollback
 
+git revert коммита задачи; резолв возвращается к каталогу проекта. Правка в scripts/hooks, схемы и данных не касается.
+
 ## Journal
+
+- 2026-09-01T16:42:57Z [implementation] — ЗАМЕР ПЕРВЫМ ДЕЛОМ, КАК ТРЕБУЕТ GOAL: несёт ли payload PreToolUse рабочий каталог. НЕ УГАДАНО — прочитан НАСТОЯЩИЙ payload этой системы (урок #203): хук временно инструментирован, событие сохранено, инструментовка снята и живой хук перепроверен на чистоту. ОТВЕТ: ДА. Поля payload: session_id, transcript_path, cwd, prompt_id, permission_mode, effort, hook_event_name, tool_name, tool_input, tool_use_id. ВТОРОЙ ЗАМЕР, РЕШАЮЩИЙ ДЛЯ ПРОЕКТИРОВАНИЯ: отслеживает ли cwd переход в другое дерево. ДА: после cd d:/tmp поле показало D:\tmp, а не корень проекта. Значит поле авторитетно, и задача сводится к тому, чтобы его читать. ИНВЕНТАРЬ МЕСТ ПЕРЕЧНЕМ, А НЕ ПО ОПИСАНИЮ ЗАДАЧИ. Отождествление «cwd оболочки == project_dir» найдено в ТРЁХ местах: bash_write_gate.py (тот, что ударил), memory_pretool_block.py и task_gate.py — у каждого свой комментарий, утверждающий это отождествление. Мой первоначальный список объёма был ДОГАДКОЙ и оказался неверен дважды: назвал несуществующий pwsh_write_gate.py и пропустил memory_pretool_block.py. Поймал это scope-ACL, а не я. ОБА КАНАЛА ЗАКРЫТЫ ОДНОЙ ПРАВКОЙ: отдельного pwsh-гейта НЕТ, PowerShell идёт через shell_channel в тот же bash_write_gate. Это проверено, а не предположено. ОБА ГЕЙТА ПОКРЫТЫ: scope-ACL (bash_write_gate) и QG-0 (task_gate), плюс третий — memory_route. ПОПРАВКА К ЗАПИСИ САМОЙ ЗАДАЧИ. Goal цитирует заблокированную команду как rm -f .tausik/tausik.db*. ЗАМЕР: write_targets возвращает ПУСТО для всех форм rm — rm вообще не цель записи для этого гейта. Значит именно эта команда не могла дать тот отказ через этот гейт. Важнее последствие для тестов: мой первый тест использовал rm и был ЗЕЛЁНЫМ ВХОЛОСТУЮ — при отсутствии целей гейт возвращает 0 независимо от наличия дефекта. Тесты переписаны на команду, которая действительно пишет.
+- 2026-09-01T16:43:26Z [implementation] — ПОЧИНКА. Общий помощник _common.shell_cwd(event, project_dir) читает поле cwd события; три места резолвят относительные цели от него. Падение обратно на project_dir, когда поля нет, оно не строка, каталога не существует или payload не объект, — то есть в сторону БЛОКИРОВКИ. НЕ ПРЕВРАЩЕНО В ПОД-ОБНАРУЖЕНИЕ, И ЭТО ЗАКРЕПЛЕНО: принадлежность решается по РАЗРЕШЁННОМУ абсолютному пути, поэтому путь из соседнего каталога обратно В проект (../core/scripts/stolen.py) по-прежнему блокируется; абсолютная запись в проект блокируется откуда угодно; без поля cwd поведение прежнее. МУТАЦИЙ 7, УБИТО 5, ДВЕ ПРИЗНАНЫ РАВНОСИЛЬНЫМИ ПО ЗАМЕРУ. Ни одна не ДОБАВЛЯЕТ проверку (память #503). M1 bash_write_gate снова от project_dir — красным тест ложного блока в чужой выгрузке. M2 task_gate снова от project_dir — красным тест QG-0 в чужой выгрузке. M3 memory_pretool_block снова от project_dir — ВЫЖИЛА в первом прогоне: у этого хука не было покрывающего теста, то есть моя собственная правка шла непроверенной. Гипотеза «правка равносильна, потому что стоки абсолютные» ОПРОВЕРГНУТА замером: среди стоков есть ДРЕВЕСНЫЕ и потому относительные — .cursor/rules/**, .windsurf/rules/**, .github/copilot-instructions.md. Тест дописан, мутация убита. M4 shell_cwd всегда возвращает project_dir — красными 4 теста. M5 снята проверка isdir — красным тест несуществующего каталога. M6 isinstance(event, dict) заменено на hasattr(event, get) — ВЫЖИЛА и признана РАВНОСИЛЬНОЙ: событие приходит из json.load, и ни один тип JSON, кроме объекта, метода get не имеет. Это другое НАПИСАНИЕ несущей проверки, а не мёртвый код: снять её совсем нельзя, будет AttributeError. Оставлено как есть. M7 снята проверка cwd.strip() — ВЫЖИЛА, и это МЁРТВЫЙ КОД: isdir уже отвергает и пустую строку, и строку из пробелов. Проверка УДАЛЕНА, а не закрыта тестом — по тому же правилу, что и ветка CRLF в предыдущей задаче этой смены. Тесты на пустую и пробельную строку ОСТАВЛЕНЫ: они проверяют ПОВЕДЕНИЕ, а не реализацию, и остаются зелёными.
+- 2026-09-01T16:44:38Z [implementation] — AC-1: ✓ manual: прочитан НАСТОЯЩИЙ payload PreToolUse через временную инструментовку живого хука. Поле cwd ЕСТЬ. Перечень полей: session_id, transcript_path, cwd, prompt_id, permission_mode, effort, hook_event_name, tool_name, tool_input, tool_use_id. Второй замер: после cd d:/tmp поле показало D:\tmp — оно отслеживает переход. Инструментовка снята, живой хук перепроверен на чистоту. AC-2: ✓ manual: инвентарь перечнем дал ТРИ места (bash_write_gate.py, memory_pretool_block.py, task_gate.py). Отдельного pwsh-гейта нет — PowerShell идёт через shell_channel в bash_write_gate, потому оба канала закрыты одной правкой. Покрыты оба гейта задачи (scope-ACL и QG-0) плюс третий, memory_route. Мой первичный список объёма был догадкой и оказался неверен дважды; поймал scope-ACL. AC-3: ✓ tests/test_write_gate_resolves_against_shell_cwd.py::TestTheFalseBlockIsGone::test_a_write_in_another_checkout_is_not_this_projects_business AC-3: ✓ tests/test_write_gate_resolves_against_shell_cwd.py::TestTheMemoryRouteGateAgrees::test_a_foreign_checkouts_rules_file_is_not_this_projects_sink AC-3: ✓ tests/test_write_gate_resolves_against_shell_cwd.py::TestTheQG0GateAgrees::test_a_relative_edit_in_another_checkout_is_out_of_jurisdiction AC-4: ✓ tests/test_write_gate_resolves_against_shell_cwd.py::TestTheRealBlockRemains::test_a_relative_path_that_climbs_back_into_the_project_is_caught AC-4: ✓ tests/test_write_gate_resolves_against_shell_cwd.py::TestTheRealBlockRemains::test_an_absolute_write_into_the_project_is_gated_from_anywhere AC-4: ✓ tests/test_write_gate_resolves_against_shell_cwd.py::TestTheRealBlockRemains::test_the_same_relative_write_is_still_gated_at_home AC-5: ✓ manual: мутаций 7, убито 5, две признаны РАВНОСИЛЬНЫМИ по замеру, ни одна не добавляет проверку. M3 сперва выжила и вскрыла непокрытую собственную правку — тест дописан, мутация убита. M7 вскрыла мёртвый код, он УДАЛЁН. AC-6: ✓ manual: все тесты гейтов гоняют НАСТОЯЩИЙ хук подпроцессом с JSON на stdin, а не парсер. Обе формы проверены: ложный блок снят (код 0) и настоящий блок остался (код 2). AC-7: ✓ tests/test_write_gate_resolves_against_shell_cwd.py::TestShellCwd::test_anything_unusable_falls_back_to_the_project AC-7: ✓ tests/test_write_gate_resolves_against_shell_cwd.py::TestTheRealBlockRemains::test_without_a_cwd_the_write_is_still_gated AC-8: ✓ manual: полная лента 8315 passed / 25 skipped / 0 failed; mypy Success: no issues found in 331 source files; doctor All clean. Negative: отрицательный сценарий есть весь класс TestTheRealBlockRemains плюс TestShellCwd — починка обязана НЕ открыть запись. Проверено: путь, возвращающийся в проект из соседнего каталога; абсолютная запись в проект из чужого каталога; событие без cwd; cwd пустой, пробельный, не строка, несуществующий каталог; payload не объект. Во всех случаях гейт продолжает судить. Domain: осмысленность вне тестов. Решает не наш код, а факт файловой системы: в git worktree файл .tausik/tausik.db есть ДРУГОЙ файл, чем одноимённый в главном дереве. Правка приводит суждение гейта в соответствие с этим фактом, и это тот самый факт, который решением #299 обязателен к проверке. Прежнее поведение уже было непоследовательным: абсолютный путь в чужое дерево гейт пропускал, относительный — нет.
+- 2026-09-01T16:45:33Z [done] — Root cause (logic-error): три хука превращали относительную цель записи в абсолютный путь, приклеивая её к project_dir, на допущении «рабочий каталог оболочки И ЕСТЬ каталог проекта». Допущение верно для обычной работы и ложно во второй выгрузке, поэтому файл в чужом дереве объявлялся записью в главный репозиторий — пере-обнаружение, мешавшее именно той проверке из чистого клона, которую решение #299 сделало обязательной. Prevention: не выводить факт среды из умолчания, когда событие его НЕСЁТ — payload PreToolUse содержит cwd; читать источник, а не догадку, и падать обратно на прежнее поведение (то есть в сторону блокировки), когда источник ничего не говорит.

@@ -9,6 +9,43 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a relative write target belongs to the shell's directory, not the project's
+
+Three hooks — `bash_write_gate`, `memory_pretool_block`, `task_gate` — turned a
+relative target into an absolute path by joining it to `project_dir`, each with
+a comment asserting that the shell's cwd *is* the project dir. That holds for
+ordinary work and stops holding the moment the agent opens a second checkout.
+Session #204 met it live: inside a `git worktree`, a command touching
+`.tausik/tausik.db*` was refused as a write to the **main** repository, which it
+never touches. Decision #299 makes "does this work from someone else's clean
+clone" a release requirement and memory #501 says a `git worktree` is the honest
+way to measure it — so the gate obstructed precisely the check it now has to
+allow. The workaround was absolute paths, discovered by being blocked.
+
+What the event actually carries was measured before anything was designed,
+rather than assumed: a PreToolUse payload in this harness has `cwd`, and it
+tracks a `cd` from an earlier call. `_common.shell_cwd` reads it, and every
+relative target now resolves against it.
+
+The direction of this defect was over-detection — a foreign tree mistaken for
+this one — so the risk in fixing it is turning it into under-detection. Two
+things hold that line, and both are asserted by tests. Containment is still
+decided on the RESOLVED absolute path, so standing in a sibling directory and
+writing `../core/scripts/x.py` is still caught. And when the event cannot say
+where the shell stands — no `cwd`, a blank one, a directory that does not exist,
+a payload that is not even an object — the resolution falls back to
+`project_dir` and the write stays gated, because a gate that cannot establish
+the facts must keep judging, not stop.
+
+Two corrections that measurement forced, both before this shipped. The task's
+own record quoted the blocked command as `rm -f .tausik/tausik.db*`; `rm`
+produces **no** write target here at all, so that command cannot have produced
+that refusal through this gate — and a test written around it would have passed
+whether or not the defect existed. The tests use a command that really is a
+writer. Separately, an emptiness check in the new helper turned out to be
+unreachable — `isdir` already rejects `""` and `"   "` — and was removed rather
+than pinned by a test, on the same reasoning as the entry below.
+
 ### Fixed — a newline was not a command separator, so the write gate could be walked past
 
 `bash_cmd_scan._SEPARATORS` has always listed `"\n"` among the operators that end

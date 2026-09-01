@@ -33,7 +33,7 @@ import sqlite3
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _common import cli_invocation, is_tausik_project  # noqa: E402
+from _common import cli_invocation, is_tausik_project, shell_cwd  # noqa: E402
 
 
 def target_is_outside_project(raw_stdin: str, project_dir: str) -> bool:
@@ -65,9 +65,12 @@ def target_is_outside_project(raw_stdin: str, project_dir: str) -> bool:
         path = tool_input.get("file_path") or tool_input.get("notebook_path")
         if not isinstance(path, str) or not path.strip():
             return False
-        # Relative paths belong to the project by definition of the cwd the hook
-        # runs in, so they resolve against project_dir and stay gated.
-        target = os.path.realpath(os.path.join(project_dir, path))
+        # A relative path belongs to the SHELL's cwd, which the payload carries
+        # — not to the project by definition, which is what stood here. The two
+        # part company as soon as the agent works in a second checkout, and the
+        # containment test below still runs on the resolved absolute path, so a
+        # relative path that climbs back into the project stays gated.
+        target = os.path.realpath(os.path.join(shell_cwd(payload, project_dir), path))
         root = os.path.realpath(project_dir)
         return os.path.commonpath([target, root]) != root
     except Exception:  # noqa: BLE001 — any failure means "not proven outside" => keep gating
