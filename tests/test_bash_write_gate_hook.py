@@ -635,3 +635,68 @@ class TestNeighbouringFormsOfRunningAScript:
         (target / "test_x.py").write_text('open("harness/y.py", "w")\n', encoding="utf-8")
         r = _run_hook(tmp_path, "python entrypoint tests/test_x.py")
         assert r.returncode == 0, r.stderr
+
+
+class TestRedirectionDoesNotDisplaceTheDestination:
+    """write-gate-takes-a-file-descriptor-number-as-a-write-target, end to end.
+
+    The parser-level sweep lives in `test_shell_redirection`. What is proved
+    HERE is the part a parser test cannot reach: the verdict the hook actually
+    returns, and the path it names when it refuses. Both were wrong, and the
+    second one silently: the block on `cp a docs/x.md 2>/dev/null` was correct
+    only because the phantom `2` happened to be out of scope too, and it sent
+    whoever read it to a file named `2` that no command was writing.
+    """
+
+    IN_SCOPE = "scripts/a.py"
+    OUT_OF_SCOPE = "docs/a.md"
+
+    REDIRECTS = ["2>/dev/null", "2> /dev/null", "1>log", "2>>log", "3>trace", "2>&1", "&>log"]
+
+    @pytest.mark.parametrize("redirect", REDIRECTS)
+    @pytest.mark.parametrize("writer", ["cp", "mv", "install -m 644"])
+    def test_destination_in_scope_is_allowed_under_any_redirection(
+        self, tmp_path, writer, redirect
+    ):
+        """The live false block from session #203: the destination is inside the
+        declared scope, and the command was refused anyway — on the descriptor."""
+        _make_db(tmp_path, [("t1", "active", '["scripts/", "log", "trace"]')])
+        r = _run_hook(tmp_path, f"{writer} src {self.IN_SCOPE} {redirect}")
+        assert r.returncode == 0, r.stderr
+
+    @pytest.mark.parametrize("redirect", REDIRECTS)
+    @pytest.mark.parametrize("writer", ["cp", "mv", "install -m 644"])
+    def test_destination_out_of_scope_is_refused_by_name(self, tmp_path, writer, redirect):
+        """Right verdict AND right reason. The path in the message is the one
+        the command writes, never the descriptor number."""
+        _make_db(tmp_path, [("t1", "active", '["scripts/", "log", "trace"]')])
+        r = _run_hook(tmp_path, f"{writer} src {self.OUT_OF_SCOPE} {redirect}")
+        assert r.returncode == 2
+        assert self.OUT_OF_SCOPE in r.stderr
+        offending = r.stderr.split("Active ACL(s):")[0]
+        assert "\n  2\n" not in offending and "\n  1\n" not in offending
+
+    @pytest.mark.parametrize("redirect", REDIRECTS)
+    def test_qg0_names_the_destination_when_no_task_is_active(self, tmp_path, redirect):
+        _make_db(tmp_path, [("t1", "done", None)])
+        r = _run_hook(tmp_path, f"cp src {self.IN_SCOPE} {redirect}")
+        assert r.returncode == 2
+        assert "No active task" in r.stderr
+        # The QG-0 branch prints the path with the OS separator; only the
+        # Rule 2 branch normalises to '/'. Compare on the normalised form —
+        # what is under test is WHICH path is named, not how it is spelled.
+        assert self.IN_SCOPE in r.stderr.replace("\\", "/")
+
+    def test_a_file_actually_named_2_is_still_gated(self, tmp_path):
+        """The fix must not buy its silence by ignoring digits: `cp a 2 >out`
+        writes a file named `2`, and that is a write like any other."""
+        _make_db(tmp_path, [("t1", "active", '["scripts/"]')])
+        r = _run_hook(tmp_path, "cp src 2 >scripts/log")
+        assert r.returncode == 2
+        assert "SENAR Rule 2" in r.stderr
+
+    def test_input_redirection_target_is_not_reported_as_written(self, tmp_path):
+        """`cp a b <in` reported `in` — a file it only READS — and lost `b`."""
+        _make_db(tmp_path, [("t1", "active", '["scripts/"]')])
+        r = _run_hook(tmp_path, f"cp {self.OUT_OF_SCOPE} {self.IN_SCOPE} <{self.OUT_OF_SCOPE}")
+        assert r.returncode == 0, r.stderr

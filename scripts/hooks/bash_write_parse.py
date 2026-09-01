@@ -28,11 +28,16 @@ if _HOOKS_DIR not in sys.path:
 # that loop into an import cycle.
 from bash_cmd_scan import _mentions_interpreter, _split_subcommands  # noqa: E402
 
-# Redirection operators that create/append to a file. Matched against a single
-# shlex token, so a '>' living inside a quoted argument ("a > b") is one token
-# and never matches — only a bare operator token does. `2>&1` / `>&2` are fd
-# dups, not file writes: their target token starts with '&' and is skipped.
-_REDIR_RE = re.compile(r"^\d*>>?\|?$|^&>>?$")
+# Redirections — which ones write, and which tokens they consume — live in
+# `shell_redirection`, with the measurements that put them there. What used to
+# stand here was `^\d*>>?\|?$|^&>>?$`, matched against one shlex token: the
+# `\d*` expected `2>` to arrive as a single token, which it never does, and the
+# orphaned `2` was then read as one of the command's own arguments (for
+# `cp`/`mv`/`install`, as the destination itself). Openers of a process
+# substitution are not redirections and are handled where the word list is read.
+from shell_redirection import split_redirections, strip_fd_prefixes  # noqa: E402
+
+_PROC_SUB = ("<(", ">(")
 
 # Best-effort catch for a literal open(path, 'w'|'a'|'x') inside an interpreter
 # payload. A computed path (variable, concatenation) is the documented residual.
@@ -290,13 +295,11 @@ from bash_cmd_norm import (  # noqa: E402,F401 — re-exported
 
 def _writers_in(sub: list[str]) -> list[str]:
     """Write targets from ONE sub-command (already split on shell operators)."""
-    targets: list[str] = []
-    # 1) redirections: <op> <target>, anywhere in the sub-command.
-    for i, tok in enumerate(sub):
-        if _REDIR_RE.match(tok) and i + 1 < len(sub):
-            nxt = sub[i + 1]
-            if not nxt.startswith("&"):  # '&N' is an fd dup, not a file
-                targets.append(nxt)
+    # 1) Redirections, anywhere in the sub-command: they contribute their own
+    # targets and are LIFTED OUT of the word list. Removing them is the half
+    # that matters — while they stayed in, a redirection's leftovers were still
+    # available to be read as one of the command's arguments.
+    targets, sub = split_redirections(sub)
     # The redirection scan above ran over the WHOLE sub-command, prefixes and
     # all — a `>` is a `>` wherever it stands. Identifying the WRITER is what
     # needs the prefixes gone: `sudo tee f` is a `tee`, and the residual
@@ -306,16 +309,18 @@ def _writers_in(sub: list[str]) -> list[str]:
     if not sub:
         return targets
     base = os.path.basename(sub[0]).lower().removesuffix(".exe")
-    # A command's own file arguments come BEFORE any stdout redirection or
-    # process substitution. Truncating there stops `tee >(cat > x)` from
-    # swallowing the sub-shell's tokens as tee's files (the inner `> x` is still
-    # caught by the redirection scan above).
+    # Redirections are already gone from `sub`, so a command's own arguments are
+    # simply what remains — including any that stood AFTER a redirection, which
+    # the old truncation dropped (`cp a >log b` writes `b`). Process
+    # substitution still ends the list: it opens a sub-shell whose tokens are
+    # not this command's files, and stopping there is what keeps
+    # `tee >(cat > x)` from swallowing them (the inner `> x` is still collected
+    # by the redirection scan above).
     head: list[str] = []
     for a in sub[1:]:
-        # Stop at a redirection or a process-substitution opener (`>(`/`<(` —
-        # kept glued by shlex). Do NOT break on a bare '(' inside a quoted
-        # filename ('Copy (1).txt'): that would drop a legitimate target.
-        if _REDIR_RE.match(a) or a in ("<(", ">("):
+        # Do NOT break on a bare '(' inside a quoted filename ('Copy (1).txt'):
+        # that would drop a legitimate target.
+        if a in _PROC_SUB:
             break
         head.append(a)
     nonopt = _positionals(head)
@@ -403,7 +408,11 @@ def _parse(command: str, depth: int) -> tuple[list[str], str]:
     outer command parsed would be the more confident of two readings, which is
     the wrong one to hand a consumer that fails closed on uncertainty.
     """
-    stripped = _strip_heredocs(command)
+    # File-descriptor numbers are removed from the TEXT, before tokenization,
+    # because that is the only place the evidence still exists: `cp a b 2>out`
+    # and `cp a b 2 >out` tokenize identically and mean different things, and
+    # bash tells them apart by adjacency alone. See `shell_redirection`.
+    stripped = strip_fd_prefixes(_strip_heredocs(command))
     tokens = tokenize(stripped)
     if tokens is None:
         return _redir_targets_regex(stripped), CONFIDENCE_REGEX_FALLBACK
