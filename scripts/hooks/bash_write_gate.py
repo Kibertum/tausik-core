@@ -62,7 +62,10 @@ sys.path.insert(1, os.path.dirname(_HOOKS_DIR))  # scripts/ — for scope_acl
 
 import shell_channel  # noqa: E402
 from _common import cli_invocation, is_tausik_project, shell_cwd  # noqa: E402
-from bash_write_parse import write_targets  # noqa: E402,F401 — re-exported for tests
+from bash_write_parse import (  # noqa: E402,F401 - write_targets re-exported for tests
+    command_changes_directory,
+    write_targets,
+)
 
 
 def main() -> int:
@@ -118,6 +121,7 @@ def main() -> int:
     # Write scope gate (out-of-tree paths, /dev/null, scratchpad, other repos
     # are governed elsewhere or not at all).
     base_dir = shell_cwd(event, project_dir)
+    moved = command_changes_directory(command)
     in_tree: list[str] = []
     for raw in shell_channel.write_targets(tool_name, command, base_dir):
         # A Bash redirect/target is relative to the SHELL's cwd, which the event
@@ -126,10 +130,21 @@ def main() -> int:
         # until the agent worked in a second checkout. See `_common.shell_cwd`
         # for the measurement. Absolute targets are used as-is.
         expanded = os.path.expanduser(raw)
-        cand = expanded if os.path.isabs(expanded) else os.path.join(base_dir, expanded)
-        rel = _relative_to_project(cand, project_dir)
-        if rel is not None and rel not in in_tree:
-            in_tree.append(rel)
+        if os.path.isabs(expanded):
+            roots: tuple[str, ...] = ("",)
+        elif moved:
+            # The command moves the shell before this write happens, so the
+            # event's cwd is stale and no single root is right. Judge against
+            # BOTH and keep whatever lands in the project: failing toward the
+            # block is the only safe direction for a containment gate.
+            roots = (base_dir, project_dir)
+        else:
+            roots = (base_dir,)
+        for root in roots:
+            cand = expanded if os.path.isabs(expanded) else os.path.join(root, expanded)
+            rel = _relative_to_project(cand, project_dir)
+            if rel is not None and rel not in in_tree:
+                in_tree.append(rel)
     if not in_tree:
         return 0  # no in-project write detected — nothing to gate
 

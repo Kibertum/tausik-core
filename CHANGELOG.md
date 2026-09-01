@@ -9,6 +9,37 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a command that moves the shell no longer escapes the gate
+
+The two fixes below made the event's `cwd` the single root for a relative path.
+That directory is where the shell stood *before* the command ran, and a command
+can move: in `cd <project> && python helper.py` the shell is somewhere else by
+the time the script is named. Measured on the live gate — `cd … &&`, a
+`( … ; … )` subshell and `pushd` each went from **exit 2 to exit 0**, while the
+same command with no `cwd` field at all — the pre-fix resolution — still
+returned 2. For that shape the old root was accidentally right and the fix made
+it wrong: a block turned into an allow, the exact under-detection both of those
+tasks' criteria forbade, and `_script_file_writes` fails soft on a missing file
+so nothing was reported.
+
+The cure is not to work out where the shell ends up. When the command moves,
+both roots are judged and the union kept: for a containment gate a surplus
+candidate costs a task the write would have needed anyway, while choosing the
+wrong root loses the write in silence. Both write vectors need it separately —
+the script the parser opens, and the target the gate resolves — and a mutation
+removing either survived the other's tests until each got its own.
+
+The detector is asked of the token stream, not the text, so `cp cd.txt out` and
+`echo "cd /tmp"` are not directory changes; a false positive here only drags in
+a second root, but treating every mention as a move would blunt the measurement
+the base directory exists to make.
+
+Found by review, not by the tests: neither of the two commits below contains a
+single command with a `cd` in it. `env -C … python …` was checked separately and
+is **not** part of this regression — it was never gated, before or after,
+because the `env` wrapper is not unwrapped to find the interpreter at all. It is
+filed with the other pre-existing gaps rather than folded in here.
+
 ### Fixed — the script a command runs was also looked up in the wrong tree
 
 The fourth site of the identification below, found immediately after the fix

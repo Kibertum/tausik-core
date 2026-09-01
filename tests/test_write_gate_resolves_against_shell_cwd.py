@@ -296,6 +296,111 @@ class TestTheScriptPathResolvesThere:
         )
 
 
+class TestACommandThatMovesTheShellFailsClosed:
+    """The regression the previous two fixes introduced, and its cure.
+
+    The event's `cwd` is where the shell stood BEFORE the command ran. Resolving
+    against it is right for `python helper.py`, and WRONG for
+    `cd <project> && python helper.py` — by the time the script is named the
+    shell is somewhere else. Measured on the live gate: that command went from
+    exit 2 to exit 0, while the same command with no `cwd` field at all — the
+    pre-fix resolution — still returned 2. For that shape the old root was
+    accidentally correct and the fix made it wrong, which is precisely the
+    under-detection both tasks' acceptance criteria forbade.
+
+    The cure is not to guess where the shell ends up. When the command moves,
+    both roots are judged and the union is kept: for a containment gate an extra
+    candidate costs a task the write would have needed anyway, while choosing
+    the wrong root loses the write in silence — `_script_file_writes` fails soft
+    on a missing file, so there is not even an error to notice.
+    """
+
+    def _project_with_a_script(self, tmp_path):
+        project = _make_project(tmp_path, "core", ["docs/**"])
+        stolen = str(project / "scripts" / "stolen.py").replace("\\", "/")
+        (project / "helper.py").write_text(f"open({stolen!r}, 'w')\n", encoding="utf-8")
+        elsewhere = tmp_path / "scratch"
+        elsewhere.mkdir()
+        return project, elsewhere
+
+    @pytest.mark.parametrize(
+        "shape",
+        [
+            "cd {p} && python helper.py",
+            "(cd {p}; python helper.py)",
+            "pushd {p} && python helper.py",
+        ],
+        ids=["cd-and", "subshell", "pushd"],
+    )
+    def test_a_command_that_moves_into_the_project_is_still_gated(self, tmp_path, shape):
+        project, elsewhere = self._project_with_a_script(tmp_path)
+        command = shape.format(p=str(project).replace("\\", "/"))
+        result = _bash(project, command, cwd=elsewhere)
+        assert result.returncode == 2, (
+            f"{command!r} run from outside was allowed. The shell moves into the project "
+            "before the write, so trusting the pre-command cwd turns a block into an "
+            f"allow: {result.stdout} {result.stderr}"
+        )
+
+    def test_a_plain_write_after_moving_into_the_project_is_still_gated(self, tmp_path):
+        """The other write vector. The script case is caught inside the parser;
+        this one is caught where the gate turns a raw target into a path, and
+        the two are separate code — a mutation removing either survives the
+        other's tests."""
+        project = _make_project(tmp_path, "core", ["docs/**"])
+        elsewhere = tmp_path / "scratch"
+        elsewhere.mkdir()
+        command = f"cd {str(project).replace(chr(92), '/')} && touch scripts/stolen.py"
+        result = _bash(project, command, cwd=elsewhere)
+        assert result.returncode == 2, (
+            f"a redirect-style write after a `cd` into the project was allowed: {result.stderr}"
+        )
+
+    def test_a_command_that_does_not_move_keeps_the_fix(self, tmp_path):
+        """The cure must not reinstate the false block it replaced: an ordinary
+        command in another checkout still passes."""
+        project = _make_project(tmp_path, "core", ["docs/**"])
+        worktree = tmp_path / "bare-204"
+        (worktree / ".tausik").mkdir(parents=True)
+        result = _bash(project, "touch .tausik/tausik.db", cwd=worktree)
+        assert result.returncode == 0, (
+            f"the cd guard reinstated the false block it was meant to keep fixed: {result.stderr}"
+        )
+
+
+class TestTheDirectoryChangeDetector:
+    """Asked of the token stream, so a word inside a path is not a command."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "cd /tmp && touch x",
+            "(cd /tmp; touch x)",
+            "pushd /tmp && touch x",
+            "env -C /tmp touch x",
+        ],
+        ids=["cd", "subshell", "pushd", "env-C"],
+    )
+    def test_a_real_directory_change_is_seen(self, command):
+        from bash_write_parse import command_changes_directory
+
+        assert command_changes_directory(command)
+
+    @pytest.mark.parametrize(
+        "command",
+        ["cp cd.txt out.txt", "echo 'cd /tmp'", "touch pushd", "env FOO=1 touch x"],
+        ids=["cd-in-a-filename", "cd-in-a-quoted-string", "pushd-as-a-filename", "env-without-C"],
+    )
+    def test_a_mere_mention_is_not_a_directory_change(self, command):
+        """A false positive here costs nothing but a widened search; a false
+        NEGATIVE is the regression. Still, mistaking every `cd` in prose for a
+        move would drag the project root into every judgement and blunt the
+        measurement the base directory exists to make."""
+        from bash_write_parse import command_changes_directory
+
+        assert not command_changes_directory(command)
+
+
 class TestTheQG0GateAgrees:
     """task_gate decides the same jurisdiction question for Write/Edit, and it
     carried the same identification. The two gates must not disagree about what

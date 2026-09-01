@@ -26,7 +26,11 @@ if _HOOKS_DIR not in sys.path:
 # Imported from the scanner module, not from the hook. The hook now imports
 # `shell_channel`, which imports this file — reaching back into it would close
 # that loop into an import cycle.
-from bash_cmd_scan import _mentions_interpreter, _split_subcommands  # noqa: E402
+from bash_cmd_scan import (  # noqa: E402
+    _mentions_interpreter,
+    _split_subcommands,
+    command_changes_directory,  # noqa: F401 — re-exported: gate and tests import it here
+)
 
 # Redirections — which ones write, and which tokens they consume — live in
 # `shell_redirection`, with the measurements that put them there. What used to
@@ -459,4 +463,16 @@ def write_targets(command: str, base_dir: str | None = None) -> list[str]:
     `write_targets_with_confidence` instead.
     """
     targets, _confidence = write_targets_with_confidence(command, base_dir)
+    if base_dir is not None and command_changes_directory(command):
+        # The shell moves before the rest of the command runs, so `base_dir` is
+        # stale and no single root is right. Read BOTH and take the union: for a
+        # containment gate an extra candidate costs a task the write would have
+        # needed anyway, while picking the wrong root loses the write entirely.
+        # Measured: without this, `cd <project> && python helper.py` from
+        # elsewhere turned a block into an allow — worse than the behaviour the
+        # base directory was introduced to fix.
+        fallback, _c = write_targets_with_confidence(command, None)
+        for extra in fallback:
+            if extra not in targets:
+                targets.append(extra)
     return targets

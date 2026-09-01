@@ -182,3 +182,54 @@ def scan_target(command: str, depth: int = 0) -> str:
         else:
             parts.append(" ".join(_PAYLOAD if len(tok.split()) > 1 else tok for tok in sub))
     return " ; ".join(parts)
+
+
+def _tokens_of(command: str) -> list[str] | None:
+    """POSIX tokens, or None when the text will not tokenize."""
+    try:
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+        lexer.whitespace_split = True
+        return list(lexer)
+    except ValueError:
+        return None
+
+
+def _has_chdir_flag(args: list[str]) -> bool:
+    """`env -C DIR` / `env --chdir=DIR` — the only `env` form that moves."""
+    for i, a in enumerate(args):
+        if a in ("-C", "--chdir") and i + 1 < len(args):
+            return True
+        if a.startswith("--chdir="):
+            return True
+    return False
+
+#: Command words that move the shell somewhere else before the next one runs.
+#: `env` only counts with `-C`, which is why it is not a bare membership test.
+_DIR_CHANGERS = frozenset({"cd", "pushd", "popd", "chdir"})
+
+
+def command_changes_directory(command: str) -> bool:
+    """True when this command moves the shell before a later part of it runs.
+
+    The event's `cwd` is where the shell stood BEFORE the command started. For
+    `cd <project> && python helper.py` that directory is already wrong by the
+    time the script is named, and resolving against it turned a block into an
+    allow — measured on the live gate for `&&`, a `( … ; … )` subshell, `pushd`
+    and `env -C` alike.
+
+    Asked of the token stream rather than of the raw text, so a path that merely
+    CONTAINS the word (`cp cd.txt out`, `echo "cd /tmp"`) is not mistaken for a
+    directory change: only a command word counts.
+    """
+    tokens = _tokens_of(command)
+    if tokens is None:
+        return True  # unparseable: assume the worst and let the caller widen
+    for sub in _split_subcommands(tokens):
+        if not sub:
+            continue
+        base = os.path.basename(sub[0]).lower().removesuffix(".exe")
+        if base in _DIR_CHANGERS:
+            return True
+        if base == "env" and _has_chdir_flag(sub[1:]):
+            return True
+    return False
