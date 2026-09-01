@@ -74,6 +74,14 @@ ALLOWED_DORMANT: dict[str, set[str]] = {
         "test_an_internal_fault_is_recorded_as_non_execution_not_as_a_pass",
         "test_an_honest_skip_does_not_block_and_says_which_one",
     },
+    # SPEC bodies live in the project database; the control pins what the LIVE
+    # repository reports, which is what its name says. There is no git-side
+    # answer — the committed registry is a different control in the same file
+    # (`test_the_committed_registry_is_valid_json_with_a_reach_note`) and that
+    # one is not gated and does run in a bare checkout. Added after this test
+    # was found FAILING rather than dormant there
+    # (four-tests-fail-in-a-bare-checkout).
+    "test_spec_completeness.py": {"test_the_live_repository_reports_exactly_the_gap_it_has"},
 }
 
 

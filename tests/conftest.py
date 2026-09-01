@@ -276,6 +276,35 @@ def canonical_schema_db():
     return conn
 
 
+def canonical_schema_db_file(path):
+    """`canonical_schema_db`, but on disk — for a control that needs a DB PATH.
+
+    Same `init_schema` from git, same argument: a gate that resolves
+    `.tausik/tausik.db` and opens it by name cannot be handed an in-memory
+    connection, and handing it the LIVE database makes the control report on the
+    machine it ran on. A checkout without one is exactly where that showed:
+    `gate_state_roundtrip` answers NOT_APPLICABLE / no_database before it ever
+    reaches its detector, so tests that drop that detector to prove the runner
+    records non-execution never reached it either, and went red in a bare
+    checkout (four-tests-fail-in-a-bare-checkout).
+    """
+    import sqlite3
+    import sys
+
+    scripts = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts"))
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+    from backend_init import init_schema
+
+    conn = sqlite3.connect(str(path))
+    try:
+        init_schema(conn)
+        conn.commit()
+    finally:
+        conn.close()
+    return str(path)
+
+
 def projected_task_status(slug: str) -> str | None:
     """A task's status from the git-tracked `tausik/` projection, or None.
 

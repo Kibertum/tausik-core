@@ -9,6 +9,82 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a fresh clone was not green, and one blocking gate was not even on
+
+Run this repository's CI steps in a clean `git worktree` — checkout, then
+`bootstrap.py --no-detect --ide all` — and the suite came back red. Not
+mysteriously: **four causes**, each needing a different answer, and the count of
+failures moved between runs because some test creates the project database as it
+goes, so a database-dependent control passed or failed depending on where the
+random order put it.
+
+**A blocking gate was off for everyone but this machine.** `changelog` is
+declared `severity=block`, and its switch lived in `.tausik/config.json` — which
+`.gitignore` keeps out of every clone. Measured side by side: `gates status`
+said `[ON]` in the working copy and `[OFF]` in a bare checkout. The move to the
+committed `tausik/policy.json` had already happened for `auto_verify` and
+`gates.bootstrap_drift`; this key was left behind, in the very file whose own
+note says a tightening that must survive cloning does not live there.
+
+**Two tests read doctor's summary line instead of their own subject.** Their
+subject is one row — the trust-tier warning — but the last assertion asked the
+global verdict, which any unrelated check flips. With no database, `Project DB —
+not found` is a real FAIL, the verdict switches from `OK with N warning(s)` to
+`N FAIL, M WARN`, and both went red over a finding that was not theirs. They now
+assert what they actually owe: the row is a warning, and doctor's failure count
+equals the failures it printed — so nothing yellow was counted as red behind the
+display.
+
+**Six ratchets could not reach their own detector.** `gate_state_roundtrip`
+answers NOT_APPLICABLE / `no_database` before running, and answers correctly — a
+fresh clone is not at fault for being fresh. But the tests that drop `check_tree`
+to prove the runner records non-execution never got that far. They now build a
+synthetic project with a canonical `init_schema` database, so the control reports
+on the project rather than on the machine it ran on. Proof it now measures: with
+the gate mutated to sign a fault as NOT_APPLICABLE, five of them go red **in the
+bare checkout**, where before they were red for an unrelated reason and could
+have caught nothing.
+
+**One control is genuinely working-copy-only** and now says so. The SPEC-body
+audit pins what the LIVE repository reports; a bare checkout has no SPEC bodies
+to report on. It is rostered in `tests/test_no_silent_db_gated_skips.py` and
+stands down through the shared reason constant — dormant out loud, not silent,
+and not failing.
+
+A bare checkout now runs 7646 passed / 148 skipped / 0 failed.
+
+### Fixed — a redirection could take the place of the file a command actually writes
+
+`bash_write_gate` read the `2` of `cp a b 2>/dev/null` as one of the command's
+own arguments. For `cp`, `mv` and `install`, whose destination is the LAST
+positional, that number then *became* the destination as far as the gate could
+see: it refused writes to a file named `2` and never looked at the real path.
+
+The cause was not the command table but the pattern `^\d*>>?\|?$`, which
+expected the descriptor to arrive glued to the operator. It never does —
+`shlex(punctuation_chars=True)` always splits it off — so the `\d*` was dead
+code written for a tokenization that does not happen, and the orphaned digit
+stayed behind as an argument.
+
+Measured before the fix, not argued: a sweep of 10 writer commands x 15
+redirection forms invented a target in **70 of 150 cells** and lost the real one
+in **30**. The lost half never showed as a bypass only because the phantom digit
+is itself an in-tree path outside the task's scope — the right verdict for the
+wrong reason, reported against a file no command was writing.
+
+Two further forms the defect report did not mention turned up in the same sweep:
+`<` was not treated as a redirection at all, so `cp a b <in` reported the file it
+only READS as written and lost the destination; and arguments standing after a
+redirection (`cp a >log b`) were dropped, because the argument list was truncated
+at the first redirect.
+
+Redirection parsing now lives in `scripts/hooks/shell_redirection.py`. Descriptor
+numbers are removed from the command TEXT before tokenization, since adjacency is
+what bash itself decides on and is exactly what tokenization discards:
+`cp a b 2>out` and `cp a b 2 >out` tokenize identically and mean different
+things. Quoted and escaped text is left alone. All 150 cells are now exact, and
+`cp a 2 >out` — which writes a file genuinely named `2` — still is.
+
 ### Fixed — the ratchets behind published claims did not run where the project is merely checked out
 
 `.tausik/` is gitignored and `bootstrap.py` — CI's only preparation step — does

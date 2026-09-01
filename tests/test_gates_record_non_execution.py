@@ -55,6 +55,31 @@ CASES = [
 ]
 
 
+@pytest.fixture(autouse=True)
+def _project_the_state_gate_can_reach(tmp_path, monkeypatch):
+    """Дать state_roundtrip проект, в котором он ДОХОДИТ до своего детектора.
+
+    Гейт отвечает NOT_APPLICABLE / no_database раньше, чем зовёт `check_tree`, и
+    отвечает верно: свежий клон не виноват, что он свежий. Но тесты ниже ломают
+    ИМЕННО `check_tree`, чтобы доказать, что раннер записывает непрохождение, — а
+    в выгрузке без базы исполнение до него не доходило, и шесть тестов краснели
+    (four-tests-fail-in-a-bare-checkout). В полном прогоне они то падали, то нет:
+    какой-то тест ленты создаёт базу в корне по ходу, так что ответ зависел от
+    ПОРЯДКА — ровно та монета, которую #203 называл хуже выключенного контроля.
+
+    База синтетическая, а не живая, и это отдельная ценность: канонический
+    `init_schema` из git вместо остаточного состояния машины, на которой
+    запущено (тот же довод, что у `canonical_schema_db`).
+    """
+    from conftest import canonical_schema_db_file
+
+    root = tmp_path / "project"
+    (root / ".tausik").mkdir(parents=True)
+    (root / "tausik").mkdir()
+    canonical_schema_db_file(root / ".tausik" / "tausik.db")
+    monkeypatch.setattr(project_config, "find_tausik_dir", lambda *a, **k: str(root / ".tausik"))
+
+
 def _spec(name: str, trigger: str) -> dict:
     for g in project_config.get_gates_for_trigger(trigger, project_config.load_config()):
         if g.get("name") == name:

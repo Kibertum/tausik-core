@@ -15,8 +15,10 @@ mistake ADR-023 threw out, and would mean this task failed rather than passed.
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
+from conftest import DORMANT_WITHOUT_LIVE_DB
 
 import spec_completeness as sc
 from spec_completeness import Finding, audit, check_body, reach
@@ -260,7 +262,20 @@ def test_reach_reports_full_coverage_only_when_all_eleven_types_exist():
 
 # --- The live repository ----------------------------------------------------
 
+#: This control's subject is named in its own test: the LIVE repository. SPEC
+#: bodies live in the project database, which `.gitignore` keeps out of every
+#: clone, so in a bare checkout `audit()` reports an empty world and the pin
+#: below compares against nothing. It used to FAIL there rather than stand down
+#: — measured in a clean `git worktree` (four-tests-fail-in-a-bare-checkout).
+PROJECT_DB = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".tausik", "tausik.db"
+)
 
+
+@pytest.mark.skipif(
+    not os.path.isfile(PROJECT_DB),
+    reason=DORMANT_WITHOUT_LIVE_DB,
+)
 def test_the_live_repository_reports_exactly_the_gap_it_has():
     """Pinned rather than asserted green, because the control's first real
     finding is a real one: `renar-adoption` has no entry naming the enumerable

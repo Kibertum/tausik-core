@@ -210,14 +210,34 @@ def _warn_lines(out: str) -> list[str]:
     from project_cli_doctor import YELLOW
 
     return [
-        ln
-        for ln in out.splitlines()
-        if ln.strip().startswith(YELLOW) and "warning(s)" not in ln
+        ln for ln in out.splitlines() if ln.strip().startswith(YELLOW) and "warning(s)" not in ln
     ]
 
 
 def _reported_warnings(out: str) -> int:
-    found = re.search(r"OK with (\d+) warning\(s\)", out)
+    """The warning count doctor puts in its verdict line, in EITHER form.
+
+    doctor has two spellings — `OK with N warning(s)` and, once anything failed,
+    `N FAIL, M WARN`. Reading only the first made every caller silently depend on
+    nothing else in the environment having failed: in a bare checkout the missing
+    database is a real FAIL, the verdict switches to the second spelling, and
+    this returned 0 against three printed warnings
+    (four-tests-fail-in-a-bare-checkout).
+    """
+    found = re.search(r"OK with (\d+) warning\(s\)", out) or re.search(r"(\d+) WARN", out)
+    return int(found.group(1)) if found else 0
+
+
+def _fail_lines(out: str) -> list[str]:
+    """Every FAIL row, minus the trailing summary line that also carries RED."""
+    from project_cli_doctor import RED
+
+    return [ln for ln in out.splitlines() if ln.strip().startswith(RED) and "fix above" not in ln]
+
+
+def _reported_failures(out: str) -> int:
+    """The failure count doctor puts in its verdict line, in either form."""
+    found = re.search(r"(\d+) FAIL,", out)
     return int(found.group(1)) if found else 0
 
 
@@ -235,7 +255,20 @@ def test_doctor_names_a_weakening_the_user_tier_introduced(tiers):
 
 def test_doctor_calls_it_a_warning_and_not_a_failure(tiers):
     """AC3: a trusted tier is the machine owner's word. doctor owes visibility,
-    not a verdict."""
+    not a verdict.
+
+    The last two assertions used to be a single `"warning(s)" in out` — a read of
+    doctor's SUMMARY line, which any unrelated check can flip. In a bare checkout
+    it did: with no database, `Project DB — not found` is a genuine FAIL, the
+    summary turned into `1 FAIL, 3 WARN`, and this test went red over a finding
+    that is not its subject (four-tests-fail-in-a-bare-checkout).
+
+    What it owes is narrower and does not depend on the environment: this row is
+    carried as a warning, and it contributes NOTHING to the failure verdict.
+    Stated as — the row is yellow, it is not among the failures, and doctor's
+    failure count is exactly the failures it printed, so nothing yellow was
+    counted as red behind the display.
+    """
     from project_cli_doctor import RED, YELLOW
 
     weak = {"task_done": {"auto_verify": True}}
@@ -244,7 +277,9 @@ def test_doctor_calls_it_a_warning_and_not_a_failure(tiers):
     (line,) = _trust_lines(out)
     assert line.strip().startswith(YELLOW)
     assert RED not in line
-    assert "warning(s)" in out
+    failures = _fail_lines(out)
+    assert line not in failures
+    assert _reported_failures(out) == len(failures)
 
 
 def test_the_warning_counter_matches_the_warnings_actually_printed(tiers):
