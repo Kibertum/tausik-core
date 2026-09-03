@@ -40,6 +40,13 @@ from bash_cmd_scan import (  # noqa: E402
 # `cp`/`mv`/`install`, as the destination itself). Openers of a process
 # substitution are not redirections and are handled where the word list is read.
 from shell_redirection import split_redirections, strip_fd_prefixes  # noqa: E402
+
+# Where a relative path may point once the command has moved the shell. Its own
+# module because the answer is a rule about the command text, not about writes:
+# the same question decides a script path here and would decide any other
+# relative operand a future gate reads. See `shell_roots` for the three
+# successive wrong answers that produced it.
+from shell_roots import resolution_roots  # noqa: E402
 from shell_statements import split_statement_breaks  # noqa: E402
 
 _PROC_SUB = ("<(", ">(")
@@ -406,9 +413,31 @@ from write_confidence import (  # noqa: E402,F401 — re-exported
 def write_targets_with_confidence(
     command: str, base_dir: str | None = None
 ) -> tuple[list[str], str]:
-    """`(targets, confidence)` — see the constants above for what to do with it."""
-    cands, confidence = _parse(command, 0, base_dir)
-    return [t for t in cands if _plausible_path(t)], confidence
+    """`(targets, confidence)` — see the constants above for what to do with it.
+
+    The widening for a command that CHANGES DIRECTORY lives here, in the twin,
+    rather than one floor up in `write_targets`. It was added one floor up and
+    that is precisely how the memory-route gate kept the defect after the write
+    gate was fixed: this function is the only entry `memory_pretool_block`
+    calls, so a repair that lands above it repairs one channel and leaves the
+    other reading a script out of a tree the command never enters.
+
+    WHICH directories those are is `shell_roots`' answer, not this module's.
+    Confidence comes from the FIRST root — the directory the shell starts in.
+    The passes differ only in `base_dir`, which reaches nothing but
+    `_script_file_writes`; tokenization sees the same text every time, so a
+    later pass cannot be less certain than the first, and merging its verdict
+    would be a branch no input can take.
+    """
+    roots = resolution_roots(command, base_dir)
+    cands, confidence = _parse(command, 0, roots[0])
+    targets = [t for t in cands if _plausible_path(t)]
+    for root in roots[1:]:
+        extra_cands, _c = _parse(command, 0, root)
+        for extra in extra_cands:
+            if _plausible_path(extra) and extra not in targets:
+                targets.append(extra)
+    return targets, confidence
 
 
 def _parse(command: str, depth: int, base_dir: str | None = None) -> tuple[list[str], str]:
@@ -461,18 +490,10 @@ def write_targets(command: str, base_dir: str | None = None) -> list[str]:
     over-detecting answer, and this signature is what it has always returned.
     A caller that cannot afford a false positive asks
     `write_targets_with_confidence` instead.
+
+    Nothing else lives here. Every rule about WHICH paths a command writes —
+    the change-of-directory union included — belongs to the twin, so the two
+    entry points cannot answer differently about the same command.
     """
     targets, _confidence = write_targets_with_confidence(command, base_dir)
-    if base_dir is not None and command_changes_directory(command):
-        # The shell moves before the rest of the command runs, so `base_dir` is
-        # stale and no single root is right. Read BOTH and take the union: for a
-        # containment gate an extra candidate costs a task the write would have
-        # needed anyway, while picking the wrong root loses the write entirely.
-        # Measured: without this, `cd <project> && python helper.py` from
-        # elsewhere turned a block into an allow — worse than the behaviour the
-        # base directory was introduced to fix.
-        fallback, _c = write_targets_with_confidence(command, None)
-        for extra in fallback:
-            if extra not in targets:
-                targets.append(extra)
     return targets

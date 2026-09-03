@@ -133,7 +133,9 @@ def _fallback_targets(command: str) -> list[str]:
     return out
 
 
-def write_targets_with_confidence(command: str) -> tuple[list[str], str]:
+def write_targets_with_confidence(
+    command: str, base_dir: str | None = None
+) -> tuple[list[str], str]:
     """`(targets, confidence)` — see `write_confidence` for what to do with it.
 
     A command that will not tokenize used to yield an empty list here, which
@@ -141,7 +143,18 @@ def write_targets_with_confidence(command: str) -> tuple[list[str], str]:
     and the worst possible failure shape for a gate. The POSIX parser had
     already learned this and answers with a guess plus a confidence flag; the
     two channels must fail the same way or the weaker one becomes the route.
+
+    `base_dir` is accepted and, today, unused: this parser reads the command
+    text alone and never opens a file, so it has no relative path of its own to
+    resolve. It is in the signature anyway because the alternative was worse —
+    `shell_channel` used to ask `if module is bash_write_parse` before deciding
+    whether to pass it, which is a dialect enumeration inside the module written
+    to abolish dialect enumerations, and no test covered the branch. One
+    signature for every dialect makes the caller uniform and makes a third shell
+    arrive with the argument already in hand; a parser that gains a file to read
+    starts honouring it without anyone editing the dispatcher.
     """
+    del base_dir  # documented above: no path of this parser's own to resolve
     targets, confidence = _parse(command, 0)
     return [t for t in targets if _plausible_path(t)], confidence
 
@@ -171,7 +184,7 @@ def _parse(command: str, depth: int) -> tuple[list[str], str]:
     return out, confidence
 
 
-def write_targets(command: str) -> list[str]:
+def write_targets(command: str, base_dir: str | None = None) -> list[str]:
     """Every path this PowerShell command appears to write. Best-effort.
 
     Descends into wrapper payloads (`powershell -Command "…"`, `cmd /c "…"`,
@@ -181,8 +194,11 @@ def write_targets(command: str) -> list[str]:
     Confidence-blind on purpose, matching the POSIX signature: QG-0 wants the
     over-detecting answer. A caller that cannot afford a false positive asks
     `write_targets_with_confidence` instead.
+
+    `base_dir` is part of the shared dialect signature; see the twin for why it
+    is accepted here rather than branched around by the caller.
     """
-    targets, _confidence = write_targets_with_confidence(command)
+    targets, _confidence = write_targets_with_confidence(command, base_dir)
     return targets
 
 

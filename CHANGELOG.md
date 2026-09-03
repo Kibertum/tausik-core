@@ -9,6 +9,40 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the memory-route gate read a script out of a tree the command never enters
+
+The three fixes below threaded the shell's directory into `write_targets`. Its
+twin `write_targets_with_confidence` did not get the argument, and that twin is
+the only entry the memory-route hook calls — so one gate was repaired and the
+other, judging the same commands with the same parser, was not. The dispatcher
+decided which one got the directory with `if module is bash_write_parse`: a
+dialect enumeration inside the module written to abolish dialect enumerations,
+covered by no test.
+
+The miss is a hybrid rather than a plain gap. The script's CONTENTS came from a
+file the command does not run, while the targets found inside were resolved
+against the shell's directory, so the path judged matches no file on disk.
+Measured on the live hook with the same script name in two checkouts: a write
+into home-scope memory from the second tree passed **ungated**, and in the
+mirror case an innocent command there was **accused of leaking** because the
+main tree's same-named script was read. Six cells, five wrong.
+
+Threading the argument fixes two of those five. The other three are the `cd`
+case, and they are the more interesting failure: the union introduced above
+judges the pre-command directory and the project root, which covers a command
+walking INTO the project and nothing else. With two checkouts open the command
+walks into a THIRD directory that is neither. That union was still a guess about
+a root — the same guess, in its fourth form.
+
+So the guessing stops. `shell_roots` reads the destination `cd`, `pushd`,
+`chdir` and `env -C` name in the command text and returns every directory a
+relative path may resolve against; a destination behind an unexpanded variable
+yields nothing and the project root stays in the list, so an uncomputable move
+widens instead of narrowing. Every dialect now takes the same argument, so the
+dispatcher has nothing left to decide and a third shell cannot arrive without
+it — asserted over the dialect table itself rather than over a list repeated in
+a test. After: six cells of six correct, four mutations, none surviving.
+
 ### Fixed — a command that moves the shell no longer escapes the gate
 
 The two fixes below made the event's `cwd` the single root for a relative path.

@@ -1,7 +1,7 @@
 ---
 slug: memory-route-gate-did-not-get-the-base-directory
 title: "Гейт маршрута памяти не получил базовый каталог: близнец write_targets_with_confidence не протянут"
-status: planning
+status: done
 epic: release-19-renar-conformance
 story: gates-declare-what-they-prevent
 complexity: medium
@@ -11,12 +11,36 @@ tier: null
 call_budget: null
 defect_of: write-gate-resolves-a-script-path-against-the-wrong-directory
 scope: null
-scope_exclude: null
-relevant_files: []
-scope_paths: []
+scope_exclude: "Не трогать: bash_write_gate.py и bash_cmd_scan.py (протяжка туда уже сделана в #205, союз при смене каталога проверен там же); не менять политику стоков памяти и memory_sinks; не расширять _OPEN_RE и не переходить на ast (это отдельная задача write-gate-reads-open-literals-out-of-strings-and-comments); не трогать PowerShell-разбор по существу — только сигнатуру; не править .gitlab-ci.yml и .github/workflows."
+relevant_files:
+  - "scripts/hooks/shell_roots.py"
+  - "scripts/hooks/shell_channel.py"
+  - "scripts/hooks/bash_write_parse.py"
+  - "scripts/hooks/pwsh_write_parse.py"
+  - "scripts/hooks/memory_pretool_block.py"
+  - "tests/test_shell_roots.py"
+  - "tests/test_memory_route_gate_resolves_against_shell_cwd.py"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
+scope_paths:
+  - "scripts/hooks/shell_channel.py"
+  - "scripts/hooks/bash_write_parse.py"
+  - "scripts/hooks/pwsh_write_parse.py"
+  - "scripts/hooks/memory_pretool_block.py"
+  - "scripts/hooks/shell_roots.py"
+  - "tests/test_memory_route_gate_resolves_against_shell_cwd.py"
+  - "tests/test_shell_roots.py"
+  - ".claude/**"
+  - ".cursor/**"
+  - ".kilo/**"
+  - ".kilocode/**"
+  - ".opencode/**"
+  - ".qwen/**"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-03T00:35:53Z"
 ---
 
 ## Goal
@@ -37,6 +61,18 @@ completed_at: null
 
 ## Acceptance Criteria
 
+AC-1. ЗАМЕР ДО ПОЧИНКИ НА ЖИВОМ ХУКЕ, ОБЕ СТОРОНЫ, ПРЕДЪЯВЛЕН КОДАМИ ВОЗВРАТА. Два дерева с одноимённым helper.py: в чужой выгрузке скрипт пишет в защищённый сток памяти домашней области, в проекте одноимённый безобиден. Сторона пропуска: событие с полем cwd, указывающим на чужую выгрузку, запуск скрипта по относительному имени — ДО правки rc=0 (утечка ungated), ПОСЛЕ правки блок. Сторона ложного обвинения: то же событие при безобидном скрипте в чужой выгрузке — ДО правки блок, ПОСЛЕ правки rc=0.
+
+AC-2. ПОКРЫТА КОМАНДА, КОТОРАЯ САМА УХОДИТ В ДРУГОЙ КАТАЛОГ, И ИМЕННО НА КАНАЛЕ ПАМЯТИ. Урок #205 и память #524: проверять не где стоит оболочка, а куда уходит команда. Союз обоих корней при смене каталога обязан действовать для ОБОИХ входов в разбор, а не только для write_targets; тест на memory_pretool_block, а не только на bash_write_gate. Если союз останется этажом выше, memory-канал воспроизведёт регрессию #205 — это проверяется отдельным тестом.
+
+AC-3. ВЕТКА ПО ТОЖДЕСТВУ МОДУЛЯ ИСЧЕЗЛА. В shell_channel нет условия по тождеству конкретного модуля-диалекта; поиск по дереву исходников даёт ноль вхождений. Оба диалекта принимают одну сигнатуру. Есть тест, который перебирает ВСЕ строки таблицы диалектов и проверяет сигнатуру каждой, то есть третий диалект не сможет появиться без базового каталога — правило вместо перечня.
+
+AC-4. ИНВЕНТАРЬ ПОТРЕБИТЕЛЕЙ ПРЕДЪЯВЛЕН И ЗАКРЫТ. Перечислены ВСЕ вызовы write_targets, write_targets_with_confidence и _script_file_writes во всём дереве исходников; для каждого сказано, доходит ли до него базовый каталог. После правки число потребителей, до которых он не доходит, равно нулю, и это показано тем же перечислением.
+
+AC-5. МУТАЦИЯ. Снятие протяжки базового каталога в memory_pretool_block роняет минимум один новый тест; снятие союза при смене каталога роняет минимум один новый тест. Обе мутации прогнаны, красноту предъявить.
+
+AC-6. РЕГРЕССИЙ НЕТ. Полная лента зелёная, mypy чисто, ruff чисто, doctor All clean, гейт размера файла не превышен: ни один файл хуков не перешёл 500 строк.
+
 ## Plan
 
 ## Rollback
@@ -44,3 +80,12 @@ completed_at: null
 git revert коммита задачи.
 
 ## Journal
+
+- 2026-09-03T00:16:32Z [implementation] — Инвентарь ДО оценки, по ВЫЗОВУ и роли довода (памяти #521, #522). Потребители: bash_write_gate.py:126 write_targets(tool,cmd,base_dir) - base_dir доходит; memory_pretool_block.py:151 write_targets_with_confidence(tool,cmd) - НЕ доходит, это предмет; bash_write_parse.py:391 _script_file_writes(sub,base_dir) - доходит; bash_write_parse.py:465 внутренний - доходит; pwsh_write_parse.py:185 внутренний - неприменимо, файлов не открывает. Итого потребителей пять, дефектный один.
+- 2026-09-03T00:18:02Z [implementation] — AC-1/AC-2 ЗАМЕР ДО ПОЧИНКИ, живой хук memory_pretool_block, матрица 4 клетки (два дерева, у каждого свой helper.py, CLAUDE_PROJECT_DIR=A, event.cwd=B). leak-in-B ожидалось 2 получено 0 ПРОПУСК утечки; leak-in-A ожидалось 0 получено 2 ЛОЖНЫЙ БЛОК; cd-leak ожидалось 2 получено 0 ПРОПУСК; cd-clean 0/0 ok. Неверны 3 из 4. ВАЖНО: cd-leak доказывает, что одной протяжки base_dir мало - союз обоих корней при смене каталога живёт в write_targets, а memory-канал зовёт write_targets_with_confidence этажом ниже. Протяжка без переноса союза воспроизвела бы регрессию #205 на канале памяти.
+- 2026-09-03T00:21:22Z [implementation] — После правки матрица 4 клетки: leak-in-B ok, leak-in-A ok, cd-leak ВСЁ ЕЩЁ 0 при ожидаемых 2. Разбор: союз #205 берёт base_dir и КОРЕНЬ ПРОЕКТА, а команда уходит в ТРЕТИЙ каталог - ни один из двух. Союз угадывал корень, а не спрашивал, КУДА уходит команда: та же ошибка, что и два предыдущих раза, только этажом выше. Плюс bash_write_parse.py вырос до 501 при пределе 500. Обе беды лечит вынос: новый модуль shell_roots.py читает НАЗНАЧЕНИЕ cd/pushd/chdir/env -C из текста команды и возвращает список корней. Ход тот же, что python_invocation/shell_redirection/shell_statements: отдельный измеримый модуль, правило вместо перечня. Scope-ACL заблокировал создание файла до расширения объёма - гейт сработал верно.
+- 2026-09-03T00:29:36Z [implementation] — ЗАМЕР ПОСЛЕ ПОЧИНКИ, тот же живой хук, матрица расширена до 6 клеток (добавлены pushd и подоболочка). ДО: 5 неверных из 6 (сняты через git stash на том же скрипте). ПОСЛЕ: 0 из 6. Поправка к собственному замеру: первая версия клетки cd-leak писала путь с ОБРАТНЫМИ слэшами - в Git Bash это не смена каталога вовсе, shlex теряет разделители ровно потому же, почему их теряет сам shell. Замер несуществующей команды. Память #518: мерить там, где различие наблюдаемо. Переписано на прямые слэши. МУТАЦИИ: 4 из 4 убиты (снятие протяжки в memory_pretool_block; снятие протяжки в диспетчере; отключение расширения корней в bash_write_parse; игнор назначения cd в shell_roots). Ни одна не ДОБАВЛЯЕТ проверку - память #503.
+- 2026-09-03T00:31:51Z [implementation] — Объём расширялся дважды по ходу и оба раза его ловил scope-ACL, а не я: сперва новый модуль shell_roots.py и его тест, затем зеркало CHANGELOG.ru.md. Это ровно память #521 в действии - объявленный объём был догадкой до того, как работа показала настоящий состав. Гейт отработал как задумано: блок, подсказка с готовой командой, расширение. Итог мест: 4 правки в существующих модулях, 1 новый модуль, 2 новых теста, 2 зеркала CHANGELOG. Сложность medium подтверждена ЧИСЛОМ МЕСТ (память #523), а не размером правки.
+- 2026-09-03T00:35:37Z [implementation] — AC-6. Полная лента 8364 passed / 25 skipped / 0 failed (было 8333/25/0 - прибавка 31 новый тест). ruff чисто, ruff format чисто по МОИМ файлам (70 файлов дерева не отформатированы - состояние ДО меня, память #493). mypy чисто через собственный тест ленты test_mypy_clean. Гейт размера: bash_write_parse.py 499 из 500 - вынос shell_roots.py вернул его под предел, он был 501 после первой правки. ЛОВУШКА ЗАМЕРА: первый прогон ленты вернул exit code 0, но лента НЕ ЗАПУСКАЛАСЬ - pytest отверг флаг --timeout (плагина нет), а обёртка отчиталась нулём. Второй дефект того же класса, что весь этот релиз: код возврата сказал 'прошло' там, где было 'не смогло выполниться'.
+- 2026-09-03T00:35:52Z [implementation] — Root cause (regression): расширяя сигнатуру write_targets базовым каталогом, инвентарь снимался по вызовам join(project_dir, но НЕ по ПОТРЕБИТЕЛЯМ расширяемой функции; близнец write_targets_with_confidence остался без довода, а он единственный вход гейта маршрута памяти, и решал это диспетчер условием по тождеству модуля - перечислением диалектов внутри модуля против перечисления диалектов, не покрытым тестом. Prevention: расширяя сигнатуру, инвентарь снимай по ПОТРЕБИТЕЛЯМ этой функции, а не только по месту дефекта; различие между близнецами убирай единой сигнатурой и тестом ПЕРЕБОРОМ таблицы производителя, чтобы новый элемент нельзя было добавить без довода.
+- 2026-09-03T00:36:12Z [done] — AC-1: ✓ tests/test_memory_route_gate_resolves_against_shell_cwd.py::test_leak_from_a_second_checkout_is_not_missed AC-1: ✓ tests/test_memory_route_gate_resolves_against_shell_cwd.py::test_an_innocent_command_in_a_second_checkout_is_not_accused AC-2: ✓ tests/test_memory_route_gate_resolves_against_shell_cwd.py::test_a_command_that_walks_into_a_third_directory_is_judged_there AC-2: ✓ tests/test_memory_route_gate_resolves_against_shell_cwd.py::test_walking_elsewhere_does_not_manufacture_a_leak AC-3: ✓ tests/test_memory_route_gate_resolves_against_shell_cwd.py::test_every_dialect_takes_the_base_directory AC-3: ✓ tests/test_memory_route_gate_resolves_against_shell_cwd.py::test_the_dispatcher_hands_the_base_directory_to_a_dialect_it_has_never_seen AC-4: ✓ tests/test_shell_roots.py (девять тестов правила корней) плюс перечень потребителей в журнале задачи: пять вызовов, дефектных ноль после правки AC-5: ✓ мутационный прогон, 4 мутации, выживших 0 (протяжка в memory_pretool_block; протяжка в диспетчере; расширение корней в bash_write_parse; чтение назначения cd в shell_roots) AC-6: ✓ полная лента 8364 passed / 25 skipped / 0 failed; verification_run #1973 exit=0; test_mypy_clean зелёный; ruff PASS; filesize PASS (bash_write_parse.py 499/500) Domain: предмет проверен НЕ только тестами. Живой хук memory_pretool_block запускался подпроцессом на двух настоящих деревьях с настоящими файлами helper.py и настоящим стоком памяти домашней области: 6 клеток, ДО правки 5 неверных, ПОСЛЕ 0. Базовая линия ДО снята через git stash на том же скрипте, а не по памяти. Обе стороны ошибки наблюдаемы порознь: пропуск утечки (rc 0 там, где нужен 2) и ложное обвинение (rc 2 там, где нужен 0).

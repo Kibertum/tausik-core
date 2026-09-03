@@ -109,23 +109,30 @@ def write_targets(tool_name: str, command: str, base_dir: str | None = None) -> 
     returning nothing would reproduce the hole this module exists to close.
     """
     module = _DIALECTS.get(tool_name, bash_write_parse)
-    # `base_dir` is the directory a RELATIVE path in this command resolves
-    # against. Only the POSIX dialect needs it, because only it opens a script
-    # the command names in order to read the writes inside; the PowerShell
-    # parser reads the command text alone and has no path to resolve. Passing it
-    # to a dialect that cannot use it would claim a coverage that is not there.
-    if module is bash_write_parse:
-        return module.write_targets(command, base_dir)
-    return module.write_targets(command)
+    return module.write_targets(command, base_dir)
 
 
-def write_targets_with_confidence(tool_name: str, command: str) -> tuple[list[str], str]:
+def write_targets_with_confidence(
+    tool_name: str, command: str, base_dir: str | None = None
+) -> tuple[list[str], str]:
     """`(targets, confidence)` in the dialect `tool_name` speaks.
 
     See `write_confidence`. Both dialects report in the same vocabulary, so a
     consumer that fails closed on uncertainty behaves identically on either
     channel — which is the property that stops the weaker one from becoming the
     route around the guard.
+
+    `base_dir` is the directory a RELATIVE path in this command resolves
+    against, and it belongs to BOTH entry points for the reason this module
+    exists. It reached only `write_targets` at first, guarded by an
+    `if module is bash_write_parse` — a dialect enumeration, uncovered by any
+    test, inside the module written to abolish dialect enumerations. The list
+    and the world drifted apart in one release: the memory-route gate is the
+    only production caller of this twin, so it went on resolving a script path
+    against the project directory while its sibling gate had stopped, and a
+    leak into home-scope memory from a second checkout passed ungated. Every
+    dialect now takes the same argument, so a third shell cannot arrive without
+    it and the dispatcher has nothing left to decide.
     """
     module = _DIALECTS.get(tool_name, bash_write_parse)
-    return module.write_targets_with_confidence(command)
+    return module.write_targets_with_confidence(command, base_dir)

@@ -148,7 +148,18 @@ def _targets(event: dict, project_dir: str) -> list[str]:
         return []
     from write_confidence import CONFIDENCE_REGEX_FALLBACK  # noqa: PLC0415
 
-    raw_targets, confidence = shell_channel.write_targets_with_confidence(str(tool), command)
+    # The base directory is needed BEFORE the parse, not after it. The parser
+    # opens a script the command names, and that name is relative to the SHELL's
+    # cwd; resolving it afterwards fixes only the targets the command spelled
+    # out and leaves the ones read out of a file resolved against the project.
+    # That hybrid is what this hook shipped: contents read from a file the
+    # command does not run, targets resolved against the shell — an answer
+    # matching no file on disk, missing a real leak in one direction and
+    # inventing one in the other.
+    base_dir = shell_cwd(event, project_dir)
+    raw_targets, confidence = shell_channel.write_targets_with_confidence(
+        str(tool), command, base_dir
+    )
     if confidence == CONFIDENCE_REGEX_FALLBACK:
         if raw_targets:
             from _common import emit_supervision_degradation  # noqa: PLC0415
@@ -167,13 +178,14 @@ def _targets(event: dict, project_dir: str) -> list[str]:
             )
         return []
 
-    base_dir = shell_cwd(event, project_dir)
     out: list[str] = []
     for raw in raw_targets:
-        # A shell redirect is relative to the SHELL's cwd, which the event
-        # carries. Same resolution bash_write_gate applies, so the two agree on
-        # what a target is — including when the agent is working in a second
-        # checkout, where the project dir is the wrong answer.
+        # Same `base_dir` the parse was given, so one directory answers for both
+        # halves of the reading. A shell redirect is relative to the SHELL's
+        # cwd, which the event carries — the same resolution bash_write_gate
+        # applies, so the two gates agree on what a target is, including when
+        # the agent is working in a second checkout where the project dir is
+        # the wrong answer.
         expanded = os.path.expanduser(raw)
         cand = expanded if os.path.isabs(expanded) else os.path.join(base_dir, expanded)
         if cand not in out:
