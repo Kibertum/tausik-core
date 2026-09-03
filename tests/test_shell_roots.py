@@ -100,3 +100,21 @@ def test_roots_are_unique():
     """The starting directory and the destination can name the same place."""
     roots = shell_roots.resolution_roots("cd /work/main && python helper.py", "/work/main")
     assert len(roots) == len(set(roots))
+
+
+def test_end_of_options_is_honoured_in_a_destination():
+    """`cd -- -weird-dir` names a directory, not a flag.
+
+    Review #7. Filtering operands with `startswith("-")` dropped the real
+    destination, so the widening this module exists for silently lost the root
+    it was supposed to add. `bash_write_parse._positionals` already reads `--`
+    this way; not doing so here was an inconsistency inside one package.
+    """
+    assert shell_roots.destinations("cd -- -weird-dir && python helper.py") == ["-weird-dir"]
+    roots = shell_roots.resolution_roots("cd -- -weird-dir && python helper.py", "/work/main")
+    assert os.path.join("/work/main", "-weird-dir") in roots
+
+
+def test_a_flag_before_the_separator_is_still_a_flag():
+    """The narrowing must not swing the other way: `-P` is not a directory."""
+    assert shell_roots.destinations("cd -P /tmp/build && make") == ["/tmp/build"]

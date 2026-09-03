@@ -72,6 +72,13 @@ _WRAPPED = [
     "sudo python h.py",
     "nohup python h.py",
     "sudo env -C /tmp python h.py",
+    # Review #7. `-S` does NOT carry data: GNU env splits its value into a
+    # command line and appends the argv that follows. Treating it as an ordinary
+    # value flag dropped the real program and turned a block into an allow — the
+    # regression this very file failed to catch, now measured here.
+    "env -S python h.py",
+    "env --split-string=python h.py",
+    "sudo env -S python h.py",
 ]
 
 
@@ -82,7 +89,7 @@ def test_the_interpreter_is_found_behind_every_measured_wrapper(form):
 
 def test_the_matrix_has_not_quietly_shrunk():
     """A matrix nobody counts stops being a measurement."""
-    assert len(_WRAPPED) == 19
+    assert len(_WRAPPED) == 22
 
 
 @pytest.mark.parametrize(
@@ -175,6 +182,15 @@ class TestTheLiveGateSeesThroughTheWrapper:
             "timeout -s KILL 10 python helper.py",
             "stdbuf -o 0 python helper.py",
             "ionice -c 2 -n 7 python helper.py",
+            # Review #7: `env -S` runs a real writer. Asserted through the LIVE
+            # gate and not only the pure function, because the pure-function
+            # matrix is exactly what missed this — it asked "is the interpreter
+            # found" of forms carrying an interpreter, and `-S` can carry any
+            # writer at all.
+            "env -S python helper.py",
+            "env --split-string=python helper.py",
+            "env -S tee secret.txt",
+            "sudo env -S tee secret.txt",
         ],
     )
     def test_a_write_outside_the_acl_is_refused_behind_a_flagged_wrapper(self, tmp_path, form):

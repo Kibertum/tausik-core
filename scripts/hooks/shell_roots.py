@@ -86,6 +86,25 @@ def _chdir_value(args: list[str]) -> str | None:
     return None
 
 
+def _first_operand(args: list[str]) -> str | None:
+    """The first non-flag argument, honouring `--` as end-of-options.
+
+    `cd -- -weird-dir` is how a directory whose name begins with a dash is
+    named, and reading `-weird-dir` as a flag drops the real destination — the
+    widening this module exists for then silently loses the root it was supposed
+    to add. `bash_write_parse._positionals` already reads `--` this way; not
+    doing so here was an inconsistency inside one package, found by review #7.
+    """
+    seen_end = False
+    for a in args:
+        if not seen_end and a == "--":
+            seen_end = True
+            continue
+        if seen_end or not a.startswith("-"):
+            return a
+    return None
+
+
 def destinations(command: str) -> list[str]:
     """Directories this command names as somewhere to move the shell to.
 
@@ -107,8 +126,7 @@ def destinations(command: str) -> list[str]:
         base = os.path.basename(sub[0]).lower().removesuffix(".exe")
         value: str | None = None
         if base in _POSITIONAL_CHANGERS:
-            operands = [a for a in sub[1:] if not a.startswith("-")]
-            value = operands[0] if operands else None
+            value = _first_operand(sub[1:])
         elif base == "env" and _has_chdir_flag(sub[1:]):
             value = _chdir_value(sub[1:])
         if not value or value == "-":

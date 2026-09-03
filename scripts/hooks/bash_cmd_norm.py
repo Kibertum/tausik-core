@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 
 # Shells whose `-c` argument is a whole command line, not a filename. The
 # redirection inside it lives in ONE quoted token, so every detector above sees
@@ -66,7 +67,7 @@ _MAX_WRAPPER_DEPTH = 3
 # restated, so a wrapper cannot be added without its flags being considered.
 # The long `--opt=value` spelling needs no entry: it is a single token.
 _WRAPPER_VALUE_FLAGS: dict[str, frozenset[str]] = {
-    "env": frozenset({"-u", "--unset", "-C", "--chdir", "-S", "--split-string"}),
+    "env": frozenset({"-u", "--unset", "-C", "--chdir"}),
     "sudo": frozenset(
         {
             "-u",
@@ -101,11 +102,66 @@ _WRAPPER_VALUE_FLAGS: dict[str, frozenset[str]] = {
     "exec": frozenset(),
 }
 
+#: Flags whose value is not DATA but a COMMAND LINE. `env -S "tee out"` splits
+#: its value into words, runs the first as the program, and appends every later
+#: argv token as its arguments — so the value cannot be skipped over, it has to
+#: be parsed.
+#:
+#: Kept apart from `_WRAPPER_VALUE_FLAGS` because putting `-S` in there was a
+#: REGRESSION, found by review #7 in the same session that wrote it: consuming
+#: the value as opaque dropped the real command from the stream, and
+#: `env -S tee secret.txt` went from blocked (exit 2) to allowed (exit 0) while
+#: a real GNU `env` writes the file. That is a blocking gate made WEAKER by a
+#: commit whose purpose was making it stronger — memory #524, twice now.
+#:
+#: The distinction is the fix, not the exclusion: a flag either carries data,
+#: and is skipped, or carries a command, and is descended into. Anything that
+#: names a program belongs here.
+_WRAPPER_COMMAND_FLAGS: dict[str, frozenset[str]] = {
+    "env": frozenset({"-S", "--split-string"}),
+}
+
 _TRANSPARENT_PREFIXES = frozenset(_WRAPPER_VALUE_FLAGS)
 
 # `FOO=1` / `PATH_X=/a/b` — an environment assignment `env` accepts before the
 # command. Anchored at the token start so a filename containing '=' is not one.
 _ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+
+
+def _carried_command(
+    tok: str, sub: list[str], i: int, command_flags: frozenset[str]
+) -> list[str] | None:
+    """The command line a `-S`-style flag carries, plus the argv after it.
+
+    `env -S "tee out"` and `env --split-string="tee out"` both mean: split the
+    value into words, run the first as the program, and append everything that
+    follows on the real command line. Returns None when `tok` is not such a
+    flag, so the caller's ordinary flag handling continues.
+
+    An unsplittable value (unbalanced quoting) yields None rather than raising:
+    the caller then treats the flag as it always did, which leaves the gate no
+    weaker than before rather than crashing a hook that runs on every command.
+    """
+    if not command_flags:
+        return None
+    value: str | None = None
+    rest_at = i + 1
+    if tok in command_flags and i + 1 < len(sub):
+        value = sub[i + 1]
+        rest_at = i + 2
+    else:
+        name, sep, attached = tok.partition("=")
+        if sep and name in command_flags:
+            value = attached
+    if value is None:
+        return None
+    try:
+        words = shlex.split(value)
+    except ValueError:
+        return None
+    if not words:
+        return None
+    return words + sub[rest_at:]
 
 
 def _strip_prefixes(sub: list[str]) -> list[str]:
@@ -128,9 +184,27 @@ def _strip_prefixes(sub: list[str]) -> list[str]:
     command and blind the gate where it currently sees, so `env -i python h.py`
     is asserted alongside the forms this fixes.
 
+    And a flag whose value IS a command line (`_WRAPPER_COMMAND_FLAGS`) is
+    neither skipped nor eaten — it is split and re-entered. Skipping it was a
+    regression: `env -S "tee out"` really runs `tee`, and consuming its value as
+    opaque dropped the writer from the stream, turning a block into an allow.
+
     Returns `sub` unchanged when nothing was stripped, so the common case costs
     one set lookup.
     """
+    return _strip(sub, 0)
+
+
+def _strip(sub: list[str], depth: int) -> list[str]:
+    """`_strip_prefixes` with the recursion bound for `-S`-style flags.
+
+    `env -S "env -S …"` is legal and nests; the bound is the same one every
+    other wrapper descent in this package uses, and running out of it leaves
+    the tokens as they are rather than raising — a hook that throws on a command
+    is an outage, not a guard.
+    """
+    if depth > _MAX_WRAPPER_DEPTH:
+        return sub
     i = 0
     stripped = False
     while i < len(sub):
@@ -139,11 +213,18 @@ def _strip_prefixes(sub: list[str]) -> list[str]:
             break
         takes_number = base in ("timeout", "nice", "ionice")
         value_flags = _WRAPPER_VALUE_FLAGS[base]
+        command_flags = _WRAPPER_COMMAND_FLAGS.get(base, frozenset())
         i += 1
         stripped = True
         while i < len(sub):
             tok = sub[i]
             if tok.startswith("-") or _ASSIGNMENT_RE.match(tok):
+                # A flag carrying a COMMAND LINE: split it and keep looking for
+                # the real program inside, with the wrapper's remaining argv
+                # appended exactly as `env -S` appends it.
+                carried = _carried_command(tok, sub, i, command_flags)
+                if carried is not None:
+                    return _strip(carried, depth + 1)
                 i += 1
                 # `--opt=value` carries its value in the same token; `-o0` is an
                 # attached short value. Only the detached spelling eats another.

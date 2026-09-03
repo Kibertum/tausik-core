@@ -85,6 +85,34 @@ because a check that could not run must never read as a check that passed —
 the defect this release keeps finding, and one it would be perverse to add here.
 The deadline is well inside the push ticket's sixty-second life.
 
+### Fixed — `env -S` carries a command, not a value, and consuming it opened a bypass
+
+A regression in the entry below, found by review in the same session that wrote
+it. `-S` / `--split-string` was added to the wrapper table alongside `-u` and
+`-C` as though its value were inert. It is not: GNU `env -S "tee out"` splits
+the value into a command line, runs the first word as the program, and appends
+the argv that follows. Consuming the value as opaque dropped the real program,
+so `env -S tee secret.txt` went from **exit 2 to exit 0** — a blocking gate made
+weaker by the commit meant to strengthen it, reaching both the scope ACL and the
+memory-route gate through their shared parser. Verified against a real GNU
+`env`, which does write the file, and against the pre-commit parser, which
+blocked it.
+
+The repair is the distinction rather than the exclusion: a flag either carries
+DATA, and is skipped, or carries a COMMAND, and is split and re-entered
+(bounded, and fail-soft on a value that will not split). Removing `-S` from the
+table would have left it working only by accident.
+
+Why the 19-form matrix missed it: every cell asked "is the interpreter found"
+of a form that carried an interpreter, and `-S` can carry any writer at all. The
+matrix is now 22 forms, and the `-S` cells are asserted through the live gate
+rather than the parsing function alone.
+
+Also from that review: `shell_roots.destinations` did not honour `--`, so
+`cd -- -weird-dir` lost a real destination — the widening losing the very root
+it exists to add. It now reads `--` the way `bash_write_parse._positionals`
+already did.
+
 ### Fixed — a wrapper's own flag was mistaken for the command it wraps
 
 Review #6 filed this as "the `env` wrapper is not unwrapped at all". Measuring
