@@ -104,3 +104,41 @@ def cmd_push_ok(_svc_unused: Any, args: Any) -> None:
     short = sha[:8]
     branch_str = branch if branch and branch != "HEAD" else "(detached)"
     print(f"push ticket written: {path.name} (commit {short}, branch {branch_str}, ttl {ttl}s)")
+    _report_published_lane()
+
+
+def _report_published_lane() -> None:
+    """Say what the published verification lane last concluded. Never blocks.
+
+    This is the chokepoint of publishing, and the only command in the toolchain
+    that already stands before every push and already needs the network. It is
+    here because a red lane went unread for nine days while the work it was
+    supposed to verify was being published over it — a gate whose redness nobody
+    reads is a gate that is off.
+
+    It REPORTS. Whether to publish anyway is the owner's decision, and a refusal
+    at this point would be argued with once and disabled thereafter. What it
+    must never do is stay quiet: "could not check" is printed as such, with the
+    reason, because reading silence as health is the failure this whole release
+    keeps finding.
+
+    Best-effort to the last: any unexpected error degrades to one honest line
+    rather than costing a push ticket that lives sixty seconds.
+    """
+    try:
+        import ci_lane_status  # noqa: PLC0415 — a network-touching import, only on this path
+
+        remotes = _git(["remote", "-v"]) or ""
+        state, message = ci_lane_status.report(remotes)
+    except Exception as exc:  # noqa: BLE001 — reporting must not break the ticket
+        print(f"  CI: not checked ({type(exc).__name__}) — read the lane yourself before pushing")
+        return
+    prefix = {
+        "pass": "  CI: ",
+        "fail": "  CI: !! ",
+        "running": "  CI: .. ",
+        "unknown": "  CI: ?  ",
+    }.get(state, "  CI: ?  ")
+    print(prefix + message)
+    if state == "fail":
+        print("      pushing over a red lane is your call — it is no longer an unread one")

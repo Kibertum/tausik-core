@@ -9,6 +9,51 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — five tests called `bash` by bare name, and on `windows-latest` that is a WSL launcher
+
+The release verification lane went red on 2026-08-25 across all three
+`windows-latest` jobs and **stayed red for nine days**, while ubuntu, macos,
+lint and the full lane were green throughout. The cause is in the log rather
+than inferred: `subprocess.run(["bash", "./probe.sh"])` resolved to
+`System32\bash.exe`, the WSL launcher, which with no distribution installed
+exits 1 and prints its complaint in UTF-16. Nothing was wrong with the product.
+The tests were wrong about which program the name `bash` denotes.
+
+The name is no longer trusted. A candidate is PROBED — asked to run a real
+script file from a real working directory, the exact shape the callers use — and
+the first that answers correctly wins; a host with none skips honestly instead
+of going red about someone else's tooling. The launcher fails that probe by
+construction, so nothing has to recognise it by name or by the text of its
+error. Git Bash is tried first, which settles the case where a WSL distribution
+IS installed and both shells work.
+
+Worth recording: this developer's machine cannot reproduce the CI condition —
+WSL here has a distribution, so the launcher passes the probe and only the
+ordering decides. The stub is therefore BUILT in the test rather than described,
+and the probe and the ordering are each tested for the thing they actually do.
+
+A ratchet replaces the repair of five tests: an AST scan forbids any test from
+passing a shadowable interpreter name as `argv[0]`, with a baseline that may
+only shrink. It immediately found a sixth call the preceding inventory had
+missed — a `cmd` invocation — because that inventory searched for the name it
+expected instead of the class it was after.
+
+### Added — `push-ok` says what the published lane last concluded
+
+A gate whose redness nobody reads is indistinguishable from a gate that is
+switched off, and nine days of red proved it about attention rather than about
+code. The verdict now appears at the chokepoint of publishing: `push-ok` is the
+one command that already stands before every push and already needs the
+network, which `doctor` — run offline and in clean clones — does not.
+
+It reports; it does not block. Publishing over a red lane stays the owner's
+call, and a refusal here would be argued with once and disabled thereafter.
+What it will not do is stay quiet: no `gh`, no network, no GitHub remote, a
+timeout or a malformed answer each prints as "not checked" **with the reason**,
+because a check that could not run must never read as a check that passed —
+the defect this release keeps finding, and one it would be perverse to add here.
+The deadline is well inside the push ticket's sixty-second life.
+
 ### Fixed — a wrapper's own flag was mistaken for the command it wraps
 
 Review #6 filed this as "the `env` wrapper is not unwrapped at all". Measuring

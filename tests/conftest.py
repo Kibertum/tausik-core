@@ -396,3 +396,108 @@ def pytest_sessionfinish(session, exitstatus):
     """
     if session.exitstatus == 0 and _hang_guard_breach(session.config) is not None:
         session.exitstatus = 1
+
+
+# --------------------------------------------------------------------------
+# Finding a bash that can actually RUN a script.
+#
+# `subprocess.run(["bash", "./probe.sh"])` reads as "use bash". On
+# `windows-latest` the first `bash` on PATH is `System32\bash.exe`, the WSL
+# launcher — and with no distribution installed it exits 1 and prints, in
+# UTF-16, that there are no distributions. Three Windows lanes went red on
+# 2026-08-25 for that reason and stayed red for nine days while ubuntu, macos,
+# lint and the full lane were all green. The tests were not wrong about the
+# product; they were wrong about which program the name `bash` denotes.
+#
+# So the name is not trusted: each candidate is PROBED by running a real script
+# file from a real working directory — the exact shape the callers use — and the
+# first one that produces the expected output wins. The WSL launcher fails that
+# probe by construction, which is why nothing here has to recognise it by name
+# or by the text of its error message. A host with no usable bash yields None
+# and the caller SKIPS, rather than going red about someone else's tooling.
+# --------------------------------------------------------------------------
+
+_BASH_PROBE_TOKEN = "tausik-posix-bash-ok"
+
+
+def _bash_candidates():
+    """Every plausible bash, Git's own first on Windows.
+
+    Git Bash leads because these tests were written against it and because a
+    WSL launcher WITH a distribution installed would pass the probe while
+    running in a different filesystem namespace. Ordering states the preference;
+    the probe still decides.
+    """
+    import shutil
+
+    seen: list[str] = []
+
+    def add(path):
+        if path and path not in seen and os.path.exists(path):
+            seen.append(path)
+
+    git = shutil.which("git")
+    if git:
+        git_root = os.path.dirname(os.path.dirname(os.path.abspath(git)))
+        for rel in (("bin", "bash.exe"), ("usr", "bin", "bash.exe"), ("bin", "bash")):
+            add(os.path.join(git_root, *rel))
+
+    for entry in (os.environ.get("PATH") or "").split(os.pathsep):
+        if not entry:
+            continue
+        for name in ("bash.exe", "bash"):
+            add(os.path.join(entry, name))
+    return seen
+
+
+def _bash_runs_a_script(candidate):
+    """True when `candidate` executes a script file named relatively."""
+    import subprocess
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as work:
+        probe = os.path.join(work, "_bash_probe.sh")
+        with open(probe, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write("printf '%s' " + _BASH_PROBE_TOKEN + "\n")
+        try:
+            out = subprocess.run(
+                [candidate, "./_bash_probe.sh"],
+                cwd=work,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=30,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return False
+    return out.returncode == 0 and out.stdout.strip() == _BASH_PROBE_TOKEN
+
+
+_POSIX_BASH_CACHE: list = []
+
+
+def posix_bash():
+    """A bash that runs script files, or None when the host has none.
+
+    Cached: the probe spawns a process, and it is asked once per test.
+    """
+    if not _POSIX_BASH_CACHE:
+        found = None
+        for candidate in _bash_candidates():
+            if _bash_runs_a_script(candidate):
+                found = candidate
+                break
+        _POSIX_BASH_CACHE.append(found)
+    return _POSIX_BASH_CACHE[0]
+
+
+def require_posix_bash():
+    """`posix_bash()`, or skip the test with a reason naming what was tried."""
+    found = posix_bash()
+    if found is None:
+        pytest.skip(
+            "no bash on this host runs a script file "
+            "(tried: " + ", ".join(_bash_candidates() or ["<none on PATH>"]) + ")"
+        )
+    return found

@@ -28,6 +28,7 @@ sys.path.insert(0, os.path.join(_REPO, "scripts"))
 sys.path.insert(0, os.path.join(_REPO, "bootstrap"))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from conftest import require_posix_bash  # noqa: E402
 from consumer_layout import build_consumer_project  # noqa: E402
 
 
@@ -267,7 +268,7 @@ def _find_engine_file(project_root: str, rel: str) -> str:
             fh.write(script)
         try:
             out = subprocess.run(
-                ["bash", "./_find_engine_file_probe.sh"],
+                [require_posix_bash(), "./_find_engine_file_probe.sh"],
                 cwd=project_root,
                 capture_output=True,
                 text=True,
@@ -380,7 +381,7 @@ def _run_gate_prologue(project_root: str) -> tuple[int, str]:
             fh.write(prologue)
         try:
             out = subprocess.run(
-                ["bash", "./_gate_prologue_probe.sh"],
+                [require_posix_bash(), "./_gate_prologue_probe.sh"],
                 cwd=project_root,
                 capture_output=True,
                 text=True,
