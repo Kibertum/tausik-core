@@ -1,7 +1,7 @@
 ---
 slug: three-preexisting-write-gate-gaps-from-review-6
-title: "Три предсуществующих пробоя гейта записи из ревью #6: обёртка env, тильда в пути скрипта, непокрытая ветка диалекта"
-status: planning
+title: "Обёртка прячет команду за собственным флагом со значением: 8 из 19 замеренных форм слепы; и тильда не разворачивается в 2 из 5 мест резолва"
+status: done
 epic: release-19-renar-conformance
 story: gates-declare-what-they-prevent
 complexity: medium
@@ -11,12 +11,32 @@ tier: null
 call_budget: null
 defect_of: null
 scope: null
-scope_exclude: null
-relevant_files: []
-scope_paths: []
+scope_exclude: "Не трогать: shell_channel.py и memory_pretool_block.py (закрыты предыдущей задачей); не менять состав _TRANSPARENT_PREFIXES без замера - предмет в разборе флагов, а не в списке имён; не переходить на ast; не трогать pwsh-разбор; не править CI-конфиги."
+relevant_files:
+  - "scripts/hooks/bash_cmd_norm.py"
+  - "scripts/hooks/bash_write_parse.py"
+  - "scripts/hooks/shell_roots.py"
+  - "scripts/hooks/python_source_writes.py"
+  - "tests/test_wrapper_flags_hide_the_wrapped_command.py"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
+scope_paths:
+  - "scripts/hooks/bash_cmd_norm.py"
+  - "scripts/hooks/bash_write_parse.py"
+  - "scripts/hooks/shell_roots.py"
+  - "scripts/hooks/python_source_writes.py"
+  - "tests/test_wrapper_flags_hide_the_wrapped_command.py"
+  - ".claude/**"
+  - ".cursor/**"
+  - ".kilo/**"
+  - ".kilocode/**"
+  - ".opencode/**"
+  - ".qwen/**"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-03T01:21:15Z"
 ---
 
 ## Goal
@@ -33,6 +53,22 @@ completed_at: null
 
 ## Acceptance Criteria
 
+AC-0. ПРЕДМЕТ СОКРАЩЁН ЧЕСТНО. Третье замечание ревью #6 (непокрытая ветка по тождеству диалекта в shell_channel) закрыто задачей memory-route-gate-did-not-get-the-base-directory, коммит 9c658ed: ветка удалена, сигнатура единая, покрытие есть тестом ПЕРЕБОРОМ таблицы диалектов. Предъявить фактом: поиск даёт ноль вхождений условия, тест существует.
+
+AC-1. МАТРИЦА ЗАМЕРЕНА ДО ПОЧИНКИ, ЧИСЛО ВЗЯТО ИЗ НЕЁ. Замер сделан: 19 форм запуска интерпретатора через обёртку, СЛЕПЫХ 8. Механизм оказался НЕ тем, что назван в описании задачи: _strip_prefixes применяется (строка 325), но пропускает флаг обёртки, НЕ СЪЕДАЯ ЕГО ЗНАЧЕНИЕ, поэтому значение флага принимается за обёрнутую команду. Слепы: env -C ЗНАЧЕНИЕ, env -u ЗНАЧЕНИЕ, timeout -s ЗНАЧЕНИЕ, timeout --signal ЗНАЧЕНИЕ, ionice -c -n, stdbuf -o ЗНАЧЕНИЕ, sudo -u ЗНАЧЕНИЕ, и вложение sudo env -C. Форма nice -n 5 проходит СЛУЧАЙНО. Матрица прилагается таблицей и после починки слепых ноль.
+
+AC-2. ЛЕЧЕНИЕ - ПРАВИЛО, А НЕ ВТОРОЙ СПИСОК. Разбор флагов со значением живёт в ОДНОМ месте рядом с _TRANSPARENT_PREFIXES, у того же производителя. Второго списка имён обёрток в репозитории не появляется, и это показано поиском. Правка достаётся обоим потребителям _strip_prefixes (гейт записи и сканер опасных команд) - потребители перечислены ПО ВЫЗОВУ.
+
+AC-3. ТИЛЬДА РАЗВОРАЧИВАЕТСЯ. Замер: из 5 мест резолва пришедшего извне пути 3 разворачивают тильду и 2 НЕТ - bash_write_parse.py:123 (путь скрипта, предсуществующий) и shell_roots.py:143 (назначение cd, внесено МНОЮ в коммите 9c658ed часом ранее). Обе починены, после починки таких мест ноль, показано перечислением ПО ВЫЗОВУ.
+
+AC-4. ЗАМЕР НА ЖИВОМ ХУКЕ, ОБЕ СТОРОНЫ. Для починенных форм: до правки rc=0 (пропуск записи вне объёма), после - блок; и контрольная безобидная команда той же формы проходит и до, и после, иначе починка есть новый ложный блок.
+
+AC-5. МУТАЦИИ. Снятие поедания значения флага и снятие каждого expanduser роняют минимум по одному тесту. Ни одна мутация не ДОБАВЛЯЕТ проверку (память #503). Красноту предъявить.
+
+AC-6. РЕГРЕССИЙ НЕТ. Полная лента зелёная (счёт прочитан СТРОКОЙ passed/failed, не кодом возврата - память #529), mypy чисто, ruff чисто, doctor All clean, ни один файл хуков не перешёл 500 строк.
+
+AC-7. БЕЗОПАСНОСТЬ: ПОВЕРХНОСТЬ УГРОЗЫ НАЗВАНА И ЗАКРЫТА В ОБЕ СТОРОНЫ. Предмет есть ОБХОД НАДЗОРА: слепая клетка позволяет записать файл вне объявленного объёма задачи и вне проекта, поставив перед интерпретатором обёртку с флагом-значением (sudo -u bob python h.py), причём БЕЗ следа - гейт возвращает 0, а не отмечает деградацию. Требуется: (а) ни одна из 19 форм не даёт тихого пропуска после починки; (б) расширение разбора НЕ создаёт нового ложного блока - контрольные безобидные формы проверены; (в) форма, которую разбор не может прочесть, ведёт себя как и прежде fail-soft, а не роняет хук - хук стоит на КАЖДОЙ команде агента, и исключение в нём есть отказ инструмента, а не защита; (г) поедание значения флага не должно СЪЕДАТЬ саму команду, если флаг значения не требует - иначе гейт ослепнет там, где сейчас видит, и это проверено отдельными клетками матрицы.
+
 ## Plan
 
 ## Rollback
@@ -40,3 +76,7 @@ completed_at: null
 git revert коммита задачи.
 
 ## Journal
+
+- 2026-09-03T01:15:22Z [implementation] — Root cause (edge-case): _strip_prefixes снимал обёртку и ПРОПУСКАЛ её флаги, но не съедал ЗНАЧЕНИЕ флага, поэтому значение принималось за обёрнутую команду и интерпретатор не находился. Диагноз в описании задачи ("обёртка env не разворачивается вовсе") оказался НЕВЕРЕН: разворачивание работает, дыра в разборе аргументов. Prevention: замер матрицей ДО починки, а не проверка примера из описания; и симметричная клетка на переедание, потому что съесть лишний токен - тот же способ ослепнуть. AC-0: ✓ третье замечание закрыто коммитом 9c658ed; поиск даёт ноль вхождений условия по тождеству модуля; покрытие есть tests/test_memory_route_gate_resolves_against_shell_cwd.py::test_every_dialect_takes_the_base_directory AC-1: ✓ tests/test_wrapper_flags_hide_the_wrapped_command.py::test_the_interpreter_is_found_behind_every_measured_wrapper (19 форм; ДО 8 слепых, ПОСЛЕ 0) AC-1: ✓ tests/test_wrapper_flags_hide_the_wrapped_command.py::test_the_matrix_has_not_quietly_shrunk AC-2: ✓ _TRANSPARENT_PREFIXES выведен из ключей _WRAPPER_VALUE_FLAGS; потребители по вызову: bash_write_parse.py:332 и bash_cmd_norm.py:186,232 - оба получают правку. bash_cmd_scan._INTERPRETERS не вторая копия: отвечает на другой вопрос (кто ИСПОЛНЯЕТ аргументы), и это записано в коде до меня. AC-3: ✓ tests/test_wrapper_flags_hide_the_wrapped_command.py::TestTildeIsExpanded::test_a_script_named_with_a_tilde_is_read AC-3: ✓ tests/test_wrapper_flags_hide_the_wrapped_command.py::TestTildeIsExpanded::test_a_tilde_destination_becomes_a_real_root AC-4: ✓ tests/test_wrapper_flags_hide_the_wrapped_command.py::TestTheLiveGateSeesThroughTheWrapper::test_a_write_outside_the_acl_is_refused_behind_a_flagged_wrapper (5 форм, живой хук bash_write_gate, rc=2) AC-4: ✓ tests/test_wrapper_flags_hide_the_wrapped_command.py::TestTheLiveGateSeesThroughTheWrapper::test_a_write_inside_the_acl_is_still_allowed (контроль на ложный блок, rc=0) AC-5: ✓ мутаций 4, выживших 0: снятие поедания значения (13 упавших), переедание значения (8 упавших), тильда в bash_write_parse (1), тильда в shell_roots (1) AC-6: ✓ полная лента 8400 passed / 25 skipped / 0 failed (счёт прочитан СТРОКОЙ); verification_run #1975 exit=0; ruff PASS; mypy чисто через pre-commit на 353 файлах и test_mypy_clean AC-7: ✓ поверхность угрозы - тихий обход надзора: (а) 19/19 форм видны, тихого пропуска нет; (б) контрольные безобидные формы проходят, нового ложного блока нет; (в) fail-soft сохранён - обёртка без команды не роняет хук (test_a_flag_that_takes_no_value_does_not_eat_the_command, клетки 'sudo' и 'env -u' дают None, а не исключение); (г) переедание проверено отдельной мутацией и отдельными клетками матрицы Domain: предмет проверен НЕ только разбором. Пять форм прогнаны через ЖИВОЙ хук bash_write_gate подпроцессом, с настоящей БД задачи, настоящим scope_paths и настоящим helper.py на диске: запись вне ACL получает rc=2, запись внутри ACL - rc=0. Остаток назван вслух: xargs исполняет аргументы, но прозрачной обёрткой не считается, потому что его операнды приходят со стандартного ввода.
+- 2026-09-03T01:21:12Z [implementation] — ГЕЙТ РАЗМЕРА СВАЛИЛ task done: bash_write_parse.py 506 при пределе 500 - ровно та ловушка, о которой предупреждала передача смены, и я в неё всё же попал, дописав комментарий про тильду. Вынос сделан ПО ШВУ, а не по строкам: новый модуль python_source_writes отвечает на вопрос 'какие пути ЭТОТ ПИТОНОВСКИЙ ИСХОДНИК открывает на запись' - обе подложки сразу (инлайн в команде и файл скрипта), тогда как в bash_write_parse остаётся чтение ОБОЛОЧЕЧНОЙ командной строки. Размеры после: bash_write_parse 431, python_source_writes 104, bash_cmd_norm 257. Публичная поверхность сохранена: _OPEN_RE, _script_file_writes и _MAX_SCRIPT_BYTES реэкспортированы под прежними именами - существующий тест читает _MAX_SCRIPT_BYTES у bash_write_parse и остался зелёным без правки. Мутации перепрогнаны ПОСЛЕ выноса: 4 из 4 убиты (якорь тильды переехал в новый модуль вместе с кодом). Полная лента после выноса 8400 passed / 25 skipped / 0 failed, verification_run #1977 exit=0.
+- 2026-09-03T01:21:40Z [done] — Нумерация: критериев восемь, помечены AC-0..AC-7, поэтому счётчик читает последний как AC-8. Дублирую его в ожидаемой форме. AC-8: ✓ tests/test_wrapper_flags_hide_the_wrapped_command.py::TestTheLiveGateSeesThroughTheWrapper::test_a_write_outside_the_acl_is_refused_behind_a_flagged_wrapper (это же AC-7, поверхность угрозы: тихий обход надзора закрыт на всех пяти формах живым хуком) Negative: негативный сценарий проверен ЯВНО и в обе стороны, а не подразумевается. Negative 1 - обход надзора ДО починки: команда sudo -u bob python helper.py, где helper.py пишет secret.txt вне scope_paths задачи, получала от живого гейта rc=0. Это тихий пропуск: ни блока, ни записи о деградации. После починки rc=2 на всех пяти формах. Negative 2 - ЛОЖНЫЙ БЛОК как цена починки: та же обёрнутая форма, но запись ВНУТРИ ACL, обязана давать rc=0 и даёт (test_a_write_inside_the_acl_is_still_allowed). Без этой клетки починка засчиталась бы, превратив пропуск в отказ инструмента. Negative 3 - ПЕРЕЕДАНИЕ как симметричная слепота: мутация, заставляющая съедать значение у любого флага, роняет 8 тестов. То есть клетки env -i, sudo -n, stdbuf -o0 и --chdir=/tmp реально различают правильное поведение от переедания, а не проходят заодно. Negative 4 - обёртка БЕЗ команды не роняет хук: формы sudo и env -u дают пустой результат, а не исключение. Хук стоит на каждой команде агента, и падение в нём есть отказ инструмента, а не защита.

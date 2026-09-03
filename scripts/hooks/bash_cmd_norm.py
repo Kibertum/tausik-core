@@ -50,9 +50,58 @@ _MAX_WRAPPER_DEPTH = 3
 # Closing this also reaches `sudo tee f`, which the residual boundary named as
 # an uncaught "writer behind a wrapper". That is the intended consequence: the
 # writer was never hidden by `tee`, only by what stood in front of it.
-_TRANSPARENT_PREFIXES = frozenset(
-    {"env", "sudo", "doas", "nohup", "nice", "ionice", "stdbuf", "timeout", "command", "exec"}
-)
+# Each wrapper maps to the options that take a SEPARATE value — the token after
+# the flag belongs to the wrapper, not to the command being wrapped.
+#
+# Skipping the flag but not its value is how the wrapper went on hiding the
+# command after the prefixes were being stripped: `sudo -u bob python h.py`
+# stripped `sudo` and `-u`, then stopped at `bob`, called that the command, and
+# never saw the interpreter. Measured over 19 wrapper forms: 8 blind, and
+# `nice -n 5 python` was passing only because `5` happened to look like
+# `timeout`'s duration. Every blind cell was a flag with a value.
+#
+# ONE table, keyed by the same names, at the same producer. A second list of
+# wrapper names anywhere else would be the enumeration this layer exists to
+# avoid — `_TRANSPARENT_PREFIXES` is derived from these keys rather than
+# restated, so a wrapper cannot be added without its flags being considered.
+# The long `--opt=value` spelling needs no entry: it is a single token.
+_WRAPPER_VALUE_FLAGS: dict[str, frozenset[str]] = {
+    "env": frozenset({"-u", "--unset", "-C", "--chdir", "-S", "--split-string"}),
+    "sudo": frozenset(
+        {
+            "-u",
+            "--user",
+            "-g",
+            "--group",
+            "-p",
+            "--prompt",
+            "-C",
+            "--close-from",
+            "-D",
+            "--chdir",
+            "-h",
+            "--host",
+            "-r",
+            "--role",
+            "-t",
+            "--type",
+            "-U",
+            "--other-user",
+            "-R",
+            "--chroot",
+        }
+    ),
+    "doas": frozenset({"-u", "-C"}),
+    "timeout": frozenset({"-s", "--signal", "-k", "--kill-after"}),
+    "nice": frozenset({"-n", "--adjustment"}),
+    "ionice": frozenset({"-c", "--class", "-n", "--classdata", "-p", "--pid", "-u", "--uid"}),
+    "stdbuf": frozenset({"-i", "--input", "-o", "--output", "-e", "--error"}),
+    "nohup": frozenset(),
+    "command": frozenset(),
+    "exec": frozenset(),
+}
+
+_TRANSPARENT_PREFIXES = frozenset(_WRAPPER_VALUE_FLAGS)
 
 # `FOO=1` / `PATH_X=/a/b` — an environment assignment `env` accepts before the
 # command. Anchored at the token start so a filename containing '=' is not one.
@@ -62,10 +111,22 @@ _ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 def _strip_prefixes(sub: list[str]) -> list[str]:
     """`sub` with leading run-another-command wrappers removed.
 
-    Drops the prefix, its flags, its `VAR=value` assignments (`env FOO=1 bash`),
-    and — for `timeout` / `nice` / `ionice` — the one bare numeric argument they
-    take before the real command. A bare non-numeric token ends the scan: that
-    is the command being wrapped.
+    Drops the prefix, its flags, THE VALUES ITS FLAGS TAKE, its `VAR=value`
+    assignments (`env FOO=1 bash`), and — for `timeout` / `nice` / `ionice` —
+    the one bare numeric argument they take before the real command. A bare
+    non-numeric token ends the scan: that is the command being wrapped.
+
+    The flag VALUE is the part that was missing, and it is the whole defect:
+    `sudo -u bob python h.py` dropped `sudo` and `-u`, then read `bob` as the
+    command and never reached the interpreter. Eight of nineteen measured
+    wrapper forms were blind that way, and every one of them was a flag with a
+    value. Which options take one is `_WRAPPER_VALUE_FLAGS`' answer, per
+    wrapper, because there is no way to tell from the token alone.
+
+    A flag NOT in that set consumes only itself. That direction matters as much
+    as the other: eating an argument the wrapper does not take would swallow the
+    command and blind the gate where it currently sees, so `env -i python h.py`
+    is asserted alongside the forms this fixes.
 
     Returns `sub` unchanged when nothing was stripped, so the common case costs
     one set lookup.
@@ -77,12 +138,17 @@ def _strip_prefixes(sub: list[str]) -> list[str]:
         if base not in _TRANSPARENT_PREFIXES:
             break
         takes_number = base in ("timeout", "nice", "ionice")
+        value_flags = _WRAPPER_VALUE_FLAGS[base]
         i += 1
         stripped = True
         while i < len(sub):
             tok = sub[i]
             if tok.startswith("-") or _ASSIGNMENT_RE.match(tok):
                 i += 1
+                # `--opt=value` carries its value in the same token; `-o0` is an
+                # attached short value. Only the detached spelling eats another.
+                if tok in value_flags and i < len(sub):
+                    i += 1
                 continue
             if takes_number and _is_duration(tok):
                 i += 1

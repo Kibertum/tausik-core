@@ -140,6 +140,12 @@ def resolution_roots(command: str, base_dir: str | None = None) -> list[str]:
     if not command_changes_directory(command):
         return roots
     for dest in destinations(command):
+        # `cd ~/other` is an ordinary way to name the other checkout, and
+        # without this the tilde is joined to `start` as a literal directory
+        # name — a root no filesystem has, which reads as a destination FOUND
+        # and quietly replaces the real one. Same omission, same commit, as the
+        # script-path site in `bash_write_parse`.
+        dest = os.path.expanduser(dest)
         cand = dest if os.path.isabs(dest) else os.path.join(start, dest)
         if cand not in roots:
             roots.append(cand)

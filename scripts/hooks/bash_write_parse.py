@@ -51,84 +51,16 @@ from shell_statements import split_statement_breaks  # noqa: E402
 
 _PROC_SUB = ("<(", ">(")
 
-# Best-effort catch for a literal open(path, 'w'|'a'|'x') inside an interpreter
-# payload. A computed path (variable, concatenation) is the documented residual.
-#
-# It reads TEXT, not code, and that costs in the other direction too: a literal
-# sitting in a string, a docstring or a comment is reported as a write nothing
-# performs. Measured twice in #203, once on this very module's test harness.
-# Open as `write-gate-reads-open-literals-out-of-strings-and-comments`.
-_OPEN_RE = re.compile(
-    r"""open\(\s*['"]([^'"]+)['"]\s*,\s*['"][^'"]*[wax]""",
-    re.IGNORECASE,
-)
-
-# A Python script the command RUNS, as opposed to code it carries inline.
-#
-# `python -c "open('x','w')"` was caught because the code sits in the command
-# text; `python helper.py` writing the exact same path was not, because the code
-# sits on disk and this parser only ever read the command. The documented
-# residual named the wrong cut — "a computed path, not a literal open()" — when
-# the real one was INLINE versus IN A FILE, and running a script from a file is
-# the ordinary way to run code, not obfuscation. Measured live in session #200:
-# `cp x .claude/...` was refused with the ACL printed, and `python helper.py`
-# writing that same path returned zero and made the edit.
-#
-# Python only, and that is a competence boundary rather than a preference:
-# _OPEN_RE reads Python. A shell script's redirections and a Node script's
-# fs.writeFileSync are the same defect on substrates this expression cannot
-# read, and they stay in the residual (see docs/ru/enforcement-coverage.md).
-#
-# Which names mean "the Python interpreter", and which argument is the script,
-# is a unit of its own — extracted to `python_invocation` for the filesize gate
-# the way `bash_cmd_norm` and `write_confidence` already were. Re-exported under
-# the private names this module has always used, so callers keep their names.
+# Reading PYTHON for its literal writes -- inline in the command text and
+# inside a script file the command names -- is its own module: that half
+# reads Python, everything here reads a shell command line, and the
+# filesize gate made the seam worth taking. Re-exported under the private
+# names this module has always used, so callers keep their names.
 from python_invocation import SCRIPT_SUFFIXES as _SCRIPT_SUFFIXES  # noqa: E402,F401
 from python_invocation import is_python as _is_python  # noqa: E402
-from python_invocation import python_script as _python_script  # noqa: E402
-
-_MAX_SCRIPT_BYTES = 256 * 1024
-
-
-def _script_file_writes(sub: list[str], base_dir: str | None = None) -> list[str]:
-    """Literal write targets found inside the script file `sub` runs.
-
-    Recognises `python [options] script.py [args]` — an interpreter named by
-    `python_invocation.is_python` in command position, the script as the first
-    positional. Narrow on purpose: _OPEN_RE reads Python, so claiming to read a
-    script means claiming to read a PYTHON script, and every widening past that
-    is a chance to name a file the command never writes.
-
-    FAIL-SOFT BY DESIGN: an absent, unreadable or oversized file yields nothing
-    rather than raising or guessing. This runs in a PreToolUse hook on every
-    Bash command, and the cost of being wrong is asymmetric — a miss leaves the
-    gate exactly where it already stood, while a false block on an everyday
-    command stops the work, and a gate that stops the work is one an agent
-    learns to switch off.
-    """
-    if not sub:
-        return []
-    base = os.path.basename(sub[0]).lower().removesuffix(".exe")
-    if not _is_python(base):
-        return []
-    script = _python_script(sub[1:])
-    if script is None:
-        return []
-    # The script path comes from the COMMAND, so it is relative to the shell's
-    # cwd — the caller passes it. Falling back to the project dir keeps the old
-    # behaviour when no caller supplied one. This was the FOURTH site of that
-    # identification, missed by an inventory that grepped for the variable
-    # names the other three happened to use.
-    root = base_dir or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
-    path = script if os.path.isabs(script) else os.path.join(root, script)
-    try:
-        if os.path.getsize(path) > _MAX_SCRIPT_BYTES:
-            return []
-        with open(path, encoding="utf-8", errors="replace") as fh:
-            body = fh.read()
-    except OSError:
-        return []
-    return list(_OPEN_RE.findall(body))
+from python_source_writes import MAX_SCRIPT_BYTES as _MAX_SCRIPT_BYTES  # noqa: E402,F401
+from python_source_writes import OPEN_RE as _OPEN_RE  # noqa: E402
+from python_source_writes import writes_in_script_file as _script_file_writes  # noqa: E402
 
 
 # Opening marker of a heredoc. Group 1 = the `-` of `<<-` (tab-stripping form)

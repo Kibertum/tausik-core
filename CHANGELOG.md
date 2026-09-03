@@ -9,6 +9,47 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a wrapper's own flag was mistaken for the command it wraps
+
+Review #6 filed this as "the `env` wrapper is not unwrapped at all". Measuring
+first said otherwise, and the real mechanism is narrower and worse.
+`_strip_prefixes` does run, and does drop `env`, `sudo`, `timeout` and friends —
+it just never consumed the VALUE those wrappers' flags take. `sudo -u bob python
+helper.py` dropped `sudo`, skipped `-u`, stopped at `bob`, called that the
+command, and never reached the interpreter. Nineteen wrapper forms measured,
+**8 blind**, and every blind cell was a flag with a separate value.
+`nice -n 5 python helper.py` was passing by accident: `5` was being eaten as
+`timeout`'s duration, not as `-n`'s argument.
+
+What that buys an agent is a silent write outside the declared scope — the gate
+returns 0 and records no degradation, so the bypass leaves no trace to count.
+
+The repair extends the table that already exists rather than adding one beside
+it: `_TRANSPARENT_PREFIXES` is now derived from the keys of a map from wrapper
+to the flags that take a value, so a wrapper cannot be added without its flags
+being considered. (`bash_cmd_scan._INTERPRETERS` overlaps in membership but is
+not a second copy — it answers which programs EXECUTE their arguments, and this
+file already records why borrowing it would be wrong.)
+
+Both directions are asserted, because over-consuming is the symmetric way to go
+blind: eating a token a wrapper does not take would swallow the command itself,
+so `env -i`, `stdbuf -o0` and `--chdir=/tmp` sit in the same matrix as the forms
+being repaired, and a mutation that eats one token too many fails on them. After:
+19 of 19 seen, 4 mutations, none surviving. **Residual, stated rather than
+quietly fixed:** `xargs` executes its arguments but is not treated as a
+transparent prefix, because its operands come from stdin and pretending
+otherwise would misread the command.
+
+### Fixed — `~` in a script or destination path was joined as a literal directory
+
+Of the five sites that resolve an externally supplied path, three expanded `~`
+and two did not, so `python ~/helper.py` produced a path nothing has, the
+fail-soft read it as "this script writes nothing", and the script was invisible
+to the gate while the same file named absolutely was seen. The second site is
+the `cd` destination in `shell_roots`, introduced by the entry below one commit
+earlier — the same omission, found by taking the inventory by call site instead
+of trusting that the new code was new enough to be right.
+
 ### Fixed — the memory-route gate read a script out of a tree the command never enters
 
 The three fixes below threaded the shell's directory into `write_targets`. Its
