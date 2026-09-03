@@ -494,8 +494,9 @@ class TestScriptFileParserBoundaries:
         assert P._script_file_writes(["python", str(small)]) == ["harness/x.py"]
 
     def test_a_non_python_interpreter_is_not_claimed_to_be_read(self, tmp_path, monkeypatch):
-        """_OPEN_RE reads Python. A parser that cannot read a substrate must not
-        report on it — the shell and Node cases stay in the declared residual."""
+        """`python_source_writes` reads Python. A parser that cannot read a
+        substrate must not report on it — the shell and Node cases stay in the
+        declared residual."""
         import bash_write_parse as P
 
         js = tmp_path / "w.js"

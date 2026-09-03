@@ -9,6 +9,37 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the write gate read a literal `open()` out of a comment and blocked on it
+
+The detector behind the Bash write gate matched the TEXT of a Python source,
+so a literal `open(path, "w")` inside a string, a docstring or a comment was
+reported as a write the command never performs. Found in #203 when the gate
+refused its own measurement harness; measured in #207 over the repository's
+878 Python files: the text reading named a target in **six files, and all six
+were phantoms** — there is not one executed literal write with a constant path
+in the tree, and the gate was blocking on the six that are quoted or commented
+out. A false block is the costlier direction: it stops the work, and an agent
+that is stopped by a phantom learns to distrust the refusal.
+
+Python source is now PARSED (`ast`), and only a real `open(...)` call node with
+a literal path and a literal write mode counts. The table is one of FORMS, not
+examples: bare `open` and attribute `io.open`/`codecs.open`; positional and
+`mode=` mode; positional and `file=` path; raw strings and implicit
+concatenation; modes `w`/`a`/`x` and `+` (the text reading missed `r+`);
+inside `def`/`with`/`class`/an argument. The `-c` payload is read by the same
+parser, and ONLY the code is read: the arguments after it are the program's
+`argv`, so `python -m pytest -k "open('x','w')"` no longer names a file the
+command does not write. Glued (`-cCODE`), clustered (`-uc`) and
+after-a-valued-option (`-W ignore -c`) spellings are all read.
+
+What remains of the phantom is confined and declared, not silent: a source the
+parser cannot read (a syntax error, a NUL byte, nesting past the limit) falls
+back to the old text reading rather than to nothing, and command text around a
+NON-Python interpreter (`ruby -e`, `xargs python -c`) is still read as text.
+Measured cost: 1.9 ms per file over the repository, 10 ms on its largest test
+module. Six mutations of the detector, each killed by a named test.
+Task `write-gate-reads-open-literals-out-of-strings-and-comments`.
+
 ### Fixed — the PowerShell channel did not read the script a command runs
 
 Session #201 closed this on Bash and put PowerShell in that task's

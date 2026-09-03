@@ -23,6 +23,7 @@ and they stay in the residual (see `docs/ru/enforcement-coverage.md`).
 
 from __future__ import annotations
 
+import ast
 import os
 import re
 import sys
@@ -32,28 +33,142 @@ if _HOOKS_DIR not in sys.path:
     sys.path.insert(0, _HOOKS_DIR)
 
 from python_invocation import is_python as _is_python  # noqa: E402
+from python_invocation import python_inline_code as _python_inline_code  # noqa: E402
 from python_invocation import python_script as _python_script  # noqa: E402
 
-#: Best-effort catch for a literal `open(path, 'w'|'a'|'x')`. A computed path
-#: (variable, concatenation) is the documented residual.
+#: The TEXT reading of a literal `open(path, 'w'|'a'|'x')`. It does not know a
+#: string from a call, so a literal sitting in a docstring or a comment is
+#: reported as a write nothing performs. Measured in #207 over this repository's
+#: own 878 Python files: it named a target in six, and all six were phantoms —
+#: the last of them the example that used to sit in this very comment.
 #:
-#: It reads TEXT, not code, and that costs in the other direction too: a literal
-#: sitting in a string, a docstring or a comment is reported as a write nothing
-#: performs. Measured twice in #203, once on the write parser's own test
-#: harness. Open as `write-gate-reads-open-literals-out-of-strings-and-comments`.
+#: It is kept for two readers that have nothing better. `writes_in_source`
+#: falls back to it when the source does not parse, because a source this
+#: parser cannot read might still run under another interpreter, and reporting
+#: nothing there would turn "could not check" into "checked and clean". And
+#: `writes_in_text` reads command text for interpreters that are NOT Python
+#: (a Ruby `File.open("x", "w")`), where an approximation is the only reading
+#: on offer and over-detecting is the declared direction.
 OPEN_RE = re.compile(
     r"""open\(\s*['"]([^'"]+)['"]\s*,\s*['"][^'"]*[wax]""",
     re.IGNORECASE,
 )
 
 #: A script larger than this is not read. A PreToolUse hook pays this cost on
-#: every Bash command, and no ordinary helper is this size.
+#: every Bash command, and no ordinary helper is this size. Parsing sits under
+#: the same cap: measured at 1.9 ms per file over the repository, 10 ms for its
+#: largest test module — so a file at the cap costs tens of milliseconds, once.
 MAX_SCRIPT_BYTES = 256 * 1024
+
+#: A mode string containing any of these opens the file for WRITING. `+` is
+#: here on purpose: `r+` is an update mode and the text reading missed it.
+_WRITE_MODE_CHARS = frozenset("wax+")
+
+
+def _constant_str(node: ast.expr | None) -> str | None:
+    """The value of a string (or bytes) literal node, else None.
+
+    A raw string, an implicit concatenation (`"a" "b"`) and a parenthesised
+    literal all arrive as one `Constant` — the parser has already done what the
+    text reading could not. An f-string, a name, a concatenation with `+` are
+    NOT constants, and a path built from them is the declared residual.
+    """
+    if not isinstance(node, ast.Constant):
+        return None
+    if isinstance(node.value, str):
+        return node.value
+    if isinstance(node.value, bytes):
+        return node.value.decode("utf-8", errors="replace")
+    return None
+
+
+def _open_call_target(call: ast.Call) -> str | None:
+    """The literal path an `open(...)` CALL writes, else None.
+
+    FORMS, not examples (the distinction this project keeps paying for):
+    the callee is the bare name `open` or any attribute spelt `open`
+    (`io.open`, `codecs.open`, `builtins.open`); the path is the first
+    positional or the keyword `file=`; the mode is the second positional or
+    the keyword `mode=`. A missing mode is a read. A mode that is not a
+    literal is unknown, and unknown is not reported — the same silence the
+    text reading kept, chosen here on purpose rather than inherited.
+    `os.open` takes integer flags, never a mode string, so it is never a hit;
+    `Path(...).open("w")` carries no path argument, so neither is that.
+    """
+    func = call.func
+    if isinstance(func, ast.Name):
+        name = func.id
+    elif isinstance(func, ast.Attribute):
+        name = func.attr
+    else:
+        return None
+    if name != "open":
+        return None
+    path = _constant_str(call.args[0]) if call.args else None
+    mode = _constant_str(call.args[1]) if len(call.args) > 1 else None
+    for kw in call.keywords:
+        if kw.arg == "file":
+            path = _constant_str(kw.value)
+        elif kw.arg == "mode":
+            mode = _constant_str(kw.value)
+    if not path or not mode or not (_WRITE_MODE_CHARS & set(mode)):
+        return None
+    return path
+
+
+def writes_in_text(text: str) -> list[str]:
+    """The TEXT reading — see `OPEN_RE` for the two callers that still need it."""
+    return list(OPEN_RE.findall(text))
 
 
 def writes_in_source(text: str) -> list[str]:
-    """Literal write targets in a piece of Python source text."""
-    return list(OPEN_RE.findall(text))
+    """Literal write targets in a piece of Python source.
+
+    Reads CODE, not text: the source is parsed and only real `open(...)` call
+    nodes are consulted, so a literal inside a string, a docstring, a comment
+    or a commented-out line is not a target by construction — there is no such
+    node. The gate used to refuse this module's own test harness on the
+    strength of a comment; a comment is never executed, under any condition.
+
+    A source the parser cannot read (a syntax error, a NUL byte, nesting past
+    the recursion limit) degrades to the text reading, NOT to silence. Such a
+    file executes nothing under this interpreter, but it may well run under a
+    newer one whose grammar this parser lacks, and "could not check" must
+    never be reported as "checked and clean". The phantom that the text
+    reading can produce is therefore confined to sources this parser does not
+    read, and named here rather than discovered by whoever it stops.
+    """
+    try:
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError, RecursionError, MemoryError):
+        return writes_in_text(text)
+    out: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            target = _open_call_target(node)
+            if target is not None:
+                out.append(target)
+    return out
+
+
+def writes_in_inline_code(sub: list[str]) -> list[str]:
+    """Literal write targets in the `-c CODE` the command `sub` hands Python.
+
+    The code, and ONLY the code. Everything after it on the line is the
+    program's `sys.argv` — data the interpreter never executes — and reading
+    the whole line as source is what made `python -m pytest -k "open('x','w')"`
+    name a file the command does not write. `python_invocation` says which
+    token is the code; this module says what the code writes.
+    """
+    if not sub:
+        return []
+    base = os.path.basename(sub[0]).lower().removesuffix(".exe")
+    if not _is_python(base):
+        return []
+    code = _python_inline_code(sub[1:])
+    if code is None:
+        return []
+    return writes_in_source(code)
 
 
 def writes_in_script_file(sub: list[str], base_dir: str | None = None) -> list[str]:

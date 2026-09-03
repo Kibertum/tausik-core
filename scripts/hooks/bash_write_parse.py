@@ -59,8 +59,9 @@ _PROC_SUB = ("<(", ">(")
 from python_invocation import SCRIPT_SUFFIXES as _SCRIPT_SUFFIXES  # noqa: E402,F401
 from python_invocation import is_python as _is_python  # noqa: E402
 from python_source_writes import MAX_SCRIPT_BYTES as _MAX_SCRIPT_BYTES  # noqa: E402,F401
-from python_source_writes import OPEN_RE as _OPEN_RE  # noqa: E402
+from python_source_writes import writes_in_inline_code as _inline_code_writes  # noqa: E402
 from python_source_writes import writes_in_script_file as _script_file_writes  # noqa: E402
+from python_source_writes import writes_in_text as _text_writes  # noqa: E402
 
 
 # Opening marker of a heredoc. Group 1 = the `-` of `<<-` (tab-stripping form)
@@ -312,10 +313,19 @@ def _writers_in(sub: list[str], base_dir: str | None = None) -> list[str]:
         v = _opt_value(head, "-d", None)
         if v is not None:
             targets.append(v)
-    # 2) interpreter payload: a literal open(path, 'w'/'a'/'x') — inline in the
-    # command text, and (see _script_file_writes) inside a script file it runs.
+    # 2) interpreter payload: a literal open(path, 'w'/'a'/'x') — in the `-c`
+    # code, and (see _script_file_writes) inside a script file it runs.
     #
-    # Both arms answer to THIS module's idea of a Python interpreter, not to the
+    # Two rows, by WHO is in command position. Python: both substrates are
+    # read as CODE by `python_source_writes`, and nothing else on the line is
+    # read at all — the tokens after the code or the script are its `argv`,
+    # data the interpreter never executes, and reading them as source is what
+    # let `python -m pytest -k "open('x','w')"` name a file it does not write.
+    # Any other interpreter, in any position (`ruby -e`, `xargs python -c`):
+    # the TEXT reading, the only one on offer for a substrate this module
+    # cannot parse, over-detecting by declaration.
+    #
+    # Both rows answer to THIS module's idea of a Python interpreter, not to the
     # dangerous-command scanner's `_INTERPRETERS`. Borrowing that set is what
     # made `py` and `python2` dead branches: the constant here claimed a
     # coverage the CALLER did not permit, so the names were listed, believed and
@@ -323,11 +333,11 @@ def _writers_in(sub: list[str], base_dir: str | None = None) -> list[str]:
     # added later. `_INTERPRETERS` answers a different question (which programs
     # execute their arguments) for a different gate, and widening it to fix this
     # one would change what that gate scans.
-    is_python = _is_python(base)
-    if _mentions_interpreter(sub) or is_python:
-        targets += _OPEN_RE.findall(" ".join(sub))
-    if is_python:
+    if _is_python(base):
+        targets += _inline_code_writes(sub)
         targets += _script_file_writes(sub, base_dir)
+    elif _mentions_interpreter(sub):
+        targets += _text_writes(" ".join(sub))
     return targets
 
 

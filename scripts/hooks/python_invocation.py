@@ -57,6 +57,46 @@ def is_python(base: str) -> bool:
     return bool(_PYTHON_NAME_RE.match(base))
 
 
+def _walk_options(args: list[str]) -> tuple[int, str | None, str]:
+    """Where the interpreter's own options end: `(index, stop, glued)`.
+
+    `stop` is the letter that ended the walk — `c` or `m`, the options after
+    which the rest of the line belongs to inline code or to a module — or None
+    when the walk reached the first positional. `index` is the token that
+    follows: the first positional when `stop` is None, otherwise the token
+    after the one carrying the stop letter. `glued` is what followed the stop
+    letter INSIDE its own token (`-cprint(1)`), empty when the value is the
+    next token instead. One walk for both questions below, so the two cannot
+    disagree about where the options stop — the disagreement would be a flag
+    read as a script by one and as code by the other.
+    """
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a == "--":  # end of options — the next token is the script
+            return i + 1, None, ""
+        if a.startswith("--"):
+            if a == "--check-hash-based-pycs":
+                i += 1  # its value is a separate token
+            i += 1
+            continue
+        if a.startswith("-") and len(a) > 1:
+            # A short-option token may be a CLUSTER (`-um` is `-u -m`), and the
+            # launcher's version selector (`py -3.11`) arrives in this shape
+            # too. Walk the letters rather than matching the whole token.
+            for pos, ch in enumerate(a[1:], start=1):
+                if ch in _PY_NO_SCRIPT_OPTS:
+                    return i + 1, ch, a[pos + 1 :]
+                if ch in _PY_VALUE_OPTS:
+                    if pos == len(a) - 1:
+                        i += 1  # the value is the next token, not glued on
+                    break
+            i += 1
+            continue
+        break  # first positional: this is the script, if it is one at all
+    return i, None, ""
+
+
 def python_script(args: list[str]) -> str | None:
     """The script file that `python [options] script.py [args]` runs, or None.
 
@@ -74,32 +114,26 @@ def python_script(args: list[str]) -> str | None:
     own CLI is one), and reading the `.py` file passed to it as an argument
     names writes the command never makes.
     """
-    i = 0
-    while i < len(args):
-        a = args[i]
-        if a == "--":  # end of options — the next token is the script
-            i += 1
-            break
-        if a.startswith("--"):
-            if a == "--check-hash-based-pycs":
-                i += 1  # its value is a separate token
-            i += 1
-            continue
-        if a.startswith("-") and len(a) > 1:
-            # A short-option token may be a CLUSTER (`-um` is `-u -m`), and the
-            # launcher's version selector (`py -3.11`) arrives in this shape
-            # too. Walk the letters rather than matching the whole token.
-            for pos, ch in enumerate(a[1:], start=1):
-                if ch in _PY_NO_SCRIPT_OPTS:
-                    return None
-                if ch in _PY_VALUE_OPTS:
-                    if pos == len(a) - 1:
-                        i += 1  # the value is the next token, not glued on
-                    break
-            i += 1
-            continue
-        break  # first positional: this is the script, if it is one at all
-    if i >= len(args):
+    i, stop, _glued = _walk_options(args)
+    if stop is not None or i >= len(args):
         return None
     script = args[i]
     return script if script.lower().endswith(SCRIPT_SUFFIXES) else None
+
+
+def python_inline_code(args: list[str]) -> str | None:
+    """The inline program that `python [options] -c CODE [args]` runs, or None.
+
+    The same walk as `python_script`, stopping on the other letter. The
+    interpreter accepts the code glued to the flag (`-cCODE`) and at the end of
+    a cluster (`-uc CODE`) as well as the plain `-c CODE`, and `-m` before it
+    means there is no inline code at all. Everything AFTER the code is the
+    program's `sys.argv` — data, never executed — which is why the caller must
+    read the code and only the code, rather than the text of the whole line.
+    """
+    i, stop, glued = _walk_options(args)
+    if stop != "c":
+        return None
+    if glued:
+        return glued
+    return args[i] if i < len(args) else None
