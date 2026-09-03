@@ -23,6 +23,20 @@ second copy of a rule is what kept breaking these hooks. The contract permits
 
 The bar this raises is the same one `bash_write_gate` raised for Bash: from
 "the everyday spelling walks through" to "you must actively obfuscate".
+
+CORRECTION, MEASURED. That sentence was inherited from the POSIX channel, where
+it had already named the wrong cut — and here it was simply untrue for longer.
+`python helper.py`, on this platform's PRIMARY shell, put a file outside the
+active task's ACL with the gate returning 0, and so did the `&` call operator,
+both slash spellings and `Start-Process`: five ordinary spellings, no
+obfuscation anywhere. The cut was never obfuscation. It was INLINE code versus
+code IN A FILE, and running a script from a file is the ordinary way to run
+code. The file case is now read on both channels by one shared module
+(`python_source_writes`), and the residual that remains is the honest one that
+module states: a COMPUTED path, and a substrate whose writes its expression
+cannot read. Memory #495 is the general lesson — a declared residual is a claim
+about the system, so it is checked by measuring the most ordinary command it
+covers, not by re-reading the sentence.
 """
 
 from __future__ import annotations

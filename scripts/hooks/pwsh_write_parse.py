@@ -36,6 +36,7 @@ _HOOKS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _HOOKS_DIR not in sys.path:
     sys.path.insert(0, _HOOKS_DIR)
 
+import python_source_writes  # noqa: E402 — shared with the POSIX channel, see `_parse`
 from pwsh_cmd_norm import _MAX_WRAPPER_DEPTH, payloads  # noqa: E402
 from pwsh_cmd_parse import (  # noqa: E402,F401 — `tokenize` re-exported: it is
     # this dialect's entry point in `shell_channel`'s table, alongside
@@ -99,6 +100,36 @@ def _redirect_targets(tokens: list[str]) -> list[str]:
     return out
 
 
+def _script_argv(stmt: Statement) -> list[str]:
+    """The tokens naming the program this statement runs, and its arguments.
+
+    Usually the statement's own tokens: `& python helper.py` arrives here with
+    the call operator already split off as a separator, and `python .\\x.py`
+    needs nothing done to it. The one shape that hides the program is
+    `Start-Process`, which takes it as an operand instead of standing in command
+    position — the PowerShell spelling of the wrapper problem the POSIX side
+    solves with `_strip_prefixes`.
+
+    RESIDUAL, STATED: `-ArgumentList` is split on whitespace, so a single quoted
+    argument containing a space is read as two. That mis-splits an argument, it
+    does not lose the SCRIPT, which is the first operand either way — and the
+    reader below only ever uses the script. `Start-Process` behind a variable,
+    or an argument list built at runtime, is not read at all; that is the same
+    computed-path residual both channels already document.
+    """
+    if stmt.verb != "start-process":
+        return stmt.tokens
+    argv: list[str] = []
+    target = stmt.param("filepath")
+    if target is not None:
+        argv.append(target)
+    argv += stmt.positionals
+    arguments = stmt.param("argumentlist")
+    if arguments:
+        argv += arguments.split()
+    return argv
+
+
 def _writer_targets(stmt: Statement) -> list[str]:
     """Files the cmdlet itself writes, by named parameter or by position."""
     spec = _WRITERS.get(stmt.verb)
@@ -144,22 +175,21 @@ def write_targets_with_confidence(
     already learned this and answers with a guess plus a confidence flag; the
     two channels must fail the same way or the weaker one becomes the route.
 
-    `base_dir` is accepted and, today, unused: this parser reads the command
-    text alone and never opens a file, so it has no relative path of its own to
-    resolve. It is in the signature anyway because the alternative was worse —
-    `shell_channel` used to ask `if module is bash_write_parse` before deciding
-    whether to pass it, which is a dialect enumeration inside the module written
-    to abolish dialect enumerations, and no test covered the branch. One
-    signature for every dialect makes the caller uniform and makes a third shell
-    arrive with the argument already in hand; a parser that gains a file to read
-    starts honouring it without anyone editing the dispatcher.
+    `base_dir` is the directory a RELATIVE path in this command resolves
+    against — the script this parser opens is named by the command, so it is
+    relative to the shell, not to the project. The argument was already in this
+    signature before there was anything to resolve, because the dispatcher used
+    to ask `if module is bash_write_parse` before passing it: a dialect
+    enumeration inside the module written to abolish dialect enumerations, and
+    covered by no test. Removing that branch is what let this parser start
+    reading files without anyone editing the dispatcher — which is the whole
+    argument for a uniform signature, arriving one task later as a fact.
     """
-    del base_dir  # documented above: no path of this parser's own to resolve
-    targets, confidence = _parse(command, 0)
+    targets, confidence = _parse(command, 0, base_dir)
     return [t for t in targets if _plausible_path(t)], confidence
 
 
-def _parse(command: str, depth: int) -> tuple[list[str], str]:
+def _parse(command: str, depth: int, base_dir: str | None = None) -> tuple[list[str], str]:
     tokens = tokenize(command)
     if tokens is None:
         return _fallback_targets(command), CONFIDENCE_REGEX_FALLBACK
@@ -171,9 +201,22 @@ def _parse(command: str, depth: int) -> tuple[list[str], str]:
         stmt = Statement(sub)
         out += _redirect_targets(sub)
         out += _writer_targets(stmt)
+        # The code a command RUNS is a write vector, not just the code it
+        # quotes. The POSIX channel learned this in #201; this one was left out
+        # of that task deliberately, and stayed out long enough for the miss to
+        # be measured here: `python helper.py` on the PLATFORM'S PRIMARY SHELL
+        # put a file outside the task's ACL with the gate returning 0. Five
+        # spellings, all of them the ordinary ones.
+        #
+        # Which paths a Python source opens is `python_source_writes`' answer,
+        # shared verbatim with the POSIX channel — including the narrowness that
+        # keeps `python -m pytest x.py` from being read as running `x.py`. Only
+        # WHICH TOKENS name the program differs between the dialects, and that
+        # difference is `_script_argv`, which is all of this module's business.
+        out += python_source_writes.writes_in_script_file(_script_argv(stmt), base_dir)
         if depth < _MAX_WRAPPER_DEPTH:
             for payload in payloads(stmt):
-                inner, inner_conf = _parse(payload, depth + 1)
+                inner, inner_conf = _parse(payload, depth + 1, base_dir)
                 out += inner
                 # An uncertain part makes the whole list uncertain: reporting
                 # `parsed` because the OUTER command parsed is the more

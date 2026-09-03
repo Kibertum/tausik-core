@@ -9,6 +9,37 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the PowerShell channel did not read the script a command runs
+
+Session #201 closed this on Bash and put PowerShell in that task's
+`scope_exclude` deliberately, so the work would not sprawl. The exclusion was
+honest and the follow-up was filed. What it cost, measured here before anything
+was changed: on the PLATFORM'S PRIMARY SHELL, `python helper.py` wrote a file
+outside the active task's ACL and the gate returned **0**. So did the `&` call
+operator, both slash spellings, and `Start-Process`. Nine cells with the Bash
+channel as a control in each — **5 wrong before, 0 after**.
+
+The declared residual is corrected rather than quoted. `pwsh_cmd_parse` claimed
+this channel had been raised "from the everyday spelling walks through to you
+must actively obfuscate"; the measurement says the everyday spelling walked
+through, with no obfuscation anywhere. The cut was never obfuscation — it is
+INLINE code versus code IN A FILE, and running a script from a file is the
+ordinary way to run code (memory #495: a declared residual is a claim about the
+system, checked by measuring the most ordinary command it covers).
+
+Only the dialect-specific part is new. Which paths a Python source opens is
+answered by `python_source_writes`, shared verbatim with the POSIX channel —
+including the narrowness that keeps `python -m pytest x.py` from being read as
+running `x.py`, a trap the POSIX side had already sprung. What differs between
+the shells is only WHICH TOKENS name the program, and `Start-Process` is the
+one spelling that hides it.
+
+The seal against a third recurrence is a test over the DIALECT TABLE, not over
+a list of shell names: every entry must answer alike about the same command, so
+a shell added tomorrow fails on the day it is added rather than becoming the
+route around the guard. That this repair needed no change to the dispatcher is
+the uniform signature from earlier today paying for itself.
+
 ### Fixed — five tests called `bash` by bare name, and on `windows-latest` that is a WSL launcher
 
 The release verification lane went red on 2026-08-25 across all three
