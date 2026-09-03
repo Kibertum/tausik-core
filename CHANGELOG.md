@@ -85,6 +85,28 @@ because a check that could not run must never read as a check that passed —
 the defect this release keeps finding, and one it would be perverse to add here.
 The deadline is well inside the push ticket's sixty-second life.
 
+### Fixed — the `env -S` repair itself closed two of four spellings
+
+Review again, on the repair below, which had announced the class closed. Two
+live bypasses, both verified against a real GNU `env` that writes the file and a
+live gate that returned 0:
+
+* The GLUED short form `-S<value>` — ordinary getopt syntax — was not recognised
+  at all, so `env -Stee\ secret.txt` walked through in ONE step with no nesting.
+  It is now read as a rule over the short flags in the table rather than a case
+  for `-S`.
+* The recursion bound failed OPEN. Past it, `_strip` returned the still-wrapped
+  tokens whose head is `env` — not a writer, not a shell — so every consumer saw
+  nothing: four levels of nesting were blocked, five were allowed. A limit that
+  turns a block into an allow one step past an arbitrary constant is the bug it
+  was guarding against, wearing a number. Termination is now STRUCTURAL — each
+  unwrap strictly shrinks the token stream, and recursion continues only while
+  it does — so a chain of any depth resolves and none can loop.
+
+The guard that enforces the shrinkage is unreachable through the public entry,
+which a surviving mutation showed. It is kept as the termination proof and
+tested through the private entry rather than left as decoration or deleted.
+
 ### Fixed — `env -S` carries a command, not a value, and consuming it opened a bypass
 
 A regression in the entry below, found by review in the same session that wrote

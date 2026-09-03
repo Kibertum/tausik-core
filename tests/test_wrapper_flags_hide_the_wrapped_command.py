@@ -79,6 +79,11 @@ _WRAPPED = [
     "env -S python h.py",
     "env --split-string=python h.py",
     "sudo env -S python h.py",
+    # Review #8, both found in the REPAIR for review #7. The glued short form is
+    # ordinary getopt syntax that real GNU env honours, and it bypassed the
+    # repair in one step with no nesting at all.
+    "env -Spython h.py",
+    "env -S python -u h.py",
 ]
 
 
@@ -89,7 +94,7 @@ def test_the_interpreter_is_found_behind_every_measured_wrapper(form):
 
 def test_the_matrix_has_not_quietly_shrunk():
     """A matrix nobody counts stops being a measurement."""
-    assert len(_WRAPPED) == 22
+    assert len(_WRAPPED) == 24
 
 
 @pytest.mark.parametrize(
@@ -210,3 +215,107 @@ class TestTheLiveGateSeesThroughTheWrapper:
         project = self._project(tmp_path, ["allowed/**", "helper.py"])
         (project / "helper.py").write_text("open('allowed/ok.txt', 'w')\n", encoding="utf-8")
         assert self._run(project, form) == 0
+
+
+class TestTheRepairForReviewSevenHadTwoHolesOfItsOwn:
+    """Review #8, on the fix for review #7. Both verified against real GNU env.
+
+    A repair that announces a class closed and closes two of its four spellings
+    is the failure this project keeps meeting, so both holes are pinned here by
+    the live gate rather than by the parsing function.
+    """
+
+    @staticmethod
+    def _project(tmp_path, scope_paths):
+        root = tmp_path / "proj"
+        (root / ".tausik").mkdir(parents=True, exist_ok=True)
+        (root / "allowed").mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(root / ".tausik" / "tausik.db"))
+        conn.execute(canonical_ddl("tasks"))
+        conn.execute(
+            "INSERT INTO tasks (slug, title, status, scope_paths, created_at, updated_at) "
+            "VALUES ('t', 't', 'active', ?, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')",
+            (json.dumps(scope_paths),),
+        )
+        conn.commit()
+        conn.close()
+        return root
+
+    @staticmethod
+    def _run(project, command):
+        env = os.environ.copy()
+        env["TAUSIK_SKIP_HOOKS"] = ""
+        env["TAUSIK_HOOK_FAIL_SECURE"] = ""
+        env["CLAUDE_PROJECT_DIR"] = str(project)
+        payload = {
+            "tool_name": "Bash",
+            "tool_input": {"command": command},
+            "cwd": str(project),
+        }
+        return subprocess.run(
+            [sys.executable, _BASH_GATE],
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            timeout=20,
+        ).returncode
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            r"env -Stee\ secret.txt",  # glued short form — real GNU env runs it
+            "env -S'tee secret.txt'",
+            "env -S 'tee secret.txt'",
+            "env --split-string='tee secret.txt'",
+        ],
+    )
+    def test_the_glued_short_form_does_not_walk_through(self, tmp_path, command):
+        project = self._project(tmp_path, ["allowed/**"])
+        assert self._run(project, command) == 2
+
+    @pytest.mark.parametrize("depth", [1, 3, 5, 10, 25])
+    def test_nesting_past_any_fixed_bound_still_sees_the_writer(self, tmp_path, depth):
+        """A counted limit turned a block into an allow one level past itself.
+
+        Termination is now structural — each unwrap strictly shrinks the token
+        stream — so there is no depth at which the gate goes blind.
+        """
+        project = self._project(tmp_path, ["allowed/**"])
+        command = "tee secret.txt"
+        for _ in range(depth):
+            command = "env -S '%s'" % command
+        assert self._run(project, command) == 2
+
+    def test_the_deep_form_writing_inside_the_acl_is_still_allowed(self, tmp_path):
+        project = self._project(tmp_path, ["allowed/**"])
+        command = "tee allowed/ok.txt"
+        for _ in range(5):
+            command = "env -S '%s'" % command
+        assert self._run(project, command) == 0
+
+
+def test_the_shrink_guard_stops_instead_of_recursing():
+    """The termination proof, asserted directly because no input reaches it.
+
+    Unwrapping always removes at least the wrapper word and its flag, so the
+    stream cannot fail to shrink through the public entry point — a mutation
+    deleting the guard leaves every other test green. That makes it unreachable
+    defensive code, and this project deletes those rather than pretending they
+    are covered.
+
+    It is kept, and tested here through the private entry, because it is not
+    decoration: it is what makes the recursion provably terminate, and it is the
+    thing a future command-carrying flag whose value does NOT shrink would run
+    into. Called with a budget already exhausted, `_strip` must return the
+    tokens unchanged rather than recurse.
+    """
+    from bash_cmd_norm import _strip
+
+    wrapped = ["env", "-S", "tee out.txt"]
+    assert _strip(wrapped, 0) == wrapped
+    # ...and with a real budget the same input IS unwrapped, so the assertion
+    # above is about the guard and not about the input being unparseable.
+    assert _strip(wrapped, 10_000) == ["tee", "out.txt"]

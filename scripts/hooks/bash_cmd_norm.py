@@ -153,6 +153,24 @@ def _carried_command(
         name, sep, attached = tok.partition("=")
         if sep and name in command_flags:
             value = attached
+        else:
+            # The GLUED short form, `-Stee out.txt`. Ordinary getopt syntax,
+            # which real GNU env honours — verified: `env -S'tee f'` creates the
+            # file. The first repair recognised only the spaced and `=` forms,
+            # so this walked straight through in ONE step with no nesting at
+            # all: a complete bypass of the class the repair announced closed.
+            # Written as a rule over the short flags in the table, not a case
+            # for `-S`, so a second command-carrying flag arrives covered.
+            for flag in command_flags:
+                if (
+                    len(flag) == 2
+                    and flag[0] == "-"
+                    and flag[1] != "-"
+                    and tok.startswith(flag)
+                    and len(tok) > len(flag)
+                ):
+                    value = tok[len(flag) :]
+                    break
     if value is None:
         return None
     try:
@@ -192,18 +210,33 @@ def _strip_prefixes(sub: list[str]) -> list[str]:
     Returns `sub` unchanged when nothing was stripped, so the common case costs
     one set lookup.
     """
-    return _strip(sub, 0)
+    return _strip(sub, _size(sub) + 1)
 
 
-def _strip(sub: list[str], depth: int) -> list[str]:
-    """`_strip_prefixes` with the recursion bound for `-S`-style flags.
+def _size(sub: list[str]) -> int:
+    return sum(len(t) for t in sub)
 
-    `env -S "env -S …"` is legal and nests; the bound is the same one every
-    other wrapper descent in this package uses, and running out of it leaves
-    the tokens as they are rather than raising — a hook that throws on a command
-    is an outage, not a guard.
+
+def _strip(sub: list[str], budget: int) -> list[str]:
+    """`_strip_prefixes`, with `-S`-style unwrapping bounded STRUCTURALLY.
+
+    `env -S "env -S …"` is legal and nests. A counted depth limit was the first
+    answer and it was the wrong one: on overflow it returned the still-wrapped
+    tokens, whose head is `env` — not a writer, not a shell — so every consumer
+    saw NOTHING. Measured: four levels of nesting were caught, five were
+    silently allowed. A limit that turns a block into an allow one level past
+    an arbitrary number is not a safety bound, it is the bug it was guarding
+    against, wearing a constant.
+
+    The bound is now the one fact that makes termination certain: each unwrap
+    removes at least the wrapper word and its flag, so the token stream STRICTLY
+    SHRINKS. Recursion continues only while it does. That resolves a chain of
+    any realistic depth and still cannot loop, because a step which fails to
+    shrink is refused — and refusing to loop is not the same as going blind: by
+    then the stream has already been unwrapped as far as it shrank.
     """
-    if depth > _MAX_WRAPPER_DEPTH:
+    size = _size(sub)
+    if size >= budget:
         return sub
     i = 0
     stripped = False
@@ -224,7 +257,7 @@ def _strip(sub: list[str], depth: int) -> list[str]:
                 # appended exactly as `env -S` appends it.
                 carried = _carried_command(tok, sub, i, command_flags)
                 if carried is not None:
-                    return _strip(carried, depth + 1)
+                    return _strip(carried, size)
                 i += 1
                 # `--opt=value` carries its value in the same token; `-o0` is an
                 # attached short value. Only the detached spelling eats another.
