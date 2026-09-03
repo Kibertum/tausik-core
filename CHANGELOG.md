@@ -9,6 +9,37 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — every registered gate is verified by mutation, not by passing
+
+A green gate proves that it did not object, not that it would object to
+anything. The standard's senar-14 branch set the example ("six deliberate
+divergences introduced one at a time, each caught"), and this repository paid
+for the lesson twice in a row: sessions #205 and #206 each shipped a
+regression in a BLOCKING gate under green tests that asked the gate only about
+inputs it was already known to handle.
+
+`tests/test_gates_catch_their_violation.py` turns the discipline into a rule
+with a closed list. Every gate in `gate_registry.GATE_REGISTRY` (15) is in
+exactly one of two tables. COVERED (6: `filesize`, `class_surface`,
+`memory_route`, `bootstrap_drift`, `skill_spec_conformance`,
+`state_roundtrip`) is driven through the registry's own `impl_for` on BOTH
+ends — a real violation built under `tmp_path` must come back failed, a clean
+input built the same way must come back passed, because a gate that is red on
+every input passes a red-only check as well as a correct one. EXCUSED (9) —
+service-bound, external-tool verdicts, warn severity — carries a reason and
+the names of a red and a green test in the module that does drive it, checked
+against that module's AST so a rename reddens the table instead of leaving a
+dangling excuse. A gate added without a row fails the closed-list test.
+
+The mutation cannot be left in the tree by construction: everything is built
+under `tmp_path`, and a write anywhere else during the table run is caught by
+intercepting `open` — not by a `git status` snapshot, which under xdist lost
+the race to a neighbouring worker and let a planted file survive (measured
+here before the check was replaced). Five mutations of the table itself, each
+killed by a named test. PreToolUse hook gates and stack-declared command gates
+are declared out of scope in the module docstring, not forgotten.
+Task `verify-a-gate-by-mutation-not-by-passing`.
+
 ### Fixed — `bootstrap_drift` now checks the third link: the process that is running
 
 The chain "edit `scripts/` → redeploy → takes effect" has three links, and the
