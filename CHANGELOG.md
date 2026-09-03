@@ -9,6 +9,34 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — `epic update` / `story update`, and a stale-description count that names and never blocks
+
+An epic's or a story's description is how a fresh agent reads the INTENT of a
+group of tasks, and until now it could not be changed: the commands were add,
+list, done, delete. Found by dogfooding in #189, twice in one session — an
+epic description still describing three layers after a replanning had added
+three more, a story description asserting a premise decision #267 had
+withdrawn — and worked around by keeping the intent in decisions, which helps
+only while someone reads them. `epic update <slug> [--title] [--description]`
+and `story update` now exist, with the MCP twins `tausik_epic_update` /
+`tausik_story_update`; ONE implementation, `hierarchy_edit.update`, carries
+the validation `add` has (length, single line), and both the CLI and the MCP
+handler are asserted by AST to call it and nothing below it. A module, not
+more class surface: the first draft put five members on ProjectService and
+two on SQLiteBackend, and the class-surface ratchet — which only turns down,
+and is right to — said no. A description edit is journaled as a
+`description_updated` event, which is what the report measures against — no
+new column, no migration: `epic list` and
+`story list` print `stale`, the number of tasks created since the description
+was last edited (with no edit ever, since the group was created), and
+`--stale-over N` narrows the list. A report, deliberately not a gate: closing
+an epic with twenty-five stale tasks goes through, and a test says so, because
+a description rewritten to pass a check is worse than one honestly old. Six
+mutations, each killed by a named test — the event not written, the CLI and
+the MCP handler reaching past the service, the edit event ignored by the
+count, a title edit counted as a description edit, and `done` turned into a
+gate. Task `epic-and-story-descriptions-cannot-be-updated`.
+
 ### Fixed — the first 1.9 pipeline ran on Linux and reddened twice: a test premise raced the kernel clock
 
 Session #205 switched the CI trigger to every branch push; session #208 made

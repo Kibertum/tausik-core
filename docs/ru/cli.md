@@ -42,11 +42,15 @@ doctor --fix-bytecode          # Удалить РОВНО те .pyc, чей co_
 
 ```bash
 epic add <slug> <title> [--description TEXT]
+epic update <slug> [--title T] [--description TEXT]   # замысел группы задач можно править
+epic list [--stale-over N]     # stale = задач создано после последней правки описания; отчёт, не гейт
 epic list
 epic done <slug>
 epic delete <slug>             # CASCADE: удаляет все стори + задачи
 
 story add <epic_slug> <slug> <title> [--description TEXT]
+story update <slug> [--title T] [--description TEXT]
+story list [--epic E] [--stale-over N]
 story list [--epic EPIC_SLUG]
 story done <slug>
 story delete <slug>            # CASCADE: удаляет все задачи

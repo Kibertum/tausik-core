@@ -2,9 +2,9 @@
 
 # TAUSIK MCP — Tool Reference
 
-**126 tools** for AI agents (119 project + 7 brain; current actual count, asserted via `len(TOOLS)` on both servers). The MCP surface covers everything an agent does day-to-day. A few CLI-only commands have no MCP equivalent — they are operator / maintenance verbs that don't belong in an agent loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. For the agent's working set, prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
+**128 tools** for AI agents (121 project + 7 brain; current actual count, asserted via `len(TOOLS)` on both servers). The MCP surface covers everything an agent does day-to-day. A few CLI-only commands have no MCP equivalent — they are operator / maintenance verbs that don't belong in an agent loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. For the agent's working set, prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
 
-> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 126 count - total with it is 133 tools.
+> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 128 count - total with it is 135 tools.
 
 Two MCP servers live in this project:
 
@@ -105,11 +105,13 @@ Session limit is gap-based **active time** (paused after 10-min idle gap), not w
 | Tool | Description | Required Parameters |
 |---|---|---|
 | `tausik_epic_add` | Create epic | `slug`, `title` |
-| `tausik_epic_list` | List epics | — |
+| `tausik_epic_list` | List epics; `(stale: N)` — tasks created since the description was last edited (a report, not a gate) | — |
+| `tausik_epic_update` | Change an epic's title and/or description — the group's intent; at least one field | `slug` |
 | `tausik_epic_done` | Complete epic | `slug` |
 | `tausik_epic_delete` | Delete (cascade: stories + tasks) | `slug` |
 | `tausik_story_add` | Create story in epic | `epic_slug`, `slug`, `title` |
-| `tausik_story_list` | List stories | — |
+| `tausik_story_list` | List stories; `(stale: N)` as for epics | — |
+| `tausik_story_update` | Change a story's title and/or description; at least one field | `slug` |
 | `tausik_story_done` | Complete story | `slug` |
 | `tausik_story_delete` | Delete (cascade: tasks) | `slug` |
 | `tausik_roadmap` | Tree: epic → story → task | — |
@@ -308,7 +310,7 @@ backlog waiting to be flushed to Notion.
 | `cache_web_result` | Cache web search result for reuse | `query`, `content` |
 | `search_web_cache` | Search cached web results | `query` |
 
-These are not part of the main 126 count — they belong to the optional `codebase-rag` server.
+These are not part of the main 128 count — they belong to the optional `codebase-rag` server.
 
 ## Scoped tool surface (`mcp.scope_tools_exposure`)
 
@@ -329,7 +331,7 @@ directly still passes the existing scope enforcement, and the write-gate is
 untouched. The scoped list is recomputed each time the host fetches
 `list_tools` — i.e. on every server connect with a task already active.
 
-**Measured cost.** The full authored surface is 126 tools ≈ 51 KB of tool
+**Measured cost.** The full authored surface is 128 tools ≈ 51 KB of tool
 definitions (~12.8k estimated tokens; `tests/test_mcp_tool_token_cost.py` pins
 this and ratchets it). Under Claude Code deferred loading (`ENABLE_TOOL_SEARCH`)
 only tool names load eagerly and each description is truncated to 2 KB — a ratchet

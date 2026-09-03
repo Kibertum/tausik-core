@@ -515,6 +515,32 @@ TOOLS = [
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
+        "name": "tausik_epic_update",
+        "description": "Change an epic's title and/or description — the intent a fresh agent reads for the group. At least one of the two",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string"},
+                "title": {"type": "string"},
+                "description": {"type": "string"},
+            },
+            "required": ["slug"],
+        },
+    },
+    {
+        "name": "tausik_story_update",
+        "description": "Change a story's title and/or description. At least one of the two",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string"},
+                "title": {"type": "string"},
+                "description": {"type": "string"},
+            },
+            "required": ["slug"],
+        },
+    },
+    {
         "name": "tausik_epic_done",
         "description": "Mark epic as done",
         "inputSchema": {

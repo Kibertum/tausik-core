@@ -2,9 +2,9 @@
 
 # TAUSIK MCP — Справочник инструментов
 
-**126 инструмента** для ИИ-агентов (119 project + 7 brain; актуальный счёт, проверено `len(TOOLS)` обоих серверов). MCP-surface покрывает всё, что агент делает день за днём. Несколько CLI-only команд намеренно не имеют MCP-аналога — это оператор/maintenance verbs, которым не место в agent-loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. Для рабочего набора агента предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
+**128 инструмента** для ИИ-агентов (121 project + 7 brain; актуальный счёт, проверено `len(TOOLS)` обоих серверов). MCP-surface покрывает всё, что агент делает день за днём. Несколько CLI-only команд намеренно не имеют MCP-аналога — это оператор/maintenance verbs, которым не место в agent-loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. Для рабочего набора агента предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
 
-> **Опциональный сервер `codebase-rag`** добавляет 7 инструментов (search_code, find_symbol, etc.). Он включается отдельно через bootstrap и НЕ входит в основной счёт 126 — итого с ним 133 инструмента.
+> **Опциональный сервер `codebase-rag`** добавляет 7 инструментов (search_code, find_symbol, etc.). Он включается отдельно через bootstrap и НЕ входит в основной счёт 128 — итого с ним 135 инструмента.
 
 В проекте живут два MCP-сервера:
 
@@ -105,11 +105,13 @@ tausik_task_done(slug=…, ac_verified=True)   # лёгкое: lookup в кеш�
 | Инструмент | Описание | Обязательные параметры |
 |---|---|---|
 | `tausik_epic_add` | Создать эпик | `slug`, `title` |
-| `tausik_epic_list` | Список эпиков | — |
+| `tausik_epic_list` | Список эпиков; `(stale: N)` — задач создано после последней правки описания (отчёт, не гейт) | — |
+| `tausik_epic_update` | Изменить title и/или description эпика — замысел группы задач; хотя бы одно поле | `slug` |
 | `tausik_epic_done` | Завершить эпик | `slug` |
 | `tausik_epic_delete` | Удалить (cascade: стори + задачи) | `slug` |
 | `tausik_story_add` | Создать стори в эпике | `epic_slug`, `slug`, `title` |
-| `tausik_story_list` | Список стори | — |
+| `tausik_story_list` | Список стори; `(stale: N)` как у эпиков | — |
+| `tausik_story_update` | Изменить title и/или description стори; хотя бы одно поле | `slug` |
 | `tausik_story_done` | Завершить стори | `slug` |
 | `tausik_story_delete` | Удалить (cascade: задачи) | `slug` |
 | `tausik_roadmap` | Дерево: epic → story → task | — |
@@ -305,7 +307,7 @@ DEFAULT_STACKS: 25 записей (python, fastapi, django, flask, react, next, 
 | `cache_web_result` | Кешировать web-результат | `query`, `content` |
 | `search_web_cache` | Поиск кешированных web-результатов | `query` |
 
-Эти не входят в основной счёт 126 — принадлежат опциональному `codebase-rag` серверу.
+Эти не входят в основной счёт 128 — принадлежат опциональному `codebase-rag` серверу.
 
 ## Область tool-поверхности (`mcp.scope_tools_exposure`)
 
@@ -326,7 +328,7 @@ Rule 2) и всегда-безопасного ядра — целиком се�
 write-гейт не тронут. Область пересчитывается каждый раз, когда хост запрашивает
 `list_tools` — то есть при каждом подключении к серверу с уже активной задачей.
 
-**Замер стоимости.** Полная авторская поверхность — 126 тулов ~ 52 КБ определений
+**Замер стоимости.** Полная авторская поверхность — 128 тулов ~ 52 КБ определений
 (~12.8k оценочных токенов; `tests/test_mcp_tool_token_cost.py` фиксирует это и
 держит храповиком). При отложенной загрузке Claude Code (`ENABLE_TOOL_SEARCH`)
 эагерно грузятся только имена, а каждое описание обрезается до 2 КБ — храповой

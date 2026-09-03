@@ -126,30 +126,49 @@ def cmd_status(svc: ProjectService, args: Any) -> None:
     print(render_status_cli(view))
 
 
+import hierarchy_edit  # noqa: E402 — one implementation for CLI and MCP; see its docstring
+
+
+def _stale_rows(rows: list[dict[str, Any]], args: Any) -> list[dict[str, Any]]:
+    """`--stale-over N` keeps rows whose description fell behind by more than N tasks.
+
+    Default 0 prints every row with its number: the report names, it never
+    hides — and it is not a gate anywhere (task description, "НЕГАТИВНОЕ").
+    """
+    over = int(getattr(args, "stale_over", 0) or 0)
+    return [r for r in rows if int(r.get("stale", 0)) > over] if over else rows
+
+
 def cmd_epic(svc: ProjectService, args: Any) -> None:
     if args.epic_cmd == "add":
         print(svc.epic_add(args.slug, args.title, args.description))
     elif args.epic_cmd == "list":
-        _print_table(svc.epic_list(), ["slug", "title", "status"])
+        rows = _stale_rows(hierarchy_edit.list_with_staleness(svc, "epics"), args)
+        _print_table(rows, ["slug", "title", "status", "stale"])
+    elif args.epic_cmd == "update":
+        print(hierarchy_edit.update(svc, "epics", args.slug, args.title, args.description))
     elif args.epic_cmd == "done":
         print(svc.epic_done(args.slug))
     elif args.epic_cmd == "delete":
         print(svc.epic_delete(args.slug))
     else:
-        print("Usage: tausik epic [add|list|done|delete]")
+        print("Usage: tausik epic [add|list|update|done|delete]")
 
 
 def cmd_story(svc: ProjectService, args: Any) -> None:
     if args.story_cmd == "add":
         print(svc.story_add(args.epic_slug, args.slug, args.title, args.description))
     elif args.story_cmd == "list":
-        _print_table(svc.story_list(args.epic), ["slug", "title", "status", "epic_slug"])
+        rows = _stale_rows(hierarchy_edit.list_with_staleness(svc, "stories", args.epic), args)
+        _print_table(rows, ["slug", "title", "status", "epic_slug", "stale"])
+    elif args.story_cmd == "update":
+        print(hierarchy_edit.update(svc, "stories", args.slug, args.title, args.description))
     elif args.story_cmd == "done":
         print(svc.story_done(args.slug))
     elif args.story_cmd == "delete":
         print(svc.story_delete(args.slug))
     else:
-        print("Usage: tausik story [add|list|done|delete]")
+        print("Usage: tausik story [add|list|update|done|delete]")
 
 
 # cmd_task -> moved to project_cli_task.py (filesize-debt-paydown-2)

@@ -66,7 +66,7 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 <!-- DYNAMIC:START -->
 ## Current State
 Session: #208 (active) | Branch: v1-9-wave | Version: 1.8.0
-Tasks: 1301/1510 done, 0 active, 1 blocked
+Tasks: 1302/1510 done, 0 active, 1 blocked
 Blocked: write-gate-reads-prose-arguments-as-redirections
 
 ### Memory tail
