@@ -1,0 +1,13 @@
+---
+slug: popravka-k-511-obhod-geyta-perevodom-stroki-pochinen-v-toy
+title: "ПОПРАВКА К #511: обход гейта переводом строки ПОЧИНЕН в той же смене #205"
+type: gotcha
+tags: []
+task: null
+edges:
+  - relation: supersedes
+    target_type: memory
+    target: geyt-zapisi-ne-schitaet-perevod-stroki-razdelitelem-komand
+---
+
+Память #511 писалась ДО починки и кончается советом «пока не починено — ставь запись первой командой вызова». Совет УСТАРЕЛ в тот же день: задача write-gate-does-not-treat-a-newline-as-a-command-separator закрыта в #205 (коммит 51d36d8), перевод строки вне кавычек стал разделителем через scripts/hooks/shell_statements.py, матрица 9x10 даёт 90 из 90. Многострочный Bash больше НЕ обходит ACL и обходить его не нужно. Сам факт полезен как правило: память, записанная по ходу задачи, может пережить собственную починку — перечитывай свои же заметки смены ПЕРЕД передачей.
