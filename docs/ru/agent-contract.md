@@ -211,7 +211,7 @@ overshoot is intentional (audit event + notes line trace it).
 | Rule 9.15 AI Output QA | `/review` с 5 параллельными агентами + iterative loop | Instruction |
 | Метрика: Throughput | tasks_done / sessions | Hard (auto) |
 | Метрика: Lead Time | avg(completed_at - created_at) | Hard (auto) |
-| Метрика: FPSR | tasks(attempts=1) / done * 100% | Hard (auto) |
+| Метрика: FPSR | tasks(attempts=1) / done * 100%; `attempts` считает активации (`task start`, `task unblock`) и красные верификации активной задачи (verify с exit ≠ 0, включая отказ гейтов task-done); 0 = не активировалась/не считалось, историю не переписываем (#207) | Hard (auto) |
 | Метрика: DER | DISTINCT(defect_of) / non-defect done * 100% | Hard (auto) |
 | Метрика: Dead End Rate | dead_ends / total_tasks * 100% | Hard (auto) |
 | Метрика: Cost per Task | avg hours by complexity | Hard (auto) |

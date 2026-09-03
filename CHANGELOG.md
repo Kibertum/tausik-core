@@ -9,6 +9,30 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — `tasks.attempts` now counts attempts, so FPSR stops flattering the history
+
+Measured in #189: of 1239 closed tasks exactly one had `attempts > 1`, and
+`task show` printed the field as a fact. The task's diagnosis named the wrong
+mechanism — the counter DID move on `task start`, since v1.0.0 — and that is
+not where second attempts happen. They happen when a blocked task is
+UNBLOCKED (which set `active` directly and left the counter alone) and when a
+verification of the active task comes back RED (which recorded the run and
+nothing else). Neither counted, so FPSR — `attempts = 1` over closed tasks —
+reported a first-pass rate the history could not support. One existing test
+pinned the defect (start, block, unblock, start expected 2); it now expects 3
+and says why.
+
+An attempt is now an activation (`task start`, `task unblock`) or a red
+verification of the task in flight: `verify --task` with a non-zero exit,
+including the task-done gate run, on the CLI and MCP alike, because every
+such run passes through the single write point into `verification_runs`
+and the counter is moved there. A green run, a red run against a task that is
+not active, and a fixture database without a `tasks` table leave it alone.
+History is not rewritten: `0` still means "never activated / not counted",
+`1` "one activation, no red verify". Expect FPSR to fall from here on — it
+was not measuring what its name says. Four mutations, each killed.
+Task `attempts-counter-never-increments`.
+
 ### Added — every registered gate is verified by mutation, not by passing
 
 A green gate proves that it did not object, not that it would object to

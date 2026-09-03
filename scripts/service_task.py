@@ -257,9 +257,14 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         # block/unblock cycling past the 180-min ACTIVE threshold (SENAR Rule 9.2).
         if not force:
             check_session_capacity(self.be, slug, task)
-        self.be.task_update(slug, status="active", blocked_at=None)
+        # An unblock is a re-activation, so it is an attempt like `task start`
+        # is. It used to set `active` directly and leave the counter alone,
+        # which is one of the two reasons 1239 closes showed `attempts: 1`
+        # (attempts-counter-never-increments); the other is a red verify.
+        attempts = task.get("attempts", 0) + 1
+        self.be.task_update(slug, status="active", blocked_at=None, attempts=attempts)
         self._project_task(slug)
-        return f"Task '{slug}' unblocked."
+        return f"Task '{slug}' unblocked (attempt #{attempts})."
 
     def task_review(self, slug: str) -> str:
         task = self._require_task(slug)

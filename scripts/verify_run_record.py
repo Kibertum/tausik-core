@@ -422,6 +422,8 @@ def _record_verification(
                 f"could not record the verification run for {slug or '-'}: "
                 f"{type(exc).__name__}: {exc}"
             ) from exc
+        if exit_code != 0 and slug:
+            count_failed_attempt(conn, slug)
         if details is not None:
             details["run_id"] = run_id
             # Absent (not None) when the run earned no handle, so a reader can
@@ -433,3 +435,35 @@ def _record_verification(
                 details["handle_expires_at"] = handle_out["expires_at"]
         return run_id
     raise AssertionError("unreachable")  # pragma: no cover — loop returns or raises
+
+
+def count_failed_attempt(conn: sqlite3.Connection, slug: str) -> bool:
+    """A red verification of an ACTIVE task is a failed attempt: count it.
+
+    `tasks.attempts` used to move only in `task_start`, so 1239 closes showed
+    `attempts: 1` and the metric built on it (FPSR, `attempts = 1`) reported a
+    first-pass rate the history did not support
+    (attempts-counter-never-increments). The two events that make a second
+    attempt are a re-activation (`task start`, `task unblock`) and a
+    verification that refused to certify — and every such refusal, CLI or MCP,
+    task-scoped verify or the task-done gate run, passes through the single
+    write point above, so this is the one place the counter can be moved
+    without the two channels drifting.
+
+    Only an ACTIVE task is counted: a red run against a task that is not in
+    flight (a replay, a stale slug) is not an attempt at anything. A database
+    without a `tasks` table (a fixture that builds only `verification_runs`)
+    has nothing to count and says so with False; it is not an error. Returns
+    True iff a row was moved.
+    """
+    has_tasks = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='tasks'"
+    ).fetchone()
+    if not has_tasks:
+        return False
+    cur = conn.execute(
+        "UPDATE tasks SET attempts = COALESCE(attempts, 0) + 1 WHERE slug = ? AND status = 'active'",
+        (slug,),
+    )
+    conn.commit()
+    return cur.rowcount > 0
