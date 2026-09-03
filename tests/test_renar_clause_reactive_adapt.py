@@ -33,6 +33,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 from project_backend import SQLiteBackend  # noqa: E402
 from project_service import ProjectService  # noqa: E402
 from renar_clause_reactive_adapt import (  # noqa: E402
+    AR_SHAPE_FIELDS,
     BACKWARD_FINDING_CATEGORIES,
     ReactiveAdaptState,
     assess,
@@ -75,8 +76,12 @@ def test_adversarial_review_class_absent_is_red(live_shape):
     assert c.ok is False
     assert "AR does not exist as an artifact class" in c.evidence
     # The reviews table must not be counted in our favour: it reviews task
-    # closures and code, not ТЗ (decision #291).
-    assert "reviews table is NOT counted" in c.evidence
+    # closures and code, not ТЗ (decision #291) — and the evidence says so in
+    # measured terms, by the §7.4.6 fields it lacks.
+    assert "reviews table is NOT counted: it lacks tz_ref, verdict" in c.evidence
+    # The class nearest to the shape is named with what it lacks: adapts has
+    # tz_ref and status but records no verdict.
+    assert "adapts lacks verdict" in c.evidence
 
 
 def test_draft_adapt_with_findings_is_red(live_shape):
@@ -129,7 +134,7 @@ def test_the_row_count_measurer_would_have_confirmed_this(live_shape):
 def _conformant_state() -> ReactiveAdaptState:
     """A state in which every §13.3.3 sub-check MUST go green."""
     return ReactiveAdaptState(
-        ar_table="adversarial_reviews",
+        ar_tables=("adversarial_reviews",),
         ar_issued_count=1,
         adapts_with_findings={"ad1": "approved"},
         adapt_signature_roles={"ad1": ("architect",)},
@@ -148,7 +153,7 @@ def test_conformant_state_confirms_the_clause():
 @pytest.mark.parametrize(
     ("name", "mutation"),
     [
-        ("adversarial-review-issued", {"ar_table": None}),
+        ("adversarial-review-issued", {"ar_tables": ()}),
         ("adversarial-review-issued", {"ar_issued_count": 0}),
         ("adapt-approved-when-findings", {"adapts_with_findings": {"ad1": "draft"}}),
         ("architect-signature-when-findings", {"adapt_signature_roles": {"ad1": ()}}),
@@ -175,7 +180,7 @@ def test_findings_free_adapt_does_not_owe_the_findings_present_branch():
     the evidence rather than left to be read out of a bare `true`.
     """
     st = ReactiveAdaptState(
-        ar_table="adversarial_reviews",
+        ar_tables=("adversarial_reviews",),
         ar_issued_count=1,
         adapts_with_findings={},
         spec_count=0,
@@ -193,9 +198,13 @@ def test_collect_state_sees_a_real_issued_ar_table(live_shape):
     """Green through collect_state where the schema admits it."""
     conn = live_shape.be._conn
     conn.execute(
-        "CREATE TABLE adversarial_reviews (id INTEGER PRIMARY KEY, tz_ref TEXT, status TEXT)"
+        "CREATE TABLE adversarial_reviews "
+        "(id INTEGER PRIMARY KEY, tz_ref TEXT, verdict TEXT, status TEXT)"
     )
-    conn.execute("INSERT INTO adversarial_reviews (tz_ref, status) VALUES ('TZ-1','issued')")
+    conn.execute(
+        "INSERT INTO adversarial_reviews (tz_ref, verdict, status) "
+        "VALUES ('TZ-1','no-findings','issued')"
+    )
     conn.commit()
     c = _by_name(evaluate(collect_state(conn)))["adversarial-review-issued"]
     assert c.ok is True
@@ -206,13 +215,87 @@ def test_collect_state_reddens_on_a_draft_only_ar_table(live_shape):
     """The table existing is not the verdict being issued (§7.4.6)."""
     conn = live_shape.be._conn
     conn.execute(
-        "CREATE TABLE adversarial_reviews (id INTEGER PRIMARY KEY, tz_ref TEXT, status TEXT)"
+        "CREATE TABLE adversarial_reviews "
+        "(id INTEGER PRIMARY KEY, tz_ref TEXT, verdict TEXT, status TEXT)"
     )
-    conn.execute("INSERT INTO adversarial_reviews (tz_ref, status) VALUES ('TZ-1','draft')")
+    conn.execute(
+        "INSERT INTO adversarial_reviews (tz_ref, verdict, status) "
+        "VALUES ('TZ-1','no-findings','draft')"
+    )
     conn.commit()
     c = _by_name(evaluate(collect_state(conn)))["adversarial-review-issued"]
     assert c.ok is False
     assert "zero AR in status 'issued'" in c.evidence
+
+
+# --- AR is a class by SHAPE (§7.4.6), not by a guessed table name -----------
+
+
+def test_an_ar_table_under_an_unguessed_name_is_found_by_shape(live_shape):
+    """The class is recognised by the §7.4.6 record shape, not by its name.
+
+    On the name-probe version this table was invisible: `tz_review_verdicts`
+    was none of the three guessed names, and the manifest would have kept
+    publishing "AR does not exist" over a live, issued AR — under decision
+    #295 an unreported strengthening.
+    """
+    conn = live_shape.be._conn
+    conn.execute(
+        "CREATE TABLE tz_review_verdicts "
+        "(id INTEGER PRIMARY KEY, tz_ref TEXT, verdict TEXT, status TEXT)"
+    )
+    conn.execute(
+        "INSERT INTO tz_review_verdicts (tz_ref, verdict, status) "
+        "VALUES ('TZ-1','findings-present','issued')"
+    )
+    conn.commit()
+    c = _by_name(evaluate(collect_state(conn)))["adversarial-review-issued"]
+    assert c.ok is True
+    assert "1 AR record(s) in status 'issued' in tz_review_verdicts" in c.evidence
+
+
+def test_a_table_with_a_tz_ref_but_no_verdict_is_named_and_not_counted(live_shape):
+    """Part of the shape is not the shape.
+
+    A name from the old guess list, with no verdict column, is not an AR — and
+    the evidence says which mandatory field it lacks instead of staying silent.
+    """
+    conn = live_shape.be._conn
+    conn.execute("CREATE TABLE ar_records (id INTEGER PRIMARY KEY, tz_ref TEXT, status TEXT)")
+    conn.execute("INSERT INTO ar_records (tz_ref, status) VALUES ('TZ-1','issued')")
+    conn.commit()
+    c = _by_name(evaluate(collect_state(conn)))["adversarial-review-issued"]
+    assert c.ok is False
+    assert "AR does not exist as an artifact class" in c.evidence
+    assert "ar_records lacks verdict" in c.evidence
+
+
+def test_two_ar_tables_are_both_named_and_their_issued_counts_summed(live_shape):
+    conn = live_shape.be._conn
+    for name, n in (("adversarial_reviews", 1), ("tz_review_verdicts", 2)):
+        conn.execute(
+            f"CREATE TABLE {name} (id INTEGER PRIMARY KEY, tz_ref TEXT, verdict TEXT, status TEXT)"
+        )
+        for i in range(n):
+            conn.execute(
+                f"INSERT INTO {name} (tz_ref, verdict, status) "
+                f"VALUES ('TZ-{i}','no-findings','issued')"
+            )
+    conn.commit()
+    c = _by_name(evaluate(collect_state(conn)))["adversarial-review-issued"]
+    assert c.ok is True
+    assert "3 AR record(s) in status 'issued' in adversarial_reviews, tz_review_verdicts" in (
+        c.evidence
+    )
+
+
+def test_the_shape_is_the_standards_mandatory_record_fields():
+    """§7.4.6 (reference/02-schemas.md §7.1): tz-ref, verdict, status.
+
+    Transcribed from the standard in the substrate's spelling, not read back
+    from the constant that produced it (memory #474).
+    """
+    assert set(AR_SHAPE_FIELDS) == {"tz_ref", "verdict", "status"}
 
 
 def test_collect_state_sees_a_real_provenance_column(live_shape):

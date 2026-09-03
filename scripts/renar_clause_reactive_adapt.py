@@ -38,6 +38,8 @@ import sqlite3
 from dataclasses import dataclass, field
 from typing import Any
 
+from renar_tc_premise import artifact_classes
+
 # §7.4.4 closed list, v1.0. A finding in any of these categories puts the
 # owning ADAPT on the "findings present" branch of the §13.3.3 table (p.77).
 BACKWARD_FINDING_CATEGORIES = (
@@ -54,10 +56,26 @@ BACKWARD_FINDING_CATEGORIES = (
 # branch is satisfiable; carrying none of them is the p.90 negative scenario.
 SPEC_PROVENANCE_FIELDS = ("source_adapt", "source_tz_section", "source_adversarial_review_ref")
 
-# Tables that would hold adversarial-review records (AR, §7.4.6) if the class
-# existed here. Named rather than pattern-matched: a LIKE '%ar%' probe matches
-# unrelated tables and would confirm the clause by accident.
-AR_TABLE_CANDIDATES = ("adversarial_reviews", "ar_records", "renar_ar")
+# The record shape §7.4.6 makes mandatory on an AR (reference/02-schemas.md
+# §7.1: tz-ref, verdict, status), in the substrate's spelling of the standard's
+# field names — `tz-ref` is already stored as `tz_ref` on `adapts`, and
+# `source.adapt` as `source_adapt`. A class is an AR class when it carries all
+# three: a cut by SHAPE, not by a guessed table name. The first version probed
+# three names and would have kept publishing "AR does not exist" over an AR
+# created under a fourth — the defect #202 found on TC, facing the other way:
+# there a guessed name could publish a false `true`, here a false `false`,
+# which under decision #295 is an unreported strengthening. The enumeration is
+# `renar_tc_premise.artifact_classes`, so FTS shadow tables are excluded by
+# derivation, not by prefix.
+#
+# Shape is NOT the column-name guess `renar_tc_premise` warns against. There
+# the column was the DUTY — a compliant class carries it, a violating one does
+# not, so keying on it reddens the compliant case. Here the columns are the
+# IDENTITY of the class: an AR without a verdict is not a non-compliant AR, it
+# is not an AR. Classes carrying part of the shape are still NAMED in the
+# evidence with what they lack, so an AR spelled differently is visible to the
+# reader even though it is not counted.
+AR_SHAPE_FIELDS = ("tz_ref", "verdict", "status")
 
 
 @dataclass(frozen=True)
@@ -88,8 +106,14 @@ class ReactiveAdaptState:
     returns false unconditionally.
     """
 
-    ar_table: str | None = None
+    ar_tables: tuple[str, ...] = ()
     ar_issued_count: int = 0
+    # Classes carrying tz_ref or verdict but not the whole shape: (table, lacks).
+    ar_near_misses: tuple[tuple[str, tuple[str, ...]], ...] = ()
+    artifact_class_count: int = 0
+    # What the `reviews` table lacks of the shape, when it exists — it records
+    # review of a task closure, and the evidence says so in measured terms.
+    reviews_lacks: tuple[str, ...] = ()
     # ADAPT slugs carrying ≥1 backward finding → their status / signature roles.
     adapts_with_findings: dict[str, str] = field(default_factory=dict)
     adapt_signature_roles: dict[str, tuple[str, ...]] = field(default_factory=dict)
@@ -133,13 +157,23 @@ def collect_state(conn: sqlite3.Connection) -> ReactiveAdaptState:
     """Read the live substrate into a :class:`ReactiveAdaptState`."""
     tables = _table_names(conn)
 
-    ar_table = next((t for t in AR_TABLE_CANDIDATES if t in tables), None)
+    classes = artifact_classes(conn)
+    ar_tables: list[str] = []
+    near: list[tuple[str, tuple[str, ...]]] = []
+    reviews_lacks: tuple[str, ...] = ()
+    for t in classes:
+        have = set(_columns(conn, t))
+        lacks = tuple(f for f in AR_SHAPE_FIELDS if f not in have)
+        if not lacks:
+            ar_tables.append(t)
+        elif have & {"tz_ref", "verdict"}:
+            near.append((t, lacks))
+        if t == "reviews":
+            reviews_lacks = lacks
     ar_issued = 0
-    if ar_table is not None:
-        cols = _columns(conn, ar_table)
-        if "status" in cols:
-            row = conn.execute(f"SELECT COUNT(*) FROM {ar_table} WHERE status='issued'").fetchone()
-            ar_issued = int(row[0]) if row else 0
+    for t in ar_tables:
+        row = conn.execute(f"SELECT COUNT(*) FROM {t} WHERE status='issued'").fetchone()
+        ar_issued += int(row[0]) if row else 0
 
     with_findings: dict[str, str] = {}
     if {"adapts", "adapt_findings"} <= tables:
@@ -177,8 +211,11 @@ def collect_state(conn: sqlite3.Connection) -> ReactiveAdaptState:
             specs_bare = spec_count
 
     return ReactiveAdaptState(
-        ar_table=ar_table,
+        ar_tables=tuple(ar_tables),
         ar_issued_count=ar_issued,
+        ar_near_misses=tuple(near),
+        artifact_class_count=len(classes),
+        reviews_lacks=reviews_lacks,
         adapts_with_findings=with_findings,
         adapt_signature_roles=sig_roles,
         spec_count=spec_count,
@@ -189,29 +226,42 @@ def collect_state(conn: sqlite3.Connection) -> ReactiveAdaptState:
 
 
 def _check_ar_issued(st: ReactiveAdaptState) -> Subcheck:
-    if st.ar_table is None:
+    shape = "(" + ", ".join(AR_SHAPE_FIELDS) + ")"
+    if not st.ar_tables:
+        near = (
+            "; nearest: " + ", ".join(f"{t} lacks {', '.join(m)}" for t, m in st.ar_near_misses)
+            if st.ar_near_misses
+            else ""
+        )
+        reviews = (
+            f" The reviews table is NOT counted: it lacks {', '.join(st.reviews_lacks)} — it "
+            "records review of a task closure and its code, and an AR is the verdict of a "
+            "ТЗ review."
+            if st.reviews_lacks
+            else ""
+        )
         return Subcheck(
             "adversarial-review-issued",
             False,
             "§13.3.3 p.73, p.80",
-            "AR does not exist as an artifact class (no adversarial-review table in the "
-            f"substrate; probed {list(AR_TABLE_CANDIDATES)}) — no derivation can carry a "
-            "recorded verdict. The reviews table is NOT counted: it records review of a "
-            "task closure and its code, and an AR is the verdict of a ТЗ review.",
+            f"AR does not exist as an artifact class: none of {st.artifact_class_count} "
+            f"artifact classes carries the §7.4.6 record shape {shape}{near} — no "
+            "derivation can carry a recorded verdict." + reviews,
         )
+    where = ", ".join(st.ar_tables)
     if st.ar_issued_count == 0:
         return Subcheck(
             "adversarial-review-issued",
             False,
             "§13.3.3 p.73",
-            f"{st.ar_table} exists but holds zero AR in status 'issued' — a verdict that "
-            "was never issued is not a fixed verdict (§7.4.6).",
+            f"{where} carries the §7.4.6 shape {shape} but holds zero AR in status 'issued' "
+            "— a verdict that was never issued is not a fixed verdict (§7.4.6).",
         )
     return Subcheck(
         "adversarial-review-issued",
         True,
         "§13.3.3 p.73",
-        f"{st.ar_issued_count} AR record(s) in status 'issued' in {st.ar_table}",
+        f"{st.ar_issued_count} AR record(s) in status 'issued' in {where} (§7.4.6 shape {shape})",
     )
 
 

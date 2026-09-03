@@ -9,6 +9,37 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — AR is an artifact class by its §7.4.6 record shape, not by three guessed table names
+
+`renar_clause_reactive_adapt` decided whether adversarial-review records (AR)
+exist as a class by looking for one of three table names it had made up —
+`adversarial_reviews`, `ar_records`, `renar_ar` — and the conformance manifest
+printed that list to the external reader as `probed [...]`, offering a guess as
+evidence of absence. It is the defect #202 found on TC, facing the other way:
+there a guessed name could publish a false `true`; here `ok` is `false`, so an
+AR created under a fourth name would have kept the manifest saying "AR does not
+exist" — under decision #295 an unreported strengthening of our own claim.
+
+The task left one question open: what tells an AR from an ordinary review
+without inventing a fourth name? Measured, not reasoned:
+`reference/02-schemas.md` §7.1 and `standard/07 §7.4.6` make three record
+fields mandatory — `tz-ref`, `verdict`, `status` (with `issued`) — and the
+live database, all 63 tables, has no `verdict` column and no status domain
+holding `issued`; `reviews` carries `task_slug` and `run_type`, a task
+closure, not a ТЗ verdict. So the
+cut is the SHAPE, in the substrate's spelling (`tz_ref` is how `adapts`
+already stores `tz-ref`), over `renar_tc_premise.artifact_classes` — FTS
+shadow tables excluded by derivation, not by prefix. Shape is not the
+column-name guess that module warns against: there the column was the duty,
+here the columns are the identity of the class. Classes carrying part of the
+shape are named in the evidence with what they lack (`adapts lacks verdict`),
+and so is `reviews`, by the fields it lacks; two AR tables are both named and
+their issued counts summed. Fixtures in three test modules now create the AR
+with all three fields. Six mutations, each killed by a named test — among them
+the name probe put back (an AR under `tz_review_verdicts` goes unseen). The
+manifest no longer prints a `probed` list.
+Task `ar-existence-is-probed-by-three-guessed-table-names`.
+
 ### Fixed — tracebacks named a path that does not exist: stale bytecode is now reported and purgeable
 
 Session #187 read a traceback pointing at
