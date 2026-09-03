@@ -291,6 +291,10 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
     else:
         _print_ok("Bootstrap drift", "none — deployed scripts match source")
 
+    from pyc_hygiene import doctor_section  # a .pyc that names another tree lies in tracebacks
+
+    fix_pyc = getattr(args, "fix_bytecode", False)  # tests call cmd_doctor with bare namespaces
+    warnings += doctor_section(project_dir, fix_pyc, _print_ok, _print_warn)
     md_is_warn, md_detail = _format_claudemd_drift_line(_claudemd_drift_report(project_dir))
     if md_is_warn:
         _print_warn("CLAUDE.md drift", md_detail)

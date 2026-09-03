@@ -77,7 +77,13 @@ def build_parser() -> argparse.ArgumentParser:
     build_spec_subparsers(sub)
     build_adapt_subparsers(sub)
     build_aidd_subparsers(sub)
-    sub.add_parser("doctor", help="Health check: venv + DB + MCP + skills + drift")
+    doctor_p = sub.add_parser("doctor", help="Health check: venv + DB + MCP + skills + drift")
+    doctor_p.add_argument(
+        "--fix-bytecode",
+        action="store_true",
+        help="Purge exactly the .pyc files that name a directory other than their own "
+        "(stale after a tree move; the interpreter recreates them). Reports otherwise.",
+    )
 
     drift_p = sub.add_parser("drift", help="RENAR drift detectors (schema + TC↔req provenance)")
     drift_p.add_argument(

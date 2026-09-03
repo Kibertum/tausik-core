@@ -34,7 +34,8 @@ metrics tokens [--since ISO] [--until ISO] [--task SLUG]    # Token rollup per t
                                 #   attributed to the currently active task.
                                 # Pricing: scripts/cost_pricing.py — single source of truth.
                                 # See docs/{en,ru}/cost-telemetry.md.
-doctor                         # Health check: venv + DB + MCP + skills + drift
+doctor                         # Health check: venv + DB + MCP + skills + drift + stale bytecode
+doctor --fix-bytecode          # Purge EXACTLY the .pyc whose co_filename names another directory (after a tree move)
 ```
 
 ## Hierarchy

@@ -9,6 +9,31 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — tracebacks named a path that does not exist: stale bytecode is now reported and purgeable
+
+Session #187 read a traceback pointing at
+`D:\Work\Personal\claude\tests\...` — a directory that is not on the disk.
+The hypothesis (the repository once lived there, the tree moved, the caches
+under `__pycache__/` stayed, and CPython validates a `.pyc` by the source's
+mtime and size, never its path) was CHECKED before anything was written, by
+reading `co_filename` out of the caches with `marshal`: of 2561 `.pyc` under
+the tree, 543 record a directory that is not the one owning their
+`__pycache__`, 527 of them the nonexistent old tree (tests 432, scripts 69,
+bootstrap 16, hooks 6, harness 4), across cpython-311/313/314 and pytest 8/9
+tags — months of accumulation. A traceback that lies about where the fact
+is found is a silent error of the class this project refuses.
+
+New `scripts/pyc_hygiene.py` lists every cache whose recorded directory is
+not its owner, compared after `normpath`/`normcase` (`tests\..\scripts` is
+the same place and is not reported; a relative recorded path is not a claim
+about location and is not either). `tausik doctor` gains a "Stale bytecode"
+row naming the count and the old trees, and `tausik doctor --fix-bytecode`
+purges exactly the listed files — the interpreter recreates them — never
+walking vendors/, research/ or .tausik/. Held, not one-off: the row is in
+every doctor run. Measured effect beyond tracebacks: none — the 12 modules
+that mention `__pycache__` all exclude it, and the gates walk sources. Five
+mutations, each killed. Task `tracebacks-name-a-repository-path-that-does-not-exist`.
+
 ### Fixed — `tasks.attempts` now counts attempts, so FPSR stops flattering the history
 
 Measured in #189: of 1239 closed tasks exactly one had `attempts > 1`, and

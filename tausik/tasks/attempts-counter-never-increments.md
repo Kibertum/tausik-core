@@ -4,7 +4,7 @@ title: "Счётчик попыток всегда равен единице: п
 status: done
 epic: release-19-renar-conformance
 story: evidence-primitives
-complexity: simple
+complexity: medium
 role: developer
 stack: python
 tier: null

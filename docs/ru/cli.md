@@ -34,7 +34,8 @@ metrics tokens [--since ISO] [--until ISO] [--task SLUG]    # Rollup токен�
                                 #   tool_name=<инструмент>) с привязкой к активной задаче.
                                 # Прайсинг: scripts/cost_pricing.py — единый source of truth.
                                 # Подробности: docs/{en,ru}/cost-telemetry.md.
-doctor                         # Health check: venv + DB + MCP + skills + drift
+doctor                         # Health check: venv + DB + MCP + skills + drift + устаревший байт-код
+doctor --fix-bytecode          # Удалить РОВНО те .pyc, чей co_filename называет чужой каталог (после переезда дерева)
 ```
 
 ## Иерархия
