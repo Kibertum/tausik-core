@@ -235,9 +235,9 @@ in the module that does drive it; the names are checked against that module's
 AST. The list is closed: a new gate without a row reddens the lane. A mutation
 cannot stay in the tree by construction — everything is built under
 `tmp_path`, and a write outside it during the table run is caught by
-intercepting `open`, `sqlite3.connect` and `subprocess` — not by a
-`git status` snapshot, which under xdist loses the race to a neighbouring
-worker.
+intercepting `open`, `sqlite3.connect` and `subprocess` (the three channels
+the builders use) — not by a `git status` snapshot, which under xdist loses
+the race to a neighbouring worker.
 
 `class_surface` is the one exception to "run over the declared scope": it ignores
 the file list and measures the **whole repo** (~0.65s). A class grows past its cap

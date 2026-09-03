@@ -89,9 +89,15 @@ intercepting `open`, `sqlite3.connect` and `subprocess` — the three channels
 the builders actually use (review #207 found the first version watching one
 and promising all) — not by a `git status` snapshot, which under xdist lost
 the race to a neighbouring worker and let a planted file survive (measured
-here before the check was replaced). Five mutations of the table itself, each
-killed by a named test, and three more on the widened spy. PreToolUse hook gates and stack-declared command gates
-are declared out of scope in the module docstring, not forgotten.
+here before the check was replaced). Every note carries the channel it came
+through, and the test asserts by that tag that all three fired: review #208
+proved by mutation that the widened spy, which told the channels apart by
+the shape of a path (`.db`, `proj`), stayed green with the `open` patch
+removed. Five mutations of the table itself, each killed by a named test,
+three more on the widened spy, and five on the tagged one — among them the
+inverse: renaming a builder's directory no longer reddens the test.
+PreToolUse hook gates and stack-declared command gates are declared out of
+scope in the module docstring, not forgotten.
 Task `verify-a-gate-by-mutation-not-by-passing`.
 
 ### Fixed — `bootstrap_drift` now checks the third link: the process that is running

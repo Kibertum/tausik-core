@@ -354,9 +354,75 @@ def test_an_excuse_names_a_reason_and_both_ends_that_exist(name):
     assert red_test != green_test
 
 
+CHANNELS = ("open", "sqlite3", "subprocess")
+
+
+def _is_under(path: str, root) -> bool:
+    """Containment with a separator boundary and case folding.
+
+    A raw prefix test would accept `<root>x` — a sibling — as a child, and on
+    Windows the drive letter of `os.getcwd()` and of `tmp_path` may differ in
+    case, which a raw test reads as "outside".
+    """
+    p = os.path.normcase(os.path.abspath(path))
+    r = os.path.normcase(os.path.abspath(str(root)))
+    # rstrip: a drive or filesystem root already ends with the separator.
+    return p == r or p.startswith(r.rstrip(os.sep) + os.sep)
+
+
+def _install_spies(monkeypatch) -> list[tuple[str, str]]:
+    """Watch the three channels the builders use; return where the notes land.
+
+    Every note is a pair (channel, absolute path), so a test can ask WHICH spy
+    saw a path — the shape of the path says which builder wrote it, not which
+    channel it went through (review #208, record #16: the first spy told the
+    channels apart by `.db` and `proj` suffixes, and dropping the `open` patch
+    left it green).
+    """
+    import builtins
+    import io
+    import sqlite3
+
+    touched: list[tuple[str, str]] = []
+    real_open, real_connect = builtins.open, sqlite3.connect
+    real_run, real_popen = subprocess.run, subprocess.Popen
+
+    def note(channel: str, path) -> None:
+        if isinstance(path, str | os.PathLike) and os.fspath(path) not in ("", ":memory:"):
+            touched.append((channel, os.path.abspath(os.fspath(path))))
+
+    def spy_open(file, mode="r", *args, **kwargs):
+        if any(c in str(mode) for c in "wax+"):
+            note("open", file)
+        return real_open(file, mode, *args, **kwargs)
+
+    def spy_connect(database, *args, **kwargs):
+        note("sqlite3", database)
+        return real_connect(database, *args, **kwargs)
+
+    def spy_process(real):
+        def run(*args, **kwargs):
+            # argv comes positionally or as the documented `args=` keyword.
+            argv = args[0] if args else kwargs.get("args", ())
+            note("subprocess", kwargs.get("cwd") or os.getcwd())
+            for a in argv if isinstance(argv, list | tuple) else [argv]:
+                if isinstance(a, str | os.PathLike) and os.path.isabs(os.fspath(a)):
+                    note("subprocess", a)
+            return real(*args, **kwargs)
+
+        return run
+
+    monkeypatch.setattr(builtins, "open", spy_open)
+    monkeypatch.setattr(io, "open", spy_open)
+    monkeypatch.setattr(sqlite3, "connect", spy_connect)
+    monkeypatch.setattr(subprocess, "run", spy_process(real_run))
+    monkeypatch.setattr(subprocess, "Popen", spy_process(real_popen))
+    return touched
+
+
 def test_the_table_leaves_the_repository_untouched(tmp_path, monkeypatch):
     """Every builder works under tmp_path — and that is CHECKED, not assumed:
-    every file opened for writing while the table runs must lie under this
+    every path a builder touches while the table runs must lie under this
     test's own tmp_path, or the test names it.
 
     Why not `git status` before and after? Measured in #207: under xdist a
@@ -372,44 +438,22 @@ def test_the_table_leaves_the_repository_untouched(tmp_path, monkeypatch):
     database; and `subprocess.run`/`Popen`, through which `memory_route` runs
     `git` — for those the working directory and every absolute argument are
     what can be observed, and what the child then writes on its own is not.
-    NOT watched, and said so: `os.open` and other direct syscalls.
+    And each of the three must have FIRED at least once, asserted by the
+    channel tag on the note. What that enforces, exactly: a dropped spy is
+    caught on every channel; a builder migrating away from a channel is caught
+    only for `sqlite3`, whose sole feeder is `state_roundtrip` — NOT for
+    `open` (six feeders) and NOT for `subprocess` (two: `memory_route`'s
+    `git init` and `gate_state_roundtrip.py`'s own `git status`). Measured by
+    review #208, records #17/#18: `_write` rewritten to `os.open`/`os.write`
+    left the table green, and the notes grouped by builder gave those counts.
+    NOT watched, and said so: `os.mkdir`/`os.makedirs` — the one unwatched
+    channel that actually fires (measured on this table: 83 calls), harmless
+    because an empty directory is invisible to git and any file put inside it
+    goes through `open`; and direct syscalls (`os.open`/`os.write`), through
+    which a builder WOULD write unobserved — no builder uses them today
+    (measured: `os.open` fires 13 times and every one is DEVNULL).
     """
-    import builtins
-    import io
-    import sqlite3
-
-    written: list[str] = []
-    real_open, real_connect = builtins.open, sqlite3.connect
-    real_run, real_popen = subprocess.run, subprocess.Popen
-
-    def note(path) -> None:
-        if isinstance(path, str | os.PathLike) and os.fspath(path) not in ("", ":memory:"):
-            written.append(os.path.abspath(os.fspath(path)))
-
-    def spy_open(file, mode="r", *args, **kwargs):
-        if any(c in str(mode) for c in "wax+"):
-            note(file)
-        return real_open(file, mode, *args, **kwargs)
-
-    def spy_connect(database, *args, **kwargs):
-        note(database)
-        return real_connect(database, *args, **kwargs)
-
-    def spy_process(real):
-        def run(argv, *args, **kwargs):
-            note(kwargs.get("cwd") or os.getcwd())
-            for a in argv if isinstance(argv, list | tuple) else [argv]:
-                if isinstance(a, str | os.PathLike) and os.path.isabs(os.fspath(a)):
-                    note(a)
-            return real(argv, *args, **kwargs)
-
-        return run
-
-    monkeypatch.setattr(builtins, "open", spy_open)
-    monkeypatch.setattr(io, "open", spy_open)
-    monkeypatch.setattr(sqlite3, "connect", spy_connect)
-    monkeypatch.setattr(subprocess, "run", spy_process(real_run))
-    monkeypatch.setattr(subprocess, "Popen", spy_process(real_popen))
+    touched = _install_spies(monkeypatch)
     cwd = os.getcwd()
     for name, (red, green) in sorted(COVERED.items()):
         for end, builder in (("red", red), ("green", green)):
@@ -418,16 +462,51 @@ def test_the_table_leaves_the_repository_untouched(tmp_path, monkeypatch):
             with monkeypatch.context() as mp:
                 builder(root, mp)
     assert os.getcwd() == cwd
-    allowed = os.path.abspath(str(tmp_path))
-    outside = sorted({p for p in written if not p.startswith(allowed)})
+    outside = sorted({p for _, p in touched if not _is_under(p, tmp_path)})
     assert outside == [], f"a builder touched a path outside tmp_path: {outside}"
-    assert written, "no write was observed at all — the spies are not seeing the builders"
-    # Each channel must have been exercised, or a builder could switch to an
-    # unwatched one and this test would keep passing for the wrong reason.
-    assert any(p.endswith(".db") for p in written), "the sqlite channel saw nothing"
-    assert any(p.endswith(("proj", "proj" + os.sep + ".git")) for p in written), (
-        "the subprocess channel saw nothing"
+    assert touched, "nothing was touched at all — the spies are not seeing the builders"
+    fired = {channel for channel, _ in touched}
+    for channel in CHANNELS:
+        assert channel in fired, f"the {channel} channel saw nothing"
+    # Unreachable today — every tag is one of the literals in _install_spies —
+    # and kept as a construction guard: a fourth spy added without a CHANNELS
+    # entry would pass the loop above and fail here.
+    assert fired == set(CHANNELS), f"a note came through an unknown channel: {fired}"
+
+
+def test_the_spies_note_every_channel_by_tag(tmp_path, monkeypatch):
+    """The spy machinery on its own, apart from the builders: one touch per
+    channel lands under that channel's tag, and `subprocess.run(args=...)` —
+    the keyword form the stdlib documents — is accepted (review #208: the
+    first spy took argv positionally only and raised TypeError on it)."""
+    import sqlite3
+
+    touched = _install_spies(monkeypatch)
+    (tmp_path / "f.txt").write_text("x", encoding="utf-8")
+    sqlite3.connect(tmp_path / "t.db").close()
+    subprocess.run(args=[sys.executable, "-c", "pass"], cwd=str(tmp_path), check=True)
+    by_channel = {c: sorted(p for ch, p in touched if ch == c) for c in CHANNELS}
+    assert str(tmp_path / "f.txt") in by_channel["open"]
+    assert str(tmp_path / "t.db") in by_channel["sqlite3"]
+    assert str(tmp_path) in by_channel["subprocess"], "cwd of the keyword form was not noted"
+    assert os.path.abspath(sys.executable) in by_channel["subprocess"], (
+        "an absolute argv entry of the keyword form was not noted"
     )
+
+
+def test_containment_has_a_boundary_and_folds_case(tmp_path):
+    root = tmp_path / "root"
+    assert _is_under(str(root / "inner" / "f"), root)
+    assert _is_under(str(root), root)
+    assert not _is_under(str(tmp_path / "rootx" / "f"), root), (
+        "a sibling sharing the prefix is outside"
+    )
+    assert not _is_under(str(tmp_path), root), "the parent is outside"
+    drive = os.path.splitdrive(os.path.abspath(str(root)))[0] + os.sep
+    assert _is_under(str(root), drive), "a filesystem root has children"
+    if os.name == "nt":
+        inner = str(root / "f")
+        assert _is_under(inner[0].swapcase() + inner[1:], root), "drive-letter case"
 
 
 CROSSCUTTING_SCOPE = ["tests/"]
