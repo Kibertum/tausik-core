@@ -9,6 +9,33 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — `bootstrap_drift` now checks the third link: the process that is running
+
+The chain "edit `scripts/` → redeploy → takes effect" has three links, and the
+gate checked two. Session #191 measured the third: after `bootstrap --ide all`
+a fresh `gates status` listed the new gate, while the MCP server started
+BEFORE the redeploy closed two tasks in a row without it. The server judges
+with the registry and handlers it imported at start; rewriting the files under
+it changes nothing it executes, and both sides told the truth about different
+code. The task's original diagnosis — "the gate stands OFF" — had already been
+closed by decision #287 (`tausik/policy.json`); re-diagnosed before any code
+was written, as memory #530 requires.
+
+New `scripts/running_source_drift.py` takes a content snapshot of the tree the
+process runs from at process start (the MCP server pins it at the top of
+`main`, for its `scripts/` tree and its own `mcp/` tree). At task-done the
+gate asks whether that tree changed since; if it did, the close is refused
+with the one fix there is: restart the server, or close via the CLI, which is
+a fresh process. Hash, not mtime — an identical redeploy touches every mtime
+and changes nothing that runs, and a gate that blocked after every routine
+bootstrap would be switched off within a session. First snapshot wins: a
+reference any caller can move is not a reference. Measured on a copy of the
+real profile (380 files): a child process with one file edited under it
+returns the block naming the file; snapshot 40–70 ms warm, comparison 40 ms.
+Five mutations of the check, each killed by a named test. Reports, never
+restarts (decision #189).
+Task `bootstrap-drift-gate-off-source-edits-never-reach-the-cli`.
+
 ### Fixed — the write gate read a literal `open()` out of a comment and blocked on it
 
 The detector behind the Bash write gate matched the TEXT of a Python source,

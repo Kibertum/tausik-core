@@ -125,6 +125,19 @@ def main():
     except Exception:  # noqa: BLE001 — never let stdio setup crash the server
         pass
 
+    # Pin the moment this process started, for the bootstrap_drift gate's
+    # third link: a redeploy under a running server changes the files on disk
+    # and nothing the server executes. The snapshot covers the scripts tree
+    # the server imports from and this mcp/ tree it is itself part of. Taken
+    # here, at the top of main, so no later import can move it — and never
+    # fatal: a server that cannot snapshot must still serve.
+    try:
+        import running_source_drift
+
+        running_source_drift.record_start(os.path.dirname(os.path.abspath(__file__)))
+    except Exception:  # noqa: BLE001 — see above
+        pass
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--project", required=True, help="Project root directory")
     args = parser.parse_args()

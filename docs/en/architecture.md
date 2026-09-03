@@ -213,6 +213,14 @@ task's declared scope. Universal (always on): `filesize`, `class_surface`,
 `tdd_order`, `ruff`, `mypy`, `bandit`, `bootstrap_drift`, `memory_route`,
 `renar_drift_schema`, `renar_drift_provenance`.
 
+`bootstrap_drift` checks all three links of the chain "edit → deploy → takes
+effect": `scripts/` against the deployed profile, `harness/` against its
+fan-out, and the deployed profile against **the process that runs from it**
+(`running_source_drift`: a content snapshot at process start, compared at
+task-done). A long-lived MCP server whose profile was rewritten underneath it
+executes the old copy; the gate refuses the close and names the fix — restart
+the server, or close via the CLI, which is a fresh process.
+
 `class_surface` is the one exception to "run over the declared scope": it ignores
 the file list and measures the **whole repo** (~0.65s). A class grows past its cap
 through its *bases*, so a scoped run would never see it — the same blindness that
