@@ -221,6 +221,24 @@ task-done). A long-lived MCP server whose profile was rewritten underneath it
 executes the old copy; the gate refuses the close and names the fix — restart
 the server, or close via the CLI, which is a fresh process.
 
+**A gate is verified by mutation, not by passing.** A green run proves only
+that the gate did not object — not that it would object to anything. The rule
+is held by `tests/test_gates_catch_their_violation.py`: every gate in
+`gate_registry.GATE_REGISTRY` is in exactly one of two tables. COVERED — the
+gate is driven through the registry's own `impl_for` on BOTH ends: a real
+violation built under `tmp_path` must come back failed, a clean input built the
+same way must come back passed (one end alone is empty: a gate that is red on
+every input passes a red-only check as well as a correct one). EXCUSED — a gate
+that cannot be driven from a synthetic tree (service-bound, an external tool's
+verdict, warn severity), with a reason and the names of a red and a green test
+in the module that does drive it; the names are checked against that module's
+AST. The list is closed: a new gate without a row reddens the lane. A mutation
+cannot stay in the tree by construction — everything is built under
+`tmp_path`, and a write outside it during the table run is caught by
+intercepting `open`, `sqlite3.connect` and `subprocess` — not by a
+`git status` snapshot, which under xdist loses the race to a neighbouring
+worker.
+
 `class_surface` is the one exception to "run over the declared scope": it ignores
 the file list and measures the **whole repo** (~0.65s). A class grows past its cap
 through its *bases*, so a scoped run would never see it — the same blindness that

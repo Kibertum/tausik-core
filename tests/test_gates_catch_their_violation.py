@@ -363,23 +363,53 @@ def test_the_table_leaves_the_repository_untouched(tmp_path, monkeypatch):
     builder that dropped a file into `tests/` survived that check, because
     another worker had already run the same builder before this test took
     its "before" snapshot, and the leftover was in both. Intercepting the
-    write is independent of ordering. `io.open` is patched as well as
-    `builtins.open`: `Path.write_text` goes through the former, and patching
-    the latter alone would have left the most ordinary write unobserved.
+    write is independent of ordering.
+
+    THREE CHANNELS are watched, because the builders use three (review #207,
+    record #12: the first version watched one and promised all): `open` —
+    `io.open` as well as `builtins.open`, since `Path.write_text` goes through
+    the former; `sqlite3.connect`, through which `state_roundtrip` creates its
+    database; and `subprocess.run`/`Popen`, through which `memory_route` runs
+    `git` — for those the working directory and every absolute argument are
+    what can be observed, and what the child then writes on its own is not.
+    NOT watched, and said so: `os.open` and other direct syscalls.
     """
     import builtins
     import io
+    import sqlite3
 
     written: list[str] = []
-    real_open = builtins.open
+    real_open, real_connect = builtins.open, sqlite3.connect
+    real_run, real_popen = subprocess.run, subprocess.Popen
 
-    def spy(file, mode="r", *args, **kwargs):
-        if isinstance(file, str | os.PathLike) and any(c in str(mode) for c in "wax+"):
-            written.append(os.path.abspath(os.fspath(file)))
+    def note(path) -> None:
+        if isinstance(path, str | os.PathLike) and os.fspath(path) not in ("", ":memory:"):
+            written.append(os.path.abspath(os.fspath(path)))
+
+    def spy_open(file, mode="r", *args, **kwargs):
+        if any(c in str(mode) for c in "wax+"):
+            note(file)
         return real_open(file, mode, *args, **kwargs)
 
-    monkeypatch.setattr(builtins, "open", spy)
-    monkeypatch.setattr(io, "open", spy)
+    def spy_connect(database, *args, **kwargs):
+        note(database)
+        return real_connect(database, *args, **kwargs)
+
+    def spy_process(real):
+        def run(argv, *args, **kwargs):
+            note(kwargs.get("cwd") or os.getcwd())
+            for a in argv if isinstance(argv, list | tuple) else [argv]:
+                if isinstance(a, str | os.PathLike) and os.path.isabs(os.fspath(a)):
+                    note(a)
+            return real(argv, *args, **kwargs)
+
+        return run
+
+    monkeypatch.setattr(builtins, "open", spy_open)
+    monkeypatch.setattr(io, "open", spy_open)
+    monkeypatch.setattr(sqlite3, "connect", spy_connect)
+    monkeypatch.setattr(subprocess, "run", spy_process(real_run))
+    monkeypatch.setattr(subprocess, "Popen", spy_process(real_popen))
     cwd = os.getcwd()
     for name, (red, green) in sorted(COVERED.items()):
         for end, builder in (("red", red), ("green", green)):
@@ -390,8 +420,14 @@ def test_the_table_leaves_the_repository_untouched(tmp_path, monkeypatch):
     assert os.getcwd() == cwd
     allowed = os.path.abspath(str(tmp_path))
     outside = sorted({p for p in written if not p.startswith(allowed)})
-    assert outside == [], f"a builder wrote outside tmp_path: {outside}"
-    assert written, "no write was observed at all — the spy is not seeing the builders"
+    assert outside == [], f"a builder touched a path outside tmp_path: {outside}"
+    assert written, "no write was observed at all — the spies are not seeing the builders"
+    # Each channel must have been exercised, or a builder could switch to an
+    # unwatched one and this test would keep passing for the wrong reason.
+    assert any(p.endswith(".db") for p in written), "the sqlite channel saw nothing"
+    assert any(p.endswith(("proj", "proj" + os.sep + ".git")) for p in written), (
+        "the subprocess channel saw nothing"
+    )
 
 
 CROSSCUTTING_SCOPE = ["tests/"]

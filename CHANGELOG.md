@@ -32,7 +32,10 @@ purges exactly the listed files — the interpreter recreates them — never
 walking vendors/, research/ or .tausik/. Held, not one-off: the row is in
 every doctor run. Measured effect beyond tracebacks: none — the 12 modules
 that mention `__pycache__` all exclude it, and the gates walk sources. Five
-mutations, each killed. Task `tracebacks-name-a-repository-path-that-does-not-exist`.
+mutations, each killed. Wiring the flag left `project_cli_doctor.py` at
+exactly the 500-line cap (review #207); the "Bootstrap drift" row moved to
+`service_doctor_drift.format_scripts_drift_line`, text unchanged and pinned,
+and the file is back at 489. Task `tracebacks-name-a-repository-path-that-does-not-exist`.
 
 ### Fixed — `tasks.attempts` now counts attempts, so FPSR stops flattering the history
 
@@ -82,10 +85,12 @@ dangling excuse. A gate added without a row fails the closed-list test.
 
 The mutation cannot be left in the tree by construction: everything is built
 under `tmp_path`, and a write anywhere else during the table run is caught by
-intercepting `open` — not by a `git status` snapshot, which under xdist lost
+intercepting `open`, `sqlite3.connect` and `subprocess` — the three channels
+the builders actually use (review #207 found the first version watching one
+and promising all) — not by a `git status` snapshot, which under xdist lost
 the race to a neighbouring worker and let a planted file survive (measured
 here before the check was replaced). Five mutations of the table itself, each
-killed by a named test. PreToolUse hook gates and stack-declared command gates
+killed by a named test, and three more on the widened spy. PreToolUse hook gates and stack-declared command gates
 are declared out of scope in the module docstring, not forgotten.
 Task `verify-a-gate-by-mutation-not-by-passing`.
 

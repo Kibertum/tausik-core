@@ -275,21 +275,9 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
         _print_fail("Core skills", f"no {ide_rel}/skills/ — run bootstrap")
         failures += 1
 
-    drift_names = _scripts_drift_names(project_dir)
-    if drift_names is None:
-        _print_warn("Bootstrap drift", "could not compare scripts/ vs deployed profiles")
-        warnings += 1
-    elif drift_names:
-        shown = ", ".join(drift_names[:8])
-        more = f" (+{len(drift_names) - 8} more)" if len(drift_names) > 8 else ""
-        _print_warn(
-            "Bootstrap drift",
-            f"{len(drift_names)} deployed file(s) differ: {shown}{more} — "
-            "run `python bootstrap/bootstrap.py --ide all` to redeploy",
-        )
-        warnings += 1
-    else:
-        _print_ok("Bootstrap drift", "none — deployed scripts match source")
+    d_is_warn, d_detail = _format_scripts_drift_line(_scripts_drift_names(project_dir))
+    (_print_warn if d_is_warn else _print_ok)("Bootstrap drift", d_detail)
+    warnings += int(d_is_warn)
 
     from pyc_hygiene import doctor_section  # a .pyc that names another tree lies in tracebacks
 
@@ -490,6 +478,7 @@ from service_doctor_drift import (  # noqa: E402,F401
     check_scripts_drift as _check_scripts_drift,
     claudemd_drift_report as _claudemd_drift_report,
     format_claudemd_drift_line as _format_claudemd_drift_line,
+    format_scripts_drift_line as _format_scripts_drift_line,
     scripts_drift_names as _scripts_drift_names,
 )
 

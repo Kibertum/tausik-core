@@ -375,3 +375,25 @@ def check_scripts_drift(project_dir: str) -> int | None:
     """
     names = scripts_drift_names(project_dir)
     return None if names is None else len(names)
+
+
+def format_scripts_drift_line(names: list[str] | None) -> tuple[bool, str]:
+    """``(is_warning, detail)`` for doctor's "Bootstrap drift" row.
+
+    The sibling of :func:`format_claudemd_drift_line`, moved here from
+    `project_cli_doctor` when that file reached the filesize cap to the line
+    (review #207, record #10). The three answers are the ones doctor always
+    printed, verbatim: ``None`` is "could not compare" and a warning, a
+    non-empty list names the first eight files and the redeploy command, and
+    an empty list is the OK row.
+    """
+    if names is None:
+        return True, "could not compare scripts/ vs deployed profiles"
+    if names:
+        shown = ", ".join(names[:8])
+        more = f" (+{len(names) - 8} more)" if len(names) > 8 else ""
+        return True, (
+            f"{len(names)} deployed file(s) differ: {shown}{more} — "
+            "run `python bootstrap/bootstrap.py --ide all` to redeploy"
+        )
+    return False, "none — deployed scripts match source"
