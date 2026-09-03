@@ -100,15 +100,46 @@ def _redirect_targets(tokens: list[str]) -> list[str]:
     return out
 
 
+def _paths_for_host(argv: list[str]) -> list[str]:
+    """The path-shaped tokens of `argv` in the HOST's separator.
+
+    PowerShell accepts `\\` as a separator on every host — pwsh on Linux reads
+    `.\\helper.py` as `./helper.py`. Python's `os.path` on POSIX does not: the
+    backslash is a character of the name, the file is not found, and the
+    resolver's fail-soft turns "unresolved" into "writes nothing". Measured on
+    the first Linux run of this lane (pipeline #6658): `python .\\helper.py`
+    passed the gate with 0 while the other four spellings refused. So the
+    dialect, which knows what a backslash means, spells the path for the host
+    before the dialect-neutral resolver joins it. On Windows `os.sep` IS the
+    backslash and this is the identity — behaviour there is unchanged.
+
+    Only tokens that can be a path are touched: not the payload after `-c`
+    (Python source, where `\\n` is an escape) or the name after `-m`, and
+    nothing carrying a quote or a newline — a path may carry a space (`'my
+    dir\\x.py'` arrives as one token), a quote it may not. A POSIX shell reads the same
+    backslash as an ESCAPE, so this stays in the PowerShell dialect and the
+    Bash channel keeps reading `.\\helper.py` as `.helper.py`.
+    """
+    out: list[str] = []
+    prev = ""
+    for tok in argv:
+        if "\\" in tok and prev not in ("-c", "-m") and not any(ch in tok for ch in "\n'\""):
+            tok = tok.replace("\\", os.sep)
+        out.append(tok)
+        prev = tok
+    return out
+
+
 def _script_argv(stmt: Statement) -> list[str]:
     """The tokens naming the program this statement runs, and its arguments.
 
     Usually the statement's own tokens: `& python helper.py` arrives here with
     the call operator already split off as a separator, and `python .\\x.py`
-    needs nothing done to it. The one shape that hides the program is
-    `Start-Process`, which takes it as an operand instead of standing in command
-    position — the PowerShell spelling of the wrapper problem the POSIX side
-    solves with `_strip_prefixes`.
+    needs only its separator spelled for the host (`_paths_for_host` — on POSIX
+    the backslash is otherwise a character of the file name). The one shape
+    that hides the program is `Start-Process`, which takes it as an operand
+    instead of standing in command position — the PowerShell spelling of the
+    wrapper problem the POSIX side solves with `_strip_prefixes`.
 
     RESIDUAL, STATED: `-ArgumentList` is split on whitespace, so a single quoted
     argument containing a space is read as two. That mis-splits an argument, it
@@ -118,7 +149,7 @@ def _script_argv(stmt: Statement) -> list[str]:
     computed-path residual both channels already document.
     """
     if stmt.verb != "start-process":
-        return stmt.tokens
+        return _paths_for_host(stmt.tokens)
     argv: list[str] = []
     target = stmt.param("filepath")
     if target is not None:
@@ -127,7 +158,7 @@ def _script_argv(stmt: Statement) -> list[str]:
     arguments = stmt.param("argumentlist")
     if arguments:
         argv += arguments.split()
-    return argv
+    return _paths_for_host(argv)
 
 
 def _writer_targets(stmt: Statement) -> list[str]:

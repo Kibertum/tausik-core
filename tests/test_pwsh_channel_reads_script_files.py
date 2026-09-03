@@ -133,6 +133,64 @@ class TestTheLiveGateOnThePowerShellChannel:
         assert _gate(project, "PowerShell", "python no_such_file.py") == 0
 
 
+class TestABackslashIsAPathInPowerShellAndAnEscapeInBash:
+    """`.\\helper.py` names `helper.py` to PowerShell on every host and
+    `.helper.py` to a POSIX shell, where the backslash escapes the `h`.
+
+    The first Linux run of this lane (pipeline #6658) found the PowerShell
+    channel handing `.\\helper.py` to the resolver as-is: on POSIX no such file,
+    fail-soft, gate 0. The repair spells the separator for the host INSIDE the
+    PowerShell dialect. These cells pin both halves: PowerShell reads
+    `helper.py` on this host whatever it is, and Bash still reads `.helper.py`
+    — so the repair cannot leak into the Bash channel, where it would turn an
+    escape into a separator. Each cell plants the two files with OPPOSITE
+    verdicts, so the exit code says which file each dialect actually read.
+    """
+
+    @pytest.mark.parametrize(
+        ("dotted_body", "plain_body", "bash_rc", "pwsh_rc"),
+        [
+            (_WRITES_OUTSIDE, _WRITES_INSIDE, 2, 0),
+            (_WRITES_INSIDE, _WRITES_OUTSIDE, 0, 2),
+        ],
+        ids=["dotted-writes-outside", "plain-writes-outside"],
+    )
+    def test_each_dialect_reads_its_own_file(
+        self, tmp_path, dotted_body, plain_body, bash_rc, pwsh_rc
+    ):
+        project = _project(tmp_path, ["allowed/**"], plain_body)
+        (project / ".helper.py").write_text(dotted_body, encoding="utf-8")
+        assert _gate(project, "Bash", "python .\\helper.py") == bash_rc
+        assert _gate(project, "PowerShell", "python .\\helper.py") == pwsh_rc
+
+    def test_a_dash_c_payload_keeps_its_backslashes(self, monkeypatch):
+        """`-c` carries Python source, where `\\n` is an escape, not a path.
+
+        Two things are deliberate. The payload has no quote and no space: a
+        quoted one is left alone by the quote rule already, and would hide a
+        dropped `-c` rule. And the host separator is pinned to `/`: on Windows
+        `os.sep` IS the backslash, the rewrite is the identity, and no
+        mutation of this function can be observed at all (measured — both
+        survived the first draft of this test).
+        """
+        from pwsh_cmd_parse import Statement
+        from pwsh_write_parse import _paths_for_host, _script_argv
+
+        monkeypatch.setattr(os, "sep", "/")
+        argv = ["python", "-c", "a\\nb", ".\\out.py"]
+        assert _paths_for_host(argv) == ["python", "-c", "a\\nb", "./out.py"]
+        assert _paths_for_host(["python", "-m", "pkg\\mod"])[2] == "pkg\\mod"
+        assert _paths_for_host(["python", "-X", "utf8", "sub\\run.py"])[3] == "sub/run.py"
+        # A quoted path with a space arrives as ONE token and is still a path;
+        # a token carrying a quote character is source, not a path.
+        assert _paths_for_host(["python", "my dir\\run.py"])[1] == "my dir/run.py"
+        assert _paths_for_host(["python", "print('a\\nb')"])[1] == "print('a\\nb')"
+        # Both shapes `_script_argv` returns go through the rewrite.
+        assert _script_argv(Statement(["python", ".\\x.py"])) == ["python", "./x.py"]
+        started = Statement(["Start-Process", "python", ".\\x.py"])
+        assert _script_argv(started) == ["python", "./x.py"]
+
+
 class TestTheChannelsAgree:
     """The seal: no dialect may answer differently about the same command."""
 

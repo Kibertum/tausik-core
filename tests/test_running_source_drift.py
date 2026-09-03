@@ -58,12 +58,21 @@ class TestSnapshot:
     def test_identical_rewrite_is_not_a_change(self, tmp_path):
         """CONTENT, NOT MTIME: a redeploy that rewrites the same bytes touches
         every mtime and changes nothing that runs. Keyed on mtime this gate
-        would block after every routine bootstrap and be switched off."""
+        would block after every routine bootstrap and be switched off.
+
+        The mtime is moved by hand AFTER the rewrite. Letting the write set it
+        raced the kernel clock: on the Linux runner (pipeline #6658) the create
+        and the rewrite fell into one timestamp tick, the premise "mtime
+        differs" was false, and the test reddened on its premise while the gate
+        it describes was right. NTFS hands out 100 ns stamps, so Windows never
+        showed it.
+        """
         _tree(tmp_path, {"a.py": "x = 1\n"})
         snap = RSD.Snapshot([str(tmp_path)])
         before = os.stat(tmp_path / "a.py").st_mtime_ns
-        os.utime(tmp_path / "a.py", ns=(before + 5_000_000_000, before + 5_000_000_000))
         (tmp_path / "a.py").write_text("x = 1\n", encoding="utf-8")
+        later = before + 5_000_000_000
+        os.utime(tmp_path / "a.py", ns=(later, later))
         assert os.stat(tmp_path / "a.py").st_mtime_ns != before
         assert snap.changed() == []
 

@@ -9,6 +9,43 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the first 1.9 pipeline ran on Linux and reddened twice: a test premise raced the kernel clock
+
+Session #205 switched the CI trigger to every branch push; session #208 made
+the first push of the wave and pipeline #6658 ran the lane on a Linux runner
+for the first time: 2 failed, 8506 passed, 156 skipped. Both failures were
+Linux-only and both sat in code of this release. The first:
+`test_identical_rewrite_is_not_a_change` (the third bootstrap link, #207)
+proved the snapshot keys on content by rewriting a file with the same bytes and
+asserting its mtime had moved — and let the WRITE set the mtime. On the
+runner's filesystem the create and the rewrite fell into one timestamp tick,
+the premise "mtime differs" was false, and the test reddened on its premise
+while the gate it describes was right; NTFS hands out 100 ns stamps, so the
+30 Windows runs never showed it. The test now moves the mtime itself, after
+the rewrite, by five seconds. Two mutations, each killed: the snapshot keyed
+on mtime reddens the gate assertion; the premise set to the old mtime reddens
+the premise. Thirty runs in a row on each platform, zero failures.
+Task `snapshot-test-races-the-clock-on-linux`.
+
+The second failure was a real hole, not a premise: `python .\helper.py` — the
+third of the five PowerShell spellings the #201 follow-up measured — passed
+the write gate with 0 on Linux while the other four refused. The dialect
+handed `.\helper.py` to the dialect-neutral resolver as it stood; on POSIX
+the backslash is a character of the file name, no such file, and fail-soft
+read "unresolved" as "writes nothing". PowerShell accepts the backslash as a
+separator on every host, so the dialect now spells the separator for the host
+(`_paths_for_host`) before the resolver joins it — only for path-shaped
+tokens, never for a `-c` payload or a `-m` name, and on Windows the identity.
+The Bash channel is untouched: there the same backslash is an ESCAPE, and a
+new two-cell control plants `.helper.py` and `helper.py` with opposite
+verdicts so the exit code says which file each dialect read. Measured in a
+fresh Linux clone provisioned as the CI job is: the reddened cell green, and
+the dialect at its previous version reddening three tests. Mutations: the
+normalization leaked into the Bash lexer reddens the control; the `-c` rule
+dropped reddens the unit test; on Windows the removal of the normalization
+stays green, which is the boundary of that platform, recorded.
+Task `pwsh-channel-backslash-script-path-unresolved-on-posix`.
+
 ### Fixed — AR is an artifact class by its §7.4.6 record shape, not by three guessed table names
 
 `renar_clause_reactive_adapt` decided whether adversarial-review records (AR)
