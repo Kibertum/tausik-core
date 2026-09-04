@@ -13,6 +13,7 @@ enforcement switches lived in it:
 | `qg0.scope_hard_gate` | the block on edits outside a task's declared scope |
 | `risk.l3_block_on_high` | the external L3 review required to close an under-evidenced task |
 | `task_done.auto_verify` | closes a task on an inline run, skipping the signed receipt |
+| `task_done.changelog_gate.enabled` | the changelog gate's switch — its own path, older than `gates.<name>.enabled`; unguarded, a local `false` silently undid a committed `true` (review #38) |
 | `gates.<name>.enabled` | the gate itself |
 | `gates.<name>.severity` | demotes `block` to `warn` |
 | `gates.<name>.trigger` | detaches the gate from events: enabled, never fires |

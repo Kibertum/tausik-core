@@ -13,6 +13,7 @@ SPEC: `sec-config-trust-tiers` (SEC, v1). Задача: `l26-config-trust-tiers`
 | `qg0.scope_hard_gate` | запрет правок вне заявленного scope задачи |
 | `risk.l3_block_on_high` | требование внешнего L3-ревью при закрытии с тонким доказательством |
 | `task_done.auto_verify` | закрытие задачи inline-прогоном в обход подписанного чека |
+| `task_done.changelog_gate.enabled` | выключатель гейта changelog — свой путь, старше `gates.<имя>.enabled`; без охраны локальный `false` молча снимал закоммиченный `true` (ревью #38) |
 | `gates.<имя>.enabled` | сам гейт |
 | `gates.<имя>.severity` | понижение `block` → `warn` |
 | `gates.<имя>.trigger` | отвязка от событий: гейт включён и не срабатывает никогда |
