@@ -9,6 +9,74 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — two detectors called an example a citation, and one root fed both
+
+`memory lint` (stale_file) and `audit evidence` are independent, and both
+counted a conventional EXAMPLE name as a real reference. Measured in session
+#209 before the change: `audit evidence` reported 25 refs as NEVER_EXISTED, of
+which 13 were examples quoted by tasks whose very SUBJECT is fake or rotted
+citations (`tests/test_does_not_exist.py`, `tests/test_foo.py::test_bar`,
+`tests/../scripts/prod.py`) and only 3 were genuine — the headline
+over-reported real rot by a factor of two, next to a ROTTED bucket of 22 that
+a reader was being taught to skim past. `memory lint` reported 7 stale_file
+findings of which 5 were not stale.
+
+The notion now lives in one module, `scripts/illustrative_paths.py`, which
+both detectors import; the private placeholder regex that used to sit inside
+`memory_cleanup` is gone, because a second copy of that list is how the two
+drifted apart. Three mechanical rules, each chosen from the corpus rather than
+from taste: a placeholder basename, a placeholder member name (so a real file
+quoted with an example member is caught without widening the file-name list),
+and a path anchored to a working directory (`./probe.sh`, `a/../b.py`).
+
+`audit evidence` gives examples their own ILLUSTRATIVE bucket, counted and
+printed beside the other three with the rule that fired next to each entry —
+not folded away, because a number that silently drops entries is the next
+version of the same problem. `memory lint` additionally stops reporting
+git-IGNORED paths: `.claude/settings.local.json`, `.qwen/QWEN.md` and
+`.kilo/AGENTS.md` are absent by design and restored by the next bootstrap. The
+probe fails open, so a git that cannot answer leaves the finding standing.
+
+Measured after: NEVER_EXISTED 25 -> 12, ILLUSTRATIVE 13, ROTTED unchanged at
+22; stale_file 7 -> 2. Both genuine misses the corpus proved real
+(`tests/test_ble001_enforced.py::test_ble001_selected_in_pyproject`,
+`tests/test_knowledge_export.py::TestTheDestinationMustBeLocal`) stayed in
+NEVER_EXISTED, and the genuine stale reference `docs/skills.md` stayed in the
+lint. One finding is deliberately NOT silenced: memory #322 names
+`tausik/tausik.db` while explaining that the database is not there. Telling
+that from a stale reference needs the sentence's intent, and guessing intent
+is how a detector becomes a silencer.
+
+### Fixed — the Windows .cmd wrapper stored a truncated argument and reported success
+
+`.tausik/tausik.cmd` is the documented Windows entry point, and a caller with
+no POSIX shell reaches it with an argument list. Windows turns that into
+`cmd.exe /c <wrapper> <args>`, and cmd.exe acts on `>`, `<`, `&`, `|` and `^`
+inside those arguments before the batch file runs. Measured on Python 3.11.2:
+through the wrapper 5 of 9 hostile arguments were corrupted, the same 9 passed
+straight to python were all intact, and two corruptions were silent —
+`48->49` reached the CLI as `48-` with exit code 0 and the output diverted
+into a stray file named `49`, while `a&b` reached it as `a` with the tail
+executed as a command. Session #200 lost a handoff exactly that way.
+
+The wrapper now hands python the untouched command line and
+`scripts/cmdline_fidelity.py` compares it with the argv that arrived, exiting
+3 and naming both — plus any stray file cmd.exe had already created — instead
+of acting on a truncated value. It does not reconstruct the intended argv,
+though `CommandLineToArgvW` could: a recovered `>` is indistinguishable from a
+deliberate `cmd /c "tausik.cmd status > out.txt"`, and recovery would feed `>`
+and `out.txt` to the CLI as arguments. Redirection typed by hand in an
+interactive console is untouched — there `%CMDCMDLINE%` holds only the shell's
+own startup line — and `TAUSIK_CMDLINE_GUARD=off` covers the deliberate case.
+
+The capture itself had to be written with delayed expansion: the plain
+`set "X=%CMDCMDLINE%"` form carries quotes that close the protecting pair
+early, so a `>` in the value redirected the `set` line and stored
+`SCHEMA 48->49 next` as `SCHEMA 48- next` — the guard then refused three
+healthy arguments out of nine. With `!CMDCMDLINE!` the false-positive count is
+zero across those nine plus ten more shapes (`!PATH!`, `100% done`, Cyrillic,
+parentheses, semicolons), all of which reach python verbatim.
+
 ### Fixed — three documents still said 124 tools and the drift guard was green: the guard now reads those forms
 
 The periodic review of this session's four commits (records #19–#23) found the

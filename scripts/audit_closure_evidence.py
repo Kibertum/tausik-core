@@ -26,10 +26,16 @@ than argued:
   history separates them mechanically — with no exemption list of task slugs:
     - the target WAS in history and is gone now  -> ROTTED (rename or delete
       after closure). The reference decayed; the coverage may well be intact.
-    - the target was NEVER in history            -> NEVER_EXISTED. Either a
-      synthetic path legitimately quoted by a task whose SUBJECT is the
-      citation format (``tests/foo.py``, ``tests/test_does_not_exist.py``), or
-      a citation invented at closure time. Both are real, neither is rot.
+    - the target was NEVER in history            -> NEVER_EXISTED, a citation
+      invented at closure time.
+    - the target is a conventional EXAMPLE       -> ILLUSTRATIVE, quoted by a
+      task whose SUBJECT is the citation format (``tests/foo.py``,
+      ``tests/test_does_not_exist.py``). Split off in session #209 after a
+      measurement: 13 of the 25 refs then in NEVER_EXISTED were examples and 3
+      were genuine, so the headline over-reported real rot by a factor of two
+      beside a ROTTED bucket of 22 that a reader was being taught to skim.
+      They keep their own count instead of disappearing, because a number that
+      silently drops entries is the next version of the same problem.
   Reporting them as one count would put ~10 permanent false alarms in every
   run, and a control that cries wolf stops being read (memory #404).
 
@@ -60,6 +66,8 @@ import os
 import subprocess
 from typing import Any, Callable, Final, Iterable, Sequence
 
+from illustrative_paths import is_illustrative, why_illustrative
+
 # Verdicts. Named constants because the CLI, the tests and the report all speak
 # them, and a typo in one of the three is exactly the silent failure this
 # module exists to make loud.
@@ -67,6 +75,13 @@ RESOLVED: Final[str] = "resolved"
 ROTTED: Final[str] = "rotted"
 NEVER_EXISTED: Final[str] = "never_existed"
 UNKNOWN_HISTORY: Final[str] = "unknown_history"
+# A citation that is an EXAMPLE being quoted, not a file being cited — see
+# `illustrative_paths`. Its own bucket rather than a silent drop: measured, 13
+# of the 25 refs in NEVER_EXISTED were examples belonging to tasks whose very
+# subject is fake or rotted citations, so the headline over-reported real rot
+# by a factor of two. Hiding them would fix the number and lose the evidence
+# that the number was ever wrong.
+ILLUSTRATIVE: Final[str] = "illustrative"
 
 _DEFAULT_TEST_ROOTS: Final[tuple[str, ...]] = ("tests",)
 # difflib cutoff. 0.6 is the stdlib default and was measured on this corpus: it
@@ -212,6 +227,14 @@ def _classify(
         "successor_candidate": None,
     }
     if path is None:
+        # Asked BEFORE git: an example name has no history to look up, and
+        # spending a `git log -S` on it is how the sweep got slow as well as
+        # wrong. A ref that RESOLVES is never illustrative — a real file at a
+        # real path is a citation whatever it is called.
+        if is_illustrative(ref):
+            finding["verdict"] = ILLUSTRATIVE
+            finding["illustrative_reason"] = why_illustrative(ref)
+            return finding
         finding["verdict"] = _history_verdict(probe, repo_root, rel, None)
         return finding
     if not member:
@@ -268,7 +291,7 @@ def audit_closure_evidence(
     findings.sort(key=lambda e: (e["verdict"], e["ref"]))
     counts = {
         verdict: sum(1 for e in findings if e["verdict"] == verdict)
-        for verdict in (ROTTED, NEVER_EXISTED, UNKNOWN_HISTORY)
+        for verdict in (ROTTED, NEVER_EXISTED, UNKNOWN_HISTORY, ILLUSTRATIVE)
     }
     return {
         "tasks_scanned": scanned,

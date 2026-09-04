@@ -72,6 +72,37 @@ def dedupe_memory(be: SQLiteBackend, threshold: float = 0.85, n: int = 200) -> l
     return find_dedupe_candidates(rows, threshold)
 
 
+def git_ignore_probe(repo_root: str) -> Callable[[str], bool]:
+    """A cached `git check-ignore` for one repository.
+
+    FAILS OPEN. When git cannot be reached or refuses to answer, the path is
+    reported as NOT ignored, so the finding survives. The opposite default
+    would let a broken git turn the whole stale_file detector off silently,
+    which is the failure this module's half of the fix exists to prevent.
+    """
+    import subprocess
+
+    cache: dict[str, bool] = {}
+
+    def probe(path: str) -> bool:
+        if path not in cache:
+            try:
+                proc = subprocess.run(  # noqa: S603 - fixed argv, shell=False
+                    ["git", "check-ignore", "-q", "--", path],
+                    cwd=repo_root,
+                    capture_output=True,
+                    stdin=subprocess.DEVNULL,
+                    timeout=10,
+                    check=False,
+                )
+                cache[path] = proc.returncode == 0
+            except (OSError, subprocess.SubprocessError):
+                cache[path] = False
+        return cache[path]
+
+    return probe
+
+
 def lint_memory(
     be: SQLiteBackend,
     apply: bool = False,
@@ -85,13 +116,18 @@ def lint_memory(
     superseding entry already replaces them); contradictions and stale-file
     hits are advisory-only — they need human judgement, so ``apply`` never
     auto-archives them. ``file_exists`` defaults to repo-relative existence.
+
+    A git-IGNORED path is absent by design, so it is not reported as stale; the
+    probe is skipped when ``file_exists`` is injected, because a caller that
+    supplied its own filesystem is not describing this repository.
     """
     from memory_cleanup import find_lint_candidates
 
     rows = be.memory_list(n=n, include_archived=False)
     edges = be.edge_list(relation="contradicts", n=n) + be.edge_list(relation="supersedes", n=n)
     check = file_exists if file_exists is not None else os.path.exists
-    findings = find_lint_candidates(rows, edges, check)
+    ignored = git_ignore_probe(os.getcwd()) if file_exists is None else None
+    findings = find_lint_candidates(rows, edges, check, ignored)
 
     archived = 0
     if apply:

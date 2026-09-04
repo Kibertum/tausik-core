@@ -76,6 +76,7 @@ def cmd_audit_evidence(svc: ProjectService, args: Any) -> None:
     that the decay is visible, not that refactoring is punished.
     """
     from audit_closure_evidence import (
+        ILLUSTRATIVE,
         NEVER_EXISTED,
         ROTTED,
         UNKNOWN_HISTORY,
@@ -102,6 +103,9 @@ def cmd_audit_evidence(svc: ProjectService, args: Any) -> None:
     print(f"  ROTTED (was in git history, gone now):  {counts[ROTTED]}")
     print(f"  NEVER_EXISTED (git never had it):       {counts[NEVER_EXISTED]}")
     print(f"  UNKNOWN_HISTORY (git could not answer): {counts[UNKNOWN_HISTORY]}")
+    # Printed with the others, not folded away: the three counts above are only
+    # trustworthy while a reader can see how many refs were set aside and why.
+    print(f"  ILLUSTRATIVE (an example quoted, not a citation): {counts[ILLUSTRATIVE]}")
     for verdict, blurb in (
         (
             ROTTED,
@@ -109,6 +113,10 @@ def cmd_audit_evidence(svc: ProjectService, args: Any) -> None:
         ),
         (NEVER_EXISTED, "never in git: a synthetic path quoted on purpose, or invented at closure"),
         (UNKNOWN_HISTORY, "git refused to answer — verdict withheld, not guessed"),
+        (
+            ILLUSTRATIVE,
+            "a conventional example name, quoted by a task whose subject IS the citation form",
+        ),
     ):
         rows = [f for f in report["findings"] if f["verdict"] == verdict]
         if not rows:
@@ -118,7 +126,9 @@ def cmd_audit_evidence(svc: ProjectService, args: Any) -> None:
             near = f["successor_candidate"]
             hint = f"  ~ CANDIDATE, not a verdict: {near}" if near else ""
             amb = "  [ambiguous file name]" if f["ambiguous"] else ""
-            print(f"    - {f['ref']}{amb}{hint}")
+            why = f.get("illustrative_reason")
+            reason = f"  <- {why}" if why else ""
+            print(f"    - {f['ref']}{amb}{hint}{reason}")
             print(f"        cited by: {', '.join(f['tasks'])}")
     print("\n  A successor is a suggestion from name similarity. Confirm it by reading the")
     print("  test before treating it as the same check under a new name.")

@@ -122,16 +122,10 @@ _PATH_RE = re.compile(r"(?<![\w./\\])((?:[\w.\-]+/)+[\w.\-]+\.[A-Za-z0-9]{1,6})\
 # positives from URLs/hostnames mentioned in prose).
 _HOSTLIKE_FIRST_SEG = re.compile(r"^[\w-]+\.[\w.-]+$")
 
-# Placeholder basenames — conventional EXAMPLE filenames that appear in memory
-# prose describing a format ("cite tests/test_x.py::test_y"), never a real repo
-# file (memory-lint-stale-file-mostly-false-positives). A single-letter stem
-# (`x.py`), or `foo/bar/baz`, or `test_<placeholder>.py`. Kept deliberately
-# narrow so a genuine one-word module name is not swallowed.
-_PLACEHOLDER_BASENAME_RE = re.compile(
-    r"^(?:[a-z]|foo|bar|baz|qux|test_(?:[a-z]|foo|bar|baz|file|name|thing|func|module))"
-    r"\.[a-z0-9]{1,6}$",
-    re.IGNORECASE,
-)
+# Placeholder basenames used to live here as a private regex. They now live in
+# `illustrative_paths`, because `audit evidence` needed the same notion and a
+# second copy of the list is how the two detectors drift apart — which is the
+# root this module's half of the fix was written against.
 
 
 def _extract_paths(content: str) -> list[str]:
@@ -140,16 +134,19 @@ def _extract_paths(content: str) -> list[str]:
     Tokens whose FIRST segment is domain-like (``example.com/page.html``) are
     dropped: those are URLs/hostnames in prose, not repo-relative paths, and
     flagging them as ``stale_file`` (the file "does not exist") is noise. So are
-    tokens whose basename is a conventional PLACEHOLDER (``x.py``,
-    ``tests/test_x.py``) — an example in prose, not a claim about a real file.
+    tokens ``illustrative_paths`` calls examples rather than citations — a
+    conventional placeholder name (``x.py``, ``tests/test_x.py``) or a path
+    anchored to a working directory (``./probe.sh``, ``a/../b.py``).
     """
+    from illustrative_paths import is_illustrative
+
     seen: dict[str, None] = {}
     for m in _PATH_RE.finditer(content or ""):
         token = m.group(1).strip("`'\"")
         first_seg = token.split("/", 1)[0]
         if _HOSTLIKE_FIRST_SEG.match(first_seg):
             continue  # domain-like head → a URL/host mention, not a repo path
-        if _PLACEHOLDER_BASENAME_RE.match(token.rsplit("/", 1)[-1]):
+        if is_illustrative(token):
             continue  # example filename in prose, not a real path
         seen.setdefault(token, None)
     return list(seen)
@@ -175,12 +172,23 @@ def find_lint_candidates(
     rows: list[dict[str, Any]],
     edges: list[dict[str, Any]],
     file_exists: Any,
+    path_is_ignored: Any = None,
 ) -> list[dict[str, Any]]:
     """Deterministic memory-lint findings over the ACTIVE memory set.
 
     ``rows`` = unarchived ``memory_list`` output (id/type/title/content).
     ``edges`` = ``memory_edges`` rows (source/target type+id, relation).
     ``file_exists(path) -> bool`` resolves a repo-relative path.
+    ``path_is_ignored(path) -> bool`` answers whether git ignores the path;
+    ``None`` (the default) means "ask nothing", which is what a test that only
+    exercises the edge logic wants.
+
+    A GIT-IGNORED PATH IS ABSENT LEGITIMATELY, not stale. Measured: three of
+    seven stale_file findings named `.claude/settings.local.json`,
+    `.qwen/QWEN.md` and `.kilo/AGENTS.md` — machine-local or generated files
+    that are absent by design on a fresh checkout and would come back on the
+    next bootstrap. Reporting them teaches the reader to skim the list that
+    also holds the real ones.
 
     Returns findings ``{id, title, kind, reason, suggestion}`` sorted by id.
     Edges that point at non-active / non-memory nodes are skipped silently.
@@ -232,6 +240,8 @@ def find_lint_candidates(
             # Only a path whose DIRECTORY exists but whose FILE is gone is a real
             # stale reference; a token whose parent dir does not exist is prose
             # that merely looks path-shaped (see `_parent_dir_exists`).
+            if path_is_ignored is not None and path_is_ignored(path):
+                continue  # ignored by git → absent by design, not stale
             if not file_exists(path) and _parent_dir_exists(path, file_exists):
                 findings.append(
                     {

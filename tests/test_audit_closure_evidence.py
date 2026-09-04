@@ -26,7 +26,8 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from audit_closure_evidence import (  # noqa: E402
+from audit_closure_evidence import (
+    ILLUSTRATIVE,  # noqa: E402
     NEVER_EXISTED,
     RESOLVED,
     ROTTED,
@@ -173,12 +174,17 @@ def test_a_target_history_never_held_is_not_called_rot(tmp_path: Path) -> None:
     root = _tree(tmp_path)
     report = audit_closure_evidence(
         str(root),
-        [{"slug": "detector-task", "notes": _note("tests/test_foo.py::test_bar")}],
+        [{"slug": "detector-task", "notes": _note("tests/test_invented.py::test_never_written")}],
         probe=_probe_saying(set()),
     )
     (finding,) = report["findings"]
     assert finding["verdict"] == NEVER_EXISTED
     assert finding["verdict"] != ROTTED
+    # The fixture deliberately avoids `tests/test_foo.py::test_bar`, which this
+    # test used to carry: that name is now read as an EXAMPLE, and a fixture
+    # that lands in the illustrative bucket would silently stop exercising the
+    # never-existed branch while still passing on the first assertion.
+    assert finding["verdict"] != ILLUSTRATIVE
 
 
 def test_the_two_causes_are_never_merged_into_one_count(tmp_path: Path) -> None:
@@ -187,7 +193,7 @@ def test_the_two_causes_are_never_merged_into_one_count(tmp_path: Path) -> None:
         str(root),
         [
             {"slug": "rotted-one", "notes": _note("tests/test_alpha.py::test_gone")},
-            {"slug": "synthetic-one", "notes": _note("tests/test_foo.py::test_bar")},
+            {"slug": "synthetic-one", "notes": _note("tests/test_invented.py::test_never_written")},
         ],
         probe=_probe_saying({"tests/test_alpha.py::test_gone"}),
     )
@@ -301,3 +307,86 @@ def test_git_output_in_the_projects_own_language_does_not_crash_the_probe() -> N
 
     answer = git_ever_had_name(str(REPO), "CHANGELOG.ru.md", "TAUSIK")
     assert answer is not None, "git answered, so the audit must not report 'cannot tell'"
+
+
+# --- an example quoted is not a citation invented -------------------------
+# Session #209. Before the split the headline said 25 refs "never existed";
+# 13 were conventional examples quoted by tasks whose SUBJECT is the citation
+# format, and 3 were genuine. Both ends are pinned here, because a bucket that
+# only ever grows is a detector being switched off one name at a time.
+
+
+def test_an_example_name_gets_its_own_verdict(tmp_path: Path) -> None:
+    root = _tree(tmp_path)
+    report = audit_closure_evidence(
+        str(root),
+        [{"slug": "detector-task", "notes": _note("tests/test_does_not_exist.py")}],
+        probe=_probe_saying(set()),
+    )
+    (finding,) = report["findings"]
+    assert finding["verdict"] == ILLUSTRATIVE
+    assert finding["verdict"] != NEVER_EXISTED
+    assert finding["illustrative_reason"]
+
+
+def test_a_genuine_miss_is_not_moved_into_the_example_bucket(tmp_path: Path) -> None:
+    """The negative end, on a ref the live corpus proved genuine: it names a
+    real successor and must keep asking to be reconciled."""
+    root = _tree(tmp_path)
+    report = audit_closure_evidence(
+        str(root),
+        [{"slug": "t", "notes": _note("tests/test_ble001_enforced.py::test_ble001_selected")}],
+        probe=_probe_saying(set()),
+    )
+    (finding,) = report["findings"]
+    assert finding["verdict"] == NEVER_EXISTED
+
+
+def test_a_resolving_path_is_never_called_an_example(tmp_path: Path) -> None:
+    """A real file at a real path is a citation whatever it is named — the
+    example rules are only ever asked about a ref that failed to resolve."""
+    root = _tree(tmp_path)
+    (root / "tests" / "test_foo.py").write_text("def test_bar():\n    pass\n", encoding="utf-8")
+    report = audit_closure_evidence(
+        str(root),
+        [{"slug": "t", "notes": _note("tests/test_foo.py::test_bar")}],
+        probe=_probe_saying(set()),
+    )
+    assert report["findings"] == []
+    assert report["resolved_unique"] == 1
+
+
+def test_the_example_count_is_published_not_folded_away(tmp_path: Path) -> None:
+    """A number that silently drops entries is the next version of the same
+    problem, so the bucket is counted alongside the other three."""
+    root = _tree(tmp_path)
+    report = audit_closure_evidence(
+        str(root),
+        [
+            {"slug": "rotted-one", "notes": _note("tests/test_alpha.py::test_gone")},
+            {"slug": "example-one", "notes": _note("tests/foo.py")},
+        ],
+        probe=_probe_saying({"tests/test_alpha.py::test_gone"}),
+    )
+    assert report["counts"][ILLUSTRATIVE] == 1
+    assert report["counts"][ROTTED] == 1
+    assert report["counts"][NEVER_EXISTED] == 0
+    assert sum(report["counts"].values()) == len(report["findings"])
+
+
+def test_an_example_costs_no_git_call(tmp_path: Path) -> None:
+    """Asked before history: an example has none to look up, and the sweep runs
+    one `git log -S` per unresolved ref."""
+    root = _tree(tmp_path)
+    asked: list[str] = []
+
+    def _probe(_root, path, member):
+        asked.append(path)
+        return False
+
+    audit_closure_evidence(
+        str(root),
+        [{"slug": "t", "notes": _note("tests/foo.py")}],
+        probe=_probe,
+    )
+    assert asked == []

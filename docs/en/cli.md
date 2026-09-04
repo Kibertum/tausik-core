@@ -5,6 +5,14 @@
 All commands are invoked via the wrapper: `.tausik/tausik <command> [subcommand] [arguments]`.
 On Windows the wrapper is `.tausik/tausik.cmd`. The same surface is also available via MCP (`tausik_*` tools); see `mcp.md`.
 
+> **Arguments containing `>`, `<`, `&` or `|` on Windows.** The `.cmd` wrapper runs under `cmd.exe`, which parses those characters as operators **before** the batch file starts — even when the caller passed an argument list and never asked for a shell. Measured: of nine hostile arguments, five were corrupted and two were corrupted **silently** — `48->49` arrived as `48-` with exit code 0 while the output was diverted into a stray file named `49`, and `a&b` arrived as `a` with the tail `b` executed as a command. That is how session #200 stored a truncated handoff and reported success.
+>
+> Such a call now **exits 3** and prints to stderr what was on the command line, what reached the process, and the name of the stray file if `cmd.exe` had already created one. A corrupted value is never stored in silence.
+>
+> What to do instead: call the POSIX wrapper `.tausik/tausik` from bash (it passes `"$@"` and cannot lose an argument) or use the MCP tools — neither goes through a shell. If the redirection was **deliberate** (a script writing `cmd /c "tausik.cmd status > out.txt"`, say), set `TAUSIK_CMDLINE_GUARD=off`.
+>
+> Redirection typed by hand in an interactive console (`tausik status > out.txt`) is left alone: there `%CMDCMDLINE%` holds only the shell's own startup line and names no arguments.
+
 ## Initialization
 
 ```bash
@@ -399,7 +407,22 @@ audit research [--min-age-days N] [--json]
                                 # Audit docs/{en,ru}/research/ for stale unreferenced files
                                 # (default >30 days, no refs in tests/scripts/CHANGELOG/README).
                                 # Read-only — surfaces candidates for docs/_archive/research/.
+audit evidence [--json] [--no-git]
+                                # Do the test citations in closed tasks still resolve?
+                                # Read-only and NEVER blocking: renaming a test is legitimate,
+                                # the point is that the decay becomes VISIBLE.
 ```
+
+`audit evidence` has four buckets, deliberately not merged into one "broken" number:
+
+| bucket | meaning |
+|---|---|
+| `ROTTED` | the target WAS in git history and is gone — renamed or deleted after closure. The reference decayed; the coverage may be intact. |
+| `NEVER_EXISTED` | the target was never in history — a citation invented at closure time. |
+| `ILLUSTRATIVE` | an EXAMPLE, not a citation: `tests/foo.py`, `tests/test_does_not_exist.py`, `tests/../scripts/prod.py`. Such names are quoted by tasks whose SUBJECT is the citation format itself. |
+| `UNKNOWN_HISTORY` | git refused to answer — the verdict is withheld, not guessed. Appears under `--no-git`. |
+
+`ILLUSTRATIVE` was split off in session #209 on a measurement: of the 25 refs then in `NEVER_EXISTED`, 13 were examples and 3 were genuine, so the headline over-reported real rot by a factor of two beside 22 `ROTTED` entries a reader was being taught to skim. Examples are **counted separately, not dropped**: a number that silently loses entries is the next version of the same problem, and the rule that fired is printed next to each entry. The notion of an example path is shared with the `stale_file` detector of `memory lint` (`scripts/illustrative_paths.py`) — a second copy of the placeholder list is exactly how the two detectors drifted apart.
 
 ## Reviews (SENAR Rule 10.15) — v1.5
 

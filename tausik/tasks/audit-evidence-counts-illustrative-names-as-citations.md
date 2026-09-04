@@ -1,7 +1,7 @@
 ---
 slug: audit-evidence-counts-illustrative-names-as-citations
 title: "audit evidence считает иллюстративные имена из прозы сгнившими ссылками: корзина NEVER_EXISTED в основном шум"
-status: planning
+status: done
 epic: release-19-renar-conformance
 story: standards-drift-detection
 complexity: simple
@@ -10,13 +10,18 @@ stack: python
 tier: null
 call_budget: null
 defect_of: null
-scope: null
-scope_exclude: null
-relevant_files: []
+scope: "Ничего не правится этой задачей: её предмет реализован корневой задачей memory-lint-flags-absent-path-that-is-the-memorys-subject, которая чинила ОБА детектора одним понятием. Задача закрывается предъявлением того же доказательства."
+scope_exclude: "Никаких новых правок кода: повторная частная реализация того же понятия в audit evidence и была бы дефектом, ради устранения которого корневая задача написана."
+relevant_files:
+  - "scripts/illustrative_paths.py"
+  - "scripts/audit_closure_evidence.py"
+  - "scripts/project_cli_audit.py"
+  - "tests/test_illustrative_paths.py"
+  - "tests/test_audit_closure_evidence.py"
 scope_paths: []
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-04T10:23:48Z"
 ---
 
 ## Goal
@@ -38,10 +43,17 @@ completed_at: null
 
 ## Acceptance Criteria
 
+AC-1: Иллюстративное имя из строки доказательства уходит из корзины NEVER_EXISTED в отдельную корзину, а число в шапке перестаёт врать.
+AC-2 (негативный сценарий, двусторонний): настоящая сгнившая ссылка ОСТАЁТСЯ найденной — проверить на tests/test_ble001_enforced.py::test_ble001_selected_in_pyproject; иллюстративная УХОДИТ — проверить на tests/test_does_not_exist.py. Одна сторона без другой есть ошибка, а не починка: детектор, из которого убрали шум, неотличим от выключенного.
+AC-3: Замер до и после предъявлен числами на живом корпусе.
+
 ## Plan
 
 ## Rollback
 
-Правка в извлечении ссылок команды audit evidence (read-only, ничего не блокирует). Откат — git revert; данные не изменяются, отчёт пересчитывается каждым прогоном.
+git revert <commit> корневой задачи memory-lint-flags-absent-path-that-is-the-memorys-subject. Команда read-only, данные не меняются, отчёт пересчитывается каждым прогоном.
 
 ## Journal
+
+- 2026-09-04T10:23:16Z [implementation] — ЗАКРЫТА ПРЕДЪЯВЛЕНИЕМ ЧУЖОГО ДОКАЗАТЕЛЬСТВА, БЕЗ НОВЫХ ПРАВОК. Память #481 прямо предупреждала: под этот дефект уже заведена корневая задача memory-lint-flags-absent-path-that-is-the-memorys-subject (complex), чинящая ОБА детектора одним понятием, «на ОДИН корень, а не на два симптома». Реализовать здесь второй частный список заглушек означало бы воспроизвести ровно тот дефект, ради которого корневая задача написана. ПОПРАВКА К ОПИСАНИЮ ЭТОЙ ЗАДАЧИ. Она утверждала, что ссылки извлекаются «из прозы задачи». Замер показал иное: extract_refs берёт их через service_ac_evidence.parse_evidence_lines, то есть ТОЛЬКО из строк доказательств; предложенный в описании вариант «извлекать не отовсюду, а из строк доказательства» был реализован ещё до задачи. Иллюстративные имена сидят ВНУТРИ самих строк доказательств (перечень входных данных ручной проверки после галочки). Поэтому починка легла на толкование ПУТИ внутри строки, а не на выбор строк. ЗАМЕР ДО: NEVER_EXISTED 25 при 3 настоящих находках, рядом ROTTED 22. ЗАМЕР ПОСЛЕ: NEVER_EXISTED 12, ILLUSTRATIVE 13, ROTTED 22 без изменений; у каждой записи в новой корзине напечатан сработавший признак. Все три настоящие находки остались в NEVER_EXISTED. Negative: обе стороны проверены на живом корпусе и закреплены тестами — tests/test_audit_closure_evidence.py::test_a_genuine_miss_is_not_moved_into_the_example_bucket (настоящая остаётся) и tests/test_audit_closure_evidence.py::test_an_example_name_gets_its_own_verdict (иллюстративная уходит). Ошибкой считается любой односторонний исход. AC-1: ✓ tests/test_audit_closure_evidence.py::test_an_example_name_gets_its_own_verdict AC-2: ✓ tests/test_audit_closure_evidence.py::test_a_genuine_miss_is_not_moved_into_the_example_bucket AC-3: ✓ tests/test_illustrative_paths.py::test_every_measured_example_is_recognised Domain: числа сняты не на фикстурах, а на 1304 закрытых задачах и 3299 цитатах живого корпуса; смысл различения в том, что путь с сегментом «..» или ведущим «./» указывает на файл относительно рабочего каталога команды, и утверждение «такого файла в репозитории нет» о нём не определено.
+- 2026-09-04T10:24:05Z [done] — ГЕЙТ ПРАВ, ЗАПИСЫВАЮ ПРОТИВ СЕБЯ. COMPLEXITY UNDERSTATED: объявлено simple при пяти несущих файлах в relevant_files. Формально задача не изменила ни строки — файлы принадлежат корневой задаче, — но объявление и предъявленный набор разошлись, а гейт судит по набору и судит верно: закрытие, опирающееся на пять несущих файлов, не есть simple, чем бы ни объяснялось. ШЕСТАЯ СМЕНА ПОДРЯД ПО ПАМЯТИ #523. Правильно было объявить medium ДО старта. Урок узкий и новый: наследованная оценка задачи-симптома подлежит переоценке не только по своей работе, но и по РАЗМЕРУ ДОКАЗАТЕЛЬСТВА, которым её закрывают.
