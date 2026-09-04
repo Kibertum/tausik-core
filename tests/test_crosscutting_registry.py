@@ -120,7 +120,6 @@ _INVISIBLE_BASELINE = {
     "test_coverage_badge.py",
     "test_interview_skill.py",
     "test_mypy_clean.py",
-    "test_no_hard_yaml_import.py",
     "test_no_silent_subprocess.py",
     "test_plan_skill_agent_aware.py",
     "test_pytest_hang_guard.py",

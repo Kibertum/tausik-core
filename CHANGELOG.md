@@ -9,6 +9,79 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a guard's subject was a typed list, so a new module escaped it by being born
+
+`tests/test_no_hard_yaml_import.py` keeps PyYAML optional: a module-level
+`import yaml` anywhere the CLI imports breaks every `tausik` command on a clean
+install, which the v1.5.0 fresh-clone smoke found the hard way. The guard named
+its subject in a hand-written list of three module names.
+
+Splitting `renar_conformance.py` for the filesize gate walked straight into
+that. The new `renar_conformance_yaml.py` took `_require_yaml` — the lazy
+import the guard exists for — while the listed module kept its entry, so the
+risky code moved to a file the list had never heard of. The guard would have
+stayed green over a module it no longer covered.
+
+The list is gone. The invariant is now stated over the trees themselves —
+`scripts/`, `harness/`, `bootstrap/` — so a file added to any of them is under
+the guard with no edit to the test. Measured before the rewrite rather than
+assumed: 438 files, no offenders.
+
+A tree walk over a clean tree is green whether or not it works, so the detector
+was separated from the walk. It is a pure function over source TEXT, exercised
+on a deliberately broken sample, on the lazy form it must NOT flag (flagging
+that would push callers back to hard imports), and on unparseable source; a
+separate assertion proves the walk visited any files at all, since a broken
+glob would otherwise pass by finding nothing. Verified on the real tree too: a
+module-level `import yaml` injected into `renar_export.py` reddens it.
+
+`gate_test_resolver.top_level_imports` was NOT reused, and the reason is
+measured rather than stylistic — it walks the whole AST, so it sees imports
+inside functions, and an import inside a function is precisely the SUPPORTED
+form here. The difference is written down where the next reader would otherwise
+unify the two.
+
+#### The rewrite broke the guard a second way, and only the full lane saw it
+
+Recorded because the near-miss is the useful part. Turning the test into a
+tree-walker severed the edge the scoped-pytest resolver maps changes by: it
+selects tests through their IMPORTS, and a test that reads files instead of
+importing product code is reachable from no change at all. Every scoped run
+stayed green; the full lane failed on
+`test_crosscutting_registry::test_new_tree_iterator_must_declare_or_optout`.
+The mechanism exists because session #209 lost exactly this trade — a test
+widened to walk a tree went invisible to the scoped run — so the registry
+refuses to let it happen silently.
+
+The first fix failed silently in turn. `CROSSCUTTING_SCOPE` was declared as
+`[f"{t}/" for t in _TREES]`, to avoid restating the directory list;
+`read_crosscutting_scope` reads that constant with `ast.literal_eval` and never
+imports the module, so anything that is not a literal reads as NO DECLARATION.
+An anti-duplication reflex produced the very silence this release keeps
+removing. The declaration is now the literal and the tuple is derived FROM it,
+with the constraint written beside it so the next reader does not fold it back
+into an expression. Declaring the scope then required `_INVISIBLE_BASELINE` in
+`test_crosscutting_registry.py` to shrink by the same entry — the ratchet
+refusing to let one file count as declared and invisible at once.
+
+### Changed — `renar_conformance.py` gave its serialization its own module
+
+499 lines against a cap of 500. Session #210 lost a closing iteration to it:
+one replaced query line expanded to six, the filesize gate refused, and the
+explanation had to be deleted to buy the lines back. A file with no headroom
+taxes the next change in comments.
+
+`MANDATORY_FIELDS`, `_require_yaml` and `render_yaml` move to
+`renar_conformance_yaml.py`, re-exported from the parent so no caller changes —
+the same split `backend_schema_adapts` and `verify_files_hash` already did for
+the same gate. The seam was not invented for the occasion: `renar_export` was
+ALREADY importing `_require_yaml` across the module boundary, so the primitive
+was shared while living in whichever module happened to define it first.
+
+The parent drops to 459 lines, 41 of headroom. Behaviour is unchanged by
+construction and by assertion: the same key order, the same header text, the
+same RuntimeError when PyYAML is absent.
+
 ### Fixed — a refused supersession left an orphan that blocked its own repair
 
 The rationale guard added for ADR-007 p.108 lives in `adapt_set_status`, the
