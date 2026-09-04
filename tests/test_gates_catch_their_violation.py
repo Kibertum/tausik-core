@@ -281,6 +281,16 @@ EXCUSED: dict[str, tuple[str, str, str, str]] = {
         "test_a_spec_edited_after_the_verification_is_stale",
         "test_a_task_verified_after_the_spec_edit_is_not_stale",
     ),
+    "check_adapt_supersession": (
+        "severity warn (cannot refuse); its red states are unreachable through the "
+        "service — the write path refuses a supersession without a rationale, and "
+        "nothing creates a delta-ADAPT yet — so both ends are driven against a "
+        "synthetic adapts table, which is honest precisely because the detector is "
+        "a function of a connection rather than of the live store",
+        "test_renar_drift.py",
+        "test_a_delta_hanging_off_a_superseded_parent_is_found",
+        "test_a_healthy_store_yields_no_supersession_findings",
+    ),
     "claudemd_state_drift": (
         "needs a live DB with knowledge AND a rendered CLAUDE.md; its red end is "
         "driven against real corrupted snapshots out of git history, which a "

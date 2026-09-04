@@ -46,6 +46,7 @@ from renar_conformance_yaml import (  # noqa: F401
     render_yaml,
 )
 from renar_measurer_caveats import caveats_section
+from renar_normative_inapplicability import section as inapplicability_section
 from renar_tc_premise import pairing_clause
 from service_adapts import FINDING_CATEGORIES
 from service_specs import SPEC_TYPES
@@ -218,6 +219,10 @@ def gather_signals(conn: sqlite3.Connection) -> dict[str, Any]:
         "signals": signals,
         "clause_13_3_3": clause_333,
         "clause_13_3_5": clause_335,
+        # Obligations with no subject here, declared out loud. Gathered with the
+        # rest of the DB-derived facts so `build_manifest` stays a function of
+        # the bundle and never needs a connection of its own.
+        "normative_inapplicability": inapplicability_section(conn),
     }
 
 
@@ -342,6 +347,7 @@ def build_manifest(
         due = (date.fromisoformat(assessment_date) + timedelta(days=90)).isoformat()
     except ValueError:
         due = None
+    inapplicable = bundle.get("normative_inapplicability") or {}
     manifest: dict[str, Any] = {
         "renar-version": RENAR_VERSION,
         "senar-version": SENAR_VERSION,
@@ -361,6 +367,10 @@ def build_manifest(
         # `measurer-caveats: {}` reads as searched-and-found-none, a stronger
         # claim than an absent registry supports (header says what absence means).
         **({"measurer-caveats": caveats_section()} if caveats_section() else {}),
+        # Obligations with no subject here, declared out loud. Neighbour of the
+        # caveats above and NOT the same claim — renar_normative_inapplicability
+        # says which is which. Dropped when empty, for the same reason.
+        **({"normative-inapplicability": inapplicable} if inapplicable else {}),
         "quality-gates": {
             "qg-0": "required",
             "qg-1": "required",

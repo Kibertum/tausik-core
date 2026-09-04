@@ -354,7 +354,9 @@ def _check_spec_provenance(st: ReactiveAdaptState) -> Subcheck:
             f"{st.spec_count} live SPEC(s) and the specs table has NO provenance column at "
             f"all (looked for {list(SPEC_PROVENANCE_FIELDS)}) — neither source.adapt nor "
             "source.tz-section nor source.adversarial-review-ref can be stored, which is the "
-            "negative scenario stated literally.",
+            "negative scenario stated literally. The manifest's normative-inapplicability "
+            "section declares why the tz-section half has no subject here; the declaration "
+            "explains this red, it does not lift it.",
         )
     if st.specs_without_provenance:
         return Subcheck(

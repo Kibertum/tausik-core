@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
 from project_backend import SQLiteBackend  # noqa: E402
 from project_service import ProjectService  # noqa: E402
+import renar_drift  # noqa: E402
 from renar_drift import (  # noqa: E402
     detect_provenance_drift,
     detect_schema_drift,
@@ -257,6 +258,134 @@ def test_deprecated_not_fired_when_done(svc):
     svc.be._conn.execute("UPDATE tasks SET status='done' WHERE slug='t1'")
     svc.be._conn.commit()
     assert "deprecated-requirement" not in _kinds(detect_provenance_drift(svc.be._conn))
+
+
+# --- check-adapt-supersession: §10.11.1 / ADR-007's named gate ---------------
+
+
+def _adapts_table(tmp_path, rows):
+    """A permissive `adapts` table holding only the columns the detector reads.
+
+    The states under test cannot be reached through the service: the write path
+    refuses a supersession without a rationale, and nothing today creates a
+    delta-ADAPT at all. Proving the detector's teeth therefore has to be done on
+    SYNTHETIC state — the detector is a function of a CONNECTION precisely so
+    that showing it can red never requires damaging the live store.
+    """
+    conn = sqlite3.connect(str(tmp_path / "sup.db"))
+    conn.execute(
+        "CREATE TABLE adapts (slug TEXT, status TEXT, parent_adapt TEXT, "
+        "delta_n INTEGER, supersession_rationale TEXT)"
+    )
+    conn.executemany(
+        "INSERT INTO adapts (slug, status, parent_adapt, delta_n, supersession_rationale) "
+        "VALUES (?, ?, ?, ?, ?)",
+        rows,
+    )
+    conn.commit()
+    return conn
+
+
+def test_superseded_status_is_one_the_closed_list_admits():
+    """A detector watching a status the standard dropped would watch nothing.
+
+    Checked here rather than by an `assert` at import: a value drifting out of
+    the closed list must surface as a red test, not as a production exception.
+    """
+    from service_adapts import ADAPT_STATUSES
+
+    assert renar_drift.SUPERSEDED_STATUS in ADAPT_STATUSES
+
+
+def test_a_delta_hanging_off_a_superseded_parent_is_found(tmp_path):
+    conn = _adapts_table(
+        tmp_path,
+        [
+            ("adapt-parent", "superseded", None, None, "replaced by adapt-next"),
+            ("adapt-parent-d1", "draft", "adapt-parent", 1, None),
+        ],
+    )
+    try:
+        findings = renar_drift.detect_supersession_drift(conn)
+    finally:
+        conn.close()
+    assert _kinds(findings) == {"delta-of-superseded-parent"}
+    assert findings[0]["ref"] == "adapt-parent-d1"
+    assert findings[0]["detector"] == "check-adapt-supersession"
+
+
+def test_a_supersession_without_a_rationale_is_found(tmp_path):
+    """The write path refuses this today; a row written before it did not."""
+    conn = _adapts_table(tmp_path, [("adapt-old", "superseded", None, None, "   ")])
+    try:
+        findings = renar_drift.detect_supersession_drift(conn)
+    finally:
+        conn.close()
+    assert _kinds(findings) == {"supersession-without-rationale"}
+
+
+def test_a_healthy_store_yields_no_supersession_findings(tmp_path):
+    """NEGATIVE PATH: a detector that reports on clean data is indistinguishable
+    from one that reports unconditionally.
+
+    Every ingredient of both findings is present and correct here — a
+    supersession WITH a rationale, and a delta-ADAPT whose parent is alive.
+    """
+    conn = _adapts_table(
+        tmp_path,
+        [
+            ("adapt-live", "approved", None, None, None),
+            ("adapt-live-d1", "draft", "adapt-live", 1, None),
+            ("adapt-retired", "superseded", None, None, "superseded by adapt-live"),
+        ],
+    )
+    try:
+        assert renar_drift.detect_supersession_drift(conn) == []
+    finally:
+        conn.close()
+
+
+def test_the_live_store_is_clean_and_the_detector_still_ran(svc):
+    """On the service's own schema the detector runs and finds nothing.
+
+    Distinct from the synthetic case above: this proves the SQL matches the real
+    column names, which a hand-built table cannot show.
+    """
+    assert renar_drift.detect_supersession_drift(svc.be._conn) == []
+    assert "supersession" in renar_drift._DETECTORS
+
+
+def test_a_missing_adapts_table_is_a_no_op_but_a_missing_column_is_not(tmp_path):
+    """NEGATIVE SCENARIO: silence is allowed for absence, never for "could not check".
+
+    A database predating the ADAPT migrations has nothing to validate, so the
+    detector is quiet. A database WITH the table but missing the column the
+    detector reads is a different event: it must propagate so the gate degrades
+    to could-not-run. "Could not be checked" is not "checked and fine".
+    """
+    empty = sqlite3.connect(str(tmp_path / "none.db"))
+    try:
+        assert renar_drift.detect_supersession_drift(empty) == []
+    finally:
+        empty.close()
+
+    partial = sqlite3.connect(str(tmp_path / "partial.db"))
+    partial.execute("CREATE TABLE adapts (slug TEXT, status TEXT)")
+    partial.commit()
+    try:
+        with pytest.raises(sqlite3.OperationalError, match="no such column"):
+            renar_drift.detect_supersession_drift(partial)
+    finally:
+        partial.close()
+
+
+def test_the_gate_name_is_the_one_adr_007_promised():
+    """The ADR named the gate; the registry must carry that name, not a synonym."""
+    import gate_registry
+    from gate_renar_drift import _GATE_TO_DETECTOR
+
+    assert _GATE_TO_DETECTOR["check_adapt_supersession"] == "supersession"
+    assert "check_adapt_supersession" in gate_registry.GATE_REGISTRY
 
 
 # --- misc -------------------------------------------------------------------

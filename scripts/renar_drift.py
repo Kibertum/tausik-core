@@ -337,11 +337,98 @@ def detect_provenance_drift(conn: sqlite3.Connection) -> list[Finding]:
     return findings
 
 
+# --- check-adapt-supersession: §10.11.1 control point, ADR-007's named gate ---
+
+# The status a superseded ADAPT carries. Spelled once here and checked against
+# the closed list by a test rather than by an `assert` at import: a value that
+# drifts out of ADAPT_STATUSES must be a red test, not a production exception.
+SUPERSEDED_STATUS = "superseded"
+
+
+def detect_supersession_drift(conn: sqlite3.Connection) -> list[Finding]:
+    """Detect supersession state that the substrate's own guards cannot express.
+
+    ADR-007 promised a gate called `check-adapt-supersession` and §10.11.1
+    (p.485) names the control point; neither existed. The task that carried this
+    debt described the subject as a dangling `source.adapt` on a SPEC — and that
+    subject does not exist: `specs` has none of the three provenance columns,
+    and owner decision #307 rules that none will be added. A gate over a field
+    that cannot hold a value is the degenerate control this release is spent
+    removing, so THAT half is declared inapplicable
+    (`renar_normative_inapplicability`) instead of being built.
+
+    THE SUBJECT THAT DOES EXIST was found by reading the schema rather than the
+    task title: `adapts.parent_adapt` is a foreign key from one ADAPT to
+    another — a delta-ADAPT naming its parent (§7.6). Zero such rows exist
+    today, and that is not the same as no subject: a column that exists can be
+    filled tomorrow, a column that does not exist cannot.
+
+    WHAT IS DELIBERATELY NOT CHECKED, and why (an inventory, not an oversight):
+
+    * A `parent_adapt` naming an ADAPT that is not there. The runtime connection
+      sets `PRAGMA foreign_keys=ON` (project_backend), and the state-import path
+      already scans `PRAGMA foreign_key_list` for orphans. Re-checking it here
+      would be a second source of truth for a guarantee that already holds.
+    * That a NEW supersession carries a rationale. `backend_crud_adapts`
+      refuses that write at the lowest primitive. What a primitive cannot do is
+      repair rows already written — under an older schema, or by a rebuild
+      migration that runs with foreign keys off — which is exactly what a
+      detector over existing state is for, so the STATE is checked here while
+      the WRITE stays guarded there.
+
+    A missing `adapts` table is a forward-looking no-op (`_rows`). A missing
+    `parent_adapt` COLUMN is not: it propagates, the gate degrades to
+    could-not-run, and the reader is told the check did not happen. "Could not
+    be checked" is not "checked and fine" (SENAR 1.4 §8.6(e)).
+    """
+    findings: list[Finding] = []
+    det = "check-adapt-supersession"
+
+    orphaned = _rows(
+        conn,
+        "SELECT c.slug AS child, c.parent_adapt AS parent, c.delta_n AS delta_n "
+        "FROM adapts c JOIN adapts p ON p.slug = c.parent_adapt "
+        "WHERE p.status = ? ORDER BY c.slug",
+        (SUPERSEDED_STATUS,),
+    )
+    for row in orphaned:
+        findings.append(
+            _finding(
+                det,
+                "delta-of-superseded-parent",
+                str(row["child"]),
+                f"delta-ADAPT (delta_n={row['delta_n']}) names parent "
+                f"{row['parent']!r}, which is {SUPERSEDED_STATUS} — §10.11.1: a "
+                "change-set may not hang off a withdrawn ADAPT.",
+            )
+        )
+
+    for row in _rows(
+        conn,
+        "SELECT slug, supersession_rationale FROM adapts WHERE status = ? ORDER BY slug",
+        (SUPERSEDED_STATUS,),
+    ):
+        if _blank(row["supersession_rationale"]):
+            findings.append(
+                _finding(
+                    det,
+                    "supersession-without-rationale",
+                    str(row["slug"]),
+                    f"status is {SUPERSEDED_STATUS} with no rationale recorded — "
+                    "the write path refuses this today, so the row predates the "
+                    "guard or was written around it.",
+                )
+            )
+
+    return findings
+
+
 # --- aggregate + formatting --------------------------------------------------
 
 _DETECTORS = {
     "schema": detect_schema_drift,
     "provenance": detect_provenance_drift,
+    "supersession": detect_supersession_drift,
 }
 
 

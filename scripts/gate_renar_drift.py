@@ -13,6 +13,9 @@ import gate_outcome
 _GATE_TO_DETECTOR = {
     "renar_drift_schema": "schema",
     "renar_drift_provenance": "provenance",
+    # ADR-007's own name for the gate it promised, kept verbatim (in the
+    # registry's snake_case spelling) so the promise is greppable from the ADR.
+    "check_adapt_supersession": "supersession",
 }
 
 

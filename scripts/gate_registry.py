@@ -268,6 +268,20 @@ _SCOPED: tuple[GateSpec, ...] = (
             "description": "RENAR drift-7: stale TC↔requirement (task↔SPEC) provenance",
         },
     ),
+    # §10.11.1 (p.485) control point, under the name ADR-007 promised for it.
+    # Read-only, warn-only, ignores `files` — same shape as the two above.
+    GateSpec(
+        name="check_adapt_supersession",
+        phase=PHASE_SCOPED,
+        impl="gate_renar_drift:run_renar_drift_gate_for",
+        default_config={
+            "enabled": True,
+            "severity": "warn",
+            "trigger": ["task-done"],
+            "command": None,
+            "description": "RENAR §10.11.1: delta-ADAPT hanging off a superseded parent",
+        },
+    ),
     # Fails a commit when the durable `tausik/` projection drifts from a fresh DB
     # export — the git-native state must equal its source of truth before it
     # enters a commit. COMMIT trigger, not task-done: a close mutates the DB (and

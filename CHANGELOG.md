@@ -9,6 +9,101 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — `check-adapt-supersession` exists, over the carrier that turned out to have a subject
+
+ADR-007 promised a gate by that name and §10.11.1 (p.485) names the control
+point; neither existed. The task carrying the debt had been deferred across four
+sessions on a measurement: the reference it named — `source.adapt` on a SPEC —
+cannot exist, because `specs` has none of the three provenance columns and
+decision #307 adds none. Building a gate over a field that cannot hold a value
+is the degenerate control this release is spent removing.
+
+THE SUBJECT WAS FOUND BY READING THE SCHEMA INSTEAD OF THE TASK TITLE. Listing
+every foreign key into `adapts.slug` gives five: four are children of an ADAPT,
+and the fifth — `adapts.parent_adapt` — is one ADAPT naming another, which is
+exactly a delta-ADAPT and its parent (§7.6). Zero such rows exist today, and
+that is not the same as no subject: a column that exists can be filled tomorrow,
+a column that does not exist cannot. The task's own text asked for this
+re-evaluation if provenance never became a field; it never did.
+
+So the work split along the honesty of each half:
+
+- `renar_drift.detect_supersession_drift` catches a delta-ADAPT hanging off a
+  `superseded` parent, and a supersession carrying no rationale. The second is
+  not a duplicate of the write-path guard: `backend_crud_adapts` refuses such a
+  write today, but a primitive cannot repair rows written under an older schema
+  or by a rebuild migration running with foreign keys off — the WRITE stays
+  guarded there, the STATE is checked here.
+- The gate is registered as `check_adapt_supersession` — the name the ADR
+  promised, so the promise is greppable from the ADR — warn-only, read-only,
+  and a test pins the name.
+- The SPEC half is declared inapplicable in `normative-inapplicability` rather
+  than built, with its OWN ratchet: `spec_adapt_reference_possible` reddens when
+  the `source_adapt` COLUMN appears, because that is the moment the reference
+  becomes writable and the gate must be widened.
+
+Deliberately NOT checked, stated in the docstring so the next reader does not
+mistake it for an oversight: a `parent_adapt` naming an ADAPT that is not there.
+The runtime connection sets `PRAGMA foreign_keys=ON` and the state-import path
+already scans for orphans; re-checking it would be a second source of truth.
+
+Teeth proved on synthetic state — the detector is a function of a CONNECTION, so
+showing it can red never requires damaging the live store — with the clean-data
+case asserted separately, since a detector that reports on healthy data is
+indistinguishable from one that reports unconditionally. Eight declared
+mutations, eight killed. Manifest regenerated to v17.
+
+Also caught in the writing: the second declaration first named the OTHER
+declaration's watcher, which would have left the gate half unwatched while
+claiming otherwise. A test now requires each declaration to name a distinct
+watcher that this module actually has.
+
+### Added — obligations of the standard that have no subject here are now declared, not passed over
+
+§13.3.3 p.90 makes it a negative scenario for a SPEC to be produced from a ТЗ
+carrying neither `source.tz-section` nor `source.adapt`, and ADR-006's source
+table (p.76) makes `source.tz-section` mandatory on a SPEC always. All three of
+our SPECs carry no provenance field, and the substrate has no column to hold
+one. The sub-check reads red, correctly, and stays red.
+
+What was missing is the reason. The obligation presupposes a ТЗ, and we have
+none as an artifact: the SPEC anchor `renar-adoption` points at `decisions#109`,
+a record in our own database, and the owner ruled (decision #307, session #209)
+that this is NOT our ТЗ and that the absence is to be stated rather than passed
+over. A missing field says nothing — it is indistinguishable from an oversight,
+which is exactly the ADR-021 degenerate-control shape this release keeps finding.
+
+`scripts/renar_normative_inapplicability.py` publishes a `normative-inapplicability`
+section into the manifest naming the clause, the obligation, why it has no
+subject, whose ruling that was, and where the reasoning lives
+(`renar-first-tz-adapt`). Three properties are enforced rather than intended:
+
+- **A declaration is not compliance.** `spec-provenance-source` stays red; the
+  section supplies the reason next to it and the sub-check's evidence now points
+  at the section. A mutation turning that red green is killed.
+- **Its reach is derived, never enumerated.** A list of three slugs is correct
+  until the fourth SPEC exists. The covered set is computed from the store, and a
+  SPEC that gains provenance leaves it. Both branches of that computation are
+  tested — the one the live project takes has no provenance column at all, so a
+  single case left the other free to enumerate, and a declared mutation capping
+  the result SURVIVED until the case became parametrized.
+- **Its premise is watched.** "No ТЗ exists here" is a claim about the world, and
+  the world is not obliged to keep it true. `premise_broken` reddens the moment a
+  SPEC names a ТЗ section. Like `renar_tc_premise.classes_appeared` it compares
+  against OUR ruling, so it is meaningful only against the live database and is
+  deliberately not what the manifest section rests on.
+
+Kept apart from `measurer-caveats` on purpose, and the split is the point: that
+registry says "our measurer cannot go red on what it exists to catch" — about our
+machinery, exited by a repair. This one says "the obligation has no subject" —
+about the world, exited by the world changing. Emptiness must be declared in both.
+
+The manifest is regenerated to v16 (its own staleness guard demanded it, and
+that guard is what caught the change), which also exercised the journal-read fix
+above end to end on the live artifact: `replaces: CFM-2026-09-04-tausik@v15`,
+read from the journal rather than from disk. Eight declared mutations, eight
+killed — two only after surviving first.
+
 ### Fixed — the journal read is scoped to this project, and a git error is no longer filed as an absence
 
 Two defects in the journal reader added immediately above, both found by

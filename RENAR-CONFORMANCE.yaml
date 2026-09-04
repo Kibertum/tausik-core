@@ -13,7 +13,7 @@
 # cannot go red, and the open task carrying the fix.
 renar-version: '1.0'
 senar-version: '1.3'
-manifest-version: 15
+manifest-version: 17
 manifest-id: CFM-2026-09-04-tausik
 level: null
 level-target: null
@@ -54,6 +54,49 @@ measurer-caveats:
       it is a constant, one of five among seven mandatory clauses, and the header
       publishes every true as earned.'
     open-task: mandatory-clauses-are-constants-published-as-earned
+normative-inapplicability:
+  disclaimer: 'Obligations of the standard that have no subject in this project, declared
+    rather than passed over in silence. A declaration is NOT compliance: every sub-check
+    these touch stays exactly as red as it was, and each entry names the premise that
+    would end it.'
+  declarations:
+  - clause: §13.3.3 p.90 (negative scenario) / ADR-006 source table p.76
+    obligation: a SPEC carries source.tz-section, always, for traceability; producing
+      one from a ТЗ with neither source.tz-section nor source.adapt is the negative
+      scenario stated literally
+    inapplicable-because: the obligation presupposes a ТЗ, and no ТЗ exists here as
+      an artifact. The SPEC anchor renar-adoption references decisions#109 — a record
+      in our own database, not a specification handed to us — and the ADAPT relationship
+      runs from ADAPT to SPEC, the direction opposite to the one the clause reads.
+    decided-by: 'owner ruling, decision #307 (session #209)'
+    evidence-ref: renar-first-tz-adapt
+    not-a-claim-of-compliance: the sub-check spec-provenance-source stays RED; this
+      declaration supplies the reason for the red, it does not remove it
+    premise-watched-by: renar_normative_inapplicability.premise_broken
+    applies-to:
+    - renar-adoption
+    - sec-config-trust-tiers
+    - team-state-in-git-format
+  - clause: ADR-007 check-adapt-supersession, §10.11.1 p.485
+    obligation: a control point catches a source.adapt reference left pointing at
+      a withdrawn (superseded) ADAPT
+    inapplicable-because: 'only for the SPEC half of the reference. `specs` holds
+      none of the three provenance columns and decision #307 adds none, so a source.adapt
+      reference cannot be written, let alone dangle — a gate over it would be the
+      degenerate control this clause exists to prevent. The half that DOES have a
+      subject was built instead: adapts.parent_adapt is a real column with a real
+      foreign key, and renar_drift.detect_supersession_drift catches a delta-ADAPT
+      hanging off a superseded parent.'
+    decided-by: 'owner ruling, decision #307 (session #209), applied in session #212'
+    evidence-ref: check-adapt-supersession-gate-has-no-subject-yet
+    premise-watched-by: renar_normative_inapplicability.spec_adapt_reference_possible
+    not-a-claim-of-compliance: the gate exists and RUNS over the carrier that exists;
+      what is declared inapplicable is only the SPEC-side reference, which no column
+      can hold
+    applies-to:
+    - renar-adoption
+    - sec-config-trust-tiers
+    - team-state-in-git-format
 quality-gates:
   qg-0: required
   qg-1: required
@@ -92,8 +135,8 @@ assessment-evidence:
     delta_adapts_count: 0
     task_specs_count: 2
     reasoning_tasks_count: 2
-    memory_edges_count: 26
-    verification_runs_count: 2046
+    memory_edges_count: 27
+    verification_runs_count: 2075
   level-signals:
     substrate_v1_v6: true
     adapt_per_tz: false
@@ -141,9 +184,11 @@ assessment-evidence:
     evidence: 3 live SPEC(s) and the specs table has NO provenance column at all (looked
       for ['source_adapt', 'source_tz_section', 'source_adversarial_review_ref'])
       — neither source.adapt nor source.tz-section nor source.adversarial-review-ref
-      can be stored, which is the negative scenario stated literally.
+      can be stored, which is the negative scenario stated literally. The manifest's
+      normative-inapplicability section declares why the tz-section half has no subject
+      here; the declaration explains this red, it does not lift it.
 replaced-by: <unknown-state>
-replaces: CFM-2026-09-04-tausik@v14
+replaces: CFM-2026-09-04-tausik@v15
 conformance-declaration: non-conformant
 scope-exclusion:
   clause: §1.5.4
