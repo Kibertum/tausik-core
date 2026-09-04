@@ -25,7 +25,10 @@ THE SHAPE WAS CHOSEN BY MEASURING, not by preference, because the task named
 three candidates with different costs. On the live history (10 commits):
 `rev-list --all` 28 ms, `cat-file --batch` over every listed commit 27 ms —
 two processes whatever the length, since cat-file streams all blobs out of one
-invocation. The n+1 shape the task feared (one `git show` per commit, ~25 ms
+invocation. The process count is flat; the cost is not: each listed blob is
+parsed as YAML, so the read took 125–151 ms end to end here and grows linearly
+with the number of manifest commits (review #38 corrected the first, process-
+only figure). The n+1 shape the task feared (one `git show` per commit, ~25 ms
 each) was never needed. A stored high-water mark would have been a third source
 of truth that can lag the journal. Reading history only when `HEAD` carries
 nothing does not close the defect: a branch cut at v1 carries v1 at its tip
@@ -34,7 +37,11 @@ while v17 exists elsewhere, and would re-issue v2.
 - `journal_high_water(root)` is the highest version any commit reachable from
   ANY ref ever carried, over a cwd-relative pathspec and a `./`-anchored object
   name, so a nested project reads its own history and not a namesake at the
-  worktree top. Same three answers as the tip reader, for the same reason:
+  worktree top. Walked with `--full-history`: a path-limited `rev-list`
+  simplifies by default and follows only the parent a merge is treesame to,
+  so a version issued on the side a `-s ours` merge discarded was reachable,
+  unlisted, and handed out again — reproduced by external review #38 (2 of 4
+  commits listed, v3 issued twice) and pinned by a test. Same three answers as the tip reader, for the same reason:
   `None` when the journal cannot be read (not a repository, cat-file failed,
   a stream that does not parse), `0` when it answered and never held one, `N`
   otherwise. A commit that deleted the file lists in rev-list and reads back

@@ -214,6 +214,16 @@ def journal_high_water(root: str) -> int | None:
     elsewhere, and would re-issue v2. So the floor is the maximum over every
     commit that ever touched the file, reachable from ANY ref.
 
+    `--full-history` IS LOAD-BEARING. A path-limited `rev-list` simplifies
+    history by default: a merge resolved by keeping one side is TREESAME to
+    that parent, the walk follows only that parent, and the other side's
+    commits drop out of the listing while staying reachable. Two branches
+    that each ran `--write`, merged with `-s ours`, the losing branch deleted
+    — the version issued on the losing side was reachable, unlisted, and
+    re-issued (external review #38, reproduced: 2 of 4 commits listed, v3
+    handed out twice). The flag turns simplification off; the process count
+    does not change.
+
     Same three answers as :func:`journal_manifest`, for the same reason: ``None``
     when the journal cannot be read (not a repository, git could not answer, a
     stream that does not parse), ``0`` when it answered and never held a
@@ -222,16 +232,23 @@ def journal_high_water(root: str) -> int | None:
     failure — and is skipped, so the mark survives a deletion.
 
     Cost, measured rather than assumed, on this repository (10 commits):
-    `rev-list --all` 28 ms and `cat-file --batch` 27 ms — two processes
-    whatever the length of the history, because cat-file streams every blob
-    out of one invocation. The n+1 shape the task feared (one `show` per
-    commit at ~25 ms each) was never needed.
+    `rev-list` 28 ms and `cat-file --batch` 27 ms — two processes whatever the
+    length of the history, because cat-file streams every blob out of one
+    invocation. The n+1 shape the task feared (one `show` per commit at ~25 ms
+    each) was never needed. The PROCESS count is flat; the COST is not: every
+    listed blob is parsed as YAML (~6.5 ms per KB), so end to end this read
+    took 125–151 ms here and grows linearly with the number of manifest
+    commits. A 500-commit journal would spend seconds of parsing per
+    `--write`, once per session — accepted and stated, not hidden behind the
+    process count (review #38).
     """
     try:
         # Pathspecs are cwd-relative, so this lists the commits that touched
         # THIS project's manifest, not a namesake at the worktree top.
         revs = git_exec.run(
-            ["rev-list", "--all", "--", MANIFEST_FILENAME], cwd=root, timeout=_GIT_TIMEOUT
+            ["rev-list", "--all", "--full-history", "--", MANIFEST_FILENAME],
+            cwd=root,
+            timeout=_GIT_TIMEOUT,
         )
         if revs.returncode != 0:
             return None  # not a repository, or git could not answer
@@ -349,7 +366,9 @@ def next_version(path: str, root: str | None = None) -> int:
     What remains outside: a commit that exists in NO ref — unreachable after a
     reset, a branch deleted before it was merged — is not in the audit
     journal by git's own definition, and a number issued only there is not
-    one the journal holds.
+    one the journal holds. A branch deleted AFTER it was merged is inside:
+    its commits stay reachable through the merge, and the history walk is
+    run without simplification so that they are listed (review #38).
 
     Convenience over :func:`chain_state` for a caller that wants only the
     version; a `--write` wants both and asks once.

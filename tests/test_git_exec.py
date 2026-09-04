@@ -150,6 +150,12 @@ class TestInputKeepsTheGuard:
         assert "input" not in cap.kwargs
         assert cap.kwargs["stdin"] is subprocess.DEVNULL
 
+    def test_both_given_is_subprocesss_loud_error_not_a_quiet_pick(self):
+        """NEGATIVE, real subprocess (review #38): the documented incompatibility
+        is observable, not just a statement about forwarded kwargs."""
+        with pytest.raises(ValueError, match="stdin and input"):
+            git_exec.run_git(["git", "--version"], stdin=subprocess.DEVNULL, input=b"x\n")
+
     def test_input_none_is_the_same_as_no_input(self, monkeypatch):
         # NEGATIVE: an explicit None must not open a pipe — DEVNULL stays.
         cap = _Captured()

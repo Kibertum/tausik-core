@@ -455,7 +455,7 @@ class TestWriteChainEndToEnd:
         assert calls == [
             ["ls-tree", "--name-only", "HEAD", "--", MANIFEST_FILENAME],
             ["show", f"HEAD:./{MANIFEST_FILENAME}"],
-            ["rev-list", "--all", "--", MANIFEST_FILENAME],
+            ["rev-list", "--all", "--full-history", "--", MANIFEST_FILENAME],
             ["cat-file", "--batch"],
         ], f"one journal read per --write, got {calls}"
         assert self._read(root)["manifest-version"] == 4
@@ -582,14 +582,20 @@ def test_the_committed_history_never_reuses_a_version_number():
     would accept an ambiguous hit as a resolution. This one closes that side:
     no manifest-version may map to two different blobs anywhere in the
     journal. Read-only; skipped without git or without history.
+
+    Walked with `--full-history` and read with ONE `cat-file --batch`, the same
+    shape the production reader uses (review #38: the first version walked
+    with default simplification — the blind spot it exists to catch — and ran
+    two processes per commit).
     """
+    import hashlib
     import subprocess
 
     root = os.path.abspath(os.path.join(_SCRIPTS, ".."))
     if not shutil.which("git"):
         pytest.skip("git not on PATH")
     revs = subprocess.run(
-        ["git", "rev-list", "--all", "--", MANIFEST_FILENAME],
+        ["git", "rev-list", "--all", "--full-history", "--", MANIFEST_FILENAME],
         cwd=root,
         capture_output=True,
         text=True,
@@ -599,31 +605,18 @@ def test_the_committed_history_never_reuses_a_version_number():
     )
     if revs.returncode != 0 or not revs.stdout.strip():
         pytest.skip("git history unavailable")
+    wanted = "".join(f"{sha}:./{MANIFEST_FILENAME}\n" for sha in revs.stdout.split())
+    batch = subprocess.run(
+        ["git", "cat-file", "--batch"],
+        cwd=root,
+        capture_output=True,
+        input=wanted.encode("ascii"),
+    )
+    assert batch.returncode == 0, batch.stderr
     blobs_by_version: dict[int, set[str]] = {}
-    for sha in revs.stdout.split():
-        entry = subprocess.run(
-            ["git", "ls-tree", sha, "--", MANIFEST_FILENAME],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            stdin=subprocess.DEVNULL,
-        )
-        if entry.returncode != 0 or not entry.stdout.strip():
-            continue  # the commit that deleted it, or one that never had it
-        blob = entry.stdout.split()[2]
-        show = subprocess.run(
-            ["git", "cat-file", "blob", blob],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            stdin=subprocess.DEVNULL,
-        )
-        version = int((yaml.safe_load(show.stdout) or {}).get("manifest-version", 0))
-        blobs_by_version.setdefault(version, set()).add(blob)
+    for blob in _batch_blobs(batch.stdout):
+        version = int((yaml.safe_load(blob.decode("utf-8")) or {}).get("manifest-version", 0))
+        blobs_by_version.setdefault(version, set()).add(hashlib.sha1(blob).hexdigest())
     reused = {v: sorted(b) for v, b in blobs_by_version.items() if len(b) > 1}
     assert not reused, f"a manifest-version was issued twice over different content: {reused}"
 
@@ -719,6 +712,34 @@ class TestFloorIsTheWholeHistory:
         bare.mkdir()
         _git(bare, "init", "-q", "-b", "main")
         assert journal_high_water(str(bare)) == 0
+
+    def test_a_version_discarded_by_a_merge_is_still_in_the_floor(self, repo):
+        """NEGATIVE SCENARIO, found by external review #38 and reproduced.
+
+        main issued v1 and v2; a branch cut at v1 issued v3; the merge kept
+        main's side (`-s ours`) and the branch was deleted. v3 is REACHABLE
+        through the merge commit, yet a path-limited `rev-list` simplifies
+        history and follows only the parent the merge is treesame to, so v3
+        was unlisted and the next `--write` handed it out again. Without
+        `--full-history` this reads 2 and issues 3.
+        """
+        for v in (1, 2):
+            _write_manifest(repo, version=v, manifest_id="CFM-2026-09-04-tausik")
+            _git(repo, "add", "-A")
+            _git(repo, "commit", "-qm", f"v{v}")
+        _git(repo, "checkout", "-qb", "wave", "HEAD~1")
+        _write_manifest(repo, version=3, manifest_id="CFM-2026-09-05-tausik")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-qm", "v3 on the losing side")
+        _git(repo, "checkout", "-q", "main")
+        _git(repo, "merge", "-q", "-s", "ours", "wave", "-m", "merge keeping main's v2")
+        _git(repo, "branch", "-qD", "wave")
+        path = os.path.join(str(repo), MANIFEST_FILENAME)
+
+        assert _existing_manifest(path)[0] == 2, "the merge kept v2 on disk"
+        assert journal_manifest(str(repo)) == (2, "CFM-2026-09-04-tausik"), "the tip is v2"
+        assert journal_high_water(str(repo)) == 3, "v3 is reachable, so it counts"
+        assert next_version(path, str(repo)) == 4
 
     def test_the_history_read_is_two_processes_whatever_its_length(self, repo, monkeypatch):
         """AC-4: five commits, still `rev-list` then one `cat-file --batch`."""
