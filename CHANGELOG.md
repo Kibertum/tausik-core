@@ -9,6 +9,47 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a migration docstring explained the step with an effect that does not exist
+
+`backend_migrations_v49` stated that without dropping the FTS triggers first,
+the copying INSERT "would produce a second set of records in FTS". It would
+not. The copy addresses `specs_v49` while the triggers hang on `specs`, so it
+cannot fire them; they die with the table at the drop below in any case. The
+`DROP TRIGGER` statements buy explicit ORDER, not correctness, and the text now
+says so. Not a word of SQL changed — a historical migration is a snapshot of
+what was built.
+
+A docstring is a JOURNAL: it tells a future reader why the step is shaped this
+way. A wrong explanation outlives correct code and spreads by copying, which is
+exactly what happened — the sentence was carried into v50 verbatim in the same
+shift that wrote it. What stopped it there was a mutation, not a reading.
+
+MEASURED, NOT INFERRED FROM WORDING. The task suspected three migrations on the
+strength of identical phrasing. An inventory taken by the LOWEST PRIMITIVE
+(`DROP TRIGGER`, not the sentence) found four sites and one carrier: v5 drops
+audit triggers before recreating them, v9 drops them for tables being removed,
+and v24 and v48 rebuild `usage_events`, which has neither an FTS table nor
+triggers. The premise was wrong for two of the three named migrations.
+
+#### The control mutation found something larger than the docstring
+
+Two tests in this file carried "the rebuild" in their names and ran on a FRESH
+schema, where `SCHEMA_SQL` supplies triggers and indexes whatever the migration
+does. Mutants that deleted the trigger recreation from v49 — and, separately,
+the index recreation — SURVIVED with the whole file green. Everything the
+rebuild does after the copy was guarded by nothing. Both now run on a fixture
+carried by the real migrations through v49 and stopped there, and both mutants
+die.
+
+A third assertion was written for this release and then DELETED rather than
+shipped green: "one FTS row per spec". `fts_specs` is external-content
+(`content='specs'`), so a row count reads the content table and the assertion
+could never fail. Measured against a deliberately doubled index, the count, a
+MATCH, and FTS5's own `integrity-check` all reported a healthy table. What
+stands in its place performs that measurement instead of narrating it, and
+pins the declaration that makes counting meaningless — so it reddens on the one
+change that would make a duplication guard worth writing.
+
 ### Fixed — the closed list of ADAPT statuses diverged from the standard BOTH ways
 
 §7.8.1 closes the ADAPT status list at `draft | review | asked | answered |
