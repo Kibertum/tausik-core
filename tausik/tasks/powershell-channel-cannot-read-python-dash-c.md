@@ -1,7 +1,7 @@
 ---
 slug: powershell-channel-cannot-read-python-dash-c
 title: "Канал PowerShell не читает python -c: премиса из #207 не проверена замером"
-status: planning
+status: done
 epic: null
 story: null
 complexity: simple
@@ -16,7 +16,7 @@ relevant_files: []
 scope_paths: []
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-04T21:35:08Z"
 ---
 
 ## Goal
@@ -29,8 +29,15 @@ completed_at: null
 
 ## Acceptance Criteria
 
+AC-1: замер в канале PowerShell зафиксирован в журнале задачи с точной формой каждого вызова: простой print, вложенные двойные кавычки через \", одинарные снаружи и двойные внутри, кириллица под -X utf8, sys.exit(3), необработанное исключение — с stdout и $LASTEXITCODE каждого.
+AC-2: ответ на главный вопрос задачи дан прямо: есть ли форма, при которой stdout пуст при rc=0 (отказ маскируется под «находок нет»). Если нет — премиса снята с записью.
+AC-3: если премиса не подтвердилась — задача закрыта без правок, пункт снят из передач, а настоящая форма отказа (какая именно и насколько громкая) записана в память с указанием на действующую конвенцию «команду с вложенными кавычками писать файлом».
+
 ## Plan
 
 ## Rollback
 
 ## Journal
+
+- 2026-09-04T21:34:40Z [implementation] — ЗАМЕР В КАНАЛЕ POWERSHELL (инструмент PowerShell, Windows PowerShell 5.1), девять форм, stdout и $LASTEXITCODE каждой: (1) python -c "print('plain ok')" → «plain ok», rc=0. (2) python -c "import sys; print('nested \"quotes\" ok', file=sys.stdout)" → SyntaxError: unterminated string literal, ГРОМКО, rc=1 — PowerShell 5.1 передаёт нативному процессу `\"` искажённо (в stdout видно `print('nested " quotes\`). (3) python -X utf8 -c "print('кириллица ok')" → «кириллица ok», rc=0. (4) python -c "import sys; sys.exit(3)" → rc=3. (5) python -c "print(1/0)" → Traceback ZeroDivisionError, rc=1. (6) python -c "print('single-quoted outer'); print(\"double inner\")" → SyntaxError, rc=1. (7) python -c 'print("sq outer")' → ВНУТРЕННИЕ ДВОЙНЫЕ КАВЫЧКИ СЪЕДЕНЫ: python получил print(sq outer), SyntaxError, rc=1. (8) python -c "import json; print(json.dumps({'a': 1}))" → {"a": 1}, rc=0. (9) python -c "print('$env:USERNAME')" → подстановка PowerShell внутри двойных кавычек, rc=0. ВЫВОД: канал ИСПОЛНЯЕТ python -c и ОТДАЁТ stdout, код возврата честный, кириллица под -X utf8 в порядке. Ни одной формы с ПУСТЫМ stdout при rc=0 не найдено — маскировки отказа под «находок нет» НЕТ. Настоящий отказ: вложенные двойные кавычки в аргументе нативной команды (известная особенность PowerShell 5.1, в 7.3+ закрыта PSNativeCommandArgumentPassing), и он всегда громкий — SyntaxError на stderr и rc=1. ПРЕМИСА НЕ ПОДТВЕРЖДЕНА. Действующая конвенция «команду с вложенными кавычками писать файлом» покрывает единственный реальный отказ.
+- 2026-09-04T21:35:08Z [implementation] — AC-1: ✓ девять форм с stdout и rc в журнале задачи (запись замера). AC-2: ✓ формы с пустым stdout при rc=0 не найдено — отказ никогда не маскируется; единственный отказ громкий (SyntaxError, rc=1). AC-3: ✓ премиса не подтверждена, правок нет, память #585 указывает на конвенцию «команду с вложенными кавычками писать файлом»; пункт снимается из передач. Negative: форма (7) python -c 'print("sq outer")' — внутренние двойные кавычки съедены PowerShell 5.1, python получил print(sq outer), rc=1 — это и есть весь реальный отказ. Domain: инструментальный канал агента (Windows PowerShell 5.1), вне нормы RENAR.
