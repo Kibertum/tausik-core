@@ -56,7 +56,6 @@ def _format_task_done_failures(report: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
-
 def _redeem_verify_handle(be: "SQLiteBackend", slug: str, report: dict[str, Any]) -> None:
     """Spend the presented verify handle, inside the caller's transaction.
 
@@ -113,6 +112,7 @@ class TaskDoneReportMixin:
         no_file_changes: bool = False,
         no_changelog: bool = False,
         verify_handle: str | None = None,
+        zero_gate_ack: bool = False,
     ) -> dict[str, Any]:
         # v14b-token-t15: structured evidence — convert JSON to canonical
         # prose before the existing log path. Mutex with --evidence prose
@@ -176,6 +176,7 @@ class TaskDoneReportMixin:
             no_file_changes=no_file_changes,
             no_changelog=no_changelog,
             verify_handle=verify_handle,
+            zero_gate_ack=zero_gate_ack,
         )
         report["gates"] = gate_report.get("results", [])
         report["cache_status"] = gate_report.get("cache_status")

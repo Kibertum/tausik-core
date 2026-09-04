@@ -54,7 +54,12 @@ EXIT_MANGLED = 3
 
 _QUOTING_CHARS = '"\\^'
 
-_REDIRECTION_OPERATORS = (">>", ">", "<")
+#: Operators whose target cmd.exe CREATES at parse time. `<` is deliberately
+#: absent: input redirection opens an EXISTING file to read from, so naming its
+#: target as "already created, delete it" would be false, and the advice
+#: destructive — the operator would be told to delete a file they still need.
+#: Found by the fix review of session #209, record #26.
+_CREATING_OPERATORS = (">>", ">")
 
 
 def _normalize(text: str) -> str:
@@ -95,11 +100,15 @@ def argument_tail(raw: str, marker: str = WRAPPER_MARKER) -> str | None:
 
 
 def redirection_targets(tail: str) -> list[str]:
-    """Name the files cmd.exe created before the batch file ever ran.
+    """Name the files cmd.exe CREATED before the batch file ever ran.
 
-    cmd.exe opens a redirection target at parse time, so by the time this
-    process can complain, the stray file already exists. Naming it is the
+    cmd.exe opens an output-redirection target at parse time, so by the time
+    this process can complain, the stray file already exists. Naming it is the
     difference between a warning and a warning the operator can act on.
+
+    Only `>` and `>>` are read. An input redirection (`<`) names a file that
+    already existed and that cmd.exe merely opened for reading; listing it here
+    would put a file the operator still needs under the message "delete it".
     """
     targets: list[str] = []
     rest = tail
@@ -109,7 +118,7 @@ def redirection_targets(tail: str) -> list[str]:
         # `>` as the target's first character.
         found = [
             (pos, -len(op), op)
-            for pos, op in ((rest.find(op), op) for op in _REDIRECTION_OPERATORS)
+            for pos, op in ((rest.find(op), op) for op in _CREATING_OPERATORS)
             if pos != -1
         ]
         if not found:

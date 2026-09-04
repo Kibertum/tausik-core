@@ -167,6 +167,7 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                 no_file_changes=getattr(args, "no_file_changes", False),
                 no_changelog=getattr(args, "no_changelog", False),
                 verify_handle=getattr(args, "verify_handle", None),
+                zero_gate_ack=bool(getattr(args, "zero_gate_ack", False)),
             )
         )
     elif c == "block":

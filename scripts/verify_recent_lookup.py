@@ -62,7 +62,7 @@ def lookup_recent_for_task(
     row = conn.execute(
         """
         SELECT id, task_slug, scope, command, exit_code, summary,
-               files_hash, ran_at, duration_ms
+               files_hash, ran_at, duration_ms, no_tests_declared
         FROM verification_runs
         WHERE task_slug = ?
           AND exit_code = 0

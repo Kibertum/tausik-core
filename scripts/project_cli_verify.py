@@ -186,13 +186,15 @@ def cmd_verify(svc: Any, args: Any) -> None:
         print(f"Duration: {duration_ms} ms")
 
     if report.get("status") == "no-tests-declared":
-        # Do not let this read as an ordinary green. The run passed because the
-        # caller said no test was expected, not because one ran.
-        print(
-            "NOTE: no gate actually executed — you declared --no-tests-expected. "
-            "Recorded with no_tests_declared=1; this closure rests on a "
-            "declaration, not on a verification."
-        )
+        # SENAR 1.4 §8.6(e) is a property of the VERDICT, not of the sentence
+        # printed beside it. This used to read "NOTE: no gate actually
+        # executed ... this closure rests on a declaration" and then hand over
+        # a handle that closed the task — an honest label on a verdict that was
+        # not honest. The handle is still minted, but it no longer certifies by
+        # itself: `task done` must acknowledge the emptiness explicitly.
+        from verify_zero_gate import run_state, verdict_note
+
+        print(verdict_note(run_state(report.get("results") or [])))
 
     scope_desc = report.get("scope_description") or {}
     if scope_desc.get("status") == STATUS_UNDER_DECLARED:

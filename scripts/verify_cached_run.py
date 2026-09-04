@@ -38,6 +38,7 @@ from verify_constants import DEFAULT_CACHE_TTL_S
 from verify_files_hash import compute_files_hash
 from verify_own_export import coverage_files
 from verify_recent_lookup import lookup_recent_for_task
+from verify_zero_gate import rests_on_a_declaration
 from verify_no_test_mapped import handle_no_test_mapped
 from verify_run_record import (
     RECORD_FAILED_STATUS,
@@ -81,6 +82,7 @@ def run_gates_with_cache(
     details: dict[str, Any] | None = None,
     no_tests_expected: bool = False,
     allow_handle: bool = True,
+    zero_gate_ack: bool = False,
 ) -> tuple[bool, list[dict[str, Any]], str | None]:
     """SENAR Rule 5 cache-aware gate run.
 
@@ -239,6 +241,7 @@ def run_gates_with_cache(
     # stable empty-marker that no edit moves, so a green recorded against it
     # would stay valid for the whole TTL across arbitrary tree changes. Neither
     # read nor write may treat it as a certificate.
+    zero_gate_reset = False
     if files and cache_ok and git_diff_consistent:
         try:
             from project_config import load_config
@@ -249,6 +252,29 @@ def run_gates_with_cache(
         hit = lookup_recent_for_task(
             conn, slug, files_hash=files_hash, command=cache_command, max_age_s=ttl
         )
+        if hit is not None and rests_on_a_declaration(hit) and not zero_gate_ack:
+            # review-209-third-door: THE THIRD READER of `lookup_recent_for_task`.
+            # The zero-gate rule was wired into the other two — `has_fresh_verify_run`
+            # and `check_handle` — and this one was left alone because it looked
+            # like a verify-side cache that only ever replays a verify verdict. It
+            # is not: `gate_verify_first`'s auto_verify branch calls this function
+            # to decide whether a CLOSE proceeds, and it is reached precisely when
+            # `has_fresh_verify_run` has just refused. So a row with
+            # no_tests_declared=1 satisfied Verify-First here after being refused
+            # one line earlier, and the task closed with no gate executed and no
+            # acknowledgement. Falling THROUGH (not returning False) is deliberate:
+            # the gates below then actually run, which is the honest answer to
+            # "is there evidence?" — a refusal here would turn a legitimate
+            # re-verification into a dead end.
+            hit = None
+            zero_gate_reset = True
+            if append_notes_fn is not None:
+                append_notes_fn(
+                    slug,
+                    "Gates: cache hit IGNORED — the cached run executed no gate "
+                    "(no_tests_declared=1) and no acknowledgement was presented. "
+                    "Running the gates instead of replaying an empty verdict.",
+                )
         if hit is not None:
             if details is not None:
                 details["cache_hit"] = hit
@@ -314,6 +340,7 @@ def run_gates_with_cache(
             details=details,
             no_tests_expected=no_tests_expected,
             append_notes_fn=append_notes_fn,
+            after_zero_gate_reset=zero_gate_reset,
         )
     # Don't cache an "all-skipped" run as if it were verified — that would
     # let the next caller's gates be silently skipped via cache hit on the

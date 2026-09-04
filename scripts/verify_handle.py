@@ -235,6 +235,10 @@ _RUN_COLUMNS = (
     "handle_nonce",
     "handle_expires_at",
     "handle_redeemed_at",
+    # senar-14-fail-closed-when-no-gate-actually-ran: a handle must be able to
+    # ask whether its run executed anything. Without this column the refusal
+    # would need a second query and would silently pass on a row shape change.
+    "no_tests_declared",
 )
 
 

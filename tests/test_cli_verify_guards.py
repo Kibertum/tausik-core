@@ -328,7 +328,16 @@ class TestNoTestsExpectedEscape:
         assert code == 0, "документационная задача обязана иметь способ закрыться"
 
     def test_declared_run_is_reusable_by_task_done(self, conn, monkeypatch, no_envelope, tmp_path):
-        """AC1: иначе выход был бы декоративным — task done всё равно не закрылся бы."""
+        """AC1: иначе выход был бы декоративным — task done всё равно не закрылся бы.
+
+        ФОРМА ПРИГОДНОСТИ ИЗМЕНИЛАСЬ в senar-14-fail-closed-when-no-gate-actually-ran.
+        Раньше такой прогон принимался поиском свежего зелёного САМ ПО СЕБЕ, и
+        это и был дефект: SENAR 1.4 §8.6(e) — свойство ВЕРДИКТА, а отсутствие
+        отрицательной находки вердиктом не является. Выход остался (иначе
+        документационная задача снова упёрлась бы в тупик), но он стал ВТОРЫМ
+        ЯВНЫМ АКТОМ: закрывающий признаёт пустоту флагом --gates-not-applicable.
+        Обе стороны утверждаются здесь, иначе тест доказывал бы только запрет.
+        """
         from verify_cache import has_fresh_verify_run
 
         for name in DECLARED:
@@ -336,8 +345,13 @@ class TestNoTestsExpectedEscape:
         monkeypatch.chdir(tmp_path)
 
         _run_cli(conn, DECLARED, monkeypatch, ALL_SKIPPED, no_tests_expected=True)
-        ok, hit = has_fresh_verify_run(conn, "t", DECLARED)
-        assert ok is True
+
+        refused, hit = has_fresh_verify_run(conn, "t", DECLARED)
+        assert refused is False, "прогон без единого выполненного гейта не вердикт"
+        assert hit is not None, "отказ обязан назвать строку, которую он отверг"
+
+        accepted, hit = has_fresh_verify_run(conn, "t", DECLARED, zero_gate_ack=True)
+        assert accepted is True, "выход обязан оставаться проходимым по явному признанию"
         assert hit is not None
 
     def test_declared_run_is_auditable_by_one_query(self, conn, monkeypatch, no_envelope):

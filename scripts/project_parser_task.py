@@ -157,6 +157,18 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         "TTL is searched for).",
     )
     tdone.add_argument(
+        "--gates-not-applicable",
+        action="store_true",
+        dest="zero_gate_ack",
+        help="Knowingly close on a verify run in which NO gate executed. "
+        "Required because SENAR 1.4 §8.6(e) makes 'nothing was checked' a "
+        "non-verdict: `verify --no-tests-expected` records the declaration, "
+        "and this flag is the separate, recorded act of accepting it. Use it "
+        "for work that honestly maps to no test — documentation, config, an "
+        "investigation. It cannot rescue a run in which a gate APPLIED and "
+        "still did not execute; that one is fixed, not acknowledged.",
+    )
+    tdone.add_argument(
         "--no-file-changes",
         action="store_true",
         dest="no_file_changes",

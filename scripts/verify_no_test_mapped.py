@@ -20,6 +20,7 @@ from typing import Any, Callable
 
 from gate_runner import summarize_results
 
+from verify_zero_gate import ACK_FLAG, APPLICABLE_DID_NOT_RUN, run_state, verdict_note
 from verify_run_record import (
     RECORD_FAILED_STATUS,
     VerificationRecordError,
@@ -43,6 +44,7 @@ def handle_no_test_mapped(
     details: dict[str, Any] | None,
     no_tests_expected: bool,
     append_notes_fn: Callable[[str, str], None] | None,
+    after_zero_gate_reset: bool = False,
 ) -> tuple[bool, list[dict[str, Any]], str]:
     """Вернуть вердикт для прогона, в котором все гейты пропущены.
 
@@ -56,6 +58,28 @@ def handle_no_test_mapped(
     # would restore exactly the invisibility the parent task removed. The
     # run is recorded with no_tests_declared=1 so "every closure that passed
     # without a single gate executing" is one SQL query.
+    # AC6: a gate that was APPLICABLE and still did not execute is not the same
+    # event as a gate that had nothing to look at, and `--no-tests-expected`
+    # must not launder the first into the second. `GateOutcome` already spells
+    # the difference; collapsing them here would put back the very
+    # indistinguishability `gate_outcome` was extracted to end.
+    state = run_state(results)
+    if no_tests_expected and state == APPLICABLE_DID_NOT_RUN:
+        if append_notes_fn is not None:
+            append_notes_fn(
+                slug,
+                "FAIL: a gate APPLIED and produced no evidence (COULD_NOT_RUN). "
+                "--no-tests-expected declares that no test was expected; it "
+                "cannot declare away a gate that was expected and did not run.",
+            )
+        synth_cannot_run = {
+            "name": "scoped-pytest",
+            "passed": False,
+            "skipped": False,
+            "severity": "block",
+            "output": verdict_note(state),
+        }
+        return False, [*results, synth_cannot_run], "gate-could-not-run"
     if no_tests_expected:
         if append_notes_fn is not None:
             append_notes_fn(
@@ -90,23 +114,31 @@ def handle_no_test_mapped(
             # failure does flip the verdict (verify-record-failure-swallowed).
             return False, [*results, record_failure_result(exc)], RECORD_FAILED_STATUS
         return True, results, "no-tests-declared"
+    # review-209-third-door: told twice, differently. The generic advice is
+    # "re-run verify with --no-tests-expected" — which is exactly what the
+    # closer ALREADY did when the cached row was written. Repeating it after
+    # the zero-gate guard reset that row sends them round a loop they cannot
+    # win: the missing act is on the CLOSING side, not the verify side. So the
+    # remedy names the flag that is actually absent.
+    remedy = (
+        "This scope was already declared --no-tests-expected; the cached run "
+        "was set aside because it executed no gate. The missing step is on the "
+        f"closing side: `task done ... {ACK_FLAG}`."
+        if after_zero_gate_reset
+        else "Add tests/test_<basename>.py, or re-run verify with "
+        "--no-tests-expected to declare that none should exist."
+    )
     if append_notes_fn is not None:
         append_notes_fn(
             slug,
-            f"FAIL: relevant_files {files} mapped to NO test files. "
-            "Add tests/test_<basename>.py, or re-run verify with "
-            "--no-tests-expected to declare that none should exist.",
+            f"FAIL: relevant_files {files} mapped to NO test files. {remedy}",
         )
     synth = {
         "name": "scoped-pytest",
         "passed": False,
         "skipped": False,
         "severity": "block",
-        "output": (
-            f"No tests mapped for {files}. Add tests/test_<basename>.py, "
-            "or re-run verify with --no-tests-expected to declare that none "
-            "should exist (recorded and auditable, not silent)."
-        ),
+        "output": f"No tests mapped for {files}. {remedy}",
     }
     # Same reason the security block above records: this branch returned
     # without writing anything, so the one verdict that stops a closure

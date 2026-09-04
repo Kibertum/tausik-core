@@ -272,3 +272,32 @@ def test_live_wrapper_does_not_refuse_a_healthy_argument(tmp_path, arg):
     assert "could not pass your arguments" not in stderr
     assert f"invalid choice: {arg!r}" in stderr
     assert not list(tmp_path.iterdir()), "the call left a stray file behind"
+
+
+# --- input redirection creates nothing, so nothing is offered for deletion ---
+# Fix review of session #209, record #26 (medium): `<` was in the operator set,
+# so `describe_mismatch` told the operator that a file cmd.exe had merely
+# OPENED FOR READING was "already created (delete it)". Wrong, and the advice
+# destructive — the named file is one they still need.
+
+
+def test_an_input_redirection_target_is_not_named_as_created():
+    assert redirection_targets("a < input.txt") == []
+
+
+def test_the_message_does_not_offer_to_delete_a_file_cmd_only_read():
+    message = describe_mismatch(["a"], _raw("a < input.txt"))
+    assert message is not None, "the mismatch itself is still reported"
+    assert "delete it" not in message
+    assert "already created" not in message
+
+
+def test_an_output_redirection_target_is_still_named_and_still_deletable():
+    """The other end: the fix must not silence the case that IS a stray file."""
+    message = describe_mismatch(["a"], _raw("a > stray.txt"))
+    assert "stray.txt" in message
+    assert "delete it" in message
+
+
+def test_a_mixed_line_names_only_what_was_created():
+    assert redirection_targets("a < input.txt > stray.txt") == ["stray.txt"]

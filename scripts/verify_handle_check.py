@@ -34,6 +34,12 @@ import sqlite3
 from typing import Any
 
 from verify_recent_lookup import extract_gate_signature
+from verify_zero_gate import (
+    is_non_replayable,
+    non_replayable_refusal,
+    rests_on_a_declaration,
+)
+from verify_zero_gate import refusal as zero_gate_refusal
 from verify_handle import (
     HandleVerdict,
     load_run_for_handle,
@@ -41,11 +47,6 @@ from verify_handle import (
     parse_iso,
     redeem,
 )
-
-# Prefix stamped on rows that passed but may never be replayed (empty scope,
-# all-skipped gates, security-sensitive set). `verify_cached_run` writes it; a
-# handle must honour it or the prefix would guard one door and not the other.
-_NONCACHEABLE_PREFIX = "noncacheable|"
 
 
 def _no(
@@ -65,12 +66,19 @@ def check_handle(
     task_slug: str,
     project_dir: str = ".",
     now_iso: str | None = None,
+    zero_gate_ack: bool = False,
 ) -> HandleVerdict:
     """Validate a presented handle WITHOUT spending it.
 
     Split from `redeem_handle` so the refusals are testable without a write and
     so the spend is the last thing that happens — a handle must not be consumed
     by a close that then refuses for an unrelated reason.
+
+    `zero_gate_ack` is the closer saying, in a separate act, that a run which
+    executed NO gate is nonetheless the right basis for this closure. It
+    defaults to False because §8.6(e) is about the verdict: a run with no
+    evidence behind it certifies nothing until someone knowingly accepts it.
+    See `verify_zero_gate`.
     """
     parsed = parse_handle(handle)
     if parsed is None:
@@ -123,15 +131,14 @@ def check_handle(
             run,
         )
 
-    command = str(run.get("command") or "")
-    if command.startswith(_NONCACHEABLE_PREFIX):
-        return _no(
-            f"verify-handle: run #{run_id} is marked non-replayable "
-            "(empty scope, all gates skipped, or a security-sensitive file set). "
-            "It was recorded for the audit trail, not as a certificate. "
-            f"Declare the scope and re-run `tausik verify --task {task_slug}`.",
-            run,
-        )
+    if is_non_replayable(run):
+        return _no(non_replayable_refusal(run_id, task_slug), run)
+
+    # Asked BEFORE the spend, like every other refusal here: a handle must not
+    # be consumed by a close that then refuses. Asked AFTER the non-replayable
+    # check because that one covers a wider class and gives the better message.
+    if rests_on_a_declaration(run) and not zero_gate_ack:
+        return _no(zero_gate_refusal(run_id, task_slug), run)
 
     if run.get("handle_redeemed_at"):
         # Reported before the atomic spend so the common case gets the specific
@@ -164,7 +171,12 @@ def check_handle(
             run,
         )
 
-    return _check_receipt(run, task_slug=task_slug, project_dir=project_dir, command=command)
+    return _check_receipt(
+        run,
+        task_slug=task_slug,
+        project_dir=project_dir,
+        command=str(run.get("command") or ""),
+    )
 
 
 def _check_receipt(
@@ -453,6 +465,7 @@ def redeem_handle(
     *,
     task_slug: str,
     project_dir: str = ".",
+    zero_gate_ack: bool = False,
 ) -> HandleVerdict:
     """Validate and, on success, spend the handle exactly once.
 
@@ -460,7 +473,13 @@ def redeem_handle(
     an already-spent handle for a good message, but only the atomic UPDATE
     decides. A caller that saw ok=True here may treat QG-2 as satisfied.
     """
-    verdict = check_handle(conn, handle, task_slug=task_slug, project_dir=project_dir)
+    verdict = check_handle(
+        conn,
+        handle,
+        task_slug=task_slug,
+        project_dir=project_dir,
+        zero_gate_ack=zero_gate_ack,
+    )
     if not verdict.ok:
         return verdict
     parsed = parse_handle(handle)

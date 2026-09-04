@@ -204,6 +204,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         no_file_changes: bool = False,
         no_changelog: bool = False,
         verify_handle: str | None = None,
+        zero_gate_ack: bool = False,
     ) -> str:
         report = self._task_done_report(
             slug,
@@ -216,6 +217,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             no_file_changes=no_file_changes,
             no_changelog=no_changelog,
             verify_handle=verify_handle,
+            zero_gate_ack=zero_gate_ack,
         )
         if not report.get("ok"):
             raise ServiceError(_format_task_done_failures(report))

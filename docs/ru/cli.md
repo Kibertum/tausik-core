@@ -99,6 +99,14 @@ task done <slug> --ac-verified [--no-knowledge] [--relevant-files FILE1 FILE2 ..
                                 #       миллисекунды. Если verify не запускался — блок с remediation.
                                 #       Opt-out: .tausik/config.json → {"task_done":{"auto_verify":true}}
                                 #       — старое поведение (heavy гейты inline). НЕТ --force.
+                                # --gates-not-applicable (1.9): ЗАКРЫТЬ НА ПРОГОНЕ, В КОТОРОМ НЕ
+                                #       ВЫПОЛНИЛСЯ НИ ОДИН ГЕЙТ. SENAR 1.4 §8.6(e): отсутствие
+                                #       отрицательной находки НЕ ЕСТЬ положительный вердикт, поэтому
+                                #       `verify --no-tests-expected` записывает заявление, а этот флаг —
+                                #       ОТДЕЛЬНЫЙ ЗАПИСАННЫЙ АКТ его принятия. Для работы, которая
+                                #       честно не мапится на тест: документация, конфиг, исследование.
+                                #       НЕ спасает прогон, в котором гейт БЫЛ ПРИМЕНИМ и всё равно не
+                                #       выполнился (COULD_NOT_RUN) — такой чинят, а не признают.
 task block <slug> [--reason TEXT]
 task unblock <slug>             # blocked → active
 task review <slug>              # active → review

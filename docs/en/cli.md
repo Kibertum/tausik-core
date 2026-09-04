@@ -91,6 +91,15 @@ task done <slug> --ac-verified [--no-knowledge] [--relevant-files FILE1 FILE2 ..
                                 #       milliseconds. If no verify run exists → blocks with remediation.
                                 #       Opt-out: .tausik/config.json → {"task_done":{"auto_verify":true}}
                                 #       restores the legacy "heavy gates inline" behavior. NO --force.
+                                # --gates-not-applicable (1.9): CLOSE ON A RUN IN WHICH NO GATE
+                                #       EXECUTED. SENAR 1.4 §8.6(e): the absence of a negative
+                                #       finding is NOT a positive verdict, so `verify
+                                #       --no-tests-expected` records the declaration and this flag
+                                #       is the SEPARATE, RECORDED act of accepting it. For work that
+                                #       honestly maps to no test: documentation, config, an
+                                #       investigation. It does NOT rescue a run in which a gate was
+                                #       APPLICABLE and still did not execute (COULD_NOT_RUN) — that
+                                #       one is fixed, not acknowledged.
 task block <slug> [--reason TEXT]
 task unblock <slug>             # blocked -> active
 task review <slug>              # active -> review

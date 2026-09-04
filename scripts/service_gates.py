@@ -198,6 +198,7 @@ class GatesMixin:
         no_file_changes: bool = False,
         no_changelog: bool = False,
         verify_handle: str | None = None,
+        zero_gate_ack: bool = False,
     ) -> dict[str, Any]:
         """Return detailed gate report for MCP/agent-friendly handling.
 
@@ -227,7 +228,12 @@ class GatesMixin:
         # to "." and scan the whole tree for a task that touched nothing.
         if no_file_changes and trigger == "task-done":
             self._run_post_scope_gates(
-                report, slug, relevant_files, no_file_changes=True, verify_handle=verify_handle
+                report,
+                slug,
+                relevant_files,
+                no_file_changes=True,
+                verify_handle=verify_handle,
+                zero_gate_ack=zero_gate_ack,
             )
             return report
         try:
@@ -290,6 +296,7 @@ class GatesMixin:
                 no_file_changes=no_file_changes,
                 no_changelog=no_changelog,
                 verify_handle=verify_handle,
+                zero_gate_ack=zero_gate_ack,
             )
         return report
 
@@ -302,6 +309,7 @@ class GatesMixin:
         no_file_changes: bool = False,
         no_changelog: bool = False,
         verify_handle: str | None = None,
+        zero_gate_ack: bool = False,
     ) -> None:
         """QG-2 gates that run after the scoped pipeline — one loop, one registry.
 
@@ -320,6 +328,7 @@ class GatesMixin:
             no_file_changes=no_file_changes,
             no_changelog=no_changelog,
             verify_handle=verify_handle,
+            zero_gate_ack=zero_gate_ack,
         )
 
     # The two methods below are the registry's `svc:` implementations for the
@@ -337,6 +346,7 @@ class GatesMixin:
         no_file_changes: bool = False,
         no_changelog: bool = False,  # noqa: ARG002 — uniform post-scope shape
         verify_handle: str | None = None,
+        zero_gate_ack: bool = False,
     ) -> None:
         """Verify-First Contract — delegates to gate_verify_first."""
         from gate_verify_first import enforce_verify_first
@@ -348,6 +358,7 @@ class GatesMixin:
             relevant_files,
             no_file_changes=no_file_changes,
             verify_handle=verify_handle,
+            zero_gate_ack=zero_gate_ack,
         )
 
     def _enforce_changelog(
@@ -359,6 +370,7 @@ class GatesMixin:
         no_changelog: bool = False,
         no_file_changes: bool = False,  # noqa: ARG002 — uniform post-scope shape
         verify_handle: str | None = None,  # noqa: ARG002 — uniform post-scope shape
+        zero_gate_ack: bool = False,  # noqa: ARG002 — uniform post-scope shape
     ) -> None:
         """Continuous-CHANGELOG gate — delegates to gate_changelog."""
         from gate_changelog import enforce_changelog

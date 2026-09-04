@@ -22,6 +22,7 @@ from verify_constants import DEFAULT_CACHE_TTL_S
 from verify_files_hash import compute_files_hash
 from verify_own_export import coverage_files
 from verify_recent_lookup import lookup_recent_for_task
+from verify_zero_gate import rests_on_a_declaration
 
 
 def is_cache_allowed(file_paths: list[str]) -> bool:
@@ -87,6 +88,7 @@ def has_fresh_verify_run(
     relevant_files: list[str] | None,
     *,
     max_age_s: int = DEFAULT_CACHE_TTL_S,
+    zero_gate_ack: bool = False,
 ) -> tuple[bool, dict[str, Any] | None]:
     """Verify-First Contract: True iff a green `tausik verify` run exists for
     this task with matching files_hash and current verify gate signature,
@@ -152,4 +154,18 @@ def has_fresh_verify_run(
     )
     if hit is None:
         return False, None
+    if rests_on_a_declaration(hit) and not zero_gate_ack:
+        # senar-14-fail-closed-when-no-gate-actually-ran. The handle path is not
+        # the only door: this lookup matches on command and files_hash, and the
+        # no-test-mapped branch records its row with a CLEAN command — the
+        # `noncacheable|` stamp that `verify_cached_run` describes is applied
+        # after that branch has already returned. So a run in which no gate
+        # executed was replayable here for the whole TTL. The row is returned
+        # alongside the refusal so the caller can name which run it rejected.
+        #
+        # `zero_gate_ack` opens the same door here as on the handle path. The
+        # acknowledgement is an act of the CLOSER, not a property of how the
+        # green was presented, so making it work on one route and not the other
+        # would turn a rule into a trivia question about which flag was used.
+        return False, hit
     return True, hit

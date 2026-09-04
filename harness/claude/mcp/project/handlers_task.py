@@ -127,6 +127,7 @@ def _do_task_done(svc: Any, args: dict) -> str:
         # mcp-server-drops-unknown-arguments-silently). Advertising it in
         # tools.py is not what makes it arrive.
         verify_handle=args.get("verify_handle"),
+        zero_gate_ack=bool(args.get("gates_not_applicable", False)),
     )
     return json.dumps(result, ensure_ascii=False)
 

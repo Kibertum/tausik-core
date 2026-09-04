@@ -9,6 +9,58 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a run in which no gate executed was a positive verdict
+
+SENAR 1.4 §8.6(e) is a SHALL on every configuration, and the standard says
+expressly that it is not weakened on any of them: the absence of a negative
+finding is not a positive verdict. Measured live in session #177,
+`verify --task <slug> --no-tests-expected` printed "no gate actually executed",
+recorded the run with `no_tests_declared=1`, exited 0 and minted a handle that
+closed the task. The label was honest and the verdict was not — §8.6(e) is a
+property of the verdict, not of the sentence printed beside it.
+
+The escape stays, because an earlier version of this branch blocked
+documentation and config work with no way out, but it is now a SECOND, EXPLICIT
+ACT: `verify` records the declaration and mints the handle, and `task done`
+must accept the emptiness knowingly with `--gates-not-applicable`
+(`gates_not_applicable` over MCP). One declaration is a claim; a claim plus a
+knowing acceptance is a decision, and a decision is auditable.
+
+THREE DOORS WERE OPEN, NOT ONE. `verify_cached_run` documents that a run which
+passed but is not replayable — "empty scope, all gates skipped, or a
+security-sensitive file set" — is stamped `noncacheable|`, and the handle
+validator refuses such a row. But the all-skipped branch returns BEFORE that
+stamp is applied, so its row carried a clean command and was replayable for the
+whole cache TTL. The first class the prefix named was the one class it never
+covered.
+
+Three code paths decide "is there a fresh green run for this task", and all
+three read the same primitive: the handle validator, `has_fresh_verify_run`,
+and a lookup inside `run_gates_with_cache` itself. The first version of this
+fix wired the rule into two of them and published the claim that there were
+only two — the third was found by the adversarial review of the fix (record
+#26) and is reachable exactly when the second has just refused, because
+`config.task_done.auto_verify=true` falls through to it. All three now refuse,
+and the acknowledgement opens all three: it is an act of the closer, not a
+property of how the green was presented. The consumers were inventoried by the
+convenient wrapper's name rather than by the primitive, which is why one reader
+was invisible; a test now walks `scripts/` and `harness/` and counts direct
+calls to the primitive through the AST, so a fourth reader added anywhere in
+those trees is a red test. A call reached through an alias or `getattr` is
+still outside what that test can see, and the test says so.
+
+TWO KINDS OF NON-EXECUTION STAY APART. A gate skipped because it does not apply
+is legitimate; a gate that APPLIED and produced nothing is not, and
+`--no-tests-expected` can no longer launder the second into the first. The
+distinction is read from `GateOutcome`, which already spelled it. A run holding
+both is reported as the worse of the two.
+
+`--no-file-changes` was audited for the same emptiness and is clear: the only
+gate carrying `skip_on_fileless_close` is `changelog`, which ships disabled,
+while Verify-First keeps running and takes its own route — one that requires
+git to prove the declared scope has no uncommitted changes. That verdict rests
+on evidence, and on git's evidence rather than the agent's word.
+
 ### Fixed — two detectors called an example a citation, and one root fed both
 
 `memory lint` (stale_file) and `audit evidence` are independent, and both

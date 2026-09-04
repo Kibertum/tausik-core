@@ -1,6 +1,6 @@
 ---
 slug: our-only-spec-is-derived-without-either-allowed-source-field
-title: "Единственный SPEC выведен без обоих допустимых источников: ни source.tz-section, ни source.adapt — дословный негативный сценарий §13.3.3"
+title: "Три SPEC выведены без обоих допустимых источников: ни source.tz-section, ни source.adapt — дословный негативный сценарий §13.3.3"
 status: planning
 epic: release-19-renar-conformance
 story: renar-debt-implemented-wrong
@@ -41,3 +41,5 @@ completed_at: null
 ## Rollback
 
 ## Journal
+
+- 2026-09-04T11:02:12Z [planning] — ПРЕМИСА ПОПРАВЛЕНА ЗАМЕРОМ, ЗАДАЧА НЕ ВЗЯТА. В #198 заголовок говорил «единственный SPEC». Замер #209: renar/specs/ содержит ТРИ артефакта — renar-adoption (content_ref: decisions#109), sec-config-trust-tiers (content_ref: docs/ru/config-trust-tiers.md), team-state-in-git-format (content_ref: docs/ru/team-state-in-git.md). Полей происхождения нет НИ У ОДНОГО: ни source.tz-section, ни source.adapt, ни adversarial-review-ref. Заголовок исправлен на «Три SPEC». РЕШЕНИЕ ВЛАДЕЛЬЦА ПОЛУЧЕНО (решение #307): decisions#109 НЕ считается нашим ТЗ, ТЗ как артефакта у нас нет, и это объявляется ЯВНО. Значит задача идёт по ВТОРОМУ пути собственного описания: показать неприменимость нормы записью со ссылкой на renar-first-tz-adapt, а не заполнять tz-section. Объявление обязано покрыть ВСЕ ТРИ артефакта. Миграция v50 скорее не нужна — решать инвентарём при взятии.
