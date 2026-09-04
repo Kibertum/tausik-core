@@ -16,6 +16,15 @@ def main() -> None:
     from tausik_utils import fix_stdio_encoding, install_file_logging
 
     fix_stdio_encoding()
+
+    # Before anything reads an argument: refuse a command line that cmd.exe
+    # ate part of. Runs after fix_stdio_encoding so the diagnostic can carry
+    # non-ASCII, and before install_file_logging so a mangled line is not
+    # recorded as a real invocation.
+    from cmdline_fidelity import enforce as _enforce_cmdline_fidelity
+
+    _enforce_cmdline_fidelity()
+
     install_file_logging()
 
     from project_cli import (
