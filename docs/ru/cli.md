@@ -266,7 +266,7 @@ drift --detector provenance    # Только drift-7 (провенанс TC↔�
 
 - **drift-1 (schema)** — ре-валидация SPEC/ADAPT против closed-lists + cross-field
   инвариантов, которые DB CHECK выразить не может: `delta_n ↔ parent_adapt`
-  (delta_n>0 без parent_adapt / delta_n=0 с parent_adapt), `signed ↔ двойная
+  (delta_n>0 без parent_adapt / delta_n=0 с parent_adapt), `approved ↔ двойная
   подпись` (§7.5),
   пустая version. Ловит прямые правки БД и пробелы миграций.
 - **drift-7 (TC↔requirement provenance)** — у TAUSIK нет first-class TC; единица
