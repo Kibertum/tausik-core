@@ -17,6 +17,25 @@ import os
 import sys
 
 # Ensure scripts dir is in path (once, at import time) — see module docstring.
+#
+# TWO levels, and the count belongs to the DEPLOYED layout: bootstrap copies
+# this tree to `<profile>/mcp/project/`, so `../../scripts` is the profile's own
+# `<profile>/scripts/`. It is NOT the count for this source tree, where the
+# repository keeps `scripts/` at its root, three levels up — so here the insert
+# silently adds a directory that does not exist. That is deliberate and
+# harmless: nothing runs this copy as a server, and the only importers are
+# tests, where pytest supplies the path — `pyproject.toml` sets
+# `pythonpath = ["scripts"]` for every run. (Four conftest helpers insert it
+# again locally; that is belt and braces, not the mechanism — naming those
+# instead was this comment's first draft, and the review caught it.) Raising
+# when the directory is missing would break the source tree and fix nothing in
+# a profile.
+#
+# Written down because the arithmetic has been miscounted twice (sessions #209
+# and #210), which is what a silent no-op buys you. `tests/
+# test_mcp_deployed_layout_resolves.py` now asserts that every deployed profile
+# resolves this to ITS OWN scripts — resolvability alone is not enough, since
+# three levels up also finds a `service_specs.py`, the repository's.
 _SCRIPTS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "scripts")
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)

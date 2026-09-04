@@ -9,6 +9,48 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the MCP server's path arithmetic is now asserted, in the layout where it is true
+
+`tools_spec.py` puts `../../scripts` on `sys.path` and imports `service_specs`
+from it. Nothing asserted that the target existed. Inserting a path that is not
+there raises nothing, so a bootstrap change moving `scripts/` one level inside a
+profile would have surfaced as an ImportError at server startup, with the cause
+already out of view.
+
+THE PREMISE WAS WRONG IN BOTH DIRECTIONS, and measuring it is most of this
+entry. The reported defect was "adds a possibly nonexistent dir". Six copies of
+the module exist: in all five deployed profiles the directory is there
+DETERMINISTICALLY, and in the source tree it is absent ALWAYS. Two levels is the
+correct arithmetic for the deployed layout — `.claude/mcp/project/` ->
+`.claude/scripts` — which is the only layout that runs as a server. The earlier
+guess of three levels came from the source tree, where the repository keeps
+`scripts/` at its root; the two layouts differ, and one literal cannot be right
+for both. Sessions #209 and #210 each miscounted this, which is what a silent
+no-op buys.
+
+So no "fail loudly" patch was added: in the source tree the directory is absent
+legitimately, the insert is a harmless no-op there, and the only importers are
+tests — where pytest supplies the path itself, via `pythonpath = ["scripts"]` in
+`pyproject.toml`. Raising would break the source tree and fix nothing in a
+profile. The invariant is asserted where it
+holds instead — every DEPLOYED profile, found by walking rather than by a typed
+list, must resolve the insert to its OWN `scripts/` and that directory must
+carry `service_specs.py`.
+
+Resolvability alone turned out not to be the test. Three levels up from a
+deployed profile lands on the repository root, whose `scripts/` ALSO contains
+`service_specs.py` — so both counts resolve in this checkout, and only the
+ownership question separates them. A profile that reached the repository's
+scripts would pass here and fail wherever it is installed without the source
+tree beside it.
+
+The check takes its root as a parameter so the broken shapes could be built
+synthetically: a profile with no `scripts/`, and a `scripts/` that exists but is
+empty — the second being exactly what a check written on `isdir` alone would
+wave through. Breaking a real profile to prove the same point would have meant
+writing outside the task's declared scope, and the write gate refused it; the
+synthetic version outlives the session anyway.
+
 ### Fixed — a guard's subject was a typed list, so a new module escaped it by being born
 
 `tests/test_no_hard_yaml_import.py` keeps PyYAML optional: a module-level
