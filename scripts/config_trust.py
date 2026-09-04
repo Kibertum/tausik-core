@@ -154,6 +154,19 @@ GUARDS: tuple[Guard, ...] = (
         False,
         "auto_verify closes a task on an inline run, skipping the signed receipt",
     ),
+    # The changelog gate predates `gates.<name>.enabled` and keeps its own
+    # switch here (gate_changelog.changelog_gate_enabled reads exactly this
+    # path). Guarding the path instead of moving the switch: a second location
+    # for the same switch is a second source of truth, and the resolver would
+    # have to pick one. Found by external review #38: with this entry absent,
+    # a gitignored local `false` composed over the committed policy's `true`
+    # and switched a severity=block gate off with no rejection recorded.
+    Guard(
+        ("task_done", "changelog_gate", "enabled"),
+        _weaker_when_false,
+        False,
+        "changelog gate on/off switch (its own path, older than gates.<name>.enabled)",
+    ),
     Guard(
         ("gates", "*", "enabled"),
         _weaker_when_false,

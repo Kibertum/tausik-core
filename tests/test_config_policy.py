@@ -197,6 +197,32 @@ def test_a_local_config_cannot_quietly_undo_a_committed_tightening(sealed_home, 
     assert cfg["gates"]["mypy"]["enabled"] is True
 
 
+def test_the_changelog_switch_is_one_of_the_keys_the_local_file_cannot_undo(sealed_home, tmp_path):
+    """NEGATIVE SCENARIO, found by external review #38 and reproduced.
+
+    This repository commits `task_done.changelog_gate.enabled: true` in
+    tausik/policy.json (de9e027). The switch was not a guarded key, so a
+    gitignored `.tausik/config.json` saying `false` composed over it and won —
+    the exact silent undo the tier composition exists to refuse, on a
+    severity=block gate. The sibling `files` list is not a switch and stays
+    the local file's.
+    """
+    sealed_home({})
+    proj = tmp_path / "proj"
+    (proj / "tausik").mkdir(parents=True)
+    (proj / "tausik" / "policy.json").write_text(
+        json.dumps({"task_done": {"changelog_gate": {"enabled": True}}}), encoding="utf-8"
+    )
+    (proj / ".tausik").mkdir()
+    (proj / ".tausik" / "config.json").write_text(
+        json.dumps({"task_done": {"changelog_gate": {"enabled": False, "files": ["ONLY.md"]}}}),
+        encoding="utf-8",
+    )
+    cfg = _effective(str(proj / ".tausik"))
+    assert cfg["task_done"]["changelog_gate"]["enabled"] is True
+    assert cfg["task_done"]["changelog_gate"]["files"] == ["ONLY.md"]
+
+
 def test_the_local_config_still_wins_on_an_ordinary_key(sealed_home, tmp_path):
     """Only GUARDED keys get the stricter-wins treatment. Bootstrap metadata and
     machine paths belong to the machine, and a committed policy has no business

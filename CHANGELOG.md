@@ -9,6 +9,28 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the changelog gate's switch is a guarded key
+
+`task_done.changelog_gate.enabled` is the changelog gate's real on/off switch:
+the gate predates `gates.<name>.enabled` and `changelog_gate_enabled` reads
+this path. It was not in `config_trust.GUARDS`, so "the project may only
+tighten" did not apply to it. REPRODUCED (external review #38): composing the
+committed `tausik/policy.json` (`true`, de9e027) under a gitignored
+`.tausik/config.json` saying `false` yielded `false` with no rejection — a
+severity=block gate switched off by a file no clone ever sees, while the
+guarded control key `gates.changelog.enabled` under the same inputs stayed
+`true`. The closure of `changelog-gate-double-registration-premise-unconfirmed`
+had called the duplicate harmless because "the stricter wins"; it was
+harmless because the two values happened to match, and the journal now says
+so.
+
+The path is guarded rather than the switch moved: a second location for the
+same switch is a second source of truth. `_weaker_when_false` with the
+framework default `False` (the gate is opt-in), so switching it on is a
+tightening that passes and switching it off under a trusted or committed
+`true` is a named rejection. The sibling `files` list is not a switch and
+stays the local file's.
+
 ### Fixed — the version floor is the journal's whole history, not its tip
 
 `next_version` took the maximum of two places a version could be seen — the

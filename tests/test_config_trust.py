@@ -65,12 +65,47 @@ class TestProjectMayOnlyTighten:
             ),
             ({"qg0": {"scope_hard_gate": True}}, ("qg0", "scope_hard_gate"), True),
             ({"task_done": {"auto_verify": False}}, ("task_done", "auto_verify"), False),
+            # The changelog gate is opt-in (default False); switching it on is a
+            # tightening, and it travels on its own path, not gates.<name>.
+            (
+                {"task_done": {"changelog_gate": {"enabled": True}}},
+                ("task_done", "changelog_gate", "enabled"),
+                True,
+            ),
         ],
     )
     def test_tightening_key_passes_through(self, project, path, expected):
         cfg, rejections = ct.resolve(project, trusted={})
         assert rejections == []
         assert ct._dig(cfg, path) == (True, expected)
+
+    def test_the_changelog_switch_cannot_undercut_a_trusted_true(self):
+        """NEGATIVE SCENARIO, found by external review #38.
+
+        `task_done.changelog_gate.enabled` is the gate's real switch — older
+        than `gates.<name>.enabled` — and it was not in GUARDS, so a project
+        `false` under a trusted `true` went through with no rejection: a
+        severity=block gate switched off silently. The ordinary sibling key
+        (`files`) stays the project's: only the switch is guarded.
+        """
+        project = {"task_done": {"changelog_gate": {"enabled": False, "files": ["X.md"]}}}
+        trusted = {"task_done": {"changelog_gate": {"enabled": True}}}
+        cfg, rejections = ct.resolve(project, trusted=trusted)
+        assert [r.key for r in rejections] == ["task_done.changelog_gate.enabled"]
+        assert cfg["task_done"]["changelog_gate"]["enabled"] is True
+        assert cfg["task_done"]["changelog_gate"]["files"] == ["X.md"]
+
+    def test_the_changelog_switch_may_stay_off_where_nothing_turned_it_on(self):
+        """The guard's default is the framework's (opt-in, False), not the
+        strict position. Written because a mutation flipping the default to
+        True SURVIVED: every test above passes with a guard that would force
+        the changelog gate ON for every project with no trusted tier — a
+        consumer that keeps no changelog would be blocked on every close."""
+        cfg, rejections = ct.resolve(
+            {"task_done": {"changelog_gate": {"enabled": False}}}, trusted={}
+        )
+        assert rejections == []
+        assert cfg["task_done"]["changelog_gate"]["enabled"] is False
 
     def test_equal_to_baseline_is_not_a_rejection(self):
         """`filesize.enabled: true` restates the default — noise, not a bypass."""
@@ -116,9 +151,7 @@ class TestOffByAnotherSpelling:
     def test_dropping_one_trigger_is_rejected(self):
         """filesize defaults to task-done + commit; keeping only commit silences
         it on closure, which is the trigger that matters."""
-        cfg, rejections = ct.resolve(
-            {"gates": {"filesize": {"trigger": ["commit"]}}}, trusted={}
-        )
+        cfg, rejections = ct.resolve({"gates": {"filesize": {"trigger": ["commit"]}}}, trusted={})
         assert [r.key for r in rejections] == ["gates.filesize.trigger"]
         assert self._fires(cfg)
 
@@ -131,9 +164,7 @@ class TestOffByAnotherSpelling:
         assert self._fires(cfg, trigger="review")
 
     def test_narrowing_file_extensions_is_rejected(self):
-        _, rejections = ct.resolve(
-            {"gates": {"ruff": {"file_extensions": [".pyi"]}}}, trusted={}
-        )
+        _, rejections = ct.resolve({"gates": {"ruff": {"file_extensions": [".pyi"]}}}, trusted={})
         assert [r.key for r in rejections] == ["gates.ruff.file_extensions"]
 
     def test_widening_file_extensions_is_allowed(self):
