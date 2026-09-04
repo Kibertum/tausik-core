@@ -35,9 +35,11 @@ from typing import Any
 from renar_clause_reactive_adapt import assess as assess_reactive_adapt
 
 # Serialization split out for the filesize gate; re-exported so every existing
-# `from renar_conformance import ...` keeps working -- project_cli_renar takes
-# render_yaml from here, renar_export takes _require_yaml, and the test module
-# takes both plus MANDATORY_FIELDS.
+# `from renar_conformance import ...` keeps working -- renar_export takes
+# _require_yaml from here, and the test module takes render_yaml plus
+# MANDATORY_FIELDS. (project_cli_renar used to take render_yaml too, to
+# re-render a manifest after patching `replaces` onto it; it now passes the
+# link into `generate` and renders once.)
 from renar_conformance_yaml import (  # noqa: F401
     MANDATORY_FIELDS,
     _require_yaml,
@@ -327,8 +329,13 @@ def build_manifest(
     assessor_id: str,
     assessment_date: str,
     manifest_version: int = 1,
+    replaces: str | None = None,
 ) -> dict[str, Any]:
-    """Assemble the §13.4.2 manifest dict (all mandatory fields always present)."""
+    """Assemble the §13.4.2 manifest dict (all mandatory fields always present).
+
+    ``replaces`` is supplied by the caller, never derived here — see the field's
+    own comment below for why this module cannot honestly compute it.
+    """
     s = bundle["signals"]
     # §13.7 default cadence — 3 months from the assessment date.
     try:
@@ -383,12 +390,15 @@ def build_manifest(
         },
         "replaced-by": None,
         # §13.4.2 back-link into the audit journal, in the clause's own form.
-        # v1 replaces nothing — a chain has to start somewhere.
-        "replaces": (
-            f"CFM-{assessment_date}-tausik@v{manifest_version - 1}"
-            if manifest_version > 1
-            else None
-        ),
+        # NOT derivable here, and the attempt is what broke the chain: composing
+        # `CFM-{assessment_date}-tausik@v{n-1}` named a predecessor only if it
+        # had been written the SAME DAY *and* every counter value had reached
+        # the journal. Neither holds — the counter advances on every `--write`,
+        # the journal records only what was committed — so 5 of the first 8
+        # links pointed at manifests that never existed. The predecessor's id
+        # lives in the journal; the caller that can read the journal passes it.
+        # Absent one, the honest value is None: a chain has to start somewhere.
+        "replaces": replaces,
     }
     excl = verdict.get("scope_exclusion")
     if excl:
@@ -408,13 +418,18 @@ def generate(
     assessor_id: str,
     assessment_date: str,
     manifest_version: int = 1,
+    replaces: str | None = None,
 ) -> tuple[dict[str, Any], str]:
-    """End-to-end: gather → eval clauses → infer level → manifest + yaml text."""
+    """End-to-end: gather → eval clauses → infer level → manifest + yaml text.
+
+    ``replaces`` is passed through to :func:`build_manifest` untouched — this
+    layer has no more access to the audit journal than that one does.
+    """
     bundle = gather_signals(conn)
     clauses = eval_mandatory_clauses(bundle)
     verdict = infer_level(bundle, clauses)
     manifest = build_manifest(
-        bundle, clauses, verdict, assessor_id, assessment_date, manifest_version
+        bundle, clauses, verdict, assessor_id, assessment_date, manifest_version, replaces
     )
     return manifest, render_yaml(manifest)
 

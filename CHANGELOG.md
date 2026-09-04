@@ -9,6 +9,110 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the journal read is scoped to this project, and a git error is no longer filed as an absence
+
+Two defects in the journal reader added immediately above, both found by
+adversarial review of that fix and both confirmed by measurement before being
+touched. In this repository the project root IS the worktree top, so the
+committed artifact was never affected — these bite the projects TAUSIK is
+installed into.
+
+- **`git show HEAD:<name>` resolves `<name>` against the TOP LEVEL of the
+  worktree, not against cwd.** git says so itself: from `scripts/`,
+  `git show HEAD:project.py` fails with "path 'scripts/project.py' exists, but
+  not 'project.py'" and hints at `HEAD:./project.py`. The project root comes
+  from `find_tausik_dir()`, which walks upward looking for `.tausik/` and is
+  under no obligation to land on the worktree top — a package inside a monorepo
+  is the ordinary layout. So a nested project either failed to find its own
+  committed manifest (and the failure was indistinguishable from an empty
+  journal) or, where a different project's manifest sat at the top, adopted
+  THAT one — a back-link resolving cleanly into someone else's audit record,
+  which is worse than the unresolvable link this work started from. Every
+  fixture git-inited at the project root, so none could see it.
+- **Absence is now asked as its own question.** `git_exec.run` does not raise on
+  a non-zero exit, by design, and git answers 128 to nearly everything — so
+  reading absence off `git show`'s exit code filed every failure it can have (a
+  pruned blob, a locked object file, a partial clone that could not fetch) as
+  "the journal is empty", the one verdict that deliberately refuses to fall back
+  to the working copy. `git ls-tree --name-only HEAD -- <name>` separates the
+  three states without ambiguity — non-zero is an error, zero with no output is
+  a genuine absence, zero with output means there is a blob to read — and its
+  pathspec is cwd-relative, so it scopes the question at the same time.
+
+`chain_state()` now answers both the version and the link from ONE read: asked
+separately they cost four git subprocesses per `--write` and, had HEAD moved
+between them, would have been computed from two different journal states. The
+count is asserted, not described — a second reader added later turns a test red.
+
+Nine mutations, nine killed — two of them only after surviving first, and each
+survivor named a real hole rather than a bookkeeping slip.
+
+- Dropping `./` from the blob read is invisible whenever the project has no
+  committed manifest of its own: the `ls-tree` probe short-circuits before the
+  read. The case that exposes it — this project's manifest committed AND a
+  different one at the top — was missing, and is now a test.
+- `link = ... if version and mid else None` had an unverifiable half. Every
+  producer of a (version, id) pair yields either `(0, None)` or `(n>0, "id")`,
+  so nothing in the suite could tell `version and mid` from a bare `mid`. The
+  pair is not guaranteed: a manifest carrying `manifest-id` and no
+  `manifest-version` parses to `(0, "id")` and would publish `<id>@v0`, a
+  version that can never legitimately exist. Found by the review running a
+  mutation the author had not declared.
+
+Known and NOT closed, recorded rather than overstated: `next_version` reads the
+journal's TIP, not its history, so a HEAD without the manifest (a branch older
+than the artifact, a revert) lowers the floor and can re-issue a version the
+history already holds — measured: `main` carries no manifest today. The
+docstring no longer claims otherwise, and the fix is filed as its own task
+because its shape (history scan vs. stored high-water mark) is a choice that
+needs measuring.
+
+### Fixed — the manifest's back-link is read from the audit journal, not from the file on disk
+
+`replaces` (§13.4.2) is the back-link that makes the conformance manifest chain
+navigable. Session #208 fixed one way of composing it wrongly — today's date
+plus the counter — and this fixes the other, which did more damage.
+
+MEASURED OVER THE LIVE ARTIFACT (the git history of `RENAR-CONFORMANCE.yaml`,
+which §13.4.1 makes the audit journal): 9 versions in the journal, 8 back-links,
+FIVE resolving to nothing. The date explains none of the five. `manifest-version`
+advanced on every `--write`, while the journal recorded only what was committed,
+so v4, v5, v6, v8, v10 and v12 were issued onto disk and named as predecessors
+without ever having become audit records. The predecessor was read from the
+working copy; the working copy is not the journal.
+
+Also measured, and also wrong in the same call site: `manifest_version` came
+from the working copy alone, so deleting `RENAR-CONFORMANCE.yaml` reset the
+counter to 1 and re-issued v1 over different content — directly under a comment
+reading "§13.4.1 immutability: never reset the version".
+
+- `journal_manifest(root)` reads the predecessor out of `HEAD`, through the
+  `git_exec` chokepoint (stdin closed). It distinguishes "the journal holds no
+  manifest" — a fact, returned as `(0, None)`, which withholds the link — from
+  "the journal could not be read" (no git, no commits), returned as `None`,
+  which falls back to the working copy. Collapsing the two is what a single
+  reader could not express, and each direction of the collapse is a mutant the
+  suite now kills.
+- `next_version()` takes the maximum of what the journal holds and what the
+  working copy holds, plus one: §13.4.1 forbids REUSE, not gaps.
+- `build_manifest()` no longer composes `replaces` at all. It has no access to
+  the journal, so any link it produced was a guess; the field is now a parameter
+  and its honest default is `None`. The CLI passes the journal's link into
+  `generate()` instead of patching it onto a rendered manifest and re-rendering
+  — one renderer, one chance to be right.
+- Tests: `tests/test_renar_manifest_chain.py` grows synthetic-repository cases
+  for each branch (journal outranks disk, deleted working copy, empty journal,
+  repository without commits, unparseable committed manifest, git unavailable)
+  plus the first end-to-end tests of `renar conformance --write` itself — the
+  seam carrying the link into the artifact had no test on it. Two tests in
+  `tests/test_renar_manifest_artifact.py` that pinned the date formula now pin
+  the opposite: the library never invents a link, and carries a supplied one
+  verbatim. Nine declared mutations, nine killed.
+
+The committed artifact is NOT regenerated here: measuring a chain and repairing
+how it is built are separate acts, and a regeneration mid-repair would write a
+new journal entry with the code under test.
+
 ### Added — the MCP server's path arithmetic is now asserted, in the layout where it is true
 
 `tools_spec.py` puts `../../scripts` on `sys.path` and imports `service_specs`

@@ -11,14 +11,23 @@ import os
 import subprocess
 from typing import Any
 
+import git_exec
 from project_config import load_config
 from project_service import ProjectService
-from renar_conformance import generate, render_yaml
+from renar_conformance import generate
 from tausik_utils import utcnow_iso
 
 # Neutral fallback when no assessor can be resolved. Surfaced verbatim in the
 # manifest so a self-assessment is never silently attributed to a real person.
 FALLBACK_ASSESSOR = "unknown-assessor"
+
+# The audit journal of §13.4.1 is this file's git history — one name, used by
+# the writer and by both readers of a predecessor.
+MANIFEST_FILENAME = "RENAR-CONFORMANCE.yaml"
+
+# Bound for every git call here: reading one blob out of HEAD is local and
+# fast, and an unbounded git call is itself a hang risk (see git_exec).
+_GIT_TIMEOUT = 10
 
 
 def _git_user_name() -> str | None:
@@ -62,20 +71,34 @@ def resolve_assessor(explicit: str | None, cfg: dict | None = None) -> str:
     return FALLBACK_ASSESSOR
 
 
-def _existing_manifest(path: str) -> tuple[int, str | None]:
-    """(manifest-version, manifest-id) of an existing manifest; (0, None) if absent."""
-    if not os.path.isfile(path):
-        return 0, None
+def _parse_manifest(text: str) -> tuple[int, str | None]:
+    """(manifest-version, manifest-id) from manifest YAML text; (0, None) if unreadable.
+
+    One parser for both sources of a manifest — the working copy and the audit
+    journal — so the two can never disagree about how a manifest is read.
+    """
     try:
         import yaml  # lazy: PyYAML is an optional RENAR dep, not a core CLI dep
     except ModuleNotFoundError:
         return 0, None
     try:
-        with open(path, encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
+        data = yaml.safe_load(text) or {}
+        if not isinstance(data, dict):
+            return 0, None
         mid = data.get("manifest-id")
         return int(data.get("manifest-version", 0)), (str(mid) if mid else None)
-    except (OSError, ValueError, yaml.YAMLError):
+    except (TypeError, ValueError, yaml.YAMLError):
+        return 0, None
+
+
+def _existing_manifest(path: str) -> tuple[int, str | None]:
+    """(manifest-version, manifest-id) of an existing manifest; (0, None) if absent."""
+    if not os.path.isfile(path):
+        return 0, None
+    try:
+        with open(path, encoding="utf-8") as f:
+            return _parse_manifest(f.read())
+    except OSError:
         return 0, None
 
 
@@ -84,17 +107,125 @@ def _existing_version(path: str) -> int:
     return _existing_manifest(path)[0]
 
 
-def previous_link(path: str) -> str | None:
+def journal_manifest(root: str) -> tuple[int, str | None] | None:
+    """(version, id) of the manifest as the AUDIT JOURNAL holds it — git HEAD.
+
+    §13.4.1 makes the artifact's git history the audit journal, so the entry a
+    new manifest supersedes is the one at HEAD, not the one on disk: an
+    uncommitted `--write` bumps the working copy without ever entering the
+    journal.
+
+    Returns ``None`` — not ``(0, None)`` — whenever the journal cannot be read
+    (no git, not a repository, no commits, a damaged object store). The
+    distinction is the whole point: "the journal holds no manifest" is a fact
+    this module acts on, "the journal is unreadable" is not, and only the
+    latter falls back to the working copy.
+
+    ABSENCE IS ASKED AS ITS OWN QUESTION, because `git_exec.run` does not raise
+    on a non-zero exit (by design) and git answers 128 to nearly everything.
+    Reading absence off `git show`'s exit code therefore sorted every failure
+    it can have — a pruned blob, a locked object file, a partial clone that
+    could not fetch — onto the "journal is empty" side, which is the one side
+    that deliberately refuses to fall back. `ls-tree` separates the three
+    states without ambiguity: non-zero is an error, zero with no output is a
+    genuine absence, zero with output means the blob is there to be read.
+    """
+    try:
+        # Pathspecs are cwd-relative, so this asks about THIS project's manifest
+        # even when the project root sits below the worktree top.
+        listed = git_exec.run(
+            ["ls-tree", "--name-only", "HEAD", "--", MANIFEST_FILENAME],
+            cwd=root,
+            timeout=_GIT_TIMEOUT,
+        )
+        if listed.returncode != 0:
+            return None  # no repository, no HEAD, or git could not answer
+        if not (listed.stdout or "").strip():
+            return 0, None  # HEAD was read, and it holds no manifest here
+        # `./` is load-bearing: without it git resolves the path against the
+        # TOP LEVEL of the worktree, not against cwd, and the project root is
+        # under no obligation to be the top level (a package inside a monorepo
+        # is the ordinary case). Bare `HEAD:<name>` reads a DIFFERENT project's
+        # manifest when one sits at the top, and fails outright when none does.
+        show = git_exec.run(["show", f"HEAD:./{MANIFEST_FILENAME}"], cwd=root, timeout=_GIT_TIMEOUT)
+    except (OSError, subprocess.SubprocessError):
+        return None  # no git binary, or it hung past the bound
+    if show.returncode != 0:
+        return None  # listed in HEAD yet unreadable — an error, not an absence
+    return _parse_manifest(show.stdout or "")
+
+
+def _root_of(path: str, root: str | None) -> str:
+    """The directory a journal read runs in: the caller's root, else the file's own."""
+    return root or os.path.dirname(path) or "."
+
+
+def chain_state(path: str, root: str | None = None) -> tuple[int, str | None]:
+    """(version to issue, back-link to publish) from ONE read of the journal.
+
+    The two answers describe the same instant, so they are derived from the same
+    pair of reads rather than each fetching its own. Two independent fetches
+    also meant four git subprocesses per `--write`, and a HEAD that moved
+    between them would have produced a version number and a `replaces` link
+    computed from different journal states.
+    """
+    journal = journal_manifest(_root_of(path, root))
+    disk = _existing_manifest(path)
+    # The predecessor is the journal's entry; the working copy answers only when
+    # the journal could not be read at all (None, never (0, None)).
+    version, mid = journal if journal is not None else disk
+    link = f"{mid}@v{version}" if version and mid else None
+    return max(disk[0], journal[0] if journal else 0) + 1, link
+
+
+def previous_link(path: str, root: str | None = None) -> str | None:
     """`<manifest-id>@v<version>` of the manifest a regeneration supersedes.
 
-    `replaces` used to be composed from TODAY's date and the previous version
-    (`CFM-<today>-tausik@v<n-1>`), which names a manifest that exists only when
-    the predecessor was written the same day. Seven regenerations happened to
-    be, and the first cross-day one broke the §13.4.2 chain (review #208,
-    record #24). The predecessor's own id is the only honest link.
+    Two ways of composing this link have already broken the §13.4.2 chain, and
+    both are guarded here.
+
+    1. TODAY's date plus the previous version number (`CFM-<today>-tausik@v<n-1>`)
+       names a manifest only if the predecessor was written the same day. Seven
+       regenerations happened to be; the first cross-day one broke the chain
+       (review #208, record #24).
+    2. The WORKING COPY's id, which is the predecessor only if it was committed.
+       The counter advances on every `--write` while the journal records only
+       commits, so versions v4, v5, v6, v8, v10 and v12 were issued on disk and
+       never existed as audit records — 5 of the first 8 links resolved to
+       nothing because of this, not because of the date.
+
+    The journal's own last entry is the only link that resolves by construction.
+
+    Convenience over :func:`chain_state` for a caller that wants only the link;
+    a `--write` wants both and asks once.
     """
-    version, mid = _existing_manifest(path)
-    return f"{mid}@v{version}" if version and mid else None
+    return chain_state(path, root)[1]
+
+
+def next_version(path: str, root: str | None = None) -> int:
+    """The version a regeneration must carry: one past the highest VISIBLE here.
+
+    §13.4.1 immutability is about NON-REUSE, so the floor is the maximum of the
+    two places a version can be seen. Reading only the working copy let a
+    deleted file reset the counter to 1 and re-issue v1 over different content
+    — the comment at the call site claimed "never reset the version" while the
+    code did exactly that. Reading only the journal would re-issue a number an
+    uncommitted `--write` already put on disk. A gap in the numbering is not a
+    break: the clause forbids reuse, not sparseness.
+
+    KNOWN AND UNCLOSED, deliberately not overstated here: "visible" is the
+    working copy plus the journal's TIP, not its whole history. A HEAD that
+    does not carry the manifest while an earlier commit does — a branch older
+    than the artifact, a revert of the commit that added it — lowers the floor
+    and can re-issue a number the history already holds. Measured on this
+    repository: `main` carries no manifest, so a `--write` from `main` today
+    issues v1 a second time. Tracked as its own task; the fix is a high-water
+    mark over the file's history, which is a different read from this one.
+
+    Convenience over :func:`chain_state` for a caller that wants only the
+    version; a `--write` wants both and asks once.
+    """
+    return chain_state(path, root)[0]
 
 
 def cmd_renar(svc: ProjectService, args: Any) -> None:
@@ -111,19 +242,20 @@ def cmd_renar(svc: ProjectService, args: Any) -> None:
 
     path = None
     manifest_version = 1
+    link = None
     if write:
         from project_config import find_tausik_dir
 
         root = os.path.dirname(find_tausik_dir())
-        path = os.path.join(root, "RENAR-CONFORMANCE.yaml")
-        # §13.4.1 immutability: never reset the version. Bump from the existing
-        # manifest so each --write is a new version, not a silent overwrite-to-1.
-        manifest_version = _existing_version(path) + 1
+        path = os.path.join(root, MANIFEST_FILENAME)
+        # §13.4.1 immutability: never reset and never reuse a version, and name
+        # as predecessor the entry the audit journal actually holds. Both come
+        # from ONE read of the journal, so they describe the same instant.
+        manifest_version, link = chain_state(path, root)
 
-    manifest, text = generate(svc.be._conn, assessor, date, manifest_version)
-    if write and path and (link := previous_link(path)):
-        manifest["replaces"] = link  # the predecessor's id, not today's date
-        text = render_yaml(manifest)
+    # `replaces` is passed IN, not patched onto the rendered manifest afterwards:
+    # a second renderer is a second chance for the two to disagree.
+    manifest, text = generate(svc.be._conn, assessor, date, manifest_version, link)
 
     if write and path:
         tmp = path + ".tmp"

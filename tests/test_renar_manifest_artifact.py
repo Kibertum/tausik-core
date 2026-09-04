@@ -137,14 +137,38 @@ class TestVersionChain:
         conn.close()
         assert m["replaces"] is None, "a chain has to start somewhere"
 
-    def test_later_versions_name_their_predecessor(self, tmp_path):
+    def test_the_library_never_invents_the_back_link(self, tmp_path):
+        """No caller-supplied link means `replaces: null`, at ANY version.
+
+        This module cannot see the audit journal, so any link it composed would
+        be a guess. It used to guess `<manifest-id>@v<N-1>` from the generation
+        date and the counter, and the guess was wrong for 5 of the first 8
+        versions — the counter advances on every `--write`, the journal records
+        only commits, so v4, v5, v6, v8, v10 and v12 were named as predecessors
+        without ever having existed. Silence is the honest default; the caller
+        that can read the journal supplies the link.
+        """
         conn = sqlite3.connect(str(tmp_path / "c.db"))
         m2, _ = generate(conn, "a", "2026-08-31", manifest_version=2)
-        m3, _ = generate(conn, "a", "2026-08-31", manifest_version=3)
+        m9, _ = generate(conn, "a", "2026-08-31", manifest_version=9)
         conn.close()
-        # §13.4.2's own form: "<manifest-id>@v<N-1>".
-        assert m2["replaces"] == f"{m2['manifest-id']}@v1"
-        assert m3["replaces"] == f"{m3['manifest-id']}@v2"
+        assert m2["replaces"] is None
+        assert m9["replaces"] is None
+
+    def test_the_supplied_link_is_carried_verbatim(self, tmp_path):
+        """Whatever the journal-reading caller passes reaches the manifest as-is.
+
+        Not re-derived, not reformatted, not overridden by the counter: a link
+        naming a version far behind this one is exactly what an uncommitted
+        `--write` leaves behind, and it must survive to the artifact.
+        """
+        conn = sqlite3.connect(str(tmp_path / "c.db"))
+        m, text = generate(
+            conn, "a", "2026-09-04", manifest_version=17, replaces="CFM-2026-08-31-tausik@v15"
+        )
+        conn.close()
+        assert m["replaces"] == "CFM-2026-08-31-tausik@v15"
+        assert "CFM-2026-08-31-tausik@v15" in text
 
     def test_replaces_is_not_the_unknown_state_sentinel(self, tmp_path):
         """`replaced-by` and `replaces` are different fields with different jobs.
@@ -153,9 +177,16 @@ class TestVersionChain:
         next manifest version, §13.8.2 uses it as the `<unknown-state>` sentinel.
         We are in the sentinel case, so it carries the sentinel — and `replaces`
         must keep pointing backwards regardless.
+
+        The link is supplied explicitly: with `replaces` left to its default the
+        comparison would pass on `None != "<unknown-state>"` alone and prove
+        nothing about the two fields being kept apart.
         """
         conn = sqlite3.connect(str(tmp_path / "c.db"))
-        m, _ = generate(conn, "a", "2026-08-31", manifest_version=2)
+        m, _ = generate(
+            conn, "a", "2026-08-31", manifest_version=2, replaces="CFM-2026-08-31-tausik@v1"
+        )
         conn.close()
         assert m["replaced-by"] == "<unknown-state>"
+        assert m["replaces"] == "CFM-2026-08-31-tausik@v1"
         assert m["replaces"] != m["replaced-by"]
