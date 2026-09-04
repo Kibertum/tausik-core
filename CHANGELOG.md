@@ -9,6 +9,88 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the version floor is the journal's whole history, not its tip
+
+`next_version` took the maximum of two places a version could be seen — the
+working copy and the manifest at `HEAD` — and one past that. Any `HEAD` that
+carried less than the history did lowered the floor. MEASURED on this
+repository: `main` has never carried `RENAR-CONFORMANCE.yaml` (the artifact
+lives on the release branch), so `tausik renar conformance --write` from `main`
+issued manifest-version 1 while commit 42a0232 holds a v1 with different
+content — the reuse §13.4.1 forbids. A branch cut before the artifact and a
+revert of the commit that added it do the same. Found by the adversarial
+review of the previous fix; recorded then as open, closed now.
+
+THE SHAPE WAS CHOSEN BY MEASURING, not by preference, because the task named
+three candidates with different costs. On the live history (10 commits):
+`rev-list --all` 28 ms, `cat-file --batch` over every listed commit 27 ms —
+two processes whatever the length, since cat-file streams all blobs out of one
+invocation. The n+1 shape the task feared (one `git show` per commit, ~25 ms
+each) was never needed. A stored high-water mark would have been a third source
+of truth that can lag the journal. Reading history only when `HEAD` carries
+nothing does not close the defect: a branch cut at v1 carries v1 at its tip
+while v17 exists elsewhere, and would re-issue v2.
+
+- `journal_high_water(root)` is the highest version any commit reachable from
+  ANY ref ever carried, over a cwd-relative pathspec and a `./`-anchored object
+  name, so a nested project reads its own history and not a namesake at the
+  worktree top. Same three answers as the tip reader, for the same reason:
+  `None` when the journal cannot be read (not a repository, cat-file failed,
+  a stream that does not parse), `0` when it answered and never held one, `N`
+  otherwise. A commit that deleted the file lists in rev-list and reads back
+  as `missing`; that is a fact about the commit, not a failure, and the mark
+  survives it.
+- `chain_state` now asks two questions with two reads: the PREDECESSOR is the
+  tip (`replaces` names the entry this branch's audit trail continues from),
+  the FLOOR is history plus tip plus working copy. A branch that never carried
+  the manifest publishes no `replaces` and still does not re-issue v1.
+- `git_exec.run` / `run_git` accept `input=` for batch-mode git. The guarantee
+  is kept, not weakened: the pipe is ours, opened, written and closed by
+  `subprocess.run`, and the child never sees the inherited MCP stdin; the
+  `stdin` keyword stays explicit so the AST guard keeps seeing it. Bytes for a
+  line protocol — a text pipe applies the platform's newline translation on
+  the way in, which Windows demonstrated (`abc\n` hashed as `abc\r\n`).
+- `next_version`'s docstring stops naming the residual as open. What remains
+  outside is stated instead: a commit reachable from no ref is not in the audit
+  journal by git's own definition.
+- Guard over the live artifact: `test_the_committed_history_never_reuses_a_version_number`
+  — no manifest-version maps to two different blobs anywhere in the journal.
+  The existing chain-resolution guard matched `replaces` against a SET of
+  (version, id) pairs and would have accepted an ambiguous hit; this closes
+  that side.
+- Pinned cost: one `--write` runs exactly four git processes — `ls-tree`,
+  `show`, `rev-list --all`, `cat-file --batch` — asserted three commits deep so
+  an n+1 rewrite cannot pass as the same shape. 13 declared mutations, 13
+  killed, each killer named by the branch it reaches.
+
+FOUND BY THE REVIEW OF THIS FIX, and verified by running before being fixed —
+two of them critical, in the author's own new code:
+
+- The batch parser trusted the size field. A negative size walked the cursor
+  backwards, a negative start clamps to the beginning, and the loop re-read the
+  first header forever — a hang no subprocess timeout could reach, in the one
+  module whose docstring is about hangs. An oversized size sliced short and fed
+  a truncated blob to the YAML parser as if it were whole. Both are now
+  `ValueError` — "a size is a promise until the bytes are there" — filed as
+  unreadable, never as empty; the exact-fit boundary and the missing trailing
+  LF are pinned too.
+- The caller rounded an unreadable history down to 0: `history or 0`. With
+  the tip readable and `cat-file` failing, `next_version` from a branch that
+  never carried the manifest went back to 1 — the defect this entry closes,
+  re-admitted silently on a transient failure. `chain_state` now REFUSES: a
+  tip that answered and a history that did not is a `ServiceError`, the CLI
+  prints it and writes nothing. "No repository at all" (both readers `None`)
+  still falls back to the working copy, and a repository without commits is
+  not the refused case either — its tip has no HEAD while its history answers.
+- `run_git` silently replaced a caller's explicit `stdin` with `None` whenever
+  `input` was present — the opposite of the "floor, not ceiling" contract in
+  its own docstring. An explicit `stdin` wins again; incompatibility is
+  `subprocess.run`'s loud error, not this guard's quiet pick.
+- A `rev-list` line that is not hex (U+FFFD from `errors="replace"`) raised
+  `UnicodeEncodeError` through the CLI instead of answering `None`.
+
+Seven further mutations on the review-found branches, seven killed.
+
 ### Added — `check-adapt-supersession` exists, over the carrier that turned out to have a subject
 
 ADR-007 promised a gate by that name and §10.11.1 (p.485) names the control

@@ -15,7 +15,7 @@ import git_exec
 from project_config import load_config
 from project_service import ProjectService
 from renar_conformance import generate
-from tausik_utils import utcnow_iso
+from tausik_utils import ServiceError, utcnow_iso
 
 # Neutral fallback when no assessor can be resolved. Surfaced verbatim in the
 # manifest so a self-assessment is never silently attributed to a real person.
@@ -160,22 +160,150 @@ def _root_of(path: str, root: str | None) -> str:
     return root or os.path.dirname(path) or "."
 
 
-def chain_state(path: str, root: str | None = None) -> tuple[int, str | None]:
-    """(version to issue, back-link to publish) from ONE read of the journal.
+def _batch_blobs(raw: bytes) -> list[bytes]:
+    """Blob contents out of `git cat-file --batch` output, in request order.
 
-    The two answers describe the same instant, so they are derived from the same
-    pair of reads rather than each fetching its own. Two independent fetches
-    also meant four git subprocesses per `--write`, and a HEAD that moved
-    between them would have produced a version number and a `replaces` link
-    computed from different journal states.
+    Each answer is a header line then the object body then one LF. A header of
+    ``<sha> <type> <size>`` is followed by exactly ``<size>`` bytes; ``<name>
+    missing`` (the path is not in that commit — a deletion commit lists in
+    rev-list too) and ``<name> ambiguous`` carry no body. A body is returned
+    only for a ``blob``: the path naming a tree is skipped over, not read as a
+    manifest. Sizes are BYTES, which is why the caller reads git in binary
+    mode: a manifest with Cyrillic in it would split wrong on decoded text.
+
+    Raises ``ValueError`` on a header that is neither shape, so a caller can
+    file an unparseable stream under "unreadable" rather than under "empty".
     """
-    journal = journal_manifest(_root_of(path, root))
+    blobs: list[bytes] = []
+    pos = 0
+    while pos < len(raw):
+        nl = raw.find(b"\n", pos)
+        if nl < 0:
+            raise ValueError("cat-file --batch output ends mid-header")
+        header = raw[pos:nl]
+        parts = header.split()
+        pos = nl + 1
+        if len(parts) == 2:
+            continue  # "<name> missing" / "<name> ambiguous": no body follows
+        if len(parts) != 3:
+            raise ValueError(f"unexpected cat-file header: {header!r}")
+        size = int(parts[2])
+        # A size is only a promise until the bytes are there. A negative one
+        # walked `pos` backwards and, because a negative start clamps to the
+        # beginning, re-read the first header forever — a hang no subprocess
+        # timeout could reach, found by review. An oversized one sliced short
+        # and fed a truncated blob to the parser as if it were whole.
+        if size < 0 or pos + size + 1 > len(raw):
+            raise ValueError(f"cat-file body of {size} bytes does not fit the stream")
+        body, pos = raw[pos : pos + size], pos + size + 1
+        if parts[1] == b"blob":
+            blobs.append(body)
+    return blobs
+
+
+def journal_high_water(root: str) -> int | None:
+    """Highest manifest-version the audit journal has EVER held, across every ref.
+
+    §13.4.1 forbids REUSE, and a number is used the moment any commit carries
+    it — on this branch, on another, in a commit later reverted. The tip of
+    HEAD can sit below all of those. Measured on this repository: `main` has
+    never carried the manifest, so a `--write` from `main` read a floor of 0
+    and would have re-issued v1 over different content while commit 42a0232
+    holds v1. Reading history only when HEAD carries nothing would not close
+    that either: a branch cut at v1 carries v1 at its tip while v17 exists
+    elsewhere, and would re-issue v2. So the floor is the maximum over every
+    commit that ever touched the file, reachable from ANY ref.
+
+    Same three answers as :func:`journal_manifest`, for the same reason: ``None``
+    when the journal cannot be read (not a repository, git could not answer, a
+    stream that does not parse), ``0`` when it answered and never held a
+    manifest here, ``N`` otherwise. A commit that DELETED the file lists in
+    rev-list and reads back as ``missing`` — a fact about that commit, not a
+    failure — and is skipped, so the mark survives a deletion.
+
+    Cost, measured rather than assumed, on this repository (10 commits):
+    `rev-list --all` 28 ms and `cat-file --batch` 27 ms — two processes
+    whatever the length of the history, because cat-file streams every blob
+    out of one invocation. The n+1 shape the task feared (one `show` per
+    commit at ~25 ms each) was never needed.
+    """
+    try:
+        # Pathspecs are cwd-relative, so this lists the commits that touched
+        # THIS project's manifest, not a namesake at the worktree top.
+        revs = git_exec.run(
+            ["rev-list", "--all", "--", MANIFEST_FILENAME], cwd=root, timeout=_GIT_TIMEOUT
+        )
+        if revs.returncode != 0:
+            return None  # not a repository, or git could not answer
+        shas = (revs.stdout or "").split()
+        if not shas:
+            return 0  # the journal answered: no commit ever carried one here
+        # `./` for the same reason as in journal_manifest: an object name is
+        # resolved against the top level unless anchored to cwd.
+        wanted = "".join(f"{sha}:./{MANIFEST_FILENAME}\n" for sha in shas).encode("ascii")
+        batch = git_exec.run(
+            ["cat-file", "--batch"], cwd=root, timeout=_GIT_TIMEOUT, binary=True, input=wanted
+        )
+    except (OSError, subprocess.SubprocessError, UnicodeError):
+        # No git binary, a hang past the bound, or a rev-list line that is not
+        # hex (git's output was decoded with errors="replace", so a damaged
+        # stream reaches here as U+FFFD, which is not ASCII).
+        return None
+    if batch.returncode != 0:
+        return None
+    try:
+        blobs = _batch_blobs(batch.stdout or b"")
+    except ValueError:
+        return None
+    high = 0
+    for blob in blobs:
+        high = max(high, _parse_manifest(blob.decode("utf-8", errors="replace"))[0])
+    return high
+
+
+def chain_state(path: str, root: str | None = None) -> tuple[int, str | None]:
+    """(version to issue, back-link to publish) from one pass over the journal.
+
+    Two questions, two reads, one call. The PREDECESSOR is the journal's tip —
+    the entry this branch's audit trail actually continues from. The FLOOR is
+    the journal's whole history over every ref plus the working copy, because
+    §13.4.1 forbids reuse of a number wherever it was issued. A branch that
+    never carried the manifest therefore publishes no `replaces` (nothing here
+    to supersede) and still does not re-issue v1.
+
+    Each answer comes from exactly one read — a `--write` used to fetch the
+    tip twice and could publish a link and a number from different journal
+    states. The two reads are still two: a commit landing between the tip pair
+    and the history pair is not excluded, only made unlikely by the ~100 ms
+    window of a local CLI.
+
+    UNREADABLE HISTORY IS REFUSED, NOT ROUNDED DOWN. The tip reader's `None`
+    falls back to the working copy because "no repository here" is a state a
+    project may legitimately be in. The history reader answering `None` while
+    the tip answered is not that state: git is present and spoke, and then
+    `rev-list` or `cat-file` failed. Folding that into a floor of 0 would
+    re-issue exactly the number this function exists to protect, silently, on
+    a transient failure — found by review. Raises :class:`ServiceError`, which
+    the CLI prints and exits on; no manifest is written over a floor nobody
+    could read. A repository without commits is not this case: its tip is
+    unreadable (no HEAD) and its history answers 0 or the other refs' mark.
+    """
+    where = _root_of(path, root)
+    journal = journal_manifest(where)
+    history = journal_high_water(where)
+    if journal is not None and history is None:
+        raise ServiceError(
+            f"the audit journal of {MANIFEST_FILENAME} could not be read past HEAD "
+            "(git rev-list/cat-file failed); refusing to issue a manifest-version "
+            "that may already exist in history"
+        )
     disk = _existing_manifest(path)
     # The predecessor is the journal's entry; the working copy answers only when
     # the journal could not be read at all (None, never (0, None)).
     version, mid = journal if journal is not None else disk
     link = f"{mid}@v{version}" if version and mid else None
-    return max(disk[0], journal[0] if journal else 0) + 1, link
+    floor = max(disk[0], journal[0] if journal else 0, history or 0)
+    return floor + 1, link
 
 
 def previous_link(path: str, root: str | None = None) -> str | None:
@@ -203,24 +331,25 @@ def previous_link(path: str, root: str | None = None) -> str | None:
 
 
 def next_version(path: str, root: str | None = None) -> int:
-    """The version a regeneration must carry: one past the highest VISIBLE here.
+    """The version a regeneration must carry: one past the highest EVER ISSUED.
 
-    §13.4.1 immutability is about NON-REUSE, so the floor is the maximum of the
-    two places a version can be seen. Reading only the working copy let a
-    deleted file reset the counter to 1 and re-issue v1 over different content
-    — the comment at the call site claimed "never reset the version" while the
-    code did exactly that. Reading only the journal would re-issue a number an
-    uncommitted `--write` already put on disk. A gap in the numbering is not a
-    break: the clause forbids reuse, not sparseness.
+    §13.4.1 immutability is about NON-REUSE, so the floor is the maximum over
+    every place a version can have been seen. Reading only the working copy
+    let a deleted file reset the counter to 1 and re-issue v1 over different
+    content — the comment at the call site claimed "never reset the version"
+    while the code did exactly that. Reading only the journal would re-issue a
+    number an uncommitted `--write` already put on disk. Reading only the
+    journal's TIP lowered the floor on any HEAD that carried less than the
+    history did — `main` here, a branch cut before the artifact, a revert of
+    the commit that added it — and re-issued v1 from `main`. The floor is now
+    the working copy, the tip, and the whole history over every ref
+    (:func:`journal_high_water`). A gap in the numbering is not a break: the
+    clause forbids reuse, not sparseness.
 
-    KNOWN AND UNCLOSED, deliberately not overstated here: "visible" is the
-    working copy plus the journal's TIP, not its whole history. A HEAD that
-    does not carry the manifest while an earlier commit does — a branch older
-    than the artifact, a revert of the commit that added it — lowers the floor
-    and can re-issue a number the history already holds. Measured on this
-    repository: `main` carries no manifest, so a `--write` from `main` today
-    issues v1 a second time. Tracked as its own task; the fix is a high-water
-    mark over the file's history, which is a different read from this one.
+    What remains outside: a commit that exists in NO ref — unreachable after a
+    reset, a branch deleted before it was merged — is not in the audit
+    journal by git's own definition, and a number issued only there is not
+    one the journal holds.
 
     Convenience over :func:`chain_state` for a caller that wants only the
     version; a `--write` wants both and asks once.

@@ -41,8 +41,10 @@ yaml = pytest.importorskip("yaml")
 import project_cli_renar  # noqa: E402
 from project_cli_renar import (  # noqa: E402
     MANIFEST_FILENAME,
+    _batch_blobs,
     _existing_manifest,
     _existing_version,
+    journal_high_water,
     journal_manifest,
     next_version,
     previous_link,
@@ -416,15 +418,28 @@ class TestWriteChainEndToEnd:
     def test_one_write_reads_the_journal_exactly_once(self, project, capsys, monkeypatch):
         """The version and the link describe the SAME instant, so one read serves both.
 
-        Asked separately they cost four git subprocesses per `--write` and, if
+        Asked separately they cost extra git subprocesses per `--write` and, if
         HEAD moved between them, could be computed from two different journal
         states. The number is asserted rather than described: a second reader
         added later makes this red instead of making the next review's report.
+
+        Four processes, two questions: the tip (ls-tree probe, then the blob)
+        answers WHAT IS SUPERSEDED; the history (rev-list over every ref, then
+        one cat-file streaming every blob) answers WHAT NUMBER IS FREE. The
+        history read is two processes whatever its length — that is the
+        measured cost the fix was chosen on, and it is pinned three commits
+        deep below so an n+1 rewrite cannot pass as the same shape.
         """
         svc, root = project
         self._run(svc, "2026-09-04", monkeypatch)
         _git(root, "add", "-A")
         _git(root, "commit", "-qm", "v1")
+        self._run(svc, "2026-09-04", monkeypatch)
+        _git(root, "add", "-A")
+        _git(root, "commit", "-qm", "v2")
+        self._run(svc, "2026-09-04", monkeypatch)
+        _git(root, "add", "-A")
+        _git(root, "commit", "-qm", "v3")
 
         calls: list[list[str]] = []
         real = project_cli_renar.git_exec.run
@@ -440,8 +455,11 @@ class TestWriteChainEndToEnd:
         assert calls == [
             ["ls-tree", "--name-only", "HEAD", "--", MANIFEST_FILENAME],
             ["show", f"HEAD:./{MANIFEST_FILENAME}"],
+            ["rev-list", "--all", "--", MANIFEST_FILENAME],
+            ["cat-file", "--batch"],
         ], f"one journal read per --write, got {calls}"
-        assert self._read(root)["replaces"] == "CFM-2026-09-04-tausik@v1"
+        assert self._read(root)["manifest-version"] == 4
+        assert self._read(root)["replaces"] == "CFM-2026-09-04-tausik@v3"
 
     def test_a_committed_predecessor_is_named_by_its_own_id(self, project, capsys, monkeypatch):
         """Cross-day chain: yesterday's committed manifest, named by ITS date."""
@@ -553,3 +571,398 @@ def test_the_committed_manifest_chain_resolves():
         f"replaces names {link}, but git holds no manifest with that id and version; "
         f"known: {sorted(seen)}"
     )
+
+
+def test_the_committed_history_never_reuses_a_version_number():
+    """The live artifact, over EVERY ref: one version number, one blob.
+
+    The guard above resolves `replaces` against the SET of (version, id) pairs
+    in history. A number re-issued over different content on the same day
+    would carry the same id, so the pair would match twice — and the guard
+    would accept an ambiguous hit as a resolution. This one closes that side:
+    no manifest-version may map to two different blobs anywhere in the
+    journal. Read-only; skipped without git or without history.
+    """
+    import subprocess
+
+    root = os.path.abspath(os.path.join(_SCRIPTS, ".."))
+    if not shutil.which("git"):
+        pytest.skip("git not on PATH")
+    revs = subprocess.run(
+        ["git", "rev-list", "--all", "--", MANIFEST_FILENAME],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        stdin=subprocess.DEVNULL,
+    )
+    if revs.returncode != 0 or not revs.stdout.strip():
+        pytest.skip("git history unavailable")
+    blobs_by_version: dict[int, set[str]] = {}
+    for sha in revs.stdout.split():
+        entry = subprocess.run(
+            ["git", "ls-tree", sha, "--", MANIFEST_FILENAME],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            stdin=subprocess.DEVNULL,
+        )
+        if entry.returncode != 0 or not entry.stdout.strip():
+            continue  # the commit that deleted it, or one that never had it
+        blob = entry.stdout.split()[2]
+        show = subprocess.run(
+            ["git", "cat-file", "blob", blob],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            stdin=subprocess.DEVNULL,
+        )
+        version = int((yaml.safe_load(show.stdout) or {}).get("manifest-version", 0))
+        blobs_by_version.setdefault(version, set()).add(blob)
+    reused = {v: sorted(b) for v, b in blobs_by_version.items() if len(b) > 1}
+    assert not reused, f"a manifest-version was issued twice over different content: {reused}"
+
+
+@pytest.mark.skipif(not shutil.which("git"), reason="git not on PATH")
+class TestFloorIsTheWholeHistory:
+    """The number to issue is one past the highest EVER committed, on any ref.
+
+    Every case here is a HEAD that carries less than the history does. The
+    live one: `main` in this repository has never carried the manifest, so
+    reading the tip alone gave a floor of 0 and a `--write` from `main` would
+    have re-issued v1 over different content.
+    """
+
+    @pytest.fixture
+    def repo(self, tmp_path):
+        r = tmp_path / "repo"
+        r.mkdir()
+        _git(r, "init", "-q", "-b", "main")
+        (r / "seed.txt").write_text("seed\n", encoding="utf-8")
+        _git(r, "add", "-A")
+        _git(r, "commit", "-qm", "seed")
+        return r
+
+    def test_a_branch_that_never_carried_the_manifest_does_not_reissue_v1(self, repo):
+        """AC-1: HEAD holds nothing, another ref holds v3 — the next number is 4."""
+        _git(repo, "checkout", "-qb", "wave")
+        for v in (1, 2, 3):
+            _write_manifest(repo, version=v, manifest_id="CFM-2026-09-04-tausik")
+            _git(repo, "add", "-A")
+            _git(repo, "commit", "-qm", f"v{v}")
+        _git(repo, "checkout", "-q", "main")
+        path = os.path.join(str(repo), MANIFEST_FILENAME)
+
+        assert not os.path.isfile(path), "main really carries no manifest"
+        assert journal_manifest(str(repo)) == (0, None), "the tip answered: nothing here"
+        assert journal_high_water(str(repo)) == 3
+        assert next_version(path, str(repo)) == 4
+        assert previous_link(path, str(repo)) is None, "nothing on this branch to supersede"
+
+    def test_a_tip_below_the_high_water_mark_is_still_the_predecessor(self, repo):
+        """AC-2: the floor is the history's, the predecessor is the tip's.
+
+        Reading history only when HEAD carried nothing would miss this: HEAD
+        carries v1, and v1 is a perfectly good predecessor to name — but v5
+        exists on another ref, so v2 is not a free number.
+        """
+        path = _write_manifest(repo, version=1, manifest_id="CFM-2026-09-01-tausik")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-qm", "v1")
+        _git(repo, "checkout", "-qb", "wave")
+        _write_manifest(repo, version=5, manifest_id="CFM-2026-09-04-tausik")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-qm", "v5")
+        _git(repo, "checkout", "-q", "main")
+
+        assert _existing_manifest(path) == (1, "CFM-2026-09-01-tausik")
+        assert journal_manifest(str(repo)) == (1, "CFM-2026-09-01-tausik")
+        assert journal_high_water(str(repo)) == 5
+        assert next_version(path, str(repo)) == 6
+        assert previous_link(path, str(repo)) == "CFM-2026-09-01-tausik@v1"
+
+    def test_the_mark_survives_the_commit_that_deleted_the_file(self, repo):
+        """AC-3: a deletion commit lists in rev-list and reads back `missing`.
+
+        That is a fact about the commit, not a failure of the read: the
+        entries before it still count, and the answer is 2, not None and not 0.
+        """
+        for v in (1, 2):
+            _write_manifest(repo, version=v, manifest_id="CFM-2026-09-04-tausik")
+            _git(repo, "add", "-A")
+            _git(repo, "commit", "-qm", f"v{v}")
+        _git(repo, "rm", "-q", MANIFEST_FILENAME)
+        _git(repo, "commit", "-qm", "gone")
+        path = os.path.join(str(repo), MANIFEST_FILENAME)
+
+        assert journal_manifest(str(repo)) == (0, None)
+        assert journal_high_water(str(repo)) == 2
+        assert next_version(path, str(repo)) == 3
+
+    def test_a_journal_that_never_held_one_answers_zero_not_none(self, repo, tmp_path):
+        """AC-3: the three answers are distinct, and each one is reachable.
+
+        A repository with commits but no manifest ANSWERS — zero. A directory
+        that is no repository at all cannot answer — None. A repository with
+        no commits yet answers too: rev-list over no refs is empty, not an error.
+        """
+        assert journal_high_water(str(repo)) == 0
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        assert journal_high_water(str(outside)) is None
+        bare = tmp_path / "unborn"
+        bare.mkdir()
+        _git(bare, "init", "-q", "-b", "main")
+        assert journal_high_water(str(bare)) == 0
+
+    def test_the_history_read_is_two_processes_whatever_its_length(self, repo, monkeypatch):
+        """AC-4: five commits, still `rev-list` then one `cat-file --batch`."""
+        for v in range(1, 6):
+            _write_manifest(repo, version=v, manifest_id="CFM-2026-09-04-tausik")
+            _git(repo, "add", "-A")
+            _git(repo, "commit", "-qm", f"v{v}")
+        calls: list[list[str]] = []
+        real = project_cli_renar.git_exec.run
+
+        def counting(args, **kwargs):
+            calls.append(list(args))
+            return real(args, **kwargs)
+
+        monkeypatch.setattr(project_cli_renar.git_exec, "run", counting)
+        assert journal_high_water(str(repo)) == 5
+        assert [c[0] for c in calls] == ["rev-list", "cat-file"], calls
+
+    def test_an_unreadable_stream_is_an_error_not_an_empty_journal(self, repo, monkeypatch):
+        """NEGATIVE SCENARIO: cat-file failing, or answering nonsense, is None.
+
+        A non-zero cat-file, and a stream whose header parses as neither a blob
+        line nor a `missing` line, both land on the unreadable side — never on
+        "the journal holds nothing", which would drop the floor to zero.
+        """
+        import subprocess as sp
+
+        real = project_cli_renar.git_exec.run
+
+        def failing(args, **kwargs):
+            if args[0] == "cat-file":
+                return sp.CompletedProcess(args, 128, stdout=b"", stderr=b"fatal: bad object\n")
+            return real(args, **kwargs)
+
+        def garbled(args, **kwargs):
+            if args[0] == "cat-file":
+                return sp.CompletedProcess(args, 0, stdout=b"what is this\n", stderr=b"")
+            return real(args, **kwargs)
+
+        _write_manifest(repo, version=1, manifest_id="CFM-2026-09-04-tausik")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-qm", "v1")
+        monkeypatch.setattr(project_cli_renar.git_exec, "run", failing)
+        assert journal_high_water(str(repo)) is None
+        monkeypatch.setattr(project_cli_renar.git_exec, "run", garbled)
+        assert journal_high_water(str(repo)) is None
+
+
+@pytest.mark.skipif(not shutil.which("git"), reason="git not on PATH")
+class TestHistoryBelowTheWorktreeTop:
+    """AC-7: the history read is scoped by cwd, like the tip read is.
+
+    `rev-list -- <name>` takes a cwd-relative pathspec and `cat-file` an object
+    name anchored with `./`; drop either and a nested project counts the
+    manifest of whatever sits at the worktree top.
+    """
+
+    @pytest.fixture
+    def nested(self, tmp_path):
+        top = tmp_path / "top"
+        proj = top / "pkg"
+        proj.mkdir(parents=True)
+        _git(top, "init", "-q", "-b", "main")
+        return top, proj
+
+    def test_a_sibling_manifest_at_the_top_is_not_our_history(self, nested):
+        top, proj = nested
+        _write_manifest(top, version=99, manifest_id="CFM-2000-01-01-other")
+        _git(top, "add", "-A")
+        _git(top, "commit", "-qm", "someone else's, at the top")
+        path = os.path.join(str(proj), MANIFEST_FILENAME)
+
+        assert journal_high_water(str(proj)) == 0
+        assert next_version(path, str(proj)) == 1
+
+    def test_our_own_history_is_read_under_a_nested_root(self, nested):
+        """NEGATIVE SCENARIO: both exist, and only ours must count.
+
+        v4 of ours sits on another ref, v99 of theirs at the top on HEAD; the
+        floor must be 4, not 99 and not 0.
+        """
+        top, proj = nested
+        _git(top, "checkout", "-qb", "wave")
+        _write_manifest(proj, version=4, manifest_id="CFM-2026-09-04-tausik")
+        _git(top, "add", "-A")
+        _git(top, "commit", "-qm", "ours, v4, on a branch")
+        _git(top, "checkout", "-q", "--orphan", "main")
+        _git(top, "rm", "-rfq", ".")
+        proj.mkdir(exist_ok=True)  # `rm -r` took the emptied directory with it
+        _write_manifest(top, version=99, manifest_id="CFM-2000-01-01-other")
+        _git(top, "add", "-A")
+        _git(top, "commit", "-qm", "theirs, at the top")
+        path = os.path.join(str(proj), MANIFEST_FILENAME)
+
+        assert journal_manifest(str(proj)) == (0, None)
+        assert journal_high_water(str(proj)) == 4
+        assert next_version(path, str(proj)) == 5
+
+
+class TestBatchBlobs:
+    """The `cat-file --batch` stream, one shape per branch of the parser."""
+
+    def test_missing_entries_carry_no_body_and_are_skipped(self):
+        raw = b"abc:./m.yaml missing\n" + b"1111 blob 4\nv: 1\n" + b"abc:./x ambiguous\n"
+        assert _batch_blobs(raw) == [b"v: 1"]
+
+    def test_sizes_are_bytes_and_a_body_may_contain_newlines(self):
+        body = "manifest-version: 7\nassessor: Юмашев\n".encode()
+        raw = (
+            b"1111 blob " + str(len(body)).encode() + b"\n" + body + b"\n" + b"2222 blob 4\nv: 2\n"
+        )
+        assert _batch_blobs(raw) == [body, b"v: 2"]
+
+    def test_a_tree_is_stepped_over_not_read_as_a_manifest(self):
+        raw = b"3333 tree 5\nxxxxx\n" + b"1111 blob 4\nv: 1\n"
+        assert _batch_blobs(raw) == [b"v: 1"]
+
+    def test_a_header_of_neither_shape_is_an_error(self):
+        with pytest.raises(ValueError):
+            _batch_blobs(b"what is this\n")
+        with pytest.raises(ValueError):
+            _batch_blobs(b"1111 blob")
+
+    def test_a_body_that_does_not_fit_the_stream_is_an_error(self):
+        """NEGATIVE SCENARIO, found by review: a size is a promise, not a fact.
+
+        Oversized: the slice came back short and a truncated blob was parsed
+        as whole. Negative: `pos` walked backwards, a negative start clamps to
+        the beginning, and the loop re-read the first header forever — a hang
+        that no subprocess timeout could reach. Both are `ValueError`, which
+        the caller files under "unreadable", never under "empty".
+        """
+        with pytest.raises(ValueError):
+            _batch_blobs(b"1111 blob 100\nshort body only\n")
+        with pytest.raises(ValueError):
+            _batch_blobs(b"1111 blob -1000000\n" + b"X" * 50 + b"\n")
+        # Boundary: the last record's body ends exactly one LF before the end.
+        assert _batch_blobs(b"1111 blob 4\nv: 1\n") == [b"v: 1"]
+        with pytest.raises(ValueError):
+            _batch_blobs(b"1111 blob 4\nv: 1")  # the LF after the body is missing
+
+    def test_an_empty_stream_is_no_blobs(self):
+        assert _batch_blobs(b"") == []
+
+
+@pytest.mark.skipif(not shutil.which("git"), reason="git not on PATH")
+class TestUnreadableHistoryIsRefused:
+    """NEGATIVE SCENARIO, found by review: an unreadable history is not a floor of 0.
+
+    The tip reader's None falls back to the working copy, and the first shape
+    of the fix let the history reader's None do the same — `history or 0` —
+    so a transient `rev-list` or `cat-file` failure degraded, silently, to the
+    exact defect this task closes: from a branch that never carried the
+    manifest, `next_version` went back to 1.
+    """
+
+    @pytest.fixture
+    def repo(self, tmp_path):
+        r = tmp_path / "repo"
+        r.mkdir()
+        _git(r, "init", "-q", "-b", "main")
+        _write_manifest(r, version=1, manifest_id="CFM-2026-09-04-tausik")
+        _git(r, "add", "-A")
+        _git(r, "commit", "-qm", "v1")
+        return r
+
+    @staticmethod
+    def _failing_cat_file(monkeypatch):
+        import subprocess as sp
+
+        real = project_cli_renar.git_exec.run
+
+        def failing(args, **kwargs):
+            if args[0] == "cat-file":
+                return sp.CompletedProcess(args, 128, stdout=b"", stderr=b"fatal: bad object\n")
+            return real(args, **kwargs)
+
+        monkeypatch.setattr(project_cli_renar.git_exec, "run", failing)
+
+    def test_a_tip_that_answered_and_a_history_that_did_not_is_refused(self, repo, monkeypatch):
+        from tausik_utils import ServiceError
+
+        path = os.path.join(str(repo), MANIFEST_FILENAME)
+        self._failing_cat_file(monkeypatch)
+        assert journal_manifest(str(repo)) == (1, "CFM-2026-09-04-tausik"), "the tip is readable"
+        assert journal_high_water(str(repo)) is None, "the history is not"
+        with pytest.raises(ServiceError, match="refusing to issue"):
+            next_version(path, str(repo))
+
+    def test_the_write_command_refuses_too_and_leaves_no_file_behind(
+        self, repo, monkeypatch, capsys
+    ):
+        """The refusal reaches the CLI: no manifest is written over an unknown floor."""
+        from tausik_utils import ServiceError
+
+        pytest.importorskip("yaml")
+        import project_config
+        from project_backend import SQLiteBackend
+        from project_service import ProjectService
+
+        (repo / ".tausik").mkdir()
+        monkeypatch.setattr(project_config, "find_tausik_dir", lambda: str(repo / ".tausik"))
+        svc = ProjectService(SQLiteBackend(str(repo / ".tausik" / "p.db")))
+        before = (repo / MANIFEST_FILENAME).read_bytes()
+        self._failing_cat_file(monkeypatch)
+
+        class _Args:
+            renar_cmd = "conformance"
+            write = True
+            assessor = "assessor-test"
+
+        try:
+            with pytest.raises(ServiceError):
+                project_cli_renar.cmd_renar(svc, _Args())
+        finally:
+            svc.be.close()
+        capsys.readouterr()
+        assert (repo / MANIFEST_FILENAME).read_bytes() == before, "nothing was written"
+
+    def test_no_repository_at_all_still_falls_back_to_the_working_copy(self, tmp_path):
+        """The refusal is for a journal that half-answered, not for no journal.
+
+        Both readers None — not a repository — is the state the fallback
+        exists for, unchanged.
+        """
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        path = _write_manifest(outside, version=4, manifest_id="CFM-2026-09-04-tausik")
+        assert journal_manifest(str(outside)) is None
+        assert journal_high_water(str(outside)) is None
+        assert next_version(path, str(outside)) == 5
+
+    def test_a_rev_list_line_that_is_not_hex_is_unreadable(self, repo, monkeypatch):
+        """NEGATIVE SCENARIO, found by review: git's output is decoded with
+        errors="replace", so a damaged stream reaches the encoder as U+FFFD,
+        which is not ASCII — an error to file as None, not a traceback."""
+        import subprocess as sp
+
+        real = project_cli_renar.git_exec.run
+
+        def damaged(args, **kwargs):
+            if args[0] == "rev-list":
+                return sp.CompletedProcess(args, 0, stdout="��\n", stderr="")
+            return real(args, **kwargs)
+
+        monkeypatch.setattr(project_cli_renar.git_exec, "run", damaged)
+        assert journal_high_water(str(repo)) is None
