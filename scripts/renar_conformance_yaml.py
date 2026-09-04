@@ -26,6 +26,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from renar_mandatory_clauses import basis_header_lines
 from renar_measurer_caveats import header_lines as caveats_header_lines
 
 # Mandatory §13.4.2 keys a valid manifest must always carry.
@@ -69,7 +70,7 @@ def render_yaml(manifest: dict[str, Any]) -> str:
         "# history (§3.3.1) is exactly the guarantee that clause asks for, so no\n"
         "# parallel file-history mechanism is kept. Read an earlier version with\n"
         "# `git log --follow -p RENAR-CONFORMANCE.yaml`; `replaces` names it.\n"
-        "#\n" + caveats_header_lines()
+        "#\n" + basis_header_lines() + "#\n" + caveats_header_lines()
     )
     body: str = yaml.safe_dump(
         manifest, sort_keys=False, allow_unicode=True, default_flow_style=False

@@ -194,17 +194,29 @@ def test_a_spec_doc_artifact_does_not_red_the_pairing_clause(db, monkeypatch):
     )
 
 
-def test_the_pairing_clause_is_disclosed_as_unearned(db):
-    """A constant `true` may be published only while a caveat says it is one.
+def test_the_pairing_clause_is_disclosed_as_vacuous(db):
+    """A constant `true` may be published only while the artifact says it is one.
 
-    `pairing_clause` cannot go red on any database, by construction. That is a
-    confirmation the measurer has not earned, and this project's mechanism for it
-    is the caveat registry — so the two must not drift apart.
+    `pairing_clause` cannot go red on any database, by construction. Until
+    session #213 the disclosure was a `measurer-caveats` entry; now every
+    clause carries a basis, and this one's must be `vacuous` with the ratchet
+    that watches the premise named — so the two must not drift apart.
     """
-    import renar_measurer_caveats as caveats
+    from renar_mandatory_clauses import TC_PREMISE_WATCH, eval_mandatory_clauses
 
     assert premise.pairing_clause(db)["confirmed"] is True
-    assert "tc-pos-neg-pairing" in caveats.caveated_clauses(), (
+    clause = eval_mandatory_clauses(
+        {
+            "signals": {"substrate_v1_v6": True},
+            "clause_13_3_3": {"confirmed": False, "evidence": "-", "subchecks": []},
+            "clause_13_3_4": {"confirmed": True, "evidence": "-", "subchecks": []},
+            "clause_13_3_5": premise.pairing_clause(db),
+            "clause_13_3_7": {"confirmed": True, "evidence": "-", "subchecks": []},
+        }
+    )["tc-pos-neg-pairing"]
+    assert clause["basis"] == "vacuous", (
         "the clause returns a constant true and nothing discloses it; either "
-        "restore a caveat entry or make the verdict measured"
+        "publish it as vacuous or make the verdict measured"
     )
+    assert clause["premise-watched-by"] == TC_PREMISE_WATCH
+    assert "classes_appeared" in TC_PREMISE_WATCH

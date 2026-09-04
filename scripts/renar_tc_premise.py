@@ -248,8 +248,8 @@ def pairing_clause(conn: sqlite3.Connection) -> dict[str, object]:
         "confirmed": True,
         "evidence": (
             "no first-class TC artifacts → pairing obligation vacuous (§13.3.5); "
-            "this clause cannot observe the arrival itself — see measurer-caveats. "
-            "The ADR-013 guard test watches it on the live project database, "
-            "which CI does not have"
+            "this clause cannot observe the arrival itself — its basis is published "
+            "as `vacuous` in mandatory-clauses-basis, and the ADR-013 guard test "
+            "watches the arrival on the live project database"
         ),
     }

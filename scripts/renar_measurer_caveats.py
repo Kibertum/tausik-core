@@ -31,6 +31,15 @@ without the right to print it (decisions#292). The difference is only that here
 we are the ones printing it, into an artifact we just told an external tracker
 to read.
 
+EMPTY AGAIN SINCE #213, AND AGAIN BY A REPAIR. The §13.3.5 entry's remaining
+complaint was that the header published every `true` as earned while five of
+seven were constants. The manifest now publishes a BASIS per clause
+(renar_mandatory_clauses: measured / declared / machinery / vacuous) with the
+ratchet watching each constant's premise named in the artifact, so a constant
+is no longer printed as a measurement anywhere. That disclosure was this
+registry's whole purpose for the entry, and it is now carried by the artifact
+itself; the entry left, and REGISTRY_EMPTIED_BY names the task.
+
 This module does NOT fix the measurers. It makes the manifest say, in the
 artifact itself, which confirmations are not to be relied on and which open task
 carries the fix. A caveat is worth less than a repair — but a published false
@@ -44,40 +53,19 @@ from typing import Any
 # Not a place to park a defect. Every entry names an OPEN task, and a test fails
 # when the named task is missing or already closed — otherwise "disclosed"
 # quietly becomes a substitute for "fixed".
-MEASURER_CAVEATS: list[dict[str, str]] = [
-    {
-        "clause": "tc-pos-neg-pairing",
-        "measured-as": (
-            "constant true: the clause is vacuous while no TC artifact class exists, "
-            "and the manifest generator cannot observe the arrival of one"
-        ),
-        "why-degenerate": (
-            "The premise is honest and re-measured — no TC table exists under any "
-            "name. What the CLAUSE cannot do is notice when that stops being true. "
-            "The ratchet that notices (renar_tc_premise.classes_appeared) compares "
-            "the live classes against OUR declaration, so it is meaningless on any "
-            "other database, and eval_mandatory_clauses runs on whatever database "
-            "it is handed — every fixture included. Deriving the verdict from the "
-            "remaining finding was tried in #202 and was worse: a SPEC-DOC artifact "
-            "belongs to ADR-013's doc-lint duty, so the clause reddened on an "
-            "unrelated obligation while still staying green on its own. It reds "
-            "only via the ADR-013 guard test, which since #203 runs in any "
-            "checkout — it reads the canonical schema rather than a live database, "
-            "so CI executes it. What remains is the clause itself: it is a "
-            "constant, one of five among seven mandatory clauses, and the header "
-            "publishes every true as earned."
-        ),
-        # RE-POINTED IN #203, NOT RETIRED. The sentence above used to end "which
-        # CI does not have", and closing db-gated-ratchets-never-run-in-ci made
-        # that false — so it was corrected rather than left standing. But that
-        # task fixed WHERE the ratchet runs, not the degeneracy this caveat
-        # discloses: the clause is still a constant that cannot notice a TC class
-        # arriving. Retiring the caveat because its old open-task closed would
-        # have been the deletion this registry exists to prevent, so it now names
-        # the task that actually holds the remaining problem.
-        "open-task": "mandatory-clauses-are-constants-published-as-earned",
-    }
-]
+#
+# EMPTY AGAIN, BY A REPAIR. The §13.3.5 entry said, in its own last sentence,
+# what its remaining problem was: "it is a constant, one of five among seven
+# mandatory clauses, and the header publishes every true as earned". Session
+# #213 answered that sentence for every clause at once — each verdict now
+# carries a BASIS (measured / declared / machinery / vacuous) published beside
+# the confirmation, with the ratchet watching each constant's premise named in
+# the artifact (renar_mandatory_clauses). §13.3.5 is published as `vacuous`
+# with `renar_tc_premise.classes_appeared` named; three of the other four
+# constants became measured or declared verdicts with red branches. What this
+# entry disclosed is now said by the artifact itself, per clause, which is the
+# repair — not the deletion — this registry admits as an exit.
+MEASURER_CAVEATS: list[dict[str, str]] = []
 
 # The counterpart ratchet. While MEASURER_CAVEATS is empty this must name the
 # task whose closure retired the LAST entry, and that task must exist and be
@@ -86,7 +74,7 @@ MEASURER_CAVEATS: list[dict[str, str]] = [
 # "we have no unearned confirmations".
 #
 # Set back to None the moment an entry is added again.
-REGISTRY_EMPTIED_BY: str | None = None
+REGISTRY_EMPTIED_BY: str | None = "mandatory-clauses-are-constants-published-as-earned"
 
 DISCLAIMER = (
     "These confirmations are printed by a measurer we know cannot go red on the "
@@ -121,10 +109,12 @@ def header_lines() -> str:
             "# cannot go red, and the open task carrying the fix.\n"
         )
     return (
-        "# Every `true` under mandatory-clauses-confirmed is EARNED as far as we\n"
-        "# know: the measurer-caveats registry is empty, so no section appears\n"
-        "# below. That is a statement about our MEASURERS, not a claim of\n"
-        "# conformance — for that read `level` and `conformance-declaration`.\n"
+        "# Every `true` under mandatory-clauses-confirmed is earned BY THE MEASURER\n"
+        "# that printed it, as far as we know: the measurer-caveats registry is\n"
+        "# empty, so no section appears below. That is a statement about our\n"
+        "# MEASURERS, not a claim of conformance — for that read `level` and\n"
+        "# `conformance-declaration`; and what each verdict rests on is in\n"
+        "# `mandatory-clauses-basis` above.\n"
     )
 
 

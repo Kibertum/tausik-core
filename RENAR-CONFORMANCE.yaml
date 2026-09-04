@@ -8,12 +8,20 @@
 # parallel file-history mechanism is kept. Read an earlier version with
 # `git log --follow -p RENAR-CONFORMANCE.yaml`; `replaces` names it.
 #
-# NOT every `true` under mandatory-clauses-confirmed is earned: see
-# `measurer-caveats` below — it names each confirmation whose measurer
-# cannot go red, and the open task carrying the fix.
+# A `true` under mandatory-clauses-confirmed is not always a MEASUREMENT:
+# `mandatory-clauses-basis` says, per clause, whether it was measured,
+# judged over a published declaration, holds by running machinery, or
+# is vacuous — and where the premise of each constant is watched.
+#
+# Every `true` under mandatory-clauses-confirmed is earned BY THE MEASURER
+# that printed it, as far as we know: the measurer-caveats registry is
+# empty, so no section appears below. That is a statement about our
+# MEASURERS, not a claim of conformance — for that read `level` and
+# `conformance-declaration`; and what each verdict rests on is in
+# `mandatory-clauses-basis` above.
 renar-version: '1.0'
 senar-version: '1.3'
-manifest-version: 17
+manifest-version: 18
 manifest-id: CFM-2026-09-04-tausik
 level: null
 level-target: null
@@ -33,27 +41,34 @@ mandatory-clauses-confirmed:
   tc-pos-neg-pairing: true
   quality-gates-closed-list: true
   closed-lists-backward-findings: true
-measurer-caveats:
-  disclaimer: 'These confirmations are printed by a measurer we know cannot go red
-    on the violations it exists to catch. This section is a DISCLOSURE, not a repair:
-    it does not fix the measurers and does not substitute for closing the named tasks.'
-  unearned-confirmations:
-  - clause: tc-pos-neg-pairing
-    measured-as: 'constant true: the clause is vacuous while no TC artifact class
-      exists, and the manifest generator cannot observe the arrival of one'
-    why-degenerate: 'The premise is honest and re-measured — no TC table exists under
-      any name. What the CLAUSE cannot do is notice when that stops being true. The
-      ratchet that notices (renar_tc_premise.classes_appeared) compares the live classes
-      against OUR declaration, so it is meaningless on any other database, and eval_mandatory_clauses
-      runs on whatever database it is handed — every fixture included. Deriving the
-      verdict from the remaining finding was tried in #202 and was worse: a SPEC-DOC
-      artifact belongs to ADR-013''s doc-lint duty, so the clause reddened on an unrelated
-      obligation while still staying green on its own. It reds only via the ADR-013
-      guard test, which since #203 runs in any checkout — it reads the canonical schema
-      rather than a live database, so CI executes it. What remains is the clause itself:
-      it is a constant, one of five among seven mandatory clauses, and the header
-      publishes every true as earned.'
-    open-task: mandatory-clauses-are-constants-published-as-earned
+mandatory-clauses-basis:
+  disclaimer: 'What each confirmation above RESTS ON. `measured`: derived from this
+    database, with a violating state turning it false. `declared`: judged over a declaration
+    this manifest publishes. `machinery`: true because the running framework enforces
+    it, the premise watched by the named repository test. `vacuous`: the obligation
+    has no subject here, the arrival of one watched by the named ratchet. A constant
+    is not a measurement, and this block is what keeps the two from reading alike.'
+  sot-inversion:
+    basis: machinery
+    premise-watched-by: tests/test_renar_mandatory_clauses.py::test_the_machinery_sot_inversion_rests_on_is_switched_on
+      (verify_first blocking and enabled in the live gate registry; task_gate.py wired
+      on Write|Edit in bootstrap_hooks)
+  substrate-v1-v6:
+    basis: machinery
+    premise-watched-by: tests/test_events_chain.py (V1 hash-chain of the event journal)
+      and tests/test_renar_manifest_chain.py (the manifest's git audit journal)
+  adapt-per-tz:
+    basis: measured
+  spec-types-closed-list:
+    basis: measured
+  tc-pos-neg-pairing:
+    basis: vacuous
+    premise-watched-by: renar_tc_premise.classes_appeared via tests/test_renar_tc_premise.py,
+      on the live project database — the only database the declaration describes
+  quality-gates-closed-list:
+    basis: declared
+  closed-lists-backward-findings:
+    basis: measured
 normative-inapplicability:
   disclaimer: 'Obligations of the standard that have no subject in this project, declared
     rather than passed over in silence. A declaration is NOT compliance: every sub-check
@@ -136,7 +151,7 @@ assessment-evidence:
     task_specs_count: 2
     reasoning_tasks_count: 2
     memory_edges_count: 27
-    verification_runs_count: 2075
+    verification_runs_count: 2085
   level-signals:
     substrate_v1_v6: true
     adapt_per_tz: false
@@ -187,8 +202,47 @@ assessment-evidence:
       can be stored, which is the negative scenario stated literally. The manifest's
       normative-inapplicability section declares why the tz-section half has no subject
       here; the declaration explains this red, it does not lift it.
+  clause-13-3-4:
+  - check: spec-types-substrate-closed
+    ok: true
+    citation: §13.3.4 (SPEC type list closed, no local types)
+    evidence: specs.type CHECK admits exactly the declared 11 value(s)
+  - check: spec-types-rows-inside
+    ok: true
+    citation: §13.3.4 (SPEC type list closed, no local types)
+    evidence: every specs row is inside the declared list
+  clause-13-3-6:
+  - check: gate-ids-closed
+    ok: true
+    citation: §13.3.6 (closed list of Quality Gates, §10.4.4 declaration)
+    evidence: exactly the 5 gate ids of the closed list are declared
+  - check: core-gates-required
+    ok: true
+    citation: §13.3.6 (closed list of Quality Gates, §10.4.4 declaration)
+    evidence: qg-0..qg-2 are declared required
+  - check: optional-gate-states-admitted
+    ok: true
+    citation: §13.3.6 (closed list of Quality Gates, §10.4.4 declaration)
+    evidence: optional gates carry an admitted state
+  clause-13-3-7:
+  - check: backward-findings-substrate-closed
+    ok: true
+    citation: §13.3.7 (backward findings, SPEC types, lifecycle states closed)
+    evidence: adapt_findings.category CHECK admits exactly the declared 7 value(s)
+  - check: backward-findings-rows-inside
+    ok: true
+    citation: §13.3.7 (backward findings, SPEC types, lifecycle states closed)
+    evidence: every adapt_findings row is inside the declared list
+  - check: adapt-statuses-substrate-closed
+    ok: true
+    citation: §13.3.7 (backward findings, SPEC types, lifecycle states closed)
+    evidence: adapts.status CHECK admits exactly the declared 7 value(s)
+  - check: adapt-statuses-rows-inside
+    ok: true
+    citation: §13.3.7 (backward findings, SPEC types, lifecycle states closed)
+    evidence: every adapts row is inside the declared list
 replaced-by: <unknown-state>
-replaces: CFM-2026-09-04-tausik@v15
+replaces: CFM-2026-09-04-tausik@v17
 conformance-declaration: non-conformant
 scope-exclusion:
   clause: §1.5.4

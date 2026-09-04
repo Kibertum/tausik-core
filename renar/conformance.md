@@ -4,7 +4,7 @@ blocked-at: scope-applicability
 conformance-declaration: non-conformant
 level: null
 level-signals:
-  adapt_per_tz: true
+  adapt_per_tz: false
   adversarial_gate: false
   ai_provenance: false
   continuous_reconciliation: false
@@ -25,8 +25,36 @@ level-signals:
   tz_immutable: false
   verified_by_100pct: false
   verifies_version_pin: false
+mandatory-clauses-basis:
+  adapt-per-tz:
+    basis: measured
+  closed-lists-backward-findings:
+    basis: measured
+  disclaimer: 'What each confirmation above RESTS ON. `measured`: derived from this
+    database, with a violating state turning it false. `declared`: judged over a declaration
+    this manifest publishes. `machinery`: true because the running framework enforces
+    it, the premise watched by the named repository test. `vacuous`: the obligation
+    has no subject here, the arrival of one watched by the named ratchet. A constant
+    is not a measurement, and this block is what keeps the two from reading alike.'
+  quality-gates-closed-list:
+    basis: declared
+  sot-inversion:
+    basis: machinery
+    premise-watched-by: tests/test_renar_mandatory_clauses.py::test_the_machinery_sot_inversion_rests_on_is_switched_on
+      (verify_first blocking and enabled in the live gate registry; task_gate.py wired
+      on Write|Edit in bootstrap_hooks)
+  spec-types-closed-list:
+    basis: measured
+  substrate-v1-v6:
+    basis: machinery
+    premise-watched-by: tests/test_events_chain.py (V1 hash-chain of the event journal)
+      and tests/test_renar_manifest_chain.py (the manifest's git audit journal)
+  tc-pos-neg-pairing:
+    basis: vacuous
+    premise-watched-by: renar_tc_premise.classes_appeared via tests/test_renar_tc_premise.py,
+      on the live project database — the only database the declaration describes
 mandatory-clauses-confirmed:
-  adapt-per-tz: true
+  adapt-per-tz: false
   closed-lists-backward-findings: true
   quality-gates-closed-list: true
   sot-inversion: true

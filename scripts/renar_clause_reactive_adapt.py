@@ -149,18 +149,12 @@ def _status_domain(conn: sqlite3.Connection) -> tuple[str, ...]:
     a row that merely has the wrong one: it says the required state is
     unreachable, not merely absent.
     """
-    row = conn.execute(
-        "SELECT sql FROM sqlite_master WHERE type='table' AND name='adapts'"
-    ).fetchone()
-    if not row or not row[0]:
-        return ()
-    ddl = str(row[0])
-    marker = "status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN"
-    at = ddl.find(marker)
-    if at < 0:
-        return ()
-    chunk = ddl[at + len(marker) : ddl.find(")", at + len(marker))]
-    return tuple(part.strip().strip("'") for part in chunk.strip(" (\n").split(",") if part.strip())
+    # One CHECK parser for every closed list (renar_clause_closed_lists);
+    # imported here rather than at module level because that module takes
+    # `Subcheck` from this one.
+    from renar_clause_closed_lists import check_domain
+
+    return check_domain(conn, "adapts", "status") or ()
 
 
 def collect_state(conn: sqlite3.Connection) -> ReactiveAdaptState:

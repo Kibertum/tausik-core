@@ -225,6 +225,25 @@ def test_conformance_is_date_free(svc):
     assert front["mandatory-clauses-confirmed"]["adapt-per-tz"] is True
 
 
+def test_the_view_publishes_the_basis_beside_the_confirmations(svc):
+    """A second published artifact of the same seven booleans carries the same
+    disclosure. Found by review: the YAML manifest gained
+    `mandatory-clauses-basis` while this view went on publishing bare `true`s —
+    the very thing the basis block exists to stop, in the one place the first
+    fix did not reach."""
+    from renar_mandatory_clauses import BASIS_KINDS
+
+    _seed(svc)
+    front = yaml.safe_load(build_tree(svc)["conformance.md"].split("---\n")[1])
+    basis = front["mandatory-clauses-basis"]
+    assert set(basis) - {"disclaimer"} == set(front["mandatory-clauses-confirmed"])
+    for name, entry in basis.items():
+        if name == "disclaimer":
+            continue
+        assert entry["basis"] in BASIS_KINDS, f"{name}: {entry}"
+    assert "classes_appeared" in basis["tc-pos-neg-pairing"]["premise-watched-by"]
+
+
 def test_adapt_body_rendered(svc):
     _seed(svc)
     doc = build_tree(svc)["adapts/adapt-one.md"]

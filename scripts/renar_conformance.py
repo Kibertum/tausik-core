@@ -15,11 +15,14 @@ below RENAR-1 is not in the closed list, so "not yet conformant" is expressed as
 pre-adoption. Ahead of all of that sits the §1.5 applicability precondition: see
 SCOPE_EXCLUSION.
 
-Machinery vs data: some clauses are *capabilities* the substrate guarantees
-structurally (closed SPEC-type list, closed gate list, V1–V6 over git+sqlite);
-others are *data* facts confirmed only when the rows exist. The evidence section
-reports both. Which of those confirmations the measurer has NOT earned is
-disclosed separately — see renar_measurer_caveats.
+Machinery vs data: some clauses are *capabilities* the running framework
+guarantees (V1–V6 over git+sqlite, task-before-code and verify-first); others
+are *data* facts measured on the rows and the schema in hand (reactive ADAPT,
+the closed lists as the substrate's CHECK constraints enforce them); one is
+judged over the manifest's own quality-gates declaration; one is vacuous. The
+basis of each verdict is published beside it — see renar_mandatory_clauses —
+and any confirmation the measurer has NOT earned is disclosed separately in
+renar_measurer_caveats.
 
 Read-only: queries the DB, never writes (the CLI's optional --write touches only
 RENAR-CONFORMANCE.yaml at the project root).
@@ -45,10 +48,15 @@ from renar_conformance_yaml import (  # noqa: F401
     _require_yaml,
     render_yaml,
 )
+from renar_clause_closed_lists import assess_closed_lists, assess_spec_types
+from renar_mandatory_clauses import (  # noqa: F401 — eval_mandatory_clauses is re-exported
+    QUALITY_GATES_DECLARED,
+    basis_section,
+    eval_mandatory_clauses,
+)
 from renar_measurer_caveats import caveats_section
 from renar_normative_inapplicability import section as inapplicability_section
 from renar_tc_premise import pairing_clause
-from service_adapts import FINDING_CATEGORIES
 from service_specs import SPEC_TYPES
 
 RENAR_VERSION = "1.0"
@@ -218,7 +226,11 @@ def gather_signals(conn: sqlite3.Connection) -> dict[str, Any]:
         "raw": raw,
         "signals": signals,
         "clause_13_3_3": clause_333,
+        # §13.3.4 / §13.3.7 — the substrate's CHECK constraints against the
+        # declared closed lists, plus the rows (renar_clause_closed_lists).
+        "clause_13_3_4": assess_spec_types(conn),
         "clause_13_3_5": clause_335,
+        "clause_13_3_7": assess_closed_lists(conn),
         # Obligations with no subject here, declared out loud. Gathered with the
         # rest of the DB-derived facts so `build_manifest` stays a function of
         # the bundle and never needs a connection of its own.
@@ -226,38 +238,8 @@ def gather_signals(conn: sqlite3.Connection) -> dict[str, Any]:
     }
 
 
-# Mandatory clause → (confirmed bool, evidence). §13.3.1–§13.3.7.
-def eval_mandatory_clauses(bundle: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    s = bundle["signals"]
-    return {
-        # §13.3.1 — policy clause (requirements > code, enforced via QG-0
-        # task-before-code + QG-2 verify-first). Machinery-confirmed.
-        "sot-inversion": {
-            "confirmed": True,
-            "evidence": "QG-0 task-before-code + QG-2 verify-first policy enforced",
-        },
-        "substrate-v1-v6": {"confirmed": s["substrate_v1_v6"], "evidence": "git + sqlite WAL"},
-        # §13.3.3 — DATA clause, evaluated by named sub-checks that each carry
-        # their own verdict and evidence (renar_clause_reactive_adapt). It used
-        # to be `adapts > 0`, which reddens on none of the violations it exists
-        # to catch; see that module's docstring for what the clause requires.
-        "adapt-per-tz": bundle["clause_13_3_3"],
-        "spec-types-closed-list": {
-            "confirmed": True,
-            "evidence": f"SPEC type list closed at {len(SPEC_TYPES)} (service + DB CHECK)",
-        },
-        # §13.3.5 — vacuous only while no TC exists to hold it, so DERIVED from
-        # the premise; it was a literal True, premise in a comment (renar_tc_premise).
-        "tc-pos-neg-pairing": bundle["clause_13_3_5"],
-        "quality-gates-closed-list": {
-            "confirmed": True,
-            "evidence": "QG-0/QG-2 task-lifecycle gates (closed list)",
-        },
-        "closed-lists-backward-findings": {
-            "confirmed": True,
-            "evidence": f"backward-finding categories closed at {len(FINDING_CATEGORIES)}",
-        },
-    }
+# The seven mandatory verdicts live in renar_mandatory_clauses (imported above):
+# each carries the BASIS it rests on, and five of them were constants here.
 
 
 def infer_level(bundle: dict[str, Any], clauses: dict[str, dict[str, Any]]) -> dict[str, Any]:
@@ -362,22 +344,22 @@ def build_manifest(
         "assessor": {"id": assessor_id, "role": "architect", "signature-ref": None},
         "next-assessment-due": due,
         "mandatory-clauses-confirmed": {name: c["confirmed"] for name, c in clauses.items()},
-        # Which confirmations their measurer has not earned — directly under
-        # the block it qualifies. Dropped entirely when empty: a bare
-        # `measurer-caveats: {}` reads as searched-and-found-none, a stronger
-        # claim than an absent registry supports (header says what absence means).
+        # What each confirmation rests on — measured, declared, machinery or
+        # vacuous — directly under the block it qualifies. Always present: a
+        # bare `true` with no basis is the overstatement this block removes.
+        "mandatory-clauses-basis": basis_section(clauses),
+        # Which confirmations their measurer has not earned. Dropped entirely
+        # when empty: a bare `measurer-caveats: {}` reads as
+        # searched-and-found-none, a stronger claim than an absent registry
+        # supports (header says what absence means).
         **({"measurer-caveats": caveats_section()} if caveats_section() else {}),
         # Obligations with no subject here, declared out loud. Neighbour of the
         # caveats above and NOT the same claim — renar_normative_inapplicability
         # says which is which. Dropped when empty, for the same reason.
         **({"normative-inapplicability": inapplicable} if inapplicable else {}),
-        "quality-gates": {
-            "qg-0": "required",
-            "qg-1": "required",
-            "qg-2": "required",
-            "qg-3": "declared",
-            "qg-4": "absent",
-        },
+        # The project's §10.4.4 declaration, judged by §13.3.6 above — one
+        # source, published here and read there.
+        "quality-gates": dict(QUALITY_GATES_DECLARED),
         "substrate-capabilities": {
             "v1-immutable-history": "declared",
             "v2-atomic-change-unit": "declared",
@@ -395,8 +377,11 @@ def build_manifest(
             "unmet-clauses": verdict["unmet_clauses"],
             "raw-counts": bundle["raw"],
             "level-signals": {k: bool(v) for k, v in s.items()},
-            # Per-sub-check detail: a red names WHICH half of §13.3.3 broke.
+            # Per-sub-check detail: a red names WHICH half of a clause broke.
             "clause-13-3-3": bundle["clause_13_3_3"]["subchecks"],
+            "clause-13-3-4": bundle["clause_13_3_4"]["subchecks"],
+            "clause-13-3-6": clauses["quality-gates-closed-list"]["subchecks"],
+            "clause-13-3-7": bundle["clause_13_3_7"]["subchecks"],
         },
         "replaced-by": None,
         # §13.4.2 back-link into the audit journal, in the clause's own form.

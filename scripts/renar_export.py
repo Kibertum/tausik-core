@@ -30,6 +30,7 @@ from renar_conformance import (
     gather_signals,
     infer_level,
 )
+from renar_mandatory_clauses import basis_section
 
 if TYPE_CHECKING:
     from project_service import ProjectService
@@ -198,6 +199,12 @@ def _conformance_doc(conn: Any) -> str:
         "conformance-declaration": "non-conformant" if excl else None,
         "scope-exclusion": dict(excl) if excl else None,
         "mandatory-clauses-confirmed": {n: c["confirmed"] for n, c in clauses.items()},
+        # The basis travels WITH the confirmations, here as in the YAML manifest.
+        # This view is a second published artifact of the same seven booleans,
+        # regenerated and `--check`ed on its own; leaving the basis behind would
+        # keep publishing constants as measurements in the one place the first
+        # fix did not reach (found by review of that fix).
+        "mandatory-clauses-basis": basis_section(clauses),
         "level-signals": {k: bool(v) for k, v in bundle["signals"].items()},
     }
     declaration = (
