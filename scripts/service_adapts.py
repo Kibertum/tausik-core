@@ -39,7 +39,24 @@ FINDING_CATEGORIES: tuple[str, ...] = (
 # Dual-signature roles (§7.5) and link targets — CLOSED lists (mirror DB CHECK).
 SIGNATURE_ROLES: tuple[str, ...] = ("client", "architect")
 LINK_TARGETS: tuple[str, ...] = ("task", "spec")
-ADAPT_STATUSES: tuple[str, ...] = ("draft", "signed", "superseded")
+# §7.8.1 закрывает перечень статусов ADAPT; значения и их порядок — как в
+# стандарте. Число членов НЕ пишется здесь словом: рядом с закрытым списком
+# рукописное число верно ровно до следующей правки стандарта, а потом лжёт в
+# каждом файле отдельно (тот же довод, что у перечня категорий находок).
+# До v50 расхождение шло в ОБЕ стороны: лишний 'signed', которого в закрытом
+# перечне стандарта нет, и отсутствующий 'approved', которого §13.3.3 стр.77
+# ТРЕБУЕТ для ветви findings-present. Второе тяжелее первого: CHECK базы
+# отклонял 'approved', то есть требуемое состояние было НЕДОСТИЖИМО, а не
+# просто не достигнуто.
+ADAPT_STATUSES: tuple[str, ...] = (
+    "draft",
+    "review",
+    "asked",
+    "answered",
+    "approved",
+    "frozen",
+    "superseded",
+)
 
 ADAPT_BODY_SCHEMA = "renar-adapt/v1"
 
@@ -58,8 +75,15 @@ class AdaptsMixin:
         tz_ref: str,
         parent_adapt: str | None = None,
         delta_n: int = 0,
+        trigger_stage: str | None = None,
     ) -> str:
-        """Create an ADAPT header. ``tz_ref`` (source TZ) is mandatory (§7.4.3)."""
+        """Create an ADAPT header. ``tz_ref`` (source TZ) is mandatory (§7.4.3).
+
+        ``trigger_stage`` (ADR-007) records WHICH stage triggered this ADAPT —
+        the field by which the standard tells several ADAPTs of one ТЗ apart.
+        Optional: cardinality 0..N is not violated by a single ADAPT, but
+        without the column we could not express the distinction at all.
+        """
         try:
             validate_slug(slug)
             if not title:
@@ -75,7 +99,9 @@ class AdaptsMixin:
         if parent_adapt and not self.be.adapt_get(parent_adapt):
             raise ServiceError(f"Parent ADAPT '{parent_adapt}' not found.")
         try:
-            self.be.adapt_add(slug, title, tz_ref, "draft", parent_adapt, delta_n)
+            self.be.adapt_add(
+                slug, title, tz_ref, "draft", parent_adapt, delta_n, trigger_stage
+            )
         except sqlite3.IntegrityError as e:
             raise ServiceError(f"Could not create ADAPT '{slug}': {e}") from e
         return f"ADAPT '{slug}' created (tz_ref={tz_ref}, status=draft)."
@@ -170,7 +196,10 @@ class AdaptsMixin:
         self, slug: str, role: str, signed_by: str, project_dir: str | None = None
     ) -> str:
         """Record a signature. ``architect`` → ed25519 over the canonical body;
-        ``client`` → recorded name + timestamp. Both present ⇒ status 'signed'.
+        ``client`` → recorded name + timestamp. Both present ⇒ status
+        'approved' (§13.3.3 p.77: the findings-present branch requires
+        'approved' WITH an Architect signature; the signature itself stays
+        in adapt_signatures — status and signature are separate facts).
 
         Signing an architect role without a project key is a friendly ServiceError,
         never a traceback (the key lives at .tausik/keys/, gitignored by design).
@@ -180,11 +209,11 @@ class AdaptsMixin:
             raise ServiceError(f"ADAPT '{slug}' not found")
         if adapt["status"] == "superseded":
             raise ServiceError(f"ADAPT '{slug}' is superseded — cannot sign (§7.6.4).")
-        if adapt["status"] == "signed":
+        if adapt["status"] == "approved":
             # Dual signature already complete + body frozen — re-signing would
             # silently overwrite a sealed record. Amend via a delta instead (§7.6).
             raise ServiceError(
-                f"ADAPT '{slug}' is already signed — create a delta to amend it (§7.6)."
+                f"ADAPT '{slug}' is already approved — create a delta to amend it (§7.6)."
             )
         if role not in SIGNATURE_ROLES:
             raise ServiceError(f"Invalid role '{role}'. Valid: {', '.join(SIGNATURE_ROLES)}")
@@ -201,8 +230,11 @@ class AdaptsMixin:
             raise ServiceError(f"Could not record {role} signature for '{slug}': {e}") from e
         roles = {s["role"] for s in self.be.signatures_for_adapt(slug)}
         if roles >= set(SIGNATURE_ROLES):
-            self.be.adapt_set_status(slug, "signed")
-            return f"ADAPT '{slug}' signed by {role} — dual signature complete, status=signed."
+            self.be.adapt_set_status(slug, "approved")
+            return (
+                f"ADAPT '{slug}' signed by {role} — dual signature complete, "
+                "status=approved (§13.3.3 p.77)."
+            )
         return f"ADAPT '{slug}' signed by {role} (awaiting the other signature)."
 
     def adapt_verify(self, slug: str, project_dir: str | None = None) -> dict[str, Any]:
@@ -235,12 +267,24 @@ class AdaptsMixin:
 
     # --- delta workflow (§7.6) ---
 
-    def adapt_delta(self, parent_slug: str, new_slug: str, title: str, tz_ref: str) -> str:
+    def adapt_delta(
+        self,
+        parent_slug: str,
+        new_slug: str,
+        title: str,
+        tz_ref: str,
+        supersession_rationale: str | None = None,
+    ) -> str:
         """Create a delta-ADAPT superseding ``parent_slug`` (§7.6).
 
         The parent's status becomes 'superseded'; subsequent links to it are
         FATAL (§7.6.4). The new ADAPT carries parent_adapt + an incremented
         delta_n and starts in 'draft' for its own dual signature.
+
+        ``supersession_rationale`` is MANDATORY (ADR-007 p.108) — this is the
+        only path into 'superseded'. Declared keyword-optional in the signature
+        so the refusal is a ServiceError naming the standard rather than a
+        TypeError naming Python; the backend enforces it regardless.
         """
         parent = self.be.adapt_get(parent_slug)
         if not parent:
@@ -252,7 +296,14 @@ class AdaptsMixin:
         msg = self.adapt_create(
             new_slug, title, tz_ref, parent_adapt=parent_slug, delta_n=(parent["delta_n"] or 0) + 1
         )
-        self.be.adapt_set_status(parent_slug, "superseded")
+        try:
+            self.be.adapt_set_status(
+                parent_slug, "superseded", supersession_rationale
+            )
+        except ValueError as e:
+            # The delta header is already created; leaving the parent live is the
+            # honest outcome — a supersession without a reason must not be recorded.
+            raise ServiceError(str(e)) from e
         return f"{msg} Parent ADAPT '{parent_slug}' superseded (§7.6)."
 
     # --- links (adapt ↔ task/spec) ---

@@ -147,7 +147,7 @@ def gather_signals(conn: sqlite3.Connection) -> dict[str, Any]:
     # guarantees it); §11.6.2 wants statuses *used*, i.e. real transitions.
     specs_transitioned = _scalar(conn, "SELECT COUNT(*) FROM specs WHERE status != 'draft'")
     adapts = _scalar(conn, "SELECT COUNT(*) FROM adapts")
-    adapts_signed = _scalar(conn, "SELECT COUNT(*) FROM adapts WHERE status='signed'")
+    adapts_approved = _scalar(conn, "SELECT COUNT(*) FROM adapts WHERE status='approved'")
     # Non-superseded delta-ADAPT — a superseded delta is not a current change-set (§7.6).
     deltas = _scalar(
         conn, "SELECT COUNT(*) FROM adapts WHERE delta_n > 0 AND status != 'superseded'"
@@ -162,7 +162,7 @@ def gather_signals(conn: sqlite3.Connection) -> dict[str, Any]:
     raw = {
         "specs_count": specs,
         "adapts_count": adapts,
-        "adapts_signed_count": adapts_signed,
+        "adapts_approved_count": adapts_approved,
         "delta_adapts_count": deltas,
         "task_specs_count": task_specs,
         "reasoning_tasks_count": reasoning,
@@ -179,7 +179,7 @@ def gather_signals(conn: sqlite3.Connection) -> dict[str, Any]:
         "adapt_per_tz": clause_333["confirmed"],
         # RENAR-2
         "frontmatter_structured": specs > 0,  # specs carry typed structured fields
-        "tz_immutable": adapts_signed > 0,  # §7.5: a draft ADAPT is not a fixed TZ
+        "tz_immutable": adapts_approved > 0,  # §7.5: a draft ADAPT is not a fixed TZ
         "delta_tz_artifact": deltas > 0,  # non-superseded delta-ADAPT change-set (§7.6)
         # RENAR-3
         "schema_validation_hook": True,  # drift-1 detector (renar_drift.py) — machinery

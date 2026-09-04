@@ -43,6 +43,12 @@ def build_adapt_subparsers(sub: Any) -> None:
     ac.add_argument("slug")
     ac.add_argument("title")
     ac.add_argument("--tz-ref", dest="tz_ref", required=True, help="Source TZ id (§7.4.3)")
+    ac.add_argument(
+        "--trigger-stage",
+        dest="trigger_stage",
+        default=None,
+        help="Stage that triggered this ADAPT (ADR-007; tells several ADAPTs of one ТЗ apart)",
+    )
 
     ai = a_sub.add_parser("interpret", help="Add a forward-interpretation entry (§7.4.3)")
     ai.add_argument("adapt_slug")
@@ -90,6 +96,12 @@ def build_adapt_subparsers(sub: Any) -> None:
     ad.add_argument("new_slug")
     ad.add_argument("title")
     ad.add_argument("--tz-ref", dest="tz_ref", required=True, help="delta-TZ id")
+    ad.add_argument(
+        "--supersession-rationale",
+        dest="supersession_rationale",
+        required=True,
+        help="Why the parent is superseded (ADR-007 p.108, mandatory)",
+    )
 
     alk = a_sub.add_parser("link", help="Link an ADAPT to a task/spec")
     alk.add_argument("adapt_slug")

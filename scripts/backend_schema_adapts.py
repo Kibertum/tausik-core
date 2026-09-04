@@ -1,4 +1,4 @@
-"""Baseline DDL for RENAR ADAPT artifacts (v16r-adapt).
+"""Baseline DDL for RENAR ADAPT artifacts (v16r-adapt, statuses widened in v50).
 
 Kept out of backend_schema.py to hold that file under the 400-line filesize
 gate. ``init_schema`` runs ADAPTS_SQL on the fresh-DB path; the migration path
@@ -6,6 +6,15 @@ gate. ``init_schema`` runs ADAPTS_SQL on the fresh-DB path; the migration path
 
 The two DDL sources MUST stay byte-equivalent in structure — the v36 migration
 test and the fresh-DB test both assert the same tables/triggers exist.
+
+``adapts.status`` carries the §7.8.1 closed list. It is pinned to
+``service_adapts.ADAPT_STATUSES`` by tests/test_enum_single_source.py: before
+v50 the substrate could drift from the Python domain with nothing to catch it,
+and the CHECK — not the constant — is what the database actually enforces.
+``trigger_stage`` (ADR-007) distinguishes several ADAPTs of one ТЗ;
+``supersession_rationale`` (ADR-007 p.108) is mandatory on supersession and is
+enforced at ``backend_crud_adapts.adapt_set_status``, the lowest primitive that
+writes the column.
 """
 
 from __future__ import annotations
@@ -17,9 +26,12 @@ CREATE TABLE IF NOT EXISTS adapts (
     title TEXT NOT NULL,
     tz_ref TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN
-        ('draft', 'signed', 'superseded')),
+        ('draft', 'review', 'asked', 'answered', 'approved', 'frozen',
+         'superseded')),
     parent_adapt TEXT REFERENCES adapts(slug) ON DELETE SET NULL,
     delta_n INTEGER NOT NULL DEFAULT 0,
+    trigger_stage TEXT,
+    supersession_rationale TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );

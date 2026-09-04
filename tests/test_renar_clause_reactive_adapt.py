@@ -89,8 +89,13 @@ def test_draft_adapt_with_findings_is_red(live_shape):
     c = _by_name(evaluate(collect_state(live_shape.be._conn)))["adapt-approved-when-findings"]
     assert c.ok is False
     assert "adapt-renar-adoption=draft" in c.evidence
-    # Stronger than a wrong row value: the schema cannot hold the right one.
-    assert "'approved' is not among them" in c.evidence
+    # THE NEGATION OF THE NEIGHBOURING BUCKET (memory #553). Before v50 this
+    # asserted the opposite: the schema could not hold 'approved' at all, and
+    # that unreachability rode along in the same evidence string. v50 made the
+    # state reachable, so the failure is now about the ROW and must say so —
+    # a fixture that keeps asserting the old sentence would still pass while
+    # measuring nothing about which of the two defects is live.
+    assert "'approved' is not among them" not in c.evidence
 
 
 def test_unsigned_adapt_with_findings_is_red(live_shape):
@@ -141,7 +146,15 @@ def _conformant_state() -> ReactiveAdaptState:
         spec_count=3,
         spec_provenance_columns=("source_adapt", "source_tz_section"),
         specs_without_provenance=0,
-        adapt_status_domain=("draft", "approved", "signed", "superseded"),
+        adapt_status_domain=(
+            "draft",
+            "review",
+            "asked",
+            "answered",
+            "approved",
+            "frozen",
+            "superseded",
+        ),
     )
 
 
@@ -393,3 +406,50 @@ def test_every_closed_category_puts_an_adapt_on_the_findings_branch(svc):
         svc.adapt_finding(f"ad{i}", cat, f"finding of category {cat}")
     st = collect_state(svc.be._conn)
     assert len(st.adapts_with_findings) == 7, st.adapts_with_findings
+
+
+def test_unreachable_status_is_red_even_with_no_offending_rows():
+    """AC-7: the substrate defect is reported on an EMPTY corpus.
+
+    Until v50 this sub-check reported unreachability only as a rider on the
+    row-level failure, so a corpus with no ADAPT carrying backward findings
+    returned GREEN while the schema could not hold 'approved' at all. A control
+    that cannot go red on an empty corpus has forgotten how to fail — the
+    ADR-021 degeneracy this module exists to remove, one floor below it.
+
+    The pre-v50 domain is written out literally because it is HISTORY: deriving
+    it from today's constant would make the fixture agree with itself.
+    """
+    st = ReactiveAdaptState(
+        ar_tables=("adversarial_reviews",),
+        ar_issued_count=1,
+        adapts_with_findings={},  # nothing offends today
+        adapt_signature_roles={},
+        spec_count=0,
+        spec_provenance_columns=("source_adapt",),
+        specs_without_provenance=0,
+        adapt_status_domain=("draft", "signed", "superseded"),
+    )
+    c = _by_name(evaluate(st))["adapt-approved-when-findings"]
+    assert c.ok is False
+    assert "'approved' is not among them" in c.evidence
+    assert "no matter what the rows say" in c.evidence
+
+
+def test_reachable_status_with_no_offending_rows_is_green():
+    """The NEGATION of the bucket above (memory #553): the red must be earned.
+
+    Same state, one difference — the domain now holds 'approved'. If this stayed
+    red the test above would be proving nothing about unreachability.
+    """
+    st = ReactiveAdaptState(
+        ar_tables=("adversarial_reviews",),
+        ar_issued_count=1,
+        adapts_with_findings={},
+        adapt_signature_roles={},
+        spec_count=0,
+        spec_provenance_columns=("source_adapt",),
+        specs_without_provenance=0,
+        adapt_status_domain=("draft", "approved", "superseded"),
+    )
+    assert _by_name(evaluate(st))["adapt-approved-when-findings"].ok is True

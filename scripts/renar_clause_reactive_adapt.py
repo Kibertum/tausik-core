@@ -278,20 +278,32 @@ def _check_ar_issued(st: ReactiveAdaptState) -> Subcheck:
 def _check_adapt_approved(st: ReactiveAdaptState) -> Subcheck:
     unreachable = "approved" not in st.adapt_status_domain if st.adapt_status_domain else False
     bad = {s: v for s, v in st.adapts_with_findings.items() if v != "approved"}
-    if bad:
-        detail = ", ".join(f"{s}={v}" for s, v in sorted(bad.items()))
-        extra = (
-            f" The substrate cannot even hold the required state: adapts.status admits "
-            f"{list(st.adapt_status_domain)}, and 'approved' is not among them."
-            if unreachable
-            else ""
-        )
+    if unreachable:
+        # Reported REGARDLESS of whether any row offends today. Until v50 this
+        # sat as a rider on the `bad` branch, so a corpus with no ADAPT carrying
+        # backward findings returned GREEN while the required state was
+        # UNREACHABLE — the substrate would have rejected 'approved' outright.
+        # A control that cannot go red on an empty corpus has forgotten how to
+        # fail: the ADR-021 degeneracy this module exists to remove, one floor
+        # below. Unreachability outranks the row-level check because no row can
+        # ever satisfy it.
+        offenders = ", ".join(f"{s}={v}" for s, v in sorted(bad.items())) or "none"
         return Subcheck(
             "adapt-approved-when-findings",
             False,
             "§13.3.3 p.77",
-            f"{len(bad)} ADAPT(s) carry backward findings but are not 'approved' ({detail})."
-            + extra,
+            f"adapts.status admits {list(st.adapt_status_domain)}, and 'approved' is "
+            "not among them: the substrate cannot hold the state §13.3.3 requires, so "
+            "the clause is unsatisfiable no matter what the rows say "
+            f"(ADAPTs carrying backward findings: {offenders}).",
+        )
+    if bad:
+        detail = ", ".join(f"{s}={v}" for s, v in sorted(bad.items()))
+        return Subcheck(
+            "adapt-approved-when-findings",
+            False,
+            "§13.3.3 p.77",
+            f"{len(bad)} ADAPT(s) carry backward findings but are not 'approved' ({detail}).",
         )
     return Subcheck(
         "adapt-approved-when-findings",

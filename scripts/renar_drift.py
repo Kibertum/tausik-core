@@ -174,16 +174,16 @@ def detect_schema_drift(conn: sqlite3.Connection) -> list[Finding]:
                         f"base adapt (delta_n=0) chains parent {a['parent_adapt']!r}",
                     )
                 )
-        if a["status"] == "signed":
+        if a["status"] == "approved":
             have = sig_roles.get(a["slug"], set())
             missing = set(SIGNATURE_ROLES) - have
             if missing:
                 findings.append(
                     _finding(
                         det,
-                        "adapt-signed-incomplete-signature",
+                        "adapt-approved-incomplete-signature",
                         ref,
-                        f"status=signed but missing dual signature: {sorted(missing)}",
+                        f"status=approved but missing dual signature: {sorted(missing)}",
                     )
                 )
 

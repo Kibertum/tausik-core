@@ -19,7 +19,18 @@ _FINDING_CATEGORIES = [
 ]
 _SIGNATURE_ROLES = ["client", "architect"]
 _LINK_TARGETS = ["task", "spec"]
-_ADAPT_STATUSES = ["draft", "signed", "superseded"]
+# The §7.8.1 closed list — pinned to service_adapts.ADAPT_STATUSES by
+# tests/test_enum_single_source.py. No count is written beside it: a literal
+# would be correct only until the standard is next amended.
+_ADAPT_STATUSES = [
+    "draft",
+    "review",
+    "asked",
+    "answered",
+    "approved",
+    "frozen",
+    "superseded",
+]
 
 TOOLS_ADAPT = [
     {
@@ -31,6 +42,10 @@ TOOLS_ADAPT = [
                 "slug": {"type": "string"},
                 "title": {"type": "string"},
                 "tz_ref": {"type": "string", "description": "Source TZ id, e.g. TZ-2026-001"},
+                "trigger_stage": {
+                    "type": "string",
+                    "description": "Stage that triggered this ADAPT (ADR-007) — how several ADAPTs of one ТЗ are told apart. Optional.",
+                },
             },
             "required": ["slug", "title", "tz_ref"],
         },
@@ -82,7 +97,7 @@ TOOLS_ADAPT = [
     },
     {
         "name": "tausik_adapt_sign",
-        "description": "Record a dual signature (§7.5). role=architect signs the canonical ADAPT body with the project ed25519 key; role=client records a name+timestamp. Both roles present ⇒ status 'signed'.",
+        "description": "Record a dual signature (§7.5). role=architect signs the canonical ADAPT body with the project ed25519 key; role=client records a name+timestamp. Both roles present ⇒ status 'approved' (§13.3.3 p.77 — the status and the signature are separate facts).",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -104,7 +119,7 @@ TOOLS_ADAPT = [
     },
     {
         "name": "tausik_adapt_list",
-        "description": "List ADAPTs, optionally filtered by status (draft/signed/superseded). Returns JSON rows.",
+        "description": "List ADAPTs, optionally filtered by status (the §7.8.1 closed list: draft/review/asked/answered/approved/frozen/superseded). Returns JSON rows.",
         "inputSchema": {
             "type": "object",
             "properties": {"status": {"type": "string", "enum": _ADAPT_STATUSES}},
@@ -120,8 +135,12 @@ TOOLS_ADAPT = [
                 "new_slug": {"type": "string"},
                 "title": {"type": "string"},
                 "tz_ref": {"type": "string", "description": "delta-TZ id"},
+                "supersession_rationale": {
+                    "type": "string",
+                    "description": "Why the parent is superseded (ADR-007 p.108). MANDATORY: a supersession that cannot cite the contradicting requirement is an empty record.",
+                },
             },
-            "required": ["parent_slug", "new_slug", "title", "tz_ref"],
+            "required": ["parent_slug", "new_slug", "title", "tz_ref", "supersession_rationale"],
         },
     },
     {

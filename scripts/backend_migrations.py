@@ -29,6 +29,7 @@ from backend_migrations_v46 import MIGRATION_V46
 from backend_migrations_v47 import MIGRATION_V47
 from backend_migrations_v48 import MIGRATION_V48
 from backend_migrations_v49 import MIGRATION_V49
+from backend_migrations_v50 import MIGRATION_V50
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -379,6 +380,10 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     # Список пуст намеренно — перестройка specs живёт охраняемым пост-шагом,
     # чтобы уметь пропустить себя на частичной фикстуре (см. v49-модуль).
     49: MIGRATION_V49,
+    # v50: закрытый перечень статусов ADAPT приводится к §7.8.1, плюс
+    # две колонки ADR-007 (trigger_stage, supersession_rationale). Список пуст
+    # намеренно — перестройка adapts живёт охраняемым пост-шагом (см. v50-модуль).
+    50: MIGRATION_V50,
 }
 
 

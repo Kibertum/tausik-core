@@ -158,7 +158,7 @@ def test_a_bare_adapt_no_longer_buys_renar_1(svc, in_scope):
 def test_draft_adapt_does_not_reach_renar_2(svc, in_scope):
     """A draft ADAPT is not an immutable TZ (§7.5) → tz_immutable stays False."""
     svc.adapt_create("ad1", "Adapt 1", "TZ-1")
-    svc.adapt_delta("ad1", "ad1-d1", "Delta 1", "TZ-1")
+    svc.adapt_delta("ad1", "ad1-d1", "Delta 1", "TZ-1", "TZ§1 superseded by delta")
     svc.spec_add("sp1", "API", "Spec 1", "v1", status="active")
     _satisfy_clause_13_3_3(svc)
     manifest, _ = _gen(svc)
@@ -167,12 +167,14 @@ def test_draft_adapt_does_not_reach_renar_2(svc, in_scope):
 
 
 def test_signed_adapt_spec_delta_reach_renar_2(svc, in_scope):
-    """Signed ADAPT (immutable TZ) + SPEC + delta → RENAR-2; RENAR-3 blocked."""
+    """Approved ADAPT (immutable TZ) + SPEC + delta → RENAR-2; RENAR-3 blocked."""
     svc.adapt_create("ad1", "Adapt 1", "TZ-1")
-    svc.adapt_delta("ad1", "ad1-d1", "Delta 1", "TZ-1")
+    svc.adapt_delta("ad1", "ad1-d1", "Delta 1", "TZ-1", "TZ§1 superseded by delta")
     svc.spec_add("sp1", "API", "Spec 1", "v1", status="active")
-    # Simulate a signed (immutable) ADAPT without the ed25519 key ceremony.
-    svc.be._conn.execute("UPDATE adapts SET status='signed' WHERE slug='ad1'")
+    # Simulate an approved (immutable) ADAPT without the ed25519 key ceremony.
+    # §7.8.1 renamed our 'signed' to the standard's 'approved' in v50; the CHECK
+    # now REJECTS 'signed', so this UPDATE also proves the list stayed closed.
+    svc.be._conn.execute("UPDATE adapts SET status='approved' WHERE slug='ad1'")
     svc.be._conn.commit()
     _satisfy_clause_13_3_3(svc)
     manifest, _ = _gen(svc)
@@ -281,9 +283,9 @@ class TestScopeApplicability:
         precondition this store alone reaches RENAR-2.
         """
         svc.adapt_create("ad1", "Adapt 1", "TZ-1")
-        svc.adapt_delta("ad1", "ad1-d1", "Delta 1", "TZ-1")
+        svc.adapt_delta("ad1", "ad1-d1", "Delta 1", "TZ-1", "TZ§1 superseded by delta")
         svc.spec_add("sp1", "API", "Spec 1", "v1", status="active")
-        svc.be._conn.execute("UPDATE adapts SET status='signed' WHERE slug='ad1'")
+        svc.be._conn.execute("UPDATE adapts SET status='approved' WHERE slug='ad1'")
         svc.be._conn.commit()
 
         bundle = renar_conformance.gather_signals(svc.be._conn)

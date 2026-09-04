@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 49
+SCHEMA_VERSION = 50
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (

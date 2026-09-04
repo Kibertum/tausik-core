@@ -1,11 +1,19 @@
 """Conformance guard: RENAR SPEC/ADAPT enums have ONE source of truth.
 
 The closed lists SPEC_TYPES / SPEC_STATUSES (service_specs) and ADAPT_STATUSES
-(service_adapts) are mirrored into the argparse layer and the MCP tool-schema
-layer (claude + cursor). The parser now derives from the service constants, so
-it cannot drift. The MCP schemas keep literal lists (a JSON schema should be
-self-contained) — these tests pin those literals to the service source so any
-divergence fails CI instead of shipping silently.
+(service_adapts) are mirrored into the argparse layer, the MCP tool-schema
+layer (claude + cursor) AND the database CHECK constraint. The parser now
+derives from the service constants, so it cannot drift. The MCP schemas keep
+literal lists (a JSON schema should be self-contained) — these tests pin those
+literals to the service source so any divergence fails CI instead of shipping
+silently.
+
+THE DATABASE MIRROR WAS THE ONE NOBODY WATCHED, and it is the one that decides
+what the system will actually ACCEPT: a value the Python domain admits and the
+CHECK refuses is not a preference, it is an unreachable state. Until v50 the
+two agreed by coincidence rather than by control. The inventory that found this
+was taken by the LOWEST PRIMITIVE (what enforces the list) rather than by the
+convenient constant that names it.
 """
 
 from __future__ import annotations
@@ -63,6 +71,73 @@ def test_parser_spec_choices_derive_from_service():
 
 def test_parser_adapt_choices_derive_from_service():
     assert ppa.ADAPT_STATUS_CHOICES == list(ADAPT_STATUSES)
+
+
+# --- the database CHECK is pinned to the service source too ---
+
+
+def _parse_status_domain(ddl: str) -> tuple[str, ...]:
+    """Values an ``adapts.status`` CHECK admits, read out of stored DDL.
+
+    PURE, and split from the database on purpose (memory #484): a reader that
+    can only be run against a live schema has no expressible green branch —
+    handed a string, it can be shown to report a domain that DIFFERS, which is
+    what proves the pin below is measuring the substrate and not itself.
+    """
+    marker = "CHECK(status IN"
+    at = ddl.find(marker)
+    if at < 0:
+        return ()
+    chunk = ddl[at + len(marker) : ddl.find("))", at + len(marker))]
+    return tuple(
+        p.strip().strip("'\"") for p in chunk.strip(" (\n").split(",") if p.strip()
+    )
+
+
+def _db_status_domain(conn) -> tuple[str, ...]:
+    """The same, read from the DDL the database itself stores."""
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='adapts'"
+    ).fetchone()
+    assert row and row[0], "adapts table has no stored DDL"
+    return _parse_status_domain(str(row[0]))
+
+
+def test_db_check_constraint_matches_adapt_statuses(tmp_path):
+    """The substrate mirror: what the DB ACCEPTS must equal the Python domain.
+
+    Parsed out of the DDL the database itself stores, never out of a Python
+    constant — reading the constant back would assert that a value equals
+    itself. A divergence here is not cosmetic: before v50 the CHECK refused
+    'approved', so a status §13.3.3 REQUIRES could not be written at all.
+    """
+    from project_backend import SQLiteBackend
+
+    be = SQLiteBackend(str(tmp_path / "enum_pin.db"))
+    try:
+        domain = _db_status_domain(be._conn)
+    finally:
+        be.close()
+    assert domain == tuple(ADAPT_STATUSES), (
+        "the DB CHECK and ADAPT_STATUSES have drifted: the database admits "
+        f"{domain} while the service domain is {tuple(ADAPT_STATUSES)}"
+    )
+
+
+def test_db_check_pin_can_see_a_drift():
+    """NEGATIVE for the guard itself: the parser must REPORT a real domain.
+
+    A pin whose reader returned the Python constant, or an empty tuple, would
+    pass the test above forever. Handed DDL that admits an extra value, the
+    parser must say so — that is what makes the green branch above meaningful
+    rather than merely asserted.
+    """
+    ddl = (
+        "CREATE TABLE adapts (status TEXT NOT NULL DEFAULT 'draft' "
+        "CHECK(status IN ('draft', 'approved', 'bogus')))"
+    )
+    assert _parse_status_domain(ddl) == ("draft", "approved", "bogus")
+    assert _parse_status_domain(ddl) != tuple(ADAPT_STATUSES)
 
 
 # --- MCP schema literals pinned to the service source ---

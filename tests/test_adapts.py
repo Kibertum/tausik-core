@@ -203,7 +203,7 @@ def test_dual_signature_completes_and_verifies(svc_keyed):
     svc_keyed.adapt_sign("a1", "client", "Acme", pd)
     assert svc_keyed.be.adapt_get("a1")["status"] == "draft"  # one sig only
     svc_keyed.adapt_sign("a1", "architect", "Claude", pd)
-    assert svc_keyed.be.adapt_get("a1")["status"] == "signed"
+    assert svc_keyed.be.adapt_get("a1")["status"] == "approved"
     res = svc_keyed.adapt_verify("a1", pd)
     assert res["signed"] and res["valid"]
 
@@ -237,7 +237,7 @@ def test_resign_after_signed_is_rejected(svc_keyed):
     pd = svc_keyed._project_dir
     svc_keyed.adapt_sign("a1", "client", "Acme", pd)
     svc_keyed.adapt_sign("a1", "architect", "Claude", pd)
-    with pytest.raises(ServiceError, match="already signed"):
+    with pytest.raises(ServiceError, match="already approved"):
         svc_keyed.adapt_sign("a1", "architect", "Mallory", pd)
 
 
@@ -246,7 +246,7 @@ def test_resign_after_signed_is_rejected(svc_keyed):
 
 def test_delta_supersedes_parent(svc):
     svc.adapt_create("a1", "T", "TZ-1")
-    svc.adapt_delta("a1", "a1-d1", "T delta", "TZ-1-delta-1")
+    svc.adapt_delta("a1", "a1-d1", "T delta", "TZ-1-delta-1", "TZ§4 rewritten")
     assert svc.be.adapt_get("a1")["status"] == "superseded"
     d = svc.adapt_show("a1-d1")
     assert d["parent_adapt"] == "a1" and d["delta_n"] == 1
@@ -255,7 +255,7 @@ def test_delta_supersedes_parent(svc):
 def test_link_to_superseded_is_fatal(svc):
     _seed_task(svc)
     svc.adapt_create("a1", "T", "TZ-1")
-    svc.adapt_delta("a1", "a1-d1", "T delta", "TZ-1-delta-1")
+    svc.adapt_delta("a1", "a1-d1", "T delta", "TZ-1-delta-1", "TZ§4 rewritten")
     with pytest.raises(ServiceError, match="FATAL"):
         svc.adapt_link("a1", "task", "t1")
     # the live delta links fine
@@ -264,7 +264,7 @@ def test_link_to_superseded_is_fatal(svc):
 
 def test_sign_superseded_rejected(svc):
     svc.adapt_create("a1", "T", "TZ-1")
-    svc.adapt_delta("a1", "a1-d1", "T delta", "TZ-1-delta-1")
+    svc.adapt_delta("a1", "a1-d1", "T delta", "TZ-1-delta-1", "TZ§4 rewritten")
     with pytest.raises(ServiceError, match="superseded"):
         svc.adapt_sign("a1", "client", "X")
 
@@ -425,6 +425,13 @@ ALLOWED_ADAPT_COUNTS = {
         "the v36 record: it built the CHECK with seven categories and must say "
         "so — a migration that stops describing what it built is not a journal"
     ),
+    "scripts/backend_migrations_v50.py": (
+        "the v50 record: it built the CHECK with the standard's seven ADAPT "
+        "STATUSES and must say so, for the same reason v36 must. The count it "
+        "writes is of the STATUS list, not of the finding categories — the "
+        "subject pattern is broad enough to catch either, and narrowing it to "
+        "tell them apart would trade a precise exception for a weaker net"
+    ),
     "tests/closed_list_counts.py": "the matcher's own worked examples",
     "tests/test_adapts.py": "this file: the fixtures below",
 }
@@ -528,3 +535,111 @@ class TestTheCategoryCountMatcher:
         task, which is how one task silently becomes three."""
         brain = '"""Sync all 4 categories. One failure does not abort others."""'
         assert written_counts(brain) == []
+
+
+# === AC6/AC8: supersession needs a REASON, and 'approved' needs a signature ===
+#
+# Both properties are about the SAME thing: a state the standard attaches a
+# condition to must not be reachable without that condition. One is enforced
+# (supersession), the other is enforced by there being no write path at all
+# (approved) — and the difference is a MEASUREMENT, not a preference. See the
+# call-site census below.
+
+
+def test_supersede_without_a_reason_is_refused(svc):
+    """NEGATIVE: dezavuation with no rationale is refused, not recorded empty.
+
+    Half a dezavuation is worse than none. The status and the `supersedes` edge
+    both existed before v50, so a supersession could be recorded mechanically
+    while being unable to cite the requirement it contradicts (ADR-007 p.108).
+    That record is syntactically valid and substantively empty — the degenerate
+    control ADR-021 names, expressed in the data schema.
+    """
+    svc.adapt_create("a1", "T", "TZ-1")
+    with pytest.raises(ServiceError, match="supersession_rationale"):
+        svc.adapt_delta("a1", "a1-d1", "T delta", "TZ-1-delta-1")
+    # AND THE PARENT IS STILL LIVE. A refusal that had already flipped the parent
+    # would leave the very state it refused to create.
+    assert svc.be.adapt_get("a1")["status"] == "draft"
+
+
+def test_supersede_with_blank_reason_is_refused(svc):
+    """NEGATIVE: whitespace is not a reason — the check is on content, not presence."""
+    svc.adapt_create("a1", "T", "TZ-1")
+    with pytest.raises(ServiceError, match="supersession_rationale"):
+        svc.adapt_delta("a1", "a1-d1", "T delta", "TZ-1-delta-1", "   ")
+    assert svc.be.adapt_get("a1")["status"] == "draft"
+
+
+def test_the_reason_is_stored_and_readable(svc):
+    """The rationale is not merely demanded at the door — it is kept."""
+    svc.adapt_create("a1", "T", "TZ-1")
+    svc.adapt_delta("a1", "a1-d1", "T delta", "TZ-1-delta-1", "TZ§4 contradicts §2")
+    assert svc.be.adapt_get("a1")["supersession_rationale"] == "TZ§4 contradicts §2"
+
+
+def test_the_rule_lives_at_the_lowest_primitive(svc):
+    """The refusal is the BACKEND's, so a future caller cannot route around it.
+
+    Enforcing this in `adapt_delta` alone would close today's only door and
+    leave the next one open — the mistake that cost session #209 a whole task
+    (memory #556). The rule sits on the primitive that WRITES the column.
+    """
+    svc.adapt_create("a1", "T", "TZ-1")
+    with pytest.raises(ValueError, match="supersession_rationale"):
+        svc.be.adapt_set_status("a1", "superseded")
+    assert svc.be.adapt_get("a1")["status"] == "draft"
+
+
+def test_trigger_stage_round_trips(svc):
+    """ADR-007's trigger-stage is writable and readable, not a dead column.
+
+    A field nothing can write is as degenerate as a control that cannot fail;
+    the column is plumbed through create rather than merely added to the DDL.
+    """
+    svc.adapt_create("a1", "T", "TZ-1", trigger_stage="design")
+    assert svc.be.adapt_get("a1")["trigger_stage"] == "design"
+
+
+# --- the census that keeps 'approved' unreachable without a signature -------
+
+# This test reads the source tree, so no import edge selects it from the change
+# that would add a status setter. Declared, not opted out of (memory #559).
+CROSSCUTTING_SCOPE = ["scripts/"]
+
+# Every place that WRITES an ADAPT status, and why each is allowed to.
+# Measured, not assumed: my own first reading of this change claimed widening
+# the domain would make 'approved' settable from the CLI, and the inventory
+# showed there is no user-facing status setter at all — --status appears only as
+# a LIST FILTER in project_parser_adapts and in the MCP tool schema.
+EXPECTED_STATUS_WRITERS = {
+    "scripts/service_adapts.py": 2,  # sign() -> approved, adapt_delta() -> superseded
+}
+
+
+def test_status_write_sites_are_exactly_the_two_measured():
+    """§13.3.3 p.77 wants 'approved' WITH an Architect signature.
+
+    Today that holds because the only writer of 'approved' is `sign()`, which
+    runs after both signature roles are present. Nothing states that as a rule,
+    so this census does: a third writer — a `tausik adapt set-status` command,
+    say — turns this red and forces whoever adds it to answer the signature
+    question instead of discovering it later.
+    """
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    scripts = os.path.join(repo, "scripts")
+    found: dict[str, int] = {}
+    for name in sorted(os.listdir(scripts)):
+        if not name.endswith(".py"):
+            continue
+        with open(os.path.join(scripts, name), encoding="utf-8") as fh:
+            body = fh.read()
+        # the definition itself is not a call site
+        calls = body.count("adapt_set_status(") - body.count("def adapt_set_status(")
+        if calls:
+            found[f"scripts/{name}"] = calls
+    assert found == EXPECTED_STATUS_WRITERS, (
+        f"the set of ADAPT status writers changed: {found} vs {EXPECTED_STATUS_WRITERS}. "
+        "A new writer must say how it keeps 'approved' behind an Architect signature "
+        "(§13.3.3 p.77) before this expectation is updated."
+    )

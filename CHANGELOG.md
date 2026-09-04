@@ -9,6 +9,85 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the closed list of ADAPT statuses diverged from the standard BOTH ways
+
+§7.8.1 closes the ADAPT status list at `draft | review | asked | answered |
+approved | frozen | superseded`. Ours enumerated `draft, signed, superseded`,
+and the divergence ran in both directions at once.
+
+We carried `signed`, a value the standard's closed list does not contain — our
+own status, added to a list declared closed. That half is a nuisance. The other
+half is not: we LACKED `approved`, and §13.3.3 p.77 requires exactly that status
+on the findings-present branch ("the ADAPT is mandatory in status `approved`
+with an Architect signature"). The DB CHECK would have REJECTED the write, so
+conformance with a mandatory clause was UNREACHABLE — not unmet through
+inattention, but impossible to reach without a schema migration. Our own clause
+measurer said so in its evidence, and the regenerated manifest now says only
+that a row is in the wrong state.
+
+`signed` maps to `approved` rather than being deleted. Ours meant "both
+signatures collected"; the standard keeps two separate facts — `approved` is the
+STATUS, and the Architect signature is a separate requirement of the same branch
+living in `adapt_signatures`. Migrating preserves the acceptance and returns the
+signature to its own place.
+
+SQLite cannot widen a CHECK with ALTER, so v50 rebuilds `adapts` the way v24,
+v48 and v49 rebuilt their tables. The list stays CLOSED: a status outside it is
+still rejected by the database — including our own `signed`, which is what
+separates widening a list from opening it.
+
+THE SUBSTRATE MIRROR HAD NO GUARD. `tests/test_enum_single_source.py` pinned the
+argparse layer and the MCP tool schema to `ADAPT_STATUSES`, but the DB CHECK —
+the only one of the four mirrors that decides what the system will actually
+ACCEPT — was pinned by nothing. It agreed with the Python domain by coincidence
+rather than by control. It is pinned now, and the inventory that found it was
+taken by the LOWEST PRIMITIVE rather than by the constant that names it.
+
+TWO ADR-007 FIELDS ARRIVE IN THE SAME REBUILD, because rebuilding `adapts` twice
+would be strictly worse. `trigger_stage` is how the standard tells several ADAPTs
+of one ТЗ apart; without it the 0..N cardinality was inexpressible. And
+supersession was HALF-BUILT, which is more dangerous than absent: the
+`superseded` status existed, the `supersedes` edge existed, but
+`supersession-rationale` (ADR-007 p.108) had nowhere to live, so a dezavuation
+could be recorded mechanically while being unable to cite the requirement it
+contradicts — a record syntactically valid and substantively empty. The rule
+"no reason, no supersession" now lives in `backend_crud_adapts.adapt_set_status`,
+the lowest primitive that writes the column, so every present and future caller
+passes through it.
+
+Also fixed one floor below: `_check_adapt_approved` reported the unreachable
+status only as a rider on a row-level failure, so a corpus with no offending
+ADAPT returned GREEN while the required state could not be held at all. A
+control that cannot go red on an empty corpus has forgotten how to fail — the
+degeneracy that module exists to remove.
+
+NOT included, and excluded by measurement rather than convenience: the
+`adapt-supersession` control point and the `check-adapt-supersession` gate
+(§10.11.1). The dangling reference such a gate must catch lives in a SPEC's
+`source.adapt` field, and the live corpus carries no provenance column at all —
+a gate with no subject is the degenerate control this very change repairs.
+Filed separately, blocked on SPEC provenance.
+
+#### Breaking, and named here because a renamed identifier is a silent break
+
+Three observable names changed with the status. Each is a rename, not a
+removal, and none of them can be detected by a caller except by breaking:
+
+- `tausik adapt delta` gains a REQUIRED `--supersession-rationale`; the MCP tool
+  `tausik_adapt_delta` gains it as a required property. A call that worked
+  yesterday now fails with a message naming ADR-007 p.108 rather than silently
+  recording an empty dezavuation.
+- `RENAR-CONFORMANCE.yaml` raw-count key `adapts_signed_count` →
+  `adapts_approved_count`. Anything parsing the manifest by that key reads a
+  missing field, not a wrong number.
+- Drift finding kind `adapt-signed-incomplete-signature` →
+  `adapt-approved-incomplete-signature`. The name follows the value it keys on;
+  leaving it would have made the identifier describe a status that no longer
+  exists.
+
+`tausik adapt create` also gains an OPTIONAL `--trigger-stage`, which breaks
+nothing.
+
 ### Fixed — a run in which no gate executed was a positive verdict
 
 SENAR 1.4 §8.6(e) is a SHALL on every configuration, and the standard says

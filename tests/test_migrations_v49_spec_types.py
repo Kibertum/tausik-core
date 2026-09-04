@@ -86,9 +86,17 @@ def seeded(tmp_path):
 # --- the version is registered ----------------------------------------------
 
 
-def test_v49_is_the_current_schema_version():
-    assert SCHEMA_VERSION == 49
+def test_v49_is_registered_and_not_ahead_of_the_code():
+    """v49 stays REGISTERED; being the LATEST version is not v49's property.
+
+    This assertion used to read ``SCHEMA_VERSION == 49``, which made a fixture
+    about v49 fail the moment v50 landed — the very coupling this file's own
+    header warns against when it pins ``_V49`` as a literal instead of deriving
+    it from SCHEMA_VERSION. Which version is current belongs to the newest
+    migration's own test file.
+    """
     assert 49 in MIGRATIONS
+    assert SCHEMA_VERSION >= 49
 
 
 # --- direction one: the two new types are accepted ---------------------------

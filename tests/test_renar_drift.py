@@ -98,15 +98,15 @@ def test_adapt_delta_non_numeric(svc):
 
 
 def test_adapt_delta_invalid_does_not_mask_signature(svc):
-    """Non-numeric delta_n + signed-without-signatures: BOTH must surface (sweep #87)."""
+    """Non-numeric delta_n + approved-without-signatures: BOTH must surface (sweep #87)."""
     svc.be._conn.execute(
         "INSERT INTO adapts(slug,title,tz_ref,status,parent_adapt,delta_n,"
-        "created_at,updated_at) VALUES('ad-bs','t','TZ','signed',NULL,'oops','x','x')"
+        "created_at,updated_at) VALUES('ad-bs','t','TZ','approved',NULL,'oops','x','x')"
     )
     svc.be._conn.commit()
     kinds = _kinds(detect_schema_drift(svc.be._conn))
     assert "adapt-delta-invalid" in kinds
-    assert "adapt-signed-incomplete-signature" in kinds
+    assert "adapt-approved-incomplete-signature" in kinds
 
 
 def test_adapt_base_has_parent(svc):
@@ -120,16 +120,21 @@ def test_adapt_base_has_parent(svc):
     assert "adapt-base-has-parent" in _kinds(detect_schema_drift(svc.be._conn))
 
 
-def test_adapt_signed_incomplete_signature(svc):
-    """status=signed but missing the dual signature (§7.5)."""
+def test_adapt_approved_incomplete_signature(svc):
+    """status=approved but missing the dual signature (§7.5).
+
+    §13.3.3 p.77 requires 'approved' WITH an Architect signature. Before v50
+    our own status 'signed' conflated the two facts; the status now names the
+    acceptance and the signature stays a separate, checkable record.
+    """
     svc.be._conn.execute(
         "INSERT INTO adapts(slug,title,tz_ref,status,parent_adapt,delta_n,"
-        "created_at,updated_at) VALUES('ad-s','t','TZ','signed',NULL,0,'x','x')"
+        "created_at,updated_at) VALUES('ad-s','t','TZ','approved',NULL,0,'x','x')"
     )
     svc.be._conn.commit()
     findings = detect_schema_drift(svc.be._conn)
-    assert "adapt-signed-incomplete-signature" in _kinds(findings)
-    # A signed adapt with BOTH signatures clears the finding.
+    assert "adapt-approved-incomplete-signature" in _kinds(findings)
+    # An approved adapt with BOTH signatures clears the finding.
     for role in ("client", "architect"):
         svc.be._conn.execute(
             "INSERT INTO adapt_signatures(adapt_slug,role,signed_by,signed_at) "
@@ -137,7 +142,7 @@ def test_adapt_signed_incomplete_signature(svc):
             (role,),
         )
     svc.be._conn.commit()
-    assert "adapt-signed-incomplete-signature" not in _kinds(detect_schema_drift(svc.be._conn))
+    assert "adapt-approved-incomplete-signature" not in _kinds(detect_schema_drift(svc.be._conn))
 
 
 def test_spec_blank_version(svc):
