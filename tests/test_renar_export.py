@@ -196,11 +196,11 @@ def _satisfy_clause_13_3_3(svc):
     conn.execute("DELETE FROM adapt_findings WHERE adapt_slug='adapt-one'")
     conn.execute(
         "CREATE TABLE IF NOT EXISTS adversarial_reviews "
-        "(id INTEGER PRIMARY KEY, tz_ref TEXT, verdict TEXT, status TEXT)"
+        "(id INTEGER PRIMARY KEY, tz_ref TEXT, verdict TEXT, produces_adapt TEXT, status TEXT)"
     )
     conn.execute(
-        "INSERT INTO adversarial_reviews (tz_ref, verdict, status) "
-        "VALUES ('TZ-2026-001','no-findings','issued')"
+        "INSERT INTO adversarial_reviews (tz_ref, verdict, produces_adapt, status) "
+        "VALUES ('TZ-2026-001','no-findings','','issued')"
     )
     cols = [r[1] for r in conn.execute("PRAGMA table_info(specs)")]
     for col in ("source_tz_section", "source_adversarial_review_ref"):

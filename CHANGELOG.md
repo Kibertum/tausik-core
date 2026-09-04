@@ -9,6 +9,44 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — three documents still said 124 tools and the drift guard was green: the guard now reads those forms
+
+The periodic review of this session's four commits (records #19–#23) found the
+`epic update` closure's AC4 unmet in three places the count guard could not
+see: `docs/ru/architecture.md` at "117 project + 7 brain = 124", the SENAR
+compliance matrix headline "MCP coverage 124 tools" beside its own
+"(121 project + 7 brain)", and five README table cells at 124 while the RU
+twin read 128. `gen_doc_constants --check` exited 0 on all of them: the pair
+pattern required an opening parenthesis and the bold pattern required the
+count to be the bold-delimited token. The three are corrected and the guard
+learned the forms — a pair without a parenthesis, "= N tools" after a pair,
+and the "MCP coverage N" headline — with a probe per form: reverting any of
+the three lines turns `--check` red. Same review, same fix: `update` refuses
+an empty title or description (blanking the description wrote the edit event
+and reset `stale` to 0 — the one way to pass the report by destroying what it
+measures); the same-second boundary of the count is pinned by a test (strict
+`>`, a `>=` mutation had survived); an explicit `--stale-over 0` is a filter
+and no flag is "print all"; the plural event `entity_type` is stated next to
+the constant. The AR record shape gains its fourth mandatory §7.4.6 field,
+`produces_adapt`: with three, `adapts` already carried two and a migration
+giving it a verdict would have published "AR issued in adapts" — an ADAPT is
+what an AR PRODUCES (§7.4.1) and can never carry that field innocently; the
+test creates exactly that migration and stays red-free. The PowerShell
+rewrite's docstring now says what was measured (the gate over-detects; pwsh
+forwards a native command's argument verbatim), and the quote-carrying path
+residual is recorded in enforcement-coverage. The review of this fix found
+one more, and the gravest of the session: the manifest's `replaces` link was
+composed from TODAY's date and the previous version number, correct only
+while every regeneration fell on the predecessor's day — seven did, and the
+first cross-day one named a manifest that never existed, breaking the §13.4.2
+chain in the very artifact whose founding commit promised a chain that does
+not break. The link now reads the predecessor's own id, and a live test
+resolves the committed manifest's `replaces` against git history. Two more
+forms the guard was blind to — `project-scoped tools (N)` in mcp.md and the
+README prose — are covered; the README table cells are not, and dropping
+their per-row count is the owner's call. Task
+`review-208-doc-counts-blind-and-update-guards`.
+
 ### Added — `epic update` / `story update`, and a stale-description count that names and never blocks
 
 An epic's or a story's description is how a fresh agent reads the INTENT of a
@@ -87,9 +125,10 @@ exist" — under decision #295 an unreported strengthening of our own claim.
 
 The task left one question open: what tells an AR from an ordinary review
 without inventing a fourth name? Measured, not reasoned:
-`reference/02-schemas.md` §7.1 and `standard/07 §7.4.6` make three record
-fields mandatory — `tz-ref`, `verdict`, `status` (with `issued`) — and the
-live database, all 63 tables, has no `verdict` column and no status domain
+`reference/02-schemas.md` §7.1 and `standard/07 §7.4.6` make the record fields mandatory — `tz-ref`,
+`verdict`, `status` (with `issued`) and `produces-adapt`, measured at the
+time and put into the cut by the periodic review — and the live database
+has no `verdict` column and no status domain
 holding `issued`; `reviews` carries `task_slug` and `run_type`, a task
 closure, not a ТЗ verdict. So the
 cut is the SHAPE, in the substrate's spelling (`tz_ref` is how `adapts`

@@ -7,6 +7,7 @@ import os
 import sys
 from typing import Any
 
+import hierarchy_edit  # one implementation for CLI and MCP; see its docstring
 from project_config import TAUSIK_DIR, find_tausik_dir, get_config_path, save_config
 from project_service import ProjectService
 from tausik_utils import ServiceError, format_status_compact_json
@@ -126,17 +127,17 @@ def cmd_status(svc: ProjectService, args: Any) -> None:
     print(render_status_cli(view))
 
 
-import hierarchy_edit  # noqa: E402 — one implementation for CLI and MCP; see its docstring
-
-
 def _stale_rows(rows: list[dict[str, Any]], args: Any) -> list[dict[str, Any]]:
     """`--stale-over N` keeps rows whose description fell behind by more than N tasks.
 
-    Default 0 prints every row with its number: the report names, it never
-    hides — and it is not a gate anywhere (task description, "НЕГАТИВНОЕ").
+    N is None when the flag is absent: every row prints with its number — the
+    report names, it never hides, and it is not a gate anywhere. An explicit
+    `--stale-over 0` is a filter like any other N: rows with stale > 0.
     """
-    over = int(getattr(args, "stale_over", 0) or 0)
-    return [r for r in rows if int(r.get("stale", 0)) > over] if over else rows
+    over = getattr(args, "stale_over", None)
+    if over is None:
+        return rows
+    return [r for r in rows if int(r.get("stale", 0)) > int(over)]
 
 
 def cmd_epic(svc: ProjectService, args: Any) -> None:

@@ -107,7 +107,7 @@
 | `harness/claude/mcp/project/handlers_<домен>.py` | Обработчики по доменам: `task`, `session`, `status`, `knowledge`, `hierarchy`, `stack`, `role`, `verification`, `cq`, `skill`, `spec`, `adapt`. Каждый модуль экспортирует `<DOMAIN>_HANDLERS`, `handlers.py` сливает их в `_DISPATCH` |
 | `harness/claude/mcp/project/handlers_render.py` | Общий рендер списков (`render_list`) — пустой результат обязан читаться как «ничего нет», а не как пустая строка |
 
-Полный MCP-surface: **117 project + 7 brain = 124 инструмента** (опциональный `codebase-rag` добавляет ещё 7; не в основном счёте).
+Полный MCP-surface: **121 project + 7 brain = 128 инструментов** (опциональный `codebase-rag` добавляет ещё 7; не в основном счёте).
 
 ### Контекстные заголовки чанков (codebase-rag)
 

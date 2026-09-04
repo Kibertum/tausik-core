@@ -74,11 +74,11 @@ def _satisfy_clause_13_3_3(svc):
     conn = svc.be._conn
     conn.execute(
         "CREATE TABLE IF NOT EXISTS adversarial_reviews "
-        "(id INTEGER PRIMARY KEY, tz_ref TEXT, verdict TEXT, status TEXT)"
+        "(id INTEGER PRIMARY KEY, tz_ref TEXT, verdict TEXT, produces_adapt TEXT, status TEXT)"
     )
     conn.execute(
-        "INSERT INTO adversarial_reviews (tz_ref, verdict, status) "
-        "VALUES ('TZ-1','no-findings','issued')"
+        "INSERT INTO adversarial_reviews (tz_ref, verdict, produces_adapt, status) "
+        "VALUES ('TZ-1','no-findings','','issued')"
     )
     if "source_adapt" not in [r[1] for r in conn.execute("PRAGMA table_info(specs)")]:
         conn.execute("ALTER TABLE specs ADD COLUMN source_adapt TEXT")

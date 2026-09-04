@@ -57,10 +57,20 @@ BACKWARD_FINDING_CATEGORIES = (
 SPEC_PROVENANCE_FIELDS = ("source_adapt", "source_tz_section", "source_adversarial_review_ref")
 
 # The record shape §7.4.6 makes mandatory on an AR (reference/02-schemas.md
-# §7.1: tz-ref, verdict, status), in the substrate's spelling of the standard's
-# field names — `tz-ref` is already stored as `tz_ref` on `adapts`, and
-# `source.adapt` as `source_adapt`. A class is an AR class when it carries all
-# three: a cut by SHAPE, not by a guessed table name. The first version probed
+# §7.1: tz-ref, verdict, produces-adapt, status), in the substrate's spelling
+# of the standard's field names — `tz-ref` is already stored as `tz_ref` on
+# `adapts`, and `source.adapt` as `source_adapt`. A class is an AR class when
+# it carries all four: a cut by SHAPE, not by a guessed table name. FOUR, not
+# three: with (tz_ref, verdict, status) the whole distance between an ADAPT
+# and an adversarial review was one column — `adapts` already carries two of
+# the three, and a migration giving it a verdict would have published "AR
+# issued in adapts" (review #208, record #20). `produces_adapt` is the field
+# an ADAPT can never carry innocently: §7.4.1 makes the AR the sole carrier of
+# the verdict and the ADAPT the thing an AR PRODUCES. The schema's other
+# mandatory members — `reviewer`, `primary`, `signature` — are nested records
+# (vendor/model, author/timestamp), not scalar columns: a substrate may hold
+# them as a child table or a JSON column, so they are NOT in the cut; the four
+# here are the scalars every spelling must carry. The first version probed
 # three names and would have kept publishing "AR does not exist" over an AR
 # created under a fourth — the defect #202 found on TC, facing the other way:
 # there a guessed name could publish a false `true`, here a false `false`,
@@ -75,7 +85,7 @@ SPEC_PROVENANCE_FIELDS = ("source_adapt", "source_tz_section", "source_adversari
 # is not an AR. Classes carrying part of the shape are still NAMED in the
 # evidence with what they lack, so an AR spelled differently is visible to the
 # reader even though it is not counted.
-AR_SHAPE_FIELDS = ("tz_ref", "verdict", "status")
+AR_SHAPE_FIELDS = ("tz_ref", "verdict", "produces_adapt", "status")
 
 
 @dataclass(frozen=True)

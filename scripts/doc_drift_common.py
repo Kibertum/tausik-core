@@ -117,11 +117,47 @@ _MCP_COUNT_PATTERNS: tuple[tuple[re.Pattern[str], str, str], ...] = (
         "mcp_brain_tools",
         "brain count",
     ),
+    # "brain = N tools" / "brain = N инструментов" — the sum written after a
+    # pair, where the bold spans the whole phrase so the bold pattern above
+    # cannot see the count (docs/ru/architecture.md sat at "117 + 7 = 124"
+    # through two releases with `--check` green; review #208, record #23).
+    # Anchored on `brain =`: the auto-fixer rewrites what this matches, and an
+    # unanchored "= N tools" would rewrite unrelated prose (record #24).
+    (
+        re.compile(rf"brain\s*(?:{_TOOL_WORD})?\s*=\s*(\d+)\s+{_TOOL_WORD}\b", re.IGNORECASE),
+        "mcp_main_tools",
+        "main count (after =)",
+    ),
+    # "MCP coverage N tools" / "MCP coverage (N инструментов)" — the compliance
+    # matrix headline, which carries no bold at all (same review).
+    (
+        re.compile(rf"MCP coverage\s*\(?(\d+)\s+{_TOOL_WORD}\b", re.IGNORECASE),
+        "mcp_main_tools",
+        "MCP coverage headline",
+    ),
+    # "project-scoped tools (N)" / "project-scoped инструменты (N)" — the count
+    # AFTER the noun, in mcp.md's server list; sat at 117 with `--check` green
+    # (record #24).
+    (
+        re.compile(r"project-scoped\s+(?:tools?|инструмент\w*)\s*\((\d+)\)", re.IGNORECASE),
+        "mcp_project_tools",
+        "project-scoped count",
+    ),
+    # "the same N tools" — README prose beside the IDE table (record #24). The
+    # table's own cells carry no word at all and are NOT guarded: dropping the
+    # per-row count in favour of the headline number is the owner's call.
+    (
+        re.compile(rf"the same\s+(\d+)\s+{_TOOL_WORD}\b", re.IGNORECASE),
+        "mcp_main_tools",
+        "README prose count",
+    ),
 )
 
 # Pair pattern: "(N project + M brain ...)" — both groups checked independently.
+# The parenthesis is optional: "**121 project + 7 brain = 128 инструментов**"
+# carries the pair without one and was invisible to the guard (review #208).
 _MCP_COUNT_PAIR_PATTERN: tuple[re.Pattern[str], tuple[str, str], str] = (
-    re.compile(r"\((\d+)\s+project\s*\+\s*(\d+)\s+brain", re.IGNORECASE),
+    re.compile(r"\(?\b(\d+)\s+project\s*\+\s*(\d+)\s+brain", re.IGNORECASE),
     ("mcp_project_tools", "mcp_brain_tools"),
     "project+brain pair",
 )

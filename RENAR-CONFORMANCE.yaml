@@ -13,18 +13,18 @@
 # cannot go red, and the open task carrying the fix.
 renar-version: '1.0'
 senar-version: '1.3'
-manifest-version: 13
-manifest-id: CFM-2026-09-03-tausik
+manifest-version: 14
+manifest-id: CFM-2026-09-04-tausik
 level: null
 level-target: null
 pre-adoption: false
 assessment-mode: self
-assessment-date: '2026-09-03'
+assessment-date: '2026-09-04'
 assessor:
   id: Andrey Yumashev
   role: architect
   signature-ref: null
-next-assessment-due: '2026-12-02'
+next-assessment-due: '2026-12-03'
 mandatory-clauses-confirmed:
   sot-inversion: true
   substrate-v1-v6: true
@@ -93,7 +93,7 @@ assessment-evidence:
     task_specs_count: 2
     reasoning_tasks_count: 2
     memory_edges_count: 26
-    verification_runs_count: 2006
+    verification_runs_count: 2021
   level-signals:
     substrate_v1_v6: true
     adapt_per_tz: false
@@ -121,11 +121,12 @@ assessment-evidence:
     ok: false
     citation: §13.3.3 p.73, p.80
     evidence: 'AR does not exist as an artifact class: none of 30 artifact classes
-      carries the §7.4.6 record shape (tz_ref, verdict, status); nearest: adapt_findings
-      lacks verdict, status, adapt_interpretations lacks verdict, status, adapts lacks
-      verdict — no derivation can carry a recorded verdict. The reviews table is NOT
-      counted: it lacks tz_ref, verdict, status — it records review of a task closure
-      and its code, and an AR is the verdict of a ТЗ review.'
+      carries the §7.4.6 record shape (tz_ref, verdict, produces_adapt, status); nearest:
+      adapt_findings lacks verdict, produces_adapt, status, adapt_interpretations
+      lacks verdict, produces_adapt, status, adapts lacks verdict, produces_adapt
+      — no derivation can carry a recorded verdict. The reviews table is NOT counted:
+      it lacks tz_ref, verdict, produces_adapt, status — it records review of a task
+      closure and its code, and an AR is the verdict of a ТЗ review.'
   - check: adapt-approved-when-findings
     ok: false
     citation: §13.3.3 p.77
@@ -144,7 +145,7 @@ assessment-evidence:
       — neither source.adapt nor source.tz-section nor source.adversarial-review-ref
       can be stored, which is the negative scenario stated literally.
 replaced-by: <unknown-state>
-replaces: CFM-2026-09-03-tausik@v12
+replaces: CFM-2026-09-03-tausik@v13
 conformance-declaration: non-conformant
 scope-exclusion:
   clause: §1.5.4

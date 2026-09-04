@@ -24,10 +24,10 @@ def build_hierarchy_subparsers(sub: Any) -> None:
     el.add_argument(
         "--stale-over",
         type=int,
-        default=0,
+        default=None,
         help="Show only epics whose description fell behind by more than N tasks "
-        "(tasks created since the description was last edited). Default 0: show all, "
-        "with the number.",
+        "(tasks created since the description was last edited); N=0 keeps every "
+        "epic with at least one. Without the flag every epic prints with its number.",
     )
     eu = epic_sub.add_parser(
         "update",
@@ -57,9 +57,10 @@ def build_hierarchy_subparsers(sub: Any) -> None:
     sl.add_argument(
         "--stale-over",
         type=int,
-        default=0,
-        help="Show only stories whose description fell behind by more than N tasks. "
-        "Default 0: show all, with the number.",
+        default=None,
+        help="Show only stories whose description fell behind by more than N tasks; "
+        "N=0 keeps every story with at least one. Without the flag every story "
+        "prints with its number.",
     )
     su = story_sub.add_parser(
         "update",

@@ -28,6 +28,11 @@ from typing import Any
 
 from tausik_utils import ServiceError, safe_single_line, validate_length
 
+# The event's entity_type is the PLURAL kind ("epics" / "stories") — the same
+# word `_project` and the backend dispatch on — where every other producer in
+# the tree writes the singular noun ("task", "session", "role"). Deliberate and
+# recorded here: a reader querying entity_type='epic' gets zero rows, and
+# `staleness` then silently reads every group as never edited.
 EDIT_EVENT = "description_updated"
 _NOUN = {"epics": "Epic", "stories": "Story"}
 
@@ -55,6 +60,13 @@ def update(
             f"nothing to update for {kind} '{slug}': pass --title and/or --description"
         )
     _require(svc, kind, slug)
+    # An empty string is refused, not stored: blanking the description would
+    # write the edit event and reset `stale` to 0 — the one way to "pass" the
+    # report by destroying the intent it measures (review #208, record #23).
+    # After `_require`, so an unknown slug still fails the way `done` does.
+    for field, value in (("title", title), ("description", description)):
+        if value is not None and not value.strip():
+            raise ServiceError(f"empty {field} for {kind} '{slug}': pass text or omit the flag")
     fields: dict[str, Any] = {}
     if title is not None:
         validate_length("title", title)
@@ -100,7 +112,9 @@ def staleness(svc: Any, kind: str, slug: str) -> int:
 
     Only CREATIONS count: moving a task between stories does not touch its
     `created_at`, and a title-only edit writes no event, or renaming would
-    reset the number. A number, not a verdict.
+    reset the number. A task created in the same second as the edit is NOT
+    counted (strict `>`, pinned by a test) — the edit is taken to describe
+    what existed when it was written. A number, not a verdict.
     """
     row = _require(svc, kind, slug)
     since = _last_edit_at(svc, kind, slug) or str(row["created_at"])

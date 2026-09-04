@@ -150,7 +150,11 @@ operand of the deleting cmdlet and is not seen; `-EncodedCommand <base64>` is no
 decoded; .NET calls (`[IO.File]::Delete`) are not parsed. `Remove-Item` of a
 project file is not reported as a write — exact parity with Bash, where `rm` is
 not a writer either; that gap is common to both channels and is closed
-separately rather than on one side only.
+separately rather than on one side only. A script path carrying a QUOTE
+character (`python "a'b\helper.py"`) keeps its backslashes and is left
+unresolved on POSIX — the quote rule that protects a `-c` payload from the
+separator rewrite covers it too; a token with a quote is read as source, not
+as a path (review #208, record #22).
 
 **Mixed scope (Rule 2, AC3).** As soon as ANY active task declares
 `scope_paths`, ACL enforcement switches on for ALL co-active tasks: a parallel

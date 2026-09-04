@@ -8,7 +8,7 @@
 
 В проекте живут два MCP-сервера:
 
-- `tausik-project` — project-scoped инструменты (117): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging, RENAR substrate (specs + adapts).
+- `tausik-project` — project-scoped инструменты (121): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging, RENAR substrate (specs + adapts).
 - `tausik-brain` — cross-project Shared Brain инструменты (7).
 
 Опционально доступен `codebase-rag` сервер (документирован в конце).

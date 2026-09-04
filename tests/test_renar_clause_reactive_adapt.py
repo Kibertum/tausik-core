@@ -199,11 +199,11 @@ def test_collect_state_sees_a_real_issued_ar_table(live_shape):
     conn = live_shape.be._conn
     conn.execute(
         "CREATE TABLE adversarial_reviews "
-        "(id INTEGER PRIMARY KEY, tz_ref TEXT, verdict TEXT, status TEXT)"
+        "(id INTEGER PRIMARY KEY, tz_ref TEXT, verdict TEXT, produces_adapt TEXT, status TEXT)"
     )
     conn.execute(
-        "INSERT INTO adversarial_reviews (tz_ref, verdict, status) "
-        "VALUES ('TZ-1','no-findings','issued')"
+        "INSERT INTO adversarial_reviews (tz_ref, verdict, produces_adapt, status) "
+        "VALUES ('TZ-1','no-findings','','issued')"
     )
     conn.commit()
     c = _by_name(evaluate(collect_state(conn)))["adversarial-review-issued"]
@@ -216,11 +216,11 @@ def test_collect_state_reddens_on_a_draft_only_ar_table(live_shape):
     conn = live_shape.be._conn
     conn.execute(
         "CREATE TABLE adversarial_reviews "
-        "(id INTEGER PRIMARY KEY, tz_ref TEXT, verdict TEXT, status TEXT)"
+        "(id INTEGER PRIMARY KEY, tz_ref TEXT, verdict TEXT, produces_adapt TEXT, status TEXT)"
     )
     conn.execute(
-        "INSERT INTO adversarial_reviews (tz_ref, verdict, status) "
-        "VALUES ('TZ-1','no-findings','draft')"
+        "INSERT INTO adversarial_reviews (tz_ref, verdict, produces_adapt, status) "
+        "VALUES ('TZ-1','no-findings','','draft')"
     )
     conn.commit()
     c = _by_name(evaluate(collect_state(conn)))["adversarial-review-issued"]
@@ -242,11 +242,11 @@ def test_an_ar_table_under_an_unguessed_name_is_found_by_shape(live_shape):
     conn = live_shape.be._conn
     conn.execute(
         "CREATE TABLE tz_review_verdicts "
-        "(id INTEGER PRIMARY KEY, tz_ref TEXT, verdict TEXT, status TEXT)"
+        "(id INTEGER PRIMARY KEY, tz_ref TEXT, verdict TEXT, produces_adapt TEXT, status TEXT)"
     )
     conn.execute(
-        "INSERT INTO tz_review_verdicts (tz_ref, verdict, status) "
-        "VALUES ('TZ-1','findings-present','issued')"
+        "INSERT INTO tz_review_verdicts (tz_ref, verdict, produces_adapt, status) "
+        "VALUES ('TZ-1','findings-present','ADAPT-1','issued')"
     )
     conn.commit()
     c = _by_name(evaluate(collect_state(conn)))["adversarial-review-issued"]
@@ -274,12 +274,12 @@ def test_two_ar_tables_are_both_named_and_their_issued_counts_summed(live_shape)
     conn = live_shape.be._conn
     for name, n in (("adversarial_reviews", 1), ("tz_review_verdicts", 2)):
         conn.execute(
-            f"CREATE TABLE {name} (id INTEGER PRIMARY KEY, tz_ref TEXT, verdict TEXT, status TEXT)"
+            f"CREATE TABLE {name} (id INTEGER PRIMARY KEY, tz_ref TEXT, verdict TEXT, produces_adapt TEXT, status TEXT)"
         )
         for i in range(n):
             conn.execute(
-                f"INSERT INTO {name} (tz_ref, verdict, status) "
-                f"VALUES ('TZ-{i}','no-findings','issued')"
+                f"INSERT INTO {name} (tz_ref, verdict, produces_adapt, status) "
+                f"VALUES ('TZ-{i}','no-findings','','issued')"
             )
     conn.commit()
     c = _by_name(evaluate(collect_state(conn)))["adversarial-review-issued"]
@@ -289,13 +289,41 @@ def test_two_ar_tables_are_both_named_and_their_issued_counts_summed(live_shape)
     )
 
 
-def test_the_shape_is_the_standards_mandatory_record_fields():
-    """§7.4.6 (reference/02-schemas.md §7.1): tz-ref, verdict, status.
+def test_the_shape_is_the_standards_scalar_mandatory_fields():
+    """§7.4.6 (reference/02-schemas.md §7.1): the SCALAR mandatory fields.
 
-    Transcribed from the standard in the substrate's spelling, not read back
-    from the constant that produced it (memory #474).
+    tz-ref, verdict, produces-adapt, status — transcribed from the standard in
+    the substrate's spelling, not read back from the constant that produced it
+    (memory #474). The schema's other mandatory members (reviewer, primary,
+    signature) are nested records and deliberately outside the cut; this test
+    pins the four scalars, not "every mandatory field".
     """
-    assert set(AR_SHAPE_FIELDS) == {"tz_ref", "verdict", "status"}
+    assert set(AR_SHAPE_FIELDS) == {"tz_ref", "verdict", "produces_adapt", "status"}
+
+
+def test_an_adapt_that_grows_a_verdict_is_still_not_an_ar(live_shape):
+    """The distance between ADAPT and AR must not be one column (review #208).
+
+    With a three-field shape `adapts` carried two of three, and a migration
+    giving it `verdict` plus an 'issued' status would have published "AR
+    issued in adapts". §7.4.1: the AR is the sole carrier of the verdict and
+    the ADAPT is what an AR PRODUCES — so `produces_adapt` is the field an
+    ADAPT can never carry innocently, and it is in the shape.
+    """
+    conn = live_shape.be._conn
+    conn.execute("ALTER TABLE adapts ADD COLUMN verdict TEXT")
+    conn.execute(
+        "CREATE TABLE adapts_v2 (id INTEGER PRIMARY KEY, tz_ref TEXT, verdict TEXT, status TEXT)"
+    )
+    conn.execute(
+        "INSERT INTO adapts_v2 (tz_ref, verdict, status) VALUES ('TZ-1','no-findings','issued')"
+    )
+    conn.commit()
+    c = _by_name(evaluate(collect_state(conn)))["adversarial-review-issued"]
+    assert c.ok is False
+    assert "AR does not exist as an artifact class" in c.evidence
+    assert "adapts lacks produces_adapt" in c.evidence
+    assert "adapts_v2 lacks produces_adapt" in c.evidence
 
 
 def test_collect_state_sees_a_real_provenance_column(live_shape):

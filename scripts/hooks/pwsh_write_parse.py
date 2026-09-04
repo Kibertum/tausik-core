@@ -103,15 +103,19 @@ def _redirect_targets(tokens: list[str]) -> list[str]:
 def _paths_for_host(argv: list[str]) -> list[str]:
     """The path-shaped tokens of `argv` in the HOST's separator.
 
-    PowerShell accepts `\\` as a separator on every host — pwsh on Linux reads
-    `.\\helper.py` as `./helper.py`. Python's `os.path` on POSIX does not: the
-    backslash is a character of the name, the file is not found, and the
-    resolver's fail-soft turns "unresolved" into "writes nothing". Measured on
-    the first Linux run of this lane (pipeline #6658): `python .\\helper.py`
-    passed the gate with 0 while the other four spellings refused. So the
-    dialect, which knows what a backslash means, spells the path for the host
-    before the dialect-neutral resolver joins it. On Windows `os.sep` IS the
-    backslash and this is the identity — behaviour there is unchanged.
+    In PowerShell a backslash is a path separator, on every host, for the
+    shell's OWN path handling. For an argument handed to a NATIVE command
+    (`python .\\helper.py`) pwsh on Linux forwards the token verbatim, and
+    Python then fails to open `.\\helper.py` — so the command would not have
+    run the script at all. The gate normalises anyway, and the reason is the
+    gate's stated policy, not the shell's: it OVER-detects. Measured on the
+    first Linux run of this lane (pipeline #6658): the dialect handed the token
+    to the dialect-neutral resolver as it stood, `os.path` on POSIX found no
+    such file, and fail-soft turned "unresolved" into "writes nothing" — gate
+    0 for this spelling while the other four refused. Reading the script the
+    author plainly meant, on either host, is the direction that errs toward a
+    task, and it keeps the two channels from disagreeing about one command.
+    On Windows `os.sep` IS the backslash and this is the identity.
 
     Only tokens that can be a path are touched: not the payload after `-c`
     (Python source, where `\\n` is an escape) or the name after `-m`, and

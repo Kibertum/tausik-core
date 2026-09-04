@@ -278,6 +278,43 @@ def test_scan_mcp_counts_flags_pair_drift(tmp_path: Path):
     assert any("README.md:1" in d and "project+brain pair" in d for d in drifts)
 
 
+@pytest.mark.parametrize(
+    ("line", "label"),
+    [
+        # docs/ru/architecture.md sat at "117 + 7 = 124" with `--check` green:
+        # no "(" before the pair, and the bold spans the whole phrase.
+        ("**117 project + 7 brain = 100 инструментов**", "project+brain pair"),
+        ("**93 project + 7 brain = 124 инструментов**", "main count (after =)"),
+        # The compliance-matrix headline carries no bold at all.
+        ("| MCP coverage 124 tools | ok |", "MCP coverage headline"),
+        ("| MCP coverage (124 инструмента) | ok |", "MCP coverage headline"),
+        # mcp.md's server list carries the count AFTER the noun (record #24).
+        ("- `tausik-project` — project-scoped tools (117): tasks", "project-scoped count"),
+        ("- `tausik-project` — project-scoped инструменты (117): tasks", "project-scoped count"),
+        # README prose beside the IDE table.
+        ("hosts get the same 124 tools and skills", "README prose count"),
+    ],
+)
+def test_scan_mcp_counts_sees_the_forms_review_208_found_blind(tmp_path: Path, line, label):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text(line + "\n", encoding="utf-8")
+    drifts = scan_mcp_tool_counts(repo, _FAKE_MCP_PAYLOAD)
+    assert any("README.md:1" in d and label in d for d in drifts), drifts
+
+
+def test_scan_mcp_counts_accepts_the_same_forms_when_right(tmp_path: Path):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text(
+        "**93 project + 7 brain = 100 инструментов**\n| MCP coverage 100 tools | ok |\n"
+        "| MCP coverage (100 инструментов) | ok |\nproject-scoped tools (93): tasks\n"
+        "hosts get the same 100 tools and skills\n"
+        # Unrelated prose must NOT be read as a count (the fixer rewrites matches).
+        "The recipe = 3 tools and a rope.\n",
+        encoding="utf-8",
+    )
+    assert scan_mcp_tool_counts(repo, _FAKE_MCP_PAYLOAD) == []
+
+
 def test_run_main_check_passes_with_skip_mcp_counts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

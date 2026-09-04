@@ -13,7 +13,7 @@ from typing import Any
 
 from project_config import load_config
 from project_service import ProjectService
-from renar_conformance import generate
+from renar_conformance import generate, render_yaml
 from tausik_utils import utcnow_iso
 
 # Neutral fallback when no assessor can be resolved. Surfaced verbatim in the
@@ -62,20 +62,39 @@ def resolve_assessor(explicit: str | None, cfg: dict | None = None) -> str:
     return FALLBACK_ASSESSOR
 
 
-def _existing_version(path: str) -> int:
-    """Read manifest-version from an existing manifest; 0 if absent/unreadable."""
+def _existing_manifest(path: str) -> tuple[int, str | None]:
+    """(manifest-version, manifest-id) of an existing manifest; (0, None) if absent."""
     if not os.path.isfile(path):
-        return 0
+        return 0, None
     try:
         import yaml  # lazy: PyYAML is an optional RENAR dep, not a core CLI dep
     except ModuleNotFoundError:
-        return 0
+        return 0, None
     try:
         with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
-        return int(data.get("manifest-version", 0))
+        mid = data.get("manifest-id")
+        return int(data.get("manifest-version", 0)), (str(mid) if mid else None)
     except (OSError, ValueError, yaml.YAMLError):
-        return 0
+        return 0, None
+
+
+def _existing_version(path: str) -> int:
+    """Read manifest-version from an existing manifest; 0 if absent/unreadable."""
+    return _existing_manifest(path)[0]
+
+
+def previous_link(path: str) -> str | None:
+    """`<manifest-id>@v<version>` of the manifest a regeneration supersedes.
+
+    `replaces` used to be composed from TODAY's date and the previous version
+    (`CFM-<today>-tausik@v<n-1>`), which names a manifest that exists only when
+    the predecessor was written the same day. Seven regenerations happened to
+    be, and the first cross-day one broke the §13.4.2 chain (review #208,
+    record #24). The predecessor's own id is the only honest link.
+    """
+    version, mid = _existing_manifest(path)
+    return f"{mid}@v{version}" if version and mid else None
 
 
 def cmd_renar(svc: ProjectService, args: Any) -> None:
@@ -102,6 +121,9 @@ def cmd_renar(svc: ProjectService, args: Any) -> None:
         manifest_version = _existing_version(path) + 1
 
     manifest, text = generate(svc.be._conn, assessor, date, manifest_version)
+    if write and path and (link := previous_link(path)):
+        manifest["replaces"] = link  # the predecessor's id, not today's date
+        text = render_yaml(manifest)
 
     if write and path:
         tmp = path + ".tmp"

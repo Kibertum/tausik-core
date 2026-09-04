@@ -111,6 +111,16 @@ class TestUpdate:
         HE.update(svc, "stories", "s1", description="first line\nsecond line")
         assert "\n" not in svc.be.story_get("s1")["description"]
 
+    @pytest.mark.parametrize("field", ["title", "description"])
+    def test_an_empty_string_is_refused_and_writes_nothing(self, svc, field):
+        """Blanking the description would reset `stale` — the one way to pass
+        the report by destroying what it measures (review #208, record #23)."""
+        with pytest.raises(ServiceError, match=f"empty {field}"):
+            HE.update(svc, "epics", "e1", **{field: "   "})
+        assert svc.be.epic_get("e1")[field] != "   "
+        assert svc.be.epic_get("e1")[field]
+        assert _events(svc, "epics", "e1") == []
+
 
 # --- the callers carry no logic of their own --------------------------------
 
@@ -180,7 +190,19 @@ class TestCallers:
         a = p.parse_args(["story", "update", "s1", "--description", "d"])
         assert (a.story_cmd, a.slug, a.title, a.description) == ("update", "s1", None, "d")
         assert p.parse_args(["epic", "list", "--stale-over", "3"]).stale_over == 3
-        assert p.parse_args(["story", "list"]).stale_over == 0
+        assert p.parse_args(["story", "list"]).stale_over is None
+
+    def test_stale_over_zero_is_a_filter_and_no_flag_is_none(self):
+        """An explicit `--stale-over 0` keeps rows with stale > 0; no flag keeps all
+        (review #208: `0 or 0` read the explicit zero as "no filter")."""
+        from argparse import Namespace
+
+        from project_cli import _stale_rows
+
+        rows = [{"slug": "a", "stale": 0}, {"slug": "b", "stale": 2}]
+        assert _stale_rows(rows, Namespace(stale_over=None)) == rows
+        assert _stale_rows(rows, Namespace(stale_over=0)) == [rows[1]]
+        assert _stale_rows(rows, Namespace(stale_over=2)) == []
 
 
 # --- stale descriptions: a report, deliberately not a gate -------------------
@@ -202,6 +224,19 @@ class TestStaleness:
         assert HE.staleness(svc, "epics", "e1") == 0
         svc.task_add("s1", "t2", "Task 2")
         svc.be._conn.execute("UPDATE tasks SET created_at='2999-01-01T00:00:00Z' WHERE slug='t2'")
+        assert HE.staleness(svc, "epics", "e1") == 1
+
+    def test_a_task_created_in_the_same_second_as_the_edit_is_not_counted(self, svc):
+        """The boundary, pinned: strict `>` (review #208 found `>=` survived)."""
+        _backdate(svc)
+        svc.task_add("s1", "t1", "Task 1")
+        HE.update(svc, "epics", "e1", description="rewritten")
+        at = svc.be._q1(
+            "SELECT created_at AS at FROM events WHERE entity_type='epics' AND entity_id='e1'"
+        )["at"]
+        svc.be._conn.execute("UPDATE tasks SET created_at=? WHERE slug='t1'", (at,))
+        assert HE.staleness(svc, "epics", "e1") == 0
+        svc.be._conn.execute("UPDATE tasks SET created_at='2999-01-01T00:00:00Z' WHERE slug='t1'")
         assert HE.staleness(svc, "epics", "e1") == 1
 
     def test_a_title_edit_does_not_reset_the_count(self, svc):
