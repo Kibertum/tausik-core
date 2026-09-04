@@ -9,6 +9,54 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a refused supersession left an orphan that blocked its own repair
+
+The rationale guard added for ADR-007 p.108 lives in `adapt_set_status`, the
+lowest primitive that writes the column, so it necessarily refuses AFTER
+`adapt_delta` has written the delta header. The two writes auto-committed
+separately, which made the refusal a HALF-WRITE rather than a cancellation.
+
+What the refusal actually left behind: the parent stayed live — correct, and
+the only half the tests asserted — while the child survived as an orphan with
+`delta_n > 0` and `status='draft'`. Because `adapt_create` refuses a slug that
+already exists, retrying the SAME slug with a proper rationale then failed
+FOREVER; the caller's only recovery was to abandon the intended slug and leave
+the garbage row in place. A guard that cannot be satisfied on the second
+attempt is not a guard, it is a trap.
+
+It also lied in the conformance manifest. `renar_conformance.gather_signals`
+counts a current change-set as `delta_n > 0 AND status != 'superseded'`, which
+the orphan satisfied — so a REFUSED supersession inflated `delta_adapts_count`
+and presented itself as a live delta of a parent nobody had superseded. The
+cost was not confined to the caller's convenience.
+
+Both writes now share one transaction, and BOTH failure paths unwind it: the
+guard's own `ValueError`, and anything else raised between the two writes. The
+second path matters more than it looks — without a rollback there, the
+connection would stay inside an OPEN transaction and every later write in the
+process would silently ride along in it.
+
+The transaction is taken only if this call OPENS it. `begin_tx` no-ops inside
+an existing transaction but `commit_tx` and `rollback_tx` do not, so unwinding
+unconditionally would have replaced the orphan with something worse: a nested
+refusal rolling back the CALLER's rows and handing back a closed transaction it
+still believed it owned, silently. Measured on an outer `begin_tx` + `epic_add`,
+which lost its epic exactly that way before the ownership check went in; the
+`owns_tx` shape is borrowed from `service_task._write_update_atomically`, where
+this hazard was already named. The consequence is stated rather than glossed:
+the no-orphan guarantee holds when this call owns the transaction, and is
+delegated to the caller's rollback when it does not — undoing only our own part
+would need a SAVEPOINT the backend does not offer.
+
+The rule did not move. Fixing this by validating the rationale early in the
+service would have put a second copy of it above the primitive that owns it —
+the duplication the original change deliberately avoided.
+
+FOUND BY THE PLANNED L3, and the review is the reason this entry exists: the
+closure it examined reported 17 of 18 mutations with 30 new tests, and none of
+them asked about the child. Asserting only the half a guard was written for is
+how a half-write stays invisible.
+
 ### Fixed — a migration docstring explained the step with an effect that does not exist
 
 `backend_migrations_v49` stated that without dropping the FTS triggers first,

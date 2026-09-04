@@ -99,9 +99,7 @@ class AdaptsMixin:
         if parent_adapt and not self.be.adapt_get(parent_adapt):
             raise ServiceError(f"Parent ADAPT '{parent_adapt}' not found.")
         try:
-            self.be.adapt_add(
-                slug, title, tz_ref, "draft", parent_adapt, delta_n, trigger_stage
-            )
+            self.be.adapt_add(slug, title, tz_ref, "draft", parent_adapt, delta_n, trigger_stage)
         except sqlite3.IntegrityError as e:
             raise ServiceError(f"Could not create ADAPT '{slug}': {e}") from e
         return f"ADAPT '{slug}' created (tz_ref={tz_ref}, status=draft)."
@@ -285,25 +283,73 @@ class AdaptsMixin:
         only path into 'superseded'. Declared keyword-optional in the signature
         so the refusal is a ServiceError naming the standard rather than a
         TypeError naming Python; the backend enforces it regardless.
+
+        A REFUSAL IS A NON-EVENT — with one condition, stated because the
+        unconditional version would be a promise this cannot keep. Both writes
+        share a transaction, so when this call OWNS that transaction a refusal
+        leaves neither the supersession nor the delta header behind. When the
+        caller already had one open, ownership stays with the caller: the
+        header is written into THEIR transaction and only their rollback
+        removes it. Undoing just our own part would take a SAVEPOINT, which
+        this backend does not offer.
         """
         parent = self.be.adapt_get(parent_slug)
         if not parent:
             raise ServiceError(f"Parent ADAPT '{parent_slug}' not found")
         if self.be.adapt_get(new_slug):
             raise ServiceError(f"ADAPT '{new_slug}' already exists.")
+        # BOTH WRITES IN ONE TRANSACTION, and that is the whole point. The
+        # rationale guard lives in `adapt_set_status`, the lowest primitive
+        # that writes the column, so it necessarily refuses AFTER the delta
+        # header has been written. While the two steps auto-committed
+        # separately, that refusal was a HALF-WRITE: the parent stayed live
+        # (correct, and the only half the tests asserted) while the child
+        # survived as an orphan carrying delta_n>0 and status='draft'. It then
+        # blocked its own repair, because `adapt_create` refuses a slug that
+        # exists -- so retrying the SAME slug with a proper rationale failed
+        # forever. It also counted as a live change-set in the RENAR manifest,
+        # whose `delta_adapts_count` selects `delta_n > 0 AND status !=
+        # 'superseded'`. A refusal has to be a NON-EVENT, not a partial write.
+        #
         # `or 0` guards a NULL delta_n (defensive — column is NOT NULL DEFAULT 0,
         # but a hand-edited / pre-migration row must not crash with a TypeError).
-        msg = self.adapt_create(
-            new_slug, title, tz_ref, parent_adapt=parent_slug, delta_n=(parent["delta_n"] or 0) + 1
-        )
+        # OWNERSHIP FIRST, the way `service_task._write_update_atomically` does
+        # it. `begin_tx` no-ops inside an open transaction, but `commit_tx` and
+        # `rollback_tx` do NOT: they call the connection's commit/rollback
+        # unconditionally and clear `_in_tx`. Rolling back a transaction we did
+        # not open would silently discard the CALLER's already-written rows and
+        # hand back a closed transaction it still believes it owns -- measured,
+        # not feared: an outer `begin_tx` + `epic_add` lost its epic to a
+        # refused delta nested inside it, with no exception to say so.
+        owns_tx = not self.be._in_tx
+        if owns_tx:
+            self.be.begin_tx()
         try:
-            self.be.adapt_set_status(
-                parent_slug, "superseded", supersession_rationale
+            msg = self.adapt_create(
+                new_slug,
+                title,
+                tz_ref,
+                parent_adapt=parent_slug,
+                delta_n=(parent["delta_n"] or 0) + 1,
             )
+            self.be.adapt_set_status(parent_slug, "superseded", supersession_rationale)
         except ValueError as e:
-            # The delta header is already created; leaving the parent live is the
-            # honest outcome — a supersession without a reason must not be recorded.
+            # The guard spoke. Undo the header with it: a supersession without
+            # a reason must not be recorded, and neither must its delta. When
+            # the transaction is the caller's, the raise is the whole job --
+            # unwinding is theirs to do.
+            if owns_tx:
+                self.be.rollback_tx()
             raise ServiceError(str(e)) from e
+        except Exception:
+            # Anything else -- a ServiceError from `adapt_create`, an
+            # IntegrityError, an interrupt between the two writes -- must not
+            # leave half a delta either.
+            if owns_tx:
+                self.be.rollback_tx()
+            raise
+        if owns_tx:
+            self.be.commit_tx()
         return f"{msg} Parent ADAPT '{parent_slug}' superseded (§7.6)."
 
     # --- links (adapt ↔ task/spec) ---

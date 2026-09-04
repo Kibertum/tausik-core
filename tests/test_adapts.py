@@ -554,13 +554,21 @@ def test_supersede_without_a_reason_is_refused(svc):
     while being unable to cite the requirement it contradicts (ADR-007 p.108).
     That record is syntactically valid and substantively empty — the degenerate
     control ADR-021 names, expressed in the data schema.
+
+    BOTH halves of the state are asserted, because asserting only the half the
+    guard was written for is how the orphan below went unseen: this test used
+    to check the parent alone and passed while `adapt_delta` left a committed
+    child behind (external review L3, DB record #30).
     """
     svc.adapt_create("a1", "T", "TZ-1")
     with pytest.raises(ServiceError, match="supersession_rationale"):
         svc.adapt_delta("a1", "a1-d1", "T delta", "TZ-1-delta-1")
-    # AND THE PARENT IS STILL LIVE. A refusal that had already flipped the parent
-    # would leave the very state it refused to create.
+    # The parent is still live: a refusal that had already flipped it would
+    # leave the very state it refused to create.
     assert svc.be.adapt_get("a1")["status"] == "draft"
+    # And the child was never written: a refusal is a NON-EVENT, not a partial
+    # write. Both writes share one transaction precisely so this holds.
+    assert svc.be.adapt_get("a1-d1") is None
 
 
 def test_supersede_with_blank_reason_is_refused(svc):
@@ -568,6 +576,118 @@ def test_supersede_with_blank_reason_is_refused(svc):
     svc.adapt_create("a1", "T", "TZ-1")
     with pytest.raises(ServiceError, match="supersession_rationale"):
         svc.adapt_delta("a1", "a1-d1", "T delta", "TZ-1-delta-1", "   ")
+    assert svc.be.adapt_get("a1")["status"] == "draft"
+    assert svc.be.adapt_get("a1-d1") is None
+
+
+def test_a_refused_supersession_does_not_block_its_own_retry(svc):
+    """NEGATIVE, and the expensive half: the refusal must not poison the slug.
+
+    `adapt_create` refuses a slug that already exists. So while the refused
+    delta's header stayed committed, retrying the SAME slug with a proper
+    rationale failed forever with "already exists" — the caller's only recovery
+    was to abandon the intended slug and leave a garbage row behind. A guard
+    that cannot be satisfied on the second attempt is not a guard, it is a
+    trap.
+    """
+    svc.adapt_create("a1", "T", "TZ-1")
+    with pytest.raises(ServiceError, match="supersession_rationale"):
+        svc.adapt_delta("a1", "a1-d1", "T delta", "TZ-1-delta-1")
+
+    svc.adapt_delta("a1", "a1-d1", "T delta", "TZ-1-delta-1", "TZ§4 contradicts §2")
+
+    assert svc.be.adapt_get("a1")["status"] == "superseded"
+    child = svc.be.adapt_get("a1-d1")
+    assert child is not None
+    assert child["parent_adapt"] == "a1"
+    assert child["delta_n"] == 1
+
+
+def test_a_refused_supersession_leaves_the_manifest_count_untouched(svc):
+    """The orphan was not merely untidy — it lied in the conformance manifest.
+
+    `renar_conformance.gather_signals` counts a current change-set as
+    `delta_n > 0 AND status != 'superseded'`. The refused delta's header
+    satisfied both, so a REFUSED supersession inflated `delta_adapts_count` and
+    presented itself as a live delta of a parent nobody had superseded.
+
+    Asked through the real `gather_signals` rather than a copy of its
+    predicate: a test that restates the rule it checks stops tracking the rule
+    the moment the rule moves.
+    """
+    from renar_conformance import gather_signals
+
+    before = gather_signals(svc.be._conn)["raw"]["delta_adapts_count"]
+    svc.adapt_create("a1", "T", "TZ-1")
+    with pytest.raises(ServiceError, match="supersession_rationale"):
+        svc.adapt_delta("a1", "a1-d1", "T delta", "TZ-1-delta-1")
+    after = gather_signals(svc.be._conn)["raw"]["delta_adapts_count"]
+    assert after == before, "a refused supersession must add no live delta to the manifest"
+
+
+def test_a_delta_refused_inside_the_transaction_leaves_it_closed(svc):
+    """NEGATIVE: the non-rationale failure path must also unwind, and fully.
+
+    An invalid slug is rejected by `adapt_create` AFTER the transaction opens,
+    so it exercises the branch the rationale guard does not. Leaving that path
+    without a rollback would be worse than the orphan it fixes: the connection
+    would stay inside an open transaction, and every later write in the process
+    would ride along in it, committing or vanishing as a group by accident.
+
+    The open-transaction flag is asserted directly, because the damage is
+    invisible in the rows: a later successful `adapt_create` looks perfectly
+    normal right up until something rolls back.
+    """
+    svc.adapt_create("a1", "T", "TZ-1")
+    with pytest.raises(ServiceError):
+        svc.adapt_delta("a1", "not a valid slug!", "T delta", "TZ-1-delta-1", "a real reason")
+
+    assert svc.be._in_tx is False, "a refusal must not leave the transaction open"
+    assert svc.be.adapt_get("a1")["status"] == "draft"
+    # The connection is still usable, which is the point of asserting the flag.
+    svc.adapt_create("a2", "T2", "TZ-2")
+    assert svc.be.adapt_get("a2") is not None
+
+
+def test_a_refusal_does_not_unwind_a_transaction_it_does_not_own(svc):
+    """NEGATIVE: the fix for the orphan must not become a worse trap.
+
+    `begin_tx` no-ops inside an open transaction, but `commit_tx` and
+    `rollback_tx` do not — they commit or roll back the connection outright.
+    So a delta nested inside someone else's transaction, refused by the
+    rationale guard, would roll back THEIR rows and hand them a closed
+    transaction they still believed they owned. No exception would say so: the
+    caller sees only the ServiceError it expected, and its own `rollback_tx`
+    in the handler becomes a second, meaningless rollback.
+
+    Measured before the guard was added: an outer `begin_tx` + `epic_add` lost
+    its epic to exactly this. `owns_tx` is why it no longer does.
+    """
+    svc.adapt_create("a1", "T", "TZ-1")
+
+    svc.be.begin_tx()
+    svc.be.epic_add("outer-epic", "Outer epic", None)
+    with pytest.raises(ServiceError, match="supersession_rationale"):
+        svc.adapt_delta("a1", "a1-d1", "T delta", "TZ-1-delta-1")
+
+    # The caller still owns its transaction, and still owns its rows.
+    assert svc.be._in_tx is True, "a nested refusal must not close the caller's transaction"
+    assert svc.be.epic_get("outer-epic") is not None, "the caller's write must survive"
+
+    # AND THE GUARANTEE IS DELEGATED, NOT KEPT. Stated plainly because it is
+    # the honest half of `owns_tx`: the delta header IS written, and inside the
+    # caller's open transaction it is visible on this connection. `adapt_delta`
+    # cannot undo it without rolling back rows that are not its own, so the
+    # duty passes to whoever opened the transaction. Undoing only our own part
+    # would need a SAVEPOINT, which this backend does not have (filed as
+    # transaction-owners-mostly-do-not-check-ownership).
+    assert svc.be.adapt_get("a1-d1") is not None
+
+    # The caller CAN discharge that duty, and this is the assertion that proves
+    # delegation is a real contract rather than a hole with a name.
+    svc.be.rollback_tx()
+    assert svc.be.adapt_get("a1-d1") is None, "the caller's rollback removes the delta too"
+    assert svc.be.epic_get("outer-epic") is None
     assert svc.be.adapt_get("a1")["status"] == "draft"
 
 
