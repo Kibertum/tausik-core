@@ -52,12 +52,6 @@ BASELINE = frozenset(
         # AC1 is exactly this handler's field list. Collapsing it here would
         # take that task's subject, not finish it.
         "tausik_task_show",
-        # The MCP tool answers with ONE summary line where the CLI prints the
-        # whole SENAR report. Collapsing means the agent starts receiving the
-        # report — a deliberate output change reaching through
-        # project_cli_metrics and risk_metrics. Filed as its own task rather
-        # than half-done here.
-        "tausik_metrics",
         # Not a rendering to extract: the CLI branch declares relevant_files,
         # handles the cache hit, emits the receipt and the handle, and exits
         # with a status code, while the handler returns a blob. Collapsing is a
@@ -169,6 +163,64 @@ class TestBothSurfacesSayTheSameThing:
             "tags are back on the MCP surface — they were dropped by the copy"
         )
         assert "Created:" in mcp
+
+    @staticmethod
+    def _pin_machine_tails(monkeypatch):
+        """Silence the two report tails that read the MACHINE, not the service.
+
+        `risk_summary` and the routing-adherence rollup read the live `.tausik`
+        directory, so their answer can change BETWEEN the two calls this test
+        makes — under a parallel full run it did, and the comparison failed on
+        data neither surface produced. They come from one shared builder either
+        way; what is under test is everything the service yields.
+        """
+        import render_metrics
+
+        monkeypatch.setattr(render_metrics, "_risk_lines", lambda svc: [])
+        monkeypatch.setattr(render_metrics, "_routing_lines", lambda: [])
+
+    def test_metrics_is_the_whole_report_on_both(self, tmp_path, capsys, monkeypatch):
+        """The MCP tool used to answer with one summary line."""
+        from handlers import handle_tool
+        from project_cli_metrics import cmd_metrics
+
+        self._pin_machine_tails(monkeypatch)
+        svc = self._svc(tmp_path)
+        svc.epic_add("e", "E")
+        svc.story_add("e", "s", "S")
+        svc.task_add("s", "t", "T", complexity="simple", role="developer")
+
+        mcp = handle_tool(svc, "tausik_metrics", {})
+        cmd_metrics(svc, _Args(metrics_cmd=None))
+        cli = capsys.readouterr().out.rstrip("\n")
+
+        assert cli == mcp
+        for section in ("Throughput:", "FPSR:", "DER:", "Knowledge CR:"):
+            assert section in mcp, f"{section} missing from the MCP report"
+        # A tail from `extended_metrics_lines`, asserted BY CONTENT. Comparing
+        # the two surfaces cannot see a section dropped from the shared builder
+        # — it disappears from both at once and they stay equal. A mutation that
+        # removed the whole extended tail survived until this line existed.
+        assert "--- Defect Escape (l26) ---" in mcp
+
+    def test_metrics_on_an_empty_project_answers_rather_than_raising(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Negative: nothing measured yet is not the same as measured zero.
+
+        A lead time of `0h` on a project with no closed task would be a claim
+        about a measurement nobody took.
+        """
+        from handlers import handle_tool
+        from project_cli_metrics import cmd_metrics
+
+        self._pin_machine_tails(monkeypatch)
+        svc = self._svc(tmp_path)
+        mcp = handle_tool(svc, "tausik_metrics", {})
+        cmd_metrics(svc, _Args(metrics_cmd=None))
+        assert capsys.readouterr().out.rstrip("\n") == mcp
+        assert "Lead Time:     n/a" in mcp
+        assert "Cycle Time:    n/a" in mcp
 
     def test_team_is_identical_on_both(self, tmp_path, capsys):
         from handlers import handle_tool

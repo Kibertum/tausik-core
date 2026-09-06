@@ -9,6 +9,21 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — `tausik_metrics` returns the whole SENAR report, not a one-line summary
+
+The MCP tool answered with tasks-done, average time and session count. The CLI
+printed throughput, lead time, FPSR, DER, cycle time, knowledge capture rate,
+dead-end rate, cost per complexity, the risk section and the supervision tails.
+CLAUDE.md tells agents to prefer MCP, so the primary reader of these numbers was
+seeing the smallest part of them — not a decision to summarise, just a second
+implementation written early and never grown.
+
+`scripts/render_metrics.py` now builds the report as lines and both surfaces
+call it; the conversion is literal, so the CLI's output is byte-identical to
+before. Unmeasured quantities stay `n/a` rather than becoming `0` — a zero would
+claim a measurement nobody took — and the two report tails that read the machine
+rather than the service degrade to silence instead of killing the command.
+
 ### Fixed — the roadmap moves with the release, not with the minute
 
 `ROADMAP.md` printed a per-status breakdown of the remaining work, so `active 1`

@@ -74,12 +74,11 @@ def _handle_status(svc: Any, args: dict | None = None) -> str:
 
 
 def _handle_metrics(svc: Any) -> str:
-    m = svc.get_metrics()
-    parts = [f"Tasks: {m['tasks_done']}/{m['tasks_total']} ({m['completion_pct']}%)"]
-    if m["avg_task_hours"]:
-        parts.append(f"Avg time: {m['avg_task_hours']}h")
-    parts.append(f"Sessions: {m['sessions_total']} ({m['session_hours']}h)")
-    return ", ".join(parts)
+    """Transport. The copy this replaces answered with ONE summary line while the
+    CLI printed the whole SENAR report — and MCP is the surface agents prefer."""
+    from render_metrics import metrics_lines
+
+    return "\n".join(metrics_lines(svc))
 
 
 def _handle_search(svc: Any, args: dict) -> str:
