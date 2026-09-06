@@ -16,6 +16,7 @@ import os
 import shlex
 
 from bash_cmd_norm import _MAX_WRAPPER_DEPTH, _interpreter_payloads
+from shell_statements import strip_heredoc_bodies
 
 # Programs that EXECUTE their arguments rather than consuming them as data.
 # For these, a dangerous phrase inside quotes is still a command and must stay
@@ -112,6 +113,25 @@ def _mentions_interpreter(tokens: list[str]) -> bool:
     return False
 
 
+def _header_runs_its_body(header: str) -> bool:
+    """True when the heredoc opened on `header` feeds something that EXECUTES it.
+
+    `bash <<EOF` runs its body; `cat > f <<EOF` files it. The question is the
+    one `_mentions_interpreter` already answers, asked about the header line
+    alone — a second list of interpreters here would drift from that one, and
+    the drift would be silent in the unsafe direction.
+
+    A header that will not tokenize is treated as executing: the body then
+    stays and is scanned, which is the over-scanning side of the trade.
+    """
+    try:
+        lexer = shlex.shlex(header, posix=True, punctuation_chars=True)
+        lexer.whitespace_split = True
+        return _mentions_interpreter(list(lexer))
+    except ValueError:
+        return True
+
+
 def scan_target(command: str, depth: int = 0) -> str:
     """The part of `command` that can actually execute.
 
@@ -158,6 +178,24 @@ def scan_target(command: str, depth: int = 0) -> str:
     hidden behind a surviving quote is not descended into. `-EncodedCommand`
     (base64) is likewise a residual — it is not decoded here.
     """
+    # A HEREDOC BODY IS DATA, UNLESS SOMETHING EXECUTES IT. The body arrives in
+    # the same string as the command and tokenizes like live shell, so prose
+    # NAMING a destructive command read as one: writing a docstring that
+    # explains why a migration rebuilds a table was refused as a table drop.
+    # Measured four times in ordinary work, the third and fourth of them while
+    # writing the acceptance criteria and the fix for this very defect — the
+    # text had to quote the command it is about.
+    #
+    # `keep_body` is why this is not a hole: `bash <<EOF … EOF` really does run
+    # what it is handed, so a body whose header names an interpreter STAYS and
+    # is scanned. Measured both ways before and after (`bash`/`sh` heredocs
+    # carrying a recursive delete and a table drop are still refused).
+    #
+    # Depth 0 only: nested calls receive an interpreter payload that was already
+    # stripped on the way in, and re-walking it would be work with no answer to
+    # change.
+    if depth == 0 and "<<" in command:
+        command = strip_heredoc_bodies(command, keep_body=_header_runs_its_body)
     try:
         lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
         lexer.whitespace_split = True
@@ -202,6 +240,7 @@ def _has_chdir_flag(args: list[str]) -> bool:
         if a.startswith("--chdir="):
             return True
     return False
+
 
 #: Command words that move the shell somewhere else before the next one runs.
 #: `env` only counts with `-C`, which is why it is not a bare membership test.

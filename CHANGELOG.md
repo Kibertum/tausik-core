@@ -9,6 +9,35 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the firewall read a heredoc body as a command, so prose could not name a destructive one
+
+A heredoc body is data on its way to a file, but it arrives in the same string
+as the command and tokenizes like live shell. `bash_firewall` therefore read
+prose NAMING a table drop as a table drop: a docstring explaining why a
+migration rebuilds a table could not be written through a heredoc at all. The
+same text as a quoted argument passed fine — the rule already told data from
+command inside an argument, and only inside an argument.
+
+Measured four times in ordinary work. Twice of those while writing this fix:
+the acceptance criteria were refused because they quote the command they are
+about, and so was the commit that carries the tests. A gate that blocks the
+description of its own defect, and that costs one call to bypass by switching
+to the Write tool, teaches bypassing rather than compliance.
+
+Heredoc bodies are now dropped before the destructive-command scan — but only
+when the header does not name an interpreter. That condition is the whole
+safety story and was measured on both sides: `bash <<EOF … EOF` really does
+execute its body, so those stay in scope and are still refused, while
+`cat > f <<EOF` files its body and is not. Removing that condition is a
+mutation the suite catches.
+
+The walk itself moved to `shell_statements.strip_heredoc_bodies`, shared with
+`bash_write_parse`, which had solved the same class for its own rule (a `->` in
+prose manufacturing a phantom redirect target) and kept the solution private.
+Two gates reading one string had learned the same lesson separately; now they
+read it once, and the write gate passes no predicate because a body never holds
+a redirect target.
+
 ### Fixed — the write gates asked "is this file ours?" twice and answered differently
 
 `task_gate` (Write/Edit) and `scope_write_gate` (also reused by

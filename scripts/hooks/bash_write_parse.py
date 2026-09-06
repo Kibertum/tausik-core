@@ -47,7 +47,7 @@ from shell_redirection import split_redirections, strip_fd_prefixes  # noqa: E40
 # relative operand a future gate reads. See `shell_roots` for the three
 # successive wrong answers that produced it.
 from shell_roots import resolution_roots  # noqa: E402
-from shell_statements import split_statement_breaks  # noqa: E402
+from shell_statements import split_statement_breaks, strip_heredoc_bodies  # noqa: E402
 
 _PROC_SUB = ("<(", ">(")
 
@@ -64,9 +64,6 @@ from python_source_writes import writes_in_script_file as _script_file_writes  #
 from python_source_writes import writes_in_text as _text_writes  # noqa: E402
 
 
-# Opening marker of a heredoc. Group 1 = the `-` of `<<-` (tab-stripping form)
-# or empty for a plain `<<`; group 3 = the delimiter word.
-_HEREDOC_RE = re.compile(r"<<(-?)\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\2")
 
 # A token still carrying '$' or a backtick after posix tokenization is an
 # unexpanded variable or command substitution — genuinely unresolvable, the
@@ -89,33 +86,16 @@ def _strip_heredocs(command: str) -> str:
     Without this, the whole raw command — including the heredoc body — is
     tokenized as live shell, so a bare `>` or `->` in prose/code inside the body
     manufactures a phantom redirect target (`def f() -> int:` -> target `int:`),
-    which then blocks an otherwise-compliant write. The header line (`cat > f
-    <<EOF`) is preserved so the real target `f` is still detected; everything
-    from the next line up to and including the terminator is dropped.
+    which then blocks an otherwise-compliant write.
+
+    The walk itself lives in `shell_statements.strip_heredoc_bodies`, shared
+    with the destructive-command firewall, which had the SAME defect against a
+    different rule (prose naming a table drop, read as a table drop). This gate
+    drops EVERY body unconditionally, which is right here and only here: it is
+    looking for redirect targets, and a body never holds one. The firewall must
+    keep the bodies an interpreter would execute, so it passes a predicate.
     """
-    lines = command.split("\n")
-    out: list[str] = []
-    i = 0
-    while i < len(lines):
-        line = lines[i]
-        out.append(line)
-        i += 1
-        # A header line may open MORE THAN ONE heredoc (`cmd <<A <<B`); bash
-        # consumes their bodies in order. finditer (not search) handles each, or
-        # the second body leaks back into the scanned shell text.
-        for m in _HEREDOC_RE.finditer(line):
-            dash, delim = m.group(1), m.group(3)
-            # bash: a plain `<<DELIM` needs an EXACT terminator line; `<<-DELIM`
-            # strips only leading TABS. Using .strip() for the plain form let an
-            # indented pseudo-delimiter inside the body end the scan early and
-            # re-expose the rest of the body as live shell (phantom targets).
-            while i < len(lines):
-                base = lines[i].rstrip("\r")
-                if (base.lstrip("\t") == delim) if dash else (base == delim):
-                    break
-                i += 1
-            i += 1  # skip the terminator line itself (or past EOF if unterminated)
-    return "\n".join(out)
+    return strip_heredoc_bodies(command)
 
 
 def _opt_value(args: list[str], short: str | None, long: str | None) -> str | None:

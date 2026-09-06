@@ -97,6 +97,51 @@ class TestBashFirewall:
                 id="sqlite3_double_quoted_sql_blocked",
             ),
             pytest.param('echo "rm -rf /"', 0, id="echo_quoted_rm_rf_allowed"),
+            # firewall-reads-heredoc-body-as-a-command. A heredoc BODY is data
+            # on its way to a file, but it arrives in the same string as the
+            # command and tokenizes like live shell, so prose NAMING a
+            # destructive command read as one. Measured four times in ordinary
+            # work -- twice while writing the criteria and the fix themselves,
+            # because both had to quote the command they are about.
+            #
+            # The pairs below are the whole rule: a body is inert when nothing
+            # executes it, and still scanned when something does.
+            pytest.param(
+                "cat > /tmp/doc.md <<"
+                + "'EOF'"
+                + chr(10)
+                + "prose naming "
+                + "DROP"
+                + " TABLE specs"
+                + chr(10)
+                + "EOF",
+                0,
+                id="heredoc_body_naming_a_drop_is_data",
+            ),
+            pytest.param(
+                "cat > /tmp/doc.md <<" + "'EOF'" + chr(10) + "rm -rf /" + chr(10) + "EOF",
+                0,
+                id="heredoc_body_naming_a_delete_is_data",
+            ),
+            pytest.param(
+                "bash <<" + "'EOF'" + chr(10) + "rm -rf /" + chr(10) + "EOF",
+                2,
+                id="heredoc_body_an_interpreter_runs_is_still_scanned",
+            ),
+            pytest.param(
+                "sh <<"
+                + "'EOF'"
+                + chr(10)
+                + "sqlite3 x.db "
+                + chr(34)
+                + "DROP"
+                + " TABLE specs"
+                + chr(34)
+                + chr(10)
+                + "EOF",
+                2,
+                id="heredoc_body_fed_to_sh_is_still_scanned",
+            ),
             pytest.param('bash -c "rm -rf /"', 2, id="bash_c_quoted_rm_rf_blocked"),
             pytest.param(
                 'git commit -m "do not git push --force here"',

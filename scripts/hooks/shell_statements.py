@@ -43,6 +43,9 @@ is what makes a plain quote-aware scan sufficient rather than a shell parser.
 
 from __future__ import annotations
 
+import re
+from collections.abc import Callable
+
 #: What an honest boundary is replaced WITH. `;` is already in `_SEPARATORS` and
 #: already exercised by every test that uses it, so recovering a newline into a
 #: semicolon reuses a splitter that works instead of adding a second one that
@@ -118,3 +121,71 @@ def split_statement_breaks(text: str) -> str:
         i += 1
 
     return "".join(out)
+
+
+# ---------------------------------------------------------------------------
+# Heredoc bodies
+# ---------------------------------------------------------------------------
+
+# Opening marker of a heredoc. Group 1 = the `-` of `<<-` (tab-stripping form)
+# or empty for a plain `<<`; group 3 = the delimiter word.
+_HEREDOC_RE = re.compile(r"""<<(-?)\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\2""")
+
+
+def strip_heredoc_bodies(
+    command: str,
+    keep_body: Callable[[str], bool] | None = None,
+) -> str:
+    """Remove heredoc BODIES, keeping the header line that holds the redirect.
+
+    A heredoc body is DATA on its way to a file or a program's stdin, but it
+    arrives in the same string as the command and tokenizes like live shell.
+    Every consumer that reads that string has to answer for the difference, and
+    two of them learned it separately:
+
+      * the write gate manufactured a phantom redirect target from a `->` in
+        prose (`def f() -> int:` -> target `int:`), blocking a compliant write;
+      * the destructive-command firewall read prose NAMING a table drop as a
+        table drop, so a docstring explaining why a migration rebuilds a table
+        could not be written through a heredoc at all -- measured three times,
+        the third while writing the acceptance criteria for the fix.
+
+    The header line (`cat > f <<EOF`) is preserved so the real target and the
+    real command are still seen; everything from the next line up to and
+    including the terminator is dropped.
+
+    `keep_body` DECIDES PER HEREDOC, and it is the whole safety story. It
+    receives the header line and returns True to leave that body in place. The
+    firewall passes a predicate that keeps the body whenever the header names
+    an interpreter, because `bash <<EOF ... EOF` really does execute what it is
+    handed -- dropping that body would turn a false positive into a hole. The
+    write gate passes nothing: it only wants redirect targets, and a body never
+    holds one.
+    """
+    lines = command.split("\n")
+    out: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        out.append(line)
+        i += 1
+        # A header line may open MORE THAN ONE heredoc (`cmd <<A <<B`); bash
+        # consumes their bodies in order. finditer (not search) handles each, or
+        # the second body leaks back into the scanned shell text.
+        for m in _HEREDOC_RE.finditer(line):
+            dash, delim = m.group(1), m.group(3)
+            body: list[str] = []
+            # bash: a plain `<<DELIM` needs an EXACT terminator line; `<<-DELIM`
+            # strips only leading TABS. Using .strip() for the plain form let an
+            # indented pseudo-delimiter inside the body end the scan early and
+            # re-expose the rest of the body as live shell (phantom targets).
+            while i < len(lines):
+                base = lines[i].rstrip("\r")
+                if (base.lstrip("	") == delim) if dash else (base == delim):
+                    break
+                body.append(lines[i])
+                i += 1
+            i += 1  # skip the terminator line itself (or past EOF if unterminated)
+            if keep_body is not None and keep_body(line):
+                out.extend(body)
+    return "\n".join(out)
