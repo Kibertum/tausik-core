@@ -384,6 +384,12 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     # две колонки ADR-007 (trigger_stage, supersession_rationale). Список пуст
     # намеренно — перестройка adapts живёт охраняемым пост-шагом (см. v50-модуль).
     50: MIGRATION_V50,
+    # v51: каждая строка gate_runs несёт ОБЪЯВЛЕННЫЙ ЭФФЕКТ гейта
+    # (SENAR 1.4 §8.6(a) и §8.6(g)). Старые строки остаются с NULL —
+    # это честное «записано до появления различения», а не догадка.
+    51: [
+        "ALTER TABLE gate_runs ADD COLUMN prevents TEXT",
+    ],
 }
 
 

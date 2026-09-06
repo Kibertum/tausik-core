@@ -122,9 +122,18 @@ class TestSchemaPaths:
         from backend_migrations_v39 import MIGRATION_V39
         from backend_migrations_v47 import MIGRATION_V47
 
+        from backend_migrations import MIGRATIONS
+
         for stmt in MIGRATION_V39:
             migrated.execute(stmt)
         for stmt in MIGRATION_V47:
+            migrated.execute(stmt)
+        # v51 added `prevents` (SENAR 1.4 §8.6(g): the record must say what the
+        # verdict held back). Replayed from the registered migration rather than
+        # retyped — the point of this test is that the chain's END matches the
+        # fresh path, and a hand-copied statement could drift from the one that
+        # actually runs.
+        for stmt in MIGRATIONS[51]:
             migrated.execute(stmt)
 
         # The outcome index is stated after migrations on BOTH paths

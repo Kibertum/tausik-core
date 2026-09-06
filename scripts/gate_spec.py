@@ -42,6 +42,15 @@ class GateSpec:
     phase: str
     default_config: dict[str, Any]
     impl: str
+    # SENAR 1.4 §8.6(a), SHALL on every configuration including Core: WHICH
+    # CHANGE DOES NOT HAPPEN while the verdict is negative. `description` does
+    # not answer that — "Lint with ruff before commit" describes the MECHANISM,
+    # and a claim of conformance to section 8 is invalid under §13.4 without
+    # the effect. The standard names the stock phrases it refuses ("ensures
+    # quality"): no proposed action can be checked against them, so they say
+    # nothing. Empty by default only so the dataclass stays constructible in a
+    # test; the registry guard requires every real gate to fill it.
+    prevents: str = ""
     # A fileless close (`task done --no-file-changes`) has no scope to gate.
     # Verify-First still runs — it is what *proves* the scope is empty — but
     # the changelog gate cannot apply: a task that touched no files carries no

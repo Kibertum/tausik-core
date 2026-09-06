@@ -151,9 +151,16 @@ def pre_v50(tmp_path):
 # --- the version is registered ----------------------------------------------
 
 
-def test_v50_is_registered_and_current():
-    assert SCHEMA_VERSION == _V50
+def test_v50_is_registered_and_not_in_the_future():
+    """v50 is a step in the chain, and the chain has since moved past it.
+
+    This asserted `SCHEMA_VERSION == _V50` while v50 was the newest migration,
+    which made every later migration red on a fact about v50. What this module
+    is about is v50's own effect; that it is REGISTERED and already reached is
+    the part that stays true as the chain grows.
+    """
     assert _V50 in MIGRATIONS
+    assert SCHEMA_VERSION >= _V50
 
 
 # --- AC-1: the domain is the standard's, on BOTH schema paths ---------------

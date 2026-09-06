@@ -9,6 +9,31 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — every gate declares WHICH CHANGE does not happen while its verdict is negative
+
+SENAR 1.4 §8.6(a), SHALL on every configuration including Core: without it a
+claim of conformance to section 8 is invalid under §13.4. The registry carried
+`description` — "Lint with ruff before commit" — which describes the MECHANISM.
+The two are not the same statement, and only one of them can be checked against
+a proposed action.
+
+`GateSpec.prevents` is now filled for all 17 gates, and the honest answers are
+in it: three advisory gates declare that they prevent NOTHING, because they are
+disabled or warn-severity and a gate that cannot refuse holds nothing back.
+Dressing those up would have been exactly the claim this field exists to make
+checkable.
+
+Schema v51 carries the declaration into every `gate_runs` row (§8.6(g): the
+record must identify what the verdict held back). The row keeps the wording that
+was in force when it was written — a declaration edited later must not rewrite
+an old audit row — and an unrecognised gate records NULL rather than an invented
+effect.
+
+The guard pins presence, non-emptiness and the stock phrases the standard
+refuses by name ("ensures quality"); whether a particular sentence actually
+answers the question is left to review, and the test says so instead of passing
+the mechanical half off as the whole.
+
 ### Added — duplicate-shape tests are caught by a gate, not by a report nobody ran
 
 `audit_pytest_dedupe` has grouped tests by AST shape for a long time and shipped
