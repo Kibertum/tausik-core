@@ -245,8 +245,7 @@ def role_delete(be: Any, slug: str, force: bool = False) -> str:
         raise ServiceError(
             f"Role '{slug}' is referenced by {refs} task(s). Pass force=True to delete anyway."
         )
-    be.begin_tx()
-    try:
+    with be.transaction():
         if refs:
             be._conn.execute("UPDATE tasks SET role = NULL WHERE role = ?", (slug,))
         be._conn.execute("DELETE FROM roles WHERE slug = ?", (slug,))
@@ -263,10 +262,6 @@ def role_delete(be: Any, slug: str, force: bool = False) -> str:
             import logging
 
             logging.getLogger("tausik.roles").warning("audit failed: %s", e)
-        be.commit_tx()
-    except Exception:
-        be.rollback_tx()
-        raise
     profile_loc = _profile_path_user(slug)
     return f"Role '{slug}' deleted ({refs} task(s) detached; profile retained at {profile_loc})."
 

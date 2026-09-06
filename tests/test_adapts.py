@@ -757,7 +757,7 @@ def test_a_refusal_does_not_unwind_a_transaction_it_does_not_own(svc):
     in the handler becomes a second, meaningless rollback.
 
     Measured before the guard was added: an outer `begin_tx` + `epic_add` lost
-    its epic to exactly this. `owns_tx` is why it no longer does.
+    its epic to exactly this. Ownership accounting is why it no longer does.
     """
     svc.adapt_create("a1", "T", "TZ-1")
 
@@ -770,19 +770,18 @@ def test_a_refusal_does_not_unwind_a_transaction_it_does_not_own(svc):
     assert svc.be._in_tx is True, "a nested refusal must not close the caller's transaction"
     assert svc.be.epic_get("outer-epic") is not None, "the caller's write must survive"
 
-    # AND THE GUARANTEE IS DELEGATED, NOT KEPT. Stated plainly because it is
-    # the honest half of `owns_tx`: the delta header IS written, and inside the
-    # caller's open transaction it is visible on this connection. `adapt_delta`
-    # cannot undo it without rolling back rows that are not its own, so the
-    # duty passes to whoever opened the transaction. Undoing only our own part
-    # would need a SAVEPOINT, which this backend does not have (filed as
-    # transaction-owners-mostly-do-not-check-ownership).
-    assert svc.be.adapt_get("a1-d1") is not None
+    # AND THE GUARANTEE IS NOW KEPT, NOT DELEGATED. This assertion used to read
+    # `is not None`, and the comment above it explained why: the hand-written
+    # `owns_tx` guard could decline to roll back rows that were not its own,
+    # but it had no way to undo its OWN half, so the delta header stayed and
+    # the duty of removing it passed to whoever opened the transaction. That
+    # needed a SAVEPOINT, and `SQLiteBackend.transaction()` now uses one
+    # (task transaction-owners-mostly-do-not-check-ownership). The refusal is a
+    # non-event on its own terms: nobody had to clean up after it.
+    assert svc.be.adapt_get("a1-d1") is None, "the refused delta undoes its own half"
 
-    # The caller CAN discharge that duty, and this is the assertion that proves
-    # delegation is a real contract rather than a hole with a name.
+    # The caller's own rows are still the caller's to discard, unchanged.
     svc.be.rollback_tx()
-    assert svc.be.adapt_get("a1-d1") is None, "the caller's rollback removes the delta too"
     assert svc.be.epic_get("outer-epic") is None
     assert svc.be.adapt_get("a1")["status"] == "draft"
 

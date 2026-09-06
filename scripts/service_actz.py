@@ -222,28 +222,18 @@ class ActzMixin:
             raise ServiceError(f"Parent ACTZ '{parent_slug}' not found")
         if self.be.actz_get(new_slug):
             raise ServiceError(f"ACTZ '{new_slug}' already exists.")
-        owns_tx = not self.be._in_tx
-        if owns_tx:
-            self.be.begin_tx()
         try:
-            msg = self.actz_create(
-                new_slug,
-                title,
-                tz_ref,
-                parent_actz=parent_slug,
-                delta_n=(parent["delta_n"] or 0) + 1,
-            )
-            self.be.actz_set_status(parent_slug, "superseded", supersession_rationale)
+            with self.be.transaction():
+                msg = self.actz_create(
+                    new_slug,
+                    title,
+                    tz_ref,
+                    parent_actz=parent_slug,
+                    delta_n=(parent["delta_n"] or 0) + 1,
+                )
+                self.be.actz_set_status(parent_slug, "superseded", supersession_rationale)
         except ValueError as e:
-            if owns_tx:
-                self.be.rollback_tx()
             raise ServiceError(str(e)) from e
-        except Exception:
-            if owns_tx:
-                self.be.rollback_tx()
-            raise
-        if owns_tx:
-            self.be.commit_tx()
         return f"{msg} Parent ACTZ '{parent_slug}' superseded."
 
     # --- links (actz <-> task/spec) ---

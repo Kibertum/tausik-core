@@ -402,8 +402,7 @@ class TaskDoneReportMixin:
             if l3_note:
                 risk_note += f" | {l3_note}"
         # Atomic: task update + cascade + audit in one transaction
-        self.be.begin_tx()
-        try:
+        with self.be.transaction():
             # v16r: pin done-model + flag mismatch (inside tx: lock-covered read).
             model_updates, model_mismatch_msg = model_done_updates(self.be, task)
             updates.update(model_updates)
@@ -453,10 +452,6 @@ class TaskDoneReportMixin:
             # blocks on a later gate no longer burns a verify run the agent
             # then has to repeat.
             _redeem_verify_handle(self.be, slug, report)
-            self.be.commit_tx()
-        except Exception:
-            self.be.rollback_tx()
-            raise
         report["ok"] = True
         report["message"] = " ".join(msgs)
         return report

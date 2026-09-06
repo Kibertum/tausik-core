@@ -2,8 +2,8 @@
 slug: brain-isolation-guard-names-two-files-by-hand
 title: "Охрана обособленности brain названа перечнем из двух файлов: новый носитель ответственности под неё не попадёт"
 status: planning
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: gates-declare-what-they-prevent
 complexity: simple
 role: developer
 stack: python

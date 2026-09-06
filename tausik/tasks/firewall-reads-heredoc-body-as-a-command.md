@@ -2,8 +2,8 @@
 slug: firewall-reads-heredoc-body-as-a-command
 title: "Гейт bash_firewall читает тело heredoc как команду: проза, называющая удаление таблицы, блокирует запись файла"
 status: planning
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: gates-declare-what-they-prevent
 complexity: medium
 role: developer
 stack: python

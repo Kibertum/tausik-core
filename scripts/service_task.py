@@ -162,14 +162,9 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         if not task.get("started_at"):
             updates["started_at"] = utcnow_iso()
             updates.update(model_start_updates(self.be))  # pin model at first activation
-        self.be.begin_tx()
-        try:
+        with self.be.transaction():
             self.be.task_update(slug, **updates)
             self._cascade_start(slug)
-            self.be.commit_tx()
-        except Exception:
-            self.be.rollback_tx()
-            raise
         self._project_task(slug)
         msgs = [f"Task '{slug}' started (attempt #{updates['attempts']})."]
         msgs.extend(qg0_warnings)
@@ -374,26 +369,18 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         the shape that produced it, so the shape is closed here.
 
         `_pending_projection` is already rollback-aware, so a discarded write
-        discards its queued projection with it. If a caller has a transaction
-        open, ownership stays with the caller: it will roll back, and committing
-        here would end its transaction early.
+        discards its queued projection with it. Ownership is `transaction()`'s
+        to account for: committing a transaction we did not open would end the
+        caller's early, and this method used to carry its own `owns_tx` copy of
+        that rule -- one of three hand-written copies across nine call sites.
         """
-        owns_tx = not self.be._in_tx
-        if owns_tx:
-            self.be.begin_tx()
-        try:
+        with self.be.transaction():
             for setter, value in budget_writes:
                 setter(slug, value)
             # Preserved exactly: a budget-only call does not touch the field
             # write (which would bump updated_at for no declared change).
             if not (budget_writes and not fields):
                 self.be.task_update(slug, **fields)
-            if owns_tx:
-                self.be.commit_tx()
-        except Exception:
-            if owns_tx:
-                self.be.rollback_tx()
-            raise
 
     def task_delete(self, slug: str) -> str:
         self._require_task(slug)

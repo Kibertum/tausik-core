@@ -2,8 +2,8 @@
 slug: task-gate-blocks-writes-outside-the-project-tree
 title: "Гейт «нет кода без задачи» блокирует запись во ВНЕШНИЙ каталог вне проекта"
 status: planning
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: gates-declare-what-they-prevent
 complexity: simple
 role: developer
 stack: python

@@ -9,6 +9,47 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a nested refusal now undoes its own half instead of the caller's transaction
+
+`begin_tx` is a no-op inside an open transaction, but `commit_tx` and
+`rollback_tx` act unconditionally. A function that opened and closed a
+transaction unconditionally therefore ended the transaction of whoever called
+it from inside their own: on a refusal it rolled back THEIR rows and handed
+back a closed transaction they still believed they owned, with no exception to
+say so. Measured live in session #211 — an outer `begin_tx` + `epic_add` lost
+its epic to a nested refused `adapt_delta`.
+
+The rule was known and applied by hand at three of nine call sites as
+`owns_tx = not self.be._in_tx` — a service reaching into the backend's private
+flag — and the count of sites kept growing while the rule stayed something
+each caller had to remember. `SQLiteBackend.transaction()` is that rule
+implemented once, in the new `backend_transaction` module.
+
+Outermost, it does exactly what the primitives did (BEGIN IMMEDIATE, commit or
+rollback), and a test asserts that half separately: `_ex`/`_ins` decide whether
+to commit by reading `_in_tx`, and the WAL checkpoint and projection flush hang
+off `commit_tx`. Nested, it opens a SAVEPOINT — so a failure rolls back only
+its own writes and leaves the caller's transaction open. That is new: the
+hand-written guard could decline to touch rows it did not own, but had no way
+to undo its own half, so `adapt_delta` could only DELEGATE the cleanup and "a
+refusal is a non-event" stayed conditional on the caller. The pin in
+`test_adapts.py` that recorded the delegated behaviour has been strengthened to
+the guarantee that replaced it.
+
+`_pending_projection` is truncated to the nested block's entry mark rather than
+cleared, so a nested failure no longer drops the queued git projections of rows
+that are still in the database.
+
+REACHABILITY WAS MEASURED FIRST, AND IT MOVED THE TARGET. No static nesting
+exists anywhere in the tree — no transaction body calls another site — so the
+guard closes a future-edit risk, not a live path. What IS live is concurrency:
+the MCP server hands every tool call to its own thread over one shared
+connection with no mutex, so `exploration_end`, `role_delete` and `task_start`
+can interleave with the long transaction `task_done` holds open. `transaction()`
+makes that interleaving strictly less destructive but does not serialize it;
+the serialization is filed separately as
+`mcp-dispatch-shares-one-transaction-across-threads` rather than absorbed here.
+
 ### Fixed — the `tausik_adapt_sign` MCP doc row still described the withdrawn dual signature
 
 The task that withdrew the client signature under ADAPT (ADR-011) updated the

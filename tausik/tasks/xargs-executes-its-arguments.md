@@ -2,8 +2,8 @@
 slug: xargs-executes-its-arguments
 title: "xargs исполняет свои аргументы: премиса из передачи #209 не проверена"
 status: planning
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: gates-declare-what-they-prevent
 complexity: simple
 role: developer
 stack: python

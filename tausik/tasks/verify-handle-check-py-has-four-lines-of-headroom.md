@@ -2,8 +2,8 @@
 slug: verify-handle-check-py-has-four-lines-of-headroom
 title: "verify_handle_check.py: 496 строк при пределе 500 — ревью советовало разделить заранее"
 status: planning
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: evidence-primitives
 complexity: medium
 role: developer
 stack: python

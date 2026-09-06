@@ -2,8 +2,8 @@
 slug: l3-dispatch-does-not-carry-the-author-model
 title: "Диспетчер внешнего L3 не передаёт модель автора: разделение обязанностей держится на внимательности рецензента"
 status: planning
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: renar-contract-contour
 complexity: medium
 role: architect
 stack: python

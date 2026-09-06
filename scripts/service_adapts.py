@@ -310,43 +310,30 @@ class AdaptsMixin:
         #
         # `or 0` guards a NULL delta_n (defensive — column is NOT NULL DEFAULT 0,
         # but a hand-edited / pre-migration row must not crash with a TypeError).
-        # OWNERSHIP FIRST, the way `service_task._write_update_atomically` does
-        # it. `begin_tx` no-ops inside an open transaction, but `commit_tx` and
-        # `rollback_tx` do NOT: they call the connection's commit/rollback
-        # unconditionally and clear `_in_tx`. Rolling back a transaction we did
-        # not open would silently discard the CALLER's already-written rows and
-        # hand back a closed transaction it still believes it owns -- measured,
-        # not feared: an outer `begin_tx` + `epic_add` lost its epic to a
-        # refused delta nested inside it, with no exception to say so.
-        owns_tx = not self.be._in_tx
-        if owns_tx:
-            self.be.begin_tx()
+        # OWNERSHIP IS THE BACKEND'S JOB, NOT THIS FUNCTION'S. `begin_tx`
+        # no-ops inside an open transaction, but `commit_tx`/`rollback_tx` do
+        # not, so unwinding a transaction we did not open would discard the
+        # CALLER's rows and hand back a closed transaction it still believes it
+        # owns -- measured, not feared: an outer `begin_tx` + `epic_add` lost
+        # its epic to a refused delta nested inside it, with no exception to
+        # say so. `transaction()` keeps that accounting once (and, nested,
+        # unwinds only OUR part via SAVEPOINT, which the hand-written guard
+        # here could not do -- it could only leave the header for the caller
+        # to roll back). Refusal stays a NON-EVENT either way.
         try:
-            msg = self.adapt_create(
-                new_slug,
-                title,
-                tz_ref,
-                parent_adapt=parent_slug,
-                delta_n=(parent["delta_n"] or 0) + 1,
-            )
-            self.be.adapt_set_status(parent_slug, "superseded", supersession_rationale)
+            with self.be.transaction():
+                msg = self.adapt_create(
+                    new_slug,
+                    title,
+                    tz_ref,
+                    parent_adapt=parent_slug,
+                    delta_n=(parent["delta_n"] or 0) + 1,
+                )
+                self.be.adapt_set_status(parent_slug, "superseded", supersession_rationale)
         except ValueError as e:
-            # The guard spoke. Undo the header with it: a supersession without
-            # a reason must not be recorded, and neither must its delta. When
-            # the transaction is the caller's, the raise is the whole job --
-            # unwinding is theirs to do.
-            if owns_tx:
-                self.be.rollback_tx()
+            # The guard spoke: a supersession without a reason must not be
+            # recorded, and neither must its delta.
             raise ServiceError(str(e)) from e
-        except Exception:
-            # Anything else -- a ServiceError from `adapt_create`, an
-            # IntegrityError, an interrupt between the two writes -- must not
-            # leave half a delta either.
-            if owns_tx:
-                self.be.rollback_tx()
-            raise
-        if owns_tx:
-            self.be.commit_tx()
         return f"{msg} Parent ADAPT '{parent_slug}' superseded (§7.6)."
 
     # --- links (adapt ↔ task/spec) ---

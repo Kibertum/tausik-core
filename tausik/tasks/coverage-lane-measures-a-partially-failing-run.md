@@ -2,8 +2,8 @@
 slug: coverage-lane-measures-a-partially-failing-run
 title: "Лента покрытия меряет покрытие на падающем прогоне: bootstrap не выполняется, а падения глотает || true"
 status: planning
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: test-evidence-not-test-volume
 complexity: medium
 role: developer
 stack: python
