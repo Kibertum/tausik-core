@@ -9,6 +9,19 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the roadmap moves with the release, not with the minute
+
+`ROADMAP.md` printed a per-status breakdown of the remaining work, so `active 1`
+appeared the moment any task was STARTED. Opening a task therefore made the
+committed map stale and reddened the freshness guard on a file nobody had
+touched — three times in a single shift. Who holds what right now is what
+`tausik team` answers; what remains is this artifact's subject.
+
+The column is now `Заблокировано` — being stuck is a property of the plan, and
+it is the one non-done status worth publishing. Two tests pin both halves:
+moving a task planning→active must not change a byte, and closing one must, so
+the fix cannot cure the staleness guard along with the churn.
+
 ### Changed — MCP handlers are transport over the CLI's own renderers, and a ratchet keeps them that way
 
 Two independent implementations of one command mean two possible verdicts, and a

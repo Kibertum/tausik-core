@@ -190,6 +190,51 @@ class TestCountsAreCounted:
         assert "`alpha-story`" not in outside
 
 
+class TestTheMapMovesWithTheReleaseAndNotWithTheMinute:
+    """The property the whole artifact rests on, in both directions.
+
+    A map that changes when nothing about the release changed reddens the
+    freshness guard on a file nobody touched — that happened three times in one
+    shift, because the table printed a per-status breakdown and `active 1`
+    appeared the moment any task was started. A map that does NOT change when
+    the release does would be the worse failure, so both halves are pinned here.
+    """
+
+    @staticmethod
+    def _one_task_db():
+        conn = _db()
+        _decide(conn, "ОБЪЁМ 9.9: alpha-story, beta-story")
+        _task(conn, "alpha-story", "planning")
+        return conn
+
+    @staticmethod
+    def _set_status(conn, status):
+        conn.execute("UPDATE tasks SET status=?", (status,))
+
+    def test_starting_a_task_does_not_move_the_map(self):
+        conn = self._one_task_db()
+        before = render(conn)
+        self._set_status(conn, "active")
+        assert render(conn) == before, (
+            "opening a task changed the published map — the guard will report a "
+            "stale file that nobody edited"
+        )
+
+    def test_closing_a_task_does_move_the_map(self):
+        """The medicine must not cure the guard along with the churn."""
+        conn = self._one_task_db()
+        before = render(conn)
+        self._set_status(conn, "done")
+        assert render(conn) != before
+
+    def test_being_stuck_is_still_published(self):
+        """Blocked is a fact about the plan, and it cost the breakdown column."""
+        conn = self._one_task_db()
+        self._set_status(conn, "blocked")
+        row = [ln for ln in render(conn).splitlines() if ln.startswith("| `alpha-story`")][0]
+        assert "| 1 | 1 | 0 |" in row, f"blocked count missing: {row}"
+
+
 class TestTrajectory:
     def test_no_recorded_points_is_not_zero_points(self):
         conn = _db()

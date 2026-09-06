@@ -53,6 +53,12 @@ COMPOSITION_MIN_STORIES = 2
 #: status added tomorrow counts as remaining without an edit here.
 DONE_STATUS = "done"
 
+#: The one non-done status the map names, because being stuck is a property of
+#: the PLAN. Every other in-flight status (`active`, `review`) describes the
+#: current minute, and printing it made the committed map stale the instant a
+#: task was started — see `_blocked`.
+BLOCKED_STATUS = "blocked"
+
 _VERSION_RE = re.compile(r"\d+\.\d+")
 _DECISION_REF_RE = re.compile(r"#(\d+)")
 _POINTS_RE = re.compile(r"(?:Точки|Points)\s*:\s*([\d]+(?:\s*,\s*[\d]+)*)")
@@ -183,10 +189,18 @@ def _remaining(counts: dict[str, int]) -> int:
     return sum(n for status, n in counts.items() if status != DONE_STATUS)
 
 
-def _breakdown(counts: dict[str, int]) -> str:
-    """`planning 6, blocked 1` — statuses present, in a stable order."""
-    parts = [f"{status} {n}" for status, n in sorted(counts.items()) if status != DONE_STATUS]
-    return ", ".join(parts) if parts else "—"
+def _blocked(counts: dict[str, int]) -> int:
+    """How many tasks wait on something. A fact about the PLAN, so it belongs here.
+
+    This column replaced a full per-status breakdown, and the reason is the one
+    property this whole artifact rests on: the map must change when the release
+    changes and NOT otherwise. The breakdown printed `active 1` the moment any
+    task was started, so simply opening a task made the committed map stale and
+    reddened the freshness guard on a file nobody had touched — three times in
+    one shift. Who is holding what right now is a question `tausik team`
+    answers; what remains, and how much of it is stuck, is this one's.
+    """
+    return counts.get(BLOCKED_STATUS, 0)
 
 
 def _out_of_scope(conn: sqlite3.Connection, comp: dict[str, Any]) -> list[dict[str, Any]]:
@@ -268,21 +282,25 @@ def _scope_section(
         f"#{basis['id']} от {basis['created_at'][:10]}. Счётчики сняты с живой "
         "базы в момент перевыпуска этого файла.",
         "",
-        "| История | Статус | Осталось | Закрыто | Остаток по статусам |",
+        "| История | Статус | Осталось | Заблокировано | Закрыто |",
         "|---|---|---|---|---|",
     ]
-    total_left = total_done = 0
+    total_left = total_done = total_blocked = 0
     for st in comp["stories"]:
         counts = _task_counts(conn, st["id"])
-        left, done = _remaining(counts), counts.get(DONE_STATUS, 0)
+        left, done, blocked = (
+            _remaining(counts),
+            counts.get(DONE_STATUS, 0),
+            _blocked(counts),
+        )
         total_left += left
         total_done += done
+        total_blocked += blocked
         lines.append(
-            f"| `{st['slug']}`<br>{st['title']} | {st['status']} | {left} | "
-            f"{done} | {_breakdown(counts)} |"
+            f"| `{st['slug']}`<br>{st['title']} | {st['status']} | {left} | {blocked} | {done} |"
         )
     lines += [
-        f"| **Итого** | | **{total_left}** | **{total_done}** | |",
+        f"| **Итого** | | **{total_left}** | **{total_blocked}** | **{total_done}** |",
         "",
     ]
     return lines
