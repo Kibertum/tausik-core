@@ -9,6 +9,36 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — MCP handlers are transport over the CLI's own renderers, and a ratchet keeps them that way
+
+Two independent implementations of one command mean two possible verdicts, and a
+receipt signed on one path says nothing about the other. Seventeen MCP handlers
+built their answer out of the service result themselves, which is a second
+implementation of a command the CLI already implements. Thirteen are collapsed
+onto one shared renderer each; in EVERY case the MCP copy had fallen behind, and
+the MCP surface is the one the agent reads:
+
+- `task next` reported HOW MANY tasks were withheld where the CLI reports WHICH.
+  The handler's own docstring claimed the two printed the same three states.
+- `task logs` cut the timestamp to minutes and printed empty parentheses.
+- `search` capped every scope at ten hits and dropped the FTS snippet.
+- `events` had no rollup and dropped `details`.
+- `memory list`/`search` showed no tags; `search` no `origin_project`; `show` no
+  created-at, tags or task; `graph` no confidence and no invalidation date;
+  `archive`/`dedupe`/`lint` dropped the "what to do next" line.
+
+New `scripts/render_{task,status,memory,session,hierarchy}.py` hold one renderer
+per command, called by both surfaces. `scripts/mcp_handler_shape.py` MEASURES
+which handlers still render the service result — derived by AST from the
+dispatch tables, never listed — and `tests/test_mcp_handlers_are_transport.py`
+holds the measured set to a baseline that may only shrink. Parity is also proven
+by RUNNING both surfaces over one database and comparing, not by reading shapes.
+
+Three are declared, not silently left: `task_show` belongs to its own open task,
+and `metrics` (one summary line versus the whole SENAR report) and `verify` (a
+second COMMAND — receipt, handle, exit code — not a second rendering) are filed
+as their own.
+
 ### Added — the release roadmap is generated from the live DB instead of drawn; the PDF is named as a dated snapshot
 
 The release map was a PDF built on 2026-08-12 whose page 4 asked "does it work

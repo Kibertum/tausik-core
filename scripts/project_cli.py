@@ -177,14 +177,9 @@ from project_cli_task import cmd_task  # noqa: E402,F401
 
 
 def cmd_team(svc: ProjectService, args: Any) -> None:
-    data = svc.team_status()
-    if not data:
-        print("No active tasks.")
-        return
-    for group in data:
-        print(f"\n{group['agent']}:")
-        for t in group["tasks"]:
-            print(f"  [{t['status']}] {t['slug']}: {t['title']}")
+    from render_status import team_lines
+
+    print("\n".join(team_lines(svc)))
 
 
 def cmd_session(svc: ProjectService, args: Any) -> None:
@@ -194,11 +189,9 @@ def cmd_session(svc: ProjectService, args: Any) -> None:
     elif c == "end":
         print(svc.session_end(args.summary))
     elif c == "current":
-        s = svc.session_current()
-        if s:
-            print(f"Session #{s['id']} started {s['started_at']}")
-        else:
-            print("No active session.")
+        from render_session import session_current_line
+
+        print(session_current_line(svc))
     elif c == "list":
         sessions = svc.session_list(args.limit)
         _print_table(sessions, ["id", "started_at", "ended_at", "summary"])
@@ -236,16 +229,9 @@ def cmd_decisions(svc: ProjectService, args: Any) -> None:
 
 
 def cmd_roadmap(svc: ProjectService, args: Any) -> None:
-    data = svc.get_roadmap(args.include_done)
-    if not data:
-        print("No epics.")
-        return
-    for epic in data:
-        print(f"[{epic['status']}] {epic['slug']}: {epic['title']}")
-        for story in epic.get("stories", []):
-            print(f"  [{story['status']}] {story['slug']}: {story['title']}")
-            for task in story.get("tasks", []):
-                print(f"    [{task['status']}] {task['slug']}: {task['title']}")
+    from render_hierarchy import roadmap_lines
+
+    print("\n".join(roadmap_lines(svc, args.include_done)))
 
 
 # cmd_metrics, cmd_search, cmd_events, cmd_dead_end, cmd_explore, cmd_audit, cmd_run

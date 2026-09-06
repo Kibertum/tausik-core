@@ -303,7 +303,11 @@ class TestMetricsAndEvents:
             "svc",
             "tausik_memory_search",
             {"query": "nothing"},
-            "No memories",
+            # The handler is now transport over the ONE renderer both surfaces
+            # use, so the empty answer is the CLI's wording. The handler used to
+            # say "No memories found." and the CLI "No results." — the same
+            # state, described two ways, by two implementations.
+            "No results",
             id="memory_search_empty",
         ),
         pytest.param("seeded", "tausik_search", {"query": "Task"}, "tasks", id="search"),

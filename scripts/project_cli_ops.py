@@ -99,18 +99,10 @@ def cmd_suggest_model(svc: ProjectService, args: Any) -> None:
 
 
 def cmd_search(svc: ProjectService, args: Any) -> None:
-    results = svc.search(args.query, args.scope, getattr(args, "limit", 20))
-    for scope, items in results.items():
-        if items:
-            print(f"\n--- {scope} ({len(items)} results) ---")
-            for item in items:
-                if "slug" in item:
-                    print(f"  {item['slug']}: {item.get('title', item.get('decision', ''))}")
-                else:
-                    print(f"  {item.get('title', item.get('decision', str(item)[:80]))}")
-                snippet = item.get("_snippet")
-                if snippet:
-                    print(f"    {snippet}")
+    from render_status import SEARCH_LIMIT, search_lines
+
+    limit = getattr(args, "limit", SEARCH_LIMIT)
+    print("\n".join(search_lines(svc, args.query, args.scope, limit)))
 
 
 def cmd_dead_end(svc: ProjectService, args: Any) -> None:

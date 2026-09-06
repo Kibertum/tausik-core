@@ -46,17 +46,9 @@ def _do_story_list(svc: Any, args: dict) -> str:
 
 
 def _handle_roadmap(svc: Any, args: dict) -> str:
-    data = svc.get_roadmap(args.get("include_done", False))
-    if not data:
-        return "No epics."
-    lines = []
-    for epic in data:
-        lines.append(f"[{epic['status']}] {epic['slug']}: {epic['title']}")
-        for story in epic.get("stories", []):
-            lines.append(f"  [{story['status']}] {story['slug']}: {story['title']}")
-            for task in story.get("tasks", []):
-                lines.append(f"    [{task['status']}] {task['slug']}: {task['title']}")
-    return "\n".join(lines)
+    from render_hierarchy import roadmap_lines
+
+    return "\n".join(roadmap_lines(svc, args.get("include_done", False)))
 
 
 HIERARCHY_HANDLERS = {

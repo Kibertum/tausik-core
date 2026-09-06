@@ -4,20 +4,27 @@ from __future__ import annotations
 
 from typing import Any
 
-from knowledge_tags import load_tags
 from project_service import ProjectService
 
+# One renderer per memory command, shared with the MCP handlers. Every one of
+# these was implemented twice, and every MCP copy had fallen behind this one.
+from render_memory import (
+    memory_archive_lines,
+    memory_dedupe_lines,
+    memory_graph_lines,
+    memory_lint_lines,
+    memory_list_lines,
+    memory_related_lines,
+    memory_search_lines,
+    memory_show_lines,
+    render_tags,
+)
 
-def _render_tags(raw: str | None) -> str:
-    """Tags as a display suffix, empty when there are none.
 
-    Reads through `knowledge_tags.load_tags` rather than `json.loads` so one
-    function serves rows from the project store and the shared store alike —
-    the two used to spell a tag list differently, and a reader written for
-    either would have shown the other as having no tags.
-    """
-    tags = load_tags(raw)
-    return " " + ", ".join(tags) if tags else ""
+#: The tag suffix moved to `render_memory` with the commands that use it. The
+#: old private name stays as an alias rather than a second body: callers that
+#: import it by that name keep working, and there is still ONE implementation.
+_render_tags = render_tags
 
 
 def cmd_knowledge(svc: ProjectService, args: Any) -> None:
@@ -69,58 +76,28 @@ def cmd_memory(svc: ProjectService, args: Any) -> None:
             )
         )
     elif c == "list":
-        rows = svc.memory_list(
-            args.mem_type,
-            args.limit,
-            include_archived=getattr(args, "include_archived", False),
+        print(
+            "\n".join(
+                memory_list_lines(
+                    svc,
+                    args.mem_type,
+                    args.limit,
+                    include_archived=getattr(args, "include_archived", False),
+                )
+            )
         )
-        if not rows:
-            print("  (no memories)")
-            return
-        for r in rows:
-            tags = _render_tags(r.get("tags"))
-            arch = " [archived]" if r.get("archived_at") else ""
-            print(f"  #{r['id']} [{r['type']}] {r['title']}{tags}{arch}")
     elif c == "search":
-        rows = svc.memory_search(
-            args.query,
-            include_archived=getattr(args, "include_archived", False),
+        print(
+            "\n".join(
+                memory_search_lines(
+                    svc,
+                    args.query,
+                    include_archived=getattr(args, "include_archived", False),
+                )
+            )
         )
-        if not rows:
-            print("  No results.")
-            return
-        for r in rows:
-            arch = " [archived]" if r.get("archived_at") else ""
-            # cq and shared-store rows have no id — knowledge with no `memory`
-            # row HERE to address. Omit the address rather than print `#None`,
-            # and never print the shared store's own id: it would point at a
-            # different, real, local record.
-            addr = "" if r.get("id") is None else f"#{r['id']} "
-            origin = f"  ({r['origin_project']})" if r.get("origin_project") else ""
-            # One renderer for a list that mixes project rows with shared-store
-            # ones. This is the improvement the two tag formats were waiting to
-            # break: shared rows stored `a,b` while project rows stored `["a",
-            # "b"]`, so a reader written for either would have shown one of them
-            # as having no tags at all.
-            print(f"  {addr}[{r['type']}] {r['title']}{_render_tags(r.get('tags'))}{arch}{origin}")
-        from knowledge_read import pop_last_warning
-
-        warning = pop_last_warning()
-        if warning:
-            # Printed after the results, not instead of them: the project's own
-            # answers are still valid, and what the reader needs to know is that
-            # the list is INCOMPLETE — not that the search failed.
-            print(f"  ⚠ {warning}")
     elif c == "show":
-        r = svc.memory_show(args.id)
-        print(f"#{r['id']} [{r['type']}] {r['title']}")
-        print(f"Created: {r.get('created_at', '')}")
-        shown = load_tags(r.get("tags"))
-        if shown:
-            print(f"Tags: {', '.join(shown)}")
-        if r.get("task_slug"):
-            print(f"Task: {r['task_slug']}")
-        print(f"\n{r['content']}")
+        print("\n".join(memory_show_lines(svc, args.id)))
     elif c == "delete":
         print(svc.memory_delete(args.id))
     elif c == "link":
@@ -138,42 +115,31 @@ def cmd_memory(svc: ProjectService, args: Any) -> None:
     elif c == "unlink":
         print(svc.memory_unlink(args.edge_id, args.replacement))
     elif c == "related":
-        results = svc.memory_related(args.node_type, args.node_id, args.hops, args.include_invalid)
-        if not results:
-            print("  No related nodes found.")
-            return
-        for r in results:
-            rec = r.get("record", {})
-            ntype = r["node_type"]
-            nid = r["node_id"]
-            depth = r["depth"]
-            rel = r.get("via_relation", "")
-            label = rec.get("title", rec.get("decision", ""))[:60]
-            print(f"  [{depth} hop] {ntype}#{nid} --[{rel}]--> {label}")
+        print(
+            "\n".join(
+                memory_related_lines(
+                    svc, args.node_type, args.node_id, args.hops, args.include_invalid
+                )
+            )
+        )
     elif c == "graph":
         if getattr(args, "format", "table") == "mermaid":
             from graph_mermaid import render_memory_graph  # graph-mermaid-render
 
             print(render_memory_graph(svc), end="")
             return
-        edges = svc.memory_graph(
-            args.node_type,
-            args.node_id,
-            args.relation,
-            args.include_invalid,
-            args.limit,
-        )
-        if not edges:
-            print("  No edges found.")
-            return
-        for e in edges:
-            valid = "" if not e.get("valid_to") else f" [invalid {e['valid_to'][:10]}]"
-            conf = f" ({e['confidence']:.0%})" if e["confidence"] < 1.0 else ""
-            print(
-                f"  #{e['id']} {e['source_type']}#{e['source_id']} "
-                f"--[{e['relation']}]--> {e['target_type']}#{e['target_id']}"
-                f"{conf}{valid}"
+        print(
+            "\n".join(
+                memory_graph_lines(
+                    svc,
+                    args.node_type,
+                    args.node_id,
+                    args.relation,
+                    args.include_invalid,
+                    args.limit,
+                )
             )
+        )
     elif c == "block":
         output = svc.memory_block(
             max_decisions=args.max_decisions,
@@ -187,68 +153,11 @@ def cmd_memory(svc: ProjectService, args: Any) -> None:
         output = svc.memory_compact(last_n=args.last_n)
         print(output if output else "No task logs yet.")
     elif c == "archive":
-        result = svc.memory_archive(args.before, confirm=bool(args.confirm))
-        days = result["before_days"]
-        if result["applied"]:
-            print(
-                f"Memory archive: archived {result['archived']} rows older than "
-                f"{days} days. Hidden from `memory list` by default; use "
-                f"`--include-archived` to see them."
-            )
-            return
-        cands = result.get("candidates", [])
-        if not cands:
-            print(f"Memory archive (dry-run): no unarchived rows older than {days} days.")
-            return
-        print(
-            f"Memory archive (dry-run): {len(cands)} rows older than {days} days "
-            f"would be archived. Re-run with `--confirm` to apply."
-        )
-        for r in cands[:50]:
-            title = r.get("title") or ""
-            if len(title) > 60:
-                title = title[:57] + "..."
-            print(f"  #{r['id']:<5} [{r['type']:<10}] {r['created_at']}  {title}")
-        if len(cands) > 50:
-            print(f"  ... and {len(cands) - 50} more")
+        print("\n".join(memory_archive_lines(svc, args.before, confirm=bool(args.confirm))))
     elif c == "dedupe":
-        suggestions = svc.memory_dedupe(threshold=args.threshold, n=args.limit)
-        if not suggestions:
-            print(
-                f"Memory dedupe: no pairs above threshold {args.threshold:.2f} "
-                f"in the last {args.limit} unarchived rows."
-            )
-            return
-        print(
-            f"Memory dedupe: {len(suggestions)} pair(s) above {args.threshold:.2f} similarity. "
-            "Review then merge with `memory delete <id>` after consolidating."
-        )
-        for s in suggestions:
-            ta = s["title_a"][:40]
-            tb = s["title_b"][:40]
-            print(
-                f'  {s["ratio"]:.3f} [{s["type"]:<10}] #{s["id_a"]} "{ta}"  ↔  #{s["id_b"]} "{tb}"'
-            )
+        print("\n".join(memory_dedupe_lines(svc, threshold=args.threshold, limit=args.limit)))
     elif c == "lint":
-        result = svc.memory_lint(apply=bool(getattr(args, "apply", False)))
-        findings = result["findings"]
-        if not findings:
-            print("Memory lint: no contradictions, superseded, or stale-file issues found.")
-            return
-        if result["applied"]:
-            print(
-                f"Memory lint: {result['count']} finding(s); archived "
-                f"{result['archived']} superseded entry(ies). Contradictions and "
-                f"stale-file hits are advisory — review them below."
-            )
-        else:
-            print(
-                f"Memory lint (dry-run): {result['count']} finding(s). "
-                f"Re-run with `--apply` to archive superseded entries."
-            )
-        for f in findings:
-            title = (f["title"] or "")[:50]
-            print(f'  #{f["id"]:<5} [{f["kind"]:<11}] {f["reason"]}  "{title}"')
+        print("\n".join(memory_lint_lines(svc, apply=bool(getattr(args, "apply", False)))))
 
 
 def cmd_update_claudemd(svc: ProjectService, args: Any) -> None:

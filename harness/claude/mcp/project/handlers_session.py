@@ -22,8 +22,9 @@ from handlers_status import _handle_self_check, _handle_status
 
 
 def _do_session_current(svc: Any, args: dict) -> str:
-    s = svc.session_current()
-    return f"Session #{s['id']} started {s['started_at']}" if s else "No active session."
+    from render_session import session_current_line
+
+    return session_current_line(svc)
 
 
 def _do_session_list(svc: Any, args: dict) -> str:
