@@ -9,6 +9,16 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the `tausik_adapt_sign` MCP doc row still described the withdrawn dual signature
+
+The task that withdrew the client signature under ADAPT (ADR-011) updated the
+tool's own `description` in `tools_adapt.py` and the ADAPT section's intro
+paragraphs in `docs/{en,ru}/mcp.md`, but missed the table row itself — it
+still read "architect signs..., client signs...; both roles ⇒ approved" next
+to a method that now refuses `role=client` outright. Both rows now say what
+`adapt_sign` actually does: architect alone ⇒ `approved`; client is refused,
+naming ADR-011 and pointing at ACTZ as where client approval now lives.
+
 ### Added — AT/TC routing matrix and an AT-only release gate (RENAR §8A.4 / §10.4.3)
 
 Recording an AT (previous entry) is not yet a verdict: §8A.4/§10.4.3 name a

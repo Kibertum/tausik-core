@@ -140,7 +140,7 @@ RENAR-подложка: формальные требования (**SPEC**) и 
 | `tausik_adapt_create` | Создать заголовок ADAPT (§7); `tz_ref` (исходное ТЗ) обязателен; старт в `draft` | `slug`, `title`, `tz_ref` |
 | `tausik_adapt_interpret` | Forward-интерпретация (§7.4.3); tz_ref/citation/interpretation/scope_in/scope_out обязательны | `tz_ref`, `citation`, `interpretation`, `scope_in`, `scope_out` (+ adapt) |
 | `tausik_adapt_finding` | Backward-finding; `category` — закрытый список 7 (contradiction/gap/hidden-assumption/feasibility/regulatory/terminology/scope) | `adapt_slug`, `category`, `description` |
-| `tausik_adapt_sign` | Двойная подпись (§7.5): `architect` подписывает тело ed25519-ключом проекта, `client` — name+timestamp; обе роли ⇒ `approved` (§13.3.3 стр.77 — статус и подпись разные факты) | `adapt_slug`, `role`, `signed_by` |
+| `tausik_adapt_sign` | Подпись architect (§7.5): подписывает тело ed25519-ключом проекта ⇒ `approved` (§13.3.3 стр.77 — статус и подпись разные факты). `role=client` ОТКЛОНЯЕТСЯ — ADR-011 отозвал подпись клиента под ADAPT; то, что одобряет клиент, теперь живёт в ACTZ | `adapt_slug`, `role`, `signed_by` |
 | `tausik_adapt_show` | ADAPT + forward-интерпретации, findings, подписи, линки (JSON) | `slug` |
 | `tausik_adapt_list` | Список ADAPT, опц. фильтр по статусу (закрытый перечень §7.8.1: draft/review/asked/answered/approved/frozen/superseded) | — |
 | `tausik_adapt_delta` | Delta-ADAPT, замещающий родителя (§7.6); родитель → `superseded`, поздний линк к нему = FATAL dangling (§7.6.4) | `parent_slug`, `new_slug`, `title`, `tz_ref` |

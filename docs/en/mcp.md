@@ -143,7 +143,7 @@ See also `tausik_reason_step` (RENAR trace) under "Tasks".
 | `tausik_adapt_create` | Create an ADAPT header (§7); `tz_ref` (the source requirement doc) is mandatory; starts in `draft` | `slug`, `title`, `tz_ref` |
 | `tausik_adapt_interpret` | Forward interpretation (§7.4.3); tz_ref/citation/interpretation/scope_in/scope_out all required | `tz_ref`, `citation`, `interpretation`, `scope_in`, `scope_out` (+ adapt) |
 | `tausik_adapt_finding` | Backward finding; `category` is a closed list of 7 (contradiction/gap/hidden-assumption/feasibility/regulatory/terminology/scope) | `adapt_slug`, `category`, `description` |
-| `tausik_adapt_sign` | Dual signature (§7.5): `architect` signs the body with the project's ed25519 key, `client` signs with name+timestamp; both roles ⇒ `approved` (§13.3.3 p.77 — status and signature are separate facts) | `adapt_slug`, `role`, `signed_by` |
+| `tausik_adapt_sign` | Architect signature (§7.5): signs the body with the project's ed25519 key ⇒ `approved` (§13.3.3 p.77 — status and signature are separate facts). `role=client` is REFUSED — ADR-011 withdrew the client signature under ADAPT; what the client approves belongs in an ACTZ | `adapt_slug`, `role`, `signed_by` |
 | `tausik_adapt_show` | ADAPT + forward interpretations, findings, signatures, links (JSON) | `slug` |
 | `tausik_adapt_list` | List ADAPTs, optionally filtered by status (§7.8.1 closed list: draft/review/asked/answered/approved/frozen/superseded) | — |
 | `tausik_adapt_delta` | Delta-ADAPT superseding its parent (§7.6); the parent becomes `superseded`, and a later link to it is a FATAL dangling link (§7.6.4) | `parent_slug`, `new_slug`, `title`, `tz_ref` |
