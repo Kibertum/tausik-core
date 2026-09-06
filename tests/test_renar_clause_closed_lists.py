@@ -91,6 +91,60 @@ def test_a_parenthesis_outside_a_string_does_not_end_the_list_early(svc):
     assert check_domain(conn, "n", "type") == ("A", "B")
 
 
+def test_a_comment_inside_the_check_does_not_end_the_list(svc):
+    """NEGATIVE SCENARIO, found by external review #40 and reproduced live.
+
+    A `)` inside an SQL comment was read as the closing parenthesis: the scan
+    stopped early, the values after the comment were dropped, and the truncated
+    list HAPPENED to equal the declaration — a green sub-check over a CHECK
+    that admits a value nobody declared. That is a guard going green on the
+    violation it exists to catch, in the primitive every closed list reuses.
+
+    Both comment forms are covered, and the live INSERT below is the half that
+    makes this a measurement rather than a claim about a regex: SQLite really
+    does accept the value the parser used to lose.
+    """
+    conn = svc.be._conn
+    conn.execute(
+        "CREATE TABLE c1 (type TEXT NOT NULL CHECK(type IN "
+        "('SEC','BR' /* legacy ) trick */, 'FAKE')))"
+    )
+    conn.execute("INSERT INTO c1 VALUES ('FAKE')")
+    assert conn.execute("SELECT COUNT(*) FROM c1").fetchone()[0] == 1, (
+        "the premise of this test: SQLite admits the value hidden past the comment"
+    )
+    assert check_domain(conn, "c1", "type") == ("SEC", "BR", "FAKE")
+    conn.execute("CREATE TABLE c2 (type TEXT NOT NULL CHECK(type IN ('A', -- note ) here\n 'B')))")
+    assert check_domain(conn, "c2", "type") == ("A", "B")
+
+
+def test_comment_markers_inside_a_value_are_ordinary_characters(svc):
+    """The skip must not reach INTO a string: '--' and '/*' can be values."""
+    conn = svc.be._conn
+    conn.execute("CREATE TABLE c3 (type TEXT NOT NULL CHECK(type IN ('a--b','c/*d','e')))")
+    assert check_domain(conn, "c3", "type") == ("a--b", "c/*d", "e")
+
+
+def test_an_unterminated_comment_is_unreadable_not_empty(svc):
+    """Three states again: a comment that never closes cannot close the list."""
+    from renar_clause_closed_lists import _values_until_close
+
+    assert _values_until_close("('a', /* never ends 'b')", 1) is None
+    assert _values_until_close("('a', -- never ends 'b')", 1) is None
+
+
+def test_the_hidden_value_reds_the_substrate_subcheck(svc):
+    """AC-2: the whole point — a CHECK that is not closed must READ as not closed."""
+    conn = svc.be._conn
+    ddl = conn.execute("SELECT sql FROM sqlite_master WHERE name='specs'").fetchone()[0]
+    conn.execute("DROP TABLE specs")
+    conn.execute(ddl.replace("'DOC'", "'DOC' /* trailing ) note */, 'SMUGGLED'"))
+    conn.commit()
+    verdict = assess_spec_types(conn)
+    assert verdict["confirmed"] is False, verdict
+    assert "SMUGGLED" in verdict["subchecks"][0]["evidence"]
+
+
 def test_an_unterminated_or_valueless_list_is_unreadable_not_empty(svc):
     """The three-state discipline: nothing parsable is None, never ()."""
     from renar_clause_closed_lists import _values_until_close

@@ -143,6 +143,40 @@ def test_the_finding_categories_are_watched_too(tmp_path):
     assert msgs and "backward-finding" in msgs[0], msgs
 
 
+def test_a_lowercase_quotation_is_still_our_list(tmp_path):
+    """NEGATIVE SCENARIO, found by external review #40 and reproduced.
+
+    Overlap was computed case-sensitively, so a doc spelling the list in
+    another case scored zero, fell below the floor and was skipped ENTIRELY —
+    content drift inside it was invisible. A doc may quote the list in any
+    case; what it may not do is quote a different list.
+    """
+    lower = [t.lower() for t in SPEC_TYPES]
+    _spec_doc(tmp_path, lower)
+    assert scan_closed_list_enums(tmp_path, _PAYLOAD) == [], "a full quotation, lowercased"
+    _spec_doc(tmp_path, [t for t in lower if t not in ("test", "doc")], n=len(lower) - 2)
+    msgs = scan_closed_list_enums(tmp_path, _PAYLOAD)
+    assert msgs, "drift inside a lowercased quotation must still be caught"
+    assert "missing ['TEST', 'DOC']" in msgs[0]
+
+
+def test_a_decorated_cell_is_a_declared_exclusion(tmp_path):
+    """AC-5: '128+' is skipped BY DECISION, and the docstring says why.
+
+    Pinned so the exclusion is visible and testable rather than an accident of
+    `isdigit()`: this column has no lower-bound convention (test_count has one,
+    decision #182), and inventing one inside a scanner would be policy written
+    where nobody looks for it.
+    """
+    from doc_drift_scanners import scan_mcp_table_columns as scan
+
+    _doc(tmp_path, _TABLE.format(a="128+", b="~121"), rel="README.md")
+    assert scan(tmp_path, _PAYLOAD) == []
+    assert "declared exclusion" in " ".join((scan.__doc__ or "").split()), (
+        "the exclusion must be stated where the next reader meets it"
+    )
+
+
 def test_an_unrelated_slash_run_is_not_one_of_our_lists(tmp_path):
     """NEGATIVE SCENARIO: the subject is derived by overlap, so a path or an
     unrelated enumeration must not be dragged in and reported as drift."""

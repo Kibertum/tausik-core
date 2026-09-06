@@ -197,6 +197,15 @@ def scan_mcp_table_columns(repo_root: Path, payload: dict[str, object]) -> list[
     index, so inserting a column ahead of it does not silently move the check
     onto someone else's numbers. Non-numeric cells ("MCP + rules",
     "host-dependent") are skipped: the table is honest prose there, not a count.
+
+    A DECORATED NUMBER ("128+", "~128") IS SKIPPED TOO, and that is a declared
+    exclusion rather than an oversight (external review #40). Checking it would
+    require a convention for what the decoration CLAIMS, and this column has
+    none: `test_count` has one — decision #182 makes it a lower bound, so "N+"
+    is honest while an overclaim reddens — but nothing says whether a "128+"
+    here means "at least" or "about". Inventing that rule inside a scanner
+    would be policy written where nobody looks for it. No current doc carries
+    such a cell; if one appears, the rule is the thing to decide first.
     """
     expected = payload.get("mcp_main_tools")
     if not isinstance(expected, int):
@@ -268,8 +277,14 @@ def scan_closed_list_enums(repo_root: Path, payload: dict[str, object]) -> list[
             if overlap < CLOSED_LIST_MIN_OVERLAP:
                 continue  # not a quotation of a list we know
             line_no = text[: m.start()].count("\n") + 1
-            missing = [v for v in values if v not in found]
-            extra = [v for v in found if v not in values]
+            # Compared case-insensitively for the same reason the subject is
+            # matched that way: a doc spelling the list in another case quotes
+            # the same list. Reported in the DOC's own spelling, so the message
+            # points at what the reader will find on the line.
+            found_lower = {v.lower() for v in found}
+            values_lower = {v.lower() for v in values}
+            missing = [v for v in values if v.lower() not in found_lower]
+            extra = [v for v in found if v.lower() not in values_lower]
             if missing or extra:
                 messages.append(
                     f"{rel}:{line_no}: {label} enumerated as '{m.group(1)}' — "
@@ -291,9 +306,15 @@ def _best_closed_list(
     found: list[str], known: list[tuple[str, str, list[str]]]
 ) -> tuple[str, str, list[str], int]:
     """The known closed list sharing most values with *found*, and that count."""
+    # CASE-INSENSITIVELY. A doc that spells the list in another case is quoting
+    # the same list, and a case-sensitive intersection scored it zero — below
+    # the floor, so the enumeration was skipped entirely and its content went
+    # unchecked (external review #40, reproduced on an all-lowercase quotation
+    # of every SPEC type). The message still shows the doc's own spelling.
+    lowered = {v.lower() for v in found}
     best: tuple[str, str, list[str], int] = ("", "", [], 0)
     for name, label, values in known:
-        overlap = len(set(found) & set(values))
+        overlap = len(lowered & {v.lower() for v in values})
         if overlap > best[3]:
             best = (name, label, values, overlap)
     return best

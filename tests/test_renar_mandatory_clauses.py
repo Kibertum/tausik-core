@@ -68,6 +68,22 @@ def test_every_constant_names_where_its_premise_is_watched(svc):
             assert "premise-watched-by" not in c, f"{name}: a measured verdict needs no watch"
 
 
+def test_the_vacuous_clause_names_every_watch_it_rests_on(svc):
+    """NEGATIVE SCENARIO, found by external review #40: the basis block replaced
+    a `measurer-caveats` entry that said MORE.
+
+    v17's caveat named the ADR-013 guard test as a second, broader watch on the
+    §13.3.5 premise and said it skips in CI; v18's first basis entry named only
+    the live-database ratchet, so a reader of the artifact alone learned LESS
+    about how the clause is defended than before — in the very change whose
+    subject is publishing what a `true` rests on.
+    """
+    watch = _clauses(svc)["tc-pos-neg-pairing"]["premise-watched-by"]
+    assert "classes_appeared" in watch
+    assert "ADR-013" in watch, "the second watch on this premise must be named"
+    assert "CI" in watch, "and so must the fact that it does not run there"
+
+
 def test_the_named_watches_resolve_to_real_tests(svc):
     """The watch strings are addresses, not prose: every test path in them exists."""
     import re

@@ -88,6 +88,26 @@ def _values_until_close(ddl: str, start: int) -> tuple[str, ...] | None:
     i, depth, in_string = start, 1, False
     while i < len(ddl):
         ch = ddl[i]
+        # COMMENTS ARE NOT CODE, and reading them as code was a FALSE PASS, not
+        # a crash: `CHECK(type IN ('A','B' /* note ) */, 'FAKE'))` is admitted
+        # by SQLite with 'FAKE' in it, while the scan stopped at the `)` inside
+        # the comment and reported a list that matched the declaration exactly
+        # (external review #40, reproduced with a live INSERT). A guard that
+        # goes green on the violation it exists to catch is the degeneracy this
+        # module was written to remove. Skipped only OUTSIDE a string: `--` and
+        # `/*` inside a quoted value are ordinary characters.
+        if not in_string and ddl.startswith("--", i):
+            nl = ddl.find("\n", i)
+            if nl < 0:
+                return None  # a line comment that never ends cannot close the list
+            i = nl + 1
+            continue
+        if not in_string and ddl.startswith("/*", i):
+            end = ddl.find("*/", i + 2)
+            if end < 0:
+                return None  # unterminated block comment — unreadable, not empty
+            i = end + 2
+            continue
         if in_string:
             if ch == "'":
                 if i + 1 < len(ddl) and ddl[i + 1] == "'":

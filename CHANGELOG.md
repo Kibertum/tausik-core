@@ -9,6 +9,39 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the CHECK parser reads past SQL comments, and the vacuous clause names every watch it rests on
+
+Found by external review #40 (a third model: the two commits before it were
+written by different models, and the reviewer verified the separation before
+starting). Both HIGH findings were reproduced here before being fixed.
+
+- A `)` INSIDE AN SQL COMMENT ENDED THE VALUE LIST, and the result was a FALSE
+  PASS rather than a crash. `CHECK(type IN ('A','B' /* note ) */, 'FAKE'))` is
+  admitted by SQLite with `FAKE` in it — verified with a live `INSERT` — while
+  the scan stopped at the comment's parenthesis and reported a list that
+  matched the declaration exactly. A guard going green on the violation it
+  exists to catch, in the primitive every closed list reuses. Both comment
+  forms are skipped now, only outside a string (`--` and `/*` can be values),
+  and an unterminated comment is filed as unreadable, never as an empty list.
+- THE BASIS BLOCK DISCLOSED LESS THAN THE CAVEAT IT REPLACED. v17's
+  `measurer-caveats` entry for §13.3.5 named the ADR-013 guard test as a
+  second, broader watch and said it skips in CI; v18's basis entry named only
+  the live-database ratchet, so neither published artifact mentioned ADR-013
+  at all — in the very change whose subject is publishing what a `true` rests
+  on. `TC_PREMISE_WATCH` now names both watches and the CI gap, and a test
+  pins that it does. Manifest regenerated to v19.
+- Closed-list enumerations in docs are matched CASE-INSENSITIVELY, subject and
+  contents alike. A doc spelling the list in another case scored zero overlap,
+  fell below the floor and was skipped entirely, so drift inside it was
+  invisible; the message still quotes the doc's own spelling.
+- A decorated cell (`128+`, `~128`) in the MCP tool-count column stays skipped,
+  now as a DECLARED exclusion with its reason: this column has no lower-bound
+  convention the way `test_count` has one (decision #182), and inventing that
+  rule inside a scanner would be policy written where nobody looks for it.
+
+Seven declared mutations, seven killed, each killer named by the branch it
+reaches.
+
 ### Fixed — the ADAPT closed lists have one source, and the detector of second copies is derived from it
 
 §7.4.4's seven backward-finding categories existed as FOUR literal tuples, not

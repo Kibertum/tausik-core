@@ -132,7 +132,10 @@ SUBSTRATE_WATCH = (
 )
 TC_PREMISE_WATCH = (
     "renar_tc_premise.classes_appeared via tests/test_renar_tc_premise.py, on the live "
-    "project database — the only database the declaration describes"
+    "project database — the only database the declaration describes; and the ADR-013 "
+    "guard test (tests/test_spec_types_closed_list.py), which watches the same premise "
+    "more broadly but SKIPS IN CI, because .tausik/ is gitignored and no workflow "
+    "creates the database (task db-gated-ratchets-never-run-in-ci)"
 )
 
 

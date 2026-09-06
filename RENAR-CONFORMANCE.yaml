@@ -21,18 +21,18 @@
 # `mandatory-clauses-basis` above.
 renar-version: '1.0'
 senar-version: '1.3'
-manifest-version: 18
-manifest-id: CFM-2026-09-04-tausik
+manifest-version: 19
+manifest-id: CFM-2026-09-06-tausik
 level: null
 level-target: null
 pre-adoption: false
 assessment-mode: self
-assessment-date: '2026-09-04'
+assessment-date: '2026-09-06'
 assessor:
   id: Andrey Yumashev
   role: architect
   signature-ref: null
-next-assessment-due: '2026-12-03'
+next-assessment-due: '2026-12-05'
 mandatory-clauses-confirmed:
   sot-inversion: true
   substrate-v1-v6: true
@@ -64,7 +64,10 @@ mandatory-clauses-basis:
   tc-pos-neg-pairing:
     basis: vacuous
     premise-watched-by: renar_tc_premise.classes_appeared via tests/test_renar_tc_premise.py,
-      on the live project database — the only database the declaration describes
+      on the live project database — the only database the declaration describes;
+      and the ADR-013 guard test (tests/test_spec_types_closed_list.py), which watches
+      the same premise more broadly but SKIPS IN CI, because .tausik/ is gitignored
+      and no workflow creates the database (task db-gated-ratchets-never-run-in-ci)
   quality-gates-closed-list:
     basis: declared
   closed-lists-backward-findings:
@@ -151,7 +154,7 @@ assessment-evidence:
     task_specs_count: 2
     reasoning_tasks_count: 2
     memory_edges_count: 27
-    verification_runs_count: 2085
+    verification_runs_count: 2097
   level-signals:
     substrate_v1_v6: true
     adapt_per_tz: false
@@ -242,7 +245,7 @@ assessment-evidence:
     citation: §13.3.7 (backward findings, SPEC types, lifecycle states closed)
     evidence: every adapts row is inside the declared list
 replaced-by: <unknown-state>
-replaces: CFM-2026-09-04-tausik@v17
+replaces: CFM-2026-09-04-tausik@v18
 conformance-declaration: non-conformant
 scope-exclusion:
   clause: §1.5.4
