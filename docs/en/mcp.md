@@ -2,13 +2,13 @@
 
 # TAUSIK MCP — Tool Reference
 
-**141 tools** for AI agents (134 project + 7 brain; current actual count, asserted via `len(TOOLS)` on both servers). The MCP surface covers everything an agent does day-to-day. A few CLI-only commands have no MCP equivalent — they are operator / maintenance verbs that don't belong in an agent loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. For the agent's working set, prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
+**143 tools** for AI agents (136 project + 7 brain; current actual count, asserted via `len(TOOLS)` on both servers). The MCP surface covers everything an agent does day-to-day. A few CLI-only commands have no MCP equivalent — they are operator / maintenance verbs that don't belong in an agent loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. For the agent's working set, prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
 
-> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 141 count - total with it is 148 tools.
+> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 143 count - total with it is 150 tools.
 
 Two MCP servers live in this project:
 
-- `tausik-project` — project-scoped tools (134): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging.
+- `tausik-project` — project-scoped tools (136): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging.
 - `tausik-brain` — cross-project Shared Brain tools (7).
 
 There is also an optional `codebase-rag` server documented at the bottom.
@@ -150,18 +150,19 @@ See also `tausik_reason_step` (RENAR trace) under "Tasks".
 | `tausik_adapt_link` | Link an ADAPT to a task/SPEC; the target must exist; a link to a superseded ADAPT is FATAL (§7.6.4) | `adapt_slug`, `target_type`, `target_slug` |
 | `tausik_adapt_search` | FTS5 over slug/title/tz_ref (JSON) | `query` |
 
-### ACTZ (13)
+### ACTZ (15)
 
 The contractual clarification protocol (§5A, ADR-011) — client-facing, unlike ADAPT: what
 the client approves belongs here. Lifecycle `draft` → `sent` → `signed` → `superseded`,
 computed from signature-role coverage. One project ed25519 key exists (not one per party):
 `architect` signs for real; `client` records `signed_by`+`signed_at` only, no simulated
-independent signature.
+independent signature. `final_tz`/`orphans` (§5A.4) are read-only projections over the
+signed points below — the derived acceptance reference, never a third copy of the text.
 
 | Tool | Description | Required Parameters |
 |---|---|---|
 | `tausik_actz_create` | Create an ACTZ header (§5A); `tz_ref` mandatory; starts in `draft` | `slug`, `title`, `tz_ref` |
-| `tausik_actz_point` | Add a numbered point; only while `draft` (frozen once any signature is recorded) | `actz_slug`, `point_no`, `text` |
+| `tausik_actz_point` | Add a numbered point; only while `draft` (frozen once any signature is recorded). `tz_ref` names which clause of the original ТЗ (or a prior ACTZ point) this point clarifies | `actz_slug`, `point_no`, `tz_ref`, `text` |
 | `tausik_actz_sign` | Record a signature (§5.5.3): `architect` signs the canonical body with the project ed25519 key; `client` records `signed_by`+`signed_at` only. First signature ⇒ `sent`; both roles ⇒ `signed` | `actz_slug`, `role`, `signed_by` |
 | `tausik_actz_verify` | Verify the architect ed25519 signature against the current body | `slug` |
 | `tausik_actz_show` | ACTZ + points, signatures, links (JSON) | `slug` |
@@ -173,6 +174,8 @@ independent signature.
 | `tausik_actz_search` | FTS5 over slug/title/tz_ref (JSON) | `query` |
 | `tausik_actz_decided_in` | Record that an ADAPT backward finding was decided-in a point of a SIGNED ACTZ, with provenance (`linked_by`); refuses an unsigned target | `adapt_slug`, `finding_id`, `actz_slug`, `actz_point_no`, `linked_by` |
 | `tausik_actz_decided_in_remove` | Remove a decided-in edge | `adapt_slug`, `finding_id`, `actz_slug`, `actz_point_no` |
+| `tausik_actz_final_tz` | The derived acceptance reference (§5A.4): per ТЗ clause, the latest both-role-signed point, naming what it overrode. `as_of` (ISO-8601) shows it at a past moment | — |
+| `tausik_actz_orphans` | Signed points no ADAPT reflects — an obligation outside requirements (§5A.4, fatal), found by query | — |
 
 ## Knowledge
 

@@ -27,7 +27,7 @@ def cmd_actz(svc: ProjectService, args: Any) -> None:
             print(svc.actz_create(args.slug, args.title, args.tz_ref))
             return None
         if cmd == "point":
-            print(svc.actz_point_add(args.actz_slug, args.point_no, args.text))
+            print(svc.actz_point_add(args.actz_slug, args.point_no, args.tz_ref, args.text))
             return None
         if cmd == "sign":
             print(svc.actz_sign(args.actz_slug, args.role, args.signed_by, os.getcwd()))
@@ -78,6 +78,10 @@ def cmd_actz(svc: ProjectService, args: Any) -> None:
                 )
             )
             return None
+        if cmd == "final-tz":
+            return _cmd_final_tz(svc, args)
+        if cmd == "orphans":
+            return _cmd_orphans(svc)
     except ServiceError as e:
         # A CLI invocation IS the flow — a swallowed error that still exits 0 is
         # a silent failure (CLAUDE.md zero-tolerance). Route to stderr and exit
@@ -131,6 +135,30 @@ def _cmd_search(svc: ProjectService, args: Any) -> None:
         return
     for r in rows:
         print(f"  {r['slug']:<24} {r['status']:<10} {r.get('_snippet', r['title'])}")
+
+
+def _cmd_final_tz(svc: ProjectService, args: Any) -> None:
+    rows = svc.final_tz_snapshot(getattr(args, "as_of", None))
+    if not rows:
+        print("No both-role-signed ACTZ points yet — nothing to derive a final TZ from.")
+        return
+    for r in rows:
+        print(
+            f"  {r['tz_ref']}: {r['governing_actz']}#{r['governing_point_no']} @ {r['completed_at']}"
+        )
+        print(f"    {r['governing_text']}")
+        for o in r["overridden"]:
+            print(f"    overrides: {o['actz_slug']}#{o['point_no']} @ {o['completed_at']}")
+
+
+def _cmd_orphans(svc: ProjectService) -> None:
+    rows = svc.orphan_signed_points()
+    if not rows:
+        print("No orphan signed points — every signed decision is reflected in an ADAPT.")
+        return
+    print(f"FATAL: {len(rows)} signed point(s) with no referencing ADAPT (§5A.4):")
+    for r in rows:
+        print(f"  {r['actz_slug']}#{r['point_no']} ({r['tz_ref']}): {r['text']}")
 
 
 if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests

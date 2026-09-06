@@ -9,6 +9,43 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the final TZ is a derived view, not a third copy of the text (RENAR §5A.4)
+
+RENAR §5A.4: the acceptance reference is the initial ТЗ plus every signed ACTZ,
+priority to the later signed document — and ADAPT never enters it, which is
+what keeps acceptance legally clean. We had ACTZ as an artifact but nothing
+that could answer "what governs this clause right now," or "what governed it
+on a given date," and nothing that could find the specific fatal case §5A.4
+names: a signed decision no ADAPT reflects, an obligation outside
+requirements.
+
+`actz_points` gained `tz_ref` (migration v53) — which clause of the original
+ТЗ, or of a prior ACTZ point, a given point clarifies. Without it "which ACTZ
+point overrode which" had no substrate: a point recorded WHAT was clarified,
+never WHICH clause. Two read-only projections follow, added to CRUD and
+service layers, CLI (`actz final-tz [--as-of TS]`, `actz orphans`) and MCP
+(`tausik_actz_final_tz`, `tausik_actz_orphans`) with the same full parity the
+rest of ACTZ already has:
+
+`final_tz_snapshot` groups every BOTH-role-signed point by `tz_ref` and picks
+the one with the latest completion time (max signed_at across both roles) —
+priority to the later signed document, computed, not asserted. `as_of` filters
+to points completed at or before a given moment, so the reference is
+reconstructable at any point in time, exactly as the standard requires. It
+deliberately includes SUPERSEDED headers: current status alone can only
+answer "what governs now," not "what governed then." `orphan_signed_points`
+finds signed points no `actz_decided_in` edge references — the fatal case
+found by query, not by eye.
+
+A schema lesson paid for by a crashing migration test: the FRESH-install DDL
+block (`init_schema`) re-runs unconditionally on every call, including
+against a database that already has an OLDER-shaped `actz_points` (no
+`tz_ref`) — `CREATE TABLE IF NOT EXISTS` no-ops safely there, but an index
+statement referencing the new column does not, and it runs BEFORE migrations
+ever get a chance to add the column. The index is a guarded postseed step
+instead (`ensure_actz_points_tz_ref_index`), safe on a fresh table, a
+just-migrated one, or no table at all.
+
 ### Added — ACTZ, the contract-contour artifact RENAR §5A requires and we had nowhere for
 
 RENAR §5A (ADR-011, accepted) introduces ACTZ — the contractual clarification

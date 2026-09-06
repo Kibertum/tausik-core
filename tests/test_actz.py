@@ -59,7 +59,9 @@ def _full_adapt(svc, slug: str = "a1") -> int:
 
 def _signed_actz(svc_keyed, slug: str = "z1") -> None:
     svc_keyed.actz_create(slug, "Сроки приёмки", "TZ-2026-001")
-    svc_keyed.actz_point_add(slug, 1, "Приёмка завершается через 5 рабочих дней после демо.")
+    svc_keyed.actz_point_add(
+        slug, 1, "TZ-1", "Приёмка завершается через 5 рабочих дней после демо."
+    )
     svc_keyed.actz_sign(slug, "architect", "Архитектор А.", svc_keyed._project_dir)
     svc_keyed.actz_sign(slug, "client", "Заказчик Б.")
 
@@ -83,17 +85,21 @@ def test_link_targets_same_as_adapt():
 # === schema / migration ===
 
 
-def test_schema_version_at_least_52():
+def test_schema_version_at_least_53():
     from backend_migrations import MIGRATIONS
 
-    assert SCHEMA_VERSION >= 52
+    assert SCHEMA_VERSION >= 53
     assert 52 in MIGRATIONS
+    assert 53 in MIGRATIONS
 
 
-def test_migration_v52_creates_tables_clean(tmp_path):
+def test_migration_v52_then_v53_matches_fresh_shape(tmp_path):
     """Same shape as test_adapts.test_migration_v36_creates_tables_clean: seed a
     minimal pre-v36 fixture and let run_migrations walk every pending version up
-    to current (36 creates adapts/adapt_findings before 52's FK needs them)."""
+    to current (36 creates adapts/adapt_findings before 52's FK needs them; 53
+    ALTERs actz_points.tz_ref onto the table 52 created). The migrated result
+    must match backend_schema_actz's current cumulative shape -- the
+    byte-equivalence discipline that module's docstring now claims."""
     path = str(tmp_path / "premigration.db")
     conn = sqlite3.connect(path)
     conn.isolation_level = None
@@ -105,7 +111,7 @@ def test_migration_v52_creates_tables_clean(tmp_path):
     conn.execute("CREATE TABLE memory(id INTEGER PRIMARY KEY AUTOINCREMENT)")
 
     new_ver = run_migrations(conn, 35)
-    assert new_ver >= 52
+    assert new_ver >= 53
     tables = {
         r[0]
         for r in conn.execute(
@@ -119,6 +125,8 @@ def test_migration_v52_creates_tables_clean(tmp_path):
         "actz_links",
         "actz_decided_in",
     }
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(actz_points)")}
+    assert "tz_ref" in cols
     conn.close()
 
 
@@ -170,7 +178,7 @@ def test_missing_tz_ref_rejected(svc):
 
 def test_delete_cascades(svc):
     svc.actz_create("z1", "T", "TZ-1")
-    svc.actz_point_add("z1", 1, "п.1")
+    svc.actz_point_add("z1", 1, "TZ-1", "п.1")
     svc.actz_delete("z1")
     assert svc.be._q("SELECT * FROM actz_points WHERE actz_slug='z1'") == []
 
@@ -180,23 +188,23 @@ def test_delete_cascades(svc):
 
 def test_point_add_requires_draft(svc_keyed):
     svc_keyed.actz_create("z1", "T", "TZ-1")
-    svc_keyed.actz_point_add("z1", 1, "п.1")
+    svc_keyed.actz_point_add("z1", 1, "TZ-1", "п.1")
     svc_keyed.actz_sign("z1", "architect", "A.", svc_keyed._project_dir)
     with pytest.raises(ServiceError, match="frozen"):
-        svc_keyed.actz_point_add("z1", 2, "п.2")
+        svc_keyed.actz_point_add("z1", 2, "TZ-1", "п.2")
 
 
 def test_duplicate_point_no_rejected(svc):
     svc.actz_create("z1", "T", "TZ-1")
-    svc.actz_point_add("z1", 1, "п.1")
+    svc.actz_point_add("z1", 1, "TZ-1", "п.1")
     with pytest.raises(ServiceError):
-        svc.actz_point_add("z1", 1, "again")
+        svc.actz_point_add("z1", 1, "TZ-1", "again")
 
 
 def test_empty_point_text_rejected(svc):
     svc.actz_create("z1", "T", "TZ-1")
     with pytest.raises(ServiceError):
-        svc.actz_point_add("z1", 1, "   ")
+        svc.actz_point_add("z1", 1, "TZ-1", "   ")
 
 
 # === signatures: architect real ed25519, client name+timestamp only ===
@@ -204,7 +212,7 @@ def test_empty_point_text_rejected(svc):
 
 def test_architect_signature_is_real_ed25519_and_verifies(svc_keyed):
     svc_keyed.actz_create("z1", "T", "TZ-1")
-    svc_keyed.actz_point_add("z1", 1, "п.1")
+    svc_keyed.actz_point_add("z1", 1, "TZ-1", "п.1")
     svc_keyed.actz_sign("z1", "architect", "A.", svc_keyed._project_dir)
     row = svc_keyed.be.signatures_for_actz("z1")[0]
     assert row["signature"] and row["key_fingerprint"]
@@ -214,7 +222,7 @@ def test_architect_signature_is_real_ed25519_and_verifies(svc_keyed):
 
 def test_client_signature_has_no_signature_or_fingerprint(svc):
     svc.actz_create("z1", "T", "TZ-1")
-    svc.actz_point_add("z1", 1, "п.1")
+    svc.actz_point_add("z1", 1, "TZ-1", "п.1")
     svc.actz_sign("z1", "client", "Заказчик Б.")
     row = svc.be.signatures_for_actz("z1")[0]
     assert row["signed_by"] == "Заказчик Б."
@@ -225,7 +233,7 @@ def test_client_signature_has_no_signature_or_fingerprint(svc):
 def test_one_signature_does_not_reach_signed(svc_keyed):
     """AC-6: neither role alone completes the contract."""
     svc_keyed.actz_create("z1", "T", "TZ-1")
-    svc_keyed.actz_point_add("z1", 1, "п.1")
+    svc_keyed.actz_point_add("z1", 1, "TZ-1", "п.1")
     svc_keyed.actz_sign("z1", "architect", "A.", svc_keyed._project_dir)
     assert svc_keyed.actz_show("z1")["status"] == "sent"
 
@@ -354,7 +362,7 @@ def test_unlink_missing_link_errors(svc):
 def test_decided_in_requires_signed_actz(svc):
     finding_id = _full_adapt(svc)
     svc.actz_create("z1", "T", "TZ-1")
-    svc.actz_point_add("z1", 1, "п.1")
+    svc.actz_point_add("z1", 1, "TZ-1", "п.1")
     with pytest.raises(ServiceError, match="SIGNED"):
         svc.actz_decided_in("a1", finding_id, "z1", 1, "Архитектор")
 
@@ -405,6 +413,117 @@ def test_decided_in_remove(svc_keyed):
 def test_decided_in_remove_missing_errors(svc):
     with pytest.raises(ServiceError):
         svc.actz_decided_in_remove("a1", 1, "z1", 1)
+
+
+# === final-TZ (§5A.4): derived acceptance reference, priority to the later signed ===
+
+
+def _set_completion(svc, actz_slug: str, ts: str) -> None:
+    """Force both signature rows' signed_at to an exact timestamp -- second-
+    resolution utcnow_iso() cannot reliably order two real-time signs within a
+    fast test, so completion time is set directly rather than raced for."""
+    svc.be._ex("UPDATE actz_signatures SET signed_at=? WHERE actz_slug=?", (ts, actz_slug))
+
+
+def test_final_tz_snapshot_empty_when_nothing_signed(svc):
+    svc.actz_create("z1", "T", "TZ-1")
+    svc.actz_point_add("z1", 1, "TZ-3.1", "draft text")
+    assert svc.final_tz_snapshot() == []
+
+
+def test_final_tz_snapshot_ignores_unsigned_points(svc_keyed):
+    svc_keyed.actz_create("z1", "T", "TZ-1")
+    svc_keyed.actz_point_add("z1", 1, "TZ-3.1", "sent, not fully signed")
+    svc_keyed.actz_sign("z1", "architect", "A.", svc_keyed._project_dir)
+    assert svc_keyed.final_tz_snapshot() == []
+
+
+def test_final_tz_snapshot_picks_the_later_signed_point(svc_keyed):
+    svc_keyed.actz_create("z1", "T1", "TZ-1")
+    svc_keyed.actz_point_add("z1", 1, "TZ-3.1", "earlier clarification")
+    svc_keyed.actz_sign("z1", "architect", "A.", svc_keyed._project_dir)
+    svc_keyed.actz_sign("z1", "client", "C.")
+    _set_completion(svc_keyed, "z1", "2026-01-01T00:00:00Z")
+
+    svc_keyed.actz_create("z2", "T2", "TZ-1b")
+    svc_keyed.actz_point_add("z2", 1, "TZ-3.1", "later clarification wins")
+    svc_keyed.actz_sign("z2", "architect", "A.", svc_keyed._project_dir)
+    svc_keyed.actz_sign("z2", "client", "C.")
+    _set_completion(svc_keyed, "z2", "2026-02-01T00:00:00Z")
+
+    snap = svc_keyed.final_tz_snapshot()
+    assert len(snap) == 1
+    row = snap[0]
+    assert row["tz_ref"] == "TZ-3.1"
+    assert row["governing_actz"] == "z2"
+    assert row["governing_text"] == "later clarification wins"
+    assert row["overridden"] == [
+        {"actz_slug": "z1", "point_no": 1, "completed_at": "2026-01-01T00:00:00Z"}
+    ]
+
+
+def test_final_tz_snapshot_as_of_a_past_moment(svc_keyed):
+    svc_keyed.actz_create("z1", "T1", "TZ-1")
+    svc_keyed.actz_point_add("z1", 1, "TZ-3.1", "earlier")
+    svc_keyed.actz_sign("z1", "architect", "A.", svc_keyed._project_dir)
+    svc_keyed.actz_sign("z1", "client", "C.")
+    _set_completion(svc_keyed, "z1", "2026-01-01T00:00:00Z")
+
+    svc_keyed.actz_create("z2", "T2", "TZ-1b")
+    svc_keyed.actz_point_add("z2", 1, "TZ-3.1", "later")
+    svc_keyed.actz_sign("z2", "architect", "A.", svc_keyed._project_dir)
+    svc_keyed.actz_sign("z2", "client", "C.")
+    _set_completion(svc_keyed, "z2", "2026-02-01T00:00:00Z")
+
+    # As of a moment BEFORE z2 completed, z1 is what governed.
+    snap = svc_keyed.final_tz_snapshot(as_of="2026-01-15T00:00:00Z")
+    assert snap[0]["governing_actz"] == "z1"
+    assert snap[0]["overridden"] == []
+
+    # Boundary: as_of EXACTLY at z1's completion moment is INCLUSIVE -- "as of
+    # this timestamp" means the state that held once that moment was reached.
+    snap_at_boundary = svc_keyed.final_tz_snapshot(as_of="2026-01-01T00:00:00Z")
+    assert snap_at_boundary[0]["governing_actz"] == "z1"
+
+
+def test_final_tz_snapshot_two_tz_refs_are_independent(svc_keyed):
+    svc_keyed.actz_create("z1", "T", "TZ-1")
+    svc_keyed.actz_point_add("z1", 1, "TZ-3.1", "clause 3.1")
+    svc_keyed.actz_point_add("z1", 2, "TZ-3.2", "clause 3.2")
+    svc_keyed.actz_sign("z1", "architect", "A.", svc_keyed._project_dir)
+    svc_keyed.actz_sign("z1", "client", "C.")
+    refs = {r["tz_ref"] for r in svc_keyed.final_tz_snapshot()}
+    assert refs == {"TZ-3.1", "TZ-3.2"}
+
+
+# === orphan signed points (§5A.4 fatal): a signed decision no ADAPT reflects ===
+
+
+def test_orphan_signed_points_finds_unlinked_signed_point(svc_keyed):
+    _signed_actz(svc_keyed)
+    orphans = svc_keyed.orphan_signed_points()
+    assert len(orphans) == 1
+    assert orphans[0]["actz_slug"] == "z1"
+    assert orphans[0]["point_no"] == 1
+    assert orphans[0]["tz_ref"] == "TZ-1"
+
+
+def test_orphan_signed_points_excludes_a_linked_point(svc_keyed):
+    finding_id = _full_adapt(svc_keyed)
+    _signed_actz(svc_keyed)
+    svc_keyed.actz_decided_in("a1", finding_id, "z1", 1, "A.")
+    assert svc_keyed.orphan_signed_points() == []
+
+
+def test_orphan_signed_points_excludes_unsigned_points(svc):
+    svc.actz_create("z1", "T", "TZ-1")
+    svc.actz_point_add("z1", 1, "TZ-3.1", "still draft")
+    orphans = svc.orphan_signed_points()
+    # Not just empty: confirm it's SILENT because nothing is signed yet, not
+    # because the query itself is broken -- signing then re-checking finds it.
+    assert orphans == []
+    svc.actz_create("z2", "T2", "TZ-2")
+    assert svc.orphan_signed_points() == orphans
 
 
 # === late-dated ACTZ is the NORMAL case (AC-4), not an anomaly ===
@@ -462,6 +581,31 @@ def test_cli_parser_rejects_bad_signature_role():
         parser.parse_args(["actz", "sign", "z1", "bogus", "--by", "A."])
 
 
+def test_cli_parser_accepts_point_with_tz_ref():
+    from project_parser import build_parser
+
+    parser = build_parser()
+    ns = parser.parse_args(["actz", "point", "z1", "1", "--tz-ref", "TZ-3.1", "text"])
+    assert ns.tz_ref == "TZ-3.1"
+    assert ns.point_no == 1
+
+
+def test_cli_parser_accepts_final_tz_with_as_of():
+    from project_parser import build_parser
+
+    parser = build_parser()
+    ns = parser.parse_args(["actz", "final-tz", "--as-of", "2026-01-01T00:00:00Z"])
+    assert ns.as_of == "2026-01-01T00:00:00Z"
+
+
+def test_cli_parser_accepts_orphans():
+    from project_parser import build_parser
+
+    parser = build_parser()
+    ns = parser.parse_args(["actz", "orphans"])
+    assert ns.actz_cmd == "orphans"
+
+
 # === MCP dispatch: FULL parity, unlike adapt's 9-of-12 ===
 
 
@@ -485,6 +629,8 @@ def test_mcp_dispatch_registers_all_actz_tools_full_parity():
         "tausik_actz_search",
         "tausik_actz_decided_in",
         "tausik_actz_decided_in_remove",
+        "tausik_actz_final_tz",
+        "tausik_actz_orphans",
     }
     assert expected == set(handlers_actz.ACTZ_HANDLERS)
 
@@ -525,6 +671,19 @@ def test_mcp_handler_invalid_role_returns_error(svc):
     )
     assert out.startswith("Error:")
     assert "bogus" in out
+
+
+def test_mcp_handler_final_tz_and_orphans(svc_keyed):
+    sys.path.insert(
+        0, os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project")
+    )
+    import handlers_actz
+
+    _signed_actz(svc_keyed)
+    final_tz = handlers_actz.handle_actz_final_tz(svc_keyed, {})
+    assert '"tz_ref": "TZ-1"' in final_tz
+    orphans = handlers_actz.handle_actz_orphans(svc_keyed, {})
+    assert '"actz_slug": "z1"' in orphans
 
 
 # === the "акт" word guard (AC-1) ===

@@ -46,15 +46,16 @@ TOOLS_ACTZ = [
     },
     {
         "name": "tausik_actz_point",
-        "description": "Add a numbered point to a draft ACTZ. Points may only be added while status='draft' (frozen once any signature is recorded).",
+        "description": "Add a numbered point to a draft ACTZ. Points may only be added while status='draft' (frozen once any signature is recorded). tz_ref names which clause of the original ТЗ (or a prior ACTZ point) this point clarifies — final_tz drives off it.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "actz_slug": {"type": "string"},
                 "point_no": {"type": "integer"},
+                "tz_ref": {"type": "string", "description": "Which ТЗ clause this clarifies"},
                 "text": {"type": "string"},
             },
-            "required": ["actz_slug", "point_no", "text"],
+            "required": ["actz_slug", "point_no", "tz_ref", "text"],
         },
     },
     {
@@ -189,5 +190,20 @@ TOOLS_ACTZ = [
             },
             "required": ["adapt_slug", "finding_id", "actz_slug", "actz_point_no"],
         },
+    },
+    {
+        "name": "tausik_actz_final_tz",
+        "description": "The derived acceptance reference (Sec5A.4): per ТЗ clause, the latest both-role-signed ACTZ point, naming what it overrode. Read-only projection — nothing new is stored, ADAPT never enters it. as_of (ISO-8601) shows it at a past moment.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "as_of": {"type": "string", "description": "ISO-8601 timestamp; omit for now"},
+            },
+        },
+    },
+    {
+        "name": "tausik_actz_orphans",
+        "description": "Signed ACTZ points no ADAPT reflects — an obligation outside requirements (Sec5A.4, fatal), found by query rather than by eye.",
+        "inputSchema": {"type": "object", "properties": {}},
     },
 ]

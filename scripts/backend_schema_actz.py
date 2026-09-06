@@ -7,14 +7,20 @@ client never sees), ACTZ IS the client-facing artifact: what the client
 approves belongs here, not in ADAPT (ADR-011's own withdrawal rationale for
 ADAPT's client-signature role names ACTZ as its correct home).
 
-ONE LIST OF STATEMENTS, not two hand-synced literals. ADAPT's v36/v50 pair
-predates a real schema; here ACTZ has no history yet -- v52 is its only
-migration -- so the fresh-DB path (``ACTZ_SQL``, an executescript string) and
-the migration path (``backend_migrations_v52.MIGRATION_V52``) both derive from
-``ACTZ_STATEMENTS`` in this module rather than being retyped in each. A design
-choice, not an oversight: the two-literal shape is exactly the mechanism named
-by the open defect ``schema-index-drift-fresh-vs-migrated``, and there is no
-reason to add a new instance of it for a brand-new table.
+CURRENT CUMULATIVE SHAPE, not a migration delta -- exactly the relationship
+``backend_schema_adapts.ADAPTS_SQL`` has to ``backend_migrations_v36``: this
+module is what a FRESH database gets today, migrations are what an EXISTING
+one replays to arrive at the same place. ``actz_points.tz_ref`` below is v53
+(final-tz-is-the-acceptance-reference-and-we-have-none); ``backend_migrations_v52``
+holds its own frozen copy of what v52 shipped WITHOUT that column, and
+``backend_migrations_v53.MIGRATION_V53`` ALTERs it in on the upgrade path.
+
+The two are kept independently correct on purpose, checked by
+``test_migration_v52_creates_tables_clean`` + ``test_migration_v53_adds_tz_ref``
+running migrations in sequence and comparing the result to THIS module's shape
+-- the byte-equivalence discipline ADAPT's v36/v50 docstring names, applied
+from ACTZ's second migration onward rather than its first (v52 alone had no
+history to diverge from yet, which is exactly what stopped being true here).
 
 ``actz_points`` gives ACTZ item-level granularity: RENAR ties `decided-in`
 (ADAPT backward-finding -> ACTZ) to a POINT of the protocol, not the document as
@@ -57,6 +63,12 @@ ACTZ_STATEMENTS: list[str] = [
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         actz_slug TEXT NOT NULL REFERENCES actz(slug) ON DELETE CASCADE,
         point_no INTEGER NOT NULL,
+        -- tz_ref (v53): which clause of the original ТЗ (or a prior ACTZ
+        -- point) this point clarifies/overrides -- final_tz_snapshot groups
+        -- by this column. NOT NULL DEFAULT '' at the DB level (no deployed
+        -- rows existed when this was added); an empty string is refused at
+        -- the service layer, same shape as adapt_interpretations.tz_ref.
+        tz_ref TEXT NOT NULL DEFAULT '',
         text TEXT NOT NULL,
         created_at TEXT NOT NULL,
         UNIQUE(actz_slug, point_no)
@@ -99,6 +111,13 @@ ACTZ_STATEMENTS: list[str] = [
     )""",
     "CREATE INDEX IF NOT EXISTS idx_actz_parent ON actz(parent_actz)",
     "CREATE INDEX IF NOT EXISTS idx_actz_points_actz ON actz_points(actz_slug)",
+    # idx_actz_points_tz_ref is NOT here: this whole list re-runs unconditionally
+    # on EVERY init_schema call (including against a pre-v53 database that
+    # already has actz_points WITHOUT tz_ref -- CREATE TABLE IF NOT EXISTS
+    # no-ops safely on that old table, but an index statement referencing the
+    # new column would not). It is created by a guarded postseed step instead
+    # (backend_migrations_v53.ensure_actz_points_tz_ref_index), which runs
+    # AFTER the column is guaranteed to exist on both paths. See that module.
     "CREATE INDEX IF NOT EXISTS idx_actz_links_target ON actz_links(target_type, target_slug)",
     "CREATE INDEX IF NOT EXISTS idx_actz_decided_in_adapt ON actz_decided_in(adapt_slug, finding_id)",
     "CREATE INDEX IF NOT EXISTS idx_actz_decided_in_actz ON actz_decided_in(actz_slug, actz_point_no)",

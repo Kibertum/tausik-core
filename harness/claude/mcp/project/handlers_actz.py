@@ -28,7 +28,7 @@ def handle_actz_create(svc: Any, args: dict) -> str:
 
 def handle_actz_point(svc: Any, args: dict) -> str:
     try:
-        return svc.actz_point_add(args["actz_slug"], args["point_no"], args["text"])
+        return svc.actz_point_add(args["actz_slug"], args["point_no"], args["tz_ref"], args["text"])
     except ServiceError as e:
         return f"Error: {e}"
 
@@ -124,6 +124,14 @@ def handle_actz_decided_in_remove(svc: Any, args: dict) -> str:
         return f"Error: {e}"
 
 
+def handle_actz_final_tz(svc: Any, args: dict) -> str:
+    return _dump(svc.final_tz_snapshot(args.get("as_of")))
+
+
+def handle_actz_orphans(svc: Any, args: dict) -> str:
+    return _dump(svc.orphan_signed_points())
+
+
 ACTZ_HANDLERS = {
     "tausik_actz_create": handle_actz_create,
     "tausik_actz_point": handle_actz_point,
@@ -138,4 +146,6 @@ ACTZ_HANDLERS = {
     "tausik_actz_search": handle_actz_search,
     "tausik_actz_decided_in": handle_actz_decided_in,
     "tausik_actz_decided_in_remove": handle_actz_decided_in_remove,
+    "tausik_actz_final_tz": handle_actz_final_tz,
+    "tausik_actz_orphans": handle_actz_orphans,
 }

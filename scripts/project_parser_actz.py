@@ -36,6 +36,7 @@ def build_actz_subparsers(sub: Any) -> None:
     zp = z_sub.add_parser("point", help="Add a numbered point to a draft ACTZ")
     zp.add_argument("actz_slug")
     zp.add_argument("point_no", type=int)
+    zp.add_argument("--tz-ref", dest="tz_ref", required=True, help="Which ТЗ clause this clarifies")
     zp.add_argument("text")
 
     zsg = z_sub.add_parser(
@@ -99,3 +100,17 @@ def build_actz_subparsers(sub: Any) -> None:
     zdr.add_argument("finding_id", type=int)
     zdr.add_argument("actz_slug")
     zdr.add_argument("actz_point_no", type=int)
+
+    zft = z_sub.add_parser(
+        "final-tz",
+        help="The derived acceptance reference (§5A.4): per ТЗ clause, the latest "
+        "signed ACTZ point, naming what it overrode",
+    )
+    zft.add_argument(
+        "--as-of", dest="as_of", default=None, help="ISO-8601: show it at this past moment"
+    )
+
+    z_sub.add_parser(
+        "orphans",
+        help="Signed ACTZ points no ADAPT reflects — an obligation outside requirements (§5A.4, fatal)",
+    )

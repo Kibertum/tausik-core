@@ -83,11 +83,16 @@ class ActzCrudMixin:
 
     # --- points (numbered clauses of the protocol) ---
 
-    def actz_point_add(self, actz_slug: str, point_no: int, text: str) -> int:
-        """Insert a numbered point; UNIQUE(actz_slug, point_no) rejects a duplicate number."""
+    def actz_point_add(self, actz_slug: str, point_no: int, tz_ref: str, text: str) -> int:
+        """Insert a numbered point; UNIQUE(actz_slug, point_no) rejects a duplicate number.
+
+        ``tz_ref`` (v53) names which clause of the original ТЗ (or a prior
+        ACTZ point) this point clarifies -- final_tz_snapshot groups by it.
+        """
         return self._ins(
-            "INSERT INTO actz_points(actz_slug, point_no, text, created_at) VALUES(?,?,?,?)",
-            (actz_slug, point_no, text, utcnow_iso()),
+            "INSERT INTO actz_points(actz_slug, point_no, tz_ref, text, created_at) "
+            "VALUES(?,?,?,?,?)",
+            (actz_slug, point_no, tz_ref, text, utcnow_iso()),
         )
 
     def points_for_actz(self, actz_slug: str) -> list[dict[str, Any]]:
@@ -210,6 +215,40 @@ class ActzCrudMixin:
             "SELECT * FROM actz_decided_in WHERE actz_slug=? AND actz_point_no=? "
             "ORDER BY created_at",
             (actz_slug, actz_point_no),
+        )
+
+    # --- final-TZ (RENAR §5A.4): derived from both-role-signed points ---
+
+    def actz_points_with_completion(self) -> list[dict[str, Any]]:
+        """Points of every ACTZ that reached BOTH-role signature coverage, each
+        with its completion time (MAX(signed_at) across its two signature rows).
+
+        Includes SUPERSEDED headers too, on purpose: a document once fully
+        signed remains the governing text for any `as_of` before whatever
+        later superseded it -- current header status alone cannot answer "what
+        governed at time T", only "what governs now".
+        """
+        return self._q(
+            "SELECT p.actz_slug, p.point_no, p.tz_ref, p.text, "
+            "(SELECT MAX(s.signed_at) FROM actz_signatures s "
+            " WHERE s.actz_slug = p.actz_slug) AS completed_at "
+            "FROM actz_points p "
+            "WHERE (SELECT COUNT(DISTINCT s.role) FROM actz_signatures s "
+            "       WHERE s.actz_slug = p.actz_slug) = 2 "
+            "ORDER BY p.tz_ref, completed_at"
+        )
+
+    def orphan_signed_points(self) -> list[dict[str, Any]]:
+        """Points of a both-role-signed ACTZ with no actz_decided_in edge
+        referencing them -- a signed decision not reflected in any ADAPT
+        (§5A.4: an obligation outside requirements)."""
+        return self._q(
+            "SELECT p.actz_slug, p.point_no, p.tz_ref, p.text FROM actz_points p "
+            "WHERE (SELECT COUNT(DISTINCT s.role) FROM actz_signatures s "
+            "       WHERE s.actz_slug = p.actz_slug) = 2 "
+            "AND NOT EXISTS (SELECT 1 FROM actz_decided_in d "
+            "                WHERE d.actz_slug = p.actz_slug AND d.actz_point_no = p.point_no) "
+            "ORDER BY p.actz_slug, p.point_no"
         )
 
     def actz_search(self, query: str, limit: int = 20) -> list[dict[str, Any]]:

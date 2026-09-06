@@ -113,16 +113,23 @@ class ActzMixin:
 
     # --- points ---
 
-    def actz_point_add(self, actz_slug: str, point_no: int, text: str) -> str:
+    def actz_point_add(self, actz_slug: str, point_no: int, tz_ref: str, text: str) -> str:
         """Add a numbered point. Points may only be added while the ACTZ is
-        'draft' -- the same freeze rule ADAPT applies to its body parts."""
+        'draft' -- the same freeze rule ADAPT applies to its body parts.
+
+        ``tz_ref`` (v53) names the clause of the original ТЗ (or a prior ACTZ
+        point) this point clarifies -- mandatory, same shape as
+        adapt_interpretations.tz_ref: final_tz_snapshot groups by it.
+        """
         self._actz_require_draft(actz_slug)
         if point_no < 1:
             raise ServiceError("point_no must be >= 1.")
+        if not tz_ref or not tz_ref.strip():
+            raise ServiceError("Point tz_ref (which ТЗ clause this clarifies) is required.")
         if not text or not text.strip():
             raise ServiceError("Point text is required.")
         try:
-            self.be.actz_point_add(actz_slug, point_no, text)
+            self.be.actz_point_add(actz_slug, point_no, tz_ref, text)
         except sqlite3.IntegrityError as e:
             raise ServiceError(f"ACTZ '{actz_slug}' already has a point {point_no}: {e}") from e
         return f"Point {point_no} added to ACTZ '{actz_slug}'."
@@ -288,6 +295,51 @@ class ActzMixin:
         except sqlite3.OperationalError as e:
             raise ServiceError(f"Invalid search query '{query}': {e}") from e
 
+    # --- final-TZ (RENAR §5A.4): derived, not a third copy of the text ---
+
+    def final_tz_snapshot(self, as_of: str | None = None) -> list[dict[str, Any]]:
+        """The acceptance reference: per tz_ref, the LATEST both-role-signed
+        ACTZ point (§5A.4 — priority to the later signed document), naming
+        what it superseded. ``as_of`` (ISO-8601) shows it at any past moment:
+        only points whose completion (max signed_at of both roles) is <=
+        as_of are considered. Read-only projection over actz/actz_points/
+        actz_signatures — nothing new is stored; ADAPT never enters the
+        reference (§5A.4: that is what keeps acceptance legally clean).
+        """
+        rows = self.be.actz_points_with_completion()
+        if as_of:
+            rows = [r for r in rows if r["completed_at"] and r["completed_at"] <= as_of]
+        by_ref: dict[str, list[dict[str, Any]]] = {}
+        for r in rows:
+            by_ref.setdefault(r["tz_ref"], []).append(r)
+        snapshot: list[dict[str, Any]] = []
+        for tz_ref in sorted(by_ref):
+            points = sorted(by_ref[tz_ref], key=lambda r: r["completed_at"] or "")
+            governing, superseded = points[-1], points[:-1]
+            snapshot.append(
+                {
+                    "tz_ref": tz_ref,
+                    "governing_actz": governing["actz_slug"],
+                    "governing_point_no": governing["point_no"],
+                    "governing_text": governing["text"],
+                    "completed_at": governing["completed_at"],
+                    "overridden": [
+                        {
+                            "actz_slug": p["actz_slug"],
+                            "point_no": p["point_no"],
+                            "completed_at": p["completed_at"],
+                        }
+                        for p in superseded
+                    ],
+                }
+            )
+        return snapshot
+
+    def orphan_signed_points(self) -> list[dict[str, Any]]:
+        """Signed decisions no ADAPT reflects — an obligation outside
+        requirements (§5A.4, fatal), found by QUERY rather than by eye."""
+        return self.be.orphan_signed_points()
+
     # --- decided-in (ADAPT backward finding -> a POINT of a SIGNED ACTZ) ---
 
     def actz_decided_in(
@@ -352,7 +404,8 @@ class ActzMixin:
         """Deterministic ACTZ body -- the architect's signing payload. Points are point_no-ordered."""
         a = self.be.actz_get(slug) or {}
         points = [
-            {"point_no": p["point_no"], "text": p["text"]} for p in self.be.points_for_actz(slug)
+            {"point_no": p["point_no"], "tz_ref": p["tz_ref"], "text": p["text"]}
+            for p in self.be.points_for_actz(slug)
         ]
         return {
             "schema": ACTZ_BODY_SCHEMA,

@@ -31,6 +31,7 @@ from backend_migrations_v48 import MIGRATION_V48
 from backend_migrations_v49 import MIGRATION_V49
 from backend_migrations_v50 import MIGRATION_V50
 from backend_migrations_v52 import MIGRATION_V52
+from backend_migrations_v53 import MIGRATION_V53
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -396,6 +397,9 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     # verbatim (this is ACTZ's first migration, no historical delta to keep
     # separate from the fresh-DB shape).
     52: MIGRATION_V52,
+    # v53: actz_points.tz_ref (final-tz-is-the-acceptance-reference-and-we-have-none)
+    # -- which ТЗ clause a point clarifies, so the final-TZ view can group by it.
+    53: MIGRATION_V53,
 }
 
 

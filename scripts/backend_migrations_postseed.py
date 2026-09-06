@@ -17,6 +17,7 @@ from backend_migrations_v43 import maybe_rebuild_tasks_v43
 from backend_migrations_v48 import maybe_rebuild_usage_events_v48
 from backend_migrations_v49 import maybe_widen_spec_types_v49
 from backend_migrations_v50 import maybe_widen_adapt_statuses_v50
+from backend_migrations_v53 import ensure_actz_points_tz_ref_index
 
 
 def run_post_migrations(conn: sqlite3.Connection, current_version: int) -> None:
@@ -69,3 +70,5 @@ def run_post_migrations(conn: sqlite3.Connection, current_version: int) -> None:
         maybe_widen_spec_types_v49(conn)
     if current_version >= 50:  # widen adapts.status to the standard's seven (guarded rebuild)
         maybe_widen_adapt_statuses_v50(conn)
+    if current_version >= 53:  # index on actz_points.tz_ref, safe on either path (guarded)
+        ensure_actz_points_tz_ref_index(conn)
