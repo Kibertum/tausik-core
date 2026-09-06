@@ -38,7 +38,12 @@ from typing import Any
 # Closed lists — single source of truth lives in the service mixins. Importing
 # (rather than re-declaring) means a future standard amendment that edits a
 # closed list cannot silently desync the detector from the validator.
-from service_adapts import ADAPT_STATUSES, FINDING_CATEGORIES, SIGNATURE_ROLES
+from service_adapts import (
+    ADAPT_STATUSES,
+    FINDING_CATEGORIES,
+    HISTORICAL_SIGNATURE_ROLES,
+    SIGNATURE_ROLES,
+)
 from service_specs import SPEC_STATUSES, SPEC_TYPES
 
 Finding = dict[str, str]
@@ -116,13 +121,31 @@ def detect_schema_drift(conn: sqlite3.Connection) -> list[Finding]:
     sig_roles: dict[str, set[str]] = {}
     for r in _rows(conn, "SELECT adapt_slug, role FROM adapt_signatures"):
         sig_roles.setdefault(r["adapt_slug"], set()).add(r["role"])
-        if r["role"] not in SIGNATURE_ROLES:
+        if r["role"] == "client":
+            # NAMED, NOT DELETED. ADR-011 withdrew the client signature under
+            # ADAPT, and §7.5 now explains its absence — but a signature already
+            # recorded is an audit record, and V1 forbids erasing it. So the row
+            # survives and this says what it is: a record made under a norm the
+            # standard has since withdrawn. Silence here would let a consumer's
+            # database go on looking conformant with a rule that no longer exists.
+            findings.append(
+                _finding(
+                    det,
+                    "signature-role-withdrawn",
+                    f"adapt:{r['adapt_slug']}",
+                    "client signature recorded under a norm RENAR ADR-011 withdrew "
+                    "(§7.5 now names the architect alone); the record is kept as "
+                    "audit history and must not be rewritten — what the client "
+                    "approves belongs in an ACTZ",
+                )
+            )
+        elif r["role"] not in HISTORICAL_SIGNATURE_ROLES:
             findings.append(
                 _finding(
                     det,
                     "signature-role-invalid",
                     f"adapt:{r['adapt_slug']}",
-                    f"signature role {r['role']!r} not in {SIGNATURE_ROLES}",
+                    f"signature role {r['role']!r} not in {HISTORICAL_SIGNATURE_ROLES}",
                 )
             )
 
@@ -183,7 +206,7 @@ def detect_schema_drift(conn: sqlite3.Connection) -> list[Finding]:
                         det,
                         "adapt-approved-incomplete-signature",
                         ref,
-                        f"status=approved but missing dual signature: {sorted(missing)}",
+                        f"status=approved but missing signature: {sorted(missing)} (§7.5)",
                     )
                 )
 

@@ -161,7 +161,7 @@ class AdaptsCrudMixin:
             (adapt_slug,),
         )
 
-    # --- dual signature (§7.5) ---
+    # --- architect signature (§7.5; the client's was withdrawn by ADR-011) ---
 
     def signature_set(
         self,

@@ -118,7 +118,7 @@ tausik_task_done(slug=…, ac_verified=True)   # лёгкое: lookup в кеш�
 
 ## RENAR substrate — SPEC + ADAPT (17 инструментов)
 
-RENAR-подложка: формальные требования (**SPEC**) и интерпретация ТЗ (**ADAPT**, §7) с forward-интерпретациями, backward-findings и двойной подписью. Используется QG-0 для substantial/deep задач и `tausik renar export`/`conformance`. См. также `tausik_reason_step` (RENAR trace) в разделе «Задачи».
+RENAR-подложка: формальные требования (**SPEC**) и интерпретация ТЗ (**ADAPT**, §7) с forward-интерпретациями, backward-findings и подписью архитектора (§7.5). Используется QG-0 для substantial/deep задач и `tausik renar export`/`conformance`. См. также `tausik_reason_step` (RENAR trace) в разделе «Задачи».
 
 ### SPEC (8)
 

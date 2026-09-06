@@ -21,7 +21,7 @@
 # `mandatory-clauses-basis` above.
 renar-version: '1.0'
 senar-version: '1.3'
-manifest-version: 19
+manifest-version: 20
 manifest-id: CFM-2026-09-06-tausik
 level: null
 level-target: null
@@ -154,7 +154,7 @@ assessment-evidence:
     task_specs_count: 2
     reasoning_tasks_count: 2
     memory_edges_count: 27
-    verification_runs_count: 2097
+    verification_runs_count: 2103
   level-signals:
     substrate_v1_v6: true
     adapt_per_tz: false
@@ -245,7 +245,7 @@ assessment-evidence:
     citation: §13.3.7 (backward findings, SPEC types, lifecycle states closed)
     evidence: every adapts row is inside the declared list
 replaced-by: <unknown-state>
-replaces: CFM-2026-09-04-tausik@v18
+replaces: CFM-2026-09-06-tausik@v19
 conformance-declaration: non-conformant
 scope-exclusion:
   clause: §1.5.4

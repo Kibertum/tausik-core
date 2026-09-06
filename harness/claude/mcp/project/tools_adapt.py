@@ -44,7 +44,7 @@ _ADAPT_STATUSES = list(ADAPT_STATUSES)
 TOOLS_ADAPT = [
     {
         "name": "tausik_adapt_create",
-        "description": "Create a RENAR ADAPT artifact header (§7). tz_ref (source TZ) is required. Starts in 'draft' for body parts + dual signature.",
+        "description": "Create a RENAR ADAPT artifact header (§7). tz_ref (source TZ) is required. Starts in 'draft' for body parts + the architect's signature (§7.5).",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -106,7 +106,7 @@ TOOLS_ADAPT = [
     },
     {
         "name": "tausik_adapt_sign",
-        "description": "Record a dual signature (§7.5). role=architect signs the canonical ADAPT body with the project ed25519 key; role=client records a name+timestamp. Both roles present ⇒ status 'approved' (§13.3.3 p.77 — the status and the signature are separate facts).",
+        "description": "Record the architect's signature (§7.5): role=architect signs the canonical ADAPT body with the project ed25519 key ⇒ status 'approved' (§13.3.3 p.77 — the status and the signature are separate facts). role=client is REFUSED: ADR-011 withdrew the client signature under ADAPT, and what the client approves belongs in an ACTZ.",
         "inputSchema": {
             "type": "object",
             "properties": {

@@ -50,7 +50,15 @@ def _seed(svc):
         "SSO",
     )
     svc.adapt_finding("adapt-one", "gap", "no password-reset described", tz_ref="TZ-2026-001 §1")
-    svc.adapt_sign("adapt-one", "client", "Client Rep")
+    # A signature row WITHOUT the service layer: §7.5 names the architect, and
+    # signing as one needs a project key this fixture has no business creating.
+    # Written straight to the table so the export has a signature to render,
+    # which is what these tests are about.
+    svc.be._conn.execute(
+        "INSERT INTO adapt_signatures(adapt_slug,role,signed_by,signed_at) "
+        "VALUES('adapt-one','architect','Architect','2026-01-01T00:00:00Z')"
+    )
+    svc.be._conn.commit()
     svc.adapt_link("adapt-one", "spec", "zeta-api")
 
 
@@ -251,7 +259,7 @@ def test_adapt_body_rendered(svc):
     assert "## Backward findings" in doc
     assert "[gap]" in doc
     front = yaml.safe_load(doc.split("---\n")[1])
-    assert front["signatures"][0]["role"] == "client"
+    assert front["signatures"][0]["role"] == "architect"
     assert front["links"][0]["target_slug"] == "zeta-api"
     # symmetry with spec frontmatter: adapt carries DB timestamps too
     assert "created_at" in front and "updated_at" in front

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from service_adapts import ADAPT_STATUSES, FINDING_CATEGORIES
+from service_adapts import ADAPT_STATUSES, FINDING_CATEGORIES, SIGNATURE_ROLES
 
 # All derived from the service-layer source of truth — no independent literal
 # here. The categories were the one that still WAS a literal: the same file
@@ -17,7 +17,7 @@ from service_adapts import ADAPT_STATUSES, FINDING_CATEGORIES
 # behind. A `choices=` list is a mirror like any other, and the standard moves
 # under mirrors (ADR-013 did exactly that to the SPEC types).
 FINDING_CATEGORY_CHOICES = list(FINDING_CATEGORIES)
-SIGNATURE_ROLE_CHOICES = ["client", "architect"]
+SIGNATURE_ROLE_CHOICES = list(SIGNATURE_ROLES)
 LINK_TARGET_CHOICES = ["task", "spec"]
 ADAPT_STATUS_CHOICES = list(ADAPT_STATUSES)
 
@@ -72,7 +72,9 @@ def build_adapt_subparsers(sub: Any) -> None:
     af.add_argument("--tz-ref", dest="tz_ref", default=None)
     af.add_argument("--resolution", default=None)
 
-    asg = a_sub.add_parser("sign", help="Record a dual signature (§7.5); architect → ed25519")
+    asg = a_sub.add_parser(
+        "sign", help="Record the architect signature (§7.5) — ed25519 over the body"
+    )
     asg.add_argument("adapt_slug")
     asg.add_argument("role", choices=SIGNATURE_ROLE_CHOICES)
     asg.add_argument("--by", dest="signed_by", required=True, help="Signer identity")

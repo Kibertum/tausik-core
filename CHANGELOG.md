@@ -9,6 +9,50 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the ADAPT client signature is gone, because RENAR withdrew it; the records it produced are kept and named
+
+`tausik adapt sign --help` advertised "a dual signature (§7.5)". RENAR ADR-011
+withdrew the client signature under ADAPT and said why: the client was signing
+an engineering document they had not read and could not assess. The boundary
+runs by AUDIENCE — what is shown to the client and approved is an obligation
+and lives in ACTZ; what is not shown is interpretation and lives in ADAPT.
+VERIFIED AGAINST THE CORPUS TEXT, not just the ADR: §7.5 is now titled
+"Утверждение ADAPT — подпись архитектора" and carries a paragraph explaining
+the absence. We were publishing a withdrawn edition as current.
+
+- `SIGNATURE_ROLES` is `("architect",)` — what may be RECORDED from now on —
+  and `HISTORICAL_SIGNATURE_ROLES` says what the schema still admits. Signing
+  as the client is refused with a message naming ADR-011 and pointing at ACTZ.
+  Approval now follows the architect's signature alone.
+- NO MIGRATION, and that is the decision rather than an omission. Measured
+  first: `client-ready` — the state the task expected to remove — does not
+  exist in our machine at all, and the live database holds zero signature rows.
+  What remains is consumer databases, and narrowing the CHECK would mean
+  deleting or rewriting THEIR audit records, which is the silent invalidation
+  the task exists to prevent (V1 immutability). So the constraint keeps
+  admitting `client`, the schema says in a comment why, and `renar_drift`
+  NAMES every surviving row as `signature-role-withdrawn` — warn-only, never
+  erasing. A record made under a withdrawn norm is history, not corruption,
+  and a genuinely unknown role is still reported as invalid.
+- Every carrier of the old promise was found by walking, not by memory: the
+  CLI help, BOTH MCP tool descriptions (agents read those), `docs/{ru,en}`
+  cli.md and mcp.md, and two docstrings. The wording stays only in migration
+  v36, which records what it built. Manifest regenerated to v20; neither
+  published artifact mentions a dual signature any more.
+
+The closed lists moved to `scripts/adapt_closed_lists.py` on the way — the
+filesize gate refused the close at 508 lines, and the split is the honest one:
+those tuples are DECLARATIONS the standard governs, `service_adapts` is
+behaviour. It re-exports them, so none of the two dozen importers changed.
+
+Eight declared mutations, eight killed — two after tracing. One survived
+because its killer SKIPPED (the CHECK refuses the corrupt value outright, so
+the test never reached the branch; it now rebuilds the table without the
+constraint, which is the scenario the detector exists for). The other survived
+because `client` is caught a branch earlier — the historical tuple is now
+checked against the LIVE CHECK, so the declaration and the substrate cannot
+drift apart.
+
 ### Fixed — our GenAI spans stop speaking a word the conventions do not define, and tool calls nest under the agent run
 
 Release 1.8 already emitted OTLP/JSON: one span per session, every `gen_ai.*`

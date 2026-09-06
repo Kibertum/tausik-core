@@ -119,7 +119,7 @@ Session limit is gap-based **active time** (paused after 10-min idle gap), not w
 ## RENAR substrate — SPEC + ADAPT (17 tools)
 
 The RENAR substrate: formal requirements (**SPEC**) and requirement interpretation
-(**ADAPT**, §7) with forward interpretations, backward findings and a dual signature.
+(**ADAPT**, §7) with forward interpretations, backward findings and the architect's signature (§7.5).
 Used by QG-0 for substantial/deep tasks and by `tausik renar export` / `conformance`.
 See also `tausik_reason_step` (RENAR trace) under "Tasks".
 

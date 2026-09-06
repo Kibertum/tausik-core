@@ -2,7 +2,8 @@
 
 An ADAPT is the architect's reconciliation of a client TZ with engineering
 reality (renar.tech v1.0-draft §7): a forward interpretation (§7.4.3), backward
-findings drawn from a closed category list (§7.4.4), and a dual signature (§7.5). Deltas (§7.6)
+findings drawn from a closed category list (§7.4.4), and the architect's
+signature (§7.5 — the client's was withdrawn by ADR-011). Deltas (§7.6)
 supersede a prior ADAPT and a link to a superseded ADAPT is FATAL (§7.6.4).
 
 Closed lists (finding category, signature role, link target) are validated here
@@ -24,45 +25,22 @@ from tausik_utils import ServiceError, utcnow_iso, validate_length, validate_slu
 if TYPE_CHECKING:
     from project_backend import SQLiteBackend
 
-# RENAR backward-finding categories — the standard's CLOSED list §7.4.4
-# (mirrors the DB CHECK). The LENGTH is never written beside it: see
-# tests/closed_list_counts.py for why a written count is a deferred defect.
-FINDING_CATEGORIES: tuple[str, ...] = (
-    "contradiction",
-    "gap",
-    "hidden-assumption",
-    "feasibility",
-    "regulatory",
-    "terminology",
-    "scope",
+# The closed lists RENAR fixes live in `adapt_closed_lists` — declarations the
+# standard governs, kept apart from the behaviour here. Re-exported so every
+# existing `from service_adapts import FINDING_CATEGORIES` keeps working: a
+# constant moving house is nobody else's business.
+from adapt_closed_lists import (  # noqa: E402,F401
+    ADAPT_BODY_SCHEMA,
+    ADAPT_STATUSES,
+    FINDING_CATEGORIES,
+    HISTORICAL_SIGNATURE_ROLES,
+    LINK_TARGETS,
+    SIGNATURE_ROLES,
 )
-# Dual-signature roles (§7.5) and link targets — CLOSED lists (mirror DB CHECK).
-SIGNATURE_ROLES: tuple[str, ...] = ("client", "architect")
-LINK_TARGETS: tuple[str, ...] = ("task", "spec")
-# §7.8.1 закрывает перечень статусов ADAPT; значения и их порядок — как в
-# стандарте. Число членов НЕ пишется здесь словом: рядом с закрытым списком
-# рукописное число верно ровно до следующей правки стандарта, а потом лжёт в
-# каждом файле отдельно (тот же довод, что у перечня категорий находок).
-# До v50 расхождение шло в ОБЕ стороны: лишний 'signed', которого в закрытом
-# перечне стандарта нет, и отсутствующий 'approved', которого §13.3.3 стр.77
-# ТРЕБУЕТ для ветви findings-present. Второе тяжелее первого: CHECK базы
-# отклонял 'approved', то есть требуемое состояние было НЕДОСТИЖИМО, а не
-# просто не достигнуто.
-ADAPT_STATUSES: tuple[str, ...] = (
-    "draft",
-    "review",
-    "asked",
-    "answered",
-    "approved",
-    "frozen",
-    "superseded",
-)
-
-ADAPT_BODY_SCHEMA = "renar-adapt/v1"
 
 
 class AdaptsMixin:
-    """Manage RENAR ADAPT artifacts, body parts, dual signatures and deltas."""
+    """Manage RENAR ADAPT artifacts, body parts, the architect signature and deltas."""
 
     be: SQLiteBackend
 
@@ -188,16 +166,23 @@ class AdaptsMixin:
         self.be.finding_add(adapt_slug, category, description, tz_ref, resolution)
         return f"Finding ({category}) added to ADAPT '{adapt_slug}'."
 
-    # --- dual signature (§7.5) ---
+    # --- architect signature (§7.5) ---
 
     def adapt_sign(
         self, slug: str, role: str, signed_by: str, project_dir: str | None = None
     ) -> str:
-        """Record a signature. ``architect`` → ed25519 over the canonical body;
-        ``client`` → recorded name + timestamp. Both present ⇒ status
-        'approved' (§13.3.3 p.77: the findings-present branch requires
-        'approved' WITH an Architect signature; the signature itself stays
-        in adapt_signatures — status and signature are separate facts).
+        """Record the architect's signature — ed25519 over the canonical body.
+
+        Present ⇒ status 'approved' (§13.3.3 p.77: the findings-present branch
+        requires 'approved' WITH an Architect signature; the signature itself
+        stays in adapt_signatures — status and signature are separate facts).
+
+        A CLIENT SIGNATURE IS REFUSED, and the refusal names why: ADR-011
+        withdrew it as a fiction, and §7.5 now carries a paragraph on its
+        absence. What the client approves lives in ACTZ, an artifact of its
+        own; this method used to accept the role and this project used to
+        advertise it in `adapt sign --help`, which is publishing a withdrawn
+        norm as current.
 
         Signing an architect role without a project key is a friendly ServiceError,
         never a traceback (the key lives at .tausik/keys/, gitignored by design).
@@ -208,10 +193,18 @@ class AdaptsMixin:
         if adapt["status"] == "superseded":
             raise ServiceError(f"ADAPT '{slug}' is superseded — cannot sign (§7.6.4).")
         if adapt["status"] == "approved":
-            # Dual signature already complete + body frozen — re-signing would
-            # silently overwrite a sealed record. Amend via a delta instead (§7.6).
+            # Approved + body frozen — re-signing would silently overwrite a
+            # sealed record. Amend via a delta instead (§7.6).
             raise ServiceError(
                 f"ADAPT '{slug}' is already approved — create a delta to amend it (§7.6)."
+            )
+        if role == "client":
+            raise ServiceError(
+                "The client signature under ADAPT was withdrawn by RENAR ADR-011 and "
+                "§7.5 now names only the architect: the client was signing an "
+                "engineering document they had not read. What the client approves "
+                "belongs in an ACTZ, not here. Existing client signatures are kept "
+                "as audit records and are never rewritten."
             )
         if role not in SIGNATURE_ROLES:
             raise ServiceError(f"Invalid role '{role}'. Valid: {', '.join(SIGNATURE_ROLES)}")
@@ -230,10 +223,14 @@ class AdaptsMixin:
         if roles >= set(SIGNATURE_ROLES):
             self.be.adapt_set_status(slug, "approved")
             return (
-                f"ADAPT '{slug}' signed by {role} — dual signature complete, "
-                "status=approved (§13.3.3 p.77)."
+                f"ADAPT '{slug}' signed by {role} — architect signature recorded, "
+                "status=approved (§7.5, §13.3.3 p.77)."
             )
-        return f"ADAPT '{slug}' signed by {role} (awaiting the other signature)."
+        # Unreachable while SIGNATURE_ROLES holds one role, and kept rather than
+        # deleted: it is the branch that runs if the standard ever adds a second
+        # signer, and removing it would hide that this method decides `approved`
+        # from the ROLE SET and not from a count.
+        return f"ADAPT '{slug}' signed by {role} (awaiting {sorted(set(SIGNATURE_ROLES) - roles)})."
 
     def adapt_verify(self, slug: str, project_dir: str | None = None) -> dict[str, Any]:
         """Verify the architect ed25519 signature against the current body.
@@ -277,7 +274,7 @@ class AdaptsMixin:
 
         The parent's status becomes 'superseded'; subsequent links to it are
         FATAL (§7.6.4). The new ADAPT carries parent_adapt + an incremented
-        delta_n and starts in 'draft' for its own dual signature.
+        delta_n and starts in 'draft' for its own architect signature.
 
         ``supersession_rationale`` is MANDATORY (ADR-007 p.108) — this is the
         only path into 'superseded'. Declared keyword-optional in the signature

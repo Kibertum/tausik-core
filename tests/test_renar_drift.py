@@ -121,12 +121,14 @@ def test_adapt_base_has_parent(svc):
     assert "adapt-base-has-parent" in _kinds(detect_schema_drift(svc.be._conn))
 
 
-def test_adapt_approved_incomplete_signature(svc):
-    """status=approved but missing the dual signature (§7.5).
+def test_adapt_approved_without_the_architect_signature(svc):
+    """status=approved but missing the ARCHITECT signature (§7.5).
 
     §13.3.3 p.77 requires 'approved' WITH an Architect signature. Before v50
     our own status 'signed' conflated the two facts; the status now names the
-    acceptance and the signature stays a separate, checkable record.
+    acceptance and the signature stays a separate, checkable record. The test
+    used to add a CLIENT signature too and only then expect the finding to
+    clear — the dual signature ADR-011 withdrew, pinned by a test.
     """
     svc.be._conn.execute(
         "INSERT INTO adapts(slug,title,tz_ref,status,parent_adapt,delta_n,"
@@ -135,15 +137,97 @@ def test_adapt_approved_incomplete_signature(svc):
     svc.be._conn.commit()
     findings = detect_schema_drift(svc.be._conn)
     assert "adapt-approved-incomplete-signature" in _kinds(findings)
-    # An approved adapt with BOTH signatures clears the finding.
+    # The architect's signature ALONE clears it — nobody else is required.
+    svc.be._conn.execute(
+        "INSERT INTO adapt_signatures(adapt_slug,role,signed_by,signed_at) "
+        "VALUES('ad-s','architect','me','now')"
+    )
+    svc.be._conn.commit()
+    assert "adapt-approved-incomplete-signature" not in _kinds(detect_schema_drift(svc.be._conn))
+
+
+def test_a_surviving_client_signature_is_named_not_erased(svc):
+    """NEGATIVE SCENARIO: history stays, and the detector says what it is.
+
+    A consumer database may hold client signatures written before ADR-011.
+    Deleting them would break V1; ignoring them would let a database go on
+    looking conformant with a rule the standard has withdrawn. So the row
+    survives and is reported — warn-only, naming the ADR.
+    """
+    svc.be._conn.execute(
+        "INSERT INTO adapts(slug,title,tz_ref,status,parent_adapt,delta_n,"
+        "created_at,updated_at) VALUES('ad-h','t','TZ','approved',NULL,0,'x','x')"
+    )
     for role in ("client", "architect"):
         svc.be._conn.execute(
             "INSERT INTO adapt_signatures(adapt_slug,role,signed_by,signed_at) "
-            "VALUES('ad-s',?,'me','now')",
+            "VALUES('ad-h',?,'me','now')",
             (role,),
         )
     svc.be._conn.commit()
-    assert "adapt-approved-incomplete-signature" not in _kinds(detect_schema_drift(svc.be._conn))
+    findings = detect_schema_drift(svc.be._conn)
+    kinds = _kinds(findings)
+    assert "signature-role-withdrawn" in kinds, "a withdrawn-norm record must be named"
+    assert "signature-role-invalid" not in kinds, "it is history, not a corrupt value"
+    assert "adapt-approved-incomplete-signature" not in kinds, "the architect did sign"
+    withdrawn = next(f for f in findings if f["kind"] == "signature-role-withdrawn")
+    assert "ADR-011" in withdrawn["message"] and withdrawn["severity"] == "warn"
+    rows = svc.be._conn.execute("SELECT COUNT(*) FROM adapt_signatures").fetchone()[0]
+    assert rows == 2, "the detector reads; it never deletes"
+
+
+def test_a_role_that_is_neither_current_nor_historical_is_still_invalid(svc):
+    """The withdrawn-norm branch must not swallow a genuinely corrupt value.
+
+    THE TABLE IS REBUILT WITHOUT ITS CHECK, and that is the scenario, not a
+    trick: this detector exists for databases the constraint did not police —
+    an older schema, a rebuild migration run with foreign keys and checks off,
+    a direct edit. A first version of this test tried a plain INSERT, the CHECK
+    refused it, the test SKIPPED, and a mutation that deleted the whole branch
+    survived unnoticed.
+    """
+    conn = svc.be._conn
+    conn.execute(
+        "INSERT INTO adapts(slug,title,tz_ref,status,parent_adapt,delta_n,"
+        "created_at,updated_at) VALUES('ad-x','t','TZ','draft',NULL,0,'x','x')"
+    )
+    conn.execute("DROP TABLE adapt_signatures")
+    conn.execute(
+        "CREATE TABLE adapt_signatures (adapt_slug TEXT NOT NULL, role TEXT NOT NULL, "
+        "signed_by TEXT NOT NULL, signed_at TEXT NOT NULL, key_fingerprint TEXT, "
+        "signature TEXT, PRIMARY KEY (adapt_slug, role))"
+    )
+    conn.execute(
+        "INSERT INTO adapt_signatures(adapt_slug,role,signed_by,signed_at) "
+        "VALUES('ad-x','notary','me','now')"
+    )
+    conn.commit()
+    kinds = _kinds(detect_schema_drift(conn))
+    assert "signature-role-invalid" in kinds
+    assert "signature-role-withdrawn" not in kinds, "a stranger is not withdrawn history"
+
+
+def test_the_historical_roles_are_what_the_schema_actually_admits(svc):
+    """The declaration is checked against the substrate, not against itself.
+
+    Written because a mutation collapsing HISTORICAL_SIGNATURE_ROLES to the
+    current one SURVIVED: 'client' is caught a branch earlier, so nothing
+    noticed. What the tuple is FOR is saying which values the CHECK still
+    accepts, and that is a claim about the schema — so it is read from the
+    schema, the way every other closed list in this project now is.
+    """
+    from renar_clause_closed_lists import check_domain
+    from service_adapts import HISTORICAL_SIGNATURE_ROLES, SIGNATURE_ROLES
+
+    admitted = check_domain(svc.be._conn, "adapt_signatures", "role")
+    assert admitted is not None, "the CHECK must be readable"
+    assert set(admitted) == set(HISTORICAL_SIGNATURE_ROLES), (
+        "the historical declaration and the constraint have drifted apart"
+    )
+    assert set(SIGNATURE_ROLES) < set(admitted), (
+        "the writable roles must be a strict subset — the withdrawn one stays "
+        "readable and stops being writable"
+    )
 
 
 def test_spec_blank_version(svc):

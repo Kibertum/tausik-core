@@ -63,6 +63,14 @@ CREATE TABLE IF NOT EXISTS adapt_findings (
 
 CREATE TABLE IF NOT EXISTS adapt_signatures (
     adapt_slug TEXT NOT NULL REFERENCES adapts(slug) ON DELETE CASCADE,
+    -- `client` IS HISTORY, NOT A CURRENT ROLE. ADR-011 withdrew the client
+    -- signature under ADAPT and §7.5 now names the architect alone, so
+    -- service_adapts.SIGNATURE_ROLES holds only `architect` and nothing may
+    -- write a client row again. The CHECK still admits it because a signature
+    -- already recorded is an audit record: narrowing the constraint would mean
+    -- deleting or rewriting rows in consumer databases, which is the silent
+    -- invalidation this change exists to avoid (V1 immutability). Surviving
+    -- rows are NAMED by renar_drift as `signature-role-withdrawn`.
     role TEXT NOT NULL CHECK(role IN ('client', 'architect')),
     signed_by TEXT NOT NULL,
     signed_at TEXT NOT NULL,

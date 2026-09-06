@@ -23,7 +23,12 @@ from project_backend import SQLiteBackend  # noqa: E402
 from project_service import ProjectService  # noqa: E402
 from closed_list_counts import ADAPT_FINDING_CATEGORY_LIST, scan_tree  # noqa: E402
 from closed_list_counts import written_counts as _written_counts  # noqa: E402
-from service_adapts import FINDING_CATEGORIES, LINK_TARGETS, SIGNATURE_ROLES  # noqa: E402
+from service_adapts import (  # noqa: E402
+    FINDING_CATEGORIES,
+    HISTORICAL_SIGNATURE_ROLES,
+    LINK_TARGETS,
+    SIGNATURE_ROLES,
+)
 from tausik_utils import ServiceError  # noqa: E402
 
 
@@ -79,7 +84,16 @@ def test_finding_categories_closed_seven():
 
 
 def test_signature_roles_and_link_targets_closed():
-    assert SIGNATURE_ROLES == ("client", "architect")
+    """§7.5 as the standard now writes it: the architect signs, and nobody else.
+
+    This asserted `("client", "architect")` — the dual signature ADR-011
+    withdrew, and the corpus §7.5 has carried a paragraph on its absence since.
+    The role survives in `HISTORICAL_SIGNATURE_ROLES` because a signature
+    already recorded is an audit record; it is not a role anything may write.
+    """
+    assert SIGNATURE_ROLES == ("architect",)
+    assert HISTORICAL_SIGNATURE_ROLES == ("client", "architect")
+    assert "client" not in SIGNATURE_ROLES, "the withdrawn norm must not be writable"
     assert LINK_TARGETS == ("task", "spec")
 
 
@@ -197,15 +211,33 @@ def test_missing_tz_ref_rejected(svc):
 # === AC4: dual signature §7.5 ===
 
 
-def test_dual_signature_completes_and_verifies(svc_keyed):
+def test_the_architect_signature_alone_completes_and_verifies(svc_keyed):
+    """One signature approves, because §7.5 names one signer.
+
+    Was `test_dual_signature_completes_and_verifies`, which signed as the
+    client first and asserted the ADAPT stayed in draft until a second
+    signature arrived — the withdrawn norm, pinned by a test.
+    """
     _full_adapt(svc_keyed)
     pd = svc_keyed._project_dir
-    svc_keyed.adapt_sign("a1", "client", "Acme", pd)
-    assert svc_keyed.be.adapt_get("a1")["status"] == "draft"  # one sig only
     svc_keyed.adapt_sign("a1", "architect", "Claude", pd)
     assert svc_keyed.be.adapt_get("a1")["status"] == "approved"
     res = svc_keyed.adapt_verify("a1", pd)
     assert res["signed"] and res["valid"]
+
+
+def test_a_client_signature_is_refused_and_the_refusal_says_why(svc_keyed):
+    """NEGATIVE SCENARIO: the withdrawn role is not merely absent from a list.
+
+    A caller that asks for it gets a refusal naming ADR-011 and pointing at
+    ACTZ — this project advertised the role in `adapt sign --help` for a
+    release, so silence would leave the old habit working.
+    """
+    _full_adapt(svc_keyed)
+    with pytest.raises(ServiceError, match="ADR-011"):
+        svc_keyed.adapt_sign("a1", "client", "Acme", svc_keyed._project_dir)
+    assert svc_keyed.be.adapt_get("a1")["status"] == "draft", "nothing was recorded"
+    assert svc_keyed.be.signatures_for_adapt("a1") == [], "and no row was written"
 
 
 def test_architect_signature_without_key_is_service_error(svc, tmp_path):
@@ -218,7 +250,6 @@ def test_architect_signature_without_key_is_service_error(svc, tmp_path):
 def test_body_frozen_after_sign(svc_keyed):
     _full_adapt(svc_keyed)
     pd = svc_keyed._project_dir
-    svc_keyed.adapt_sign("a1", "client", "Acme", pd)
     svc_keyed.adapt_sign("a1", "architect", "Claude", pd)
     with pytest.raises(ServiceError, match="frozen"):
         svc_keyed.adapt_finding("a1", "scope", "late finding")
@@ -231,11 +262,10 @@ def test_verify_unsigned_reports_not_signed(svc):
 
 
 def test_resign_after_signed_is_rejected(svc_keyed):
-    """NEGATIVE: a fully-signed ADAPT is sealed — re-signing would silently
+    """NEGATIVE: a signed ADAPT is sealed — re-signing would silently
     overwrite the record; the caller must create a delta instead (§7.6)."""
     _full_adapt(svc_keyed)
     pd = svc_keyed._project_dir
-    svc_keyed.adapt_sign("a1", "client", "Acme", pd)
     svc_keyed.adapt_sign("a1", "architect", "Claude", pd)
     with pytest.raises(ServiceError, match="already approved"):
         svc_keyed.adapt_sign("a1", "architect", "Mallory", pd)
@@ -266,7 +296,7 @@ def test_sign_superseded_rejected(svc):
     svc.adapt_create("a1", "T", "TZ-1")
     svc.adapt_delta("a1", "a1-d1", "T delta", "TZ-1-delta-1", "TZ§4 rewritten")
     with pytest.raises(ServiceError, match="superseded"):
-        svc.adapt_sign("a1", "client", "X")
+        svc.adapt_sign("a1", "architect", "X")
 
 
 # === AC3 NEGATIVE: linking integrity ===
@@ -452,7 +482,10 @@ def written_counts(text):
 # is still a second literal somebody must remember to edit, which is what this
 # guard exists to prevent.
 ALLOWED_CATEGORY_LISTS = {
-    "scripts/service_adapts.py": "the single source itself",
+    "scripts/adapt_closed_lists.py": (
+        "the single source itself — the declarations moved here when "
+        "service_adapts crossed the filesize limit; it re-exports them"
+    ),
     "scripts/backend_schema_adapts.py": (
         "the canonical DDL for a fresh database — SQL, not Python, so it cannot "
         "interpolate the tuple"

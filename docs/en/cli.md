@@ -258,7 +258,9 @@ drift --detector standard      # THE STANDARD moving (corpus vs our declarations
 - **drift-1 (schema)** — re-validates SPEC/ADAPT against the closed lists +
   cross-field invariants a DB CHECK cannot express: `delta_n ↔ parent_adapt`
   (delta_n>0 without a parent_adapt / delta_n=0 with a parent_adapt),
-  `approved ↔ dual signature` (§7.5),
+  `approved ↔ architect signature` (§7.5 — the client signature was withdrawn
+  by ADR-011; surviving records are NAMED as `signature-role-withdrawn`, never
+  erased),
   blank version. Catches direct-DB tampering and migration gaps.
 - **drift-7 (TC↔requirement provenance)** — TAUSIK has no first-class TC; the
   verification unit is a task (its acceptance_criteria == the "TC") linked to a
