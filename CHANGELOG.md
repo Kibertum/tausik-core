@@ -9,6 +9,37 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the write gates asked "is this file ours?" twice and answered differently
+
+`task_gate` (Write/Edit) and `scope_write_gate` (also reused by
+`bash_write_gate`, so it covers the Bash channel) each decided jurisdiction
+with their own copy of the rule. `task_gate` used `commonpath` and read any
+path-arithmetic failure as "not proven outside" → keep gating.
+`scope_write_gate` used `relpath` and read `(OSError, ValueError)` as "outside"
+→ allow. On Windows both raise `ValueError` for paths on different drives, so
+one and the same target was refused via Write and written via a Bash heredoc a
+single call later — measured live while writing a scratch file under
+`C:\…\Temp` with the project on `D:\`.
+
+The root was not a missing notion of "inside the project" — that was added in
+v1.8 and is correct. It was that a DIFFERENT DRIVE, where containment is
+impossible by construction and therefore the strongest evidence of being
+outside, was being handled as the weakest: an exception, read as doubt, and
+resolved fail-closed.
+
+`_common.classify_target` is now the single answer both gates call. It returns
+three outcomes rather than two — `inside` (with the relative path), `outside`
+(proven), `unknown` (undecidable) — because the callers want opposite things
+from the last two, and collapsing them is the bug itself. Only `outside`
+stands a gate down; `unknown` keeps it on, exactly as before.
+
+Nothing loosens for a target inside the tree, and that direction is asserted on
+both channels in one test so a later edit cannot relax one of them alone.
+`scope_write_gate` keeps treating `unknown` as out of jurisdiction, which is
+its pre-existing behaviour and is left alone deliberately: an ACL refines a
+task that already passed QG-0, and QG-0 is the gate that must stay closed on
+doubt.
+
 ### Fixed — two MCP tool calls no longer share one transaction and commit each other's half
 
 The server runs every tool call on its own thread over ONE process-wide

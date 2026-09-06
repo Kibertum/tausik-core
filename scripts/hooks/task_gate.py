@@ -33,7 +33,12 @@ import sqlite3
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _common import cli_invocation, is_tausik_project, shell_cwd  # noqa: E402
+from _common import (  # noqa: E402
+    classify_target,
+    cli_invocation,
+    is_tausik_project,
+    shell_cwd,
+)
 
 
 def target_is_outside_project(raw_stdin: str, project_dir: str) -> bool:
@@ -52,10 +57,14 @@ def target_is_outside_project(raw_stdin: str, project_dir: str) -> bool:
     path, or any path arithmetic that raises. The loosening applies only to a
     target proven to sit outside, never to one merely not proven inside.
 
-    Containment is decided on realpath via commonpath, NOT startswith: with a
-    plain prefix test a sibling directory sharing a prefix (``…/core-old`` next
-    to ``…/core``) reads as inside, and a symlink pointing from outside into the
-    project reads as outside — each the wrong answer in the dangerous direction.
+    Containment itself is decided by `_common.classify_target`, which BOTH this
+    gate and `scope_write_gate` now call. They used to decide it separately and
+    disagree: this one read any path-arithmetic failure as "not proven outside"
+    and blocked, while the other read it as "outside" and allowed. On Windows a
+    cross-drive target makes both raise, so the same file was refused via Write
+    and written via a Bash heredoc — the Bash gate reuses `scope_write_gate`.
+    Only "outside" loosens anything here; "unknown" keeps the gate on, exactly
+    as before.
     """
     try:
         payload = json.loads(raw_stdin) if raw_stdin.strip() else {}
@@ -68,11 +77,10 @@ def target_is_outside_project(raw_stdin: str, project_dir: str) -> bool:
         # A relative path belongs to the SHELL's cwd, which the payload carries
         # — not to the project by definition, which is what stood here. The two
         # part company as soon as the agent works in a second checkout, and the
-        # containment test below still runs on the resolved absolute path, so a
+        # containment test still runs on the resolved absolute path, so a
         # relative path that climbs back into the project stays gated.
-        target = os.path.realpath(os.path.join(shell_cwd(payload, project_dir), path))
-        root = os.path.realpath(project_dir)
-        return os.path.commonpath([target, root]) != root
+        verdict, _rel = classify_target(path, project_dir, cwd=shell_cwd(payload, project_dir))
+        return verdict == "outside"
     except Exception:  # noqa: BLE001 — any failure means "not proven outside" => keep gating
         return False
 

@@ -28,7 +28,7 @@ _HOOKS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HOOKS_DIR)
 sys.path.insert(1, os.path.dirname(_HOOKS_DIR))  # scripts/ — for scope_acl
 
-from _common import is_tausik_project  # noqa: E402
+from _common import classify_target, is_tausik_project  # noqa: E402
 
 _GATED_TOOLS = ("Write", "Edit", "MultiEdit", "NotebookEdit")
 
@@ -42,16 +42,20 @@ def _read_stdin_json() -> dict:
 
 
 def _relative_to_project(file_path: str, project_dir: str) -> str | None:
-    """Project-relative path, or None when the target is outside the root."""
-    try:
-        target = os.path.realpath(os.path.expanduser(file_path))
-        root = os.path.realpath(project_dir)
-        rel = os.path.relpath(target, root)
-    except (OSError, ValueError):
-        return None
-    if rel == ".." or rel.startswith(".." + os.sep):
-        return None
-    return rel
+    """Project-relative path, or None when this gate has no jurisdiction.
+
+    Containment comes from `_common.classify_target`, the single answer this
+    gate and `task_gate` both use — they used to compute it separately and
+    disagree on a cross-drive path (see that function). None still means
+    exactly what it meant here: not our business, skip the ACL check. That
+    covers "unknown" as well as "outside", which is this gate's PRE-EXISTING
+    behaviour and is deliberately left alone: an ACL is a scope refinement for
+    a task that already passed QG-0, and QG-0 is the gate that must stay closed
+    on doubt. Tightening it to block on "unknown" would be a behaviour change
+    with no measurement behind it.
+    """
+    verdict, rel = classify_target(file_path, project_dir)
+    return rel if verdict == "inside" else None
 
 
 def _active_acls(db_path: str) -> list[tuple[str, str | None]]:
