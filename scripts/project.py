@@ -72,6 +72,7 @@ def main() -> None:
     from project_cli_state import cmd_state, cmd_sync
     from project_cli_actz import cmd_actz
     from project_cli_adapts import cmd_adapt
+    from project_cli_at import cmd_at
     from project_cli_drift import cmd_drift
     from project_cli_renar import cmd_renar
     from cli_push_ok import cmd_push_ok
@@ -119,6 +120,7 @@ def main() -> None:
         "sync": cmd_sync,
         "adapt": cmd_adapt,
         "actz": cmd_actz,
+        "at": cmd_at,
         "drift": cmd_drift,
         "renar": cmd_renar,
         "fts": cmd_fts,

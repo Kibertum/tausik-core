@@ -303,6 +303,26 @@ _SCOPED: tuple[GateSpec, ...] = (
             "description": "RENAR §10.11.1: delta-ADAPT hanging off a superseded parent",
         },
     ),
+    # RENAR §8A property 2: an AT must be regenerated before every trial from
+    # the CURRENT final-TZ edition. Read-only, warn-only — a stale AT is named,
+    # never blocked; regenerating requires the isolated-agent procedure in
+    # docs/en/at-generation-procedure.md, which this gate cannot invoke itself.
+    GateSpec(
+        name="at_freshness",
+        prevents=(
+            "Nothing is stopped: severity is warn. It prevents an AT that no longer "
+            "matches the current final-TZ going UNNOTICED at close, not the close itself. "
+        ),
+        phase=PHASE_SCOPED,
+        impl="gate_at_freshness:run_at_freshness_gate",
+        default_config={
+            "enabled": True,
+            "severity": "warn",
+            "trigger": ["task-done"],
+            "command": None,
+            "description": "RENAR §8A.2: AT must be regenerated before trial from the current final-TZ",
+        },
+    ),
     # Fails a commit when the durable `tausik/` projection drifts from a fresh DB
     # export — the git-native state must equal its source of truth before it
     # enters a commit. COMMIT trigger, not task-done: a close mutates the DB (and

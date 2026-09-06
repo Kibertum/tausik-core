@@ -21,7 +21,7 @@
 # `mandatory-clauses-basis` above.
 renar-version: '1.0'
 senar-version: '1.3'
-manifest-version: 20
+manifest-version: 21
 manifest-id: CFM-2026-09-06-tausik
 level: null
 level-target: null
@@ -92,6 +92,7 @@ normative-inapplicability:
       declaration supplies the reason for the red, it does not remove it
     premise-watched-by: renar_normative_inapplicability.premise_broken
     applies-to:
+    - at-generation-procedure
     - renar-adoption
     - sec-config-trust-tiers
     - team-state-in-git-format
@@ -112,6 +113,7 @@ normative-inapplicability:
       what is declared inapplicable is only the SPEC-side reference, which no column
       can hold
     applies-to:
+    - at-generation-procedure
     - renar-adoption
     - sec-config-trust-tiers
     - team-state-in-git-format
@@ -147,14 +149,14 @@ assessment-evidence:
     claimed regardless of signals
   unmet-clauses: []
   raw-counts:
-    specs_count: 3
+    specs_count: 4
     adapts_count: 1
     adapts_approved_count: 0
     delta_adapts_count: 0
-    task_specs_count: 2
-    reasoning_tasks_count: 2
+    task_specs_count: 3
+    reasoning_tasks_count: 3
     memory_edges_count: 27
-    verification_runs_count: 2103
+    verification_runs_count: 2134
   level-signals:
     substrate_v1_v6: true
     adapt_per_tz: false
@@ -181,13 +183,15 @@ assessment-evidence:
   - check: adversarial-review-issued
     ok: false
     citation: §13.3.3 p.73, p.80
-    evidence: 'AR does not exist as an artifact class: none of 30 artifact classes
+    evidence: 'AR does not exist as an artifact class: none of 36 artifact classes
       carries the §7.4.6 record shape (tz_ref, verdict, produces_adapt, status); nearest:
-      adapt_findings lacks verdict, produces_adapt, status, adapt_interpretations
-      lacks verdict, produces_adapt, status, adapts lacks verdict, produces_adapt
-      — no derivation can carry a recorded verdict. The reviews table is NOT counted:
-      it lacks tz_ref, verdict, produces_adapt, status — it records review of a task
-      closure and its code, and an AR is the verdict of a ТЗ review.'
+      actz lacks verdict, produces_adapt, actz_points lacks verdict, produces_adapt,
+      status, adapt_findings lacks verdict, produces_adapt, status, adapt_interpretations
+      lacks verdict, produces_adapt, status, adapts lacks verdict, produces_adapt,
+      ats lacks verdict, produces_adapt, status — no derivation can carry a recorded
+      verdict. The reviews table is NOT counted: it lacks tz_ref, verdict, produces_adapt,
+      status — it records review of a task closure and its code, and an AR is the
+      verdict of a ТЗ review.'
   - check: adapt-approved-when-findings
     ok: false
     citation: §13.3.3 p.77
@@ -199,7 +203,7 @@ assessment-evidence:
   - check: spec-provenance-source
     ok: false
     citation: §13.3.3 p.90
-    evidence: 3 live SPEC(s) and the specs table has NO provenance column at all (looked
+    evidence: 4 live SPEC(s) and the specs table has NO provenance column at all (looked
       for ['source_adapt', 'source_tz_section', 'source_adversarial_review_ref'])
       — neither source.adapt nor source.tz-section nor source.adversarial-review-ref
       can be stored, which is the negative scenario stated literally. The manifest's
@@ -245,7 +249,7 @@ assessment-evidence:
     citation: §13.3.7 (backward findings, SPEC types, lifecycle states closed)
     evidence: every adapts row is inside the declared list
 replaced-by: <unknown-state>
-replaces: CFM-2026-09-06-tausik@v19
+replaces: CFM-2026-09-06-tausik@v20
 conformance-declaration: non-conformant
 scope-exclusion:
   clause: §1.5.4

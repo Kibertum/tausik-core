@@ -93,6 +93,13 @@ CLASSES_AT_DECLARATION = frozenset(
         "adapt_links",
         "adapt_signatures",
         "adapts",
+        # at-acceptance-tests-derived-by-an-isolated-agent (RENAR §8A): the AT
+        # (Acceptance Test) header record. NOT a TC (test case) artifact class
+        # — it records the RESULT of an isolated-generation procedure, not a
+        # test case executable, and carries no assertion/polarity/environment
+        # fields §13.3.5 pos/neg pairing or ADR-013's TC.environment-ref duty
+        # are about.
+        "ats",
         "brain_events",
         "decisions",
         "epics",

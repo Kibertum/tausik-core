@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 from tausik_utils import ServiceError
 from service_actz import ActzMixin
 from service_adapts import AdaptsMixin
+from service_at import AtMixin
 from service_delegate import DelegateMixin
 from service_hierarchy import HierarchyMixin
 from service_knowledge import KnowledgeMixin
@@ -70,6 +71,7 @@ class ProjectService(
     SpecsMixin,
     AdaptsMixin,
     ActzMixin,
+    AtMixin,
     DelegateMixin,
 ):
     """TAUSIK project service -- composes all domain mixins."""

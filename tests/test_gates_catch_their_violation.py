@@ -299,6 +299,12 @@ EXCUSED: dict[str, tuple[str, str, str, str]] = {
         "test_a_delta_hanging_off_a_superseded_parent_is_found",
         "test_a_healthy_store_yields_no_supersession_findings",
     ),
+    "at_freshness": (
+        "severity warn (cannot refuse); needs a seeded ACTZ+AT store, driven there",
+        "test_at.py",
+        "test_at_freshness_gate_reds_on_a_stale_at",
+        "test_at_freshness_gate_greens_when_at_matches_the_current_final_tz",
+    ),
     "claudemd_state_drift": (
         "needs a live DB with knowledge AND a rendered CLAUDE.md; its red end is "
         "driven against real corrupted snapshots out of git history, which a "

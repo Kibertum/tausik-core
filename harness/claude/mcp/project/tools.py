@@ -1065,9 +1065,11 @@ from tools_extra_admin import TOOLS_EXTRA_ADMIN  # noqa: E402
 from tools_spec import TOOLS_SPEC  # noqa: E402
 from tools_adapt import TOOLS_ADAPT  # noqa: E402
 from tools_actz import TOOLS_ACTZ  # noqa: E402
+from tools_at import TOOLS_AT  # noqa: E402
 
 TOOLS.extend(TOOLS_EXTRA)
 TOOLS.extend(TOOLS_EXTRA_ADMIN)
 TOOLS.extend(TOOLS_SPEC)
 TOOLS.extend(TOOLS_ADAPT)
 TOOLS.extend(TOOLS_ACTZ)
+TOOLS.extend(TOOLS_AT)

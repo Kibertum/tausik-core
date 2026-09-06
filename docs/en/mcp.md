@@ -2,13 +2,13 @@
 
 # TAUSIK MCP — Tool Reference
 
-**143 tools** for AI agents (136 project + 7 brain; current actual count, asserted via `len(TOOLS)` on both servers). The MCP surface covers everything an agent does day-to-day. A few CLI-only commands have no MCP equivalent — they are operator / maintenance verbs that don't belong in an agent loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. For the agent's working set, prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
+**149 tools** for AI agents (142 project + 7 brain; current actual count, asserted via `len(TOOLS)` on both servers). The MCP surface covers everything an agent does day-to-day. A few CLI-only commands have no MCP equivalent — they are operator / maintenance verbs that don't belong in an agent loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. For the agent's working set, prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
 
-> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 143 count - total with it is 150 tools.
+> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 149 count - total with it is 156 tools.
 
 Two MCP servers live in this project:
 
-- `tausik-project` — project-scoped tools (136): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging.
+- `tausik-project` — project-scoped tools (142): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging.
 - `tausik-brain` — cross-project Shared Brain tools (7).
 
 There is also an optional `codebase-rag` server documented at the bottom.
@@ -176,6 +176,26 @@ signed points below — the derived acceptance reference, never a third copy of 
 | `tausik_actz_decided_in_remove` | Remove a decided-in edge | `adapt_slug`, `finding_id`, `actz_slug`, `actz_point_no` |
 | `tausik_actz_final_tz` | The derived acceptance reference (§5A.4): per ТЗ clause, the latest both-role-signed point, naming what it overrode. `as_of` (ISO-8601) shows it at a past moment | — |
 | `tausik_actz_orphans` | Signed points no ADAPT reflects — an obligation outside requirements (§5A.4, fatal), found by query | — |
+
+### AT (6)
+
+Acceptance Test artifacts (§8A, ADR-012) — the one check traceability (TC → SR
+→ ADAPT → ТЗ) structurally cannot provide, because a wrong interpretation
+makes every TC pass. These tools RECORD the result of the isolated-generation
+procedure (docs/en/at-generation-procedure.md) — none of them generate
+anything. `tz_text` (verbatim contract quote) and `generated_by` are mandatory
+on create; `check_freshness` compares against the LIVE `final_tz_snapshot` for
+each AT's `tz_ref` and names what changed (§8A property 2 — regenerate before
+every trial). See also the `at_freshness` warn gate.
+
+| Tool | Description | Required Parameters |
+|---|---|---|
+| `tausik_at_create` | Record an AT — the result of the isolated-generation procedure, not a generator | `slug`, `tz_ref`, `tz_text`, `scenario`, `source_as_of`, `generated_by` |
+| `tausik_at_show` | Show an AT record (JSON) | `slug` |
+| `tausik_at_list` | List AT records, optionally filtered by tz_ref (JSON) | — |
+| `tausik_at_delete` | Delete an AT record | `slug` |
+| `tausik_at_search` | FTS5 over slug/tz_ref/tz_text/scenario (JSON) | `query` |
+| `tausik_at_check_freshness` | Which AT records are stale against the current final-TZ (§8A.2); omit slug to check all | — |
 
 ## Knowledge
 

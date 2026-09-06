@@ -30,6 +30,7 @@ if _SCRIPTS_DIR not in sys.path:
 
 import handlers_adapt as _adapt  # noqa: E402 — path must be set first
 import handlers_actz as _actz  # noqa: E402 — path must be set first
+import handlers_at as _at  # noqa: E402 — path must be set first
 import handlers_cq as _cq  # noqa: E402
 import handlers_hierarchy as _hierarchy  # noqa: E402
 import handlers_knowledge as _knowledge  # noqa: E402
@@ -164,6 +165,7 @@ for _domain in (
     _spec.SPEC_HANDLERS,
     _adapt.ADAPT_HANDLERS,
     _actz.ACTZ_HANDLERS,
+    _at.AT_HANDLERS,
 ):
     _DISPATCH.update(_domain)
 

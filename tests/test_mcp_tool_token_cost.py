@@ -47,6 +47,7 @@ _DOMAIN_TOKENS = (
     "spec",
     "adapt",
     "actz",
+    "_at_",
     "epic",
     "story",
     "gate",

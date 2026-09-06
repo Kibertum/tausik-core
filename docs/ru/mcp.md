@@ -2,13 +2,13 @@
 
 # TAUSIK MCP — Справочник инструментов
 
-**143 инструмента** для ИИ-агентов (136 project + 7 brain; актуальный счёт, проверено `len(TOOLS)` обоих серверов). MCP-surface покрывает всё, что агент делает день за днём. Несколько CLI-only команд намеренно не имеют MCP-аналога — это оператор/maintenance verbs, которым не место в agent-loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. Для рабочего набора агента предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
+**149 инструмента** для ИИ-агентов (142 project + 7 brain; актуальный счёт, проверено `len(TOOLS)` обоих серверов). MCP-surface покрывает всё, что агент делает день за днём. Несколько CLI-only команд намеренно не имеют MCP-аналога — это оператор/maintenance verbs, которым не место в agent-loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. Для рабочего набора агента предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
 
-> **Опциональный сервер `codebase-rag`** добавляет 7 инструментов (search_code, find_symbol, etc.). Он включается отдельно через bootstrap и НЕ входит в основной счёт 143 — итого с ним 150 инструментов.
+> **Опциональный сервер `codebase-rag`** добавляет 7 инструментов (search_code, find_symbol, etc.). Он включается отдельно через bootstrap и НЕ входит в основной счёт 149 — итого с ним 156 инструментов.
 
 В проекте живут два MCP-сервера:
 
-- `tausik-project` — project-scoped инструменты (136): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging, RENAR substrate (specs + adapts).
+- `tausik-project` — project-scoped инструменты (142): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging, RENAR substrate (specs + adapts).
 - `tausik-brain` — cross-project Shared Brain инструменты (7).
 
 Опционально доступен `codebase-rag` сервер (документирован в конце).
@@ -174,6 +174,26 @@ read-only проекции над подписанными пунктами ни
 | `tausik_actz_decided_in_remove` | Удалить decided-in ребро | `adapt_slug`, `finding_id`, `actz_slug`, `actz_point_no` |
 | `tausik_actz_final_tz` | Производный эталон приёмки (§5A.4): по каждому пункту ТЗ — последний обеими сторонами подписанный пункт, с указанием, что он перекрыл. `as_of` (ISO-8601) — на прошлый момент | — |
 | `tausik_actz_orphans` | Подписанные пункты, которые не отражены ни в одном ADAPT — обязательство вне требований (§5A.4, fatal), находится запросом | — |
+
+### AT (6)
+
+Приёмочные тесты (§8A, ADR-012) — единственная проверка, которую трассируемость
+(TC → SR → ADAPT → ТЗ) структурно дать не может: неверная интерпретация
+проходит все TC. Эти инструменты ЗАПИСЫВАЮТ результат процедуры изолированной
+генерации (docs/en/at-generation-procedure.md) — ни один не генерирует ничего
+сам. `tz_text` (дословная цитата контракта) и `generated_by` обязательны при
+создании; `check_freshness` сравнивает с ЖИВЫМ `final_tz_snapshot` по `tz_ref`
+каждой записи и называет, что изменилось (§8A.2 — перегенерировать перед
+каждым испытанием). См. также warn-гейт `at_freshness`.
+
+| Инструмент | Описание | Обязательные параметры |
+|---|---|---|
+| `tausik_at_create` | Записать AT — результат процедуры изолированной генерации, не генератор | `slug`, `tz_ref`, `tz_text`, `scenario`, `source_as_of`, `generated_by` |
+| `tausik_at_show` | Показать запись AT (JSON) | `slug` |
+| `tausik_at_list` | Список AT, опц. фильтр по tz_ref (JSON) | — |
+| `tausik_at_delete` | Удалить запись AT | `slug` |
+| `tausik_at_search` | FTS5 по slug/tz_ref/tz_text/scenario (JSON) | `query` |
+| `tausik_at_check_freshness` | Какие AT устарели против текущего итогового ТЗ (§8A.2); без slug — проверка всех | — |
 
 ## Знания
 

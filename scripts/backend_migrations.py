@@ -32,6 +32,7 @@ from backend_migrations_v49 import MIGRATION_V49
 from backend_migrations_v50 import MIGRATION_V50
 from backend_migrations_v52 import MIGRATION_V52
 from backend_migrations_v53 import MIGRATION_V53
+from backend_migrations_v54 import MIGRATION_V54
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -400,6 +401,9 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     # v53: actz_points.tz_ref (final-tz-is-the-acceptance-reference-and-we-have-none)
     # -- which ТЗ clause a point clarifies, so the final-TZ view can group by it.
     53: MIGRATION_V53,
+    # v54: RENAR AT (Acceptance Test) artifacts (at-acceptance-tests-derived-by-an-isolated-agent)
+    # -- SQL in backend_schema_at.py, reused verbatim (AT's first migration).
+    54: MIGRATION_V54,
 }
 
 

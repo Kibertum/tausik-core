@@ -199,6 +199,7 @@ module = [
     "handlers",
     "handlers_actz",
     "handlers_adapt",
+    "handlers_at",
     "handlers_cq",
     "handlers_hierarchy",
     "handlers_knowledge",

@@ -9,6 +9,31 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — AT, the acceptance test traceability structurally cannot provide (RENAR §8A)
+
+TC's traceability chain (TC → SR → ADAPT → ТЗ) cannot catch one class of
+defect: a wrong interpretation makes every TC pass, because the system
+perfectly matches the wrong reading, and fails acceptance at the client. RENAR
+§8A (ADR-012, accepted) closes exactly that gap with AT (Acceptance Test) —
+three mandatory properties: derived by an agent isolated from ADAPT/BR/SR/
+SPEC/TC/code, regenerated before every trial from the current final TZ, and
+carrying `tz_text` — a verbatim contract quote, never a paraphrase.
+
+TAUSIK is stdlib-only (no LLM calls from `scripts/`), so isolation is not code
+here — it is a documented procedure
+(docs/en/at-generation-procedure.md, exported as the `at-generation-procedure`
+PROC-type SPEC) instructing whichever agent orchestrates the work to spawn a
+genuinely isolated subagent whose prompt contains only the `tz_ref` and
+verbatim governing text, and to transcribe its output rather than edit it.
+`tausik at create` records the result of that procedure; it does not generate
+one.
+
+`tausik_at_check_freshness` / `tausik at check-freshness` compares each AT's
+recorded `source_as_of` against the LIVE `final_tz_snapshot` for its `tz_ref`
+and names what changed — the same comparison the new `at_freshness` gate
+(warn) runs automatically at `task-done`, surfacing a stale AT without being
+able to regenerate it itself. Full CLI↔MCP parity (6 subcommands / 6 tools).
+
 ### Added — the final TZ is a derived view, not a third copy of the text (RENAR §5A.4)
 
 RENAR §5A.4: the acceptance reference is the initial ТЗ plus every signed ACTZ,
