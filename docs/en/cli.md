@@ -548,6 +548,20 @@ doc extract <path>              # Convert DOCX/PPTX/XLSX/HTML/EPUB/PDF to markdo
 
 Opt-in: requires `markitdown` and Python ≥3.11. See `docs/en/markitdown-integration.md`.
 
+## Generated Documents
+
+```bash
+doc constants [--check]         # docs/_generated/constants.json from pyproject + MCP counts
+doc roadmap [--check]           # ROADMAP.md from the live DB; --check exits 1 when stale
+```
+
+`doc roadmap` reissues the release roadmap at the project root. The release
+composition comes from the owner's decisions (the newest decision naming the
+release stories), the counters from the live DB — nothing in the file is typed
+by hand. Closing a task moves those counters, so the reissue belongs **after
+`task done` and before the commit**; otherwise `tests/test_release_roadmap.py`
+goes red and names this same command.
+
 ## Events (Audit Log)
 
 ```bash

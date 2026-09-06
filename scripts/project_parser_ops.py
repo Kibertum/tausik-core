@@ -144,6 +144,16 @@ def add_doc(sub: argparse._SubParsersAction) -> None:
         dest="doc_constants_check",
         help="Exit 1 if constants.json is missing or out of sync",
     )
+    dr = doc_sub.add_parser(
+        "roadmap",
+        help="Write ROADMAP.md from the live DB (release composition from decisions)",
+    )
+    dr.add_argument(
+        "--check",
+        action="store_true",
+        dest="doc_roadmap_check",
+        help="Exit 1 if ROADMAP.md is missing or no longer matches the live DB",
+    )
 
 
 def add_skill(sub: argparse._SubParsersAction) -> None:

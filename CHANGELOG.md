@@ -9,6 +9,36 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the release roadmap is generated from the live DB instead of drawn; the PDF is named as a dated snapshot
+
+The release map was a PDF built on 2026-08-12 whose page 4 asked "does it work
+for other people?" as the question of version 1.9. Ten days later a decision
+redefined 1.9 as a refactor of the EVIDENCE CORE and took that question off the
+version. Nothing connected the two: the map went on answering a retired
+question, and there was no way to notice — a PDF has no state to compare
+against.
+
+- `ROADMAP.md` at the root is a GENERATED file under git. The composition is
+  read from the owner's decisions (the newest decision naming two or more
+  release stories), the charter from the decision that the FIRST such decision
+  cites, the counters from the live DB. Neither the composition nor the numbers
+  are written in source: the owner changes scope with a decision, not by
+  editing my code.
+- `tausik doc roadmap [--check]` reissues and verifies. Closing a task moves the
+  counters, so the reissue belongs AFTER `task done` and BEFORE the commit; the
+  staleness message names that same command.
+- `tests/test_release_roadmap.py` regenerates from the live DB and compares to
+  the committed file — the same shape of control as the manifest's freshness
+  guard. Negative: a digit edited into the written map is caught. The generator
+  reads no clock (asserted structurally), and `.gitattributes` pins the file to
+  LF — otherwise the byte comparison would go red in every Windows clone.
+- Three states, not two: no composition decision is a REFUSAL
+  (`RoadmapUnreadable`), not an empty release; a missing trajectory line is
+  "not recorded", not "zero points".
+- `TAUSIK-roadmap.pdf` is NOT deleted, NOT reissued and NOT put under git: it is
+  a dated record of what the release was taken to be when it was built. That is
+  said in both places a reader will land — the map itself and `.gitignore`.
+
 ### Fixed — the ADAPT client signature is gone, because RENAR withdrew it; the records it produced are kept and named
 
 `tausik adapt sign --help` advertised "a dual signature (§7.5)". RENAR ADR-011
