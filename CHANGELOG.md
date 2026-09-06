@@ -9,6 +9,46 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — our GenAI spans stop speaking a word the conventions do not define, and tool calls nest under the agent run
+
+Release 1.8 already emitted OTLP/JSON: one span per session, every `gen_ai.*`
+name in a single module, exporter off by default, stdlib-only, no network. Two
+things were wrong with it, and MEASURING FIRST is what found them — the task's
+premise ("our evidence speaks only our own schema") was already half answered.
+
+- `gen_ai.operation.name` IS AN ENUMERATION, and we reported `session` — a
+  word of ours inside a standard field. A span shaped like GenAI that declares
+  an operation nobody can interpret has the vocabulary without the meaning,
+  which is the same defect as publishing a closed list of our own invention. A
+  session is now `invoke_agent` and a tool call `execute_tool`, both from the
+  conventions' own list, with `gen_ai.agent.name` beside them. Anything we
+  cannot map honestly — a memory write, a knowledge search — gets NO span:
+  `operation_for` answers `None` rather than inventing a word.
+- ONE SPAN PER SESSION SAID WHAT WE SPENT AND NOTHING ABOUT WHAT WE DID. Tool
+  calls now nest as child `execute_tool` spans under the session's
+  `invoke_agent`, which is the shape the conventions describe. Child span ids
+  are derived (sha256 over parent + row), so an export is reproducible and
+  salted against collision when the same row is exported from two sessions. A
+  row with no tool name, or a window that does not fit inside the parent's, is
+  SKIPPED rather than guessed at; a row with no window of its own inherits the
+  parent's, which says "this happened during the session" and invents no
+  duration.
+- The names come from the transcript walk the metrics hook already performed,
+  handed back through an OUT-PARAMETER rather than a new key in the metrics
+  dict — that dict is written to the metrics file and recorded to the
+  database, and telemetry has no business changing the shape of either. No
+  schema migration; the internal events remain the source of truth.
+
+THE OLD SUITE COULD NOT HAVE NOTICED EITHER, and that is worth saying plainly:
+its `test_golden_document_is_stable` compared a build with ITSELF — determinism
+under a name that promised a pinned reference — and the structural test asserted
+`span["name"]` for truthiness, never for value. Renamed to what it measures, and
+the value is pinned now.
+
+Nine declared mutations, nine killed — one after tracing: `if raw:` versus
+`if raw is not None:` is only reachable with an EXPLICIT zero, and the first
+killer passed a row with the key missing, where both behave alike.
+
 ### Added — something notices when the STANDARD moves, instead of us noticing months later
 
 Every other RENAR check here compares the live database against OUR

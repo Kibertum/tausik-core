@@ -29,9 +29,83 @@ GEN_AI_REQUEST_MODEL = "gen_ai.request.model"
 GEN_AI_USAGE_INPUT_TOKENS = "gen_ai.usage.input_tokens"
 GEN_AI_USAGE_OUTPUT_TOKENS = "gen_ai.usage.output_tokens"
 
+GEN_AI_TOOL_NAME = "gen_ai.tool.name"
+GEN_AI_AGENT_NAME = "gen_ai.agent.name"
+
 # The value TAUSIK reports for gen_ai.system — this framework is the producer.
 GEN_AI_SYSTEM_VALUE = "tausik"
-GEN_AI_OPERATION_VALUE = "session"
+
+# THE OPERATION NAME IS NOT FREE TEXT, and ours was. `gen_ai.operation.name` is
+# an enumeration in the conventions — `chat`, `execute_tool`, `invoke_agent`,
+# and others — and until now this module reported "session", a word the
+# conventions do not define. A span shaped like GenAI that declares an
+# operation nobody can interpret speaks the vocabulary without the meaning,
+# which is the same defect as publishing a closed list of our own invention.
+#
+# Session runs map to `invoke_agent`: an agent run that contains the rest. A
+# tool call maps to `execute_tool`. Both are members of the conventions' own
+# list; anything we cannot map honestly gets NO span rather than a made-up
+# operation (see `operation_for`).
+GEN_AI_OPERATION_INVOKE_AGENT = "invoke_agent"
+GEN_AI_OPERATION_EXECUTE_TOOL = "execute_tool"
+OPERATIONS = (GEN_AI_OPERATION_INVOKE_AGENT, GEN_AI_OPERATION_EXECUTE_TOOL)
+
+# Kept for the session document's span name, now bound to the convention's
+# value rather than to a word of ours.
+GEN_AI_OPERATION_VALUE = GEN_AI_OPERATION_INVOKE_AGENT
+
+# The agent name a session span reports. TAUSIK runs one agent per session; the
+# name is the framework's, not the model's — the model travels in
+# gen_ai.request.model.
+GEN_AI_AGENT_NAME_VALUE = "tausik"
+
+
+def operation_for(kind: str) -> str | None:
+    """The convention's operation name for one of OUR event kinds, or None.
+
+    ``None`` is the honest answer for anything we cannot map — a memory write,
+    a knowledge search — and the caller emits no span for it. Inventing an
+    operation name would put our vocabulary inside a standard field, which is
+    the thing this module exists to stop.
+    """
+    return {
+        "session": GEN_AI_OPERATION_INVOKE_AGENT,
+        "tool": GEN_AI_OPERATION_EXECUTE_TOOL,
+    }.get(kind)
+
+
+def tool_attributes(row: Any) -> dict[str, Any]:
+    """Map ONE recorded tool call (a `usage_events` row) to semconv attributes.
+
+    Same discipline as :func:`genai_attributes`: a field we do not have is
+    omitted, never emitted as an empty string or a zero that a backend would
+    read as a measured value. A row with no tool name is not a tool call and
+    yields ``{}`` — the caller then emits nothing.
+    """
+    if not isinstance(row, dict):
+        return {}
+    tool = str(row.get("tool_name") or "").strip()
+    if not tool:
+        return {}
+    attrs: dict[str, Any] = {
+        GEN_AI_SYSTEM: GEN_AI_SYSTEM_VALUE,
+        GEN_AI_OPERATION_NAME: GEN_AI_OPERATION_EXECUTE_TOOL,
+        GEN_AI_TOOL_NAME: tool,
+    }
+    model = str(row.get("model_id") or "").strip()
+    if model:
+        attrs[GEN_AI_REQUEST_MODEL] = model
+    for field, name in (
+        ("tokens_input", GEN_AI_USAGE_INPUT_TOKENS),
+        ("tokens_output", GEN_AI_USAGE_OUTPUT_TOKENS),
+    ):
+        raw = row.get(field)
+        if raw:
+            try:
+                attrs[name] = int(raw)
+            except (TypeError, ValueError):
+                continue
+    return attrs
 
 
 def genai_attributes(metrics: Any) -> dict[str, Any]:
@@ -46,6 +120,7 @@ def genai_attributes(metrics: Any) -> dict[str, Any]:
     attrs: dict[str, Any] = {
         GEN_AI_SYSTEM: GEN_AI_SYSTEM_VALUE,
         GEN_AI_OPERATION_NAME: GEN_AI_OPERATION_VALUE,
+        GEN_AI_AGENT_NAME: GEN_AI_AGENT_NAME_VALUE,
     }
     model = str(metrics.get("model") or "").strip()
     if model:

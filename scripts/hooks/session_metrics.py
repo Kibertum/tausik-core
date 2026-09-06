@@ -22,13 +22,21 @@ from cost_pricing import calculate_cost_usd  # noqa: E402
 from token_accounting import sum_usage_tokens  # noqa: E402
 
 
-def parse_transcript(path: str) -> dict:
+def parse_transcript(path: str, tool_rows_out: list | None = None) -> dict:
     """Parse JSONL transcript and extract metrics.
 
     Returns:
         {tokens_input, tokens_output, tokens_total, cost_usd,
          tool_calls, model, messages, duration_sec}
+
+    ``tool_rows_out``, when a list is passed, is FILLED with one row per tool
+    use — the material for the optional OTLP child spans. An out-parameter
+    rather than another key in the returned dict, because that dict is written
+    to the metrics file and recorded to the database, and a telemetry
+    extension has no business changing the shape of either. Absent, nothing is
+    collected and the walk is exactly as before.
     """
+    tool_rows = tool_rows_out if tool_rows_out is not None else []
     tokens_input = 0
     tokens_output = 0
     tool_calls = 0
@@ -80,6 +88,15 @@ def parse_transcript(path: str) -> dict:
                 for block in content:
                     if isinstance(block, dict) and block.get("type") == "tool_use":
                         tool_calls += 1
+                        # Names for the optional OTLP child spans. Collected
+                        # here because the walk is already happening; kept out
+                        # of `metrics` (see below) so the metrics file and the
+                        # usage row keep the shape everything else expects.
+                        name = str(block.get("name") or "").strip()
+                        if name:
+                            tool_rows.append(
+                                {"id": len(tool_rows) + 1, "tool_name": name, "model_id": model}
+                            )
 
     tokens_total = tokens_input + tokens_output
 
@@ -336,7 +353,8 @@ def main():
         print(f"File not found: {path}", file=sys.stderr)
         sys.exit(1)
 
-    metrics = parse_transcript(path)
+    tool_rows: list = []
+    metrics = parse_transcript(path, tool_rows)
     output = write_metrics(metrics)
     print(
         f"Metrics: {metrics['tokens_total']:,} tokens, ${metrics['cost_usd']:.2f}, "
@@ -349,7 +367,7 @@ def main():
     # events/metrics path above is unchanged (l26-otel-export, AC1).
     from otel_export import session_otlp_document
 
-    otlp = session_otlp_document(metrics, _load_config_safe())
+    otlp = session_otlp_document(metrics, _load_config_safe(), tool_calls=tool_rows)
     if otlp:
         otlp_path = os.path.join(os.path.dirname(output), "session-otlp.json")
         with open(otlp_path, "w", encoding="utf-8") as f:

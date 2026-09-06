@@ -17,7 +17,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
 import otel_semconv  # noqa: E402
-from otel_export import build_otlp_trace, export_enabled  # noqa: E402
+from otel_export import build_otlp_trace, child_span_id, export_enabled  # noqa: E402
 from otel_semconv import genai_attributes  # noqa: E402
 
 # The AC2 lint below walks all of scripts/ to prove no gen_ai.* literal escaped
@@ -138,9 +138,42 @@ class TestBuildOtlpTrace:
         assert by_key[otel_semconv.GEN_AI_REQUEST_MODEL] == {"stringValue": "claude-opus-4-8"}
         assert by_key[otel_semconv.GEN_AI_USAGE_INPUT_TOKENS] == {"intValue": "1000"}
 
-    def test_golden_document_is_stable(self):
+    def test_the_document_is_deterministic(self):
         # Same input → byte-identical document (deterministic; ids injected).
+        # RENAMED from "golden_document_is_stable", which it never was: a
+        # comparison of a build with ITSELF pins determinism and nothing else,
+        # while the name promised a pinned reference. It could not notice that
+        # the span reported an operation name the conventions do not define —
+        # and did not, for a whole release.
         assert self._build() == self._build()
+
+    def test_the_operation_name_is_one_the_conventions_define(self):
+        """The half the name above promised and did not deliver.
+
+        `gen_ai.operation.name` is an ENUMERATION in the conventions, and this
+        project reported "session" — a word of ours inside a standard field,
+        which is the vocabulary without the meaning. `assert span["name"]`
+        (truthiness) let that stand; this pins the value.
+        """
+        span = self._build()["resourceSpans"][0]["scopeSpans"][0]["spans"][0]
+        by_key = {a["key"]: a["value"] for a in span["attributes"]}
+        assert span["name"] == otel_semconv.GEN_AI_OPERATION_INVOKE_AGENT
+        assert by_key[otel_semconv.GEN_AI_OPERATION_NAME] == {"stringValue": "invoke_agent"}
+        assert by_key[otel_semconv.GEN_AI_OPERATION_NAME]["stringValue"] in otel_semconv.OPERATIONS
+        assert by_key[otel_semconv.GEN_AI_AGENT_NAME] == {"stringValue": "tausik"}
+
+    def test_no_operation_value_of_our_own_invention_survives(self):
+        """NEGATIVE SCENARIO: "session" must not reappear as an operation.
+
+        Written because it WAS the value: a detector that only checked the
+        field was present would have gone on passing.
+        """
+        doc = self._build()
+        for scope_span in doc["resourceSpans"][0]["scopeSpans"]:
+            for span in scope_span["spans"]:
+                by_key = {a["key"]: a["value"] for a in span["attributes"]}
+                value = by_key[otel_semconv.GEN_AI_OPERATION_NAME]["stringValue"]
+                assert value in otel_semconv.OPERATIONS, f"{value!r} is not a defined operation"
 
 
 class TestNegativePath:
@@ -256,3 +289,116 @@ class TestBackwardsSpanRejected:
             end_unix_nano=1000,
         )
         assert doc["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["name"]
+
+
+class TestToolSpansNestUnderTheAgentRun:
+    """The shape the conventions describe, and the half this project lacked.
+
+    One span per session said what we SPENT and nothing about what we DID.
+    Every case here is a recorded `usage_events` row: mapped when we can say
+    something true about it, skipped when we cannot — never guessed at.
+    """
+
+    PARENT = "b7ad6b7169203331"
+    TRACE = "0af7651916cd43dd8448eb211c80319c"
+    START, END = 1690000000000000000, 1690000000500000000
+
+    def _build(self, rows):
+        return build_otlp_trace(
+            _SAMPLE_METRICS,
+            trace_id=self.TRACE,
+            span_id=self.PARENT,
+            start_unix_nano=self.START,
+            end_unix_nano=self.END,
+            tool_calls=rows,
+        )
+
+    def _spans(self, rows):
+        return self._build(rows)["resourceSpans"][0]["scopeSpans"][0]["spans"]
+
+    def test_a_tool_call_becomes_a_child_of_the_session(self):
+        spans = self._spans([{"id": 1, "tool_name": "Read", "recorded_at": "2026-09-06T10:00:00Z"}])
+        assert len(spans) == 2
+        child = spans[1]
+        assert child["parentSpanId"] == self.PARENT
+        assert child["traceId"] == self.TRACE
+        assert child["name"] == otel_semconv.GEN_AI_OPERATION_EXECUTE_TOOL
+        by_key = {a["key"]: a["value"] for a in child["attributes"]}
+        assert by_key[otel_semconv.GEN_AI_TOOL_NAME] == {"stringValue": "Read"}
+        assert by_key[otel_semconv.GEN_AI_OPERATION_NAME] == {"stringValue": "execute_tool"}
+
+    def test_child_ids_are_derived_and_distinct(self):
+        rows = [
+            {"id": 1, "tool_name": "Read", "recorded_at": "t1"},
+            {"id": 2, "tool_name": "Read", "recorded_at": "t1"},
+        ]
+        first, second = self._spans(rows)[1:]
+        assert first["spanId"] != second["spanId"], "two rows are two spans"
+        assert re.fullmatch(r"[0-9a-f]{16}", first["spanId"])
+        assert self._spans(rows) == self._spans(rows), "same rows → same ids"
+
+    def test_the_same_row_under_another_parent_gets_another_id(self):
+        """NEGATIVE SCENARIO: ids are salted with the parent, so one row
+        exported from two sessions does not collide in a backend."""
+        row = {"id": 1, "tool_name": "Read", "recorded_at": "t1"}
+        assert child_span_id("b" * 16, row) != child_span_id("c" * 16, row)
+
+    def test_a_row_with_no_tool_name_is_not_a_tool_call(self):
+        assert len(self._spans([{"id": 1, "tokens_input": 5}])) == 1, "parent only"
+
+    def test_a_row_outside_the_parents_window_is_skipped(self):
+        """A child that starts before its parent or ends after it is invalid
+        nesting; a collector would take it, and it would be a lie."""
+        rows = [
+            {"id": 1, "tool_name": "Read", "start_unix_nano": self.START - 1},
+            {"id": 2, "tool_name": "Edit", "end_unix_nano": self.END + 1},
+            {
+                "id": 3,
+                "tool_name": "Bash",
+                "start_unix_nano": self.END,
+                "end_unix_nano": self.START,
+            },
+        ]
+        assert len(self._spans(rows)) == 1, "parent only — none of the three fits"
+
+    def test_a_row_without_its_own_window_inherits_the_parents(self):
+        """ "It happened during the session" is true; a made-up duration is not."""
+        child = self._spans([{"id": 1, "tool_name": "Read"}])[1]
+        assert child["startTimeUnixNano"] == str(self.START)
+        assert child["endTimeUnixNano"] == str(self.END)
+
+    def test_tokens_and_model_travel_when_present_and_are_omitted_when_not(self):
+        row = {"id": 1, "tool_name": "Read", "model_id": "claude-opus-5", "tokens_input": 7}
+        by_key = {a["key"]: a["value"] for a in self._spans([row])[1]["attributes"]}
+        assert by_key[otel_semconv.GEN_AI_REQUEST_MODEL] == {"stringValue": "claude-opus-5"}
+        assert by_key[otel_semconv.GEN_AI_USAGE_INPUT_TOKENS] == {"intValue": "7"}
+        assert otel_semconv.GEN_AI_USAGE_OUTPUT_TOKENS not in by_key, "absent stays absent"
+
+    def test_an_explicit_zero_is_omitted_not_reported(self):
+        """NEGATIVE SCENARIO: a recorded 0 is "we measured nothing", and a
+        backend reading `output_tokens: 0` would take it for a measurement.
+
+        Written because a declared mutation SURVIVED: the case above passes a
+        row with the key MISSING, and `if raw:` versus `if raw is not None:`
+        behave identically there — the branch is only reachable with an
+        explicit zero, which is the value our own rows actually carry.
+        """
+        row = {"id": 1, "tool_name": "Read", "tokens_input": 0, "tokens_output": 0}
+        by_key = {a["key"]: a["value"] for a in self._spans([row])[1]["attributes"]}
+        assert otel_semconv.GEN_AI_USAGE_INPUT_TOKENS not in by_key
+        assert otel_semconv.GEN_AI_USAGE_OUTPUT_TOKENS not in by_key
+        assert by_key[otel_semconv.GEN_AI_TOOL_NAME] == {"stringValue": "Read"}, (
+            "the span itself is still emitted — only the empty measurement is not"
+        )
+
+    def test_no_tool_calls_leaves_the_document_exactly_as_before(self):
+        """The extension is additive: an export with nothing to add is the
+        document this project already emitted."""
+        assert self._build(None) == self._build([]) == self._build([{"id": 1}])
+
+    def test_a_kind_we_cannot_map_gets_no_operation_name_of_our_own(self):
+        """`operation_for` answers None rather than inventing a word — the
+        defect that put "session" into a standard field in the first place."""
+        assert otel_semconv.operation_for("memory") is None
+        assert otel_semconv.operation_for("session") in otel_semconv.OPERATIONS
+        assert otel_semconv.operation_for("tool") in otel_semconv.OPERATIONS

@@ -1,7 +1,7 @@
 ---
 slug: standards-drift-detection
 title: "Не отстать снова: сдвиг стандарта обязан находить машина"
-status: active
+status: done
 epic: release-19-renar-conformance
 ---
 

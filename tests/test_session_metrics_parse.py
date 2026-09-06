@@ -294,6 +294,55 @@ class TestRecordToDbSelfLocation:
         assert 'os.path.join(project_root, ".claude"' not in text
 
 
+class TestToolRowsForTheOptionalTrace:
+    """The names the OTLP child spans are built from, collected on the walk.
+
+    An OUT-PARAMETER, not another key in the metrics dict: that dict is written
+    to the metrics file and recorded to the database, and telemetry has no
+    business changing the shape of either.
+    """
+
+    def _transcript(self, tmp_path):
+        return _write_transcript(
+            tmp_path,
+            [
+                {
+                    "type": "assistant",
+                    "model": "claude-opus-4-7",
+                    "usage": {"input_tokens": 10, "output_tokens": 5},
+                    "content": [
+                        {"type": "tool_use", "name": "Read"},
+                        {"type": "tool_use", "name": "Bash"},
+                        {"type": "text", "text": "not a tool"},
+                        {"type": "tool_use"},  # nameless — counted, never named
+                    ],
+                }
+            ],
+        )
+
+    def test_rows_carry_the_tool_names_and_the_model(self, tmp_path):
+        sm = _import_module()
+        rows: list = []
+        metrics = sm.parse_transcript(self._transcript(tmp_path), rows)
+        assert metrics["tool_calls"] == 3, "the count includes the nameless block"
+        assert [r["tool_name"] for r in rows] == ["Read", "Bash"], "only named ones become spans"
+        assert {r["model_id"] for r in rows} == {"claude-opus-4-7"}
+        assert [r["id"] for r in rows] == [1, 2], "ids are positional and stable"
+
+    def test_the_metrics_dict_is_unchanged_by_the_collection(self, tmp_path):
+        """NEGATIVE SCENARIO: the extension must not alter what everything else reads."""
+        sm = _import_module()
+        path = self._transcript(tmp_path)
+        without = sm.parse_transcript(path)
+        with_rows = sm.parse_transcript(path, [])
+        assert without == with_rows
+        assert "tool_spans" not in without and "tool_rows" not in without
+
+    def test_omitting_the_list_collects_nothing_and_still_parses(self, tmp_path):
+        sm = _import_module()
+        assert sm.parse_transcript(self._transcript(tmp_path))["tool_calls"] == 3
+
+
 class TestProfileDirAgreement:
     """AC-3: self-location lives once in _common; session_start delegates to it."""
 
