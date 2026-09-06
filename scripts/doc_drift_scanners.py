@@ -25,12 +25,17 @@ from __future__ import annotations
 from pathlib import Path
 
 from doc_drift_common import (
+    _CLOSED_LIST_COUNT_RE,
+    _CLOSED_LIST_ENUM_RE,
     _CODE_COUNT_PATTERNS,
     _MCP_COUNT_PAIR_PATTERN,
     _MCP_COUNT_PATTERNS,
+    _MCP_TABLE_COLUMN_RE,
     _PY_VERSION_RE,
     _TEST_COUNT_PATTERNS,
     _VERSION_RE,
+    CLOSED_LIST_COUNT_LOOKBEHIND,
+    CLOSED_LIST_MIN_OVERLAP,
     CODE_COUNT_EXTRA_TARGETS,
     CROSS_FILE_SCAN_TARGETS,
     MCP_COUNT_EXTRA_TARGETS,
@@ -52,6 +57,8 @@ __all__ = [
     "scan_version_refs",
     "scan_py_version_constants",
     "scan_mcp_tool_counts",
+    "scan_mcp_table_columns",
+    "scan_closed_list_enums",
     "scan_test_counts",
     "scan_code_counts",
     "write_cross_file_fixes",
@@ -177,6 +184,119 @@ def scan_mcp_tool_counts(repo_root: Path, payload: dict[str, object]) -> list[st
                     f"constants.json {k1}={exp1}, {k2}={exp2}"
                 )
     return messages
+
+
+def scan_mcp_table_columns(repo_root: Path, payload: dict[str, object]) -> list[str]:
+    """Return drift messages for numeric cells of a markdown "MCP tools" column.
+
+    Every :data:`_MCP_COUNT_PATTERNS` entry needs a WORD beside the number, so a
+    bare table cell (``| 128 |``) matched none of them: README.md's IDE table
+    carried five such cells while the prose two lines below it was checked.
+
+    The column is located by its HEADER (:data:`_MCP_TABLE_COLUMN_RE`), not by
+    index, so inserting a column ahead of it does not silently move the check
+    onto someone else's numbers. Non-numeric cells ("MCP + rules",
+    "host-dependent") are skipped: the table is honest prose there, not a count.
+    """
+    expected = payload.get("mcp_main_tools")
+    if not isinstance(expected, int):
+        return []
+    messages: list[str] = []
+    for rel in (*CROSS_FILE_SCAN_TARGETS, *MCP_COUNT_EXTRA_TARGETS):
+        path = repo_root / rel
+        if not path.is_file():
+            continue
+        text = _strip_fenced_blocks(path.read_text(encoding="utf-8"))
+        column: int | None = None
+        for line_no, line in enumerate(text.splitlines(), start=1):
+            if not line.lstrip().startswith("|"):
+                column = None  # the table ended; the next one names its own column
+                continue
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            if column is None:
+                for i, cell in enumerate(cells):
+                    if _MCP_TABLE_COLUMN_RE.match(cell):
+                        column = i
+                        break
+                continue
+            if column >= len(cells):
+                continue
+            cell = cells[column]
+            if not cell.isdigit() or int(cell) == expected:
+                continue
+            messages.append(
+                f"{rel}:{line_no}: MCP tool-count cell '{cell}' in the "
+                f"'MCP tools' column does not match constants.json "
+                f"mcp_main_tools={expected}"
+            )
+    return messages
+
+
+def scan_closed_list_enums(repo_root: Path, payload: dict[str, object]) -> list[str]:
+    """Return drift messages for closed lists the docs spell out.
+
+    The docs quote the standard's closed lists in full — SPEC types, ADAPT
+    backward-finding categories, ADAPT lifecycle statuses — and the guard that
+    forbids a second literal copy walks ``scripts/``, ``harness/`` and
+    ``tests/`` only, so documentation was outside every closed-list control.
+    Measured: ``docs/{en,ru}/mcp.md`` still said "closed list of 9
+    (ARCH/…/OPS)" after migration v49 widened SPEC types to eleven.
+
+    THE SUBJECT IS DERIVED. An enumeration is matched to the closed list it
+    OVERLAPS most (:data:`CLOSED_LIST_MIN_OVERLAP` shared values at least), not
+    to a phrase near it: the enumeration this exists to catch is one whose
+    content is wrong, so it can only be recognised by partial match. The count
+    written immediately before it, if any, is judged as part of the same claim.
+    """
+    lists = payload.get("closed_lists")
+    if not isinstance(lists, dict) or not lists:
+        return []
+    known = [
+        (name, str(spec.get("label", name)), [str(v) for v in spec.get("values", [])])
+        for name, spec in lists.items()
+        if isinstance(spec, dict) and spec.get("values")
+    ]
+    messages: list[str] = []
+    for rel in (*CROSS_FILE_SCAN_TARGETS, *MCP_COUNT_EXTRA_TARGETS):
+        path = repo_root / rel
+        if not path.is_file():
+            continue
+        text = _strip_fenced_blocks(path.read_text(encoding="utf-8"))
+        for m in _CLOSED_LIST_ENUM_RE.finditer(text):
+            found = [tok for tok in m.group(1).split("/") if tok]
+            name, label, values, overlap = _best_closed_list(found, known)
+            if overlap < CLOSED_LIST_MIN_OVERLAP:
+                continue  # not a quotation of a list we know
+            line_no = text[: m.start()].count("\n") + 1
+            missing = [v for v in values if v not in found]
+            extra = [v for v in found if v not in values]
+            if missing or extra:
+                messages.append(
+                    f"{rel}:{line_no}: {label} enumerated as '{m.group(1)}' — "
+                    f"missing {missing or 'nothing'}, unknown {extra or 'nothing'} "
+                    f"vs constants.json closed_lists.{name} ({len(values)} values)"
+                )
+            before = text[max(0, m.start() - CLOSED_LIST_COUNT_LOOKBEHIND) : m.start()]
+            count_m = _CLOSED_LIST_COUNT_RE.search(before)
+            if count_m and int(count_m.group(1)) != len(values):
+                messages.append(
+                    f"{rel}:{line_no}: {label} written as a closed list of "
+                    f"{count_m.group(1)} — constants.json closed_lists.{name} "
+                    f"holds {len(values)}"
+                )
+    return messages
+
+
+def _best_closed_list(
+    found: list[str], known: list[tuple[str, str, list[str]]]
+) -> tuple[str, str, list[str], int]:
+    """The known closed list sharing most values with *found*, and that count."""
+    best: tuple[str, str, list[str], int] = ("", "", [], 0)
+    for name, label, values in known:
+        overlap = len(set(found) & set(values))
+        if overlap > best[3]:
+            best = (name, label, values, overlap)
+    return best
 
 
 def scan_test_counts(repo_root: Path, payload: dict[str, object]) -> list[str]:

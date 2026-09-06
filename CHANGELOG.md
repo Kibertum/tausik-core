@@ -9,6 +9,52 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the docs' copies of closed lists are checked against the lists, values included
+
+`constants.json` already carried the NUMBERS docs quote (tools, hooks, stacks,
+roles) so a stale one fails `--check`. The VALUES of the standard's closed
+lists were never in it, and the docs carry those too. MEASURED:
+`docs/{en,ru}/mcp.md` said `type` is a "closed list of 9
+(ARCH/API/DATA/INT/PROC/UI/AI/SEC/OPS)" — false since migration v49 widened
+SPEC types to ELEVEN per ADR-013 — and nothing reddened, because the guard
+that forbids a second literal copy (`tests/closed_list_counts.py`, `LIST_RE`)
+walks `scripts/`, `harness/` and `tests/` only. Documentation sat outside
+every closed-list control the project has.
+
+- `doc_closed_lists.CLOSED_LISTS` puts the three lists into `constants.json` —
+  SPEC types, ADAPT backward-finding categories, ADAPT lifecycle statuses —
+  DERIVED from the same tuples the service layer and the DB CHECK constraints
+  use, with the count travelling as `len()`. It cannot become the second copy
+  it polices.
+- `scan_closed_list_enums` checks every slash-joined enumeration in the scanned
+  docs against them. THE SUBJECT IS DERIVED, by largest overlap, not anchored
+  to a phrase near the list: the enumeration this exists to catch is one whose
+  CONTENT is wrong, so it can only be recognised from a partial match — and
+  keying on a formulation is the mistake memory #488 records. The count written
+  immediately before an enumeration is judged as part of the same claim, so
+  "closed list of 9" with eleven correct values reddens too.
+- `scan_mcp_table_columns` closes the other blind spot: a bare markdown cell
+  (`| 128 |`) carries no word for the tool-count patterns to anchor on, so
+  README.md's five IDE-table cells were unchecked while the prose two lines
+  below them was not. The column is located by its HEADER, so inserting a
+  column ahead of it does not move the check onto someone else's numbers.
+- The live lie is corrected: both `mcp.md` files now say eleven and name TEST
+  and DOC.
+
+MEASURED AND NOT CHANGED, recorded so the next reader does not re-open it: the
+README test badge ("7115 tests" against a live 8835) IS covered — README.md is
+a scan target and the badge pattern matches — but the rule is asymmetric BY
+DECISION #182: `test_count` is a lower bound, so only an OVERCLAIM reddens.
+Understating is not drift.
+
+Twelve declared mutations. Ten killed; one killed after tracing (dropping the
+lists from the payload left every doc test green, because a payload without
+them degrades the scanner to silence — a test now asserts the live payload
+carries them); one is EQUIVALENT and is documented as such in the source
+rather than counted as killed: relaxing the three-token bound on an
+enumeration changes no verdict, since a two-token run cannot reach the overlap
+floor that actually decides.
+
 ### Fixed — every mandatory clause publishes the BASIS its `true` rests on, and three constants became measurements
 
 `mandatory-clauses-confirmed` printed a bare `true` per §13.3 clause and the

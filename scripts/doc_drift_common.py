@@ -252,6 +252,50 @@ _CODE_COUNT_PATTERNS: tuple[tuple[re.Pattern[str], str, str], ...] = (
     ),
 )
 
+# Closed-list ENUMERATIONS spelled out in prose: three or more slash-joined
+# tokens, e.g. "ARCH/API/DATA/INT/PROC/UI/AI/SEC/OPS" or
+# "draft/review/asked/answered/approved/frozen/superseded".
+#
+# THE THREE-TOKEN BOUND IS NOT THE GUARD, and saying so here is the honest
+# reading of a mutation that SURVIVED: relaxing it to two changes no verdict,
+# because a two-token run cannot reach CLOSED_LIST_MIN_OVERLAP and is dropped a
+# step later regardless. The bound is here to keep the scan off the "and/or"
+# pairs and two-segment paths of ordinary prose — cheaper and clearer, not
+# load-bearing. The overlap floor below is what decides.
+#
+# THE SUBJECT IS DERIVED, NOT ANCHORED. An earlier shape keyed each pattern to a
+# phrase near the enumeration ("closed list of N (", "§7.8.1 closed list:") and
+# would have read a FORMULATION rather than a property — the mistake memory #488
+# records. Worse, it cannot work here: the enumeration this guard exists to
+# catch is one whose CONTENT is wrong, so the subject has to be recognised from
+# a partial match. `scan_closed_list_enums` therefore picks the closed list with
+# the largest overlap and reports the difference against it.
+_CLOSED_LIST_ENUM_RE = re.compile(r"\b([A-Za-z][A-Za-z\-]*(?:/[A-Za-z][A-Za-z\-]*){2,})\b")
+
+# A count written immediately before such an enumeration: "closed list of 9 (",
+# "закрытый список 9 (". Searched in the text PRECEDING a matched enumeration,
+# so the number and the values are judged as one claim rather than two.
+_CLOSED_LIST_COUNT_RE = re.compile(
+    r"(?:closed\s+list\s+of|закрытый\s+список)\s+(\d+)\s*\(?\s*$", re.IGNORECASE
+)
+
+# How far back to look for that count. One clause of prose; long enough for
+# "`type` is a closed list of 9 (", short enough not to reach the previous
+# sentence's number.
+CLOSED_LIST_COUNT_LOOKBEHIND = 40
+
+# Overlap below which an enumeration is NOT one of our closed lists. Two shared
+# tokens is coincidence ("draft/review" in a sentence about workflow); three is
+# a quotation of the list.
+CLOSED_LIST_MIN_OVERLAP = 3
+
+# Markdown table columns whose numeric cells are a tool count. A bare `| 128 |`
+# carries no words, so every _MCP_COUNT_PATTERNS entry walks past it: the five
+# IDE-table cells in README.md were invisible to the guard while the prose two
+# lines below them was checked. Matched against the HEADER cell, so the column
+# is located by what it is called rather than by its position.
+_MCP_TABLE_COLUMN_RE = re.compile(r"^\s*MCP[-\s]*(?:tools?|инструмент\w*)\s*$", re.IGNORECASE)
+
 # RENAR/renar: the sibling spec at renar.tech versions on its own timeline (the
 # auto-generated CLAUDE.md memory-tail cites "renar.tech v1.0-draft"), so its
 # refs must not be checked against TAUSIK's version — same as SENAR. Both cases

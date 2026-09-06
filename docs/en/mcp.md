@@ -127,7 +127,7 @@ See also `tausik_reason_step` (RENAR trace) under "Tasks".
 
 | Tool | Description | Required Parameters |
 |---|---|---|
-| `tausik_spec_add` | Create a SPEC artifact. `type` is a closed list of 9 (ARCH/API/DATA/INT/PROC/UI/AI/SEC/OPS); a new type is an amendment to the standard, not free text | `slug`, `type`, `title`, `version` |
+| `tausik_spec_add` | Create a SPEC artifact. `type` is a closed list of 11 (ARCH/API/DATA/INT/PROC/UI/AI/SEC/OPS/TEST/DOC); a new type is an amendment to the standard, not free text | `slug`, `type`, `title`, `version` |
 | `tausik_spec_list` | List SPECs, optionally filtered by type (JSON) | — |
 | `tausik_spec_show` | SPEC + linked tasks (JSON) | `slug` |
 | `tausik_spec_update` | Patch mutable fields (title/version/content_ref/status); `type` and `slug` are immutable | `slug` |

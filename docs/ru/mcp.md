@@ -124,7 +124,7 @@ RENAR-подложка: формальные требования (**SPEC**) и 
 
 | Инструмент | Описание | Обязательные параметры |
 |---|---|---|
-| `tausik_spec_add` | Создать SPEC-артефакт. `type` — закрытый список 9 (ARCH/API/DATA/INT/PROC/UI/AI/SEC/OPS); новый тип = поправка к стандарту, не free-text | `slug`, `type`, `title`, `version` |
+| `tausik_spec_add` | Создать SPEC-артефакт. `type` — закрытый список 11 (ARCH/API/DATA/INT/PROC/UI/AI/SEC/OPS/TEST/DOC); новый тип = поправка к стандарту, не free-text | `slug`, `type`, `title`, `version` |
 | `tausik_spec_list` | Список SPEC, опц. фильтр по типу (JSON) | — |
 | `tausik_spec_show` | SPEC + связанные задачи (JSON) | `slug` |
 | `tausik_spec_update` | Патч изменяемых полей (title/version/content_ref/status); `type`+`slug` иммутабельны | `slug` |
