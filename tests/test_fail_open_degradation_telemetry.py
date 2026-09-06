@@ -109,7 +109,18 @@ class TestThreeWayCategory:
         deg = be.supervision_degradations_summary()
         det = be.supervision_detections_summary()
 
-        assert byp == {"total": 1, "by_action": {"bypass_skip_hooks": 1}}
+        # The bypass summary now separates metric 8 from the frequency it sits
+        # INSIDE (SENAR 1.4 §8.6(i): nested, SHALL NOT be added). The buckets
+        # this test is about are unchanged — `by_action` is still exactly the
+        # bypass rows — and the split is asserted rather than skipped so a
+        # future change to it is visible here too.
+        assert byp == {
+            "total": 1,
+            "manual_intervention": 0,
+            "other": 1,
+            "nested": True,
+            "by_action": {"bypass_skip_hooks": 1},
+        }
         assert deg == {"total": 1, "by_action": {"fail_open_db_error": 1}}
         assert det == {"total": 1, "by_action": {"complexity_understated": 1}}
 

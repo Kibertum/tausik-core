@@ -421,6 +421,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="the hook/gate that was bypassed, e.g. opencode_qg0",
     )
     ev_emit.add_argument("--details", default=None, help="free-text error/context")
+    # SENAR 1.4 §8.6(j) / Gate Bypass 3.13: a direct edit of a task artifact is
+    # a regulated exception, and the record carries WHY, what risk was accepted,
+    # how it gets undone and who agreed. Structured flags rather than more prose
+    # in --details: four fields buried in free text can be neither required nor
+    # counted, which is the state this replaces.
+    ev_emit.add_argument(
+        "--task",
+        dest="bypass_task",
+        default=None,
+        help="task whose artifact was edited (required for --vector direct_edit)",
+    )
+    ev_emit.add_argument("--rationale", default=None, help="why the gate was bypassed")
+    ev_emit.add_argument(
+        "--risk-accepted", dest="risk_accepted", default=None, help="what could go wrong"
+    )
+    ev_emit.add_argument("--remediation", default=None, help="how it gets undone")
+    ev_emit.add_argument("--approved-by", dest="approved_by", default=None, help="who agreed to it")
 
     # --- db (v14b-junk-audit-pass: backup hygiene) ---
     db_p = sub.add_parser("db", help="Database hygiene helpers")

@@ -197,8 +197,8 @@ def extended_metrics_lines(m: dict[str, Any]) -> list[str]:
             f"(avg actual/budget = {drift['avg_ratio']}, n={drift['samples']})"
         )
     out += _escape_lines(m.get("defect_escape"))
+    out += _bypass_lines(m.get("supervision_bypasses") or {})
     for key, heading in (
-        ("supervision_bypasses", "\n--- Supervision bypasses (l26) ---"),
         ("supervision_detections", "\n--- Supervision detections (l26) ---"),
         (
             "supervision_degradations",
@@ -212,6 +212,31 @@ def extended_metrics_lines(m: dict[str, Any]) -> list[str]:
         out.append(f"Total: {section['total']}")
         for action, count in section.get("by_action", {}).items():
             out.append(f"  {action:<26}: {count}")
+    return out
+
+
+def _bypass_lines(section: dict[str, Any]) -> list[str]:
+    """Bypass frequency and metric 8, printed as NESTED and labelled as such.
+
+    SENAR 1.4 §8.6(i): manual interventions are a subset of bypasses, and the
+    standard says the two SHALL NOT be added. Printing them as two totals on
+    adjacent lines is an invitation to add them, so the containment is stated in
+    the line itself — "of which", not a second total.
+    """
+    if not section.get("total"):
+        return []
+    out = [
+        "\n--- Supervision bypasses (l26) ---",
+        f"Total: {section['total']}"
+        + (
+            f" — of which {section['manual_intervention']} manual intervention "
+            f"(§8.6(j)), {section['other']} other. NESTED: do not add."
+            if section.get("nested")
+            else ""
+        ),
+    ]
+    for action, count in (section.get("by_action") or {}).items():
+        out.append(f"  {action:<26}: {count}")
     return out
 
 

@@ -559,6 +559,37 @@ doc extract <path>              # Convert DOCX/PPTX/XLSX/HTML/EPUB/PDF to markdo
 
 Opt-in: requires `markitdown` and Python ≥3.11. See `docs/en/markitdown-integration.md`.
 
+## A bypassed gate leaves a record (SENAR 1.4 §8.6(j))
+
+Editing a task's artifact by a route no gate stands in front of — INCLUDING a
+direct edit by the supervisor — admits the effect QG-0 declared without a
+positive verdict; §8.6(h) counts that as a bypass regardless of intent. This is
+NOT a prohibition but a regulated exception: the legitimate cases the standard
+names stay open — an incident while agent capacity is unavailable, an
+environment where the agent does not run. What is required is a RECORD.
+
+```bash
+events emit-supervision --vector direct_edit --task <slug> \
+    --rationale "incident, agent capacity unavailable" \
+    --risk-accepted "the fix ships without a scoped verify" \
+    --remediation "re-run verify and re-close the task" \
+    --approved-by "owner"
+```
+
+A record with no `--rationale` is REFUSED (exit 2): a bypass without a reason is
+the form filled in without looking. What is refused is the RECORD, never the
+edit — the edit has already happened.
+
+WHY THE METRIC IS COMPUTED FROM RECORDS AND NOT FROM SELF-REPORT (§9.2, §9.3): a
+self-reported figure is a CLAIM, not a measurement; it satisfies neither §8.6(c)
+nor §8.6(d), and the standard cannot demand of gates what it does not demand of
+its own measure of compliance.
+
+THE TWO FREQUENCIES ARE NESTED AND SHALL NOT BE ADDED (§8.6(i)): manual
+interventions are a SUBSET of bypasses, so `metrics` prints them as "of which"
+rather than as a second total. Summed, they double-count, and the threshold
+fires on a team doing nothing wrong.
+
 ## Generated Documents
 
 ```bash

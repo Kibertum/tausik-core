@@ -9,6 +9,36 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — a direct edit of a task artifact is a recorded gate bypass (§8.6(j))
+
+Editing a task's artifact by a route no gate stands in front of — including a
+direct edit by the supervisor — admits the effect QG-0 declared without a
+positive verdict. Not a prohibition: the standard makes it a regulated
+exception, and the legitimate cases stay open.
+
+NO NEW ENTITY, checked before anything was changed. The Gate Bypass machinery
+already existed (one `events` row per bypass, seven vectors, metrics by action).
+What was missing, measured: the §8.6(j) vector — all seven describe supervision
+being switched OFF, not an edit made around it — and the four fields 3.13
+requires (rationale, risk accepted, remediation, senior approval), which had
+nowhere to live but one free-text `details` where they could be neither
+required, nor told apart from prose, nor counted.
+
+They now ride that same field as JSON, so a record is a superset of what was
+there. A record reads as `complete`, `incomplete` or `unstructured` — three
+states, because calling every pre-existing free-text row "incomplete" would
+accuse history of a defect it predates.
+
+`events emit-supervision --vector direct_edit` REFUSES a record with no
+rationale (exit 2) and names the standard's legitimate cases while doing it. It
+refuses the RECORD, never the edit: the edit has already happened.
+
+The two frequencies are now separated in the metrics output. §8.6(i) bypass
+frequency and metric 8 are NESTED and the standard says they SHALL NOT be added;
+they were being summed into one total. `metrics` prints "of which N manual
+intervention … NESTED: do not add", because two totals on adjacent lines are an
+invitation to add them.
+
 ### Added — every gate declares WHICH CHANGE does not happen while its verdict is negative
 
 SENAR 1.4 §8.6(a), SHALL on every configuration including Core: without it a

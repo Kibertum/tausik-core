@@ -268,7 +268,17 @@ class TestMetric:
         _project_dir, _tdir, be = _make_project(tmp_path)
         svc = ProjectService(be)
         m = svc.get_metrics()
-        assert m["supervision_bypasses"] == {"total": 0, "by_action": {}}
+        # The summary now separates metric 8 from the frequency it sits INSIDE
+        # (SENAR 1.4 §8.6(i): nested, SHALL NOT be added). A clean project is
+        # still all zeros — the point of this test — and the parts are asserted
+        # too, so "zero" cannot start meaning "not measured".
+        assert m["supervision_bypasses"] == {
+            "total": 0,
+            "manual_intervention": 0,
+            "other": 0,
+            "nested": True,
+            "by_action": {},
+        }
 
 
 # --- gates_disable (the CLI/MCP/brain chokepoint) ----------------------------

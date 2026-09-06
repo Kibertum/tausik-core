@@ -216,7 +216,15 @@ class BackendQueriesMetricsMixin:
         thesis). Detections (supervision that WORKED) and degradations (silent
         fail-open) are counted separately, never conflated here.
         """
-        return self._supervision_by_action(category="bypass")
+        summary = self._supervision_by_action(category="bypass")
+        # SENAR 1.4 §8.6(i) and metric 8 are NESTED, and the standard says in as
+        # many words that they SHALL NOT be summed: manual interventions are a
+        # SUBSET of bypasses, so adding them double-counts and the threshold
+        # fires on a team doing nothing wrong. Returned already separated so a
+        # reader is never handed two numbers to add.
+        from gate_bypass_record import split_nested
+
+        return split_nested(summary)
 
     def supervision_degradations_summary(self) -> dict[str, Any]:
         """hook-fail-open-db-error-telemetry: how many times a guard silently
