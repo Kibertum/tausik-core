@@ -9,6 +9,32 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — AT/TC routing matrix and an AT-only release gate (RENAR §8A.4 / §10.4.3)
+
+Recording an AT (previous entry) is not yet a verdict: §8A.4/§10.4.3 name a
+four-cell matrix over `(at_outcome, tc_outcome)` and say what a red AT next to
+a green TC actually means — not a code defect, an interpretation error,
+because the code matches a reading the client never signed off on. Red/red is
+a genuine code defect; green/red names two live suspects (a stale TC, or an
+internal norm stricter than the contract) without picking one for the reader;
+green/green is no divergence. `route_at_tc` computes this from the two named
+outcomes — never a table copied into a doc by hand.
+
+TAUSIK has no first-class TC artifact yet (that premise is tracked
+separately, `renar_tc_premise.py`), so `tausik_at_diagnose` / `at diagnose`
+never reads pytest or `verification_runs` itself and never quietly stands in
+for the missing entity — the caller supplies `tc_outcome` explicitly, and the
+routing stays honestly TC-source-agnostic. `at_results` (migration v55,
+append-only — a re-run is a new row, never an overwrite, the same reason
+`final_tz_snapshot` keeps superseded ACTZ points instead of discarding them)
+backs `tausik_at_record_result` / `at record-result`.
+
+`tausik_at_release_readiness` / `at release-readiness` is §8A.4's release
+gate stated purely in AT + final-TZ terms — ready only when every AT's latest
+outcome is green AND fresh against the live final-TZ, no TC input at all,
+distinct from the optional QG-4 (business outcome, not contract conformance).
+Full CLI↔MCP parity (3 new subcommands / 3 new tools, AT now 9/9).
+
 ### Added — AT, the acceptance test traceability structurally cannot provide (RENAR §8A)
 
 TC's traceability chain (TC → SR → ADAPT → ТЗ) cannot catch one class of

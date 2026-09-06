@@ -65,6 +65,24 @@ def handle_at_check_freshness(svc: Any, args: dict) -> str:
         return f"Error: {e}"
 
 
+def handle_at_record_result(svc: Any, args: dict) -> str:
+    try:
+        return svc.at_record_result(args["slug"], args["outcome"], args.get("note"))
+    except ServiceError as e:
+        return f"Error: {e}"
+
+
+def handle_at_diagnose(svc: Any, args: dict) -> str:
+    try:
+        return _dump(svc.at_diagnose(args["slug"], args["tc_outcome"]))
+    except ServiceError as e:
+        return f"Error: {e}"
+
+
+def handle_at_release_readiness(svc: Any, args: dict) -> str:
+    return _dump(svc.at_release_readiness())
+
+
 AT_HANDLERS = {
     "tausik_at_create": handle_at_create,
     "tausik_at_show": handle_at_show,
@@ -72,4 +90,7 @@ AT_HANDLERS = {
     "tausik_at_delete": handle_at_delete,
     "tausik_at_search": handle_at_search,
     "tausik_at_check_freshness": handle_at_check_freshness,
+    "tausik_at_record_result": handle_at_record_result,
+    "tausik_at_diagnose": handle_at_diagnose,
+    "tausik_at_release_readiness": handle_at_release_readiness,
 }

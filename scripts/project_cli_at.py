@@ -1,7 +1,7 @@
 """TAUSIK CLI handler for `tausik at` subcommands.
 
 RENAR AT (Acceptance Test) artifacts (Sec8A): create / show / list / delete /
-search / check-freshness.
+search / check-freshness / record-result / diagnose / release-readiness.
 """
 
 from __future__ import annotations
@@ -39,6 +39,13 @@ def cmd_at(svc: ProjectService, args: Any) -> None:
             return _cmd_search(svc, args)
         if cmd == "check-freshness":
             return _cmd_check_freshness(svc, args)
+        if cmd == "record-result":
+            print(svc.at_record_result(args.slug, args.outcome, args.note))
+            return None
+        if cmd == "diagnose":
+            return _cmd_diagnose(svc, args)
+        if cmd == "release-readiness":
+            return _cmd_release_readiness(svc)
     except ServiceError as e:
         # A CLI invocation IS the flow — a swallowed error that still exits 0 is
         # a silent failure (CLAUDE.md zero-tolerance).
@@ -86,6 +93,23 @@ def _cmd_check_freshness(svc: ProjectService, args: Any) -> None:
     print(f"STALE: {len(stale)} AT record(s) no longer match the current final-TZ (§8A):")
     for s in stale:
         print(f"  {s['slug']} ({s['tz_ref']}): {s['reason']}")
+
+
+def _cmd_diagnose(svc: ProjectService, args: Any) -> None:
+    d = svc.at_diagnose(args.slug, args.tc_outcome)
+    print(f"AT '{d['at_slug']}': at={d['at_outcome']} tc={d['tc_outcome']}")
+    print(f"  diagnosis: {d['diagnosis']}")
+    print(f"  routes to: {d['routes_to'] or '(no divergence)'}")
+
+
+def _cmd_release_readiness(svc: ProjectService) -> None:
+    r = svc.at_release_readiness()
+    if r["ready"]:
+        print("READY (§8A.4): every AT is green and matches the current final-TZ.")
+        return
+    print(f"NOT READY (§8A.4): {len(r['blocking'])} blocking reason(s):")
+    for b in r["blocking"]:
+        print(f"  {b['slug']}: {b['reason']}")
 
 
 if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests

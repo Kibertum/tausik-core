@@ -100,6 +100,12 @@ CLASSES_AT_DECLARATION = frozenset(
         # fields §13.3.5 pos/neg pairing or ADR-013's TC.environment-ref duty
         # are about.
         "ats",
+        # at-red-with-tc-green-routes-to-interpretation-not-code: append-only
+        # history of OBSERVED AT trial outcomes (red/green). Still not a TC
+        # artifact class — it records what happened when someone/something
+        # exercised an AT scenario, not an executable test case; TC itself
+        # (the entity route_at_tc's tc_outcome describes) still has no table.
+        "at_results",
         "brain_events",
         "decisions",
         "epics",

@@ -2,13 +2,13 @@
 
 # TAUSIK MCP — Tool Reference
 
-**149 tools** for AI agents (142 project + 7 brain; current actual count, asserted via `len(TOOLS)` on both servers). The MCP surface covers everything an agent does day-to-day. A few CLI-only commands have no MCP equivalent — they are operator / maintenance verbs that don't belong in an agent loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. For the agent's working set, prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
+**152 tools** for AI agents (145 project + 7 brain; current actual count, asserted via `len(TOOLS)` on both servers). The MCP surface covers everything an agent does day-to-day. A few CLI-only commands have no MCP equivalent — they are operator / maintenance verbs that don't belong in an agent loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. For the agent's working set, prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
 
-> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 149 count - total with it is 156 tools.
+> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 152 count - total with it is 159 tools.
 
 Two MCP servers live in this project:
 
-- `tausik-project` — project-scoped tools (142): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging.
+- `tausik-project` — project-scoped tools (145): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging.
 - `tausik-brain` — cross-project Shared Brain tools (7).
 
 There is also an optional `codebase-rag` server documented at the bottom.
@@ -177,7 +177,7 @@ signed points below — the derived acceptance reference, never a third copy of 
 | `tausik_actz_final_tz` | The derived acceptance reference (§5A.4): per ТЗ clause, the latest both-role-signed point, naming what it overrode. `as_of` (ISO-8601) shows it at a past moment | — |
 | `tausik_actz_orphans` | Signed points no ADAPT reflects — an obligation outside requirements (§5A.4, fatal), found by query | — |
 
-### AT (6)
+### AT (9)
 
 Acceptance Test artifacts (§8A, ADR-012) — the one check traceability (TC → SR
 → ADAPT → ТЗ) structurally cannot provide, because a wrong interpretation
@@ -188,6 +188,13 @@ on create; `check_freshness` compares against the LIVE `final_tz_snapshot` for
 each AT's `tz_ref` and names what changed (§8A property 2 — regenerate before
 every trial). See also the `at_freshness` warn gate.
 
+`record_result`/`diagnose`/`release_readiness` implement §8A.4/§10.4.3's
+routing matrix. TAUSIK has no first-class TC artifact yet (a separate, open
+task) — `diagnose` never reads pytest/verification_runs itself; the caller
+supplies `tc_outcome` explicitly. `release_readiness` needs no TC at all: it
+is ready only when every AT's latest outcome is green and fresh — distinct
+from QG-4, which is optional and measures business outcome.
+
 | Tool | Description | Required Parameters |
 |---|---|---|
 | `tausik_at_create` | Record an AT — the result of the isolated-generation procedure, not a generator | `slug`, `tz_ref`, `tz_text`, `scenario`, `source_as_of`, `generated_by` |
@@ -196,6 +203,9 @@ every trial). See also the `at_freshness` warn gate.
 | `tausik_at_delete` | Delete an AT record | `slug` |
 | `tausik_at_search` | FTS5 over slug/tz_ref/tz_text/scenario (JSON) | `query` |
 | `tausik_at_check_freshness` | Which AT records are stale against the current final-TZ (§8A.2); omit slug to check all | — |
+| `tausik_at_record_result` | Record one observed trial outcome (append-only — a re-run is a new row) | `slug`, `outcome` |
+| `tausik_at_diagnose` | Route an AT's latest outcome against a caller-supplied `tc_outcome` (§8A.4/§10.4.3) | `slug`, `tc_outcome` |
+| `tausik_at_release_readiness` | §8A.4 release gate: ready only when every AT is green and fresh | — |
 
 ## Knowledge
 

@@ -24,6 +24,17 @@ Three properties the standard makes mandatory:
    paraphrase -- the one field that makes an AT traceable back to what the
    client actually signed, independent of whatever ``scenario`` prose says
    about it.
+
+CURRENT CUMULATIVE SHAPE, not a migration delta -- ``at_results`` below is v55
+(at-red-with-tc-green-routes-to-interpretation-not-code); backend_migrations_v54
+holds its own frozen copy of what v54 shipped WITHOUT it. See
+backend_schema_actz's docstring for the full reasoning (same relationship,
+one entity earlier).
+
+``at_results`` is APPEND-ONLY history, the same shape as ``verification_runs``/
+``gate_runs``: an AT can be exercised more than once over time, and each trial
+is a fact, not a value to overwrite. ``route_at_tc`` (service_at.py) reads the
+LATEST row per AT, never mutates one.
 """
 
 from __future__ import annotations
@@ -67,6 +78,14 @@ AT_STATEMENTS: list[str] = [
         INSERT INTO fts_ats(rowid, slug, tz_ref, tz_text, scenario)
         VALUES (new.id, new.slug, new.tz_ref, new.tz_text, new.scenario);
     END""",
+    """CREATE TABLE IF NOT EXISTS at_results (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        at_slug TEXT NOT NULL REFERENCES ats(slug) ON DELETE CASCADE,
+        outcome TEXT NOT NULL CHECK(outcome IN ('red', 'green')),
+        note TEXT,
+        recorded_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_at_results_slug ON at_results(at_slug, recorded_at)",
 ]
 
 # Fresh-DB path (backend_init.py). This is AT's first migration -- no history

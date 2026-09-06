@@ -283,6 +283,9 @@ def test_mcp_dispatch_registers_all_at_tools():
         "tausik_at_delete",
         "tausik_at_search",
         "tausik_at_check_freshness",
+        "tausik_at_record_result",
+        "tausik_at_diagnose",
+        "tausik_at_release_readiness",
     }
     assert expected == set(handlers_at.AT_HANDLERS)
 
@@ -296,7 +299,7 @@ def test_mcp_tool_schema_matches_handler_set():
 
     tool_names = {t["name"] for t in tools_at.TOOLS_AT}
     assert tool_names == set(handlers_at.AT_HANDLERS)
-    assert len(tool_names) == 6
+    assert len(tool_names) == 9
 
 
 def test_mcp_handler_create_and_check_freshness(svc_keyed):
@@ -372,3 +375,193 @@ def test_at_freshness_gate_not_applicable_without_a_database(tmp_path, monkeypat
     outcome = gate_at_freshness.run_at_freshness_gate({}, [])
     assert outcome.outcome == gate_at_freshness.gate_outcome.NOT_APPLICABLE
     assert outcome.blocks is False
+
+
+# === route_at_tc: the machine-derived matrix (§8A.4 / §10.4.3) ===
+
+
+def test_route_at_tc_red_green_is_interpretation_error():
+    from service_at import route_at_tc
+
+    r = route_at_tc("red", "green")
+    assert r["routes_to"] == "ADAPT"
+    assert "interpretation" in r["diagnosis"]
+
+
+def test_route_at_tc_red_red_is_code_defect():
+    from service_at import route_at_tc
+
+    assert route_at_tc("red", "red") == {
+        "at_outcome": "red",
+        "tc_outcome": "red",
+        "diagnosis": "code defect — both levels disagree with the contract",
+        "routes_to": "code",
+    }
+
+
+def test_route_at_tc_green_red_names_both_possibilities_and_picks_neither():
+    from service_at import route_at_tc
+
+    r = route_at_tc("green", "red")
+    assert r["routes_to"] == "review"
+    assert "stale" in r["diagnosis"].lower()
+    assert "stricter" in r["diagnosis"].lower()
+
+
+def test_route_at_tc_green_green_is_no_divergence():
+    from service_at import route_at_tc
+
+    r = route_at_tc("green", "green")
+    assert r["routes_to"] is None
+
+
+@pytest.mark.parametrize("bad_at,bad_tc", [("yellow", "green"), ("red", "yellow")])
+def test_route_at_tc_rejects_an_outcome_outside_the_closed_pair(bad_at, bad_tc):
+    from service_at import route_at_tc
+
+    with pytest.raises(ValueError):
+        route_at_tc(bad_at, bad_tc)
+
+
+# === results (append-only) and diagnosis ===
+
+
+def test_record_result_then_list_history(svc):
+    svc.at_create("at-1", "TZ-3.1", "text", "scenario", "2026-01-01T00:00:00Z", "orch")
+    svc.at_record_result("at-1", "red", "first trial")
+    svc.at_record_result("at-1", "green", "second trial")
+    history = svc.be.at_results_for("at-1")
+    assert [h["outcome"] for h in history] == ["green", "red"]  # newest first
+
+
+def test_record_result_missing_at_errors(svc):
+    with pytest.raises(ServiceError):
+        svc.at_record_result("no-such-at", "green")
+    # Nothing should have been written for a slug that never existed.
+    assert svc.be.at_results_for("no-such-at") == []
+
+
+def test_record_result_invalid_outcome_errors(svc):
+    svc.at_create("at-1", "TZ-3.1", "text", "scenario", "2026-01-01T00:00:00Z", "orch")
+    with pytest.raises(ServiceError):
+        svc.at_record_result("at-1", "yellow")
+
+
+def test_diagnose_uses_the_latest_recorded_outcome(svc):
+    svc.at_create("at-1", "TZ-3.1", "text", "scenario", "2026-01-01T00:00:00Z", "orch")
+    svc.at_record_result("at-1", "red")
+    svc.at_record_result("at-1", "green")  # this one is latest
+    d = svc.at_diagnose("at-1", tc_outcome="green")
+    assert d["at_outcome"] == "green"
+    assert d["routes_to"] is None
+
+
+def test_diagnose_without_a_recorded_trial_errors(svc):
+    svc.at_create("at-1", "TZ-3.1", "text", "scenario", "2026-01-01T00:00:00Z", "orch")
+    with pytest.raises(ServiceError, match="no recorded trial"):
+        svc.at_diagnose("at-1", tc_outcome="green")
+
+
+# === release readiness (§8A.4): AT-only, no TC ===
+
+
+def test_release_readiness_true_when_every_at_is_green_and_fresh(svc_keyed):
+    completed_at = _signed_governing_point(svc_keyed, "z1", "TZ-3.1", "text")
+    svc_keyed.at_create("at-1", "TZ-3.1", "text", "scenario", completed_at, "orch")
+    svc_keyed.at_record_result("at-1", "green")
+    r = svc_keyed.at_release_readiness()
+    assert r == {"ready": True, "blocking": []}
+
+
+def test_release_readiness_false_when_never_exercised(svc):
+    svc.at_create("at-1", "TZ-3.1", "text", "scenario", "2026-01-01T00:00:00Z", "orch")
+    r = svc.at_release_readiness()
+    assert r["ready"] is False
+    assert "never exercised" in r["blocking"][0]["reason"]
+
+
+def test_release_readiness_false_when_latest_outcome_is_red(svc_keyed):
+    completed_at = _signed_governing_point(svc_keyed, "z1", "TZ-3.1", "text")
+    svc_keyed.at_create("at-1", "TZ-3.1", "text", "scenario", completed_at, "orch")
+    svc_keyed.at_record_result("at-1", "red")
+    r = svc_keyed.at_release_readiness()
+    assert r["ready"] is False
+    assert "red" in r["blocking"][0]["reason"]
+
+
+def test_release_readiness_false_when_stale(svc):
+    svc.at_create("at-1", "TZ-9.9", "orphan text", "scenario", "2026-01-01T00:00:00Z", "orch")
+    svc.at_record_result("at-1", "green")
+    r = svc.at_release_readiness()
+    assert r["ready"] is False
+    assert any("stale" in b["reason"] for b in r["blocking"])
+
+
+def test_release_readiness_true_when_no_at_records_exist(svc):
+    # Vacuously ready: nothing to block on. Distinct from "never exercised",
+    # which requires an AT to exist first.
+    assert svc.at_release_readiness() == {"ready": True, "blocking": []}
+
+
+# === CLI parser wiring for the three new subcommands ===
+
+
+def test_cli_parser_accepts_record_result():
+    from project_parser import build_parser
+
+    parser = build_parser()
+    ns = parser.parse_args(["at", "record-result", "at-1", "green", "--note", "ok"])
+    assert ns.outcome == "green"
+    assert ns.note == "ok"
+
+
+def test_cli_parser_rejects_bad_outcome():
+    from project_parser import build_parser
+
+    parser = build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["at", "record-result", "at-1", "yellow"])
+
+
+def test_cli_parser_accepts_diagnose():
+    from project_parser import build_parser
+
+    parser = build_parser()
+    ns = parser.parse_args(["at", "diagnose", "at-1", "--tc-outcome", "red"])
+    assert ns.tc_outcome == "red"
+
+
+def test_cli_parser_accepts_release_readiness():
+    from project_parser import build_parser
+
+    parser = build_parser()
+    ns = parser.parse_args(["at", "release-readiness"])
+    assert ns.at_cmd == "release-readiness"
+    # No positional/optional args beyond the subcommand itself.
+    assert not hasattr(ns, "slug")
+
+
+# === MCP handlers for the three new tools ===
+
+
+def test_mcp_handler_record_result_and_diagnose(svc):
+    sys.path.insert(
+        0, os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project")
+    )
+    import handlers_at
+
+    svc.at_create("at-1", "TZ-3.1", "text", "scenario", "2026-01-01T00:00:00Z", "orch")
+    out = handlers_at.handle_at_record_result(svc, {"slug": "at-1", "outcome": "red"})
+    assert "recorded" in out
+    diag = handlers_at.handle_at_diagnose(svc, {"slug": "at-1", "tc_outcome": "green"})
+    assert '"routes_to": "ADAPT"' in diag
+
+
+def test_mcp_handler_release_readiness(svc):
+    sys.path.insert(
+        0, os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project")
+    )
+    import handlers_at
+
+    out = handlers_at.handle_at_release_readiness(svc, {})
+    assert '"ready": true' in out

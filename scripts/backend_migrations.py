@@ -33,6 +33,7 @@ from backend_migrations_v50 import MIGRATION_V50
 from backend_migrations_v52 import MIGRATION_V52
 from backend_migrations_v53 import MIGRATION_V53
 from backend_migrations_v54 import MIGRATION_V54
+from backend_migrations_v55 import MIGRATION_V55
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -404,6 +405,9 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     # v54: RENAR AT (Acceptance Test) artifacts (at-acceptance-tests-derived-by-an-isolated-agent)
     # -- SQL in backend_schema_at.py, reused verbatim (AT's first migration).
     54: MIGRATION_V54,
+    # v55: at_results append-only outcome history
+    # (at-red-with-tc-green-routes-to-interpretation-not-code).
+    55: MIGRATION_V55,
 }
 
 

@@ -79,4 +79,34 @@ TOOLS_AT = [
             "properties": {"slug": {"type": "string"}},
         },
     },
+    {
+        "name": "tausik_at_record_result",
+        "description": "Record one observed trial outcome for an AT (append-only history — a re-run is a new row, never an overwrite).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string"},
+                "outcome": {"type": "string", "enum": ["red", "green"]},
+                "note": {"type": "string"},
+            },
+            "required": ["slug", "outcome"],
+        },
+    },
+    {
+        "name": "tausik_at_diagnose",
+        "description": "Route an AT's LATEST recorded outcome against a caller-supplied tc_outcome (Sec8A.4/Sec10.4.3's four-cell matrix). TC has no first-class artifact in TAUSIK yet — this tool never reads pytest/verification_runs itself; tc_outcome must be supplied explicitly. Refuses an AT with no recorded trial.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string"},
+                "tc_outcome": {"type": "string", "enum": ["red", "green"]},
+            },
+            "required": ["slug", "tc_outcome"],
+        },
+    },
+    {
+        "name": "tausik_at_release_readiness",
+        "description": "Sec8A.4's release gate: ready only when EVERY AT's latest outcome is green AND fresh against the current final-TZ. Reads no TC — distinct from QG-4 (optional, business outcome).",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
 ]

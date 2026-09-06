@@ -59,3 +59,26 @@ def build_at_subparsers(sub: Any) -> None:
         help="Which AT records are stale against the CURRENT final-TZ (§8A property 2)",
     )
     acf.add_argument("slug", nargs="?", default=None, help="Check one AT; omit to check all")
+
+    arr = a_sub.add_parser("record-result", help="Record one observed trial of an AT")
+    arr.add_argument("slug")
+    arr.add_argument("outcome", choices=["red", "green"])
+    arr.add_argument("--note", default=None)
+
+    adi = a_sub.add_parser(
+        "diagnose",
+        help="Route an AT's latest outcome against a caller-supplied tc_outcome (§8A.4/§10.4.3)",
+    )
+    adi.add_argument("slug")
+    adi.add_argument(
+        "--tc-outcome",
+        dest="tc_outcome",
+        required=True,
+        choices=["red", "green"],
+        help="TC has no first-class artifact yet — supply the observed state explicitly",
+    )
+
+    a_sub.add_parser(
+        "release-readiness",
+        help="Sec8A.4 release gate: ready only when every AT is green and fresh (not QG-4)",
+    )

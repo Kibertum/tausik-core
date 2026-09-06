@@ -23,6 +23,52 @@ from tausik_utils import ServiceError, validate_length, validate_slug
 if TYPE_CHECKING:
     from project_backend import SQLiteBackend
 
+_OUTCOMES = ("red", "green")
+
+# §8A.4 / §10.4.3: the four-cell matrix, MACHINE-DERIVED from two outcomes,
+# never a table written out in a doc. A MODULE-LEVEL function, not an
+# AtMixin method -- it is pure (two strings in, one dict out), needs no
+# instance state, and class_surface's ratchet has already turned three times
+# this session for genuinely new instance methods; a stateless helper does
+# not belong on the composed class any more than
+# project_service.normalize_usage_time_bound does, for the same reason.
+_MATRIX: dict[tuple[str, str], tuple[str, str | None]] = {
+    ("red", "green"): (
+        "interpretation error — AT fails a client-approved clause while TC (the "
+        "provisional stand-in, see module docstring) is green: the code matches "
+        "an interpretation the client never signed off on",
+        "ADAPT",
+    ),
+    ("red", "red"): ("code defect — both levels disagree with the contract", "code"),
+    ("green", "red"): (
+        "stale test OR an internal norm stricter than the contract — both named, "
+        "neither chosen for the reader: TC failing while the client-approved "
+        "clause holds does not by itself say which",
+        "review",
+    ),
+    ("green", "green"): ("no divergence", None),
+}
+
+
+def route_at_tc(at_outcome: str, tc_outcome: str) -> dict[str, Any]:
+    """§8A.4/§10.4.3's routing matrix. TC here is WHATEVER the caller supplies
+    -- TAUSIK has no first-class TC artifact yet (renar_tc_premise.py), so
+    this function never reads pytest/verification_runs itself and never
+    silently stands in for that missing entity. It only routes two already-
+    named outcomes; getting `tc_outcome` honestly is the caller's job.
+    """
+    if at_outcome not in _OUTCOMES:
+        raise ValueError(f"at_outcome must be one of {_OUTCOMES}, got {at_outcome!r}")
+    if tc_outcome not in _OUTCOMES:
+        raise ValueError(f"tc_outcome must be one of {_OUTCOMES}, got {tc_outcome!r}")
+    diagnosis, routes_to = _MATRIX[(at_outcome, tc_outcome)]
+    return {
+        "at_outcome": at_outcome,
+        "tc_outcome": tc_outcome,
+        "diagnosis": diagnosis,
+        "routes_to": routes_to,
+    }
+
 
 class AtMixin:
     """Manage RENAR AT (Acceptance Test) artifacts and their freshness."""
@@ -135,3 +181,57 @@ class AtMixin:
                     }
                 )
         return stale
+
+    # --- results, diagnosis, release readiness (§8A.4 / §10.4.3) ---
+
+    def at_record_result(self, at_slug: str, outcome: str, note: str | None = None) -> str:
+        """Record one observed trial of an AT. Append-only: a re-run is a new
+        row, never an overwrite of the last one (§8A.4 needs the history to
+        answer "what governed at time T", the same reason final_tz_snapshot
+        keeps superseded ACTZ points instead of discarding them)."""
+        if not self.be.at_get(at_slug):
+            raise ServiceError(f"AT '{at_slug}' not found")
+        if outcome not in _OUTCOMES:
+            raise ServiceError(f"Invalid outcome '{outcome}'. Valid: {', '.join(_OUTCOMES)}")
+        self.be.at_result_add(at_slug, outcome, note)
+        return f"AT '{at_slug}' result recorded: {outcome}."
+
+    def at_diagnose(self, at_slug: str, tc_outcome: str) -> dict[str, Any]:
+        """Route an AT's LATEST recorded outcome against a caller-supplied
+        tc_outcome (§8A.4/§10.4.3). Refuses an AT never exercised — there is
+        no outcome to route, and guessing one would fabricate evidence."""
+        latest = self.be.at_latest_outcome(at_slug)
+        if not latest:
+            raise ServiceError(
+                f"AT '{at_slug}' has no recorded trial — run `at record-result` first."
+            )
+        try:
+            result = route_at_tc(latest["outcome"], tc_outcome)
+        except ValueError as e:
+            raise ServiceError(str(e)) from e
+        result["at_slug"] = at_slug
+        result["at_recorded_at"] = latest["recorded_at"]
+        return result
+
+    def at_release_readiness(self) -> dict[str, Any]:
+        """Sec8A.4's release gate: ready only when EVERY AT's latest outcome
+        is green AND fresh against the current final-TZ. Deliberately reads
+        NO tc_outcome — the standard's release condition is stated purely in
+        terms of AT and the final-TZ, not TC (see class docstring on why TC
+        cannot enter this project's gates yet). Distinct from QG-4, which is
+        optional and measures business outcome, not contract conformance.
+        """
+        blocking: list[dict[str, Any]] = []
+        stale_by_slug = {s["slug"]: s["reason"] for s in self.at_check_freshness()}
+        for a in self.be.at_list():
+            slug = a["slug"]
+            latest = self.be.at_latest_outcome(slug)
+            if not latest:
+                blocking.append({"slug": slug, "reason": "never exercised — no recorded trial"})
+            elif latest["outcome"] != "green":
+                blocking.append(
+                    {"slug": slug, "reason": f"latest outcome is '{latest['outcome']}'"}
+                )
+            if slug in stale_by_slug:
+                blocking.append({"slug": slug, "reason": f"stale: {stale_by_slug[slug]}"})
+        return {"ready": not blocking, "blocking": blocking}

@@ -63,3 +63,26 @@ class AtCrudMixin:
             "WHERE fts_ats MATCH ? ORDER BY bm25(fts_ats, 5.0, 3.0, 10.0, 2.0) LIMIT ?",
             (query, limit),
         )
+
+    # --- results (append-only outcome history, like verification_runs) ---
+
+    def at_result_add(self, at_slug: str, outcome: str, note: str | None) -> int:
+        """Record one observed trial outcome; returns the new row id."""
+        return self._ins(
+            "INSERT INTO at_results(at_slug, outcome, note, recorded_at) VALUES(?,?,?,?)",
+            (at_slug, outcome, note, utcnow_iso()),
+        )
+
+    def at_results_for(self, at_slug: str) -> list[dict[str, Any]]:
+        """All recorded trials for an AT, newest first."""
+        return self._q(
+            "SELECT * FROM at_results WHERE at_slug=? ORDER BY recorded_at DESC, id DESC",
+            (at_slug,),
+        )
+
+    def at_latest_outcome(self, at_slug: str) -> dict[str, Any] | None:
+        """The most recent trial for an AT, or None if never exercised."""
+        return self._q1(
+            "SELECT * FROM at_results WHERE at_slug=? ORDER BY recorded_at DESC, id DESC LIMIT 1",
+            (at_slug,),
+        )
