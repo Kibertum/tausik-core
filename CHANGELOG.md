@@ -9,6 +9,53 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — something notices when the STANDARD moves, instead of us noticing months later
+
+Every other RENAR check here compares the live database against OUR
+declarations — the right question for "do we obey what we think the standard
+says", the wrong one for "is what we think still true". Both gaps this epic
+exists for were found the second way: ADR-011 withdrew the ADAPT client
+signature, ADR-013 widened the SPEC type list, and we learned of it by READING
+in session #178 — months late, while the CLI help published a withdrawn edition
+to users. RENAR is on a wave branch with more ADRs proposed, so the next move
+is a schedule, not a hypothesis.
+
+`tausik drift --detector standard` reads the corpus itself (owner decision
+#255: the local checkout, path in config, never hardcoded) and compares what it
+finds with what we declare: the closed lists the standard fixes (SPEC types
+§8.3, backward-finding categories §7.4.4, ADAPT statuses §7.8.1) and the corpus
+edition against the one our manifest publishes. Values are PARSED OUT OF THE
+TEXT — copying them into the detector would make it the thing it watches for.
+
+- ACCEPTED IS NOT PROPOSED. An ADR is a finding only when its frontmatter
+  status begins with `accepted` and no file this repository tracks mentions its
+  id; proposed, draft and superseded ones never are. A detector that demanded
+  implementation of every proposal would redden permanently and be switched
+  off, which is worse than not having it — the task states that as a hard
+  constraint and a parametrised test holds it. `accepted-pending-adr-012`
+  counts, because that is exactly ADR-011's status.
+- THREE STATES, and the middle one is why this epic exists. No corpus on this
+  machine is NOT CHECKED — printed as its own line, never folded into "no
+  drift". A chapter that is present but will not parse is a FINDING: a detector
+  that reads nothing and reports nothing is indistinguishable from one that
+  read everything (ADR-021). Only a parsed corpus yields a verdict.
+- The corpus is read in the two shapes it actually uses — backticked prose and
+  a pipe-separated frontmatter example — and a pipe line with a part that is
+  not a plain name is unreadable as a WHOLE, never a shorter list published as
+  the standard's.
+- NOT BUILT, and said so rather than left to be assumed: divergence between the
+  local corpus and the edition published at renar.tech is a real finding of a
+  different kind. It needs an outbound request from inside a gate, which
+  nothing here does, and it answers "is our copy current" rather than "have we
+  kept up with our copy".
+
+Measured on the live corpus today: edition and all three lists agree, and of
+the thirteen accepted ADRs none is unmentioned — zero findings. Twelve declared
+mutations, twelve killed; two survived the first pass through MY OWN fault (one
+mutation was written as a no-op, and the synthetic corpus did not carry the
+shape the real §8.3 uses, so removing a normalisation changed nothing) — the
+fixture now mirrors the corpus, which is a real repair the mutation bought.
+
 ### Fixed — the CHECK parser reads past SQL comments, and the vacuous clause names every watch it rests on
 
 Found by external review #40 (a third model: the two commits before it were

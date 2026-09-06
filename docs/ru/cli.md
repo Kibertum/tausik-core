@@ -262,6 +262,8 @@ RENAR §4.11 определяет 8 классов дрифта. Реализо�
 drift                          # Запустить все реализованные детекторы
 drift --detector schema        # Только drift-1 (схема артефактов)
 drift --detector provenance    # Только drift-7 (провенанс TC↔требование)
+drift --detector supersession  # ADR-007: delta-ADAPT на superseded-родителе
+drift --detector standard      # Сдвиг САМОГО стандарта (корпус против наших объявлений)
 ```
 
 - **drift-1 (schema)** — ре-валидация SPEC/ADAPT против closed-lists + cross-field
@@ -275,8 +277,18 @@ drift --detector provenance    # Только drift-7 (провенанс TC↔�
   но SPEC отредактирован после связывания → верификация устарела) и
   `deprecated-requirement` (незавершённая задача на deprecated-SPEC).
 
+- **standard (сдвиг корпуса)** — единственный детектор, который сверяет не базу
+  с нашими объявлениями, а НАШИ ОБЪЯВЛЕНИЯ С САМИМ СТАНДАРТОМ: закрытые списки
+  (типы SPEC §8.3, категории находок §7.4.4, статусы ADAPT §7.8.1), редакцию
+  корпуса и принятые ADR, которых наш репозиторий не упоминает. Источник —
+  локальный клон, путь задаётся ключом `renar_standard_corpus` в
+  `.tausik/config.json`; без него команда печатает «standard corpus: NOT
+  CHECKED» и НЕ выдаёт «дрейфа нет». Предложенные ADR находкой не считаются
+  никогда.
+
 Также подключены как gates `renar_drift_schema` / `renar_drift_provenance`
-(severity=warn, trigger=task-done). Остальные 6 классов — вне scope.
+(severity=warn, trigger=task-done). Детектор `standard` гейтом не подключён:
+корпус есть не на каждой машине. Остальные 5 классов — вне scope.
 
 ## RENAR conformance (§13.4)
 

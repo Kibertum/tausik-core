@@ -251,6 +251,8 @@ reacts.
 drift                          # Run every implemented detector
 drift --detector schema        # drift-1 only (artifact schema)
 drift --detector provenance    # drift-7 only (TC↔requirement provenance)
+drift --detector supersession  # ADR-007: a delta-ADAPT on a superseded parent
+drift --detector standard      # THE STANDARD moving (corpus vs our declarations)
 ```
 
 - **drift-1 (schema)** — re-validates SPEC/ADAPT against the closed lists +
@@ -265,8 +267,18 @@ drift --detector provenance    # drift-7 only (TC↔requirement provenance)
   current requirement version) and `deprecated-requirement` (in-flight task
   linked to a deprecated SPEC).
 
+- **standard (the corpus moved)** — the only detector that compares OUR
+  DECLARATIONS WITH THE STANDARD ITSELF rather than the database with our
+  declarations: the closed lists (SPEC types §8.3, finding categories §7.4.4,
+  ADAPT statuses §7.8.1), the corpus edition, and accepted ADRs this repository
+  never mentions. The source is a local checkout named by
+  `renar_standard_corpus` in `.tausik/config.json`; without it the command
+  prints "standard corpus: NOT CHECKED" and does NOT report "no drift".
+  Proposed ADRs are never findings.
+
 Also wired as gates `renar_drift_schema` / `renar_drift_provenance`
-(severity=warn, trigger=task-done). The other 6 classes are out of scope.
+(severity=warn, trigger=task-done). `standard` is not wired as a gate: not every
+machine carries the corpus. The other 5 classes are out of scope.
 
 ## RENAR conformance (§13.4)
 

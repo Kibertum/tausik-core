@@ -85,10 +85,12 @@ def build_parser() -> argparse.ArgumentParser:
         "(stale after a tree move; the interpreter recreates them). Reports otherwise.",
     )
 
-    drift_p = sub.add_parser("drift", help="RENAR drift detectors (schema + TC↔req provenance)")
+    drift_p = sub.add_parser(
+        "drift", help="RENAR drift detectors (schema, TC↔req provenance, standard corpus)"
+    )
     drift_p.add_argument(
         "--detector",
-        choices=["schema", "provenance", "all"],
+        choices=["schema", "provenance", "supersession", "standard", "all"],
         default="all",
         help="Which RENAR drift detector to run (default: all)",
     )
