@@ -78,6 +78,16 @@ import sqlite3
 # the appearance of one — the very defect the release it belongs to is about.
 CLASSES_AT_DECLARATION = frozenset(
     {
+        # actz-the-contract-contour-artifact-is-missing (RENAR §5A): the ACTZ
+        # contractual clarification protocol and its child tables. NOT a TC
+        # (test case) artifact class — ACTZ is a contract-contour artifact
+        # (points/signatures/links/decided-in edges), unrelated to §13.3.5
+        # pos/neg pairing or ADR-013's TC.environment-ref duty.
+        "actz",
+        "actz_decided_in",
+        "actz_links",
+        "actz_points",
+        "actz_signatures",
         "adapt_findings",
         "adapt_interpretations",
         "adapt_links",

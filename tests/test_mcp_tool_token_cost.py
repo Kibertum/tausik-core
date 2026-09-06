@@ -46,6 +46,7 @@ _DOMAIN_TOKENS = (
     "memory",
     "spec",
     "adapt",
+    "actz",
     "epic",
     "story",
     "gate",

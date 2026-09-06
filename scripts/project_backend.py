@@ -8,6 +8,7 @@ import sqlite3
 from typing import Any
 
 from backend_crud import BackendCrudMixin
+from backend_crud_actz import ActzCrudMixin
 from backend_crud_adapts import AdaptsCrudMixin
 from backend_crud_knowledge import KnowledgeCrudMixin
 from backend_crud_reasoning import ReasoningCrudMixin
@@ -77,6 +78,7 @@ class SQLiteBackend(
     ReasoningCrudMixin,
     SpecsCrudMixin,
     AdaptsCrudMixin,
+    ActzCrudMixin,
     BackendEventsChainMixin,
     BackendTaskDepsMixin,
 ):

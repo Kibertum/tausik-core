@@ -70,6 +70,7 @@ def main() -> None:
     from project_cli_events import cmd_events
     from project_cli_specs import cmd_spec
     from project_cli_state import cmd_state, cmd_sync
+    from project_cli_actz import cmd_actz
     from project_cli_adapts import cmd_adapt
     from project_cli_drift import cmd_drift
     from project_cli_renar import cmd_renar
@@ -117,6 +118,7 @@ def main() -> None:
         "state": cmd_state,
         "sync": cmd_sync,
         "adapt": cmd_adapt,
+        "actz": cmd_actz,
         "drift": cmd_drift,
         "renar": cmd_renar,
         "fts": cmd_fts,

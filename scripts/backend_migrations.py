@@ -30,6 +30,7 @@ from backend_migrations_v47 import MIGRATION_V47
 from backend_migrations_v48 import MIGRATION_V48
 from backend_migrations_v49 import MIGRATION_V49
 from backend_migrations_v50 import MIGRATION_V50
+from backend_migrations_v52 import MIGRATION_V52
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -390,6 +391,11 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     51: [
         "ALTER TABLE gate_runs ADD COLUMN prevents TEXT",
     ],
+    # v52: RENAR ACTZ artifacts (actz-the-contract-contour-artifact-is-missing,
+    # RENAR §5A). New tables only -- SQL in backend_schema_actz.py, reused
+    # verbatim (this is ACTZ's first migration, no historical delta to keep
+    # separate from the fresh-DB shape).
+    52: MIGRATION_V52,
 }
 
 

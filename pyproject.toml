@@ -197,6 +197,7 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = [
     "handlers",
+    "handlers_actz",
     "handlers_adapt",
     "handlers_cq",
     "handlers_hierarchy",

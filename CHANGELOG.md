@@ -9,6 +9,53 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — ACTZ, the contract-contour artifact RENAR §5A requires and we had nowhere for
+
+RENAR §5A (ADR-011, accepted) introduces ACTZ — the contractual clarification
+protocol ("Протокол уточнения ТЗ № N"), lifecycle `draft → sent → signed →
+superseded`, contractual weight. §1.4.2's exit from the internal-product
+non-conformance declaration names it by number (§5.5.3: signed by TWO
+independent persons) and we had no schema, CLI or MCP for it at all.
+
+Modeled on the existing `adapt` entity (schema/service/CLI/MCP/tests
+end-to-end, migration v52, `SCHEMA_VERSION` 52), with two deliberate
+departures a straight copy would have gotten wrong:
+
+Signatures are honest about what this project can actually produce. There is
+ONE project ed25519 key (`.tausik/keys/project.key`), not one per party — a
+genuinely independent second cryptographic signature does not exist as
+infrastructure here, and inventing one would be exactly the fabricated-client
+fiction ADR-011 already withdrew from `adapt sign --role client` for a
+different reason (audience, not honesty). `role=architect` signs for real,
+reusing the same ed25519 primitive as ADAPT; `role=client` records
+`signed_by`+`signed_at` only — an honest audit trail of a recorded approval,
+not a simulated signature. Status is COMPUTED from role coverage (0 signatures
+= draft, 1 = sent, both = signed), never written as an independent fact.
+
+`decided-in` — the edge from an ADAPT backward finding to the ACTZ point that
+resolved it — carries provenance (`linked_by`, `created_at`) that `adapt_links`
+never did, and is refused against a draft/sent target: citing a
+not-yet-contractual point as the decision would misrepresent what actually
+binds anything.
+
+Full CLI↔MCP parity (13 subcommands / 13 tools) — unlike `adapt`, where 3 of
+12 CLI subcommands (verify/unlink/delete) have no MCP tool, a known and not
+repeated gap. The word "акт" is guarded out of every CLI help string, MCP tool
+description and this entity's own doc section (word-boundary + declension
+suffix, no allowlist needed — "актив"/"контракт"/"факт" never open the
+pattern because none of them ENDS right after one of the closed suffixes).
+
+Migration v52 is a single source of truth (`backend_schema_actz.ACTZ_STATEMENTS`),
+consumed by both the fresh-DB path and the migration path — ACTZ has no prior
+schema to be a historical delta against, so the two-literal shape ADAPT's
+v36/v50 pair carries for a real reason had no reason to be copied here.
+
+`class_surface` baseline (`tausik/gates.json`) raised deliberately —
+`SQLiteBackend` 129→148, `ProjectService` 118→132 — the composed surface both
+classes gain from `ActzCrudMixin`/`ActzMixin`, the same shape `AdaptsMixin`
+already contributed for ADAPT. A reviewable ratchet-forward, recorded as a
+decision, not a silent edit of the pinned numbers.
+
 ### Added — a direct edit of a task artifact is a recorded gate bypass (§8.6(j))
 
 Editing a task's artifact by a route no gate stands in front of — including a

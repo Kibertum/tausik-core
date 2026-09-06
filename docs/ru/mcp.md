@@ -2,13 +2,13 @@
 
 # TAUSIK MCP — Справочник инструментов
 
-**128 инструмента** для ИИ-агентов (121 project + 7 brain; актуальный счёт, проверено `len(TOOLS)` обоих серверов). MCP-surface покрывает всё, что агент делает день за днём. Несколько CLI-only команд намеренно не имеют MCP-аналога — это оператор/maintenance verbs, которым не место в agent-loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. Для рабочего набора агента предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
+**141 инструмента** для ИИ-агентов (134 project + 7 brain; актуальный счёт, проверено `len(TOOLS)` обоих серверов). MCP-surface покрывает всё, что агент делает день за днём. Несколько CLI-only команд намеренно не имеют MCP-аналога — это оператор/maintenance verbs, которым не место в agent-loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. Для рабочего набора агента предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
 
-> **Опциональный сервер `codebase-rag`** добавляет 7 инструментов (search_code, find_symbol, etc.). Он включается отдельно через bootstrap и НЕ входит в основной счёт 128 — итого с ним 135 инструмента.
+> **Опциональный сервер `codebase-rag`** добавляет 7 инструментов (search_code, find_symbol, etc.). Он включается отдельно через bootstrap и НЕ входит в основной счёт 141 — итого с ним 148 инструментов.
 
 В проекте живут два MCP-сервера:
 
-- `tausik-project` — project-scoped инструменты (121): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging, RENAR substrate (specs + adapts).
+- `tausik-project` — project-scoped инструменты (134): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging, RENAR substrate (specs + adapts).
 - `tausik-brain` — cross-project Shared Brain инструменты (7).
 
 Опционально доступен `codebase-rag` сервер (документирован в конце).
@@ -146,6 +146,30 @@ RENAR-подложка: формальные требования (**SPEC**) и 
 | `tausik_adapt_delta` | Delta-ADAPT, замещающий родителя (§7.6); родитель → `superseded`, поздний линк к нему = FATAL dangling (§7.6.4) | `parent_slug`, `new_slug`, `title`, `tz_ref` |
 | `tausik_adapt_link` | Связать ADAPT с задачей/SPEC; target должен существовать; линк к superseded ADAPT = FATAL (§7.6.4) | `adapt_slug`, `target_type`, `target_slug` |
 | `tausik_adapt_search` | FTS5 по slug/title/tz_ref (JSON) | `query` |
+
+### ACTZ (13)
+
+Контрактный протокол уточнения ТЗ (§5A, ADR-011) — в отличие от ADAPT обращён к клиенту:
+то, что клиент утверждает, живёт здесь. Жизненный цикл `draft` → `sent` → `signed` →
+`superseded`, вычисляется по покрытию ролей подписи. В проекте один ed25519-ключ, не по
+сторонам: `architect` подписывает по-настоящему; `client` записывает только
+`signed_by`+`signed_at`, без имитации независимой подписи.
+
+| Инструмент | Описание | Обязательные параметры |
+|---|---|---|
+| `tausik_actz_create` | Создать заголовок ACTZ (§5A); `tz_ref` обязателен; старт в `draft` | `slug`, `title`, `tz_ref` |
+| `tausik_actz_point` | Добавить нумерованный пункт; только пока `draft` (заморожено после первой подписи) | `actz_slug`, `point_no`, `text` |
+| `tausik_actz_sign` | Записать подпись (§5.5.3): `architect` подписывает тело ed25519-ключом проекта; `client` — только `signed_by`+`signed_at`. Первая подпись ⇒ `sent`; обе роли ⇒ `signed` | `actz_slug`, `role`, `signed_by` |
+| `tausik_actz_verify` | Проверить подпись architect (ed25519) против текущего тела | `slug` |
+| `tausik_actz_show` | ACTZ + пункты, подписи, линки (JSON) | `slug` |
+| `tausik_actz_list` | Список ACTZ, опц. фильтр по статусу (draft/sent/signed/superseded) | — |
+| `tausik_actz_delta` | Delta-ACTZ, замещающий родителя; родитель → `superseded`, поздний линк к нему отклоняется | `parent_slug`, `new_slug`, `title`, `tz_ref`, `supersession_rationale` |
+| `tausik_actz_link` | Связать ACTZ с задачей/SPEC; target должен существовать; линк к superseded ACTZ отклоняется | `actz_slug`, `target_type`, `target_slug` |
+| `tausik_actz_unlink` | Снять связь ACTZ↔задача/SPEC | `actz_slug`, `target_type`, `target_slug` |
+| `tausik_actz_delete` | Удалить ACTZ (cascade: пункты/подписи/линки/decided-in) | `slug` |
+| `tausik_actz_search` | FTS5 по slug/title/tz_ref (JSON) | `query` |
+| `tausik_actz_decided_in` | Записать: backward-finding ADAPT решён в пункте ПОДПИСАННОГО ACTZ, с provenance (`linked_by`); отклоняет неподписанную цель | `adapt_slug`, `finding_id`, `actz_slug`, `actz_point_no`, `linked_by` |
+| `tausik_actz_decided_in_remove` | Удалить decided-in ребро | `adapt_slug`, `finding_id`, `actz_slug`, `actz_point_no` |
 
 ## Знания
 
