@@ -52,11 +52,6 @@ BASELINE = frozenset(
         # AC1 is exactly this handler's field list. Collapsing it here would
         # take that task's subject, not finish it.
         "tausik_task_show",
-        # Not a rendering to extract: the CLI branch declares relevant_files,
-        # handles the cache hit, emits the receipt and the handle, and exits
-        # with a status code, while the handler returns a blob. Collapsing is a
-        # redesign of the command that QG-2 closure itself runs through. Filed.
-        "tausik_verify",
     }
 )
 
@@ -232,6 +227,96 @@ class TestBothSurfacesSayTheSameThing:
         assert capsys.readouterr().out.rstrip("\n") == mcp
 
 
+class TestVerifyReportIsBuiltOnce:
+    """The last command that was implemented twice, and the drift ran both ways."""
+
+    @staticmethod
+    def _svc(tmp_path):
+        from project_backend import SQLiteBackend
+        from project_service import ProjectService
+
+        return ProjectService(SQLiteBackend(os.path.join(str(tmp_path), "v.db")))
+
+    @staticmethod
+    def _report(**over):
+        report = {
+            "passed": True,
+            "status": "ok",
+            "trigger": "verify",
+            "results": [{"name": "pytest", "passed": True, "skipped": False}],
+            "duration_ms": 42,
+            "run_id": 7,
+            "relevant_files": ["a.py"],
+            "verify_handle": "7.abc",
+            "handle_expires_at": "2026-01-01T00:00:00Z",
+        }
+        report.update(over)
+        return report
+
+    def test_a_cache_hit_says_where_the_answer_came_from(self, tmp_path):
+        """It used to reach only the CLI, so a cached green arrived at the agent
+        as a header over an empty gate list — 'nothing executed' by any reading."""
+        from render_verify import verify_lines
+
+        svc = self._svc(tmp_path)
+        hit = {"id": 3, "ran_at": "2026-01-01", "scope": "manual", "exit_code": 0}
+        out = "\n".join(verify_lines(svc, {"cache_hit": hit}, "t", "manual"))
+        assert "cache HIT" in out and "#3" in out
+
+    def test_the_report_carries_what_only_the_cli_used_to_say(self, tmp_path):
+        from render_verify import verify_lines
+
+        svc = self._svc(tmp_path)
+        out = "\n".join(verify_lines(svc, self._report(), "t", "manual"))
+        assert "Duration: 42 ms" in out
+        assert "Recorded verification_run #7" in out
+        assert "Receipt:" in out
+        assert "Verify handle: 7.abc" in out
+
+    def test_the_report_carries_what_only_the_handler_used_to_say(self, tmp_path):
+        """A SKIP is not a verification. The handler said so; the CLI did not."""
+        from render_verify import verify_lines
+
+        svc = self._svc(tmp_path)
+        report = self._report(results=[{"name": "pytest", "passed": True, "skipped": True}])
+        out = "\n".join(verify_lines(svc, report, "t", "manual"))
+        assert "did NOT execute" in out
+        assert "gates=['" not in out, "regressed to naming gates without verdicts"
+
+    def test_a_failed_write_never_prints_the_word_passed(self, tmp_path):
+        """Negative: no verdict beside the admission that no evidence exists."""
+        from render_verify import verify_lines
+
+        svc = self._svc(tmp_path)
+        report = self._report(run_id=None, passed=False, status="record-failed")
+        out = "\n".join(verify_lines(svc, report, "t", "manual"))
+        assert "NOT RECORDED" in out
+        assert "PASSED" not in out
+
+    def test_a_red_run_exits_one_on_the_cli(self, tmp_path, monkeypatch, capsys):
+        """Negative: the surfaces may share the text, not the exit code."""
+        import pytest as _pytest
+
+        from project_cli_verify import cmd_verify
+
+        svc = self._svc(tmp_path)
+        monkeypatch.setattr(svc, "run_verify_for_task", lambda *a, **k: self._report(passed=False))
+        with _pytest.raises(SystemExit) as exc:
+            cmd_verify(svc, _Args(task="t", scope="manual"))
+        assert exc.value.code == 1
+        assert "Verify (scope=manual, task=t)" in capsys.readouterr().out
+
+    def test_both_surfaces_render_the_same_report(self, tmp_path, monkeypatch, capsys):
+        from handlers import handle_tool
+        from project_cli_verify import cmd_verify
+
+        svc = self._svc(tmp_path)
+        monkeypatch.setattr(svc, "run_verify_for_task", lambda *a, **k: self._report())
+        mcp = handle_tool(svc, "tausik_verify", {"task_slug": "t", "scope": "manual"})
+        cmd_verify(svc, _Args(task="t", scope="manual"))
+        assert capsys.readouterr().out.rstrip("\n") == mcp
+
+
 class _Args:
     """A stand-in for argparse's namespace: the CLI reads attributes, not a dict."""
 
@@ -318,6 +403,35 @@ class TestTheDetectorCanSayNo:
         # WHICH name is named is incidental — the loop variable and the
         # accumulator are both results, and either answer means the same thing.
         assert renders_result(fn) is not None
+
+    def test_joining_a_shared_renderer_s_lines_is_transport(self):
+        """Stitching lines someone else built is not building them.
+
+        A handler that must hold the result to wrap its errors was flagged for
+        the join alone — the false positive that made this exception necessary.
+        """
+        fn = self._fn(
+            """
+            def _handle_thing(svc, args):
+                try:
+                    report = svc.run_thing()
+                except ValueError as e:
+                    return f"Error: {e}"
+                return "\\n".join(thing_lines(svc, report))
+            """
+        )
+        assert renders_result(fn, {"_handle_thing"}) is None
+
+    def test_joining_a_LOCAL_helper_s_lines_is_still_a_second_implementation(self):
+        """The hole the exception must not open: rendering behind a private helper."""
+        fn = self._fn(
+            """
+            def _handle_thing(svc, args):
+                report = svc.run_thing()
+                return "\\n".join(_fmt(report))
+            """
+        )
+        assert renders_result(fn, {"_handle_thing", "_fmt"}) is not None
 
     def test_passing_the_service_answer_through_is_transport(self):
         fn = self._fn(

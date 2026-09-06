@@ -112,11 +112,19 @@ def result_names(fn: ast.FunctionDef) -> set[str]:
     return res - {"args", "svc"}
 
 
-def renders_result(fn: ast.FunctionDef) -> str | None:
-    """The result name this handler renders, or None if it only passes data on."""
+def renders_result(fn: ast.FunctionDef, local_functions: set[str] | None = None) -> str | None:
+    """The result name this handler renders, or None if it only passes data on.
+
+    `local_functions` names the functions defined alongside this one; it is what
+    tells a shared renderer's output apart from a private helper's — see
+    `_joins_a_foreign_call`. Omitting it treats every callee as foreign, which
+    is the lenient reading and the right default for a caller asking about one
+    function in isolation.
+    """
     res = result_names(fn)
     if not res:
         return None
+    local = local_functions or set()
     for node in ast.walk(fn):
         rendering: ast.AST | None = None
         if isinstance(node, ast.JoinedStr):
@@ -126,6 +134,8 @@ def renders_result(fn: ast.FunctionDef) -> str | None:
             and isinstance(node.func, ast.Attribute)
             and node.func.attr in _RENDER_METHODS
         ):
+            if _joins_a_foreign_call(node, local):
+                continue
             rendering = node
         if rendering is None:
             continue
@@ -133,6 +143,30 @@ def renders_result(fn: ast.FunctionDef) -> str | None:
         if hit:
             return sorted(hit)[0]
     return None
+
+
+def _joins_a_foreign_call(node: ast.Call, local_functions: set[str]) -> bool:
+    """`"\\n".join(shared_renderer(...))` — stitching lines someone else built.
+
+    That is transport, not rendering, and a handler forced to hold the service
+    result in a variable (to wrap its errors in an envelope) was being flagged
+    for the join alone.
+
+    The exception is deliberately narrow: the callee must NOT be defined in the
+    handler module. A local `_fmt(rows)` joined the same way is still a second
+    implementation with one more indirection, and hiding rendering behind a
+    private helper is exactly the move this would otherwise wave through.
+    """
+    if len(node.args) != 1:
+        return False
+    arg = node.args[0]
+    if not isinstance(arg, ast.Call):
+        return False
+    callee = arg.func
+    if isinstance(callee, ast.Name):
+        return callee.id not in local_functions
+    # `module.fn(...)` is never local to the handler module.
+    return isinstance(callee, ast.Attribute)
 
 
 def _dispatch_target(value: ast.expr) -> str | None:
@@ -196,11 +230,14 @@ def second_implementations(root: str) -> dict[str, str]:
         for node in ast.walk(tree)
         if isinstance(node, ast.FunctionDef)
     }
+    local_by_module: dict[str, set[str]] = {}
+    for module, name in functions:
+        local_by_module.setdefault(module, set()).add(name)
     flagged: dict[str, str] = {}
     for tool, module, target in dispatch_entries(root):
         fn = functions.get((module, target)) if target else None
         if fn is None:
             continue
-        if renders_result(fn):
+        if renders_result(fn, local_by_module.get(module, set())):
             flagged[tool] = f"{module}:{fn.name}"
     return flagged

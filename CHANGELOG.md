@@ -9,6 +9,34 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — `verify` is reported once, and the two copies had drifted in BOTH directions
+
+Only the CLI said how long the run took, that no gate had actually executed
+(§8.6(e)), that the declared scope was narrower than the change, whether the run
+was recorded at all — including the case where the write failed and the run
+therefore certifies nothing — and whether the receipt was signed, telling a
+configured-but-failing key apart from having no key.
+
+Only the MCP handler said that some gates SKIPPED. That is the historical defect
+this guards: the handler once returned `gates=['hadolint', 'pytest']`, a list of
+NAMES, so an agent read "pytest" and concluded the tests had run when pytest had
+skipped — and the run was recorded green and signed.
+
+And the cache hit reached only the CLI, so a cached green arrived at the agent as
+a header over an empty gate list: "this came from the cache" was indistinguishable
+from "this executed nothing".
+
+`scripts/render_verify.py` now builds the whole report and both surfaces call it.
+What stays with each caller is what genuinely belongs to it: argparse, the scope
+declaration and the exit code in the CLI; the error envelope in the handler.
+
+The detector in `mcp_handler_shape` gained one narrow exception in the process:
+`"\n".join(shared_renderer(...))` is transport, because a handler that must hold
+the result to wrap its errors was being flagged for the join alone. Joining a
+LOCAL helper's lines is still a second implementation — otherwise the rule would
+wave through rendering hidden behind a private function. With `verify` collapsed,
+the ratchet is down to one entry, and that one belongs to its own open task.
+
 ### Changed — `tausik_metrics` returns the whole SENAR report, not a one-line summary
 
 The MCP tool answered with tasks-done, average time and session count. The CLI
