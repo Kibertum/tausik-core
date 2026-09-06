@@ -9,6 +9,39 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — two MCP tool calls no longer share one transaction and commit each other's half
+
+The server runs every tool call on its own thread over ONE process-wide
+`ProjectService`, whose connection is opened `check_same_thread=False`, and the
+dispatch path took no lock. Two overlapping calls therefore shared the
+connection, the open transaction and the single `_in_tx` flag every write
+consults. `verify_handle._write` already described this hazard in prose —
+refusing to call `conn.commit()` because it "would commit whatever is pending
+on the connection, including a half-written `task_done` from a CONCURRENT
+call". The prose was right and the cause went untreated.
+
+Measured before fixing, both directions, with no exception raised in either:
+a second call's `commit_tx` makes the first call's half-written change durable
+while the first still believes it can abandon it; and a second call's plain
+write — no transaction of its own — joins the first call's transaction and
+disappears with its rollback, having returned success to the agent that made
+it.
+
+`handle_tool` now serialises on an `RLock`. That placement is deliberate and
+the alternatives are recorded beside it: a lock inside
+`SQLiteBackend.transaction()` cannot fix this, because the losing path in the
+second case never calls `transaction()` at all, and a connection per thread
+would rewrite the DB access model for a defect whose whole measured surface is
+this one dispatch path. `RLock` rather than `Lock` so a handler that dispatches
+another tool fails loudly instead of hanging — held by a test, not by hope.
+
+The price is measured, not guessed: an uncontended acquire/release is 0.13 µs
+against ~5300 µs for one real dispatch. What costs is serialisation under
+contention — a call concurrent with `task_done` waits out its gate pass — which
+is the honest cost of one shared connection, and a wait in place of silent
+loss. Non-MCP threads remain uncovered and are named as such: the prewarm
+daemon never writes and the `session_open` watchdog opens no transaction.
+
 ### Fixed — a nested refusal now undoes its own half instead of the caller's transaction
 
 `begin_tx` is a no-op inside an open transaction, but `commit_tx` and
