@@ -446,6 +446,69 @@ def written_counts(text):
     return _written_counts(text, ADAPT_FINDING_CATEGORY_LIST)
 
 
+# Where a literal list of the seven categories is legitimate, and why. The two
+# classes are the same ones the SPEC-type guard admits: the SOURCE itself, and a
+# record of what a migration built. Nothing else — a mirror "pinned by a test"
+# is still a second literal somebody must remember to edit, which is what this
+# guard exists to prevent.
+ALLOWED_CATEGORY_LISTS = {
+    "scripts/service_adapts.py": "the single source itself",
+    "scripts/backend_schema_adapts.py": (
+        "the canonical DDL for a fresh database — SQL, not Python, so it cannot "
+        "interpolate the tuple"
+    ),
+    "scripts/backend_migrations_v36.py": (
+        "a HISTORICAL migration: it recorded the CHECK as it was in v36 and must "
+        "never be edited, or the migration chain stops describing what it built"
+    ),
+    "tests/test_adapts.py": "this file: the transcription from the standard below",
+}
+
+
+def test_no_second_literal_list_of_finding_categories():
+    """A mirror of §7.4.4 anywhere else is a future divergence.
+
+    Three existed when this test was written — the clause module, the argparse
+    `choices` list and the MCP tool schema — all agreeing, which is a STATE and
+    not a property. The detector is the SPEC-type guard's, generalised over the
+    list's own values rather than copied: a second detector would be this very
+    defect one level up.
+    """
+    from closed_list_counts import ADAPT_FINDING_CATEGORY_LIST, sources
+
+    list_re = ADAPT_FINDING_CATEGORY_LIST.literal_list_re()
+    offenders = sorted(
+        rel for rel, src in sources() if rel not in ALLOWED_CATEGORY_LISTS and list_re.search(src)
+    )
+    assert not offenders, (
+        "a second literal list of backward-finding categories is a future "
+        f"divergence, not a mirror; found in: {offenders}. Import "
+        "FINDING_CATEGORIES, or add the path to ALLOWED_CATEGORY_LISTS with the "
+        "reason it must stay literal."
+    )
+
+
+def test_the_literal_list_detector_is_derived_from_the_values():
+    """NEGATIVE SCENARIO: the detector must fire on a copy and stay off prose.
+
+    Its SPEC ancestor was a hand-written alternation of the type names — a
+    detector of literal copies that was one — and ADR-013 made the cost plain:
+    widening the list meant editing the detector by hand. This one is built
+    from the values, so the two move together.
+    """
+    from closed_list_counts import ADAPT_FINDING_CATEGORY_LIST as subject
+
+    list_re = subject.literal_list_re()
+    copy = ", ".join(f'"{v}"' for v in FINDING_CATEGORIES)
+    assert list_re.search(f"CATS = [{copy}]"), "a full copy must be found"
+    truncated = ", ".join(f'"{v}"' for v in FINDING_CATEGORIES[:4])
+    assert list_re.search(f"CATS = [{truncated}]"), "a TRUNCATED mirror is the drift's own shape"
+    assert not list_re.search('a finding of category "gap" or "scope"'), "prose must stay clean"
+    assert not list_re.search(", ".join(f'"{v}"' for v in FINDING_CATEGORIES[:3])), (
+        "three in a row is a quotation, not a copy — the run floor must hold"
+    )
+
+
 def test_no_hand_written_count_of_finding_categories():
     offenders = scan_tree(ADAPT_FINDING_CATEGORY_LIST, ALLOWED_ADAPT_COUNTS)
     assert not offenders, (

@@ -382,21 +382,30 @@ def test_empty_substrate_still_reds_on_the_review_obligation(svc):
 
 
 def test_backward_finding_categories_match_the_standards_closed_list():
-    """§7.4.4 closes the list at seven; cite the literal, not our constant.
+    """The clause reads the ONE list; §7.4.4's composition is pinned elsewhere.
 
-    Memory #474: a test that compares a field with the constant that produced it
-    is a tautology. The seven names below are transcribed from the standard.
+    This assertion used to transcribe the seven names again, which was right
+    while this module declared its own tuple — memory #474: comparing a field
+    with the constant that produced it is a tautology, so the standard had to
+    be cited. The tuple is gone; `BACKWARD_FINDING_CATEGORIES` is a NAME for
+    `FINDING_CATEGORIES`, and the honest thing to assert is exactly that. The
+    transcription from the standard lives in one place —
+    tests/test_adapts.py::test_finding_categories_are_the_standards_seven —
+    because two transcriptions are two things to amend, which is the defect
+    this change removes.
+
+    WHAT `is` CANNOT SEE, measured rather than assumed: `tuple(t)` on a tuple
+    returns the SAME object in CPython, as does `t[:]`, so rebinding the alias
+    through either is invisible here — an EQUIVALENT mutation, not a hole, since
+    neither can hold a different value. What `is` does catch is the thing that
+    matters: a re-declared literal, or a copy built through a list.
     """
-    assert set(BACKWARD_FINDING_CATEGORIES) == {
-        "contradiction",
-        "gap",
-        "hidden-assumption",
-        "feasibility",
-        "regulatory",
-        "terminology",
-        "scope",
-    }
-    assert len(BACKWARD_FINDING_CATEGORIES) == 7
+    from service_adapts import FINDING_CATEGORIES
+
+    assert BACKWARD_FINDING_CATEGORIES is FINDING_CATEGORIES
+    assert tuple(list(BACKWARD_FINDING_CATEGORIES)) is not FINDING_CATEGORIES, (
+        "control: a genuine copy IS distinguishable, so the assertion above is not a tautology"
+    )
 
 
 def test_every_closed_category_puts_an_adapt_on_the_findings_branch(svc):

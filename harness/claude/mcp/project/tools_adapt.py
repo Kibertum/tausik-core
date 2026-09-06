@@ -1,36 +1,45 @@
 """TAUSIK MCP tool definitions — RENAR ADAPT artifacts (v16r-adapt).
 
-Kept in its own module (filesize hygiene). ``category`` (findings) and ``role``
-(signatures) are CLOSED lists — enforced both by the enum here and the service +
-DB CHECK. No mirror to keep in sync: harness/claude/mcp is the single canonical
-tree, handed to every IDE by copy_mcp.
+Kept in its own module (filesize hygiene). ``category`` (findings), ``role``
+(signatures) and ``status`` are CLOSED lists, and this module no longer keeps
+its own copies of them: the enums are READ from ``service_adapts``, the one
+place those lists live.
+
+THE OLD SENTENCE HERE SAID "No mirror to keep in sync". It was true about the
+TREE — harness/claude/mcp is canonical and copied to every IDE unchanged — and
+false about the CONSTANTS, which sat right below it as literals. A mirror
+pinned by a test is still a second literal that has to be edited in lockstep,
+and the standard has already moved under one (ADR-013 took SPEC types from
+nine to eleven; ``tools_spec`` was converted then, this module was not).
+
+``scripts`` goes on ``sys.path`` here for the same reason and with the same
+arithmetic as in ``tools_spec``: ``tools.py`` imports this module at import
+time, while ``server.py`` only extends the path inside ``_get_service``. The
+two levels are the DEPLOYED layout's — see that module's comment, and
+``tests/test_mcp_deployed_layout_resolves.py``, which asserts every profile
+resolves it to its own ``scripts``.
 """
 
 from __future__ import annotations
 
-_FINDING_CATEGORIES = [
-    "contradiction",
-    "gap",
-    "hidden-assumption",
-    "feasibility",
-    "regulatory",
-    "terminology",
-    "scope",
-]
-_SIGNATURE_ROLES = ["client", "architect"]
-_LINK_TARGETS = ["task", "spec"]
-# The §7.8.1 closed list — pinned to service_adapts.ADAPT_STATUSES by
-# tests/test_enum_single_source.py. No count is written beside it: a literal
-# would be correct only until the standard is next amended.
-_ADAPT_STATUSES = [
-    "draft",
-    "review",
-    "asked",
-    "answered",
-    "approved",
-    "frozen",
-    "superseded",
-]
+import os
+import sys
+
+_SCRIPTS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "scripts")
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+
+from service_adapts import (  # noqa: E402 — path must be set first
+    ADAPT_STATUSES,
+    FINDING_CATEGORIES,
+    LINK_TARGETS,
+    SIGNATURE_ROLES,
+)
+
+_FINDING_CATEGORIES = list(FINDING_CATEGORIES)
+_SIGNATURE_ROLES = list(SIGNATURE_ROLES)
+_LINK_TARGETS = list(LINK_TARGETS)
+_ADAPT_STATUSES = list(ADAPT_STATUSES)
 
 TOOLS_ADAPT = [
     {

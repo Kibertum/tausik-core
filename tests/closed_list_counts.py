@@ -30,9 +30,15 @@ from __future__ import annotations
 import io
 import os
 import re
+import sys
 from dataclasses import dataclass
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+sys.path.insert(0, os.path.join(ROOT, "scripts"))
+
+from service_adapts import FINDING_CATEGORIES  # noqa: E402 — path must be set first
+from service_specs import SPEC_TYPES  # noqa: E402
 
 # The trees these detectors walk. Declared, never baselined (memory #478): a
 # change anywhere in them must pull the guarding tests in.
@@ -93,6 +99,34 @@ class ClosedList:
     subject: str
     # The list's own plural noun, as it appears in prose ("types", "categories").
     noun: str
+    # The members themselves, imported from the one place they live. NEVER typed
+    # out here: a second literal copy of them is the defect `literal_list_re`
+    # detects, and a detector that carried one would be the same defect a level up.
+    values: tuple[str, ...] = ()
+
+    def literal_list_re(self, run: int = 4) -> re.Pattern[str]:
+        """Matches ``run`` consecutive quoted members — i.e. a second copy of the list.
+
+        DERIVED FROM ``values``, so an amendment to the standard widens the
+        detector in the same edit that widens the list. Its ancestor was a
+        hand-written alternation of the nine SPEC type names living in
+        test_spec_types_closed_list, and ADR-013 made the point for us: adding
+        TEST and DOC meant editing the detector of literal copies BY HAND,
+        because it was one.
+
+        FOUR IN A ROW, NOT THE WHOLE LIST. A copy is a copy from the moment it
+        starts, and requiring every member would let a TRUNCATED mirror walk
+        past — which is the exact shape the drift takes (nine of eleven). Below
+        four, ordinary prose that quotes a couple of members starts matching.
+        """
+        member = "|".join(re.escape(v) for v in self.values)
+        # One capturing group per repetition — the quote — so the backreferences
+        # run 1, 2, 3, 4. (Its SPEC ancestor also captured the member itself and
+        # therefore counted 1, 3, 5, 7; copying that numbering here was an
+        # `invalid group reference` on the first run.) The member alternation is
+        # non-capturing on purpose: nothing needs its value, only its identity.
+        parts = [rf"(['\"])(?:{member})\{i + 1}" for i in range(run)]
+        return re.compile(r"\s*,\s*".join(parts))
 
     def forms(self) -> tuple[re.Pattern[str], ...]:
         return (
@@ -128,6 +162,7 @@ SPEC_TYPE_LIST = ClosedList(
     name="SPEC types",
     subject=r"SPEC|RENAR\s+type|перечн|тип",
     noun=r"types?",
+    values=SPEC_TYPES,
 )
 
 ADAPT_FINDING_CATEGORY_LIST = ClosedList(
@@ -139,6 +174,7 @@ ADAPT_FINDING_CATEGORY_LIST = ClosedList(
     # is how one task silently becomes three.
     subject=r"backward[-\s]?finding|finding[-\s]categor|FINDING_CATEGORIES|ADAPT|находк",
     noun=r"categor(?:y|ies)",
+    values=FINDING_CATEGORIES,
 )
 
 

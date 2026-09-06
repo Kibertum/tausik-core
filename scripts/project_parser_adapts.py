@@ -9,21 +9,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from service_adapts import ADAPT_STATUSES
+from service_adapts import ADAPT_STATUSES, FINDING_CATEGORIES
 
-FINDING_CATEGORY_CHOICES = [
-    "contradiction",
-    "gap",
-    "hidden-assumption",
-    "feasibility",
-    "regulatory",
-    "terminology",
-    "scope",
-]
+# All derived from the service-layer source of truth — no independent literal
+# here. The categories were the one that still WAS a literal: the same file
+# already derived the statuses and said so, and the §7.4.4 list was simply left
+# behind. A `choices=` list is a mirror like any other, and the standard moves
+# under mirrors (ADR-013 did exactly that to the SPEC types).
+FINDING_CATEGORY_CHOICES = list(FINDING_CATEGORIES)
 SIGNATURE_ROLE_CHOICES = ["client", "architect"]
 LINK_TARGET_CHOICES = ["task", "spec"]
-# Derived from the service-layer source of truth (no independent literal here).
-# Drift is impossible: tests/test_enum_single_source.py pins this to ADAPT_STATUSES.
 ADAPT_STATUS_CHOICES = list(ADAPT_STATUSES)
 
 

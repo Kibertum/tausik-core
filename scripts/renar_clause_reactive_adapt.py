@@ -39,18 +39,17 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from renar_tc_premise import artifact_classes
+from service_adapts import FINDING_CATEGORIES
 
 # §7.4.4 closed list, v1.0. A finding in any of these categories puts the
 # owning ADAPT on the "findings present" branch of the §13.3.3 table (p.77).
-BACKWARD_FINDING_CATEGORIES = (
-    "contradiction",
-    "gap",
-    "hidden-assumption",
-    "feasibility",
-    "regulatory",
-    "terminology",
-    "scope",
-)
+#
+# AN ALIAS, NOT A COPY. The clause's own text calls them "backward findings",
+# so the name earns its place here; the VALUES do not — this module declared
+# them again a week after the service layer did, and a second literal is a
+# second thing to amend when §7.4.4 next moves. The name is bound to the one
+# list, so the two cannot disagree.
+BACKWARD_FINDING_CATEGORIES = FINDING_CATEGORIES
 
 # Provenance fields §13.3.3 p.77/p.78 admits on a derived BR/SR/SPEC. Either
 # branch is satisfiable; carrying none of them is the p.90 negative scenario.

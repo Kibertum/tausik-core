@@ -9,6 +9,45 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the ADAPT closed lists have one source, and the detector of second copies is derived from it
+
+§7.4.4's seven backward-finding categories existed as FOUR literal tuples, not
+the three the task recorded — the inventory found one it had missed. All four
+agreed, which is a STATE and not a property: the SPEC type list looked exactly
+like this until ADR-013 moved the standard and five places diverged one by one.
+
+- `renar_clause_reactive_adapt` declared its own tuple a week after the service
+  layer did; it is now an ALIAS. The name earns its place (the clause's text
+  says "backward findings"), the values do not.
+- `project_parser_adapts` kept a literal `choices=` list while, three lines
+  below, the ADAPT statuses already derived from the service constant and said
+  so in a comment. The categories were simply left behind.
+- `tools_adapt` (MCP) mirrored FOUR lists — categories, statuses, signature
+  roles, link targets. It now reads all four from `service_adapts`, exactly as
+  `tools_spec` has since session #200, and the tool description an agent picks
+  a category from is still assembled from the list (count from `len()`, values
+  from `join`) rather than written out. Its docstring claimed "No mirror to
+  keep in sync": true of the TREE, false of the CONSTANTS sitting under the
+  sentence.
+- The detector of a second literal list is GENERALISED, not copied. It lived in
+  the SPEC guard as a hand-written alternation of the type names — a detector
+  of literal copies that was one, and ADR-013 made the cost plain by requiring
+  it to be edited by hand. `ClosedList.literal_list_re()` builds the pattern
+  from the list's own values, so an amendment widens the guard in the same
+  edit. Four consecutive members, because a TRUNCATED mirror is the shape the
+  drift actually takes.
+- The standard's composition is transcribed in ONE test now; the clause
+  module's test asserts identity with the source instead of transcribing the
+  seven again. Two transcriptions are two things to amend.
+- `test_enum_single_source` covers the categories, roles and link targets it
+  never did, and checks the PUBLISHED schema and prose rather than only the
+  module-level list. Its docstring's rule — "the MCP schemas keep literal lists
+  (a JSON schema should be self-contained)" — is retired: it stopped being true
+  in #200 and was a poor rule while it lasted.
+
+Remaining literals are declared with a reason from two classes only: the source
+itself, and a record of what a migration or the canonical DDL built.
+
 ### Fixed — the docs' copies of closed lists are checked against the lists, values included
 
 `constants.json` already carried the NUMBERS docs quote (tools, hooks, stacks,
