@@ -9,6 +9,28 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — duplicate-shape tests are caught by a gate, not by a report nobody ran
+
+`audit_pytest_dedupe` has grouped tests by AST shape for a long time and shipped
+with a `--check` flag. It was documented as review-only, so nothing ran it and
+the number grew unwatched: 294 groups / 683 tests in session #178, **322 / 753**
+when this gate landed. A detector nobody runs does not stop a number from
+growing; it only makes it possible to say afterwards how much it grew.
+
+`test_dedupe` (block, on task-done and commit) reddens on GROWTH and names the
+largest groups by file and line — a count with no address is not actionable. The
+baseline is a ratchet in the committed `tausik/gates.json`, so existing debt
+blocks nobody, and a baseline found ABOVE the measurement is itself a test
+failure: a line nobody lowers is a list.
+
+The subject is DISTINGUISHABILITY, not count. The gate never measures how many
+tests the repo has, so it cannot be satisfied by deleting them — and an
+unreadable baseline REFUSES rather than reporting "no duplicates recorded",
+which would turn a lost file into a green verdict about the tests.
+
+Whether `tests/` should stay exempt from the filesize gate is deliberately left
+to its own decision; it may have been right when there were fewer tests.
+
 ### Changed — `verify` is reported once, and the two copies had drifted in BOTH directions
 
 Only the CLI said how long the run took, that no gate had actually executed

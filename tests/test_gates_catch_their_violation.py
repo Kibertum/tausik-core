@@ -243,6 +243,14 @@ COVERED: dict[str, tuple[Builder, Builder]] = {
 # gate -> (reason, module, red test, green test). The module is the one that
 # DOES drive both ends; the names are verified against its AST below.
 EXCUSED: dict[str, tuple[str, str, str, str]] = {
+    "test_dedupe": (
+        "repo-wide ratchet: both ends are driven in its own module against the "
+        "REAL measurement, because a synthetic fixture cannot produce a "
+        "duplicate-shape group across the actual test tree",
+        "test_gate_test_dedupe.py",
+        "test_growth_is_red_and_says_where",
+        "test_the_gate_is_green_on_the_repo_it_landed_on",
+    ),
     "ruff": (
         "command gate: the verdict is the external tool's; the runner's red/green "
         "wiring and the anti-neutering guard are driven in their own modules",

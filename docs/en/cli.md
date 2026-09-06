@@ -241,6 +241,17 @@ gates enable <name>             # Enable gate
 gates disable <name>            # Disable gate
 ```
 
+The `test_dedupe` gate (block, on task-done and commit) reddens on GROWTH in
+structurally indistinguishable tests. The baseline is a ratchet in the committed
+`tausik/gates.json`, so existing debt blocks nobody. The subject is
+DISTINGUISHABILITY, not count: the gate never measures how many tests exist, so
+deleting tests can never satisfy it. Full per-group report:
+
+```bash
+python scripts/audit_pytest_dedupe.py            # markdown report by group
+python scripts/audit_pytest_dedupe.py --json     # the same, machine-readable
+```
+
 ## RENAR drift detectors (§4.11)
 
 RENAR §4.11 defines 8 drift classes. 2 are implemented (audit recommendation R4),

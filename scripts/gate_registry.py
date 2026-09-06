@@ -14,19 +14,8 @@ One `GateSpec` per gate now carries all four answers. The precedent is
 `gate_runner.gate_verdict`: the same fact spelled in five places had already
 drifted in both directions before it was consolidated.
 
-TWO PHASES, because there are genuinely two kinds of gate:
-
-* ``scoped`` — takes ``(gate_config, files)`` and returns ``(passed, output)``.
-  Runs inside `gate_runner.run_gates` over the task's declared scope. Every
-  gate a stack can declare is of this kind.
-* ``post_scope`` — takes the whole close context and edits the QG-2 *report*
-  (`gate_block._block`). It answers questions no file list can express: "is
-  there a fresh signed verify green for this task?", "did the changelog gain a
-  line?". These run after the scoped pipeline, on the task-done path only.
-
-`get_gates_for_trigger` filters ``post_scope`` out, so `run_gates` never tries
-to call one with the wrong signature — the phase is what keeps both kinds in
-one registry without one corrupting the other.
+The record itself and the two phases live in `gate_spec` — this module is the
+DATA (which gates exist), that one is the DECLARATION (what a gate record is).
 
 IMPLEMENTATIONS ARE RESOLVED LAZILY, by dotted string. Importing them here
 eagerly would make `default_gates` (which imports this module) pull in
@@ -48,32 +37,13 @@ Two impl address forms:
 from __future__ import annotations
 
 import importlib
-from dataclasses import dataclass, field
 from typing import Any, Callable, cast
 
-PHASE_SCOPED = "scoped"
-PHASE_POST_SCOPE = "post_scope"
+# The RECORD lives in gate_spec, the DATA lives here. Re-exported so every
+# existing `from gate_registry import GateSpec, PHASE_SCOPED` keeps working.
+from gate_spec import PHASE_POST_SCOPE, PHASE_SCOPED, GateSpec
 
-
-@dataclass(frozen=True)
-class GateSpec:
-    """Everything the framework knows about one built-in gate."""
-
-    name: str
-    phase: str
-    default_config: dict[str, Any]
-    impl: str
-    # A fileless close (`task done --no-file-changes`) has no scope to gate.
-    # Verify-First still runs — it is what *proves* the scope is empty — but
-    # the changelog gate cannot apply: a task that touched no files carries no
-    # changelog diff by construction. Declared here rather than as an `if` in
-    # the runner so the exception is visible next to the gate it exempts.
-    skip_on_fileless_close: bool = False
-    # Post-scope gates that predate this registry own a config key of their
-    # own (changelog: `task_done.changelog_gate.enabled`). The resolver lets
-    # `gates status` report what will actually happen instead of the registry
-    # default, which would be a lie for any project using the legacy key.
-    enabled_resolver: str | None = field(default=None)
+__all__ = ["GateSpec", "PHASE_POST_SCOPE", "PHASE_SCOPED"]
 
 
 # --- Scoped gates: the former `default_gates.UNIVERSAL_GATES` ---------------
@@ -161,6 +131,26 @@ _SCOPED: tuple[GateSpec, ...] = (
             # genuinely 2× file still blocks. The real fix (measure post-MRO
             # public class surface, not raw lines) is a deferred follow-up.
             "max_lines": 500,
+        },
+    ),
+    GateSpec(
+        name="test_dedupe",
+        phase=PHASE_SCOPED,
+        impl="gate_test_dedupe:run_test_dedupe_gate",
+        default_config={
+            "enabled": True,
+            "severity": "block",
+            "trigger": ["task-done", "commit"],
+            "command": None,
+            "description": "Block GROWTH in structurally indistinguishable tests",
+            # The detector (`audit_pytest_dedupe`) shipped with a --check flag
+            # and was documented as review-only, so nothing ran it and the
+            # number grew unwatched: 294 groups / 683 tests in session #178,
+            # 322 / 753 when this gate landed. Existing debt is baselined in the
+            # committed tausik/gates.json and blocks nobody; only growth is red.
+            # The subject is DISTINGUISHABILITY, not count — this gate never
+            # measures how many tests exist, so it cannot be satisfied by
+            # deleting them.
         },
     ),
     GateSpec(
