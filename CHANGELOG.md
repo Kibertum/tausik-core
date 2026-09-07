@@ -9,6 +9,48 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the model report named a model that was not running
+
+`LLM Usage by Model` aggregated the `posttool` slice of `usage_events`, where
+`model_id` is filled in exactly ONE row of 54,855 — the PostToolUse payload
+carries no usage. So it reported `claude-opus-4-7` as this project's only model
+and gave it all the spend, while the work had been running on `claude-opus-5`
+and `claude-sonnet-5` for months and said so in every session record. It now
+reads the session slice, where the model and the real tokens live, and names six
+models instead of one.
+
+- **The session mirror is one row per session again.** `session_usage_record`
+  mirrors a session's CUMULATIVE total into `usage_events` and APPENDED it on
+  every call, so the slice its own docstring recommends — "session totals only:
+  `WHERE source = 'session_record'`" — filled with snapshots of the same fact:
+  15,517 rows for 155 sessions, summing to 88x the truth. A documented query
+  that lies is worse than an undocumented one. The mirror of an UPSERT is now an
+  UPSERT, and migration 57 collapses what the appending already wrote (exact,
+  not a guess: every row carries the session's running total, so the newest is
+  the complete answer and the rest are stale copies of it).
+- **No shipped report was inflated by that pile**, and the earlier claim that
+  `metrics cost` was is withdrawn: the per-task rollup, the unattributed bucket
+  and the by-model rollup each filtered `source` or `task_slug`, exactly as the
+  writer's docstring instructed. The 88x only appears when the whole table is
+  summed, which nothing does.
+
+### Changed — a zero cost is no longer presented as a measurement
+
+- **`metrics cost` said every task was free.** It printed `0.0000` for all 706
+  of them, because per-task rows come from PostToolUse and 76 of this project's
+  54,855 such rows carry any tokens at all. Unmetered tasks now read
+  "не измерено", the column is labelled `calls` rather than `events` — call
+  volume is the only thing those rows actually measure — and a closing line says
+  how many tasks are unobserved and where session-level spend does exist.
+- **The «вне задачи» bucket** printed `0.0000 usd` over 201,897 tokens. Same
+  rule now: tokens with a zero cost were never metered.
+- **A model priced only after the fact.** `claude-fable-5-1` showed 4,282,326
+  tokens at `$0.0000` because it had no price row when those sessions were
+  recorded and acquired one later. The guard asked today's price table whether
+  the model is priceable, which is a different question from whether the row was
+  metered; a stored zero against real tokens is now reported as unmetered
+  regardless.
+
 ### Fixed — the framework never knew which model was running
 
 `hooks/session_metrics.py` puts its PARENT directory on `sys.path` but imports

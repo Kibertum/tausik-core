@@ -65,7 +65,15 @@ def test_metrics_record_session_negative_tokens_rejected(tmp_path: Path) -> None
         svc.be.close()
 
 
-def test_metrics_each_record_appends_usage_events(tmp_path: Path) -> None:
+def test_metrics_each_record_replaces_the_session_mirror(tmp_path: Path) -> None:
+    """The mirror row carries the session's RUNNING TOTAL, so it replaces.
+
+    This test used to assert the opposite — two calls, two rows — and that is
+    exactly how the slice `session_usage_record` documents as safe
+    ("session totals only: WHERE source = 'session_record'") filled with
+    snapshots of one fact. Measured in session #228: 15,517 rows for 155
+    sessions, summing to 88x the truth.
+    """
     svc = _make_service(tmp_path)
     try:
         svc.session_start()
@@ -82,7 +90,10 @@ def test_metrics_each_record_appends_usage_events(tmp_path: Path) -> None:
             cost_usd=0.002,
         )
         n = svc.be._q1("SELECT COUNT(*) as c FROM usage_events") or {}
-        assert int(n.get("c") or 0) == 2
+        assert int(n.get("c") or 0) == 1
+        row = svc.be._q("SELECT * FROM usage_events")[0]
+        assert row["tokens_total"] == 30  # the latest total, not 15 and not 45
+        assert row["source"] == "session_record"
     finally:
         svc.be.close()
 

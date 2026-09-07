@@ -15,6 +15,12 @@ from backend_queries_usage import usage_events_unattributed_rollup
 from project_service import ProjectService, normalize_usage_time_bound
 
 
+#: What the per-task table prints where nothing was measured. Never 0 —
+#: a zero there asserts that a task cost nothing, which no one observed
+#: (decision #334).
+_NOT_MEASURED = "не измерено"
+
+
 def _print_unattributed_bucket(svc: ProjectService, since: str | None, until: str | None) -> None:
     """Print the «вне задачи» bucket — the events the table above cannot show.
 
@@ -38,10 +44,13 @@ def _print_unattributed_bucket(svc: ProjectService, since: str | None, until: st
         return
     sessionless = bucket["sessionless_events"]
     tail = f", из них вне сессии: {sessionless}" if sessionless else ""
-    print(
-        f"\nвне задачи: {bucket['event_count']} событий{tail}, "
-        f"{bucket['tokens_total']:,} токенов, {bucket['cost_usd']:.4f} usd"
-    )
+    tokens = int(bucket["tokens_total"])
+    cost = float(bucket["cost_usd"])
+    # Same rule as the table above: tokens with a zero cost were never metered,
+    # and printing `0.0000 usd` over 201,897 tokens claims a measurement nobody
+    # took. Zero tokens AND zero cost is a real zero and prints as one.
+    cost_cell = f"{cost:.4f} usd" if cost or not tokens else _NOT_MEASURED
+    print(f"\nвне задачи: {bucket['event_count']} событий{tail}, {tokens:,} токенов, {cost_cell}")
 
 
 def _print_usage_cost_rollup(svc: ProjectService, since: str | None, until: str | None) -> None:
@@ -57,17 +66,39 @@ def _print_usage_cost_rollup(svc: ProjectService, since: str | None, until: str 
         # the hook dropped those events before they were ever written.
         _print_unattributed_bucket(svc, since, until)
         return
-    print("task_slug".ljust(32), "events".rjust(8), "tokens".rjust(12), "cost_usd".rjust(12))
+    # "calls", not "events": these rows are one per tool call, and that count is
+    # the only thing in them that was actually measured. The PostToolUse payload
+    # carries no usage — 76 of this project's 54,855 such rows have any tokens at
+    # all — so a task's tokens and cost are NOT observed here.
+    print("task_slug".ljust(32), "calls".rjust(8), "tokens".rjust(14), "cost_usd".rjust(14))
+    unmetered = 0
     for r in rows:
         slug = str(r.get("task_slug") or "")
         ev = int(r.get("event_count") or 0)
         tok = int(r.get("tokens_total") or 0)
         cost = float(r.get("cost_usd") or 0.0)
+        if tok == 0:
+            # Not `0.0000`. A zero here reads as "this task was free", which is a
+            # claim nobody measured; absence is reported as absence (#334).
+            unmetered += 1
+            print(
+                slug[:32].ljust(32),
+                str(ev).rjust(8),
+                _NOT_MEASURED.rjust(14),
+                _NOT_MEASURED.rjust(14),
+            )
+            continue
         print(
             slug[:32].ljust(32),
             str(ev).rjust(8),
-            f"{tok:,}".rjust(12),
-            f"{cost:.4f}".rjust(12),
+            f"{tok:,}".rjust(14),
+            f"{cost:.4f}".rjust(14),
+        )
+    if unmetered:
+        print(
+            f"\n{unmetered} of {len(rows)} task(s) have call volume but NO token "
+            "measurement: the PostToolUse payload does not carry usage, so per-task "
+            "spend is unobserved. Per-SESSION spend is measured — see `tausik metrics`."
         )
     _print_unattributed_bucket(svc, since, until)
 

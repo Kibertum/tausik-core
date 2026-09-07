@@ -88,7 +88,14 @@ class BackendQueriesUsageMixin:
         - ``session_usage_metrics``: one row per session_id (UPSERT). Authoritative
           source for "what did this session cost in total".
         - ``usage_events``: a NULL-task-slug row tagged ``source='session_record'``.
-          This is a denormalized copy for unified event-stream analytics.
+          This is a denormalized copy for unified event-stream analytics, and it
+          REPLACES the session's previous copy rather than joining it. The row
+          carries the session's CUMULATIVE total, so appending made the slice a
+          pile of snapshots: measured in session #228, 15,517 rows for 155
+          sessions — about a hundred per session — and summing the slice this
+          docstring recommends below returned 88x the truth. A snapshot that
+          accumulates is not an event stream; it is the same fact written down
+          again, and the mirror of an UPSERT must be an UPSERT.
 
         DOUBLE-COUNT HAZARD (v14b-defect-usage-events-double-count): the
         ``posttool`` source already writes one usage_events row per tool call,
@@ -131,6 +138,15 @@ class BackendQueriesUsageMixin:
                 mid,
                 now,
             ),
+        )
+        # Replace, do not append: the mirror row carries the session's running
+        # total, so a second call would leave two rows claiming the same spend.
+        # Deleting first keeps the slice one-row-per-session without a schema
+        # change, and it is scoped by BOTH session_id and source so no other
+        # session and no `posttool` row can be touched.
+        self._ex(  # type: ignore[attr-defined]
+            "DELETE FROM usage_events WHERE session_id = ? AND source = 'session_record'",
+            (int(session_id),),
         )
         self.usage_event_append(
             int(session_id),
@@ -244,13 +260,23 @@ class BackendQueriesUsageMixin:
         since: str | None = None,
         until: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Aggregate tokens/cost/count by model_id.
+        """Aggregate tokens/cost/count by model_id, over the SESSION slice.
 
-        Excludes ``source='session_record'`` rows (session-level aggregates)
-        to avoid double-counting against the per-tool ``posttool`` rows — same
-        contract as ``usage_events_cost_rollup_by_task``.
+        It reads ``source='session_record'`` — the opposite of what it did, and
+        for a measured reason. The `posttool` slice was the source, and on this
+        project `model_id` is filled in exactly ONE of its 54,855 rows, because
+        the PostToolUse payload carries no usage. So the report named
+        `claude-opus-4-7` as this project's only model and attributed all spend
+        to it, while the work had been running on `claude-opus-5` and
+        `claude-sonnet-5` for months and said so in every session record. A
+        report that is merely incomplete makes a reader ask; one that confidently
+        names the wrong model makes them stop asking.
+
+        The session slice is one row per session (see `session_usage_record`),
+        so grouping it double-counts nothing — the exclusivity contract below is
+        still honoured, just from the other side of it.
         """
-        clauses = ["source <> 'session_record'", "model_id IS NOT NULL"]
+        clauses = ["source = 'session_record'", "model_id IS NOT NULL"]
         params: list[Any] = []
         if since:
             clauses.append("recorded_at >= ?")

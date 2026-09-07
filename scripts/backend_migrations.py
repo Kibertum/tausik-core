@@ -10,6 +10,7 @@ Legacy migrations (v2-v11) are in backend_migrations_legacy.py.
 
 from __future__ import annotations
 
+
 from backend_migrations_legacy import LEGACY_MIGRATIONS, seed_v18_roles
 from backend_schema import SCHEMA_VERSION
 from backend_migrations_postseed import run_post_migrations
@@ -35,6 +36,7 @@ from backend_migrations_v53 import MIGRATION_V53
 from backend_migrations_v54 import MIGRATION_V54
 from backend_migrations_v55 import MIGRATION_V55
 from backend_migrations_v56 import MIGRATION_V56
+from backend_migrations_v57 import MIGRATION_V57
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -412,6 +414,11 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     # v56: artifact graph -- code and docs as entities, every edge carrying the
     # layer it was obtained by (ag-artifacts-and-edges-with-provenance).
     56: MIGRATION_V56,
+    # v57: collapse the session_record pile
+    # (usage-events-sums-cumulative-snapshots-as-if-they-were-events) --
+    # DATA ONLY. SQL in backend_migrations_v57.py, a frozen literal like
+    # v52/v56 rather than a read of the live schema.
+    57: MIGRATION_V57,
 }
 
 

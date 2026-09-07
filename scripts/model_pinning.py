@@ -67,6 +67,15 @@ def _cost_cell(model_id: Any, tokens_total: int, cost_usd: float) -> str:
     a known model is still $0.0000; that zero is a measurement.
     """
     if tokens_total > 0:
+        # A stored zero against real tokens means the cost was NOT metered when
+        # the row was written — whatever the price table says today. Consulting
+        # only today's table asks "can we price this model NOW", which answers a
+        # different question: `claude-fable-5-1` showed 4,282,326 tokens at
+        # $0.0000 here because it had no price row when those sessions were
+        # recorded and acquired one afterwards. The tokens were never metered,
+        # and the report has no business calling that free.
+        if cost_usd == 0.0:
+            return f"not priced ({tokens_total:,} tokens unmetered)"
         try:
             from cost_pricing import get_pricing
 
