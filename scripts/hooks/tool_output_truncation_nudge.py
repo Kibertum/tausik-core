@@ -7,12 +7,22 @@ without newlines — and that output enters the context in full while the line
 counter reads "1". A byte count does not notice five hundred short lines. Both
 are cheap; neither substitutes for the other.
 
-The byte threshold is set from measurement, not taste. Session #229, attributing
-context growth to the tool whose result caused it (the delta to the next call
-inside one session): Bash accounts for 11,883,280 of 17,896,506 tokens — 66.4% of
-ALL growth over 9,844 calls, median 848, p90 2,514, p99 6,386. The default below
-sits near that p99, so the nudge speaks about the calls that actually cost
-something rather than about every second command.
+The byte threshold is set from measurement, not taste. Session #229: the delta
+from one call to the next, inside one session, over 9,844 Bash calls — median
+848, p90 2,514, p99 6,386. The default below sits near that p99, so the nudge
+speaks about the calls that actually cost something rather than about every
+second command.
+
+READ THAT DELTA CAREFULLY, because a first version of this note did not. It
+contains TWO things: the tool's result AND the model's own output on that turn
+(reasoning, text, the tool_use block). Split on the same 14,048 pairs: the
+model's output is 12,895,606 of 18,009,761 tokens — 71.6% — and tool results
+plus framing are 28.4%. Within Bash specifically, 60.4% of the delta is the
+model writing and 39.6% is the command's result, so BASH RESULTS ARE 26.3% OF
+ALL GROWTH, not the 66.4% the delta suggests. The threshold is unaffected: p99
+was computed on the delta and the delta has not changed. What changes is the
+claim — capping command output is worth 26.3%, and the larger lever is the shape
+of the model's own answer.
 
 That measurement also corrected the premise it was gathered under: the growth is
 BROAD, not tail-heavy (the top 1% of Bash calls is only 6.8% of Bash growth), and

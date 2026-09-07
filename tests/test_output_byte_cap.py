@@ -6,11 +6,17 @@ in full while the line counter reads "1". That blindness is the whole subject of
 this file, and the test that matters is the third one below — one line, fifty
 thousand bytes, and advice that names the cure.
 
-MEASURED, NOT ASSUMED. Session #229 attributed context growth to the tool whose
-result caused it (the delta to the next call inside one session and transcript):
-Bash accounts for 11,883,280 of 17,896,506 tokens — 66.4% of ALL growth across
-9,844 calls, median 848, p90 2,514, p99 6,386, max 18,900. The byte default sits
-near that p99 so the nudge speaks about calls that cost something.
+MEASURED, NOT ASSUMED — AND THEN RE-READ. Session #229 measured the delta from
+one call to the next inside one session: over 9,844 Bash calls, median 848, p90
+2,514, p99 6,386, max 18,900. The byte default sits near that p99 so the nudge
+speaks about calls that cost something.
+
+The delta contains the tool's result AND the model's own output on that turn.
+The first version of this note called all 66.4% of it "Bash", which credited the
+command with what the model wrote. Split on the same 14,048 pairs: model output
+is 71.6% of growth, tool results plus framing 28.4%; within Bash, 60.4% model and
+39.6% result, so Bash RESULTS are 26.3% of all growth. The threshold stands (p99
+is a property of the delta), the claim shrinks.
 
 THE MEASUREMENT ALSO CORRECTED ITS OWN PREMISE, which is why the numbers are
 here rather than in prose: the growth is BROAD, not tail-heavy — the top 1% of
