@@ -2,8 +2,8 @@
 slug: bundled-root-separate-from-vendored-copy
 title: "Корень фреймворка не отделён от вендоренной копии: хуки и MCP резолвятся из пяти разных мест"
 status: planning
-epic: release-19-renar-conformance
-story: guarantees-are-not-claude-only
+epic: release-110-deferred-from-19
+story: deferred-110-host-parity-refactors
 complexity: complex
 role: architect
 stack: python

@@ -2,8 +2,8 @@
 slug: cold-start-drill
 title: "Учение с холодным стартом: непрерывность доказывается мутацией, а не рукописным промптом"
 status: planning
-epic: release-19-agent-effectiveness
-story: context-carries-over-between-sessions
+epic: release-110-deferred-from-19
+story: deferred-110-context-and-output-shape
 complexity: medium
 role: architect
 stack: null

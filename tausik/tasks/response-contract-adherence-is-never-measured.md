@@ -2,8 +2,8 @@
 slug: response-contract-adherence-is-never-measured
 title: "Соблюдение дисциплины ответа никем не измеряется: ни набора случаев, ни рубрики, ни прогона"
 status: planning
-epic: landscape-2026-h2
-story: agent-output-discipline
+epic: release-110-deferred-from-19
+story: deferred-110-context-and-output-shape
 complexity: null
 role: architect
 stack: python

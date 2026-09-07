@@ -2,8 +2,8 @@
 slug: memory-is-retrieved-by-relevance-not-recency
 title: "Память достаётся по недавности, а не по релевантности задачи"
 status: planning
-epic: release-19-agent-effectiveness
-story: context-carries-over-between-sessions
+epic: release-110-deferred-from-19
+story: deferred-110-context-and-output-shape
 complexity: medium
 role: developer
 stack: python
