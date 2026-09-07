@@ -34,6 +34,7 @@ from backend_migrations_v52 import MIGRATION_V52
 from backend_migrations_v53 import MIGRATION_V53
 from backend_migrations_v54 import MIGRATION_V54
 from backend_migrations_v55 import MIGRATION_V55
+from backend_migrations_v56 import MIGRATION_V56
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -408,6 +409,9 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     # v55: at_results append-only outcome history
     # (at-red-with-tc-green-routes-to-interpretation-not-code).
     55: MIGRATION_V55,
+    # v56: artifact graph -- code and docs as entities, every edge carrying the
+    # layer it was obtained by (ag-artifacts-and-edges-with-provenance).
+    56: MIGRATION_V56,
 }
 
 

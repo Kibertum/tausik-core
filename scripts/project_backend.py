@@ -11,6 +11,7 @@ from backend_crud import BackendCrudMixin
 from backend_crud_actz import ActzCrudMixin
 from backend_crud_adapts import AdaptsCrudMixin
 from backend_crud_at import AtCrudMixin
+from backend_crud_graph import GraphCrudMixin
 from backend_crud_knowledge import KnowledgeCrudMixin
 from backend_crud_reasoning import ReasoningCrudMixin
 from backend_crud_specs import SpecsCrudMixin
@@ -82,6 +83,7 @@ class SQLiteBackend(
     AdaptsCrudMixin,
     ActzCrudMixin,
     AtCrudMixin,
+    GraphCrudMixin,
     BackendEventsChainMixin,
     BackendTaskDepsMixin,
     BackendTransactionMixin,

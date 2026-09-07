@@ -30,6 +30,7 @@ from backend_schema import (
 from backend_schema_actz import ACTZ_SQL
 from backend_schema_adapts import ADAPTS_SQL
 from backend_schema_at import AT_SQL
+from backend_schema_graph import GRAPH_SQL
 from backend_schema_gate_runs import GATE_RUNS_SQL
 from backend_schema_snippets import SNIPPETS_SQL
 from backend_schema_specs import SPECS_SQL
@@ -161,6 +162,9 @@ def init_schema(conn: sqlite3.Connection) -> None:
     cur.executescript(
         AT_SQL
     )  # RENAR AT artifacts (at-acceptance-tests-derived-by-an-isolated-agent)
+    # Artifact graph. Standalone tables that only reference each other, so
+    # order relative to the RENAR blocks does not matter.
+    cur.executescript(GRAPH_SQL)
     cur.executescript(SNIPPETS_SQL)  # snippet store (v15-snippet-table)
     cur.executescript(GATE_RUNS_SQL)  # per-gate outcomes (l26-gate-results-persist)
     row = cur.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()

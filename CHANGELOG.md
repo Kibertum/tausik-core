@@ -9,6 +9,49 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — code and documentation become entities in the same graph, and every edge says where it came from
+
+Tasks, decisions, memory and SPECs were already entities with edges. Two kinds
+were missing: CODE and DOCUMENTATION. `artifacts`, `artifact_symbols` and
+`artifact_edges` (migration v56) add them to the SAME database — `memory_edges`
+is untouched, because the point was to absorb the missing half, not to stand a
+second graph beside the first.
+
+PROVENANCE IS ENFORCED BY THE SCHEMA, NOT BY THE CALLER. "co-changed in twelve
+commits" and "declared in a task's relevant_files" are different claims, and a
+graph that cannot tell them apart turns a guess into a fact. `layer` is NOT NULL
+over a closed list and `confidence` is NOT NULL, so an edge that cannot say how
+it was obtained cannot be stored. The layer is part of an edge's identity too:
+the same pair may carry both an inferred and a declared edge, and collapsing
+them would destroy the distinction the table exists for.
+
+FRESHNESS IS PER ARTIFACT AND RECOMPUTED PER QUERY. Each artifact stores the
+fingerprint it was indexed at — from the existing `compute_files_hash`, so this
+is not a second answer to "did this file change". `neighbours_of` re-derives
+that fingerprint for the subject and every neighbour, and marks the answer
+partially stale while NAMING the artifacts it no longer describes. A stale
+answer that looks fresh is the worst outcome available, since it is
+indistinguishable from a correct one.
+
+Two layers ship. Layer 0 infers co-change from git history with no parser, so it
+works for docs and configuration as well as code, and its confidence is derived
+from how often two files appeared together — capped below 1.0, because no number
+of observations turns an inference into a declaration. Layer 1 reads
+declarations the repository ALREADY makes (`CROSSCUTTING_SCOPE`, `relevant_files`,
+`scope_paths`) rather than asking anyone to restate them.
+
+MEASUREMENT CHANGED THE DESIGN TWICE, both times against the first draft. Run on
+this repository, layer 1 produced 65,318 edges, because pairing every file a task
+declares relates a 30-file task's files to each other rather than to the task —
+`CHANGELOG.md` "references" `.gitattributes`. The grouping cap that already
+protected layer 0 from sweeping commits now applies to both, and the relation is
+`co_changes` rather than `references`, because "an author grouped these" is what
+a declaration actually says. Separately, querying the busiest module returned
+ZERO neighbours: co-change is symmetric but stored on one side, so the query now
+looks both ways and reports the direction. Hub files remain a named limitation
+rather than a silent one — an edge to the changelog is true and nearly
+uninformative, and down-weighting it belongs to whoever asks the question.
+
 ### Changed — `verify_handle_check` split while it still had room, not once the gate stopped it
 
 The module sat at 496 lines against a 500 cap. A review had advised splitting it
