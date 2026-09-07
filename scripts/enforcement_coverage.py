@@ -117,12 +117,10 @@ def describe_enforcement(found: dict[str, int]) -> str:
 #: constant so a test can assert the honest text is what shipped, without
 #: re-typing a sentence that would then drift from the one in use.
 NO_MECHANISM_NOTICE = (
-    "**ON THIS HOST THE RULES BELOW ARE INSTRUCTIONS, NOT CHECKS.** Bootstrap "
-    "deployed no real-time mechanism into this host's profile, so nothing here "
-    "refuses a violation — the gates still exist in the CLI "
-    "(`.tausik/tausik gates status`, `verify`, `task done`) and you reach them by "
-    "running them. This states what TAUSIK deployed, not what the host supports: "
-    "TAUSIK does not generate a real-time payload for this host yet.\n"
+    "**NO REAL-TIME MECHANISM IS DEPLOYED HERE.** Bootstrap wrote no hook and "
+    "no plugin into this host's profile, so nothing intercepts this host's own "
+    "editor or shell. That is a statement about what TAUSIK deployed, not about "
+    "what the host supports. It does NOT mean nothing is checked — see below.\n"
 )
 
 #: Emitted where the file is read by more than one host and cannot know which.

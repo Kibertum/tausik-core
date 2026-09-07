@@ -31,6 +31,7 @@ if os.path.isdir(_scripts) and _scripts not in sys.path:
     sys.path.insert(0, _scripts)
 
 from enforcement_coverage import build_enforcement_notice, profile_dir_for  # noqa: E402
+from rule_coverage import render_rule_notice  # noqa: E402
 
 
 HARD_CONSTRAINTS = """## Hard Constraints (non-negotiable)
@@ -346,11 +347,22 @@ def build_full_body(
     caveman = (output_mode or "off").strip().lower() == "caveman"
 
     header = build_header(project_name, stacks, agent_name)
-    enforcement = build_enforcement_notice(profile_dir_for(project_dir, ide))
+    _profile = profile_dir_for(project_dir, ide)
+    enforcement = build_enforcement_notice(_profile)
+    # The per-host sentence answers 'checks or instructions'. This answers
+    # WHICH — on a host without a real-time mechanism the answer differs by
+    # rule, and one sentence cannot carry two answers. Empty where every rule
+    # is intercepted, so it never becomes a paragraph readers learn to skip.
+    rule_notice = render_rule_notice(_profile)
+    # The rule paragraph subsumes the host sentence when it carries the
+    # mechanism fact itself — one paragraph, not two, on every turn.
+    if rule_notice.startswith("**NO REAL-TIME MECHANISM"):
+        enforcement = ""
     if tier == "minimal":
         parts = [
             header,
             enforcement,
+            rule_notice,
             HARD_CONSTRAINTS,
             MINIMAL_WORKFLOW,
             MINIMAL_MEMORY,
@@ -365,6 +377,7 @@ def build_full_body(
     parts = [
         header,
         enforcement,
+        rule_notice,
         HARD_CONSTRAINTS,
         WORKFLOW,
         TOOL_ROUTING,

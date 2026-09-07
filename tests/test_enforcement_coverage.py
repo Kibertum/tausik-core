@@ -176,9 +176,15 @@ class TestTheGeneratedFilesCarryIt:
 
     @pytest.mark.parametrize("ide", ["claude", "cursor", "qwen"])
     def test_a_host_without_a_profile_gets_the_honest_file(self, tmp_path: Path, ide: str):
+        """The mechanism sentence moved INTO the per-rule paragraph when
+        `kilo-enforcement-through-the-mcp-boundary` merged the two: saying it
+        twice cost a line on every turn. So the assertion is the fact, not the
+        constant — the file must state that nothing is deployed, and must not
+        claim automatic enforcement."""
         path = self._generate(tmp_path, ide)
         text = Path(path).read_text(encoding="utf-8")
-        assert be.NO_MECHANISM_NOTICE.strip() in text
+        assert "NO REAL-TIME MECHANISM IS DEPLOYED HERE" in text
+        assert "TAUSIK does not generate a real-time payload for this host" in text
         assert _CLAIM not in text
 
     def test_a_host_with_hooks_gets_the_claim(self, tmp_path: Path):

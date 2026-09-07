@@ -75,6 +75,37 @@ reason names the parser that failed rather than filing everything under Bash) �
 and the in-tree half of the deny-list is judged again by the `memory_route` gate
 and the pre-commit hook before anything can be committed.
 
+## Coverage BY RULE, not by whole host
+
+The notice an agent reads answers two different questions, and the second exists
+because the first was not enough. "No real-time mechanism is deployed on this
+host" is true and coarser than the truth: on Kilo every task closure, every
+knowledge write and every task opening IS refused, because those go through our
+own tools. One sentence about a whole host cannot carry both answers, and
+carrying only the first lies to the user in the other direction.
+
+The split follows WHO PERFORMS THE ACTION:
+
+| What holds the rule | Which rules | Where it works |
+|---|---|---|
+| Our surface (`tausik_*` / CLI) | QG-0, QG-2, session limit (9.2), memory routing | EVERY host: the enforcement point is inside our code, and the MCP server is what an otherwise bare install still has |
+| Intercepting the host's action | Rule 1 (no code without a task), Rule 2 (scope boundaries), Rule 10.12 (secrets) | ONLY where the artifact carrying that particular rule is deployed |
+
+The second column is derived from the deployment, not from a list: each rule
+names its artifact (`hook:task_gate.py`, `plugin:tausik-qg0.js`), and "is it
+covered here" is the question "is that artifact in the profile". So OpenCode,
+which ships one QG-0 plugin, shows as covering Rule 1 and NOT covering Rule 2 or
+Rule 10.12 — which is the truth, rather than "the host is covered".
+
+Measured at the MCP boundary (session #232, AST): 146 declared tools, 44 mutating
+handlers, and not one reaching the backend directly. The service layer's refusals
+do travel to the boundary — and that is checked by driving the handlers, not by
+reasoning about them: `tests/test_rule_coverage.py` closes a task through
+`tausik_task_done` with no receipt and requires the task to stay open.
+
+`.tausik/tausik doctor` prints both lines: coverage by host, and the split by
+rule.
+
 ## Channel-coverage matrix
 
 Supervision can be holed not only by RULE but by CHANNEL, and the second kind is

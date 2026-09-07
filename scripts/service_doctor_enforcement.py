@@ -126,10 +126,36 @@ def check_enforcement_coverage(project_dir: str) -> Iterator[tuple[str, str, str
     summary = "; ".join(covered + bare)
     if bare:
         summary += (
-            " - where none is deployed the rules are instructions, not checks, "
-            "and their file says so"
+            " - where none is deployed, nothing intercepts that host's own editor "
+            "or shell; what goes through our tools is still refused (next line)"
         )
     yield ("ok", _LABEL, summary)
+
+    # By RULE, not by host. "cursor: none" is true and coarse: on a host with no
+    # interception every task closure, knowledge write and task opening is still
+    # refused, because those go through our own tools. Saying only the first half
+    # understates the product to the reader who most needs the truth.
+    if bare:
+        from rule_coverage import NEEDS_INTERCEPTION, coverage_for_host
+
+        example = bare[0].split(":", 1)[0]
+        unheld = [
+            r.rule
+            for r, holds in coverage_for_host(profile_dir_for(project_dir, example))
+            if holds == NEEDS_INTERCEPTION
+        ]
+        held = [
+            r.rule
+            for r, holds in coverage_for_host(profile_dir_for(project_dir, example))
+            if holds != NEEDS_INTERCEPTION
+        ]
+        yield (
+            "ok",
+            _LABEL,
+            f"by rule, where no mechanism is deployed: REFUSED anyway via our own "
+            f"tools — {', '.join(held)}; NOT enforced — {', '.join(unheld)} "
+            "(each governs an action the host's own editor or shell performs)",
+        )
 
     for detail in contradictions:
         yield (

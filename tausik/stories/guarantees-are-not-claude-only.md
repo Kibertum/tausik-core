@@ -1,7 +1,7 @@
 ---
 slug: guarantees-are-not-claude-only
 title: "Гарантии кроссмодельны или объявлены отсутствующими: хост без механизма не имеет права выглядеть как хост с механизмом"
-status: active
+status: done
 epic: release-19-renar-conformance
 ---
 

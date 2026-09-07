@@ -9,6 +9,51 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — enforcement is now stated BY RULE, not by whole host
+
+Session #230 stopped the over-claim: a host with no mechanism was told its rules
+were instructions. True, and coarser than the truth — on Kilo every task closure,
+every knowledge write and every task opening IS refused, because those go through
+our own tools. Saying only the first half lies in the other direction.
+
+- **Measured before designing** (session #232, AST over the MCP package): 146
+  declared tools, 44 mutating handlers, and NOT ONE reaching the backend
+  directly. The service layer's refusals already travel to the MCP boundary, so
+  the work was proving and declaring that — not moving checks, which the task had
+  assumed.
+- **The proof runs at the boundary.** `tests/test_rule_coverage.py` closes a task
+  through `tausik_task_done` with no receipt, in a project with no profile
+  directory at all, and requires the task to stay open. The refusal arrives as a
+  structured report rather than an exception — deliberately, so a non-Claude tool
+  loop can parse it — and an earlier version of that test demanded an exception
+  and would have called a working refusal a defect.
+- **The split follows who performs the action.** Rules governing what WE do
+  (QG-0, QG-2, the session limit, memory routing) hold on every host. Rules
+  governing what the HOST does (Rule 1, Rule 2, the secret scan) hold only where
+  the artifact carrying that particular rule is deployed. Each rule names its
+  artifact, so OpenCode — one QG-0 plugin — now shows as covering Rule 1 and NOT
+  covering Rule 2 or Rule 10.12. The first version asked "does this host deploy
+  anything?" and reported OpenCode as covering all three: an over-claim produced
+  by the code, which is how over-claims usually arrive.
+- **Both halves are in one paragraph**, because the generated rules file is
+  re-sent to the agent on every turn and is held to an 80-180 line budget for
+  exactly that reason. The budget caught the change at 184.
+
+### Known — Kilo HAS an extension point, and it is not the one we assumed
+
+Re-verified against the host's own schema on 2026-09-08 (`app.kilo.ai/config.json`,
+the `$schema` our generated `.kilo/kilo.jsonc` points at): Kilo defines `plugin`
+— an array of LOCAL PLUGIN FILES that execute code at runtime, the same class of
+mechanism OpenCode uses — and `permission`, with `ask`/`allow`/`deny` per
+operation including `edit` and `bash`.
+
+So "Kilo has no extension point" was never a fact about Kilo; it was a fact about
+what TAUSIK generates, which is exactly how session #230 worded the notice.
+Deploying one is `kilo-has-a-plugin-and-permission-surface-we-do-not-use`,
+deferred to 1.10: the promise "no code without a task on Kilo" would be far wider
+than what has been done, and the 1.9 scope is fixed. The gap stays declared and
+guarded by a test.
+
 ### Fixed — model pinning had never fired, on any host, in the project's history
 
 Raised as "the model is not recorded on NON-Claude hosts". Measured on this
