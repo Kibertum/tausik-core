@@ -9,6 +9,49 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — model prices live in your config, and a price is a pair
+
+Model pricing was a hardcoded Python table with the project's config as a
+*fallback for gaps*. That is backwards, and it was measurably harmful: the
+shipped table carried `claude-sonnet-5` at $3/$15 (its rate is $2/$10) and no
+project could correct it without editing Python.
+
+- **Config wins.** `llm_pricing_usd_per_million` in `.tausik/config.json` is
+  consulted first; the built-in table is a shipped seed. Authority is per
+  model — pricing one model does not blank the shipped rate of the others.
+- **A price is `{input, output}`.** The old schema was one number per model, and
+  the consumer applied it to *both* directions. No real tariff charges the same
+  for input and output, so every model priced through the config was wrong by
+  construction, in a direction nobody could see. A bare number is still accepted
+  and now explicitly means "both directions at this rate"; half a tariff
+  (`input` without `output`) is rejected with a warning rather than half-applied.
+- **`metrics` names what it cannot price.** An unpriced model's stored cost is
+  `0.00` because the column is `NOT NULL`, which in the database is
+  indistinguishable from "free". At the reporting end the price table can still
+  be consulted, so those tokens are now reported as unpriced instead of folded
+  into a confident zero.
+
+### Fixed — a third of this project's own tokens were metered at $0.00
+
+Measured on the live ledger: 1,133,486 of 3,102,706 tokens (36.5%) recorded
+`cost_usd = 0.00` because `claude-opus-5` — the model the project actually runs
+on — had no price row. The coverage guard stayed green throughout, because it
+checks the models the framework can **route** to while the price is applied to
+the id the **host** reports; `model_profiles` still names a previous generation.
+
+- `claude-opus-5`, `claude-fable-5-1` and `claude-mythos-5-1` are priced, with
+  their `[1m]` spellings.
+- **Sonnet 5 and Sonnet 4.6 no longer share a rate** ($2/$10 and $3/$15). They
+  shared $3/$15 on the reasoning that $2/$10 was introductory "through
+  2026-08-31" and over-reporting was the safe direction. The date passed and the
+  premise with it — 3064 of 4777 ledger rows are Sonnet 5 and were priced 50%
+  high. A comment that justifies a number by a deadline goes wrong on its own
+  schedule, with nothing to notice.
+- The routing blind spot itself is **not** closed here: doing so means choosing
+  which generation `model_profiles` routes to, which is an owner's decision and
+  touches 159 test files. The reporting change above makes an unknown model
+  visible regardless of that decision.
+
 ### Fixed — the product claimed three SENAR editions at once
 
 TAUSIK asserted three different editions of the standard it implements,

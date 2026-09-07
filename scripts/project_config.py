@@ -23,6 +23,7 @@ from tausik_constants import (  # noqa: F401
     DEFAULT_SESSION_IDLE_THRESHOLD_MINUTES,
     DEFAULT_SESSION_MAX_MINUTES,
     DEFAULT_SESSION_WARN_THRESHOLD_MINUTES,
+    lookup_llm_pricing_pair,
     lookup_llm_usd_per_million_tokens,
     normalize_llm_pricing_config,
     resolve_context_tier,

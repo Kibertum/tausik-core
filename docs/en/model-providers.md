@@ -75,18 +75,30 @@ an absent one. Left unconfigured, cost telemetry for such a model records
 `cost_usd = 0.00` and prints a one-time stderr warning (`unknown ≠ free`) so the
 zero is not mistaken for "this model is free".
 
-To meter your own model, declare a flat USD-per-1M-tokens rate in
-`.tausik/config.json` — the same rate is applied to input and output:
+Declare rates in `.tausik/config.json`. **What the config says wins** — the
+shipped Claude table is a seed, not the authority, so you can correct a rate
+that has gone stale without editing Python:
 
 ```json
 {
   "llm_pricing_usd_per_million": {
-    "gigachat/GigaChat-2-Max": 1.20,
+    "gigachat/GigaChat-2-Max": {"input": 0.60, "output": 2.20},
+    "claude-sonnet-5": {"input": 2.00, "output": 10.00},
     "ollama/llama3": 0.0
   }
 }
 ```
 
+A value is either an object with `input` and `output`, or a bare number meaning
+"both directions at this rate". **Prefer the object form**: no real tariff
+charges the same for input and output, so a bare number necessarily prices one
+of the two wrongly. The number form is still accepted because existing configs
+use it.
+
 An explicit `0.0` is honoured (a genuinely free local model), distinct from the
-unpriced default: the warning fires only when there is neither a built-in price
-nor an override. Negative or non-numeric entries are dropped.
+unpriced default: the warning fires only when there is neither a configured
+price nor a shipped one. Entries that are negative, non-numeric, or an object
+missing `input` or `output` are dropped with a warning — half a tariff is not a
+tariff, and a price that cannot be read is reported as **unknown**, never as
+`$0.00`. `tausik metrics` names any model it carries tokens for but cannot
+price, instead of folding those tokens into a confident zero.

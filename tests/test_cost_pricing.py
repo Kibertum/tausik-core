@@ -272,11 +272,24 @@ class TestConfigPricingOverride:
         # 1M input @ $2 + 500k output @ $2 = $2.00 + $1.00 = $3.00
         assert calculate_cost_usd("glm-4.6", 1_000_000, 500_000, config=cfg) == pytest.approx(3.0)
 
-    def test_builtin_table_wins_over_override(self):
-        """A Claude id already in the table is priced from it — the override is a
-        fallback for gaps, not a way to silently reprice a known tier."""
-        cfg = {"llm_pricing_usd_per_million": {"claude-opus-4-8": 999.0}}
-        assert get_pricing("claude-opus-4-8", config=cfg) == {"input": 5.0, "output": 25.0}
+    @pytest.mark.parametrize(
+        "cfg_prices,expected",
+        [
+            # PRECEDENCE REVERSED in session #225, deliberately. This used to
+            # assert the opposite — the built-in table beating the project's own
+            # config — which made the setting a gap-filler rather than a setting.
+            # Measured consequence: `claude-sonnet-5` sat in the table at $3/$15
+            # for months (it is $2/$10) and no project could correct it without
+            # editing Python.
+            ({"claude-opus-4-8": 999.0}, {"input": 999.0, "output": 999.0}),
+            # ...and the other half: authority is PER MODEL, not all-or-nothing.
+            # Pricing one model must not blank every other model's shipped rate.
+            ({"glm-4.6": 2.0}, {"input": 5.0, "output": 25.0}),
+        ],
+    )
+    def test_config_authority_is_per_model(self, cfg_prices, expected):
+        cfg = {"llm_pricing_usd_per_million": cfg_prices}
+        assert get_pricing("claude-opus-4-8", config=cfg) == expected
 
     def test_lazy_config_load_when_caller_passes_none(self, monkeypatch):
         """calculate_cost_usd loads the effective config on a table miss, so a
@@ -384,11 +397,13 @@ class TestNoPhantomLongContextPremium:
     @pytest.mark.parametrize(
         "base",
         [
+            "claude-opus-5",
             "claude-opus-4-8",
             "claude-opus-4-7",
             "claude-opus-4-6",
             "claude-sonnet-5",
             "claude-sonnet-4-6",
+            "claude-fable-5-1",
             "claude-fable-5",
         ],
     )
@@ -406,3 +421,123 @@ class TestReturnedRowIsACopy:
         row["input"] = 999.0
         assert get_pricing("claude-opus-4-8")["input"] == 5.0
         assert get_pricing("claude-opus-4-7")["input"] == 5.0
+
+
+class TestTheRunningGenerationIsPriced:
+    """Measured in session #225 on the live ledger, with the coverage guard GREEN.
+
+    `claude-opus-5` was the model this project actually ran on, was absent from
+    the table, and 1,133,486 tokens — 36.5% of the ledger — recorded
+    cost_usd=0.00. `models_missing_pricing` did not see it because it reads the
+    models the framework can ROUTE to (`model_profiles` still names Opus 4.8 and
+    Sonnet 4.6), while the price is applied to the id the HOST reports.
+    """
+
+    @pytest.mark.parametrize(
+        "model_id,expected",
+        [
+            ("claude-opus-5", {"input": 5.0, "output": 25.0}),
+            ("claude-fable-5-1", {"input": 10.0, "output": 50.0}),
+            ("claude-mythos-5-1", {"input": 10.0, "output": 50.0}),
+            # Sonnet is NOT one tier. These two shared $3/$15 until #225 on the
+            # reasoning that $2/$10 was an introductory rate "through
+            # 2026-08-31"; the date passed and the premise with it.
+            ("claude-sonnet-5", {"input": 2.0, "output": 10.0}),
+            ("claude-sonnet-4-6", {"input": 3.0, "output": 15.0}),
+        ],
+    )
+    def test_priced_at_its_own_rate(self, model_id, expected):
+        assert get_pricing(model_id) == expected
+
+    def test_the_two_sonnets_do_not_share_a_rate(self):
+        """The regression this closes is exactly the two collapsing again."""
+        assert get_pricing("claude-sonnet-5") != get_pricing("claude-sonnet-4-6")
+
+
+class TestConfigCarriesARealTariff:
+    """A single number cannot express a tariff, and every config price was one.
+
+    `llm_pricing_usd_per_million` accepted `model -> number` and the consumer
+    applied that number to BOTH directions, so a project pricing GLM at its
+    input rate silently over-charged its output (or the reverse). The object
+    form states input and output separately; the bare number is kept because it
+    is what existing configs contain, and it now means what it always meant.
+    """
+
+    @pytest.mark.parametrize(
+        "value,expected",
+        [
+            ({"input": 0.6, "output": 2.2}, {"input": 0.6, "output": 2.2}),
+            (2.0, {"input": 2.0, "output": 2.0}),  # legacy flat form
+            ({"input": 0, "output": 0}, {"input": 0.0, "output": 0.0}),  # a real zero
+        ],
+    )
+    def test_accepted_shapes(self, value, expected):
+        cfg = {"llm_pricing_usd_per_million": {"glm-4-plus": value}}
+        assert get_pricing("glm-4-plus", config=cfg) == expected
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            {"input": 1.0},  # half a tariff is not a tariff
+            {"output": 1.0},
+            {"input": -1.0, "output": 1.0},
+            {"input": "cheap", "output": 1.0},
+            {"input": float("nan"), "output": 1.0},
+            "free",
+            None,
+        ],
+    )
+    def test_unusable_shapes_yield_absence_not_zero(self, value):
+        """NEGATIVE, and the whole point: a price we cannot read is UNKNOWN.
+
+        Returning $0.00 here would make an unreadable config indistinguishable
+        from a free model — the defect this module exists to prevent.
+        """
+        cfg = {"llm_pricing_usd_per_million": {"glm-4-plus": value}}
+        assert get_pricing("glm-4-plus", config=cfg) is None
+
+    def test_normalizer_stores_one_shape(self):
+        from tausik_constants import normalize_llm_pricing_config
+
+        out = normalize_llm_pricing_config(
+            {"llm_pricing_usd_per_million": {"a": 1.5, "b": {"input": 2.0, "output": 8.0}}}
+        )
+        assert out["llm_pricing_usd_per_million"] == {
+            "a": {"input": 1.5, "output": 1.5},
+            "b": {"input": 2.0, "output": 8.0},
+        }
+
+    def test_output_rate_actually_reaches_the_cost(self):
+        """The bug the object form fixes, stated as arithmetic: 1M in + 1M out
+        at 0.6/2.2 is $2.80, not $1.20 (flat input) or $4.40 (flat output)."""
+        cfg = {"llm_pricing_usd_per_million": {"glm-4-plus": {"input": 0.6, "output": 2.2}}}
+        cost = calculate_cost_usd("glm-4-plus", 1_000_000, 1_000_000, config=cfg)
+        assert cost == pytest.approx(2.8)
+
+
+class TestMetricsNamesWhatItCannotPrice:
+    """Decision #334 at the REPORTING end, where it does not need a routing decision.
+
+    The stored cost of an unpriced model is 0.0 because the DB column is NOT
+    NULL. That zero is indistinguishable from "free" in the database — but not
+    here, where the table can still be consulted.
+    """
+
+    @pytest.mark.parametrize(
+        "model_id,tokens,cost,expect_dollars",
+        [
+            ("claude-opus-5", 842_558, 12.5, True),  # priced → a figure
+            ("some-unpriced-model", 842_558, 0.0, False),  # unpriced → named absence
+            ("claude-opus-5", 0, 0.0, True),  # zero TOKENS is a measurement
+        ],
+    )
+    def test_cost_cell(self, model_id, tokens, cost, expect_dollars):
+        from model_pinning import format_model_usage_section
+
+        line = format_model_usage_section(
+            [{"model_id": model_id, "event_count": 1, "tokens_total": tokens, "cost_usd": cost}]
+        )[-1]
+        assert ("$" in line.split("|")[-1]) is expect_dollars
+        if not expect_dollars:
+            assert "not priced" in line and "unmetered" in line

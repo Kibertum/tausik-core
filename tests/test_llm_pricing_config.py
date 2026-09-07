@@ -10,9 +10,18 @@ from project_config import lookup_llm_usd_per_million_tokens, normalize_llm_pric
 
 
 def test_normalize_keeps_valid_prices():
+    """Normalized to the {input, output} pair whichever form was written.
+
+    The stored shape changed in session #225: a bare number could only ever
+    price input and output the same, which no real tariff does, so the pair is
+    now the canonical form and a number means "both directions at this rate".
+    """
     cfg = {"llm_pricing_usd_per_million": {"m1": 2.5, "m2": 0.0}}
     out = normalize_llm_pricing_config(cfg)
-    assert out["llm_pricing_usd_per_million"] == {"m1": 2.5, "m2": 0.0}
+    assert out["llm_pricing_usd_per_million"] == {
+        "m1": {"input": 2.5, "output": 2.5},
+        "m2": {"input": 0.0, "output": 0.0},
+    }
 
 
 def test_normalize_drops_negative_and_bad_types(caplog):
@@ -22,7 +31,7 @@ def test_normalize_drops_negative_and_bad_types(caplog):
         "gates": {},
     }
     out = normalize_llm_pricing_config(cfg)
-    assert out["llm_pricing_usd_per_million"] == {"ok": 1.0}
+    assert out["llm_pricing_usd_per_million"] == {"ok": {"input": 1.0, "output": 1.0}}
     assert any("negative" in r.message.lower() for r in caplog.records)
 
 
