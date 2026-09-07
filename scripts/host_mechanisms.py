@@ -172,11 +172,6 @@ def matcher_table(lib_dir: str | None = None) -> dict[str, dict[str, str]]:
     return table
 
 
-def kinds_of(capabilities) -> frozenset[str]:
-    """The extension points a host uses, from its capability ids."""
-    return frozenset(c.split(":", 1)[0] for c in capabilities if ":" in c)
-
-
 def cross_check_against_disk(project_dir: str) -> list[str]:
     """Complaints where a DEPLOYED profile bears a kind this module cannot build.
 

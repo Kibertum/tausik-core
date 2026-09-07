@@ -40,7 +40,6 @@ from collections.abc import Iterator
 
 from enforcement_coverage import (
     NO_MECHANISM_NOTICE,
-    build_enforcement_notice,
     deployed_enforcement,
     describe_enforcement,
     profile_dir_for,
@@ -138,8 +137,3 @@ def check_enforcement_coverage(project_dir: str) -> Iterator[tuple[str, str, str
             _LABEL,
             detail + ". Re-run `bootstrap --ide all`, or delete the file to have it regenerated",
         )
-
-
-def coverage_notice(project_dir: str, ide: str) -> str:
-    """What the notice WOULD say for `ide` right now. Used by tests and tooling."""
-    return build_enforcement_notice(profile_dir_for(project_dir, ide))

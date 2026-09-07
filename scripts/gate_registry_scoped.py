@@ -417,7 +417,13 @@ _SCOPED: tuple[GateSpec, ...] = (
             # equal to. It requires a difference to be NAMED, with a reason, and it
             # refuses a declaration that no longer matches anything live (decision
             # #335 both ways).
-            "file_extensions": [".py", ".js", ".json"],
+            #
+            # NO `file_extensions` HERE, deliberately. That key is read by the
+            # COMMAND runner; a built-in receives `files` unfiltered, so declaring
+            # it on this gate would have been a scope that never applied — the
+            # registry-of-intentions defect the gate itself exists against. The
+            # scoping lives in the implementation, in HOST_LAYER_PREFIXES, where it
+            # actually runs and is covered by a test.
         },
     ),
 )
