@@ -9,6 +9,37 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — a byte cap on tool output, because a line count cannot see one long line
+
+The truncation nudge counted LINES with a threshold of 250. A minified file, JSON
+on one line, a log without newlines: each enters the context whole while the line
+counter reads "1". The nudge now counts bytes as well (default 24,000), says
+WHICH threshold tripped, and in the byte-only case names the cure a line limit
+cannot give — cap the output itself.
+
+- **The threshold comes from measurement, not taste.** Attributing context growth
+  to the tool whose result caused it (the delta to the next call within one
+  session): Bash accounts for 11,883,280 of 17,896,506 tokens — **66.4% of all
+  growth** across 9,844 calls, median 848, p90 2,514, p99 6,386. The byte default
+  sits near that p99, so the nudge speaks about calls that cost something instead
+  of every second command.
+- **The measurement corrected the premise it was gathered under.** The growth is
+  BROAD, not tail-heavy: the top 1% of Bash calls is 6.8% of Bash's growth and
+  4.5% of everything. No catastrophic single result appears in the corpus,
+  because the Claude Code harness truncates tool output itself. On a host that
+  does not, it would — so this rule is worth most where the framework promises
+  the most and delivers the least today: on hosts other than this one.
+- **The rule names the commands.** `docs/ru/agent-contract.md` lists the calls
+  whose output size is unknown in advance (`cat` without a range, a wide `rg`,
+  `find`, `ls -R`, a whole `git diff`, `git log` without `-n`) and what to bound
+  each with. It is NOT in CLAUDE.md: that file is loaded every turn, and paying
+  per-turn context to describe a rule about saving per-turn context is the defect
+  wearing the cure's clothes.
+- **The borrowed −50% is not repeated as ours.** The external source that
+  measured this technique claims about half the tokens; that figure is theirs and
+  unverified here, exactly as already noted for caveman's ~65%. The one measured
+  claim made here is the 66.4%.
+
 ### Added — the MCP surface has a price, and a ratchet that re-measures it
 
 The MCP protocol sends every tool's name AND schema on each turn unless the
