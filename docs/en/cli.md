@@ -36,11 +36,25 @@ metrics [--cost]               # With --cost: rollup usage_events by task_slug (
 metrics record-session         # Persist LLM usage (tokens/cost/tool/model) for current or explicit session
 metrics log-usage              # Append one manual usage_events row (--task-slug optional; no session_usage_metrics overwrite)
 metrics cost [--since ISO] [--until ISO]   # SUM tokens/cost + COUNT rows grouped by task (NULL slug excluded)
-metrics tokens [--since ISO] [--until ISO] [--task SLUG]    # Token rollup per task (sum input/output/cache tokens)
-                                # Source: PostToolUse hook scripts/hooks/posttool_usage.py writes one
-                                #   usage_events row per tool call (source='posttool', tool_name=<tool>)
-                                #   attributed to the currently active task.
-                                # Pricing: scripts/cost_pricing.py — single source of truth.
+metrics tokens [--last N] [--rebuild] [--json]   # Context volume per tool over the last N sessions
+                                # Source: .tausik/token_metrics.jsonl, written by the SessionEnd hook
+                                #   scripts/hooks/session_metrics.py, which walks the transcript and
+                                #   splits message-level usage across the tool_use blocks in a message.
+                                # THE COLUMN THAT MATTERS IS ctx_*: the message's full input context
+                                #   (input + cache_creation + cache_read). That is the quantity a
+                                #   token-economy claim is about (decision #338). The in_* column is
+                                #   NOT the input: with prompt caching on it is the uncached remainder
+                                #   — literally 2 tokens per message on this project — so it is a
+                                #   doubled call counter wearing a cost label.
+                                # --rebuild re-derives the whole ledger from EVERY transcript of this
+                                #   project on disk. Needed because the incremental writer only ever
+                                #   sees the transcript of the session that just ended, and its
+                                #   coverage can be far narrower than the history that exists.
+                                # The COVERAGE line in the report header names the denominator: how
+                                #   many of all sessions carry rows, and since when. A value that is
+                                #   absent from the data prints as "не измерено", never as 0.
+                                # Not to be confused with `metrics cost`, which sums money from
+                                #   usage_events in the DB.
                                 # See docs/{en,ru}/cost-telemetry.md.
 doctor                         # Health check: venv + DB + MCP + skills + drift + stale bytecode
 doctor --fix-bytecode          # Purge EXACTLY the .pyc whose co_filename names another directory (after a tree move)

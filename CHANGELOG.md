@@ -99,7 +99,11 @@ that number was broken in five ways, three of which nobody had reported.
   apart.
 - `docs/ru/cli.md` documented `metrics tokens` with flags it does not have
   (`--since`, `--until`, `--task`) and attributed its data to a different hook
-  and a different table. Corrected.
+  and a different table. Corrected — and then corrected again in
+  `docs/en/cli.md`, which the first pass left describing the same nonexistent
+  machine. The English page is the one an outside reader of the public
+  repository sees; fixing one half of a translated pair leaves the defect
+  standing for the other half's audience.
 
 ### Changed — model prices live in your config, and a price is a pair
 
