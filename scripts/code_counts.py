@@ -7,6 +7,7 @@ landing can no longer drift from reality.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -56,6 +57,28 @@ def count_core_skills(repo_root: Path) -> int:
     )
 
 
+def count_official_skills(repo_root: Path) -> int:
+    """Count entries in ``skills-official/registry.json``.
+
+    The opt-in catalogue is quoted as a bare number in three places (both
+    READMEs, AGENTS.md) and was bound to nothing: AGENTS.md said "25+ official"
+    while the registry held 20, and no check could disagree because no constant
+    existed to disagree WITH. Reading the registry rather than the directory
+    listing on purpose -- the directory also holds `README.md` and
+    `bundles.json`, and a count that walks it answers a different question than
+    the one the docs ask.
+    """
+    registry = repo_root / "skills-official" / "registry.json"
+    if not registry.is_file():
+        return 0
+    try:
+        data = json.loads(registry.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return 0
+    skills = data.get("skills") if isinstance(data, dict) else None
+    return len(skills) if isinstance(skills, (list, dict)) else 0
+
+
 def count_stacks(repo_root: Path) -> int:
     """Count stack profile dirs under `stacks/` (excluding the schema file)."""
     stacks_dir = repo_root / "stacks"
@@ -85,6 +108,7 @@ def code_counts_flat(repo_root: Path) -> dict[str, int]:
         "review_agents_count": count_review_agents(repo_root),
         "hooks_count": count_registered_hooks(repo_root),
         "skills_core_count": count_core_skills(repo_root),
+        "skills_official_count": count_official_skills(repo_root),
         "stacks_count": count_stacks(repo_root),
         "roles_count": count_roles(repo_root),
     }

@@ -17,7 +17,8 @@ Covered drift classes:
   - version refs (`vX.Y` / `vX.Y.Z`) vs `tausik_version`
   - MCP tool counts (`**N tools**`, `N project tools`, brain header, pair)
   - test counts (badge URL/label, `pytest suite (N tests)`, `**N tests**`)
-  - repo-state counts (stacks / hooks / review agents)
+  - repo-state counts (stacks / hooks / review agents / roles / skills)
+  - counted table columns (delegated to :mod:`doc_drift_tables`)
 """
 
 from __future__ import annotations
@@ -30,7 +31,6 @@ from doc_drift_common import (
     _CODE_COUNT_PATTERNS,
     _MCP_COUNT_PAIR_PATTERN,
     _MCP_COUNT_PATTERNS,
-    _MCP_TABLE_COLUMN_RE,
     _PY_VERSION_RE,
     _TEST_COUNT_PATTERNS,
     _VERSION_RE,
@@ -52,12 +52,18 @@ from doc_drift_common import (
 # imports only doc_drift_common, never this module.
 from doc_drift_fixes import write_cross_file_fixes
 
+# Re-exported for the same reason: the column scan lives beside its own subject
+# registry in doc_drift_tables, and callers keep importing it from here.
+from doc_drift_tables import TABLE_SUBJECT_EXEMPT, scan_table_count_columns, table_subject_keys
+
 __all__ = [
     "CROSS_FILE_SCAN_TARGETS",
     "scan_version_refs",
     "scan_py_version_constants",
     "scan_mcp_tool_counts",
-    "scan_mcp_table_columns",
+    "scan_table_count_columns",
+    "table_subject_keys",
+    "TABLE_SUBJECT_EXEMPT",
     "scan_closed_list_enums",
     "scan_test_counts",
     "scan_code_counts",
@@ -183,61 +189,6 @@ def scan_mcp_tool_counts(repo_root: Path, payload: dict[str, object]) -> list[st
                     f"(found={got1} project + {got2} brain) does not match "
                     f"constants.json {k1}={exp1}, {k2}={exp2}"
                 )
-    return messages
-
-
-def scan_mcp_table_columns(repo_root: Path, payload: dict[str, object]) -> list[str]:
-    """Return drift messages for numeric cells of a markdown "MCP tools" column.
-
-    Every :data:`_MCP_COUNT_PATTERNS` entry needs a WORD beside the number, so a
-    bare table cell (``| 128 |``) matched none of them: README.md's IDE table
-    carried five such cells while the prose two lines below it was checked.
-
-    The column is located by its HEADER (:data:`_MCP_TABLE_COLUMN_RE`), not by
-    index, so inserting a column ahead of it does not silently move the check
-    onto someone else's numbers. Non-numeric cells ("MCP + rules",
-    "host-dependent") are skipped: the table is honest prose there, not a count.
-
-    A DECORATED NUMBER ("128+", "~128") IS SKIPPED TOO, and that is a declared
-    exclusion rather than an oversight (external review #40). Checking it would
-    require a convention for what the decoration CLAIMS, and this column has
-    none: `test_count` has one — decision #182 makes it a lower bound, so "N+"
-    is honest while an overclaim reddens — but nothing says whether a "128+"
-    here means "at least" or "about". Inventing that rule inside a scanner
-    would be policy written where nobody looks for it. No current doc carries
-    such a cell; if one appears, the rule is the thing to decide first.
-    """
-    expected = payload.get("mcp_main_tools")
-    if not isinstance(expected, int):
-        return []
-    messages: list[str] = []
-    for rel in (*CROSS_FILE_SCAN_TARGETS, *MCP_COUNT_EXTRA_TARGETS):
-        path = repo_root / rel
-        if not path.is_file():
-            continue
-        text = _strip_fenced_blocks(path.read_text(encoding="utf-8"))
-        column: int | None = None
-        for line_no, line in enumerate(text.splitlines(), start=1):
-            if not line.lstrip().startswith("|"):
-                column = None  # the table ended; the next one names its own column
-                continue
-            cells = [c.strip() for c in line.strip().strip("|").split("|")]
-            if column is None:
-                for i, cell in enumerate(cells):
-                    if _MCP_TABLE_COLUMN_RE.match(cell):
-                        column = i
-                        break
-                continue
-            if column >= len(cells):
-                continue
-            cell = cells[column]
-            if not cell.isdigit() or int(cell) == expected:
-                continue
-            messages.append(
-                f"{rel}:{line_no}: MCP tool-count cell '{cell}' in the "
-                f"'MCP tools' column does not match constants.json "
-                f"mcp_main_tools={expected}"
-            )
     return messages
 
 

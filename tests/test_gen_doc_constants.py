@@ -293,6 +293,29 @@ def test_scan_mcp_counts_flags_pair_drift(tmp_path: Path):
         ("- `tausik-project` — project-scoped инструменты (117): tasks", "project-scoped count"),
         # README prose beside the IDE table.
         ("hosts get the same 124 tools and skills", "README prose count"),
+        # Session #224: the optional server had TWO computed constants and no
+        # document was checked against either, so "+7 tools → **107** total"
+        # outlived the total reaching 159. Both forms are anchored on the
+        # server's own name so they cannot rewrite an unrelated total.
+        (
+            "**Optional `codebase-rag` server:** +9 tools → **107** total",
+            "codebase-rag increment",
+        ),
+        (
+            "**Optional `codebase-rag` server:** +7 tools → **124** total",
+            "grand total with the optional server",
+        ),
+        # The sentence that EXCLUDES the optional server from the main total
+        # names the count without the word "tools", at the foot of both mcp.md
+        # files: line 7 read 152 and line 370 read 128, and neither was checked.
+        (
+            "These are not part of the main 124 count - they belong elsewhere",
+            "main count (excluding the optional server)",
+        ),
+        (
+            "Эти не входят в основной счёт 124 — они другого сервера",
+            "main count (excluding the optional server, ru)",
+        ),
     ],
 )
 def test_scan_mcp_counts_sees_the_forms_review_208_found_blind(tmp_path: Path, line, label):
@@ -308,6 +331,9 @@ def test_scan_mcp_counts_accepts_the_same_forms_when_right(tmp_path: Path):
         "**93 project + 7 brain = 100 инструментов**\n| MCP coverage 100 tools | ok |\n"
         "| MCP coverage (100 инструментов) | ok |\nproject-scoped tools (93): tasks\n"
         "hosts get the same 100 tools and skills\n"
+        "**Optional `codebase-rag` server:** +7 tools → **107** total\n"
+        "These are not part of the main 100 count - they belong elsewhere\n"
+        "Эти не входят в основной счёт 100 — они другого сервера\n"
         # Unrelated prose must NOT be read as a count (the fixer rewrites matches).
         "The recipe = 3 tools and a rope.\n",
         encoding="utf-8",

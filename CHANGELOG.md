@@ -9,6 +9,57 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a doc-count scanner that could not find its column was reporting success
+
+TAUSIK derives fourteen numbers from the tree (`gen_doc_constants.py`) and
+checks the documentation against them, so a count in the README cannot drift
+from the code that produces it. Measured this release with that check GREEN:
+`AGENTS.md` carried three cells reading `**100** (93+7)` MCP tools against 152
+(145+7), in the same column as the row above them, which was correct — and
+three lines below a sentence promising that "canonical counts are asserted from
+`len(TOOLS)` in code". Both READMEs carried `21` in the `Hooks` column against
+`hooks_count=22`, ten lines under prose saying `22` that WAS checked.
+
+WHAT THE MEASUREMENT CHANGED: the stale numbers were the symptom. The column
+scan located its column by matching the WHOLE header cell against one spelling
+(`^MCP tools$`), so a header naming the same count in other words — "Main
+`tausik_*` tools (two servers)", "Hooks" — matched nothing, no column was
+found, and the scan passed. A scanner that cannot find its subject reports the
+same thing as a scanner that found nothing wrong, and that silence is what let
+four counts rot in files the guard was walking every run.
+
+- The single hardcoded column becomes a SUBJECT REGISTRY (`doc_drift_tables.py`)
+  covering MCP tools, hooks, core skills, stacks, roles and review agents in
+  both languages. Headers are matched by keyword against a normalised cell, so
+  backticks, emphasis and a parenthetical suffix no longer hide the noun.
+- A table may carry several counted columns; all of them are now read, and the
+  header is the table's FIRST row rather than whichever row matches first.
+- A split spelled out inside a cell (`152 (145+7)`) is two further claims, and
+  both are checked. A parenthetical gloss (`21 (full)`) is a count wearing a
+  label and is read; a decoration (`21+`, `~21`) still is not, for the reason
+  already recorded — nothing says whether it means "at least" or "about".
+- `skills_official_count` is now derived from `skills-official/registry.json`:
+  the opt-in catalogue was quoted as a bare number in three places and bound to
+  nothing, and `AGENTS.md` said "25+ official" against a registry holding 20.
+- `mcp_rag_tools` and `mcp_tools_with_optional_rag` were computed constants
+  with NO document checked against either — which is how "+7 tools → **107**
+  total" outlived the total reaching 159. Both are bound now.
+- The sentence excluding the optional server from the main total names the count
+  without the word "tools", so no pattern read it: `docs/{en,ru}/mcp.md` said
+  152 on line 7 and 128 at the foot of the same file, neither checked, one of
+  them wrong. Bound and corrected.
+- THE HOLE ONE LEVEL UP IS CLOSED: a test pairs every integer in
+  `constants.json` with either a table subject or a written exemption, and every
+  exemption but `schema_version` must name a prose pattern that does check it.
+  Adding a computed count without binding a document to it now fails.
+- `repo_coherence` runs the column scan too; it had never included it.
+
+Named limitation, in the scanner's own docstring: a count written as prose
+inside a non-numeric cell stays invisible (`AGENTS.md` had two wrong counts
+inside a link label). Reading every number in every cell would report the SENAR
+matrix's rule numbers as tool counts, so the split is deliberate — and stated
+where the next reader meets it rather than left to be discovered.
+
 ### Added — `tausik coherence`: the repository-wide question no gate was asking
 
 Reviewers look at a task and a diff; gates look at a file, a scope, or a pair of

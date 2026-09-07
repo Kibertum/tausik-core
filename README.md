@@ -151,11 +151,11 @@ Multi-IDE by design, but we're honest about what's validated end-to-end.
 
 | IDE | MCP tools | Skills | Hooks | Status |
 |---|---|---|---|---|
-| **Claude Code** | 152 | 13 core + opt-in | 21 (full) | First-class |
-| **Qwen Code** | 152 | 13 core + opt-in | 21 (parity with Claude) | First-class |
+| **Claude Code** | 152 | 13 core + opt-in | 22 (full) | First-class |
+| **Qwen Code** | 152 | 13 core + opt-in | 22 (parity with Claude) | First-class |
 | **Kilo Code** (+ [z.ai GLM](docs/en/kilo-zai.md)) | 152 | 13 core + opt-in | — (gates at task start/done) | First-class via MCP |
 | **Cursor** | 152 | 13 core + opt-in | — (gates at task start/done) | Supported via MCP |
-| VSCode + Claude Extension | 152 | 13 core + opt-in | 21 | Tested E2E |
+| VSCode + Claude Extension | 152 | 13 core + opt-in | 22 | Tested E2E |
 | Windsurf / Codex-style | MCP + rules | host-dependent | host-specific | Expected / manual |
 
 Hooks — the real-time rails (no code without a task, bash firewall, push gate) — run in **Claude Code and Qwen Code**. Kilo, Cursor, Windsurf and other MCP hosts get the same 152 tools and skills, with quality gates applied at `task start` and `task done`.

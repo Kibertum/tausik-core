@@ -42,11 +42,11 @@ Same governance everywhere; only the **wrapper** (hooks vs self-serve) changes. 
 | Model / host | Primary TAUSIK surface | Main `tausik_*` tools (two servers) | Notes |
 |----------------|------------------------|-------------------------------------|------|
 | Claude (Code, VS Code Extension) | MCP `tausik-project` + `tausik-brain` | **152** (145 project + 7 brain) | Hooks + MCP |
-| Cursor / Composer / GPT-5.5+ / OpenCode | Same MCP (project MCP config); CLI fallback `.tausik/tausik` | **100** (93+7) | Rule 1 self-serve if no hooks |
-| Qwen Code | MCP + skills under `.qwen/skills/` | **100** (93+7) | Subset of hooks |
-| Codex CLI / headless agents | Prefer MCP if exposed; else mirror CLI | **100** (93+7) | [docs/en/cli.md](docs/en/cli.md) |
+| Cursor / Composer / GPT-5.5+ / OpenCode | Same MCP (project MCP config); CLI fallback `.tausik/tausik` | **152** (145+7) | Rule 1 self-serve if no hooks |
+| Qwen Code | MCP + skills under `.qwen/skills/` | **152** (145+7) | Subset of hooks |
+| Codex CLI / headless agents | Prefer MCP if exposed; else mirror CLI | **152** (145+7) | [docs/en/cli.md](docs/en/cli.md) |
 
-**Optional `codebase-rag` server:** +7 tools → **107** total with the main two servers (not part of the 100 baseline). Same numbers as the header in [docs/en/mcp.md](docs/en/mcp.md).
+**Optional `codebase-rag` server:** +7 tools → **159** total with the main two servers (not part of the two-server baseline). Same numbers as the header in [docs/en/mcp.md](docs/en/mcp.md).
 
 **Operating contract for non-Claude models:**
 
@@ -97,7 +97,7 @@ Canonical narrative + branching detail: **[docs/en/workflow.md](docs/en/workflow
 | **Architecture & internals** | [docs/en/architecture.md](docs/en/architecture.md) (EN) / [docs/ru/architecture.md](docs/ru/architecture.md) (RU) |
 | **Testing principles (scoped pytest, when to add tests)** | [docs/en/testing-principles.md](docs/en/testing-principles.md) (EN) / [docs/ru/testing-principles.md](docs/ru/testing-principles.md) (RU) |
 | **MCP tools (145 project + 7 brain = 152; verify-first contract)** | [docs/en/mcp.md](docs/en/mcp.md) |
-| **Skills reference (12 core + brain conditional, 25+ official opt-in)** | [docs/en/skills.md](docs/en/skills.md) |
+| **Skills reference (13 core skills + brain conditional, 20 official skills opt-in)** | [docs/en/skills.md](docs/en/skills.md) |
 | **Quality gates** | [docs/en/hooks.md](docs/en/hooks.md) |
 | **User-facing docs index** | [docs/README.md](docs/README.md) |
 | **SENAR compliance matrix** | [docs/en/senar-compliance-matrix.md](docs/en/senar-compliance-matrix.md) |
@@ -144,29 +144,29 @@ Three layers, strict separation: **CLI never touches DB. Service validates. Back
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #215 (active) | Branch: v1-9-wave | Version: 1.8.0
-Tasks: 1332/1537 done, 0 active, 1 blocked
+Session: #224 (active) | Branch: v1-9-wave | Version: 1.8.0
+Tasks: 1355/1543 done, 0 active, 1 blocked
 Blocked: write-gate-reads-prose-arguments-as-redirections
 
 ### Memory tail
 Context (5):
+- #625 Сверка качества SENAR 9.5 в смене #221: три подметания, четыре гнилых ссылки в моём же закрытии найд
+- #616 Сверка качества SENAR 9.5 в смене #218: три подметания, одно наблюдение вынесено в текст, новых дейс
 - #605 Сверка качества SENAR 9.5 в смене #215: три подметания, ни одного нового действия — всё под прежними
 - #580 Сверка качества SENAR 9.5 в смене #212: три подметания, ни одного нового действия — всё уже под реше
 - #481 Сверка SENAR 9.5 в #199: два детектора путают пример-заглушку со ссылкой, остальное здорово
-- #476 Заявка RENAR-1 снята: TAUSIK печатает несоответствие по §1.5.4, право держит машина
-- #472 Инвентарь ADR RENAR закрыт: принятых тринадцать, оценено тринадцать, непроверенных ноль — и шесть по
 Decisions (5):
-- #319 ОБЪЁМ 1.9 = 21 ПОСЛЕ СМЕНЫ #215, снижение с 23 (решение #318). Пересчитано КОМАНДОЙ по шести историям: gates-declare-wha
-- #318 ОБЪЁМ 1.9 = 23 ПОСЛЕ СМЕНЫ #214, снижение с 25 (решение #317). Пересчитано КОМАНДОЙ по шести историям: gates-declare-wha
-- #317 ОБЪЁМ 1.9 = 25 ПОСЛЕ СМЕНЫ #213, ФИНАЛЬНЫЙ СЧЁТ СМЕНЫ, снижение с 29 (решение #314) через 26 (решение #316). Пересчитано
-- #316 ОБЪЁМ 1.9 = 26 ПОСЛЕ СМЕНЫ #213, снижение с 29 (решение #314). Пересчитано КОМАНДОЙ по шести историям: gates-declare-wha
-- #315 МАНИФЕСТ СООТВЕТСТВИЯ ПУБЛИКУЕТ ОСНОВАНИЕ КАЖДОГО ВЕРДИКТА §13.3 (mandatory-clauses-basis, закрытый перечень measured/de
+- #333 Дополнение к решению #332: SQLiteBackend 168→169 (+1, edges_touching_artifact). Метод добавлен ПОСЛЕ снятия предыдущего 
+- #332 class_surface baseline поднят под подложку графа артефактов: SQLiteBackend 159→168 (+9, GraphCrudMixin), ProjectService 
+- #331 class_surface baseline поднят под transaction(): SQLiteBackend 158→159 (+1, единственный новый публичный член — контекст
+- #330 class_surface baseline поднят под routing-matrix: SQLiteBackend 155→158 (+3: at_result_add/at_results_for/at_latest_outc
+- #329 class_surface baseline поднят под AT: SQLiteBackend 150→155 (+5: AtCrudMixin), ProjectService 134→140 (+6: AtMixin). Осо
 Conventions (5):
-- #606 Отзыв нормы: перечень сужай на ЗАПИСЬ, а CHECK оставляй на ЧТЕНИЕ — иначе миграция сотрёт чужие запи
-- #603 Значение стандартного перечислимого поля бери ИЗ перечня стандарта: наше слово внутри чужого поля — 
-- #601 Перенося раскрытие в новый носитель, сверяй ДИФФОМ старой и новой версии артефакта — наличие блока н
-- #596 Выживший мутант бывает ЭКВИВАЛЕНТНЫМ — объявляй это в исходнике, а не дописывай тест, который не мож
-- #594 Меняя опубликованный артефакт, снимай инвентарь ВСЕХ его издателей: у манифеста RENAR их два — YAML 
+- #634 Отчёты пользователю — на РУССКОМ и по существу, без пересказа проделанных шагов
+- #633 scope_paths задачи перечисляй по ИСТОЧНИКАМ и по обязательным для закрытия артефактам — иначе задача
+- #628 Прежде чем писать тест на поведение, ищи существующее покрытие — иначе растёт test_dedupe, а не защи
+- #627 Тест на параллелизм, который ЖДЁТ события от второй стороны, доказывает лишь обмен сигналами — запис
+- #624 Имя теста в доказательстве закрытия ЧИТАЙ из файла, а не пиши по памяти — и никаких глобов
 Dead ends (3):
 - #427 Храповик видимости считает рёбра резолвера САМ (basename_reachable_tests + top_level_imports + read_
 - #407 Дозаполнить 5722 существующие функции pytest ссылками на нормативные утверждения, чтобы они стали TC

@@ -31,7 +31,7 @@ from doc_drift_scanners import (
     CROSS_FILE_SCAN_TARGETS,
     scan_closed_list_enums,
     scan_code_counts,
-    scan_mcp_table_columns,
+    scan_table_count_columns,
     scan_mcp_tool_counts,
     scan_py_version_constants,
     scan_test_counts,
@@ -48,7 +48,7 @@ __all__ = [
     "run_main",
     "scan_closed_list_enums",
     "scan_code_counts",
-    "scan_mcp_table_columns",
+    "scan_table_count_columns",
     "scan_mcp_tool_counts",
     "scan_py_version_constants",
     "scan_test_counts",
@@ -210,7 +210,7 @@ def run_main(
                 _report_drift("Cross-file MCP tool-count drift:", mcp_drift)
                 return 1
             # Bare table cells carry no word for the count patterns to anchor on.
-            table_drift = scan_mcp_table_columns(repo_root, payload)
+            table_drift = scan_table_count_columns(repo_root, payload)
             if table_drift:
                 _report_drift("MCP tool-count table-cell drift:", table_drift)
                 return 1

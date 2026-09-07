@@ -11,7 +11,10 @@ Two blind spots measured in session #213 and closed here:
   the count guards walk, and a count beside a closed list is what they refuse.)
 * A bare markdown table cell (`| 128 |`) carries no word for the MCP-count
   patterns to anchor on, so README.md's five IDE-table cells were unchecked
-  while the prose two lines below them was not.
+  while the prose two lines below them was not. (The column scan grew a
+  subject registry in session #224 — its own cases live in
+  `test_doc_table_count_subjects.py`; what stays here is the behaviour that
+  was already pinned when it guarded a single subject.)
 
 Every negative case below is a doc that LIES in one specific way; the positive
 ones pin that the scanners stay quiet on honest text, on fenced illustrations,
@@ -31,7 +34,7 @@ from doc_closed_lists import CLOSED_LISTS, closed_lists_flat  # noqa: E402
 from doc_drift_scanners import (  # noqa: E402
     CROSS_FILE_SCAN_TARGETS,
     scan_closed_list_enums,
-    scan_mcp_table_columns,
+    scan_table_count_columns,
 )
 from service_adapts import ADAPT_STATUSES, FINDING_CATEGORIES  # noqa: E402
 from service_specs import SPEC_TYPES  # noqa: E402
@@ -168,7 +171,7 @@ def test_a_decorated_cell_is_a_declared_exclusion(tmp_path):
     decision #182), and inventing one inside a scanner would be policy written
     where nobody looks for it.
     """
-    from doc_drift_scanners import scan_mcp_table_columns as scan
+    from doc_drift_scanners import scan_table_count_columns as scan
 
     _doc(tmp_path, _TABLE.format(a="128+", b="~121"), rel="README.md")
     assert scan(tmp_path, _PAYLOAD) == []
@@ -215,13 +218,13 @@ _TABLE = """| IDE | MCP tools | Skills |
 
 def test_matching_cells_are_silent(tmp_path):
     _doc(tmp_path, _TABLE.format(a=128, b=128), rel="README.md")
-    assert scan_mcp_table_columns(tmp_path, _PAYLOAD) == []
+    assert scan_table_count_columns(tmp_path, _PAYLOAD) == []
 
 
 def test_a_stale_cell_is_named_with_its_line(tmp_path):
     """AC-4 negative: one cell left behind is the whole point of this scanner."""
     _doc(tmp_path, _TABLE.format(a=128, b=121), rel="README.md")
-    msgs = scan_mcp_table_columns(tmp_path, _PAYLOAD)
+    msgs = scan_table_count_columns(tmp_path, _PAYLOAD)
     assert len(msgs) == 1, msgs
     assert "README.md:4" in msgs[0] and "'121'" in msgs[0] and "mcp_main_tools=128" in msgs[0]
 
@@ -229,7 +232,7 @@ def test_a_stale_cell_is_named_with_its_line(tmp_path):
 def test_a_non_numeric_cell_is_not_a_count(tmp_path):
     """'MCP + rules' is honest prose in that column, not a stale number."""
     _doc(tmp_path, _TABLE.format(a=128, b=128), rel="README.md")
-    assert scan_mcp_table_columns(tmp_path, _PAYLOAD) == []
+    assert scan_table_count_columns(tmp_path, _PAYLOAD) == []
 
 
 def test_the_column_is_found_by_its_header_not_its_position(tmp_path):
@@ -240,7 +243,7 @@ def test_the_column_is_found_by_its_header_not_its_position(tmp_path):
         "| **Claude Code** | 13 | 121 |\n| **Cursor** | 13 | 128 |\n"
     )
     _doc(tmp_path, body, rel="README.md")
-    msgs = scan_mcp_table_columns(tmp_path, _PAYLOAD)
+    msgs = scan_table_count_columns(tmp_path, _PAYLOAD)
     assert len(msgs) == 1, msgs
     assert "'121'" in msgs[0], "the moved column must be read, and 13 must not be"
 
@@ -252,18 +255,18 @@ def test_a_second_table_without_the_column_is_not_scanned(tmp_path):
         "| Gate | Severity |\n|---|---|\n| filesize | 500 |\n"
     )
     _doc(tmp_path, body, rel="README.md")
-    assert scan_mcp_table_columns(tmp_path, _PAYLOAD) == []
+    assert scan_table_count_columns(tmp_path, _PAYLOAD) == []
 
 
 def test_no_expected_count_disables_the_scan(tmp_path):
     _doc(tmp_path, _TABLE.format(a=999, b=999), rel="README.md")
-    assert scan_mcp_table_columns(tmp_path, {}) == []
+    assert scan_table_count_columns(tmp_path, {}) == []
 
 
 # --- the live tree -------------------------------------------------------------
 
 
-@pytest.mark.parametrize("scan", [scan_closed_list_enums, scan_mcp_table_columns])
+@pytest.mark.parametrize("scan", [scan_closed_list_enums, scan_table_count_columns])
 def test_the_live_docs_are_clean(scan):
     """The repository itself, after the SPEC-type line was corrected."""
     from pathlib import Path

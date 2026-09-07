@@ -143,6 +143,38 @@ _MCP_COUNT_PATTERNS: tuple[tuple[re.Pattern[str], str, str], ...] = (
         "mcp_project_tools",
         "project-scoped count",
     ),
+    # The optional `codebase-rag` server: its increment and the grand total it
+    # produces. Both constants existed and NOTHING in the docs was checked
+    # against either, which is how AGENTS.md went on saying "+7 tools -> **107**
+    # total" after the total reached 159 (measured session #224). Anchored on
+    # the server's own name and confined to one line (`.` never crosses a
+    # newline without DOTALL), because "**N** total" on
+    # its own would rewrite any total in any document.
+    (
+        re.compile(rf"codebase-rag`?.*?\+\s*(\d+)\s+{_TOOL_WORD}", re.IGNORECASE),
+        "mcp_rag_tools",
+        "codebase-rag increment",
+    ),
+    (
+        re.compile(r"codebase-rag`?.*?\*\*(\d+)\*\*\s+total", re.IGNORECASE),
+        "mcp_tools_with_optional_rag",
+        "grand total with the optional server",
+    ),
+    # "the main N count" / "основной счёт N" — the sentence that EXCLUDES the
+    # optional server from the main total, at the foot of both mcp.md files.
+    # It names the count without the word "tools", so every pattern above
+    # walked past it: line 7 of the same file said 152 and line 370 said 128,
+    # both unchecked, one of them wrong (measured session #224).
+    (
+        re.compile(r"main\s+(\d+)\s+count\b", re.IGNORECASE),
+        "mcp_main_tools",
+        "main count (excluding the optional server)",
+    ),
+    (
+        re.compile(r"основно\w+\s+счёт\s+(\d+)", re.IGNORECASE),
+        "mcp_main_tools",
+        "main count (excluding the optional server, ru)",
+    ),
     # "the same N tools" — README prose beside the IDE table (record #24). The
     # table's own cells carry no word at all and are NOT guarded: dropping the
     # per-row count in favour of the headline number is the owner's call.
@@ -250,6 +282,27 @@ _CODE_COUNT_PATTERNS: tuple[tuple[re.Pattern[str], str, str], ...] = (
         "roles_count",
         "roles count (ru)",
     ),
+    # skills: quoted two ways in one breath -- "13 core skills ... 20 official"
+    # -- and neither was checked. AGENTS.md said "12 core" and "25+ official"
+    # against 13 and 20. Anchored on the adjective so "3 skills.md fixtures" is
+    # never caught; the "+"-decorated form ("25+") is deliberately NOT matched,
+    # so a claim written as a lower bound has to be rewritten into a plain count
+    # before anything can check it -- the same rule the table cells follow.
+    (
+        re.compile(r"\b(\d+)\s+core[-\s]skills?\b", re.IGNORECASE),
+        "skills_core_count",
+        "core-skills count",
+    ),
+    (
+        re.compile(r"\b(\d+)\s+core[-\s]скилл\w*", re.IGNORECASE),
+        "skills_core_count",
+        "core-skills count (ru)",
+    ),
+    (
+        re.compile(r"\b(\d+)\s+official[-\s](?:skills?|скилл\w*)", re.IGNORECASE),
+        "skills_official_count",
+        "official-skills count",
+    ),
 )
 
 # Closed-list ENUMERATIONS spelled out in prose: three or more slash-joined
@@ -288,13 +341,6 @@ CLOSED_LIST_COUNT_LOOKBEHIND = 40
 # tokens is coincidence ("draft/review" in a sentence about workflow); three is
 # a quotation of the list.
 CLOSED_LIST_MIN_OVERLAP = 3
-
-# Markdown table columns whose numeric cells are a tool count. A bare `| 128 |`
-# carries no words, so every _MCP_COUNT_PATTERNS entry walks past it: the five
-# IDE-table cells in README.md were invisible to the guard while the prose two
-# lines below them was checked. Matched against the HEADER cell, so the column
-# is located by what it is called rather than by its position.
-_MCP_TABLE_COLUMN_RE = re.compile(r"^\s*MCP[-\s]*(?:tools?|инструмент\w*)\s*$", re.IGNORECASE)
 
 # RENAR/renar: the sibling spec at renar.tech versions on its own timeline (the
 # auto-generated CLAUDE.md memory-tail cites "renar.tech v1.0-draft"), so its

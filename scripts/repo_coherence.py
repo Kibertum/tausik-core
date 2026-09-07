@@ -222,6 +222,10 @@ def _doc_number_drift(root: Path) -> list[Finding]:
         ("closed-list enums", lambda: doc_drift_scanners.scan_closed_list_enums(root, payload)),
         ("test counts", lambda: doc_drift_scanners.scan_test_counts(root, payload)),
         ("code-state counts", lambda: doc_drift_scanners.scan_code_counts(root, payload)),
+        (
+            "counted table columns",
+            lambda: doc_drift_scanners.scan_table_count_columns(root, payload),
+        ),
     ):
         found = scan()
         messages += [f"{label}: {m}" for m in found]
