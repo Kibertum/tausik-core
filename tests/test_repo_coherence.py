@@ -129,6 +129,47 @@ class TestTheThirdCalibrationClassIsDetectable:
 
         assert isinstance(repo_coherence._doc_number_drift(Path(_ROOT).resolve()), list)
 
+    def test_every_scanner_the_collector_names_is_actually_called(self):
+        """A scanner missing from the loop is a class this lens cannot see.
+
+        `scan_table_count_columns` was absent from the list for its whole first
+        release: the lens reported "no number drift" while a scanner it does not
+        run held the answer. Asserting the returned LABELS rather than reading
+        the source, so a scanner that is imported and never invoked still fails.
+        """
+        called: list[str] = []
+
+        class _Recorder:
+            def __getattr__(self, name):
+                def _scan(*_args, **_kwargs):
+                    called.append(name)
+                    return []
+
+                return _scan
+
+        import sys
+
+        original = sys.modules.get("doc_drift_scanners")
+        sys.modules["doc_drift_scanners"] = _Recorder()
+        try:
+            from pathlib import Path
+
+            repo_coherence._doc_number_drift(Path(_ROOT).resolve())
+        finally:
+            if original is not None:
+                sys.modules["doc_drift_scanners"] = original
+            else:  # pragma: no cover - the module is always importable here
+                del sys.modules["doc_drift_scanners"]
+
+        assert "scan_table_count_columns" in called, called
+        assert {
+            "scan_version_refs",
+            "scan_mcp_tool_counts",
+            "scan_closed_list_enums",
+            "scan_test_counts",
+            "scan_code_counts",
+        } <= set(called), called
+
 
 class TestAReportNobodyReadsIsWorseThanNone:
     """AC-6: bounded, ranked, and honest about its own blind spots."""

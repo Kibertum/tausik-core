@@ -3,16 +3,23 @@
 Third module of the doc-drift split (``doc_drift_common`` holds the shared
 regex tables and text helpers, ``doc_drift_fixes`` the auto-fixer, this one the
 column scan). It carries its OWN subject registry rather than adding it to
-``doc_drift_common``: that module sits within a few dozen lines of the filesize
-cap, and the registry belongs beside its only consumer for the same reason the
-fixer does. Imports go one way only — this module reads ``doc_drift_common``
-and nothing in the trio reads this one except ``doc_drift_scanners``, which
-re-exports the entry point so existing imports keep resolving.
+``doc_drift_common``: the two together are well past the 500-line filesize cap
+(decision #190), so merging them would breach it — and the registry belongs
+beside its only consumer for the same reason the fixer does. No line count is
+quoted here on purpose: an earlier draft of this sentence said
+``doc_drift_common`` sat "within a few dozen lines of the cap" when it had 99 to
+spare, and a rationale defended with an unmeasured number is the same defect
+this module exists to catch, written about itself. Imports go one way only —
+this module reads
+``doc_drift_common``, and nothing in the quartet reads this one except
+``doc_drift_scanners``, which re-exports the entry point so existing imports
+keep resolving.
 """
 
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from pathlib import Path
 
 from doc_drift_common import (
@@ -23,7 +30,13 @@ from doc_drift_common import (
     _strip_fenced_blocks,
 )
 
-__all__ = ["TABLE_SUBJECT_EXEMPT", "scan_table_count_columns", "table_subject_keys"]
+__all__ = [
+    "STATED_ONLY_WHERE_NOTHING_READS",
+    "TABLE_SUBJECT_EXEMPT",
+    "locate_table_columns",
+    "scan_table_count_columns",
+    "table_subject_keys",
+]
 
 
 # Markdown table columns whose numeric cells assert a count THE REPOSITORY
@@ -46,48 +59,47 @@ __all__ = ["TABLE_SUBJECT_EXEMPT", "scan_table_count_columns", "table_subject_ke
 # collapsed to spaces, so "Main `tausik_*` tools (two servers)" reads as "Main
 # tausik tools two servers"), never by full-cell equality. The price of the
 # looser match is landing on somebody else's column, so every keyword below is
-# a noun that NAMES the count itself and never an adjective standing near one.
+# a PLURAL noun that names the count itself.
 #
 # WHICH CONSTANTS ARE ABSENT FROM THIS TABLE IS ITSELF CHECKED — see
 # TABLE_SUBJECT_EXEMPT and the test that pairs it against constants.json, so a
 # new computed count cannot arrive without someone stating in writing where the
 # documentation binds to it, or why it does not.
+#
+# PLURAL ONLY, AND THAT IS THE WHOLE DIFFERENCE BETWEEN A COUNT AND A LIST. A
+# column headed `Hook` holds hook NAMES — `docs/{en,ru}/hooks.md` has fourteen
+# such tables — while a column headed `Hooks` holds how many there are. The
+# first cut accepted both, and bound all fourteen listing columns to
+# `hooks_count`; nothing broke only because hook filenames do not begin with a
+# digit, which is luck standing in for a rule.
+#
+# EVERY SUBJECT HERE MUST ACTUALLY FIND A COLUMN, and a test enforces it against
+# the live tree. The first cut carried six subjects of which three — stacks,
+# roles, review agents — matched no header anywhere in the fourteen scanned
+# files, and the meta-test scored them "bound" because it asked whether the KEY
+# was listed, never whether the pattern reached a document. Three of six
+# subjects were unfalsifiable: a mutation making their regexes unmatchable left
+# the suite green. They are counted in prose, not in a column, so they now sit
+# in TABLE_SUBJECT_EXEMPT beside the other prose-bound constants, where their
+# binding is asserted rather than assumed.
 _TABLE_COUNT_SUBJECTS: tuple[tuple[re.Pattern[str], str, tuple[str, ...], str], ...] = (
     (
-        re.compile(r"\b(?:MCP\s+(?:tools?|инструмент\w*)|tausik\s+tools?)\b", re.IGNORECASE),
+        re.compile(r"\b(?:MCP\s+(?:tools|инструмент(?:ы|ов|а))|tausik\s+tools)\b", re.IGNORECASE),
         "mcp_main_tools",
         ("mcp_project_tools", "mcp_brain_tools"),
         "MCP tool-count",
     ),
     (
-        re.compile(r"^(?:hooks?|хук(?:и|ов|а)?)$", re.IGNORECASE),
+        re.compile(r"\b(?:hooks|хук(?:и|ов))\b", re.IGNORECASE),
         "hooks_count",
         (),
         "hook-count",
     ),
     (
-        re.compile(r"^(?:skills?|скилл\w*)$", re.IGNORECASE),
+        re.compile(r"\b(?:skills|скилл(?:ы|ов))\b", re.IGNORECASE),
         "skills_core_count",
         (),
         "core-skill-count",
-    ),
-    (
-        re.compile(r"^(?:stacks?|стек(?:и|ов|а)?)$", re.IGNORECASE),
-        "stacks_count",
-        (),
-        "stack-count",
-    ),
-    (
-        re.compile(r"^(?:roles?|рол(?:и|ей|ь))$", re.IGNORECASE),
-        "roles_count",
-        (),
-        "role-count",
-    ),
-    (
-        re.compile(r"^(?:review\s+agents?|агент\w*\s+ревью)$", re.IGNORECASE),
-        "review_agents_count",
-        (),
-        "review-agent-count",
     ),
 )
 
@@ -117,6 +129,52 @@ TABLE_SUBJECT_EXEMPT: dict[str, str] = {
         "the opt-in catalogue is quoted in prose beside the core count, never as "
         "its own column — bound by the official-skills entries in "
         "_CODE_COUNT_PATTERNS"
+    ),
+    "stacks_count": (
+        "no column, and its prose patterns reach no document either — see "
+        "STATED_ONLY_WHERE_NOTHING_READS"
+    ),
+    "roles_count": (
+        "no column, and no prose either: every statement of it lives inside a "
+        "fenced repository tree — see STATED_ONLY_WHERE_NOTHING_READS"
+    ),
+    "review_agents_count": (
+        "no column and no statement at all in the scanned documents — see "
+        "STATED_ONLY_WHERE_NOTHING_READS"
+    ),
+}
+
+# Constants that NOTHING checks, and the reason each one is like that. The
+# separate map exists because a test can verify membership but cannot read a
+# sentence: `TABLE_SUBJECT_EXEMPT` says "bound elsewhere" and its test proves
+# the binding, so a key whose binding does not exist must say so in a place the
+# test can tell apart. Measured in session #224 — three exemptions claimed to be
+# "bound by the entries in _CODE_COUNT_PATTERNS" while those entries matched no
+# document in the tree, which is an unchecked number wearing a reason.
+STATED_ONLY_WHERE_NOTHING_READS: dict[str, str] = {
+    "stacks_count": (
+        "the plural patterns in _CODE_COUNT_PATTERNS reach no document: the only "
+        "unfenced statements are '25 stack-aware verify suites' in the READMEs and "
+        "'25 stack guides' inside AGENTS.md's fenced tree, and the repository has "
+        "already RULED that neither is a statement of this count — see "
+        "test_scan_code_counts_ignores_singular_stack_phrases, which pins that "
+        "'stack-aware checks' and 'stack guides' count gates and docs rather than "
+        "stacks. Binding them would make a stack without a verify suite read as "
+        "drift. Reversing that ruling is a decision, not a patch, so the count "
+        "stays unchecked and says so here"
+    ),
+    "roles_count": (
+        "stated as '6 roles' / '6 ролей' inside the fenced repository trees of "
+        "AGENTS.md and both architecture.md files. Fences are stripped before "
+        "every scan on purpose — they hold illustrations, not claims — so this "
+        "count is reconciled by hand, never automatically. Already the standing "
+        "convention for this file: see the roles comment in _CODE_COUNT_PATTERNS"
+    ),
+    "review_agents_count": (
+        "no scanned document states it in any form. It is computed because "
+        "`harness/skills/review/agents/` is the honest source if a document ever "
+        "quotes it; until one does, this constant is written and read by nobody, "
+        "and saying so beats leaving a reader to discover it"
     ),
 }
 
@@ -161,6 +219,26 @@ def table_subject_keys() -> frozenset[str]:
     return frozenset(keys)
 
 
+def locate_table_columns(repo_root: Path) -> dict[str, list[str]]:
+    """Where each subject actually FINDS a column, as ``{key: [rel:line, ...]}``.
+
+    Separated from the drift scan so the registry can be checked against reality
+    instead of against itself. `scan_table_count_columns` returning `[]` says
+    "no stale cell", and a subject whose header matches nothing anywhere returns
+    exactly the same `[]` — which is how three of the first six subjects lived
+    as unfalsifiable machinery until a mutation exposed them. Every subject
+    reporting at least one location is the property that separates the two, and
+    it is asserted against the live tree rather than against a fixture, because
+    a fixture would prove only that the registry can match a document somebody
+    wrote for it.
+    """
+    found: dict[str, list[str]] = {}
+    for rel, line_no, _cells, columns in _walk_table_rows(repo_root, header_rows_only=True):
+        for _index, (key, _parts, _label) in columns.items():
+            found.setdefault(key, []).append(f"{rel}:{line_no}")
+    return found
+
+
 def _is_delimiter_row(cells: list[str]) -> bool:
     return bool(cells) and all(set(c) <= set("-: ") for c in cells if c)
 
@@ -189,17 +267,55 @@ def scan_table_count_columns(repo_root: Path, payload: dict[str, object]) -> lis
     decoration and IS read: "21 (full)" and "13 core + opt-in" claim 21 and 13
     exactly, and both were carrying stale numbers when this scan was written.
 
-    NAMED LIMITATION — WHAT THIS STILL CANNOT SEE. A count written as prose
-    inside a cell that is not itself a number stays invisible: AGENTS.md's
-    "Skills reference (12 core + brain conditional, 25+ official opt-in)" sat in
-    a link label, two counts wrong, and no column scan can reach it. Those are
-    the business of the prose patterns, and the split is deliberate — a scanner
-    that tried to read every number in every cell would report the SENAR
-    matrix's rule numbers as tool counts. Said here rather than left to be
-    discovered, because a scanner trusted past its reach is the defect this
-    module was written to end.
+    NAMED LIMITATIONS — WHAT THIS STILL CANNOT SEE.
+
+    * A count written as PROSE inside a cell that is not itself a number:
+      AGENTS.md's "Skills reference (12 core + brain conditional, 25+ official
+      opt-in)" carried two wrong counts inside a link label. Those belong to the
+      prose patterns, and the split is deliberate — a scanner that read every
+      number in every cell would report the SENAR matrix's rule numbers as tool
+      counts.
+    * A SINGULAR header. `Hook` names a column of hook names, `Hooks` a column
+      of how many, and only the plural is a subject here. A genuinely singular
+      count column ("Hook count: 22") would be missed; no document writes one,
+      and accepting the singular bound fourteen listing tables in
+      `docs/{en,ru}/hooks.md` to `hooks_count` for no gain.
+    * A number wearing a thousands separator, a link, or inline backticks:
+      `1,234`, `[152](x.md)` and `` `152` `` all fail the leading-digit test.
+
+    THE OVERLAP WITH THE PROSE PATTERNS IS DELIBERATE, NOT A PARTITION. A cell
+    like `| 21 hooks |` satisfies both this scan and `scan_code_counts`, and the
+    same drift is then reported twice in different words. They agree today and
+    nothing enforces that they keep agreeing, so whoever tunes one regex should
+    look at the other — the two are not divided by responsibility, only by how
+    they find the number.
+
+    Said here rather than left to be discovered, because a scanner trusted past
+    its reach is the defect this module was written to end.
     """
     messages: list[str] = []
+    for rel, line_no, cells, columns in _walk_table_rows(repo_root):
+        for i, (key, parts, label) in columns.items():
+            if i >= len(cells):
+                continue
+            messages += _check_cell(rel, line_no, cells[i], key, parts, label, payload)
+    return messages
+
+
+def _walk_table_rows(
+    repo_root: Path, *, header_rows_only: bool = False
+) -> Iterator[tuple[str, int, list[str], dict[int, tuple[str, tuple[str, ...], str]]]]:
+    """Yield ``(rel, line_no, cells, columns)`` for rows under a counted column.
+
+    ONE parser feeds both the drift scan and :func:`locate_table_columns`. Two
+    walks would be two opinions about where the columns are, and the check that
+    a subject really finds one would then be checking a second implementation
+    rather than the shipped one — which is the failure mode this whole module is
+    about, moved into the test harness.
+
+    With ``header_rows_only`` the yield happens once per table whose header
+    located at least one subject, carrying that header's line.
+    """
     for rel in (*CROSS_FILE_SCAN_TARGETS, *MCP_COUNT_EXTRA_TARGETS, *CODE_COUNT_EXTRA_TARGETS):
         path = repo_root / rel
         if not path.is_file():
@@ -220,14 +336,12 @@ def scan_table_count_columns(repo_root: Path, payload: dict[str, object]) -> lis
                     subject = _match_subject(cell)
                     if subject is not None:
                         columns[i] = subject
+                if header_rows_only and columns:
+                    yield rel, line_no, cells, columns
                 continue
-            if not columns or _is_delimiter_row(cells):
+            if header_rows_only or not columns or _is_delimiter_row(cells):
                 continue
-            for i, (key, parts, label) in columns.items():
-                if i >= len(cells):
-                    continue
-                messages += _check_cell(rel, line_no, cells[i], key, parts, label, payload)
-    return messages
+            yield rel, line_no, cells, columns
 
 
 def _check_cell(

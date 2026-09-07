@@ -388,8 +388,8 @@ directly still passes the existing scope enforcement, and the write-gate is
 untouched. The scoped list is recomputed each time the host fetches
 `list_tools` — i.e. on every server connect with a task already active.
 
-**Measured cost.** The full authored surface is 128 tools ≈ 51 KB of tool
-definitions (~12.8k estimated tokens; `tests/test_mcp_tool_token_cost.py` pins
+**Measured cost.** The full authored surface is 152 tools ≈ 62 KB of tool
+definitions (~15.9k estimated tokens; `tests/test_mcp_tool_token_cost.py` pins
 this and ratchets it). Under Claude Code deferred loading (`ENABLE_TOOL_SEARCH`)
 only tool names load eagerly and each description is truncated to 2 KB — a ratchet
 test keeps every TAUSIK description under that limit so none is silently cut, and

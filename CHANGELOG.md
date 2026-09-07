@@ -9,6 +9,74 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the same defect, found inside the fix for it (review FAIL)
+
+An L3 review of the change below returned FAIL, and it was right. Two blockers
+and one substantive finding, each reproduced before being accepted:
+
+- **CI was red on every clean checkout.** `skills_official_count` was derived
+  from `skills-official/registry.json`, and that directory is a separate,
+  gitignored repository — `git ls-files` returns nothing for it. A fresh clone
+  computed 0 against the committed 20, and `--check` compares exactly.
+  Reproduced with `git archive HEAD` into an empty directory plus the literal CI
+  command. Worse, a merely corrupted registry would have fed 0 to the auto-fixer,
+  which rewrites documents from constants: "20 official skills" would have become
+  "0 official skills" in three files. The counter now answers **None** when it
+  cannot count — absence is not zero — and `build_constants_doc` carries the
+  previously recorded value forward, exactly as it already did for `test_count`.
+- **ROADMAP.md was not regenerated** after the task closed, so the committed tree
+  failed `test_release_roadmap.py`. The entry below claimed a green full suite;
+  that run was taken before the close and did not describe what was committed.
+- **Three of six table subjects found no column anywhere.** `stacks_count`,
+  `roles_count` and `review_agents_count` matched no header in any of the
+  fourteen scanned files, and the meta-test scored them bound because it asked
+  whether the KEY was listed, never whether the pattern reached a document. A
+  mutation making those regexes unmatchable left the suite green. That is this
+  release's own thesis — a scanner that cannot find its subject reports success —
+  reproduced one level up, inside the fix for it.
+
+What the repair changed, beyond the numbers:
+
+- Subjects are matched by keyword in **every** entry now, not only the one the
+  defect was measured on, and **only in the plural**: `Hook` names a column of
+  hook names (fourteen such tables in `docs/{en,ru}/hooks.md`, all bound to
+  `hooks_count` by the first cut), `Hooks` names how many there are.
+- A subject must **locate a real column on the live tree**, asserted through the
+  same parser the scan uses. Speculative machinery can no longer be added.
+- An exemption must be **bound in prose against a real document**, or listed in
+  `STATED_ONLY_WHERE_NOTHING_READS` with its reason. Checking that properly
+  falsified three exemptions written an hour earlier: the stacks, roles and
+  review-agent prose patterns matched nothing at all. Roles are stated only
+  inside fenced repository trees, which every scan strips on purpose; review
+  agents are stated nowhere; stacks are stated as "25 stack-aware verify suites",
+  which an existing negative test rules is a count of gates rather than of stacks
+  — a first attempt to bind it reversed that ruling silently and was withdrawn
+  when the test said so. All three are now declared unread, with the reason and
+  the ruling named, rather than described as bound.
+- Four more live-but-unchecked numbers corrected and bound:
+  `docs/en/architecture.md` said "145 project tools + 7 brain tools = 128" — false
+  on the face of the line — while its RU twin said 152 and *was* checked;
+  `docs/{en,ru}/mcp.md` claimed "128 tools ≈ 51/52 KB" against a measured 152
+  tools / 62 KB / ~15.9k tokens; `docs/ru/agent-contract.md` said "149 tools
+  (145 project + 7 brain)"; `AGENTS.md`'s fenced repository tree still said 12
+  core skills, 25+ official and 5 roles.
+- The `codebase-rag` patterns added below were written from AGENTS.md's phrasing
+  and matched **nothing** in `docs/{en,ru}/mcp.md`, the canonical document they
+  were named for. Both wordings are covered now, proven by giving the constants
+  deliberately wrong values and requiring mcp.md to redden.
+- `main N count` is anchored on the optional server being named on the same line.
+  Unanchored, the auto-fixer rewrote "run the main 3 count validators" into "the
+  main 152 count validators" in a probe.
+- `tests/test_code_counts.py` exists: missing directory, corrupted JSON,
+  non-object root, uncountable `skills` value.
+
+Comments that were not true went with them: the "400-line cap" and "three-module
+split" in `doc_drift_scanners`, the "few dozen lines of headroom" in
+`doc_drift_tables` (it had 99), the stale coverage list in `doc_drift_common`,
+the ONLY-scope claims on two target lists the column scan now walks, and the
+`--skip-mcp-counts` help text, which had quietly grown to disable five more count
+families than it names.
+
 ### Fixed — a doc-count scanner that could not find its column was reporting success
 
 TAUSIK derives fourteen numbers from the tree (`gen_doc_constants.py`) and

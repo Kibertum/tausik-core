@@ -9,9 +9,10 @@ working unchanged.
 The regex table + line-preserving text helpers live in :mod:`doc_drift_common`;
 the auto-fixer (``write_cross_file_fixes``) lives in :mod:`doc_drift_fixes` and
 is re-exported here so `from doc_drift_scanners import write_cross_file_fixes`
-keeps resolving. The three-module split keeps each file under the 400-line cap
+keeps resolving. The four-module split keeps each file under the 500-line cap (decision #190)
 with no duplication and no circular import (scanners→common, scanners→fixes,
-fixes→common; fixes never imports scanners).
+scanners→tables, fixes→common, tables→common; neither fixes nor tables imports
+scanners).
 
 Covered drift classes:
   - version refs (`vX.Y` / `vX.Y.Z`) vs `tausik_version`
@@ -52,9 +53,10 @@ from doc_drift_common import (
 # imports only doc_drift_common, never this module.
 from doc_drift_fixes import write_cross_file_fixes
 
-# Re-exported for the same reason: the column scan lives beside its own subject
-# registry in doc_drift_tables, and callers keep importing it from here.
-from doc_drift_tables import TABLE_SUBJECT_EXEMPT, scan_table_count_columns, table_subject_keys
+# Re-exported because gen_doc_constants and repo_coherence import it from here;
+# the registry itself and its exemption maps are read only by their own tests,
+# which import doc_drift_tables directly rather than through this module.
+from doc_drift_tables import scan_table_count_columns
 
 __all__ = [
     "CROSS_FILE_SCAN_TARGETS",
@@ -62,8 +64,6 @@ __all__ = [
     "scan_py_version_constants",
     "scan_mcp_tool_counts",
     "scan_table_count_columns",
-    "table_subject_keys",
-    "TABLE_SUBJECT_EXEMPT",
     "scan_closed_list_enums",
     "scan_test_counts",
     "scan_code_counts",

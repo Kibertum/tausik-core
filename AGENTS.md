@@ -108,8 +108,8 @@ Canonical narrative + branching detail: **[docs/en/workflow.md](docs/en/workflow
 scripts/           Core Python (CLI → Service → Backend)
 docs/              Documentation (en/, ru/, research/)
 harness/           Shared resources for all IDEs (renamed from agents/ in v1.4 to avoid collision with .claude/agents/)
-  skills/          12 core skill definitions auto-deployed (+ /brain conditionally on Notion config) + 25+ official/vendor opt-in via --include-official
-  roles/           5 role profiles (developer, architect, qa, tech-writer, ui-ux)
+  skills/          13 core skills auto-deployed (+ /brain conditionally on Notion config) + 20 official skills opt-in via --include-official
+  roles/           6 roles (developer, architect, devops, qa, tech-writer, ui-ux)
   stacks/          25 stack guides (python, react, go, rust, ansible, terraform, ...)
   overrides/       IDE-specific overrides (claude/, cursor/, qwen/)
   claude/mcp/      tausik-project (145) + tausik-brain (7) = 152 main; optional codebase-rag +7 -> 159 total — see docs/en/mcp.md

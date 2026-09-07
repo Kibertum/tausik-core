@@ -309,12 +309,56 @@ def test_scan_mcp_counts_flags_pair_drift(tmp_path: Path):
         # names the count without the word "tools", at the foot of both mcp.md
         # files: line 7 read 152 and line 370 read 128, and neither was checked.
         (
-            "These are not part of the main 124 count - they belong elsewhere",
+            "These are not part of the main 124 count - the `codebase-rag` server owns them",
             "main count (excluding the optional server)",
         ),
         (
-            "Эти не входят в основной счёт 124 — они другого сервера",
+            "Эти не входят в основной счёт 124 — принадлежат `codebase-rag` серверу",
             "main count (excluding the optional server, ru)",
+        ),
+        # The SAME two rag claims in the wording docs/{en,ru}/mcp.md really uses.
+        # The AGENTS.md-shaped patterns above matched none of it, so the canonical
+        # MCP document was "covered" by patterns named after it and reaching none
+        # of its sentences — proven by giving the constants wrong values and
+        # watching mcp.md stay silent.
+        (
+            "> **Optional `codebase-rag` server** adds 9 tools (search_code, ...).",
+            "codebase-rag increment (mcp.md wording)",
+        ),
+        (
+            "> **Опциональный сервер `codebase-rag`** добавляет 9 инструментов.",
+            "codebase-rag increment (mcp.md wording)",
+        ),
+        (
+            "`codebase-rag` is separate; total with it is 124 tools.",
+            "grand total (mcp.md wording)",
+        ),
+        (
+            "`codebase-rag` отдельный; итого с ним 124 инструмента.",
+            "grand total (mcp.md wording)",
+        ),
+        # The sum with a tool-word BETWEEN the operands and the bold closing right
+        # after the digits. docs/en/architecture.md carried this line with a stale
+        # total while the auto-fixer rewrote its first operand four times.
+        (
+            "Total MCP surface: **93 project tools + 7 brain tools = 124** (optional)",
+            "main count (after = , tool-word between operands)",
+        ),
+        # The compliance matrix puts the count one table CELL over, so a pipe sits
+        # between the headline and the number.
+        (
+            "| MCP Coverage | 124 tools (93 project + 7 brain) | Hard |",
+            "MCP coverage headline",
+        ),
+        # mcp.md's measured-cost paragraph, twenty lines below a line already
+        # guarded, stale in both languages.
+        (
+            "**Measured cost.** The full authored surface is 124 tools ~ 62 KB",
+            "authored-surface count",
+        ),
+        (
+            "**Замер стоимости.** Полная авторская поверхность — 124 тула ~ 62 КБ",
+            "authored-surface count (ru)",
         ),
     ],
 )
@@ -332,9 +376,19 @@ def test_scan_mcp_counts_accepts_the_same_forms_when_right(tmp_path: Path):
         "| MCP coverage (100 инструментов) | ok |\nproject-scoped tools (93): tasks\n"
         "hosts get the same 100 tools and skills\n"
         "**Optional `codebase-rag` server:** +7 tools → **107** total\n"
-        "These are not part of the main 100 count - they belong elsewhere\n"
-        "Эти не входят в основной счёт 100 — они другого сервера\n"
+        "These are not part of the main 100 count - the `codebase-rag` server owns them\n"
+        "Эти не входят в основной счёт 100 — принадлежат `codebase-rag` серверу\n"
+        "> **Optional `codebase-rag` server** adds 7 tools; total with it is 107 tools.\n"
+        "> **Опциональный `codebase-rag`** добавляет 7 инструментов; итого с ним 107 инструментов.\n"
+        "Total MCP surface: **93 project tools + 7 brain tools = 100** (optional extra)\n"
+        "| MCP Coverage | 100 tools (93 project + 7 brain) | Hard |\n"
+        "The full authored surface is 100 tools ~ 40 KB of definitions\n"
+        "Полная авторская поверхность — 100 тулов ~ 40 КБ определений\n"
         # Unrelated prose must NOT be read as a count (the fixer rewrites matches).
+        # "the main N count" without the optional server named on the same line is
+        # ordinary prose: unanchored, the auto-fixer rewrote "run the main 3 count
+        # validators" into "the main 152 count validators" in a probe.
+        "Retry policy: run the main 3 count validators before falling back.\n"
         "The recipe = 3 tools and a rope.\n",
         encoding="utf-8",
     )
@@ -344,7 +398,13 @@ def test_scan_mcp_counts_accepts_the_same_forms_when_right(tmp_path: Path):
 def test_run_main_check_passes_with_skip_mcp_counts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """--skip-mcp-counts disables only the MCP-counts scan; version-ref check stays on."""
+    """--skip-mcp-counts drops the MCP scan AND the column scan grouped with it.
+
+    The column scan used to guard MCP tool counts alone, so the flag's name told
+    the whole truth; it now also covers hooks and core skills, and the flag turns
+    those off with it. Stated here and in the CLI help rather than left as a
+    surprise — the version-ref and test-count checks are what stay on.
+    """
     import gen_doc_constants as g
 
     repo = _seed_cross_file_repo(tmp_path)

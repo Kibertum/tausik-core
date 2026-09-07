@@ -11,7 +11,8 @@ Covered drift classes (see the scanners for the walking logic):
   - version refs (`vX.Y` / `vX.Y.Z`) vs `tausik_version`
   - MCP tool counts (`**N tools**`, `N project tools`, brain header, pair)
   - test counts (badge URL/label, `pytest suite (N tests)`, `**N tests**`)
-  - repo-state counts (stacks / hooks / review agents)
+  - repo-state counts (stacks / hooks / review agents / roles / skills)
+  - counted table columns (registry + scan live in :mod:`doc_drift_tables`)
 """
 
 from __future__ import annotations
@@ -63,7 +64,10 @@ VERSION_SCAN_TARGETS: tuple[str, ...] = (
 # These docs hardcode the MCP count and drifted silently (93/98/100/105 vs 123)
 # because they were outside CROSS_FILE_SCAN_TARGETS. They carry legitimate
 # historical version refs (e.g. "introduced in v1.4") that would false-positive
-# the version scanner, so they are guarded by the MCP-count scanner alone.
+# the version scanner, so among the PROSE scanners they are guarded by the
+# MCP-count one alone. `scan_table_count_columns` additionally walks this list
+# with every subject — a counted column is identified by its own header, so it
+# carries no risk of the version false-positive these lists exist to avoid.
 MCP_COUNT_EXTRA_TARGETS: tuple[str, ...] = (
     "docs/ru/agent-contract.md",
     "docs/ru/senar-compliance-matrix.md",
@@ -71,8 +75,10 @@ MCP_COUNT_EXTRA_TARGETS: tuple[str, ...] = (
     "docs/README.md",
 )
 
-# Extra files scanned for CODE-STATE counts ONLY (hooks / stacks / review agents /
-# roles), never version/test/MCP. hooks.md hardcodes the registered-hook count in
+# Extra files scanned, among the PROSE scanners, for CODE-STATE counts only
+# (hooks / stacks / review agents / roles / skills), never version/test/MCP.
+# `scan_table_count_columns` also walks this list with every subject, for the
+# reason given on MCP_COUNT_EXTRA_TARGETS above. hooks.md hardcodes the registered-hook count in
 # its header ("22 Python hooks + 1 shell") and drifted silently (a stale "20
 # Python hooks / = 21" sat there across 1.8) because it was outside every scan
 # list — scan_code_counts only walked CROSS_FILE_SCAN_TARGETS. It carries
@@ -128,10 +134,29 @@ _MCP_COUNT_PATTERNS: tuple[tuple[re.Pattern[str], str, str], ...] = (
         "mcp_main_tools",
         "main count (after =)",
     ),
+    # The same sum with a tool-word BETWEEN the operands and the bold closing
+    # right after the digits: "**145 project tools + 7 brain tools = 128**".
+    # docs/en/architecture.md carried that line with 128 while its RU twin said
+    # 152 and WAS checked — the auto-fixer rewrote the first operand of that
+    # very line four times (134 -> 136 -> 142 -> 145) walking past the wrong
+    # total three words later, because the pattern above needs a tool-word
+    # AFTER the number and this phrasing has none.
+    (
+        re.compile(
+            rf"brain\s+{_TOOL_WORD}\s*=\s*(\d+)(?=\*\*|\s)",
+            re.IGNORECASE,
+        ),
+        "mcp_main_tools",
+        "main count (after = , tool-word between operands)",
+    ),
     # "MCP coverage N tools" / "MCP coverage (N инструментов)" — the compliance
+    # matrices, and the same claim one table CELL over: docs/ru/agent-contract.md
+    # read "| MCP Coverage | 149 инструментов (145 project + 7 brain)" — 145+7 is
+    # 152 — and the pipe between headline and number kept every pattern away from
+    # the 149 while the pair beside it was checked and correct.
     # matrix headline, which carries no bold at all (same review).
     (
-        re.compile(rf"MCP coverage\s*\(?(\d+)\s+{_TOOL_WORD}\b", re.IGNORECASE),
+        re.compile(rf"MCP coverage\s*\|?\s*\(?(\d+)\s+{_TOOL_WORD}\b", re.IGNORECASE),
         "mcp_main_tools",
         "MCP coverage headline",
     ),
@@ -160,18 +185,42 @@ _MCP_COUNT_PATTERNS: tuple[tuple[re.Pattern[str], str, str], ...] = (
         "mcp_tools_with_optional_rag",
         "grand total with the optional server",
     ),
+    # The SAME two claims in the wording docs/{en,ru}/mcp.md actually uses.
+    # The two patterns above were written from AGENTS.md ("+7 tools -> **107**
+    # total") and match nothing in mcp.md ("adds 7 tools ... total with it is
+    # 159 tools" / "добавляет 7 инструментов ... итого с ним 159 инструментов"),
+    # so the canonical MCP document was covered by a pattern named after it and
+    # reaching none of it — the failure this whole change is about, committed
+    # once more while fixing it. Proven by giving the constants deliberately
+    # wrong values and watching mcp.md stay silent.
+    (
+        re.compile(
+            rf"codebase-rag`?[^\n]*?(?:adds|добавляет)\s+(\d+)\s+{_TOOL_WORD}", re.IGNORECASE
+        ),
+        "mcp_rag_tools",
+        "codebase-rag increment (mcp.md wording)",
+    ),
+    (
+        re.compile(rf"(?:total with it is|итого с ним)\s+(\d+)\s+{_TOOL_WORD}", re.IGNORECASE),
+        "mcp_tools_with_optional_rag",
+        "grand total (mcp.md wording)",
+    ),
     # "the main N count" / "основной счёт N" — the sentence that EXCLUDES the
     # optional server from the main total, at the foot of both mcp.md files.
     # It names the count without the word "tools", so every pattern above
     # walked past it: line 7 of the same file said 152 and line 370 said 128,
-    # both unchecked, one of them wrong (measured session #224).
+    # both unchecked, one of them wrong (measured session #224). Anchored by a
+    # lookahead on `codebase-rag` LATER ON THE SAME LINE, because "the main N
+    # count" on its own rewrites any prose that happens to say it — the
+    # auto-fixer turned "run the main 3 count validators" into "the main 152
+    # count validators" in a probe.
     (
-        re.compile(r"main\s+(\d+)\s+count\b", re.IGNORECASE),
+        re.compile(r"main\s+(\d+)\s+count\b(?=[^\n]*codebase-rag)", re.IGNORECASE),
         "mcp_main_tools",
         "main count (excluding the optional server)",
     ),
     (
-        re.compile(r"основно\w+\s+счёт\s+(\d+)", re.IGNORECASE),
+        re.compile(r"основно\w+\s+счёт\s+(\d+)(?=[^\n]*codebase-rag)", re.IGNORECASE),
         "mcp_main_tools",
         "main count (excluding the optional server, ru)",
     ),
@@ -182,6 +231,22 @@ _MCP_COUNT_PATTERNS: tuple[tuple[re.Pattern[str], str, str], ...] = (
         re.compile(rf"the same\s+(\d+)\s+{_TOOL_WORD}\b", re.IGNORECASE),
         "mcp_main_tools",
         "README prose count",
+    ),
+    # "The full authored surface is N tools" / "Полная авторская поверхность —
+    # N тулов" — mcp.md's measured-cost paragraph, twenty lines below the line
+    # this file already guards, and stale at 128 in BOTH languages. The RU noun
+    # is matched as `тул\w*` because the case changes with the number ("152
+    # тула", "128 тулов"), and a pattern pinned to one ending stops reading the
+    # line the moment somebody corrects the count it was written to guard.
+    (
+        re.compile(rf"authored surface is\s+(\d+)\s+{_TOOL_WORD}", re.IGNORECASE),
+        "mcp_main_tools",
+        "authored-surface count",
+    ),
+    (
+        re.compile(r"поверхность\s*[—-]?\s*(\d+)\s+тул\w*", re.IGNORECASE),
+        "mcp_main_tools",
+        "authored-surface count (ru)",
     ),
 )
 
@@ -299,7 +364,7 @@ _CODE_COUNT_PATTERNS: tuple[tuple[re.Pattern[str], str, str], ...] = (
         "core-skills count (ru)",
     ),
     (
-        re.compile(r"\b(\d+)\s+official[-\s](?:skills?|скилл\w*)", re.IGNORECASE),
+        re.compile(r"\b(\d+)\s+official[-\s](?:skills?|скилл\w*)\b", re.IGNORECASE),
         "skills_official_count",
         "official-skills count",
     ),

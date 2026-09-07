@@ -33,8 +33,17 @@ from doc_drift_common import (  # noqa: E402
     _MCP_COUNT_PAIR_PATTERN,
     _MCP_COUNT_PATTERNS,
 )
+from doc_drift_common import (  # noqa: E402
+    CODE_COUNT_EXTRA_TARGETS,
+    CROSS_FILE_SCAN_TARGETS,
+    MCP_COUNT_EXTRA_TARGETS,
+    _strip_fenced_blocks,
+)
 from doc_drift_tables import (  # noqa: E402
+    _TABLE_COUNT_SUBJECTS,
+    STATED_ONLY_WHERE_NOTHING_READS,
     TABLE_SUBJECT_EXEMPT,
+    locate_table_columns,
     scan_table_count_columns,
     table_subject_keys,
 )
@@ -164,10 +173,28 @@ def test_an_unscanned_file_is_not_read(tmp_path):
 
 
 def _prose_bound_keys() -> set[str]:
-    """Constants keys some prose pattern compares a document against."""
-    keys = {key for _pattern, key, _label in _MCP_COUNT_PATTERNS}
-    keys |= set(_MCP_COUNT_PAIR_PATTERN[1])
-    keys |= {key for _pattern, key, _label in _CODE_COUNT_PATTERNS}
+    """Constants keys whose prose pattern MATCHES at least one scanned document.
+
+    Not "is named in a pattern table" — that was the first version, and it
+    scored three constants as bound whose patterns matched nothing anywhere.
+    A reason that reads true and is not costs more than no reason, because it
+    stops the next person from looking.
+    """
+    texts = []
+    for rel in dict.fromkeys(
+        (*CROSS_FILE_SCAN_TARGETS, *MCP_COUNT_EXTRA_TARGETS, *CODE_COUNT_EXTRA_TARGETS)
+    ):
+        path = _REPO_ROOT / rel
+        if path.is_file():
+            texts.append(_strip_fenced_blocks(path.read_text(encoding="utf-8")))
+
+    keys: set[str] = set()
+    for pattern, key, _label in (*_MCP_COUNT_PATTERNS, *_CODE_COUNT_PATTERNS):
+        if any(pattern.search(text) for text in texts):
+            keys.add(key)
+    pair_re, pair_keys, _pair_label = _MCP_COUNT_PAIR_PATTERN
+    if any(pair_re.search(text) for text in texts):
+        keys |= set(pair_keys)
     # test_count has its own pattern table, whose entries carry a label instead
     # of a key because every one of them compares against the same constant.
     keys.add("test_count")
@@ -202,16 +229,105 @@ def test_an_exemption_states_a_reason_and_does_not_contradict_a_subject():
 
 
 @pytest.mark.parametrize("key", sorted(set(TABLE_SUBJECT_EXEMPT) - {"schema_version"}))
-def test_exempt_from_a_column_never_means_exempt_from_every_check(key):
+def test_exempt_from_a_column_is_bound_in_prose_or_declared_unread(key):
     """`schema_version` is the ONE constant no document quotes, and it is named.
 
-    Every other exemption says the count lives in prose rather than in a column;
-    this asserts that the prose really does check it, so "exempt" can never
-    quietly become "unchecked".
+    Every other exemption must either be reached by a prose pattern ON A REAL
+    DOCUMENT, or be listed in STATED_ONLY_WHERE_NOTHING_READS with its reason.
+    The first version of this test accepted "the key appears in a pattern table"
+    — and three exemptions passed it while their patterns matched nothing in the
+    tree, which is an unchecked number wearing a reason. Membership is cheap to
+    assert and easy to satisfy falsely; a live match is neither.
     """
+    if key in STATED_ONLY_WHERE_NOTHING_READS:
+        assert STATED_ONLY_WHERE_NOTHING_READS[key].strip(), f"{key} declared unread with no reason"
+        return
     assert key in _prose_bound_keys(), (
-        f"{key} is exempt from the column scan and bound by no prose pattern either"
+        f"{key} is exempt from the column scan, and its prose pattern matches no "
+        "scanned document — either bind it or declare it in "
+        "STATED_ONLY_WHERE_NOTHING_READS with the reason"
     )
+
+
+def test_nothing_is_declared_unread_while_something_actually_reads_it():
+    """NEGATIVE SCENARIO: the honest-gap map must not outlive the gap.
+
+    Left unchecked, a key would sit in STATED_ONLY_WHERE_NOTHING_READS long
+    after a document started quoting it, and the declaration would quietly
+    become the excuse that keeps the check off.
+    """
+    bound = _prose_bound_keys() | table_subject_keys()
+    stale = sorted(set(STATED_ONLY_WHERE_NOTHING_READS) & bound)
+    assert not stale, (
+        f"{stale} are declared unread but something now reads them — remove the "
+        "declaration and let the check stand"
+    )
+
+
+def test_every_subject_actually_finds_a_column_on_the_live_tree():
+    """The hole the FIRST repair left, one level under the one it closed.
+
+    The registry shipped six subjects; three of them — stacks, roles, review
+    agents — matched no header in any scanned file, and the meta-test above
+    scored them bound because it asked whether the KEY was listed. A mutation
+    making those three regexes unmatchable left the whole suite green: three of
+    six subjects were unfalsifiable machinery, which is the module's own thesis
+    ("a scanner that cannot find its column reports SUCCESS") committed inside
+    the fix for it. Asserted against the LIVE tree rather than a fixture,
+    because a fixture proves only that the registry can match a document written
+    for it.
+    """
+    located = locate_table_columns(_REPO_ROOT)
+    declared = {key for _pattern, key, _parts, _label in _TABLE_COUNT_SUBJECTS}
+    assert declared, "an empty registry finds nothing and would pass every quiet assertion"
+    missing = sorted(declared - set(located))
+    assert not missing, (
+        f"these subjects match no column anywhere in the scanned tree: {missing}. "
+        "Either the column exists under a header the pattern cannot read, or the "
+        "count lives in prose and belongs in TABLE_SUBJECT_EXEMPT with a reason."
+    )
+
+
+def test_a_singular_header_names_a_list_and_is_not_a_count(tmp_path):
+    """`Hook` is a column of names; `Hooks` is a column of how many.
+
+    Accepting the singular bound the fourteen per-hook listing tables in
+    `docs/{en,ru}/hooks.md` to `hooks_count`, and nothing broke only because
+    hook filenames do not start with a digit — luck standing in for a rule.
+    """
+    listing = "| Hook | When |\n|---|---|\n| 21 | always |\n"
+    _doc(tmp_path, listing, rel="README.md")
+    assert scan_table_count_columns(tmp_path, _PAYLOAD) == []
+
+    counted = "| Hooks | When |\n|---|---|\n| 21 | always |\n"
+    _doc(tmp_path, counted, rel="README.md")
+    assert len(scan_table_count_columns(tmp_path, _PAYLOAD)) == 1
+
+
+@pytest.mark.parametrize(
+    ("header", "label"),
+    [
+        ("Registered Hooks", "hook-count"),
+        ("Hooks (Claude Code)", "hook-count"),
+        ("Активные хуки", "hook-count"),
+        ("Core Skills", "core-skill-count"),
+        ("Скиллы в поставке", "core-skill-count"),
+        ("Main `tausik_*` tools (two servers)", "MCP tool-count"),
+    ],
+)
+def test_a_header_reworded_around_the_noun_is_still_found(tmp_path, header, label):
+    """The repair applied to every subject, not only to the one it was measured on.
+
+    The first cut converted the MCP subject to keyword matching and left the
+    other five anchored on the whole cell, so "Registered Hooks" and "Core
+    Skills" would have gone unread — the very defect being fixed, surviving in
+    five of six entries of the fix. Each spelling below is a rename somebody
+    could plausibly make to a column that exists today.
+    """
+    stale = {"hook-count": "21", "core-skill-count": "12", "MCP tool-count": "151"}[label]
+    _doc(tmp_path, f"| IDE | {header} |\n|---|---|\n| Claude Code | {stale} |\n", rel="README.md")
+    msgs = scan_table_count_columns(tmp_path, _PAYLOAD)
+    assert len(msgs) == 1 and label in msgs[0], msgs
 
 
 def test_the_live_tree_is_clean():
