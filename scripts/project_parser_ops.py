@@ -344,6 +344,19 @@ def add_hygiene(sub: argparse._SubParsersAction) -> None:
     Archived rows still exist (status stays 'done') but are hidden from
     `task list` unless `--include-archived` is passed.
     """
+    # ON DEMAND ONLY. A repository-wide review is expensive and earns its keep
+    # by being rare; wiring it into task closure would make it noise the agent
+    # scrolls past — the failure this lens exists to avoid, not to join.
+    c_p = sub.add_parser(
+        "coherence",
+        help="Repository-wide coherence material (on demand; collects, does not judge)",
+    )
+    c_p.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit the collected material as JSON for a model to judge.",
+    )
+
     h_p = sub.add_parser(
         "hygiene",
         help="Project hygiene operations (dry-run by default)",

@@ -9,6 +9,39 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — `tausik coherence`: the repository-wide question no gate was asking
+
+Reviewers look at a task and a diff; gates look at a file, a scope, or a pair of
+documents. Nobody asked whether the WHOLE still holds together after every part
+passed its own check — the only repository-wide gate was `class_surface`, and it
+is narrow and structural.
+
+WHAT THE MEASUREMENT CHANGED: this is not nine new detectors. Nine repository
+audits already existed, each with a clean `collect_*` interface, and each was
+run alone and only when somebody remembered. The whole was never assembled — not
+for lack of material, but for lack of an assembler. So the lens AGGREGATES the
+real producers instead of re-deriving their answers beside them, and what it
+adds is precisely what none of them had: ranking by risk, a volume ceiling, and
+an explicit statement of what was NOT examined.
+
+Collection is deterministic and model-free; the verdict belongs to a model
+reading that output (`tausik-coherence-judge`), the same split already accepted
+for the semantic memory lint. Mixing them would make the evidence as
+unrepeatable as the opinion. It runs ON DEMAND only — a repository review earns
+its keep by being rare, and hanging it on every closure would make it noise the
+agent learns to scroll past.
+
+The output is CANDIDATES. Filing stays a person's decision; a lens that opens
+its own tasks is grading its own homework.
+
+Two failure modes are held by tests rather than by intent. A lens that finds
+NOTHING on a repository where ten defects were found by hand is broken, not
+vindicated — so the calibration runs against the live tree and currently
+surfaces 7 findings, including the two classes this release met in person (322
+duplicate-test groups; 26 rotted and 18 never-existent closure citations). And a
+collector that dies must become a NAMED gap: swallowing it silently would report
+a cleaner repository than was measured, which is the mutation the suite kills.
+
 ### Added — code and documentation become entities in the same graph, and every edge says where it came from
 
 Tasks, decisions, memory and SPECs were already entities with edges. Two kinds
