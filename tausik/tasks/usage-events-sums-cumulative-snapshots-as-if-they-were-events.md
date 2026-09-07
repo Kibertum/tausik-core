@@ -1,7 +1,7 @@
 ---
 slug: usage-events-sums-cumulative-snapshots-as-if-they-were-events
 title: "Расход по usage_events завышен в 88 раз: складываются накопительные снимки, а половина строк пуста"
-status: planning
+status: active
 epic: landscape-2026-h2
 story: agent-output-discipline
 complexity: medium

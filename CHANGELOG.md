@@ -9,6 +9,35 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the framework never knew which model was running
+
+`hooks/session_metrics.py` puts its PARENT directory on `sys.path` but imports
+its own neighbours by bare name, and `scripts/hooks` lands on `sys.path` only
+when a hook is RUN as a script. Imported as `hooks.session_metrics` — which is
+exactly what `model_routing` does — the neighbours did not resolve, the caller's
+`except` turned the ImportError into a silent `None`, and every `task start`
+printed `active: unknown (no transcript readable)` while the transcript sat on
+disk naming `claude-opus-5`.
+
+- **Measured per module in its own interpreter.** Importing all 46 hooks in one
+  process is worthless as evidence: the first module that repairs `sys.path`
+  silently repairs every module imported after it, so the failures depend on
+  alphabetical order. One interpreter per module found five broken:
+  `_common`, `bash_cmd_scan`, `bash_firewall`, `pwsh_cmd_norm`,
+  `session_metrics`. All five now carry their own directory; 46 of 46 import.
+- **The model-mismatch warning works for the first time.** The banner now reads
+  `active: claude-opus-5` and produces a real verdict instead of "unknown". A
+  framework that promises quality on any model could not name the model.
+- **The check does not become a muffler.** With no transcript the banner still
+  says "unknown" rather than inventing a model, and `session_metrics.py` still
+  runs as a script — two live paths, and the fix had no right to cost the other.
+- **No `sys.path` entry may come from ambient input.** A new test resolves each
+  entry through the AST — following named constants, scoped to the function they
+  live in — and fails on anything derived from `getcwd`, `environ` or `argv`. It
+  deliberately does NOT demand `__file__` everywhere: some hooks add the
+  deployed profile's directory on purpose, and a rule that fires where nothing
+  breaks teaches people to ignore it.
+
 ### Fixed — every session's token count and cost were doubled
 
 `sum_usage_tokens` added `usage.iterations[*]` to the top-level counts, on the

@@ -8,6 +8,12 @@ import re
 import subprocess
 import sys
 
+# Own directory FIRST: the siblings below are imported by bare name, and
+# scripts/hooks reaches sys.path only when this file is RUN as a script. Imported
+# as `hooks.<name>` — which model_routing does — those names did not resolve, and
+# the caller's except swallowed the ImportError into a silent None.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 
 def cli_invocation() -> str:
     """Shell-correct spelling of the CLI, for remediation lines in hooks.
