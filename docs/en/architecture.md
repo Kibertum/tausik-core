@@ -106,7 +106,24 @@ inheritance, which a per-file cap structurally cannot see. Highlights:
 | `harness/claude/mcp/project/handlers_<domain>.py` | Handlers by domain: `task`, `session`, `status`, `knowledge`, `hierarchy`, `stack`, `role`, `verification`, `cq`, `skill`, `spec`, `adapt`. Each module exports `<DOMAIN>_HANDLERS`; `handlers.py` merges them into `_DISPATCH` |
 | `harness/claude/mcp/project/handlers_render.py` | Shared list rendering (`render_list`) — an empty result must read as "nothing here", not as an empty string |
 
-Total MCP surface: **145 project tools + 7 brain tools = 152** (optional `codebase-rag` adds 7 more; not part of the main count).
+Total MCP surface: **145 project tools + 7 brain tools = 152** (optional
+`codebase-rag` adds 7 more; not part of the main count).
+
+**THAT SURFACE IS PAID FOR ON EVERY TURN, AND THE PRICE DIFFERS BY HOST.** The
+MCP protocol sends every tool's name AND schema each turn unless the client
+defers schemas. Measured in session #229: the project server's serialized
+definitions are 56,108 bytes (~14,000 tokens); the names alone are 3,201 bytes
+(~800 tokens) — a 17.5x difference. Claude Code defers and pays the names, which
+was OBSERVED; a host without deferral pays the whole thing, which follows from
+the protocol and was not observed here.
+
+The figures above are for reading, not the source of truth: that is the
+`mcp_surface` ratchet in `tausik/gates.json`, which
+`tests/test_mcp_surface_ratchet.py` re-measures on every run and turns red on
+growth. It is done that way because the previous version of this number rotted
+in exactly this spot — the task filed 117 tools and 44,501 bytes in session #178,
+and by #229 it was 145 and 56,108: 24% and 26% of growth nobody noticed while the
+number lived in prose.
 
 ### Contextual chunk headers (codebase-rag)
 

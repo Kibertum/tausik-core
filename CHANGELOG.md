@@ -9,6 +9,28 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the MCP surface has a price, and a ratchet that re-measures it
+
+The MCP protocol sends every tool's name AND schema on each turn unless the
+client defers schemas. Measured on the live tree in session #229: 145 tools,
+56,108 bytes (~14,000 tokens) for the full surface against 3,201 bytes (~800
+tokens) for names alone — a 17.5x difference between a host that defers and one
+that does not. Claude Code defers, which was OBSERVED here; a host without
+deferral pays the whole surface, which follows from the protocol and was not
+observed here. Both figures are stated, and which is which.
+
+- **The number lives in a test, not in prose.** The task that filed this recorded
+  117 tools and 44,501 bytes in session #178. By #229 it was 145 and 56,108 — the
+  surface grew 24% and 26% and nobody noticed, because the number was written
+  down rather than re-measured. `tausik/gates.json` now carries an `mcp_surface`
+  ratchet (may shrink, may not grow) and `tests/test_mcp_surface_ratchet.py`
+  re-derives it on every run, including a test that the ratchet actually goes red.
+- **No free reduction exists, and that is measured.** 145 declared tools against
+  145 dispatch handlers, with the difference empty in both directions. Cutting
+  the surface means dropping a live capability, merging families or splitting the
+  server by area — a product decision (decision #339), not a chore this task may
+  make silently. No economy is claimed from a reduction that has not happened.
+
 ### Fixed — the model report named a model that was not running
 
 `LLM Usage by Model` aggregated the `posttool` slice of `usage_events`, where

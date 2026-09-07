@@ -92,5 +92,12 @@
       "groups": 322,
       "tests": 753
     }
+  },
+  "mcp_surface": {
+    "_comment": "Caps the MCP tool surface the server advertises. The MCP protocol sends every tool's name AND schema on each turn unless the CLIENT defers schemas, so the surface is a per-turn tax paid before a single useful call. Claude Code defers (observed: this session's tools arrive as names with schemas fetched on demand); a host without deferral pays the whole thing, and the two differ by 17.5x. Read by tests/test_mcp_surface_ratchet.py.",
+    "_baseline_comment": "RATCHET, may only shrink. These are the measurement of session #229, not a target: 145 tools and 56108 bytes. The task that filed this recorded 117 and 44501 in session #178 -- the surface grew 24% and 26% with nobody noticing, because the number lived in prose. A number in a document rots; a number a test re-measures cannot. Lower these when the surface actually shrinks; raising one is a decision to be argued, not a chore.",
+    "max_tools": 145,
+    "max_bytes": 56108,
+    "_host_note": "names-only cost is 3201 bytes (~800 tokens); full surface ~14027 tokens. The first is what THIS host pays and was observed; the second follows from the protocol and was not observed here."
   }
 }
