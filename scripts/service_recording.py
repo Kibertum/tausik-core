@@ -127,8 +127,13 @@ def record_cost_actual(be: "SQLiteBackend", slug: str, task: dict[str, Any]) -> 
         rollup = be.usage_events_cost_rollup_for_task(slug, since=since)
     except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         return ""
-    cost_actual = float(rollup.get("cost_usd") or 0.0)
-    tokens_actual = int(rollup.get("tokens_total") or 0)
+    # None all the way through: a task whose events carried no measurement gets
+    # NULL, not 0. `float(x or 0.0)` was the last place the absence was quietly
+    # converted into the claim that the work had been free.
+    raw_cost = rollup.get("cost_usd")
+    raw_tokens = rollup.get("tokens_total")
+    cost_actual = None if raw_cost is None else float(raw_cost)
+    tokens_actual = None if raw_tokens is None else int(raw_tokens)
     try:
         be.task_set_cost_actual(slug, cost_actual)
         be.task_set_tokens_actual(slug, tokens_actual)
@@ -137,8 +142,11 @@ def record_cost_actual(be: "SQLiteBackend", slug: str, task: dict[str, Any]) -> 
     cost_budget = task.get("cost_budget_usd")
     token_budget = task.get("token_budget")
     warns: list[str] = []
+    # An unmeasured cost cannot exceed a budget, and must not be read as being
+    # comfortably under one either. The budget simply has nothing to compare.
     if (
-        isinstance(cost_budget, (int, float))
+        cost_actual is not None
+        and isinstance(cost_budget, (int, float))
         and float(cost_budget) > 0
         and cost_actual > float(cost_budget) * 1.5
     ):
@@ -147,7 +155,8 @@ def record_cost_actual(be: "SQLiteBackend", slug: str, task: dict[str, Any]) -> 
             f"cost_budget_usd=${float(cost_budget):.4f} for '{slug}'."
         )
     if (
-        isinstance(token_budget, int)
+        tokens_actual is not None
+        and isinstance(token_budget, int)
         and token_budget > 0
         and tokens_actual > int(token_budget * 1.5)
     ):

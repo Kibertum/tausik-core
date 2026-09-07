@@ -219,31 +219,40 @@ def _warn_unpriced_once(model_id: str | None, tokens_total: int) -> None:
 
 def calculate_cost_usd(
     model_id: str | None,
-    tokens_input: int,
-    tokens_output: int,
+    tokens_input: int | None,
+    tokens_output: int | None,
     config: dict | None = None,
-) -> float:
-    """Compute USD cost for the given token counts. Returns 0.0 for unknown models.
+) -> float | None:
+    """USD cost for the given token counts, or None when it cannot be computed.
+
+    THREE ANSWERS, NOT TWO, and the third is why this changed. Previously an
+    unpriced model and a genuinely free one both returned 0.0, so "we do not
+    know what this cost" was stored as "this cost nothing" and nothing anywhere
+    could tell them apart. Measured before the change: 55,471 of 55,584 rows
+    carried a cost of exactly 0 and not one carried NULL.
+
+      * a priced model with measured tokens -> the number
+      * a priced model whose price really is 0 (`free`) -> 0.0, a measurement
+      * unmeasured tokens, or a model with no price -> None, an absence
 
     For an unknown Claude id the built-in table answers directly; only when it
     misses do we consult the project's `llm_pricing_usd_per_million` override
     (loading the effective config lazily if the caller didn't pass one), so the
-    hot Claude path never touches disk. A non-empty model that is still unpriced
-    after the override warns once — 0.0 is the recorded value, not the whole
-    story.
+    hot Claude path never touches disk.
     """
+    if tokens_input is None and tokens_output is None:
+        return None  # nothing was measured; there is no cost to compute
+    ti = tokens_input or 0
+    to = tokens_output or 0
     pricing = get_pricing(model_id, config=config)
     if pricing is None and config is None and model_id:
         # Table missed and the caller had no config in hand — give the project's
         # own pricing table a chance before declaring the model unpriced.
         pricing = get_pricing(model_id, config=_load_config_safe())
     if not pricing:
-        _warn_unpriced_once(model_id, tokens_input + tokens_output)
-        return 0.0
-    return round(
-        tokens_input * pricing["input"] / 1_000_000 + tokens_output * pricing["output"] / 1_000_000,
-        4,
-    )
+        _warn_unpriced_once(model_id, ti + to)
+        return None
+    return round(ti * pricing["input"] / 1_000_000 + to * pricing["output"] / 1_000_000, 4)
 
 
 def known_models() -> tuple[str, ...]:

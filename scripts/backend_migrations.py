@@ -37,6 +37,7 @@ from backend_migrations_v54 import MIGRATION_V54
 from backend_migrations_v55 import MIGRATION_V55
 from backend_migrations_v56 import MIGRATION_V56
 from backend_migrations_v57 import MIGRATION_V57
+from backend_migrations_v58 import MIGRATION_V58
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -419,6 +420,7 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     # DATA ONLY. SQL in backend_migrations_v57.py, a frozen literal like
     # v52/v56 rather than a read of the live schema.
     57: MIGRATION_V57,
+    58: MIGRATION_V58,
 }
 
 

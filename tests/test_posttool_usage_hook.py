@@ -105,15 +105,24 @@ class TestHappyPath:
         # 1000/1M*5 + 200/1M*25 = 0.005 + 0.005 = 0.01
         assert row["cost_usd"] == pytest.approx(0.01, rel=1e-3)
 
-    def test_empty_payload_still_records_event_with_zero_tokens(self, tmp_path):
+    def test_empty_payload_records_the_call_and_measures_nothing(self, tmp_path):
+        """The call happened, so the row is written and `tool_calls` counts it.
+        What the row must NOT do is claim a token count and a price: an empty
+        payload measured nothing, and nothing is NULL, not 0 (decision #334).
+
+        This test asserted 0 until session #231. That assertion is how 55,471
+        rows came to state that work had cost exactly $0.00.
+        """
         project_dir, db = _seed_project(tmp_path)
         result = _run_hook(project_dir, "")
         assert result.returncode == 0
         events = _read_events(db)
         assert len(events) == 1
         row = events[0]
-        assert row["tokens_total"] == 0
-        assert row["cost_usd"] == 0.0
+        assert row["tokens_total"] is None
+        assert row["tokens_input"] is None
+        assert row["tokens_output"] is None
+        assert row["cost_usd"] is None
         assert row["tool_calls"] == 1
         assert row["source"] == "posttool"
         assert row["tool_name"] is None
@@ -126,14 +135,15 @@ class TestNegativeScenarios:
     """A through E from the v14b-usage-events-auto-write AC."""
 
     def test_a_malformed_json_does_not_raise(self, tmp_path):
-        """A: malformed stdin → exit 0, row still written with zeros."""
+        """A: malformed stdin → exit 0, the call is recorded, nothing measured."""
         project_dir, db = _seed_project(tmp_path)
         result = _run_hook(project_dir, "not-json{{{")
         assert result.returncode == 0
         events = _read_events(db)
-        # Hook still writes a posttool row (the call happened); tokens=0.
+        # The row still lands (the call happened) but claims no measurement:
+        # an unparseable payload laundered into a 0 is a fabricated number.
         assert len(events) == 1
-        assert events[0]["tokens_total"] == 0
+        assert events[0]["tokens_total"] is None
         assert events[0]["source"] == "posttool"
 
     def test_b_no_active_task_writes_null_slug(self, tmp_path):
@@ -153,8 +163,12 @@ class TestNegativeScenarios:
         assert events[0]["task_slug"] is None
         assert events[0]["model_id"] == "claude-haiku-4-5"
 
-    def test_c_unknown_model_yields_zero_cost_and_warn(self, tmp_path):
-        """C: unknown model_id → cost=0 + stderr warning, no KeyError."""
+    def test_c_unknown_model_yields_absent_cost_and_warn(self, tmp_path):
+        """C: unknown model_id → cost ABSENT + stderr warning, no KeyError.
+
+        The tokens WERE measured (100/50 arrived in the payload) and are kept.
+        Only the price is unknown, and an unknown price is not a price of zero.
+        """
         project_dir, db = _seed_project(tmp_path)
         payload = {
             "tool_name": "Read",
@@ -168,7 +182,9 @@ class TestNegativeScenarios:
         events = _read_events(db)
         assert len(events) == 1
         assert events[0]["model_id"] == "claude-mystery-9-9"
-        assert events[0]["cost_usd"] == 0.0
+        assert events[0]["cost_usd"] is None
+        assert events[0]["tokens_input"] == 100
+        assert events[0]["tokens_output"] == 50
         # The unpriced-model warning is now owned by cost_pricing.calculate_cost_usd
         # (once per id, override-aware) rather than an inline posttool check.
         assert "no price for model 'claude-mystery-9-9'" in result.stderr

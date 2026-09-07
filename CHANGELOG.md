@@ -9,6 +9,47 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the telemetry said work had cost $0.00, 55,471 times
+
+The task was raised as "on another model, zeros get written". Measured on this
+project's own database before anything was designed, that premise was wrong in
+the direction that mattered: **the zeros were being written here, on this vendor,
+on this model.**
+
+    55,583 usage_events
+    55,288 (99.5%)  tokens_input=0, tokens_output=0, model_id=NULL
+    55,471          cost_usd=0 — and NOT ONE row carried NULL
+         0          tasks with cost_actual_usd > 0; 669 with exactly 0
+
+- **The cause was structural, not vendor-specific.** `_extract_usage` read
+  `tool_response.usage`, and a TOOL result has no usage — usage belongs to the
+  model's message. Bash (26,129 rows), Read (7,385), Edit (6,346), Grep, Write
+  and every MCP tool never carried it and never will. `Agent` is the only tool
+  that ever did, at 75 rows.
+- **Absence is now representable (schema v58).** `tokens_input`,
+  `tokens_output`, `tokens_total` and `cost_usd` are nullable, with their
+  non-negative CHECKs kept (`x IS NULL OR x >= 0`) — relaxing one constraint must
+  not quietly relax its neighbour. SQLite's `SUM` skips NULL and returns NULL
+  when every input is NULL, so a task with nothing measured now rolls up to "not
+  measured" without any consumer needing a special case.
+- **The migration rewrites only what it can prove**: `source='posttool'`, no
+  model, zero on both counts. A row that names a model and reports zero is a
+  MEASURED zero and is left alone — getting only one direction right would be the
+  same defect wearing the opposite sign.
+- **Extraction is adapters by payload shape.** Four known shapes are read; an
+  unknown one yields absence rather than zero, and so does a usage dict whose
+  token fields are missing or unreadable. A payload that genuinely says `0` is
+  still a measurement.
+- **"Free" and "unpriced" are now different answers.** `calculate_cost_usd`
+  returns `None` for a model with no price and `0.0` for one priced at zero;
+  before, both were `0.0` and nothing could tell them apart. `session_metrics`
+  no longer reports `cost_usd=0.0` for a transcript with no model, and the CLI
+  prints "cost NOT MEASURED" instead of `$0.00`.
+- **Budgets no longer read absence as headroom.** An unmeasured cost cannot
+  exceed a budget, and must not be treated as comfortably under one either — the
+  comparison is skipped, and `tasks.cost_actual_usd` is left NULL rather than set
+  to 0.
+
 ### Added — a gate that notices when a capability goes host-only
 
 The second promise of 1.9 is "higher development quality on ANY model", and

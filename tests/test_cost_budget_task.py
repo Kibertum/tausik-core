@@ -168,12 +168,16 @@ def _insert_usage_event(
 
 
 class TestRollupForTask:
-    def test_zero_events_returns_zeros(self, svc):
+    def test_no_events_is_absence_not_a_cost_of_zero(self, svc):
+        """A task with no usage events has not been measured. Reporting $0.00
+        here is the claim that the work was free, and it is how 669 tasks came
+        to carry cost_actual_usd = 0 while nothing had ever been observed."""
         roll = svc.be.usage_events_cost_rollup_for_task("nope")
         assert roll["task_slug"] == "nope"
         assert roll["event_count"] == 0
-        assert roll["tokens_total"] == 0
-        assert roll["cost_usd"] == 0.0
+        assert roll["measured_event_count"] == 0
+        assert roll["tokens_total"] is None
+        assert roll["cost_usd"] is None
 
     def test_sums_across_events_for_slug(self, svc):
         _seed_active_task(svc)
@@ -215,7 +219,10 @@ class TestRollupForTask:
             when="2026-05-07T12:00:00Z",
         )
         roll = svc.be.usage_events_cost_rollup_for_task("t1")
-        assert roll["cost_usd"] == 0.0
+        # The sister task's spend must not leak in, and the absence of this
+        # task's own events must not read as a measured zero.
+        assert roll["cost_usd"] is None
+        assert roll["event_count"] == 0
 
     def test_since_filter_excludes_pre_window(self, svc):
         _seed_active_task(svc)

@@ -51,8 +51,10 @@ class TestParseTranscriptModelHandling:
         assert m["model"] == "claude-opus-4-7"
         assert m["cost_usd"] > 0.0
 
-    def test_missing_model_returns_zero_cost_not_opus_rates(self, tmp_path, capsys):
-        """NEGATIVE: previously fell back to 'opus' rates; now returns 0.0 + stderr warn."""
+    def test_missing_model_returns_absent_cost_not_opus_rates(self, tmp_path, capsys):
+        """NEGATIVE: it once fell back to 'opus' rates, then to 0.0. Both were
+        wrong in the same way — a number nobody derived. Now the cost is ABSENT
+        and the tokens, which WERE observed, are kept."""
         sm = _import_module()
         path = _write_transcript(
             tmp_path,
@@ -65,12 +67,13 @@ class TestParseTranscriptModelHandling:
         )
         m = sm.parse_transcript(path)
         assert m["model"] == ""
-        assert m["cost_usd"] == 0.0
+        assert m["cost_usd"] is None
+        assert m["tokens_total"] == 1500, "the tokens were observed and must survive"
         captured = capsys.readouterr()
         assert "session_metrics" in captured.err
         assert "missing 'model'" in captured.err
 
-    def test_empty_model_string_returns_zero_cost(self, tmp_path):
+    def test_empty_model_string_returns_absent_cost(self, tmp_path):
         """NEGATIVE: empty string model is treated as missing, not as alias 'opus'."""
         sm = _import_module()
         path = _write_transcript(
@@ -85,7 +88,7 @@ class TestParseTranscriptModelHandling:
         )
         m = sm.parse_transcript(path)
         assert m["model"] == ""
-        assert m["cost_usd"] == 0.0
+        assert m["cost_usd"] is None
 
     def test_zero_tokens_no_warning_emitted(self, tmp_path, capsys):
         """If transcript is empty (no tokens), no warning fires — nothing was
@@ -94,7 +97,9 @@ class TestParseTranscriptModelHandling:
         sm = _import_module()
         path = _write_transcript(tmp_path, [])
         m = sm.parse_transcript(path)
-        assert m["cost_usd"] == 0.0
+        assert m["cost_usd"] is None
+        # 0 here is a real sum over an empty transcript, not a stand-in for the
+        # unknown: every row was read and none carried usage.
         assert m["tokens_total"] == 0
         captured = capsys.readouterr()
         assert "missing 'model'" not in captured.err

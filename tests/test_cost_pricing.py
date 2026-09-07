@@ -97,9 +97,10 @@ class TestExtendedContextSuffix:
         # 1M @ $5 + 100k @ $25 = $5.00 + $2.50 = $7.50
         assert cost == pytest.approx(7.5)
 
-    def test_calculate_cost_unknown_with_none_returns_zero(self):
-        # Negative: explicit None model id
-        assert calculate_cost_usd(None, 1000, 100) == 0.0
+    def test_calculate_cost_unknown_with_none_is_absent_not_zero(self):
+        """Negative: explicit None model id. There is no price to apply, so
+        there is no cost — which is not the same claim as a cost of zero."""
+        assert calculate_cost_usd(None, 1000, 100) is None
 
 
 # Module-level: G43 — None returned across two TestGetPricing/TestExtendedContextSuffix scenarios
@@ -152,18 +153,25 @@ def test_pricing_lookup_equivalence(lhs, rhs):
 @pytest.mark.parametrize(
     "model_id,input_tokens,output_tokens",
     [
-        pytest.param("unknown", 1_000_000, 1_000_000, id="unknown_model_returns_zero"),
-        pytest.param("opus", 0, 0, id="zero_tokens_returns_zero"),
+        pytest.param("unknown", 1_000_000, 1_000_000, id="unknown_model_is_absent"),
         pytest.param(
             "claude-mystery-9-9[1m]",
             1000,
             100,
-            id="calculate_cost_unknown_base_with_suffix_returns_zero",
+            id="unknown_base_with_suffix_is_absent",
         ),
     ],
 )
-def test_calculate_cost_zero(model_id, input_tokens, output_tokens):
-    assert calculate_cost_usd(model_id, input_tokens, output_tokens) == 0.0
+def test_calculate_cost_absent_when_unpriced(model_id, input_tokens, output_tokens):
+    """An unpriced model yields ABSENCE. It used to yield 0.0, and that is how
+    55,471 rows came to assert that work had been free."""
+    assert calculate_cost_usd(model_id, input_tokens, output_tokens) is None
+
+
+def test_a_priced_model_with_zero_tokens_really_does_cost_zero():
+    """The other direction, and the one that must not be lost: zero tokens on a
+    PRICED model is a measurement whose answer happens to be nought."""
+    assert calculate_cost_usd("opus", 0, 0) == 0.0
 
 
 class TestKnownModels:
@@ -358,23 +366,25 @@ class TestUnpricedWarning:
 
     def test_unpriced_model_warns_once(self, capsys):
         self._reset_warned()
-        assert calculate_cost_usd("glm-4.6", 1000, 500) == 0.0
+        assert calculate_cost_usd("glm-4.6", 1000, 500) is None
         first = capsys.readouterr().err
         assert "no price for model 'glm-4.6'" in first
         assert "unknown is not free" in first
         # Second call, same id → no repeat noise.
-        assert calculate_cost_usd("glm-4.6", 2000, 100) == 0.0
+        assert calculate_cost_usd("glm-4.6", 2000, 100) is None
         assert "glm-4.6" not in capsys.readouterr().err
 
     def test_zero_tokens_no_warning(self, capsys):
+        """Zero tokens on an unpriced model: still no price, so still absent —
+        but nothing was spent either, so the warning stays quiet."""
         self._reset_warned()
-        assert calculate_cost_usd("glm-4.6", 0, 0) == 0.0
+        assert calculate_cost_usd("glm-4.6", 0, 0) is None
         assert capsys.readouterr().err == ""
 
     def test_empty_model_no_warning(self, capsys):
         """NEGATIVE: nothing to price → no warning (distinct from an unpriced id)."""
         self._reset_warned()
-        assert calculate_cost_usd(None, 1000, 100) == 0.0
+        assert calculate_cost_usd(None, 1000, 100) is None
         assert capsys.readouterr().err == ""
 
     def test_priced_override_does_not_warn(self, capsys):
@@ -541,3 +551,22 @@ class TestMetricsNamesWhatItCannotPrice:
         assert ("$" in line.split("|")[-1]) is expect_dollars
         if not expect_dollars:
             assert "not priced" in line and "unmetered" in line
+
+
+class TestUnmeasuredIsNotZero:
+    """The distinction the whole task turns on, asserted in one place."""
+
+    def test_absent_tokens_yield_absent_cost_even_on_a_priced_model(self):
+        assert calculate_cost_usd("claude-opus-5", None, None) is None
+
+    def test_one_measured_side_is_still_a_measurement(self):
+        """Input measured, output missing. Half a measurement is not none of
+        one, and calling the missing half zero is a price nobody derived — but
+        the half that WAS measured still has a price."""
+        cost = calculate_cost_usd("claude-opus-5", 1_000_000, None)
+        assert cost is not None and cost > 0
+
+    def test_a_free_model_and_an_unpriced_model_are_told_apart(self):
+        cfg = {"llm_pricing_usd_per_million": {"ollama/llama3": 0.0}}
+        assert calculate_cost_usd("ollama/llama3", 1000, 500, config=cfg) == 0.0
+        assert calculate_cost_usd("ollama/other", 1000, 500, config=cfg) is None

@@ -206,18 +206,29 @@ class BackendQueriesUsageMixin:
         row = (
             self._q1(  # type: ignore[attr-defined]
                 "SELECT COUNT(*) AS event_count, "
-                "COALESCE(SUM(tokens_total), 0) AS tokens_total, "
-                "COALESCE(SUM(cost_usd), 0) AS cost_usd "
+                "SUM(CASE WHEN tokens_total IS NOT NULL OR cost_usd IS NOT NULL "
+                "THEN 1 ELSE 0 END) AS measured_event_count, "
+                "SUM(tokens_total) AS tokens_total, "
+                "SUM(cost_usd) AS cost_usd "
                 f"FROM usage_events WHERE {where_sql}",
                 tuple(params),
             )
             or {}
         )
+        # NO `COALESCE(..., 0)`. SUM returns NULL when every input is NULL, and
+        # that NULL is the answer: nothing about this task was measured. Folding
+        # it to 0 here is precisely how `tasks.cost_actual_usd` came to read
+        # $0.0000 on 669 tasks — a price nobody observed, presented as a fact.
+        # `measured_event_count` gives the denominator, so a caller can say
+        # "0 of 120 events carried a measurement" instead of guessing.
+        tokens = row.get("tokens_total")
+        cost = row.get("cost_usd")
         return {
             "task_slug": slug,
             "event_count": int(row.get("event_count") or 0),
-            "tokens_total": int(row.get("tokens_total") or 0),
-            "cost_usd": float(row.get("cost_usd") or 0.0),
+            "measured_event_count": int(row.get("measured_event_count") or 0),
+            "tokens_total": None if tokens is None else int(tokens),
+            "cost_usd": None if cost is None else float(cost),
         }
 
     def usage_events_cost_rollup_by_task(

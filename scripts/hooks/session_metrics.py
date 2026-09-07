@@ -105,17 +105,20 @@ def parse_transcript(path: str, tool_rows_out: list | None = None) -> dict:
 
     tokens_total = tokens_input + tokens_output
 
+    cost_usd: float | None
     if not model:
         # No silent Opus fallback — Sonnet/Haiku transcripts would be 5×–19×
-        # over-attributed. Emit a stderr warning (parity with posttool_usage)
-        # and report cost_usd=0.0 so downstream telemetry can flag the gap.
+        # over-attributed. And no 0.0 either: a cost that cannot be computed is
+        # ABSENT, not nought (decision #334). Reporting zero here is what let
+        # 55,471 rows claim work had been free; downstream now sees None and
+        # says "not measured" instead of printing a price nobody derived.
         if tokens_total > 0:
             print(
                 "session_metrics: transcript missing 'model' field; "
-                f"reporting cost_usd=0.0 for {tokens_total} tokens",
+                f"cost is NOT MEASURED for {tokens_total} tokens",
                 file=sys.stderr,
             )
-        cost_usd = 0.0
+        cost_usd = None
     else:
         cost_usd = calculate_cost_usd(model, tokens_input, tokens_output)
 
@@ -135,7 +138,7 @@ def parse_transcript(path: str, tool_rows_out: list | None = None) -> dict:
         "tokens_input": tokens_input,
         "tokens_output": tokens_output,
         "tokens_total": tokens_total,
-        "cost_usd": round(cost_usd, 4),
+        "cost_usd": None if cost_usd is None else round(cost_usd, 4),
         "tool_calls": tool_calls,
         "model": model,
         "messages": messages,
@@ -321,8 +324,13 @@ def main():
     tool_rows: list = []
     metrics = parse_transcript(path, tool_rows)
     output = write_metrics(metrics)
+    # `cost_usd` is None when it could not be computed — no model, or no price
+    # for the one named. Printed as words, never as $0.00: the whole point of
+    # storing absence is lost if the reader is shown a price anyway.
+    cost = metrics["cost_usd"]
+    cost_text = "cost NOT MEASURED" if cost is None else f"${cost:.2f}"
     print(
-        f"Metrics: {metrics['tokens_total']:,} tokens, ${metrics['cost_usd']:.2f}, "
+        f"Metrics: {metrics['tokens_total']:,} tokens, {cost_text}, "
         f"{metrics['tool_calls']} tool calls, model={metrics['model']}"
     )
     print(f"Written to: {output}")
