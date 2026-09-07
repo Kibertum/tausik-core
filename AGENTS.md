@@ -144,8 +144,8 @@ Three layers, strict separation: **CLI never touches DB. Service validates. Back
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #224 (active) | Branch: v1-9-wave | Version: 1.8.0
-Tasks: 1355/1543 done, 0 active, 1 blocked
+Session: none | Branch: v1-9-wave | Version: 1.8.0
+Tasks: 1357/1545 done, 0 active, 1 blocked
 Blocked: write-gate-reads-prose-arguments-as-redirections
 
 ### Memory tail
@@ -156,17 +156,17 @@ Context (5):
 - #580 Сверка качества SENAR 9.5 в смене #212: три подметания, ни одного нового действия — всё уже под реше
 - #481 Сверка SENAR 9.5 в #199: два детектора путают пример-заглушку со ссылкой, остальное здорово
 Decisions (5):
+- #335 РЕЕСТР ПРОВЕРОК ОБЯЗАН ИМЕТЬ ТЕСТ, ТРЕБУЮЩИЙ ЖИВОГО СОВПАДЕНИЯ НА КАЖДУЮ ЗАПИСЬ. Запись, не совпавшая ни с одним настоящ
+- #334 ВЕЛИЧИНА, КОТОРУЮ НЕЛЬЗЯ ИЗМЕРИТЬ ЗДЕСЬ, ДАЁТ ОТСУТСТВИЕ (None), А НЕ НОЛЬ, и потребитель сохраняет прежде записанное зн
 - #333 Дополнение к решению #332: SQLiteBackend 168→169 (+1, edges_touching_artifact). Метод добавлен ПОСЛЕ снятия предыдущего 
 - #332 class_surface baseline поднят под подложку графа артефактов: SQLiteBackend 159→168 (+9, GraphCrudMixin), ProjectService 
 - #331 class_surface baseline поднят под transaction(): SQLiteBackend 158→159 (+1, единственный новый публичный член — контекст
-- #330 class_surface baseline поднят под routing-matrix: SQLiteBackend 155→158 (+3: at_result_add/at_results_for/at_latest_outc
-- #329 class_surface baseline поднят под AT: SQLiteBackend 150→155 (+5: AtCrudMixin), ProjectService 134→140 (+6: AtMixin). Осо
 Conventions (5):
+- #638 Числовое совпадение — не привязка: смотри на СУЩЕСТВИТЕЛЬНОЕ после числа, прежде чем связывать его с
 - #634 Отчёты пользователю — на РУССКОМ и по существу, без пересказа проделанных шагов
 - #633 scope_paths задачи перечисляй по ИСТОЧНИКАМ и по обязательным для закрытия артефактам — иначе задача
 - #628 Прежде чем писать тест на поведение, ищи существующее покрытие — иначе растёт test_dedupe, а не защи
 - #627 Тест на параллелизм, который ЖДЁТ события от второй стороны, доказывает лишь обмен сигналами — запис
-- #624 Имя теста в доказательстве закрытия ЧИТАЙ из файла, а не пиши по памяти — и никаких глобов
 Dead ends (3):
 - #427 Храповик видимости считает рёбра резолвера САМ (basename_reachable_tests + top_level_imports + read_
 - #407 Дозаполнить 5722 существующие функции pytest ссылками на нормативные утверждения, чтобы они стали TC
