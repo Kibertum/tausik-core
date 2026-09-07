@@ -2,7 +2,7 @@
 
 # Хуки
 
-TAUSIK использует хуки Claude Code для автоматического контроля качества. Хуки перехватывают действия агента **до** и **после** выполнения — это шлюзы, не инструкции. **22 Python-хука + 1 shell `pre-commit`** идут с TAUSIK — всего 23 шлюза (v1.4 добавил `secret_scan.py`, `posttool_usage.py`, `tool_output_truncation_nudge.py`, `task_cost_budget_check.py`; 1.8 добавил `scope_write_gate.py` и `bash_write_gate.py`).
+TAUSIK использует хуки Claude Code для автоматического контроля качества. Хуки перехватывают действия агента **до** и **после** выполнения — это шлюзы, не инструкции. **23 Python-хука + 1 shell `pre-commit`** идут с TAUSIK — всего 24 шлюза (v1.4 добавил `secret_scan.py`, `posttool_usage.py`, `tool_output_truncation_nudge.py`, `task_cost_budget_check.py`; 1.8 добавил `scope_write_gate.py` и `bash_write_gate.py`; 1.9 добавил `read_ledger_gate.py`, выключенный по умолчанию).
 
 ## Что такое хуки
 

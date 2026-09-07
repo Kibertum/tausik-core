@@ -41,7 +41,7 @@
       ]
     }
   },
-  "hooks_count": 22,
+  "hooks_count": 23,
   "mcp_brain_tools": 7,
   "mcp_descriptions_hash": "33b6fe5b8b7f5bf3",
   "mcp_main_tools": 152,
@@ -55,5 +55,5 @@
   "skills_official_count": 20,
   "stacks_count": 25,
   "tausik_version": "1.8.0",
-  "test_count": 9488
+  "test_count": 9879
 }

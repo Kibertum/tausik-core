@@ -114,6 +114,20 @@ def generate_settings_qwen(
                 ],
             },
             {
+                # read-ledger: same mechanism as the Claude profile, and the
+                # parity test is the reason it is here rather than an
+                # afterthought. A guarantee that exists on one host and not
+                # another is exactly what this release refuses to ship.
+                "matcher": "Read",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("read_ledger_gate.py"),
+                        "timeout": 5,
+                    }
+                ],
+            },
+            {
                 # memory-route-gate: shell parity with bootstrap_hooks.py — a
                 # heredoc or a Set-Content writes what the Write path refuses.
                 "matcher": f"Write|Edit|MultiEdit|{SHELL_MATCHER}",

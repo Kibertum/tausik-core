@@ -135,7 +135,7 @@ TAUSIK создавался самим TAUSIK — каждая фича, реф�
 <summary>Сырые цифры</summary>
 
 - **152 MCP-инструментов** (145 project + 7 brain) — полный программный доступ к базе проекта.
-- **22 real-time-хука** — task gate, bash firewall, push gate, auto-format, drift detection, memory pre/post audit и другие.
+- **23 real-time-хука** — task gate, bash firewall, push gate, auto-format, drift detection, memory pre/post audit и другие.
 - **25 stack-aware verify-наборов** — pytest, ruff, mypy, tsc, eslint, cargo, go vet, phpstan, helm-lint, hadolint и прочие, по затронутым файлам.
 - **13 core-скиллов** разворачиваются автоматически (+ `/brain` после настройки); 20 official-скиллов по запросу через `bootstrap --include-official` или `tausik skill install <name>`.
 - **6 автоматических метрик**, **общий cross-project brain** (опционально, зеркало в Notion), **пакетное выполнение** (`/run plan.md`).
@@ -150,11 +150,11 @@ TAUSIK создавался самим TAUSIK — каждая фича, реф�
 
 | IDE | MCP-инструменты | Скиллы | Хуки | Статус |
 |---|---|---|---|---|
-| **Claude Code** | 152 | 13 core + по запросу | 22 (полностью) | First-class |
-| **Qwen Code** | 152 | 13 core + по запросу | 22 (паритет с Claude) | First-class |
+| **Claude Code** | 152 | 13 core + по запросу | 23 (полностью) | First-class |
+| **Qwen Code** | 152 | 13 core + по запросу | 23 (паритет с Claude) | First-class |
 | **Kilo Code** (+ [z.ai GLM](docs/ru/kilo-zai.md)) | 152 | 13 core + по запросу | — (гейты на task start/done) | First-class через MCP |
 | **Cursor** | 152 | 13 core + по запросу | — (гейты на task start/done) | Через MCP |
-| VSCode + Claude Extension | 152 | 13 core + по запросу | 22 | Прогнано E2E |
+| VSCode + Claude Extension | 152 | 13 core + по запросу | 23 | Прогнано E2E |
 | Windsurf / Codex-подобные | MCP + правила | зависит от хоста | специфично для хоста | Ожидается / вручную |
 
 Хуки — это real-time-рельсы (нет кода без задачи, bash-firewall, push gate) — работают в **Claude Code и Qwen Code**. Kilo, Cursor, Windsurf и другие MCP-хосты получают те же 152 инструмента и скиллы, с quality gates на `task start` и `task done`.

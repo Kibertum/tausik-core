@@ -136,7 +136,7 @@ Those are **suggestions** — text the agent reads and is free to ignore the mom
 <summary>Raw counts</summary>
 
 - **152 MCP tools** (145 project + 7 brain) — full programmatic access to the project database.
-- **22 real-time hooks** — task gate, bash firewall, push gate, auto-format, drift detection, memory pre/post audit, and more.
+- **23 real-time hooks** — task gate, bash firewall, push gate, auto-format, drift detection, memory pre/post audit, and more.
 - **25 stack-aware verify suites** — pytest, ruff, mypy, tsc, eslint, cargo, go vet, phpstan, helm-lint, hadolint, and others, scoped to the files you touched.
 - **13 core skills** auto-deployed (+ `/brain` once configured); 20 official skills opt-in via `bootstrap --include-official` or `tausik skill install <name>`.
 - **6 automatic metrics**, **cross-project shared brain** (optional, Notion-mirrored), **batch execution** (`/run plan.md`).
@@ -151,11 +151,11 @@ Multi-IDE by design, but we're honest about what's validated end-to-end.
 
 | IDE | MCP tools | Skills | Hooks | Status |
 |---|---|---|---|---|
-| **Claude Code** | 152 | 13 core + opt-in | 22 (full) | First-class |
-| **Qwen Code** | 152 | 13 core + opt-in | 22 (parity with Claude) | First-class |
+| **Claude Code** | 152 | 13 core + opt-in | 23 (full) | First-class |
+| **Qwen Code** | 152 | 13 core + opt-in | 23 (parity with Claude) | First-class |
 | **Kilo Code** (+ [z.ai GLM](docs/en/kilo-zai.md)) | 152 | 13 core + opt-in | — (gates at task start/done) | First-class via MCP |
 | **Cursor** | 152 | 13 core + opt-in | — (gates at task start/done) | Supported via MCP |
-| VSCode + Claude Extension | 152 | 13 core + opt-in | 22 | Tested E2E |
+| VSCode + Claude Extension | 152 | 13 core + opt-in | 23 | Tested E2E |
 | Windsurf / Codex-style | MCP + rules | host-dependent | host-specific | Expected / manual |
 
 Hooks — the real-time rails (no code without a task, bash firewall, push gate) — run in **Claude Code and Qwen Code**. Kilo, Cursor, Windsurf and other MCP hosts get the same 152 tools and skills, with quality gates applied at `task start` and `task done`.

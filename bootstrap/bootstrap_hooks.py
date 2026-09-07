@@ -122,6 +122,24 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 ],
             },
             {
+                # read-ledger: refuse a re-read of a file unchanged since it was
+                # read earlier in THIS session, inside a measured window.
+                # OFF BY DEFAULT — the hook exits immediately unless
+                # `read_ledger.enabled` is set in .tausik/config.json, so
+                # registering it here costs one process start and changes
+                # nothing until a project opts in. It is registered anyway
+                # because a mechanism that must be wired by hand at the moment
+                # someone wants it is a mechanism nobody turns on.
+                "matcher": "Read",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": hook_cmd("read_ledger_gate.py"),
+                        "timeout": 5,
+                    }
+                ],
+            },
+            {
                 # memory-route-gate: the shell tools are on the matcher because
                 # a heredoc (`cat >> ~/.claude/.../memory/x.md <<EOF`) or a
                 # `Set-Content` writes the exact content the Write path refuses.

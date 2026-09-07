@@ -9,6 +9,38 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — a read ledger: an unchanged file is not paid for twice (opt-in, off by default)
+
+A `PreToolUse` hook for `Read` refuses a re-read of a file that has not changed
+since it was read earlier in the SAME session, provided the earlier read is
+within a measured window. Everything about it was measured before it was built.
+
+- **The prize is named, not implied.** Read accounts for 370,213 of 17,896,506
+  tokens of context growth — 2.07%. So eliminating every read would save 2.07%,
+  and this mechanism targets ~0.49%. Most re-reading in this corpus never touches
+  the Read tool: 2,196 genuine file reads live inside Bash commands (`cat`,
+  `sed -n`, `head <file>`) with 604 avoidable repeats, about 3.1%. Covering those
+  would mean BLOCKING a call after parsing arbitrary shell, and this project has
+  an open owner-held defect showing shell parsing for gating misfires here. So
+  the hook covers what it can prove and states what it does not.
+- **The window is a number.** Gaps between repeats: Read median 4, p75 58, p90
+  187; Bash median 6, p75 37, p90 148. Twenty calls covers 69.4% and 65.6%.
+  Beyond it every read is allowed — content read 400 calls ago may have left the
+  context through compaction, and denying it would hand the agent an absence it
+  cannot detect. Every uncertainty resolves to ALLOW: no fingerprint, no prior
+  record, a changed file, a partial read, an unreadable config.
+- **mtime AND content hash, because each lies alone.** A checkout restores
+  identical bytes with a new mtime; a hash is too expensive above 2 MB. Same
+  size + same hash means unchanged; a hash on one side only is "not
+  demonstrated" and the read goes through.
+- **The saving is counted, never claimed.** Each refusal increments
+  `saved_reads` in the ledger, and `tausik metrics tokens` prints it when it is
+  non-zero. What a refused read WOULD have cost is not estimated — guessing it
+  would be the invention this report exists to stop.
+- **Registered on Claude and Qwen alike.** The parity test caught the gap: a
+  guarantee that exists on one host and not another is what this release refuses
+  to ship.
+
 ### Added — a byte cap on tool output, because a line count cannot see one long line
 
 The truncation nudge counted LINES with a threshold of 250. A minified file, JSON
