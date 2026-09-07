@@ -116,50 +116,61 @@ class BackendQueriesUsageMixin:
         ti, to, tt = int(tokens_input), int(tokens_output), int(tokens_total)
         tc = int(tool_calls)
         cu = float(cost_usd)
-        self._ex(  # type: ignore[attr-defined]
-            "INSERT INTO session_usage_metrics("
-            "session_id,tokens_input,tokens_output,tokens_total,cost_usd,tool_calls,model,recorded_at"
-            ") VALUES(?,?,?,?,?,?,?,?) "
-            "ON CONFLICT(session_id) DO UPDATE SET "
-            "tokens_input=excluded.tokens_input, "
-            "tokens_output=excluded.tokens_output, "
-            "tokens_total=excluded.tokens_total, "
-            "cost_usd=excluded.cost_usd, "
-            "tool_calls=excluded.tool_calls, "
-            "model=excluded.model, "
-            "recorded_at=excluded.recorded_at",
-            (
+        # ONE transaction, not three commits. `_ex` commits immediately unless an
+        # explicit transaction is open, so a crash between the DELETE and the
+        # INSERT left the authoritative table holding the session's total while
+        # the mirror had NO row for it — and an ENDED session never records again,
+        # so that gap was permanent. The by-model report reads the mirror, so such
+        # a session would silently vanish from the model breakdown.
+        # `transaction()` owns a transaction here and nests as a SAVEPOINT when a
+        # caller already opened one — which is why it is used instead of a
+        # hand-written `owns_tx = not self._in_tx` (its docstring explains what
+        # that hand-written form gets wrong).
+        with self.transaction():  # type: ignore[attr-defined]
+            self._ex(  # type: ignore[attr-defined]
+                "INSERT INTO session_usage_metrics("
+                "session_id,tokens_input,tokens_output,tokens_total,cost_usd,tool_calls,model,recorded_at"
+                ") VALUES(?,?,?,?,?,?,?,?) "
+                "ON CONFLICT(session_id) DO UPDATE SET "
+                "tokens_input=excluded.tokens_input, "
+                "tokens_output=excluded.tokens_output, "
+                "tokens_total=excluded.tokens_total, "
+                "cost_usd=excluded.cost_usd, "
+                "tool_calls=excluded.tool_calls, "
+                "model=excluded.model, "
+                "recorded_at=excluded.recorded_at",
+                (
+                    int(session_id),
+                    ti,
+                    to,
+                    tt,
+                    cu,
+                    tc,
+                    mid,
+                    now,
+                ),
+            )
+            # Replace, do not append: the mirror row carries the session's running
+            # total, so a second call would leave two rows claiming the same spend.
+            # Deleting first keeps the slice one-row-per-session without a schema
+            # change, and it is scoped by BOTH session_id and source so no other
+            # session and no `posttool` row can be touched.
+            self._ex(  # type: ignore[attr-defined]
+                "DELETE FROM usage_events WHERE session_id = ? AND source = 'session_record'",
+                (int(session_id),),
+            )
+            self.usage_event_append(
                 int(session_id),
+                None,
                 ti,
                 to,
                 tt,
                 cu,
                 tc,
                 mid,
-                now,
-            ),
-        )
-        # Replace, do not append: the mirror row carries the session's running
-        # total, so a second call would leave two rows claiming the same spend.
-        # Deleting first keeps the slice one-row-per-session without a schema
-        # change, and it is scoped by BOTH session_id and source so no other
-        # session and no `posttool` row can be touched.
-        self._ex(  # type: ignore[attr-defined]
-            "DELETE FROM usage_events WHERE session_id = ? AND source = 'session_record'",
-            (int(session_id),),
-        )
-        self.usage_event_append(
-            int(session_id),
-            None,
-            ti,
-            to,
-            tt,
-            cu,
-            tc,
-            mid,
-            "session_record",
-            recorded_at=now,
-        )
+                "session_record",
+                recorded_at=now,
+            )
 
     def usage_events_cost_rollup_for_task(
         self,

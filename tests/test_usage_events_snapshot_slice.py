@@ -29,6 +29,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from model_pinning import _cost_cell, format_model_usage_section  # noqa: E402
@@ -212,3 +214,117 @@ class TestAZeroCostIsNotAMeasurement:
         text = "\n".join(lines)
         assert "not priced" in text
         assert "$0.0000" not in text
+
+
+class TestTheThreeWritesAreOneTransaction:
+    """UPSERT, DELETE and INSERT describe ONE fact, so they commit together.
+
+    `SQLiteBackend._ex` commits immediately unless an explicit transaction is
+    open, and none was. A crash between the DELETE and the INSERT left
+    `session_usage_metrics` holding the session's total while `usage_events` had
+    no mirror row for it — and an ENDED session never records again, so the gap
+    was permanent. Since the by-model report reads the mirror, that session's
+    spend would have vanished from the model breakdown without a trace.
+
+    The window predates the replace: before it, the UPSERT committed and then the
+    INSERT could fail, losing the mirror the same way. The DELETE widened it; it
+    did not create it.
+    """
+
+    def test_a_failing_mirror_insert_leaves_no_partial_state(self, tmp_path, monkeypatch):
+        svc = _service(tmp_path)
+        try:
+            svc.session_start()
+            _record(svc, tokens_total=1250, cost_usd=0.0125)
+
+            def boom(*_a, **_kw):
+                raise RuntimeError("disk went away mid-write")
+
+            monkeypatch.setattr(type(svc.be), "usage_event_append", boom, raising=True)
+            with pytest.raises(RuntimeError):
+                _record(svc, tokens_total=9999, cost_usd=9.99)
+            monkeypatch.undo()
+
+            # The UPSERT must NOT have landed on its own...
+            authoritative = svc.be._q("SELECT * FROM session_usage_metrics")[0]
+            assert authoritative["tokens_total"] == 1250
+            # ...and the previous mirror must NOT have been deleted.
+            mirror = svc.be._q("SELECT * FROM usage_events WHERE source='session_record'")
+            assert len(mirror) == 1
+            assert mirror[0]["tokens_total"] == 1250
+        finally:
+            svc.be.close()
+
+    def test_the_call_nests_inside_a_transaction_the_caller_owns(self, tmp_path):
+        """A SAVEPOINT, not a commit: the outer writer still decides."""
+        svc = _service(tmp_path)
+        try:
+            svc.session_start()
+            svc.be.begin_tx()
+            _record(svc, tokens_total=4242, cost_usd=4.2)
+            assert svc.be._in_tx is True  # not committed out from under the caller
+            svc.be.rollback_tx()
+            assert svc.be._q("SELECT * FROM usage_events WHERE source='session_record'") == []
+            assert svc.be._q("SELECT * FROM session_usage_metrics") == []
+        finally:
+            svc.be.close()
+
+    def test_a_committed_outer_transaction_keeps_the_record(self, tmp_path):
+        """The other half of nesting: commit must carry the nested write through."""
+        svc = _service(tmp_path)
+        try:
+            svc.session_start()
+            svc.be.begin_tx()
+            _record(svc, tokens_total=4242, cost_usd=4.2)
+            svc.be.commit_tx()
+            mirror = svc.be._q("SELECT * FROM usage_events WHERE source='session_record'")
+            assert len(mirror) == 1
+            assert mirror[0]["tokens_total"] == 4242
+        finally:
+            svc.be.close()
+
+    def test_the_happy_path_still_leaves_exactly_one_mirror_row(self, tmp_path):
+        """The cure must not undo the replace it was added on top of."""
+        svc = _service(tmp_path)
+        try:
+            svc.session_start()
+            for _ in range(4):
+                _record(svc, tokens_total=1250, cost_usd=0.0125)
+            assert len(svc.be._q("SELECT * FROM usage_events WHERE source='session_record'")) == 1
+        finally:
+            svc.be.close()
+
+    def test_a_rollback_does_not_touch_other_sessions_or_sources(self, tmp_path, monkeypatch):
+        """Scope holds on the failing path too, not only on the happy one."""
+        svc = _service(tmp_path)
+        try:
+            svc.session_start()
+            _record(svc, tokens_total=100, cost_usd=0.1)
+            svc.metrics_log_usage_event(
+                tokens_input=5,
+                tokens_output=5,
+                tokens_total=10,
+                cost_usd=0.001,
+                tool_calls=1,
+                model="claude-opus-5",
+                task_slug=None,
+            )
+            svc.session_end()
+            svc.session_start()
+
+            def boom(*_a, **_kw):
+                raise RuntimeError("nope")
+
+            monkeypatch.setattr(type(svc.be), "usage_event_append", boom, raising=True)
+            with pytest.raises(RuntimeError):
+                _record(svc, tokens_total=777, cost_usd=7.7)
+            monkeypatch.undo()
+
+            by_source = {
+                r["source"]: r["n"]
+                for r in svc.be._q("SELECT source, COUNT(*) n FROM usage_events GROUP BY source")
+            }
+            assert by_source["session_record"] == 1  # the first session's, intact
+            assert by_source["manual"] == 1  # never in scope, never touched
+        finally:
+            svc.be.close()

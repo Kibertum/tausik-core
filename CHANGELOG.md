@@ -34,6 +34,14 @@ models instead of one.
   writer's docstring instructed. The 88x only appears when the whole table is
   summed, which nothing does.
 
+- **The session record is one transaction, not three commits.** `_ex` commits
+  immediately unless an explicit transaction is open, so a crash between the
+  DELETE and the INSERT left `session_usage_metrics` holding a session's total
+  while `usage_events` had no mirror row for it — and an ended session never
+  records again, so the gap was permanent and the by-model report would have
+  lost that session silently. The window predates the replace (the UPSERT
+  committed, then the INSERT could fail the same way); the DELETE widened it.
+
 ### Changed — a zero cost is no longer presented as a measurement
 
 - **`metrics cost` said every task was free.** It printed `0.0000` for all 706
