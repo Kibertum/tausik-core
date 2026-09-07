@@ -88,7 +88,7 @@
 | Structured logs (task_logs + FTS5) | ✅ Реализовано | `backend_schema.py` + `service_task.py:task_log` |
 | Fake test detection | ✅ Реализовано | `/review` — 10 паттернов |
 | Skills система | ✅ Реализовано | 13 core + 20 vendor (markitdown, zero-defect, skill-test и др. — opt-in; bundles via `tausik skill bundle`) — `service_skills.py` + `tausik-skills` репо |
-| Hooks система | ✅ Реализовано | 22 Python-хука + 1 shell pre-commit на PreToolUse / PostToolUse / SessionStart / SessionEnd / Stop / UserPromptSubmit |
+| Hooks система | ✅ Реализовано | 23 Python-хука + 1 shell pre-commit на PreToolUse / PostToolUse / SessionStart / SessionEnd / Stop / UserPromptSubmit |
 | Реестр ролей | ✅ Реализовано | Гибрид: SQLite-метаданные + `harness/roles/{role}.md` профиль; CRUD CLI + 6 MCP инструментов |
 | Doctor health check | ✅ Реализовано | `tausik doctor` + `tausik_doctor` MCP — 4 группы (venv/DB/MCP/skills) + drift |
 | Zero-defect skill | ✅ Реализовано | `/zero-defect` (Maestro-inspired): read-before-write, verify-before-claim, never-hallucinate-APIs |

@@ -9,6 +9,35 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the reconnaissance genre gets a role and a receipt contract
+
+Broad investigation for a few numbers burned the main window: probes written,
+run, read, discarded — and everything except the numbers stayed in the context
+forever. Measured on this project (session #230, 2026-09-04..09-07): 56 probe
+scripts and 75 runs of them, 258,677 characters, about 64,669 tokens — 5.7% of
+all tool-argument payload, input side only.
+
+- **The role already existed and was empty.** `tausik role show researcher`
+  printed a path to `harness/roles/researcher.md` that did not exist. The role
+  had reached the database through `seed_v18_roles`, which seeds from role
+  strings found in TASKS: one task typed "researcher" and a role appeared,
+  designed by nobody. It now has the profile, and the profile is the receipt
+  contract — no second `scout` role next to it, because two roles for one genre
+  is the duplication this project refuses.
+- **A receipt has five parts, and one of them is the unknown.** What was
+  measured, by what command, the numbers with their denominators, what they
+  REFUTE, and what remains unknown. The last is mandatory: a summary that hides
+  what the researcher could not measure is a silent error, and an unmeasurable
+  quantity is reported as "not measured", never as `0` (decision #334).
+- **The reverse gap is recorded too**: `ui-ux` ships a profile no task ever used,
+  so the seed never registered it. Both directions now have a test, because a
+  registry checked one way decays into a list of good intentions.
+- **The first version of that test invented a rule** — it demanded the profile's
+  heading match its file name and failed on `ui-ux.md`, whose heading is the
+  human title "UI/UX Developer". The heading is a title; the file name is the
+  slug. It now checks that the file name IS addressable, which is the property
+  the CLI actually depends on.
+
 ### Changed — "the directive reaches the agent once" was wrong, and the measurement says where it actually goes
 
 Answered by running things, not by reading them. The SessionStart hook injects

@@ -1,7 +1,7 @@
 ---
 slug: context-carries-over-between-sessions
 title: "Контекст переживает границу сессии: ядро памяти, релевантное извлечение, инструктированная компакция, учение с холодным стартом"
-status: active
+status: done
 epic: release-19-agent-effectiveness
 ---
 

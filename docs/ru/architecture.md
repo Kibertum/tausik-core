@@ -155,7 +155,7 @@ project-сервера весят 56 108 байт (порядка 14 000 ток�
 ```
 harness/
 ├── skills/           # 13 core auto-deployed + brain условно + 20 в skills-official/ (opt-in через --include-official)
-├── roles/            # 6 ролей (architect, developer, devops, qa, tech-writer, ui-ux)
+├── roles/            # 7 ролей (architect, developer, devops, qa, researcher, tech-writer, ui-ux)
 ├── stacks/           # Руководства по стекам
 ├── overrides/        # Переопределения для конкретных сред (claude/, cursor/, qwen/)
 ├── claude/mcp/       # MCP-серверы (project, brain, codebase-rag) — канон для ВСЕХ сред

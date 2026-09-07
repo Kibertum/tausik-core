@@ -49,11 +49,11 @@
   "mcp_rag_tools": 7,
   "mcp_tools_with_optional_rag": 159,
   "review_agents_count": 6,
-  "roles_count": 6,
+  "roles_count": 7,
   "schema_version": 1,
   "skills_core_count": 13,
   "skills_official_count": 20,
   "stacks_count": 25,
   "tausik_version": "1.8.0",
-  "test_count": 9879
+  "test_count": 9906
 }

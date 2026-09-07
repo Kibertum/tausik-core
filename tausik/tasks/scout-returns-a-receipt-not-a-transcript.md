@@ -1,7 +1,7 @@
 ---
 slug: scout-returns-a-receipt-not-a-transcript
 title: "Разведка жжёт основное окно: замеры и аудиты возвращают транскрипт вместо квитанции"
-status: planning
+status: done
 epic: release-19-agent-effectiveness
 story: context-carries-over-between-sessions
 complexity: medium
@@ -12,11 +12,31 @@ call_budget: null
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
-scope_paths: []
+relevant_files:
+  - "harness/roles/researcher.md"
+  - "tests/test_role_profiles_resolve.py"
+  - "docs/ru/architecture.md"
+  - "docs/en/architecture.md"
+  - "docs/_generated/constants.json"
+  - "docs/ru/senar-compliance-matrix.md"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
+  - ROADMAP.md
+  - CLAUDE.md
+  - AGENTS.md
+scope_paths:
+  - "harness/roles/"
+  - "tests/"
+  - "docs/ru/"
+  - "docs/en/"
+  - README.md
+  - README.ru.md
+  - "docs/_generated/"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-07T19:58:53Z"
 ---
 
 ## Goal
@@ -28,10 +48,24 @@ completed_at: null
 
 ## Acceptance Criteria
 
+ЗАМЕР СМЕНЫ #230 ПЕРЕД КОДОМ.
+
+(1) ЖАНР ИЗМЕРЕН НА СОБСТВЕННОМ КОРПУСЕ. За окно 2026-09-04..09-07 в основное окно написано 56 замерочных скриптов (170 315 символов) и сделано 75 вызовов, их запускающих (88 362 символа): суммарно 258 677 символов, около 64 669 токенов, то есть 5.7% всей нагрузки аргументов инструментов. ПОПРАВКА К ПЕРВОМУ СЧЁТУ: первая версия дала 18.9%, потому что считала ЛЮБОЙ скрипт в scratchpad; но 38 из них были ПРАВЯЩИМИ (пишут файлы), а не замерочными, и к разведке отношения не имеют. Разделено по признаку записи файла.
+
+(2) РОЛЬ ДЛЯ ЖАНРА УЖЕ ЕСТЬ, НО ОНА ПУСТАЯ. В базе зарегистрирована роль researcher (1 задача), и `role show researcher` называет файл .claude/harness/roles/researcher.md, КОТОРОГО НЕТ. Роль попала в базу из строки одной задачи через seed_v18_roles, а не была спроектирована. Обратное расхождение тоже есть: ui-ux имеет профиль на диске и в базе не зарегистрирован.
+
+AC1. ЖАНР ПОЛУЧАЕТ ПРОФИЛЬ, А НЕ НОВУЮ МАШИНЕРИЮ. Заполняется профиль СУЩЕСТВУЮЩЕЙ роли researcher. Вторая роль рядом (scout) НЕ заводится: две роли на один жанр есть то самое дублирование, которое проект отвергает, и граница задачи это прямо требует.
+AC2. КОНТРАКТ ВОЗВРАЩАЕМОГО ЕСТЬ КВИТАНЦИЯ, А НЕ ТРАНСКРИПТ. Профиль перечисляет обязательные части ответа: что мерялось, КАКОЙ КОМАНДОЙ, какие числа получены, что этими числами ОПРОВЕРГНУТО, и что осталось неизвестным. Транскрипт, полные выводы прогонов и дампы конфигов в ответ не входят.
+AC3 (НЕГАТИВНОЕ ТРЕБОВАНИЕ ЗАДАЧИ). Квитанция ОБЯЗАНА называть неизвестное явно, отдельным разделом. Сводка, из которой не видно, чего разведчик не смог измерить, есть тихая ошибка того класса, к которому у проекта нулевая терпимость. Проверяется тестом на содержимое профиля, а не обещанием.
+AC4. РАСХОЖДЕНИЕ РОЛЕЙ ЛОВИТСЯ В ОБЕ СТОРОНЫ. Тест утверждает: у каждого профиля на диске есть разбираемое содержимое с обязательными разделами, и ни одна роль, на которую ссылается вывод `role show`, не указывает на отсутствующий файл. Односторонняя проверка выродилась бы в список благих намерений (решение #335).
+AC5. СЧЁТЧИК РОЛЕЙ В ДОКУМЕНТАЦИИ ОБНОВЛЁН СОГЛАСОВАННО. count_roles считает файлы в harness/roles, документация цитирует это число, и обе языковые половины правятся ВМЕСТЕ — иначе повторится расхождение, уже случавшееся с «5 ролей» после появления devops.
+
 ## Plan
 
 ## Rollback
 
-Новая роль плюс форма ответа в документации ролей. Откат — удаление роли; существующие субагенты не трогаются.
+git revert <commit>. Добавляется файл профиля роли, тест и обновление счётчика ролей в документации. Поведение существующих ролей и субагентов не меняется; откат удаляет профиль и возвращает счётчик.
 
 ## Journal
+
+- 2026-09-07T19:58:07Z [implementation] — AC-1 (жанр получает профиль, а не новую машинерию): ✓ tests/test_role_profiles_resolve.py::TestNoSecondRoleForTheSameGenre::test_scout_was_not_added_alongside_researcher — заполнен профиль СУЩЕСТВУЮЩЕЙ роли researcher, файла scout.md нет AC-2 (контракт возвращаемого есть квитанция): ✓ tests/test_role_profiles_resolve.py::TestTheResearcherProfileCarriesTheReceiptContract::test_the_five_parts_of_a_receipt_are_all_named AC-2: ✓ tests/test_role_profiles_resolve.py::TestTheResearcherProfileCarriesTheReceiptContract::test_it_forbids_returning_the_transcript AC-3 (негативное требование — неизвестное названо явно): ✓ tests/test_role_profiles_resolve.py::TestTheResearcherProfileCarriesTheReceiptContract::test_naming_the_unknown_is_stated_as_mandatory — проверяется наличие раздела и запрет докладывать неизмеримое нулём AC-4 (расхождение ролей ловится в обе стороны): ✓ tests/test_role_profiles_resolve.py::TestEveryProfileIsAProfile::test_each_profile_declares_the_role_it_defines AC-4: ✓ tests/test_role_profiles_resolve.py::TestEveryProfileIsAProfile::test_every_file_name_is_addressable_as_a_slug AC-5 (счётчик ролей согласован): ✓ tests/test_gen_doc_constants.py::test_constants_json_file_matches_live и tests/test_doc_table_count_subjects.py::test_the_live_tree_is_clean — 6 -> 7 обновлено В ОБЕИХ языковых половинах architecture.md одновременно, constants.json перевыпущен Negative: требование «квитанция обязана называть неизвестное» проверяется ТЕКСТОМ профиля, а не обещанием: тест ищет раздел «Naming the unknown is not optional», формулировку «not measured» и прямой запрет «never 0». Отдельно проверено, что контракт ЗАПРЕЩАЕТ возвращать транскрипт поимённо (полный вывод команд, дампы конфигов, диффы) — иначе роль осталась бы благим пожеланием. Проверено и то, что мера, ради которой роль заведена, лежит В САМОМ профиле с датой смены: роль, обоснованная ничем, сползает во вкус. Domain: замер дважды поправил меня по ходу. Первый счёт дал 18.9% нагрузки на разведку, но считал ЛЮБОЙ скрипт в scratchpad, тогда как 38 из 94 были ПРАВЯЩИМИ (пишут файлы) и к разведке отношения не имеют; после разделения по признаку записи осталось 5.7%. Второй раз я едва не завёл роль scout рядом с researcher — пока не посмотрел список ролей и не увидел, что researcher уже зарегистрирован одной задачей, а профиля у него нет: то есть жанру нужен был не новый слот, а содержимое пустого. Попутно вскрылось обратное расхождение: ui-ux имеет профиль и не зарегистрирован, потому что seed_v18_roles сеет роли из строк, найденных в ЗАДАЧАХ, а не из профилей на диске.
