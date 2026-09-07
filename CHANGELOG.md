@@ -9,6 +9,28 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — `verify_handle_check` split while it still had room, not once the gate stopped it
+
+The module sat at 496 lines against a 500 cap. A review had advised splitting it
+in advance and nothing was filed, so the advice travelled from handover to
+handover instead. Four lines is less than one commented call takes.
+
+Splitting under the gate happens at the worst moment: the change is already
+written, the tests are already green, and the only thing anyone wants is the
+lines back — a neighbouring module lost an explanation that way, with the
+decision made on the remainder rather than on the merits. This release watched
+that happen again while closing an unrelated task, when `_common.py` crossed the
+cap mid-closure.
+
+The seam is the question each part answers, not an arbitrary cut.
+`verify_handle_rules` holds the three things a presented handle must survive —
+the signed document parses and verifies, live coverage matches what it claims,
+git agrees about what changed — and `verify_handle_check` keeps the order they
+run in, the refusal policy and the spend. `check_handle` and `redeem_handle` did
+not move: no caller and no test changed, and the diff is 4 inserted lines
+against 291 removed. Both files now have real headroom (209 and 321) rather than
+one of them having four lines.
+
 ### Fixed — the coverage lane measured a run that was partly failing, and said nothing about it
 
 `.github/workflows/test-coverage.yml` ran `pytest … || true` and never ran
