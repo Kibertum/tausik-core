@@ -9,6 +9,44 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — every session's token count and cost were doubled
+
+`sum_usage_tokens` added `usage.iterations[*]` to the top-level counts, on the
+belief that the list held only the extra server-side compaction passes. It holds
+ALL of them, the first one included: the top level is a VIEW of the list, equal
+to it at one iteration and equal to its FIRST entry at more than one. Adding the
+two counted every message twice.
+
+- **Measured, not estimated.** Across every transcript this project has — 23,836
+  messages carrying usage — 23,818 (99.92%) have exactly one iteration whose
+  fields repeat the top level character for character. The inflation was
+  1.9999x on input, 1.9999x on output. It reached `tokens_input`,
+  `tokens_output` and `cost_usd` in `session_usage_metrics`, which is what
+  `tausik metrics` reports as this project's LLM spend.
+- **The original intent is preserved.** Compaction passes are real and are
+  billed separately; the 7 multi-iteration messages in that corpus contribute
+  2,247 tokens that a top-level-only sum would miss, and they are still counted.
+  What stopped is counting the first pass twice.
+- **The fixtures were the reason nobody saw it.** The tests asserted
+  `{100, iterations:[35]} -> 135` — an invented shape that encoded the author's
+  assumption rather than the API's behaviour, and stayed green for exactly that
+  reason. They now use shapes taken from live responses, and a new test reads
+  the project's own transcripts and fails if the API's shape ever changes.
+- **An unreadable iteration list reports the top level, not zero.** The top
+  level is the first pass, so it is a floor on the truth; reporting 0 for a
+  message that plainly was not free would be worse.
+
+### Changed — the LLM usage total says how much of itself is on the old scale
+
+Historical rows are NOT rewritten: transcripts survive for only a fraction of
+the sessions, and rows predating the API's `iterations` field were never doubled
+at all, so halving blindly would corrupt rows that were already correct and
+correcting only the recoverable ones would put a third scale in one column.
+`tausik metrics` therefore names the superseded share — how many sessions, how
+many tokens, how many dollars — instead of folding it silently into one number.
+The boundary is a session id captured once (sessions only move forward), not a
+calendar date that rots on its own.
+
 ### Fixed — the token ledger measured another project, and called 2 tokens "the input"
 
 Release 1.9 intends to claim a token economy. The instrument that would produce

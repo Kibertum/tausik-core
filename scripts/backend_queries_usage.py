@@ -286,6 +286,23 @@ class BackendQueriesUsageMixin:
             "cost_usd, tool_calls, model, recorded_at "
             "FROM session_usage_metrics ORDER BY recorded_at DESC LIMIT 1"
         )
+        # How much of that total predates the token-arithmetic correction. The
+        # sum above spans two arithmetics and always will — the old rows cannot
+        # be recomputed (see LAST_SESSION_ON_SUPERSEDED_TOKEN_ARITHMETIC), so the
+        # only honest option left is to say how large the superseded share is.
+        # The count retires itself: once no row sits at or below the boundary it
+        # is 0 and the report stops mentioning it.
+        from token_accounting import LAST_SESSION_ON_SUPERSEDED_TOKEN_ARITHMETIC
+
+        superseded = (
+            self._q1(  # type: ignore[attr-defined]
+                "SELECT COUNT(*) AS n, COALESCE(SUM(tokens_total),0) AS tokens, "
+                "COALESCE(SUM(cost_usd),0) AS cost_usd "
+                "FROM session_usage_metrics WHERE session_id <= ?",
+                (LAST_SESSION_ON_SUPERSEDED_TOKEN_ARITHMETIC,),
+            )
+            or {}
+        )
         return {
             "sessions_with_usage": int(agg.get("sessions_with_usage") or 0),
             "tokens_input": int(agg.get("tokens_input") or 0),
@@ -294,6 +311,9 @@ class BackendQueriesUsageMixin:
             "cost_usd": round(float(agg.get("cost_usd") or 0.0), 4),
             "tool_calls": int(agg.get("tool_calls") or 0),
             "last_session": last,
+            "superseded_sessions": int(superseded.get("n") or 0),
+            "superseded_tokens": int(superseded.get("tokens") or 0),
+            "superseded_cost_usd": round(float(superseded.get("cost_usd") or 0.0), 4),
         }
 
 

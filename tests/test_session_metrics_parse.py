@@ -136,11 +136,18 @@ class TestParseTranscriptModelHandling:
 
 
 class TestParseTranscriptCompactionBilling:
-    """AC4 (l26-tokenizer-calibration): server-side compaction billed under
-    usage.iterations must be counted, not dropped by a top-level-only sum.
+    """Compaction billed under usage.iterations is counted ONCE, not twice.
+
+    This class used to assert `1000 + 300 = 1300`, on the belief that
+    `iterations` held only the extra passes. It holds ALL of them, the first
+    included, so the top level is a view of the list rather than a separate
+    quantity — and the old rule doubled every message. Measured over 23,836
+    live messages in session #227: 99.92% carry one iteration identical to the
+    top level, and the inflation was 1.9999x on tokens and therefore on cost.
     """
 
-    def test_iterations_are_added_to_top_level_tokens(self, tmp_path):
+    def test_a_lone_iteration_is_not_added_to_the_top_level(self, tmp_path):
+        """The shape that covers 99.92% of real messages."""
         sm = _import_module()
         path = _write_transcript(
             tmp_path,
@@ -151,16 +158,38 @@ class TestParseTranscriptCompactionBilling:
                     "usage": {
                         "input_tokens": 1000,
                         "output_tokens": 500,
-                        # Separately-billed compaction pass — omitted from the
-                        # top-level counts; a naive sum would report 1000/500.
-                        "iterations": [{"input_tokens": 300, "output_tokens": 100}],
+                        # The API repeats the message here; it is not an extra pass.
+                        "iterations": [{"input_tokens": 1000, "output_tokens": 500}],
                     },
                 }
             ],
         )
         m = sm.parse_transcript(path)
-        assert m["tokens_input"] == 1300
-        assert m["tokens_output"] == 600
+        assert (m["tokens_input"], m["tokens_output"]) == (1000, 500)
+        assert m["tokens_total"] == 1500  # 3000 under the superseded rule
+
+    def test_extra_compaction_passes_are_still_counted(self, tmp_path):
+        """The original intent survives: two passes bill for two passes."""
+        sm = _import_module()
+        path = _write_transcript(
+            tmp_path,
+            [
+                {
+                    "type": "assistant",
+                    "model": "claude-opus-4-8",
+                    "usage": {
+                        "input_tokens": 1000,
+                        "output_tokens": 500,
+                        "iterations": [
+                            {"input_tokens": 1000, "output_tokens": 500},
+                            {"input_tokens": 300, "output_tokens": 100},
+                        ],
+                    },
+                }
+            ],
+        )
+        m = sm.parse_transcript(path)
+        assert (m["tokens_input"], m["tokens_output"]) == (1300, 600)
         assert m["tokens_total"] == 1900
 
     def test_no_iterations_unchanged(self, tmp_path):

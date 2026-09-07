@@ -155,6 +155,20 @@ def _usage_lines(m: dict[str, Any]) -> list[str]:
         f"Sessions tracked: {usage['sessions_with_usage']}, "
         f"tokens: {usage['tokens_total']:,}, cost: ${usage['cost_usd']:.4f}",
     ]
+    # The total above spans two arithmetics: everything recorded before
+    # `sum_usage_tokens` was corrected counted every message twice (measured
+    # 1.9999x over 23,836 live messages). Those rows cannot be recomputed —
+    # transcripts survive for only a fraction of the sessions, and the ones
+    # predating the API's `iterations` field were never doubled at all — so the
+    # share is NAMED rather than silently folded in. Two scales in one column
+    # are tolerable only while the reader is told which is which.
+    superseded = int(usage.get("superseded_sessions") or 0)
+    if superseded:
+        out.append(
+            f"  of which {superseded} session(s) — {int(usage.get('superseded_tokens') or 0):,} "
+            f"tokens, ${float(usage.get('superseded_cost_usd') or 0.0):.4f} — were recorded by a "
+            "superseded arithmetic that counted each message twice (~2x inflated, not recomputable)"
+        )
     last = usage.get("last_session") or {}
     if last:
         out.append(
