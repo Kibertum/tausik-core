@@ -9,6 +9,32 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — "the directive reaches the agent once" was wrong, and the measurement says where it actually goes
+
+Answered by running things, not by reading them. The SessionStart hook injects
+7,263 bytes (~1,815 tokens) of context and does NOT carry the output-economy
+directive. The directive lives in the RULES FILE, and the harness supplies that
+file as project instructions in EVERY request — observable directly, since
+CLAUDE.md's content sits in this session's own system prompt hours in. Delivery
+is per-turn; what happens once is the WRITE. It survives compaction by
+construction, because rules are in the request prefix and compaction shortens the
+conversation history. Cost: ≤700 characters (~175 tokens) against a median
+per-call context of 276,702 — 0.06%, against a measured ceiling of about 2%
+saved, so it repays roughly thirty times over.
+
+- **What the measurement did find is now guarded.** All five generators that
+  write a rules file call `warn_output_mode_not_applied`; nothing stopped a
+  sixth from forgetting, and a silent generator would leave a user believing
+  compression is on while the existing file was preserved untouched. A test
+  reads the AST — a function that CALLS a body builder and WRITES the result
+  must also call the warning.
+- **The detector's first version checked a name, not a fact**, and reported the
+  body builder as a generator that had forgotten to warn, because its own name
+  appeared in its own source. It now matches calls, and the planted-module tests
+  make both directions fail on purpose.
+- **No second lever was introduced.** The directive and its 700-character cap
+  are unchanged, and a test asserts the SessionStart hook carries no second copy.
+
 ### Added — every economy lever this project ships must be DECIDED on by it
 
 TAUSIK claims "this framework is its own user" and shipped levers it had decided

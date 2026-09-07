@@ -1,7 +1,7 @@
 ---
 slug: agent-output-discipline
 title: "Дисциплина ответа агента: форма, крышки вывода и измеренная цена инъекции"
-status: active
+status: done
 epic: landscape-2026-h2
 ---
 
