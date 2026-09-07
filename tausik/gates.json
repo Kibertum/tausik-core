@@ -83,6 +83,10 @@
     "test_dedupe": {
       "test": "tests/test_gate_test_dedupe.py::test_growth_is_red_and_says_where",
       "violation": "one more test sharing an existing shape — the growth the ratchet exists to block; the proof drives it on the REAL repository measurement, because a synthetic fixture cannot produce a duplicate group across the actual test tree"
+    },
+    "cross_model_parity": {
+      "test": "tests/test_cross_model_parity_gate.py::TestTakingAHookAwayTurnsItRed::test_the_gate_blocks_when_that_happens",
+      "violation": "a hook present on one mechanism-bearing host and absent from another, with no declaration naming the difference - the shape in which a capability goes host-only quietly"
     }
   },
   "test_dedupe": {

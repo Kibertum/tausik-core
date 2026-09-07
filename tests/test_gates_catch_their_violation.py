@@ -251,6 +251,14 @@ EXCUSED: dict[str, tuple[str, str, str, str]] = {
         "test_growth_is_red_and_says_where",
         "test_the_gate_is_green_on_the_repo_it_landed_on",
     ),
+    "cross_model_parity": (
+        "the subject is what the REAL generators produce for each host, and a "
+        "synthetic fixture in this harness cannot produce a divergence between "
+        "two hosts' deployed payloads - only running both generators can",
+        "test_cross_model_parity_gate.py",
+        "test_the_gate_blocks_when_that_happens",
+        "test_the_gate_passes_on_the_live_tree",
+    ),
     "ruff": (
         "command gate: the verdict is the external tool's; the runner's red/green "
         "wiring and the anti-neutering guard are driven in their own modules",

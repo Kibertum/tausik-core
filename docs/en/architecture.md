@@ -228,7 +228,19 @@ and they wrote no `gate_runs` row — so nothing could prove a QG-2 gate had run
 **Scoped gates** — `(gate_config, files) -> (passed, output)`, run over the
 task's declared scope. Universal (always on): `filesize`, `class_surface`,
 `tdd_order`, `ruff`, `mypy`, `bandit`, `bootstrap_drift`, `memory_route`,
-`renar_drift_schema`, `renar_drift_provenance`.
+`renar_drift_schema`, `renar_drift_provenance`, `cross_model_parity`.
+
+`cross_model_parity` asks one question: did a capability go host-only without
+anyone saying so. It RUNS the real mechanism generators into a clean tree and
+compares hosts that share an extension point — Claude's hooks against Qwen's,
+plugins against plugins. There is no comparison ACROSS kinds: asking whether
+Claude is "missing" OpenCode's plugin is a question with no meaning. The gate does
+NOT demand sameness: Cursor has no extension point at all, so there is nothing for
+it to be equal to. What it demands is that a difference be NAMED, with a reason —
+and a declaration that no longer matches any live difference is refused as loudly
+as an undeclared difference (decision #335). It fires only on host-layer edits
+(`bootstrap/`, `scripts/hooks/`, `harness/opencode/`): a gate that asks every task
+about cross-model parity is a tax, and a tax gets switched off.
 
 `bootstrap_drift` checks all three links of the chain "edit → deploy → takes
 effect": `scripts/` against the deployed profile, `harness/` against its

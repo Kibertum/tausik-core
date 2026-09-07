@@ -9,6 +9,50 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — a gate that notices when a capability goes host-only
+
+The second promise of 1.9 is "higher development quality on ANY model", and
+nothing was checking it. A capability could land for one host and not another and
+no test, gate or document would say so.
+
+- **`cross_model_parity`**, scoped to the host layer (`bootstrap/`,
+  `scripts/hooks/`, `harness/opencode/`). It RUNS the real mechanism generators
+  into a clean tree and reads what landed — a list in the code of what each host
+  ought to get would record intent and drift from the deployment, the same drift
+  one level up (decision #335).
+- **Hosts are compared only with hosts that share an extension point.** OpenCode
+  enforces through a plugin, Claude through hook commands; asking whether
+  `tausik-qg0.js` is missing from Claude is a question with no meaning, and
+  answering it would have filled the gate with 23 false differences on day one.
+  Whether a host has an extension point at all is a separate statement, already
+  made by each host's enforcement notice and by `doctor`.
+- **It does not demand sameness.** Cursor has no extension point to be equal to.
+  What it demands is that a difference be NAMED, with a reason. A declaration that
+  matches no live difference is refused as loudly as an undeclared difference.
+- **Found by building it — the existing parity test could not see this.**
+  `test_bootstrap_hooks_parity` compared SCRIPT BASENAMES, so Claude and Qwen
+  looked identical at 23 hooks each. Six of those hooks are registered on
+  different MATCHERS: `task_done_verify.py` fires on four tool patterns under Qwen
+  and one under Claude, `task_call_counter.py` counts every tool under Qwen and
+  five under Claude, so the two hosts reach the session call budget at different
+  points on the same work. All four surviving differences are now declared with
+  their reasons; the two `""`/`*` spellings of "every tool" are normalised, since
+  a gate whose output is mostly noise is one nobody reads.
+- **The builder map cannot go stale.** Teach bootstrap to deploy hooks for Cursor
+  and forget to tell the gate, and the deployed profile — an independent witness —
+  makes it red rather than leaving Cursor silently uncovered.
+
+### Known — four host registries disagree, and it is now pinned
+
+`bootstrap_config.IDE_DIRS` and `ide_utils.IDE_REGISTRY` know seven hosts;
+`skill_profile_detect.VALID_IDES` knows four (claude, codex, cursor, qwen) and
+`providers` knows a different four (claude, cursor, kilo, qwen). The live
+consequence, verified: `tausik config set ide_profile kilo` is refused as an
+unknown IDE for a host bootstrap fully scaffolds, and the same holds for opencode.
+Collapsing the registries is `four-ide-registries-collapse-into-one`, deferred to
+1.10. Until then a test pins the exact divergence, so it can neither widen nor
+quietly disappear unnoticed.
+
 ### Fixed — two of five hosts were told their rules were enforced, and they were not
 
 Bootstrap handed every host the same rules text, opening with "Quality gates

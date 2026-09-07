@@ -394,4 +394,30 @@ _SCOPED: tuple[GateSpec, ...] = (
             "file_extensions": [".md"],
         },
     ),
+    GateSpec(
+        name="cross_model_parity",
+        prevents=(
+            "A capability lands for one host and not another with nobody saying so — "
+            "the second promise of 1.9 ('higher quality on ANY model') quietly "
+            "becoming a promise about Claude. "
+        ),
+        phase=PHASE_SCOPED,
+        impl="gate_cross_model_parity:run_cross_model_parity_gate",
+        default_config={
+            "enabled": True,
+            "severity": "block",
+            "trigger": ["task-done", "commit"],
+            "command": None,
+            "description": "Differences between hosts sharing an extension point must be declared",
+            # Scoped to the host layer on purpose. A gate that asks every task about
+            # cross-host parity is a tax, and a tax gets switched off; this one only
+            # has an opinion when bootstrap/ or scripts/hooks/ changed.
+            #
+            # It does NOT require sameness — Cursor has no extension point to be
+            # equal to. It requires a difference to be NAMED, with a reason, and it
+            # refuses a declaration that no longer matches anything live (decision
+            # #335 both ways).
+            "file_extensions": [".py", ".js", ".json"],
+        },
+    ),
 )

@@ -262,6 +262,14 @@ module = [
     "bootstrap_venv",
     "bootstrap_check",
     "bootstrap_config",
+    # Reached from scripts/host_mechanisms.py after a runtime sys.path.insert into
+    # bootstrap/: the cross-model parity gate has to RUN the real generators to see
+    # what each host gets, and a list of what they ought to get is the defect it
+    # exists against. The import is unresolvable to mypy; the modules are checked
+    # when bootstrap/ is checked.
+    "bootstrap_generate",
+    "bootstrap_qwen",
+    "bootstrap_opencode",
     "tools",
     "hook_supervision",
     "token_rows",
