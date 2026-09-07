@@ -1,8 +1,12 @@
 **English** | [Русский](/ru/docs/senar-compliance-matrix)
 
-# SENAR v1.5 Core — Compliance Matrix
+# SENAR v1.3 Core — Compliance Matrix
 
-**Date:** 2026-06-13 | **Auditors:** 6+ independent review cycles | **Framework:** TAUSIK v1.7.0
+**Claimed edition: SENAR v1.3 Core** (owner's decision #336). Later editions are in preparation and are **not** claimed by TAUSIK anywhere.
+
+**Assessment date:** 2026-06-13 | **Auditors:** 6+ independent review cycles | **Framework at assessment:** TAUSIK v1.7.0
+
+> **What the rows below are, and what they are not.** Each row states a mechanism that exists in this repository and names the code that implements it — those statements are checkable here and were checked. The 35 rows were assembled on 2026-06-13 against a **later, still-moving draft** of the standard, and this document previously closed by asserting conformance to that draft. It no longer does: the normative text is not vendored into this tree, so a conformance percentage against the claimed edition **cannot be computed here**, and an uncomputable figure is reported as absent rather than carried over from a different rubric (decision #334). The re-assessment against v1.3 is task `senar-14-conformance-reassessment-and-self-check`; until it closes, read this page as *what is implemented*, not as *a scored conformance claim*.
 
 ## Quality Gates
 
@@ -99,4 +103,4 @@
 | Explorations (3) | 3 | 0 | 0 | **100%** |
 | **Total (35)** | **35** | **0** | **0** | **100%** |
 
-**SENAR v1.5 Core compliance: 100%.** All gaps closed.
+**Claimed edition: SENAR v1.3 Core.** The scores above count the mechanisms this repository implements against the rubric used on the assessment date, which was a later draft than the claimed edition. They are therefore **not** a conformance score for v1.3: that number is *not measured here* and is deliberately left unstated rather than inherited. Producing it is `senar-14-conformance-reassessment-and-self-check`.

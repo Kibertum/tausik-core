@@ -9,6 +9,38 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the product claimed three SENAR editions at once
+
+TAUSIK asserted three different editions of the standard it implements,
+simultaneously: v1.3 in `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`, `QWEN.md`
+and the bootstrap templates that generate them; **v1.5** in both compliance
+matrices, which closed with "compliance: 100%, all gaps closed"; and no edition
+at all in either README. The owner's decision: **TAUSIK claims SENAR v1.3
+Core**. Later editions are in preparation and are claimed nowhere.
+
+- **Nine claim sites, not three.** The filing named three; measuring the live
+  tree found nine, including `docs/ru/agent-contract.md`, whose heading
+  "SENAR Compliance (v1.3 Core)" the first search missed because a word sits
+  between the standard's name and the number.
+- **The matrices stopped claiming v1.5 and did not inherit a percentage.** Their
+  35 rows were assessed against a later, still-moving draft; the normative text
+  is not vendored into this tree, so a conformance score for the claimed edition
+  **cannot be computed here** and is now reported as absent rather than carried
+  over from a different rubric. Producing it is a separate, named task.
+- **A new guard, deliberately not part of the version-ref scanner.** `SENAR`
+  sits in `_FOREIGN_VERSION_PREFIXES` on purpose — a foreign standard must not
+  be forced to version in step with TAUSIK — so consistency of the *claimed*
+  edition is a separate mechanism (`scripts/senar_version_claim.py`). It scans
+  the published surface rather than checking a closed list, so a version named
+  in a NEW file is caught.
+- **A claim, a citation and a rule number share one spelling.** `SENAR v1.3
+  Core` claims an edition; `SENAR 1.4 §8.6(e)` cites where a requirement was
+  phrased and may legitimately name another edition; `SENAR Rule 9.1` and
+  `SENAR 9.2` are chapters and not editions at all. The first draft of the
+  scanner read all 57 mentions as editions and would have reddened on forty
+  live lines. The genuinely ambiguous fourth shape — a bare `SENAR 1.x` with no
+  `v`, no `Core` and no `§` — is refused with a remedy rather than guessed.
+
 ### Fixed — the same defect, found inside the fix for it (review FAIL)
 
 An L3 review of the change below returned FAIL, and it was right. Two blockers

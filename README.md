@@ -180,7 +180,9 @@ Bootstrap auto-detects your stack and enables matching gates; the project name c
 
 ## Methodology
 
-TAUSIK is the reference implementation of [SENAR](https://senar.tech) ([GitHub](https://github.com/Kibertum/SENAR)) — an open engineering standard for AI-assisted development. The gates, sessions, metrics and verification checklists all come from the spec; you don't have to read it to use the framework.
+TAUSIK is the reference implementation of [SENAR v1.3 Core](https://senar.tech) ([GitHub](https://github.com/Kibertum/SENAR)) — an open engineering standard for AI-assisted development. The gates, sessions, metrics and verification checklists all come from the spec; you don't have to read it to use the framework.
+
+**TAUSIK claims SENAR v1.3 Core** — that edition and no other. Later editions are in preparation and are not claimed here or anywhere else in the project — a conformance claim to a standard that is still moving is exactly the kind of statement this framework exists to refuse. Every place that names the edition is checked against one constant by `tests/test_senar_version_claim.py`.
 
 **[More about SENAR →](docs/en/senar.md)**
 
