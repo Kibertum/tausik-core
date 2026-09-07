@@ -245,8 +245,16 @@ class TestHookFailOpenEmits:
         return project_dir, db, str(target)
 
     def test_task_gate_fail_open_emits(self, tmp_path):
+        """Since 1.9 this counts an EXPLICITLY REQUESTED bypass, not a default.
+
+        The row means the same thing it always did — enforcement was dropped on
+        a DB error and must stay countable — but reaching it now takes asking
+        for it, which is the whole point of the flip.
+        """
         project_dir, db, target = self._setup(tmp_path)
-        result = _run_hook("task_gate.py", project_dir, target)
+        result = _run_hook(
+            "task_gate.py", project_dir, target, extra_env={"TAUSIK_HOOK_FAIL_OPEN": "1"}
+        )
         assert result.returncode == 0, result.stderr
         rows = _supervision_rows(db)
         assert [(r[0], r[1]) for r in rows] == [("task_gate", "fail_open_db_error")]
@@ -254,17 +262,21 @@ class TestHookFailOpenEmits:
 
     def test_scope_write_gate_fail_open_emits(self, tmp_path):
         project_dir, db, target = self._setup(tmp_path)
-        result = _run_hook("scope_write_gate.py", project_dir, target)
+        result = _run_hook(
+            "scope_write_gate.py", project_dir, target, extra_env={"TAUSIK_HOOK_FAIL_OPEN": "1"}
+        )
         assert result.returncode == 0, result.stderr
         rows = _supervision_rows(db)
         assert [(r[0], r[1]) for r in rows] == [("scope_write_gate", "fail_open_db_error")]
 
-    def test_fail_secure_blocks_and_does_not_emit_degradation(self, tmp_path):
-        """FAIL_SECURE flips fail-open to fail-closed: it BLOCKS. That is the
-        guard working, not a degradation — no fail_open_ row."""
+    def test_the_default_blocks_and_does_not_emit_degradation(self, tmp_path):
+        """Refusing IS the guard working, so there is nothing to count.
+
+        This used to require TAUSIK_HOOK_FAIL_SECURE=1; refusing is the default
+        now, and the assertion that no `fail_open_` row appears is what keeps
+        the metric honest — a block is not a dropped check.
+        """
         project_dir, db, target = self._setup(tmp_path)
-        result = _run_hook(
-            "task_gate.py", project_dir, target, extra_env={"TAUSIK_HOOK_FAIL_SECURE": "1"}
-        )
+        result = _run_hook("task_gate.py", project_dir, target)
         assert result.returncode == 2, result.stderr
         assert _supervision_rows(db) == []

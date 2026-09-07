@@ -11,8 +11,9 @@ Deliberately conservative adoption semantics:
     (an undeclared task grants unrestricted writes — legacy behavior);
   - target outside the project root -> allow (auto-memory and other
     out-of-tree paths are governed by their own hooks);
-  - pre-v30 DB (no scope_paths column) or any DB error -> fail-open,
-    unless TAUSIK_HOOK_FAIL_SECURE=1 (same policy as task_gate.py).
+  - pre-v30 DB (no scope_paths column) or any DB error -> REFUSE, unless
+    TAUSIK_HOOK_FAIL_OPEN=1 (same policy as task_gate.py; the default
+    flipped in 1.9, announced as breaking on PR #5).
 
 Exit codes: 0 = allow, 2 = block. Skipped via TAUSIK_SKIP_HOOKS=1.
 """
@@ -28,7 +29,12 @@ _HOOKS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HOOKS_DIR)
 sys.path.insert(1, os.path.dirname(_HOOKS_DIR))  # scripts/ — for scope_acl
 
-from _common import classify_target, is_tausik_project  # noqa: E402
+from _common import is_tausik_project  # noqa: E402
+from hook_policy import (  # noqa: E402
+    classify_target,
+    fail_open_on_db_error,
+    legacy_fail_secure_notice,
+)
 
 _GATED_TOOLS = ("Write", "Edit", "MultiEdit", "NotebookEdit")
 
@@ -44,7 +50,7 @@ def _read_stdin_json() -> dict:
 def _relative_to_project(file_path: str, project_dir: str) -> str | None:
     """Project-relative path, or None when this gate has no jurisdiction.
 
-    Containment comes from `_common.classify_target`, the single answer this
+    Containment comes from `hook_policy.classify_target`, the single answer this
     gate and `task_gate` both use — they used to compute it separately and
     disagree on a cross-drive path (see that function). None still means
     exactly what it meant here: not our business, skip the ACL check. That
@@ -188,19 +194,25 @@ def main() -> int:
     if rel is None:
         return 0  # outside the project root — not this hook's jurisdiction
 
-    fail_secure = bool(os.environ.get("TAUSIK_HOOK_FAIL_SECURE"))
+    fail_open = fail_open_on_db_error()
+    notice = legacy_fail_secure_notice()
+    if notice:
+        print(notice, file=sys.stderr)
     try:
         acls = _active_acls(db_path)
     except sqlite3.Error as e:
-        if fail_secure:
+        if not fail_open:
             print(
-                f"BLOCKED: TAUSIK_HOOK_FAIL_SECURE=1 set, but scope gate could "
-                f"not query .tausik/tausik.db: {e}.",
+                f"BLOCKED: the scope gate could not query .tausik/tausik.db: {e}\n"
+                "  The gate could not evaluate at all, and a guard that cannot evaluate\n"
+                "  refuses rather than waving the write through.\n"
+                "  Fix:      repair or restore the DB (try `.tausik/tausik doctor`)\n"
+                "  Override: set TAUSIK_HOOK_FAIL_OPEN=1 to allow writes while it is broken",
                 file=sys.stderr,
             )
             return 2
-        # fail-open: pre-v30 schema / transient DB issue. Count the silently
-        # dropped scope check so the degradation is not invisible.
+        # Asked for explicitly (pre-v30 schema / transient DB issue). Count the
+        # silently dropped scope check so the degradation is not invisible.
         emit_supervision_degradation(project_dir, "db_error", "scope_write_gate", str(e))
         return 0
 

@@ -15,7 +15,8 @@ Source of truth: anywhere the code calls `os.getenv` / `os.environ` in `scripts/
 | Variable | Effect | Notes |
 |---|---|---|
 | `TAUSIK_SKIP_HOOKS=1` | Bypasses ALL TAUSIK hooks (task_gate, bash_firewall, secret_scan, push_gate, etc.). Each hook also honours its own narrower switch. | Use for debugging hook behaviour. Never in CI. |
-| `TAUSIK_HOOK_FAIL_SECURE=1` | When a hook errors (not blocks), treat the failure as a block. Default is fail-open (errors warn). | Set in security-sensitive CI environments. |
+| `TAUSIK_HOOK_FAIL_OPEN=1` | When a write gate cannot query the DB, allow the write instead of refusing. **Refusing is the default since 1.9** (breaking change, announced on PR #5): a guard that cannot evaluate does not wave the edit through. | Set only while a broken database cannot be repaired. |
+| `TAUSIK_HOOK_FAIL_SECURE=1` | RETIRED — it asked for what is now the default. Setting it changes nothing and the gate says so rather than ignoring it. | Unset it. |
 | `TAUSIK_QUIET=1` | Suppresses `[gates]` / `[rag]` progress lines on stderr. | CI / scripted runs. |
 | `TAUSIK_VERIFY_FULL=1` | Forces `tausik verify` to run the full pytest suite (drops the `-m 'not slow'` filter). | Use before release; baseline 12 min on the TAUSIK repo. |
 | `TAUSIK_SCOPED_SKIP__<gate>=1` | Skips one named gate for the current `verify` / `task_done` run (e.g. `TAUSIK_SCOPED_SKIP__pytest=1`). | Narrow opt-out; documented per gate. |

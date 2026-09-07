@@ -64,7 +64,15 @@ sys.path.insert(0, _HOOKS_DIR)
 sys.path.insert(1, os.path.dirname(_HOOKS_DIR))  # scripts/ — for scope_acl
 
 import shell_channel  # noqa: E402
-from _common import cli_invocation, is_tausik_project, shell_cwd  # noqa: E402
+from _common import (  # noqa: E402
+    cli_invocation,
+    is_tausik_project,
+    shell_cwd,
+)
+from hook_policy import (  # noqa: E402
+    fail_open_on_db_error,
+    legacy_fail_secure_notice,
+)
 from bash_write_parse import (  # noqa: E402,F401 - write_targets re-exported for tests
     command_changes_directory,
     write_targets,
@@ -151,14 +159,20 @@ def main() -> int:
     if not in_tree:
         return 0  # no in-project write detected — nothing to gate
 
-    fail_secure = bool(os.environ.get("TAUSIK_HOOK_FAIL_SECURE"))
+    fail_open = fail_open_on_db_error()
+    notice = legacy_fail_secure_notice()
+    if notice:
+        print(notice, file=sys.stderr)
     try:
         acls = _active_acls(db_path)
     except sqlite3.Error as e:
-        if fail_secure:
+        if not fail_open:
             print(
-                f"BLOCKED: TAUSIK_HOOK_FAIL_SECURE=1 set, but bash-write gate "
-                f"could not query .tausik/tausik.db: {e}.",
+                f"BLOCKED: the bash-write gate could not query .tausik/tausik.db: {e}\n"
+                "  The gate could not evaluate at all, and a guard that cannot evaluate\n"
+                "  refuses rather than waving the write through.\n"
+                "  Fix:      repair or restore the DB (try `.tausik/tausik doctor`)\n"
+                "  Override: set TAUSIK_HOOK_FAIL_OPEN=1 to allow writes while it is broken",
                 file=sys.stderr,
             )
             return 2

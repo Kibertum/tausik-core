@@ -16,7 +16,7 @@ target makes both raise, so one and the same file was refused via Write and
 written via a Bash heredoc a call later -- `bash_write_gate` reuses
 `scope_write_gate`. The strongest available evidence of being outside was
 handled as the weakest, and the gate became cheaper to bypass than to satisfy.
-`_common.classify_target` is now the single answer both call.
+`hook_policy.classify_target` is now the single answer both call.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks"))
 
-from _common import classify_target  # noqa: E402
+from hook_policy import classify_target  # noqa: E402
 from scope_write_gate import _relative_to_project  # noqa: E402
 from task_gate import target_is_outside_project  # noqa: E402
 

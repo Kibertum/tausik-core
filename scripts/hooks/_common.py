@@ -193,60 +193,6 @@ def shell_cwd(event: object, project_dir: str) -> str:
     return project_dir
 
 
-def classify_target(
-    file_path: str, project_dir: str, *, cwd: str | None = None
-) -> tuple[str, str | None]:
-    """Where a write lands relative to this project: the ONE answer both gates use.
-
-    Returns ``(verdict, rel)`` with verdict one of:
-      * ``"inside"``  -- ``rel`` is the project-relative path;
-      * ``"outside"`` -- PROVEN to sit outside this project; ``rel`` is None;
-      * ``"unknown"`` -- could not be decided; ``rel`` is None.
-
-    "outside" and "unknown" are separated on purpose, because the two gates
-    that ask this question want opposite things from them: a target proven
-    outside is not this project's business, while one we could not classify
-    must stay gated. Collapsing them is exactly the bug this function replaces.
-
-    THIS USED TO BE TWO FUNCTIONS THAT DISAGREED. `task_gate` decided with
-    `commonpath` and read any exception as "not proven outside" -> keep gating;
-    `scope_write_gate` decided with `relpath` and read `(OSError, ValueError)`
-    as "outside" -> allow. On Windows BOTH raise `ValueError` for paths on
-    different drives, so one and the same target was refused by the Write gate
-    and accepted by the Bash gate that reuses `scope_write_gate`. Measured
-    live: a scratch file under `C:\\...\\Temp` was blocked via Write and
-    written via a Bash heredoc, one call later. A gate cheaper to bypass than
-    to satisfy stops being a gate.
-
-    A DIFFERENT DRIVE IS PROOF, NOT DOUBT. Containment across drives is
-    impossible by construction, so that case answers "outside" -- the strongest
-    evidence available, previously handled as the weakest.
-
-    Containment is decided on realpath, and by comparing path PARTS rather than
-    with `startswith`: a sibling sharing a prefix (``…/core-old`` next to
-    ``…/core``) reads as inside under a plain prefix test, and a symlink
-    pointing from outside into the project reads as outside -- each the wrong
-    answer in the dangerous direction. Anything that still raises is "unknown",
-    which keeps the gate on.
-    """
-    try:
-        base = cwd if isinstance(cwd, str) and cwd else project_dir
-        target = os.path.realpath(os.path.join(base, os.path.expanduser(file_path)))
-        root = os.path.realpath(project_dir)
-    except (OSError, ValueError):
-        return ("unknown", None)
-    target_drive, root_drive = os.path.splitdrive(target)[0], os.path.splitdrive(root)[0]
-    if target_drive.lower() != root_drive.lower():
-        return ("outside", None)
-    try:
-        rel = os.path.relpath(target, root)
-    except (OSError, ValueError):
-        return ("unknown", None)
-    if rel == os.pardir or rel.startswith(os.pardir + os.sep):
-        return ("outside", None)
-    return ("inside", rel)
-
-
 def is_tausik_project(project_dir: str) -> bool:
     """True iff project_dir looks like a TAUSIK-managed project.
 

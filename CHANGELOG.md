@@ -9,6 +9,41 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### BREAKING — a write gate that cannot read the DB now refuses instead of allowing
+
+`task_gate`, `scope_write_gate` and `bash_write_gate` used to let a write
+through when they could not query `.tausik/tausik.db`, unless
+`TAUSIK_HOOK_FAIL_SECURE=1` was set. That default is inverted: a DB error now
+BLOCKS, and `TAUSIK_HOOK_FAIL_OPEN=1` is the explicit way back.
+
+**Migration.** Set `TAUSIK_HOOK_FAIL_OPEN=1` if you need the old behaviour —
+for instance while a corrupt database cannot be repaired yet. If you had
+`TAUSIK_HOOK_FAIL_SECURE=1` set, you already have what you asked for and can
+unset it; the gate now says so on stderr instead of ignoring a variable you
+deliberately configured.
+
+WHY IT IS BREAKING AND WHY IT SHIPS ANYWAY. This was announced publicly, in
+those words, to an external contributor on PR #5, and it was the stated reason
+their work waited for 1.9 rather than a patch release: "task_gate becomes
+fail-secure by default and `TAUSIK_HOOK_FAIL_SECURE=1` is replaced by its
+inverse `TAUSIK_HOOK_FAIL_OPEN=1`". The merits were agreed there too — a guard
+that cannot evaluate should refuse, not wave the edit through, which is what
+this project already argues for QG-0 and QG-2; `task_gate` was the exception
+that contradicted it. No task existed for the flip, so 1.9 was on course to
+ship without it and to make the explanation for that delay retroactively
+untrue.
+
+The refusal is written to be told apart from the QG-0 one: it says the gate
+could not evaluate, not that a task is missing, and it names both the repair
+and the override. Answering "open a task" to a corrupt database sends the
+reader somewhere that cannot help.
+
+The policy is decided once, in `_common.fail_open_on_db_error`, rather than by
+three gates each reading the environment — the same consolidation this release
+already applied to transaction ownership and to write jurisdiction. Dropping
+enforcement still emits its degradation event, which from now on counts an
+explicitly requested bypass rather than a silent default.
+
 ### Fixed — the brain-isolation guard named its subject in a list, and the list was already short
 
 "Closing a task and starting a session must never depend on a wiki" was
