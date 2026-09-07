@@ -136,13 +136,21 @@ Set `TAUSIK_QUIET=1` to suppress these lines (CI / scripted runs). MCP servers r
 
 ## VS Code Claude Extension — full reference (v1.4)
 
-The VS Code Claude Extension is the strictest MCP host for TAUSIK because it (1) imposes a hard per-tool timeout that cannot be configured from inside the tool, (2) does not expose a hooks API, and (3) renders MCP tool results as a single line. v1.4 ships behavior tuned for this host explicitly. This section consolidates the full picture so you don't have to chase it across `host-limits`, `Host limits`, and the streaming-progress note.
+The VS Code Claude Extension is the strictest MCP host for TAUSIK because it (1) imposes a hard per-tool timeout that cannot be configured from inside the tool, (2) has no hooks payload generated for it by TAUSIK, and (3) renders MCP tool results as a single line. v1.4 ships behavior tuned for this host explicitly. This section consolidates the full picture so you don't have to chase it across `host-limits`, `Host limits`, and the streaming-progress note.
 
 ### Hooks status
 
+This table names THREE of the five scaffolded hosts, and it is kept by hand. The
+authoritative answer is measured: `.tausik/tausik doctor` prints, per host, the
+hook commands and plugins actually deployed in its profile, and each host's own
+rules file opens with the same statement derived the same way. Where a cell says
+TAUSIK deploys none, that is a fact about TAUSIK, not a claim about the host —
+whether the host would accept a hooks payload is a separate question this table
+does not answer.
+
 | Hook category | Claude Code (CLI) | Cursor | VS Code Claude Ext. | Qwen Code |
 |---|---|---|---|---|
-| PreToolUse / PostToolUse / SessionStart / SessionEnd | ✅ Real, enforced | ❌ No hooks API | ❌ No hooks API | ✅ Real, enforced (full parity since v1.4) |
+| PreToolUse / PostToolUse / SessionStart / SessionEnd | ✅ Real, enforced | ❌ TAUSIK deploys none | ❌ TAUSIK deploys none | ✅ Real, enforced (full parity since v1.4) |
 | `task_gate.py` (Rule 9.1) | Hard block | Instruction-only | Instruction-only | Hard block |
 | `secret_scan.py` (Rule 10.12) | Warn / strict-block | Instruction-only | Instruction-only | Warn / strict-block |
 | `git_push_gate.py` | Hard block | Instruction-only | Instruction-only | Hard block |
@@ -180,4 +188,4 @@ Use these to confirm the extension is configured correctly:
 |---|---|
 | Skill calls a legacy `task_done` shape | v1.4 ships a single `tausik_task_done`. If the agent's bundled SKILL.md still says "call v2", re-run `python bootstrap/bootstrap.py` so the `.claude/skills/` (and equivalents) reflect the current contract. |
 | Verify never returns | Run the same verify command from a regular terminal (`.tausik/tausik verify --task <slug>`) — if it works there but hangs through the extension, the issue is host-side, not TAUSIK. |
-| Hooks not firing on `Write` | Expected — VS Code extension has no hooks API. The agent must obey rules without enforcement; consider running task-critical work through Claude Code CLI or Qwen Code if hard blocks matter. |
+| Hooks not firing on `Write` | Expected — TAUSIK deploys no hooks for the VS Code extension. The agent must obey rules without enforcement; consider running task-critical work through Claude Code CLI or Qwen Code if hard blocks matter. |

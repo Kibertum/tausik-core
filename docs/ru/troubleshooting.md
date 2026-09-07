@@ -81,13 +81,20 @@ MCP-серверы TAUSIK работают внутри IDE-хоста (VS Code 
 
 ## VS Code Claude Extension — полный справочник (v1.4)
 
-VS Code Claude Extension — самый строгий MCP-хост для TAUSIK потому что (1) у него жёсткий per-tool таймаут, который нельзя поменять изнутри инструмента, (2) нет hooks API, (3) рендерит результат MCP-tool как одну строку. v1.4 настроена под этот хост явно. Эта секция консолидирует полный список нюансов.
+VS Code Claude Extension — самый строгий MCP-хост для TAUSIK потому что (1) у него жёсткий per-tool таймаут, который нельзя поменять изнутри инструмента, (2) TAUSIK не генерирует для него hooks payload, (3) рендерит результат MCP-tool как одну строку. v1.4 настроена под этот хост явно. Эта секция консолидирует полный список нюансов.
 
 ### Статус хуков
 
+Таблица перечисляет ТРИ хоста из пяти и ведётся руками. Настоящий ответ —
+измеряемый: `.tausik/tausik doctor` печатает по каждому хосту хуки и плагины,
+реально развёрнутые в его профиле, и файл правил каждого хоста открывается тем же
+утверждением, выведенным оттуда же. «TAUSIK их не разворачивает» — факт о TAUSIK,
+а не утверждение о хосте: примет ли хост payload с хуками — отдельный вопрос, и
+эта таблица на него не отвечает.
+
 | Категория хуков | Claude Code (CLI) | Cursor | VS Code Claude Ext. | Qwen Code |
 |---|---|---|---|---|
-| PreToolUse / PostToolUse / SessionStart / SessionEnd | ✅ Реальные, enforced | ❌ Нет hooks API | ❌ Нет hooks API | ✅ Реальные, enforced (полный паритет с v1.4) |
+| PreToolUse / PostToolUse / SessionStart / SessionEnd | ✅ Реальные, enforced | ❌ TAUSIK их не разворачивает | ❌ TAUSIK их не разворачивает | ✅ Реальные, enforced (полный паритет с v1.4) |
 | `task_gate.py` (Rule 9.1) | Hard block | Только инструкция | Только инструкция | Hard block |
 | `secret_scan.py` (Rule 10.12) | Warn / strict-block | Только инструкция | Только инструкция | Warn / strict-block |
 | `git_push_gate.py` | Hard block | Только инструкция | Только инструкция | Hard block |
@@ -123,7 +130,7 @@ VS Code Claude Extension — самый строгий MCP-хост для TAUSI
 |---|---|
 | Скилл зовёт legacy-форму `task_done` | v1.4 публикует единственный `tausik_task_done`. Если SKILL.md в проекте всё ещё пишет "call v2", перезапусти `python bootstrap/bootstrap.py` — `.claude/skills/` (и аналоги) обновятся под текущий контракт. |
 | Verify никогда не возвращает | Запусти ту же verify-команду из обычного терминала (`.tausik/tausik verify --task <slug>`) — если работает там, но висит через extension, проблема на стороне хоста, не TAUSIK. |
-| Хуки не срабатывают на `Write` | Ожидаемо — у VS Code extension нет hooks API. Агент обязан соблюдать правила без enforcement; для критичных по соблюдению задач переключайся на Claude Code CLI или Qwen Code, если важны hard-blocks. |
+| Хуки не срабатывают на `Write` | Ожидаемо — TAUSIK не разворачивает хуки для VS Code extension. Агент обязан соблюдать правила без enforcement; для критичных по соблюдению задач переключайся на Claude Code CLI или Qwen Code, если важны hard-blocks. |
 
 ## Brain
 

@@ -9,6 +9,44 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — two of five hosts were told their rules were enforced, and they were not
+
+Bootstrap handed every host the same rules text, opening with "Quality gates
+(`.tausik/tausik gates status`) enforce these automatically." Measured on this
+project on disk (session #230): claude 23 hook commands over 6 events, qwen 23,
+opencode 1 plugin, **cursor 0, kilo 0**. On two of the five that opening sentence
+was false, and nothing anywhere said so.
+
+- **The claim is now derived from the deployment, not asserted.**
+  `scripts/enforcement_coverage.py` counts what bootstrap actually left in the
+  host's profile — hook commands in `settings.json`, plugins under `plugins/` —
+  and the rules body opens with what that count supports. A rule-to-mechanism
+  table was considered and refused: it would record what we MEANT to deploy and
+  drift from what we did, which is the same drift one level up (decision #335).
+- **Three answers, not two.** A host with a mechanism gets the counted claim; a
+  host without one gets "**ON THIS HOST THE RULES BELOW ARE INSTRUCTIONS, NOT
+  CHECKS**"; and a file that more than one host reads — AGENTS.md, shared by
+  codex and kilo — gets UNKNOWN. Answering "not enforced" there would be a guess
+  about a host nobody has named (decision #334). Which files are host-specific is
+  derived from `ide_utils.IDE_REGISTRY` rather than listed again.
+- **A plugin is called a plugin.** OpenCode enforces through one, and counting it
+  as a hook would have been a small lie of exactly the family being fixed.
+- **The wrong reason is gone.** The single caveat that did exist said Cursor has
+  "no hooks API" — a claim about someone else's platform that was not ours to
+  make, and a wrong reason is worse than none because it closes an open question.
+  What is true, and what now ships, is that TAUSIK generates no real-time payload
+  for that host. The same words were corrected in `MULTIMODEL_NOTE` and in both
+  language versions of `troubleshooting.md`.
+- **`doctor` says it aloud**, and warns on a CONTRADICTION rather than on the gap:
+  a rules file claiming automatic enforcement while its profile holds no
+  mechanism, or denying enforcement the profile does have. Rules files are
+  preserve-if-exists, so every file generated before this release still carries
+  the old claim and a plain re-run will not replace it — that is precisely what
+  the warning is for. It caught this repository's own `.cursorrules` on the first
+  run.
+- **The gap is DECLARED, not closed.** No `hooks.json` is generated for Cursor and
+  no plugin for kilo; both counts stay zero, and a test holds them there.
+
 ### Added — the reconnaissance genre gets a role and a receipt contract
 
 Broad investigation for a few numbers burned the main window: probes written,

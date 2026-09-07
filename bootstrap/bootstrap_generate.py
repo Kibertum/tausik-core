@@ -197,6 +197,7 @@ def generate_claude_md(
         ide="claude",
         context_tier=context_tier,
         output_mode=output_mode,
+        project_dir=project_dir,
     )
     content = f"# CLAUDE.md\n\n{body}"
     path = os.path.join(project_dir, "CLAUDE.md")
@@ -230,6 +231,9 @@ def generate_agents_md(
         ide=None,
         context_tier=context_tier,
         output_mode=output_mode,
+        # project_dir is withheld deliberately. AGENTS.md is read by kilo, codex
+        # and others, so no profile on disk answers for it, and the enforcement
+        # notice must say UNKNOWN rather than borrow Claude's answer.
     )
     content = f"# AGENTS.md — AI Agent Onboarding\n\n{body}"
     path = os.path.join(project_dir, "AGENTS.md")
@@ -265,6 +269,7 @@ def generate_cursorrules(
         ide="cursor",
         context_tier=context_tier,
         output_mode=output_mode,
+        project_dir=project_dir,
     )
     content = f"# Cursor Rules\n\n{body}"
     path = os.path.join(project_dir, ".cursorrules")

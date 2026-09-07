@@ -354,6 +354,7 @@ def generate_qwen_md(
         ide="qwen",
         context_tier=context_tier,
         output_mode=output_mode,
+       project_dir=project_dir,
     )
     content = f"# QWEN.md\n\n{body}"
     path = os.path.join(project_dir, "QWEN.md")

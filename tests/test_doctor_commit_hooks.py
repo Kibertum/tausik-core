@@ -148,9 +148,23 @@ class TestTheCheckNeverRunsTheHookItDiagnoses:
 
 
 class TestItIsWiredIntoDoctor:
-    def test_doctor_calls_the_check(self):
-        src = (REPO_ROOT / "scripts" / "project_cli_doctor.py").read_text(encoding="utf-8")
-        assert "from service_doctor_hooks import check_commit_hooks" in src
-        assert "check_commit_hooks(project_dir)" in src, (
-            "проверка, которую doctor не зовёт, диагностирует ноль репозиториев"
+    def test_doctor_actually_runs_the_check(self, tmp_path):
+        """Ранее здесь искалась строка импорта в конкретном файле. Проверка
+        переехала в соседний модуль — и тест покраснел, хотя doctor звал её как
+        и звал. Теперь спрашивается ФАКТ: прогоняем набор необязательных проверок
+        и смотрим, появилась ли строка про хуки коммита.
+        """
+        from service_doctor_external import run_optional_checks
+
+        rows = []
+        run_optional_checks(
+            str(tmp_path),
+            None,
+            lambda label, detail: rows.append(("ok", label, detail)),
+            lambda label, detail: rows.append(("warn", label, detail)),
+            lambda label, detail: rows.append(("fail", label, detail)),
+        )
+        assert any(label == "Commit hooks" for _, label, _ in rows), (
+            "проверка, которую doctor не зовёт, диагностирует ноль репозиториев: "
+            f"напечатано {[label for _, label, _ in rows]}"
         )

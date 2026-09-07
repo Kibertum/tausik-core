@@ -8,6 +8,7 @@ drift between IDEs and makes edits single-source.
 from __future__ import annotations
 
 import os
+import sys
 
 # Tier-specific bodies live in bootstrap_templates_tiers (filesize cap). Imported
 # rather than re-declared, and re-exported so existing `from bootstrap_templates
@@ -20,10 +21,19 @@ from bootstrap_templates_tiers import (  # noqa: F401 — re-exported
     MINIMAL_WORKFLOW,
 )
 
+# Whether the constraints below are CHECKED on this host is derived from what
+# bootstrap deployed, not asserted here. The probe lives in scripts/ because that
+# is the tree bootstrap deploys into every host profile; bootstrap/ is not
+# deployed, so the dependency only runs in this direction.
+_here = os.path.dirname(os.path.abspath(__file__))
+_scripts = os.path.join(os.path.dirname(_here), "scripts")
+if os.path.isdir(_scripts) and _scripts not in sys.path:
+    sys.path.insert(0, _scripts)
+
+from enforcement_coverage import build_enforcement_notice, profile_dir_for  # noqa: E402
+
 
 HARD_CONSTRAINTS = """## Hard Constraints (non-negotiable)
-
-Quality gates (`.tausik/tausik gates status`) enforce these automatically.
 
 - **No code without a task.** Run `task start <slug>` before any Write/Edit. No exceptions. (SENAR Rule 9.1)
 - **QG-0 Context Gate.** `task start` requires goal + acceptance_criteria with at least one negative scenario. Set both before starting.
@@ -91,7 +101,7 @@ TAUSIK enforces these rules. Violating them triggers warnings or hard blocks.
 |---|---|---|
 | QG-0 Context Gate | Goal + AC + negative scenario before starting | Hard (CLI/MCP — blocks `task_start`) |
 | QG-2 Implementation Gate | Evidence + AC verified + fresh `tausik verify` green before done (Verify-First v1.4) | Hard (CLI/MCP — blocks `task_done`) |
-| Rule 1 Task before code | No Write/Edit without active task | Hard (PreToolUse hook) in Claude Code, VS Code Claude Extension, Qwen Code; **Instruction-only in Cursor** (no hooks API) |
+| Rule 1 Task before code | No Write/Edit without active task | Hard where a real-time mechanism is deployed — the notice at the top of this file says whether that is the case here |
 | Rule 2 Scope Boundaries | Declare scope + scope_exclude per task | Warning |
 | Rule 3 Verify Against Criteria | Per-criterion evidence | Warning |
 | Rule 7 Root Cause | Defect tasks require root cause | Warning |
@@ -99,7 +109,9 @@ TAUSIK enforces these rules. Violating them triggers warnings or hard blocks.
 | Rule 9.3 Checkpoint | Every 30-50 tool calls | Instruction |
 | Rule 9.4 Dead Ends + Logging | Document failed approaches, log progress | Instruction |
 
-> **Cursor caveat.** Cursor does not yet expose a PreToolUse hooks API equivalent to Claude Code's `.claude/settings.json`. TAUSIK's Cursor bootstrap therefore ships only `.cursorrules` + MCP servers — Rule 1 is enforced by the agent reading the rules, not by a process gate. Other quality gates (QG-0, QG-2, session limit) still run inside the `tausik-project` MCP server and remain Hard. If your team needs a process-level Rule 1 in Cursor, route writes through the `tausik_task_start` / `tausik_task_done_v2` MCP tools and treat raw file edits as non-conformant in code review.
+> **Where "Hard" is hard.** Rule 1 is a process gate only on a host where TAUSIK deployed a real-time mechanism; the notice at the top of this file states which case this host is in, derived from what bootstrap actually wrote, not from a list of intentions. Where it is not deployed, Rule 1 is enforced by the agent reading this line — and the reason is that TAUSIK does not generate a payload for that host, NOT that the host cannot accept one. Those are different claims and only the first is ours to make.
+>
+> The rest hold everywhere regardless: QG-0, QG-2 and the session limit live in the `tausik-project` MCP server and in the CLI, so they run wherever the tools run. For a process-level Rule 1 on a host without a mechanism, route writes through the `tausik_task_start` / `tausik_task_done_v2` MCP tools and treat raw file edits as non-conformant in review.
 
 Full rule set: [SENAR v1.3](https://senar.tech).
 """
@@ -166,7 +178,7 @@ TAUSIK is model-agnostic, but the surface you actually use differs from Claude C
 
 - **MCP tools first.** Every quality gate (QG-0, QG-2, session limit, dead-end tracking) is enforced inside the `tausik-project` MCP server. Calling MCP tools gives you the same hard guarantees Claude Code gets. Bash CLI is a fallback only when MCP is unreachable.
 - **Slash commands may not exist.** If your host doesn't expand `/start`, `/plan`, `/ship`, `/end`, open the matching `harness/skills/<name>/SKILL.md` and execute its numbered steps. Skills are written as procedures, not host-specific magic.
-- **PreToolUse hooks may not exist.** Cursor and a number of GPT-style agents have no hooks API: `task_gate.py` will not protect Rule 1 ("no code without a task"). Self-enforce — always call `tausik_task_start` (or `tausik_task_quick`) before any Edit/Write.
+- **PreToolUse hooks may not be deployed here.** The notice at the top of this file says whether they are, counted from this host's profile. Where they are not, `task_gate.py` does not protect Rule 1 ("no code without a task") and you self-enforce: always call `tausik_task_start` (or `tausik_task_quick`) before any Edit/Write. The reason is that TAUSIK generates no hooks payload for some hosts — what a given host is capable of accepting is a separate question, and not one this file answers.
 - **Don't write to `~/.claude/`.** It is a Claude-specific profile. Use the project DB (`.tausik/tausik.db`) via `tausik_memory_*` MCP tools, or the path under `CLAUDE_PLUGIN_DATA` if your host sets it.
 - **Verify-First Contract is universal.** Run `tausik_verify` before `tausik_task_done_v2`, regardless of model. The 60s per-MCP-tool timeout that VS Code Claude Extension applies is the strictest case; if you keep heavy work inside `verify`, every other host stays in budget too.
 - **`task_done_v2` over `task_done`.** When the MCP server publishes both, prefer `tausik_task_done_v2` — its structured JSON response (`stage`, `gate_results`, `blocking_failures`) is much friendlier to non-Claude tool-use loops that expect typed payloads.
@@ -307,6 +319,7 @@ def build_full_body(
     ide: str | None = None,
     context_tier: str = "standard",
     output_mode: str = "off",
+    project_dir: str | None = None,
 ) -> str:
     """Compose the shared body used by all IDE-specific generators.
 
@@ -333,9 +346,11 @@ def build_full_body(
     caveman = (output_mode or "off").strip().lower() == "caveman"
 
     header = build_header(project_name, stacks, agent_name)
+    enforcement = build_enforcement_notice(profile_dir_for(project_dir, ide))
     if tier == "minimal":
         parts = [
             header,
+            enforcement,
             HARD_CONSTRAINTS,
             MINIMAL_WORKFLOW,
             MINIMAL_MEMORY,
@@ -349,6 +364,7 @@ def build_full_body(
 
     parts = [
         header,
+        enforcement,
         HARD_CONSTRAINTS,
         WORKFLOW,
         TOOL_ROUTING,

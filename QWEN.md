@@ -7,9 +7,9 @@ You are Qwen Code (an AI coding agent) working on this project. Follow these ins
 Stack: python
 Framework: [TAUSIK](https://github.com/Kibertum/tausik-core) — AI agent governance implementing [SENAR v1.3](https://senar.tech)
 
-## Hard Constraints (non-negotiable)
+Quality gates enforce these automatically: bootstrap deployed 23 hook commands into this host's profile, so a violation is refused rather than reported.
 
-Quality gates (`.tausik/tausik gates status`) enforce these automatically.
+## Hard Constraints (non-negotiable)
 
 - **No code without a task.** Run `task start <slug>` before any Write/Edit. No exceptions. (SENAR Rule 9.1)
 - **QG-0 Context Gate.** `task start` requires goal + acceptance_criteria with at least one negative scenario. Set both before starting.
@@ -19,7 +19,7 @@ Quality gates (`.tausik/tausik gates status`) enforce these automatically.
 - **Don't guess CLI arguments.** Run `.tausik/tausik <cmd> --help` or read the CLI reference.
 - **MCP-first.** Prefer MCP tools (`tausik_*`) over CLI when equivalent.
 - **Git: ask before commit/push.** Always request user confirmation.
-- **Max 400 lines per file.** Filesize gate warns. Exceptions: tests, generated code.
+- **Max 500 lines per file.** Filesize gate warns. Exceptions: tests, generated code.
 - **Continuous logging.** Run `task log <slug> "message"` after every meaningful step. (SENAR Rule 9.4)
 - **Document dead ends.** Run `.tausik/tausik dead-end "approach" "reason"` on failed approaches. (SENAR Rule 9.4)
 - **Checkpoint every 30-50 tool calls.** Save context periodically. (SENAR Rule 9.3)
@@ -64,6 +64,20 @@ Run `mcp__codebase-rag__rag_status` once per session to confirm the index is fre
 
 Memory types: `pattern`, `gotcha`, `convention`, `context`, `dead_end`.
 
+**Memory-first recall (hard rule).** Before asking the user for — or guessing —
+an established project fact (hosts/machines, environments, where credentials
+live, paths, service URLs, prior decisions), you MUST `memory_search` /
+`decisions_list` FIRST. Asking the user for something already recorded in
+project memory is a process violation. Record durable environment facts as
+`context` so future sessions inherit them.
+
+**Routing litmus (hard).** *Would another agent, in another tool, need this to work on
+THIS project?* → yes = `memory add`. Never your host's own memory: `~/.claude/**/memory/`,
+`.cursor/rules/`, `.windsurf/rules/`, `.github/copilot-instructions.md`,
+`.github/instructions/`, `.clinerules`, `.roo/rules/`, `.continue/rules/`, `.aider*` are
+blocked by the `memory_route` gate — and a cloud-side memory writes no file for any gate
+to see, so there this line is the only enforcement there is.
+
 Skills that need persistent data respect the `CLAUDE_PLUGIN_DATA` env var when set; otherwise fall back to `.tausik/plugin_data/`.
 
 ## SENAR Rules Compliance
@@ -74,7 +88,7 @@ TAUSIK enforces these rules. Violating them triggers warnings or hard blocks.
 |---|---|---|
 | QG-0 Context Gate | Goal + AC + negative scenario before starting | Hard (CLI/MCP — blocks `task_start`) |
 | QG-2 Implementation Gate | Evidence + AC verified + fresh `tausik verify` green before done (Verify-First v1.4) | Hard (CLI/MCP — blocks `task_done`) |
-| Rule 1 Task before code | No Write/Edit without active task | Hard (PreToolUse hook) in Claude Code, VS Code Claude Extension, Qwen Code; **Instruction-only in Cursor** (no hooks API) |
+| Rule 1 Task before code | No Write/Edit without active task | Hard where a real-time mechanism is deployed — the notice at the top of this file says whether that is the case here |
 | Rule 2 Scope Boundaries | Declare scope + scope_exclude per task | Warning |
 | Rule 3 Verify Against Criteria | Per-criterion evidence | Warning |
 | Rule 7 Root Cause | Defect tasks require root cause | Warning |
@@ -82,7 +96,9 @@ TAUSIK enforces these rules. Violating them triggers warnings or hard blocks.
 | Rule 9.3 Checkpoint | Every 30-50 tool calls | Instruction |
 | Rule 9.4 Dead Ends + Logging | Document failed approaches, log progress | Instruction |
 
-> **Cursor caveat.** Cursor does not yet expose a PreToolUse hooks API equivalent to Claude Code's `.claude/settings.json`. TAUSIK's Cursor bootstrap therefore ships only `.cursorrules` + MCP servers — Rule 1 is enforced by the agent reading the rules, not by a process gate. Other quality gates (QG-0, QG-2, session limit) still run inside the `tausik-project` MCP server and remain Hard. If your team needs a process-level Rule 1 in Cursor, route writes through the `tausik_task_start` / `tausik_task_done` MCP tools and treat raw file edits as non-conformant in code review.
+> **Where "Hard" is hard.** Rule 1 is a process gate only on a host where TAUSIK deployed a real-time mechanism; the notice at the top of this file states which case this host is in, derived from what bootstrap actually wrote, not from a list of intentions. Where it is not deployed, Rule 1 is enforced by the agent reading this line — and the reason is that TAUSIK does not generate a payload for that host, NOT that the host cannot accept one. Those are different claims and only the first is ours to make.
+>
+> The rest hold everywhere regardless: QG-0, QG-2 and the session limit live in the `tausik-project` MCP server and in the CLI, so they run wherever the tools run. For a process-level Rule 1 on a host without a mechanism, route writes through the `tausik_task_start` / `tausik_task_done_v2` MCP tools and treat raw file edits as non-conformant in review.
 
 Full rule set: [SENAR v1.3](https://senar.tech).
 
@@ -108,7 +124,7 @@ Gates run on three triggers:
 - **`verify`** — heavy (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeval, hadolint, ansible-lint). Run via `.tausik/tausik verify --task <slug>`. Result cached for 10 min; `task done` reads the cache.
 - **`commit`** — local lint (ruff, eslint, phpcs, golangci-lint).
 
-Stack-specific gates auto-enable by detected stack. Filesize gate warns on files >400 lines.
+Stack-specific gates auto-enable by detected stack. Filesize gate warns on files >500 lines.
 
 Check status: `.tausik/tausik gates status`. Fix blocking failures before committing. Verify-First Contract opt-out: `.tausik/config.json` → `{ "task_done": { "auto_verify": true } }` runs the heavy gates inside `task done` instead of as a separate step.
 
@@ -117,6 +133,8 @@ Check status: `.tausik/tausik gates status`. Fix blocking failures before commit
 After bootstrap, **12 core skills** ship from `harness/skills/` and are always available: `/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, `/review`, `/test`, `/debug`, `/explore`, `/interview`. `/brain` is the 13th core skill but only deploys when the project has Notion configured (`tausik brain init`).
 
 **25+ official/vendor skills** are opt-in via `python .tausik-lib/bootstrap/bootstrap.py --include-official` (full bundle) or `tausik skill install <name>` (per skill) from the `tausik-skills` repo or `skills-official/`: `/audit`, `/zero-defect`, `/markitdown`, `/excel`, `/pdf`, `/docs`, `/security`, `/onboard`, `/retro`, `/ultra`, `/jira`, `/bitrix24`, `/sentry`, ... See `.qwen/references/skill-catalog.md`.
+
+**Security — external skill repos are arbitrary code + instructions.** Adding a repo clones remote content; installing may run pip/scripts. Only use `tausik skill repo add <url>` for trusted sources; third-party URLs require `--force` after review. See `docs/en/vendor-skills.md` and `docs/en/skill-ecosystem.md`.
 
 When a user request matches a trigger keyword for a not-installed skill, proactively suggest installing it.
 
@@ -131,10 +149,10 @@ TAUSIK is model-agnostic, but the surface you actually use differs from Claude C
 
 - **MCP tools first.** Every quality gate (QG-0, QG-2, session limit, dead-end tracking) is enforced inside the `tausik-project` MCP server. Calling MCP tools gives you the same hard guarantees Claude Code gets. Bash CLI is a fallback only when MCP is unreachable.
 - **Slash commands may not exist.** If your host doesn't expand `/start`, `/plan`, `/ship`, `/end`, open the matching `harness/skills/<name>/SKILL.md` and execute its numbered steps. Skills are written as procedures, not host-specific magic.
-- **PreToolUse hooks may not exist.** Cursor and a number of GPT-style agents have no hooks API: `task_gate.py` will not protect Rule 1 ("no code without a task"). Self-enforce — always call `tausik_task_start` (or `tausik_task_quick`) before any Edit/Write.
+- **PreToolUse hooks may not be deployed here.** The notice at the top of this file says whether they are, counted from this host's profile. Where they are not, `task_gate.py` does not protect Rule 1 ("no code without a task") and you self-enforce: always call `tausik_task_start` (or `tausik_task_quick`) before any Edit/Write. The reason is that TAUSIK generates no hooks payload for some hosts — what a given host is capable of accepting is a separate question, and not one this file answers.
 - **Don't write to `~/.claude/`.** It is a Claude-specific profile. Use the project DB (`.tausik/tausik.db`) via `tausik_memory_*` MCP tools, or the path under `CLAUDE_PLUGIN_DATA` if your host sets it.
-- **Verify-First Contract is universal.** Run `tausik_verify` before `tausik_task_done`, regardless of model. The 60s per-MCP-tool timeout that VS Code Claude Extension applies is the strictest case; if you keep heavy work inside `verify`, every other host stays in budget too.
-- **`task_done` over `task_done`.** When the MCP server publishes both, prefer `tausik_task_done` — its structured JSON response (`stage`, `gate_results`, `blocking_failures`) is much friendlier to non-Claude tool-use loops that expect typed payloads.
+- **Verify-First Contract is universal.** Run `tausik_verify` before `tausik_task_done_v2`, regardless of model. The 60s per-MCP-tool timeout that VS Code Claude Extension applies is the strictest case; if you keep heavy work inside `verify`, every other host stays in budget too.
+- **`task_done_v2` over `task_done`.** When the MCP server publishes both, prefer `tausik_task_done_v2` — its structured JSON response (`stage`, `gate_results`, `blocking_failures`) is much friendlier to non-Claude tool-use loops that expect typed payloads.
 
 ## Response Language
 

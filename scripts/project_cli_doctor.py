@@ -91,6 +91,12 @@ def _capture_db_state() -> None:
         _DB_PRE_SVC_EXISTS = os.path.isfile(db)
 
 
+# The optional checks (Kilo, OpenCode, caveman, backlog, commit hooks, enforcement
+# coverage) live next door: this file is held at 490 lines with headroom, and the
+# six of them were the same block six times over.
+from service_doctor_external import run_optional_checks  # noqa: E402
+
+
 def cmd_doctor(svc: ProjectService, args: Any) -> None:
     failures = 0
     warnings = 0
@@ -145,95 +151,9 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
         _print_warn("MCP server (brain)", "missing — bootstrap may have skipped it")
         warnings += 1
 
-    # Kilo MCP config — only fires for Kilo installs (.kilo/.kilocode present).
-    # Silent for non-Kilo projects so it adds no noise to the common path.
-    try:
-        from service_doctor_kilo import check_kilo_config
-
-        for severity, label, detail in check_kilo_config(project_dir):
-            if severity == "fail":
-                _print_fail(label, detail)
-                failures += 1
-            elif severity == "warn":
-                _print_warn(label, detail)
-                warnings += 1
-            else:
-                _print_ok(label, detail)
-    except Exception as e:  # noqa: BLE001 — best-effort: a Kilo-check bug must not crash doctor
-        _print_warn("Kilo MCP config", f"could not validate: {e}")
-        warnings += 1
-
-    # OpenCode config + QG-0 plugin — only fires for OpenCode installs (.opencode/).
-    # Catches the three failures that broke a user's host: a `tools` object
-    # (ConfigInvalidError), a missing/singular-dir plugin (enforcement silently off),
-    # and `instructions` pointing nowhere (rules silently never load).
-    try:
-        from service_doctor_opencode import check_opencode_config
-
-        for severity, label, detail in check_opencode_config(project_dir):
-            if severity == "fail":
-                _print_fail(label, detail)
-                failures += 1
-            elif severity == "warn":
-                _print_warn(label, detail)
-                warnings += 1
-            else:
-                _print_ok(label, detail)
-    except Exception as e:  # noqa: BLE001 — best-effort: a check bug must not crash doctor
-        _print_warn("OpenCode config", f"could not validate: {e}")
-        warnings += 1
-
-    # caveman interop — silent unless a user-installed caveman is present alongside
-    # TAUSIK's own output_mode. Surfaces coexistence + the .claude/settings.json overlap.
-    try:
-        from service_doctor_caveman import check_caveman_interop
-
-        for severity, label, detail in check_caveman_interop(project_dir):
-            if severity == "warn":
-                _print_warn(label, detail)
-                warnings += 1
-            else:
-                _print_ok(label, detail)
-    except Exception as e:  # noqa: BLE001 — best-effort: a check bug must not crash doctor
-        _print_warn("caveman interop", f"could not validate: {e}")
-        warnings += 1
-
-    # Backlog hygiene — open tasks no epic can reach. The release boundary is a
-    # mechanical "everything in epic X", so such a task is silently absent from
-    # every scope count. Warn, never fail: a standalone task is legitimate.
-    # Deferred AC — a criterion parked at closure inside work still in flight.
-    # Scoped to open epics so the signal stays clearable; a warning that names
-    # long-shipped history is one a reader learns to skip.
-    try:
-        from service_doctor_backlog import check_backlog_hygiene, check_deferred_acs
-
-        for check in (check_backlog_hygiene, check_deferred_acs):
-            for severity, label, detail in check(svc):
-                if severity == "warn":
-                    _print_warn(label, detail)
-                    warnings += 1
-                else:
-                    _print_ok(label, detail)
-    except Exception as e:  # noqa: BLE001 — best-effort: a check bug must not crash doctor
-        _print_warn("Backlog hygiene", f"could not validate: {e}")
-        warnings += 1
-
-    # Commit hooks — alive, off by choice, or DEAD and silent. The third state
-    # is the one this exists for: a `core.hooksPath` pointing nowhere makes git
-    # run nothing and report nothing, so `memory_route` (blocking), mypy and the
-    # RAG reindex skip every commit while `gates status` still prints them [ON].
-    try:
-        from service_doctor_hooks import check_commit_hooks
-
-        for severity, label, detail in check_commit_hooks(project_dir):
-            if severity == "warn":
-                _print_warn(label, detail)
-                warnings += 1
-            else:
-                _print_ok(label, detail)
-    except Exception as e:  # noqa: BLE001 — best-effort: a check bug must not crash doctor
-        _print_warn("Commit hooks", f"could not validate: {e}")
-        warnings += 1
+    _f, _w = run_optional_checks(project_dir, svc, _print_ok, _print_warn, _print_fail)
+    failures += _f
+    warnings += _w
 
     skills_dir = os.path.join(project_dir, ide_rel, "skills")
     if os.path.isdir(skills_dir):
