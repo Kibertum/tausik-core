@@ -9,6 +9,35 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the brain-isolation guard named its subject in a list, and the list was already short
+
+"Closing a task and starting a session must never depend on a wiki" was
+enforced over a hand-typed pair of files. A rename was already caught loudly,
+deliberately. What a list cannot catch is a NEW carrier of the same
+responsibility: a second close path or a second SessionStart hook is simply not
+on it, so the guard stays green and the hole stays open.
+
+The subject is now derived from the live wiring — SessionStart hooks read out
+of the registration in `bootstrap_hooks` (parsed as the literal it is, so a
+commented-out mention does not count), and close paths found by searching for
+the definitions of the close entry points. Adding either is now enough to be
+covered; nobody has to remember this test exists.
+
+The derivation immediately found a carrier the list had missed —
+`service_task.py` defines `task_done` and had never been under the guard. Three
+modules where the list had two.
+
+DELIBERATELY NOT THE IMPORT CLOSURE, and that was measured before choosing: the
+transitive closure from those roots is 221 of 419 modules, 42 of which mention
+the brain already, legitimately — storing brain configuration is the storage
+layer's job. A guard stated over the closure would have been red the day it was
+written for reasons unrelated to what it guards. The claim is about the module
+that would itself reach outward, so that is what is collected, and the residual
+(a carrier wired dynamically) is named in the test rather than left implied.
+
+A derivation that collapses to nothing is the failure mode a list does not
+have, so the count is asserted before anything is scanned.
+
 ### Fixed — the firewall read a heredoc body as a command, so prose could not name a destructive one
 
 A heredoc body is data on its way to a file, but it arrives in the same string

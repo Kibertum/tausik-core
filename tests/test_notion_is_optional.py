@@ -35,6 +35,61 @@ def _source(name: str) -> str:
         return fh.read()
 
 
+_BOOTSTRAP = os.path.join(os.path.dirname(__file__), "..", "bootstrap")
+
+#: Entry points through which a task is CLOSED. Named as call signatures, not
+#: as files: the question is which module carries the responsibility today, and
+#: a second module that starts answering it is found by the same search.
+_CLOSE_ENTRY_POINTS = ("def task_done(", "def _task_done_report(")
+
+
+def _session_start_carriers() -> set[str]:
+    """Hook scripts registered to run at SessionStart, read from the generator.
+
+    `bootstrap_hooks` IS the wiring — it is what writes the host settings — so
+    a second SessionStart hook added there is picked up here without anyone
+    remembering this test exists. Parsed with `ast` rather than matched with a
+    regex: the registration is a literal dict, and reading it as one keeps a
+    commented-out or string-formatted mention from counting as a hook.
+    """
+    path = os.path.join(_BOOTSTRAP, "bootstrap_hooks.py")
+    tree = ast.parse(open(path, encoding="utf-8").read())
+    out: set[str] = set()
+    for node in ast.walk(tree):
+        # The key is the event name; everything under it is that event's table.
+        if not (isinstance(node, ast.Dict)):
+            continue
+        for key, value in zip(node.keys, node.values):
+            if not (isinstance(key, ast.Constant) and key.value == "SessionStart"):
+                continue
+            for call in ast.walk(value):
+                if (
+                    isinstance(call, ast.Call)
+                    and isinstance(call.func, ast.Name)
+                    and call.func.id == "hook_cmd"
+                    and call.args
+                    and isinstance(call.args[0], ast.Constant)
+                ):
+                    out.add(os.path.join("hooks", str(call.args[0].value)))
+    return out
+
+
+def _task_close_carriers() -> set[str]:
+    """Modules that DEFINE a task-close entry point, found by searching for it.
+
+    A second close path gets a definition of its own and is found here; it does
+    not need to be added to a list, which is the hole this replaces.
+    """
+    out: set[str] = set()
+    for name in sorted(os.listdir(_SCRIPTS)):
+        if not name.endswith(".py"):
+            continue
+        text = _source(name)
+        if any(sig in text for sig in _CLOSE_ENTRY_POINTS):
+            out.add(name)
+    return out
+
+
 class TestTheAgentLoopSurvivesNotion:
     """AC1: a Notion failure never reaches the work.
 
@@ -48,9 +103,6 @@ class TestTheAgentLoopSurvivesNotion:
     Removed rather than adapted, because a test kept alive against a deleted
     mechanism teaches the next reader that the mechanism still exists.
     """
-
-
-
 
     def test_memory_add_does_not_reach_the_network(self):
         """The universality hint is a local heuristic, and so is what it delegates to.
@@ -84,22 +136,52 @@ class TestTheAgentLoopSurvivesNotion:
                     "a remote service"
                 )
 
-    @pytest.mark.parametrize("module", ["service_task_done.py", "hooks/session_start.py"])
-    def test_closing_a_task_and_starting_a_session_do_not_touch_the_brain(self, module):
-        path = os.path.join(_SCRIPTS, module)
-        # Asserted, not skipped. A skip here would turn a rename into a silent
-        # loss of coverage: the test stays green while checking nothing, which
-        # is worse than not having it, because it also reports that it looked.
-        assert os.path.isfile(path), (
-            f"{module} no longer exists — this guard now covers nothing. Point it at "
-            "the file that closes tasks / starts sessions today."
+    def test_closing_a_task_and_starting_a_session_do_not_touch_the_brain(self):
+        """The subject is DERIVED from the live wiring, not typed out here.
+
+        This used to be parametrized over ["service_task_done.py",
+        "hooks/session_start.py"]. Renaming either was already caught loudly
+        (the isfile assert below survives, for the same reason it was written:
+        a skip turns a rename into a green test that checks nothing). What a
+        list cannot catch is a NEW carrier of the same responsibility — a
+        second close path, a second session-start hook — which simply is not on
+        it, leaving the guard green and the hole open.
+
+        WHY DIRECT CARRIERS AND NOT EVERYTHING THEY IMPORT. Measured before
+        choosing: the transitive import closure from these two roots is 221 of
+        419 modules, and 42 of them mention the brain already — `backend_crud`,
+        `backend_schema`, the migrations. They mention it legitimately, because
+        storing brain configuration is the storage layer's job. A guard stated
+        over the closure would have been red on the day it was written, for
+        reasons that have nothing to do with what it guards. The claim is about
+        the module that would itself reach outward while closing work or
+        starting a session, so that is what is collected.
+
+        NAMED RESIDUAL: derivation reads the SessionStart registration and the
+        definitions of the close entry points. A carrier wired dynamically —
+        `importlib` by name, a hook a host adds through its own config — is not
+        seen. That is a smaller blind spot than a hand-typed list, not the
+        absence of one.
+        """
+        modules = sorted(_session_start_carriers() | _task_close_carriers())
+        # A derivation that quietly collapses to nothing is the failure mode a
+        # list does not have, so it is asserted before anything is scanned.
+        assert len(modules) >= 2, (
+            f"derived only {modules} — the SessionStart registration or the close "
+            "entry points moved, and this guard now covers almost nothing"
         )
-        with open(path, encoding="utf-8") as fh:
-            src = fh.read().lower()
-        assert "brain" not in src, (
-            f"{module} references the brain — the two paths that must never depend "
-            "on a wiki are closing work and starting a session"
-        )
+        for module in modules:
+            path = os.path.join(_SCRIPTS, module)
+            assert os.path.isfile(path), (
+                f"{module} was derived but does not exist — the wiring and the tree "
+                "disagree, and this guard cannot say which is right"
+            )
+            with open(path, encoding="utf-8") as fh:
+                src = fh.read().lower()
+            assert "brain" not in src, (
+                f"{module} references the brain — the two paths that must never "
+                "depend on a wiki are closing work and starting a session"
+            )
 
 
 class TestTheScrubberGuardsEveryRouteOutward:
