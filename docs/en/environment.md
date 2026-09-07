@@ -63,7 +63,7 @@ The skill profile detector reads these in precedence order (`TAUSIK_MODEL_PROFIL
 |---|---|
 | `TAUSIK_IDE` / `TAUSIK_IDE_PROFILE` | Force the IDE profile (claude / cursor / qwen / codex). |
 | `TAUSIK_MODEL` / `TAUSIK_MODEL_PROFILE` | Force the model profile slug (opus / sonnet / haiku / gpt-4 / gpt-5 / gpt-5-5 / qwen). |
-| `TAUSIK_AGENT_MODEL` / `TAUSIK_AGENT_MODEL_VERSION` | Logged into `usage_events` rows when the host doesn't report the active model. |
+| `TAUSIK_AGENT_MODEL` / `TAUSIK_AGENT_MODEL_VERSION` | The model running this session, when the host does not report one. FIRST in the resolution chain — it outranks `CLAUDE_MODEL`/`ANTHROPIC_MODEL`/`OPENAI_MODEL`/`CURSOR_MODEL` and the host's provider, because a stated model beats a detected one. Read ONCE, at session open, and recorded on the session; task start and done pin it, and a mid-task change raises `model_mismatch`. Blank is ABSENCE, not a name. `tausik doctor` says so when nothing reports a model. |
 | `CLAUDE_MODEL` / `CLAUDE_CODE_MODEL` | Read when the host is Claude Code. |
 | `CURSOR_MODEL` | Read when the host is Cursor. |
 | `ANTHROPIC_MODEL` / `OPENAI_MODEL` / `OPENAI_API_MODEL` / `QWEN_MODEL` | Provider-flavoured model envs; used as fallbacks by the detector. |

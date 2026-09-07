@@ -9,6 +9,41 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — model pinning had never fired, on any host, in the project's history
+
+Raised as "the model is not recorded on NON-Claude hosts". Measured on this
+project's own database first, and the truth was simpler and worse:
+
+    sessions:  231 rows, model_id set on 0
+    tasks:    1560 rows, started_model_id on 0, done_model_id on 0,
+              model_mismatch raised 0 times
+
+- **One missing link disabled the whole chain.** `session_start` consulted only
+  environment variables. Claude Code exports none of them and nobody sets them by
+  hand, so `sessions.model_id` was always NULL — and `model_start_updates` reads
+  the session's model, so every task pinned NULL too. RENAR Rule 10.13, per-model
+  cost and per-model metrics were all empty, and nothing said so.
+- **The seam already existed and worked.** `providers.get(...).get_active_model()`
+  is declared by every provider and returns the id — on Claude Code by reading the
+  transcript. Nothing consulted it. The model source is now a chain with a stated
+  order: `TAUSIK_AGENT_MODEL` → host variables → the host's provider → absence,
+  and the resolved answer carries the NAME of the step that gave it, so a wrong id
+  can be traced instead of argued about.
+- **Never inferred from the host's name.** Claude Code pointed at z.ai through
+  `ANTHROPIC_BASE_URL` is running GLM. A provider whose own source is silent
+  yields absence; it does not get to answer "claude, probably" because of what it
+  is called.
+- **The absence is now audible.** `tausik doctor` reports which source named the
+  model, and warns — naming `TAUSIK_AGENT_MODEL` — when nothing does. A session
+  that opened before a source existed gets its own wording, because "close and
+  reopen" is different advice from "declare it".
+- **The transcript read is bounded.** It used `readlines()` on an append-only log
+  with no ceiling to look at its last few lines: 70 ms per call on this project's
+  live file. Now the last 256 KB, with the partial first line dropped — 23 ms, and
+  the same answer.
+- **Proven live, not asserted.** Session #232 is the first in this project's
+  history to carry a model id.
+
 ### Fixed — the telemetry said work had cost $0.00, 55,471 times
 
 The task was raised as "on another model, zeros get written". Measured on this

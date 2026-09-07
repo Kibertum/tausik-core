@@ -20,6 +20,18 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 _DOCTOR_SRC = REPO / "scripts" / "project_cli_doctor.py"
 _BACKLOG_SRC = REPO / "scripts" / "service_doctor_backlog.py"
+
+
+def _sources() -> list[Path]:
+    """Every file a doctor check can print from — DERIVED, never listed.
+
+    This was two named files, and it went blind the day the optional checks moved
+    into `service_doctor_external.py`: seven labels vanished from the guard's view
+    while the guard stayed green. So the set is now the doctor handler plus every
+    `service_doctor_*` module, which is what "a doctor check" means on disk.
+    """
+    found = [_DOCTOR_SRC, *sorted((REPO / "scripts").glob("service_doctor_*.py"))]
+    return [p for p in found if p.is_file()]
 _DOCS = (REPO / "docs" / "en" / "doctor.md", REPO / "docs" / "ru" / "doctor.md")
 
 CROSSCUTTING_SCOPE = ["scripts/", "docs/"]
@@ -48,24 +60,26 @@ _DOC_ALIASES = {
 def _labels() -> set[str]:
     """Check labels the doctor can print, read out of the source."""
     found: set[str] = set()
-    pattern = re.compile(r"""_print_(?:ok|warn|fail)\(\s*["']([^"']+)["']""")
-    for src in (_DOCTOR_SRC, _BACKLOG_SRC):
-        found |= set(pattern.findall(src.read_text(encoding="utf-8")))
-    # service_doctor_backlog hands its labels back as constants, not print calls.
-    found |= set(
-        re.findall(
-            r"""^_\w*LABEL\s*=\s*["']([^"']+)["']""",
-            _BACKLOG_SRC.read_text(encoding="utf-8"),
-            re.MULTILINE,
-        )
-    )
+    # Two shapes, because checks come in two: some print through the doctor's
+    # own printers, some hand a label back as a constant for the caller to print.
+    printed = re.compile(r"""(?:_?print_(?:ok|warn|fail))\(\s*["']([^"']+)["']""")
+    constant = re.compile(r"""^_\w*LABEL\s*=\s*["']([^"']+)["']""", re.MULTILINE)
+    for src in _sources():
+        text = src.read_text(encoding="utf-8")
+        found |= set(printed.findall(text))
+        found |= set(constant.findall(text))
     return {label for label in found if label not in _NOT_A_CHECK}
 
 
 def test_source_still_exposes_labels_to_read():
     """Guards the test itself: a refactor that renames the printer silently
     empties the label set and would make every assertion below vacuous."""
-    assert len(_labels()) >= 12, f"suspiciously few labels parsed: {sorted(_labels())}"
+    labels = _labels()
+    assert len(labels) >= 20, f"suspiciously few labels parsed: {sorted(labels)}"
+    # Named explicitly: these three live OUTSIDE project_cli_doctor.py, so their
+    # presence is what proves the discovery follows the code rather than a path.
+    for moved in ("Commit hooks", "Enforcement coverage", "Session model"):
+        assert moved in labels, f"{moved} is printed by doctor but the guard cannot see it"
 
 
 def test_every_check_is_documented_in_both_languages():

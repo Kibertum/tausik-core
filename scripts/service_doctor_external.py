@@ -115,4 +115,15 @@ def run_optional_checks(
         warnings += 1
 
 
+    # Session model — did any source name the model running this session? The
+    # pinning chain (RENAR 10.13) is dead without it, and a NULL column looks
+    # exactly like a feature nobody wanted.
+    try:
+        from service_doctor_model_source import check_session_model
+
+        drain(check_session_model(svc))
+    except Exception as e:  # noqa: BLE001 — best-effort: a check bug must not crash doctor
+        print_warn("Session model", f"could not validate: {e}")
+        warnings += 1
+
     return failures, warnings

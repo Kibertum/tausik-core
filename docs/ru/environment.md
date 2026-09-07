@@ -65,7 +65,7 @@
 |---|---|
 | `TAUSIK_IDE` / `TAUSIK_IDE_PROFILE` | Принудительный IDE-профиль. |
 | `TAUSIK_MODEL` / `TAUSIK_MODEL_PROFILE` | Принудительный model-профиль (opus / sonnet / haiku / gpt-4 / gpt-5 / gpt-5-5 / qwen). |
-| `TAUSIK_AGENT_MODEL` / `TAUSIK_AGENT_MODEL_VERSION` | Логируются в `usage_events` если хост не сообщает активную модель. |
+| `TAUSIK_AGENT_MODEL` / `TAUSIK_AGENT_MODEL_VERSION` | Модель, ведущая смену, когда хост её не сообщает. ПЕРВЫЙ шаг цепочки разрешения — перекрывает `CLAUDE_MODEL`/`ANTHROPIC_MODEL`/`OPENAI_MODEL`/`CURSOR_MODEL` и провайдера хоста, потому что объявленная модель важнее определённой. Читается ОДИН раз, при открытии смены, и записывается в неё; task start и task done её пиннят, а смена модели внутри задачи поднимает `model_mismatch`. Пустое значение — ОТСУТСТВИЕ, а не имя. `tausik doctor` говорит вслух, когда модель не сообщает никто. |
 | `CLAUDE_MODEL` / `CLAUDE_CODE_MODEL` | Если хост — Claude Code. |
 | `CURSOR_MODEL` | Если хост — Cursor. |
 | `ANTHROPIC_MODEL` / `OPENAI_MODEL` / `OPENAI_API_MODEL` / `QWEN_MODEL` | Provider-flavoured fallbacks. |

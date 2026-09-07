@@ -141,26 +141,25 @@ class BackendCrudMixin:
     # --- Sessions ---
 
     def session_start(self) -> int:
-        # SENAR Rule 10.13: capture the agent model on session creation so
-        # FPSR / cost / throughput can be re-calibrated when the user
-        # switches between Sonnet / Opus / GPT / Composer mid-project.
-        # Source priority: explicit env vars > generic agent env > unset.
-        # `TAUSIK_AGENT_MODEL` covers the typical "I want to override"
-        # case; the others are read-only signals from popular hosts.
-        import os as _os
+        """Open a session, recording which model is running it (RENAR 10.13).
 
-        model_id = (
-            _os.environ.get("TAUSIK_AGENT_MODEL")
-            or _os.environ.get("CLAUDE_MODEL")
-            or _os.environ.get("ANTHROPIC_MODEL")
-            or _os.environ.get("OPENAI_MODEL")
-            or _os.environ.get("CURSOR_MODEL")
-            or None
-        )
-        model_version = _os.environ.get("TAUSIK_AGENT_MODEL_VERSION") or None
+        The environment-only version of this read NEVER ONCE succeeded: measured
+        in session #231, 0 of 231 sessions carried a model_id and 0 of 1560 tasks
+        carried a pin, because Claude Code exports none of the variables it
+        consulted. The chain now falls through to the host's provider, which
+        already knew the answer — `providers.get('claude').get_active_model()`
+        reads it from the transcript.
+
+        Read ONCE, here, at session open. `get_active_model` touches the disk on
+        some hosts, and doing that per call would put a file read behind every
+        query. The whole chain lives in `agent_model_source`.
+        """
+        from agent_model_source import resolve
+
+        resolved = resolve()
         return self._ins(
             "INSERT INTO sessions(started_at, model_id, model_version) VALUES(?, ?, ?)",
-            (utcnow_iso(), model_id, model_version),
+            (utcnow_iso(), resolved["model_id"], resolved["model_version"]),
         )
 
     def session_end(self, sid: int, summary: str | None = None) -> None:
