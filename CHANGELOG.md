@@ -9,6 +9,32 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — every economy lever this project ships must be DECIDED on by it
+
+TAUSIK claims "this framework is its own user" and shipped levers it had decided
+on none of: `output_mode` unset, `read_ledger` unset, both output thresholds
+unset, `context_tier` set to the value it already defaults to. The divergence was
+found by reading a config field, which is exactly how it should not be found — a
+discrepancy nobody can trip over survives. A test now asserts that each shipped
+lever carries an explicit decision: a value, or a registry entry with the reason
+and a number.
+
+- **Both directions, so the registry cannot rot** (decision #335): an entry
+  naming a lever the code no longer has fails, and a lever the code gained that
+  nobody decided on fails. Each branch is exercised by a test that makes it fail.
+- **`output_mode` stays off, measured.** Model output is 71.6% of context growth,
+  but `caveman` compresses prose only — it exempts code, commands, tool output
+  and the durable record by name. Prose is 1,493,022 of 16,287,948 characters of
+  this project's output (9.2%); 90.6% is tool arguments. Ceiling: 71.6% × 9.2% =
+  6.6%, realistically ~2%. And decisively: the rules generator is
+  preserve-if-exists and this CLAUDE.md is hand-written, so the flag would change
+  nothing on disk while looking as though it had.
+- **`context_tier` stays and is recorded as inert here.** The first attempt
+  deleted the key as a no-op; the next bootstrap wrote it straight back, and
+  correctly — the lever is live for projects whose rules file the generator
+  writes. Fighting the generator for cosmetics manufactures permanent drift; the
+  honest state is a recorded reason, not an absence.
+
 ### Added — a read ledger: an unchanged file is not paid for twice (opt-in, off by default)
 
 A `PreToolUse` hook for `Read` refuses a re-read of a file that has not changed
