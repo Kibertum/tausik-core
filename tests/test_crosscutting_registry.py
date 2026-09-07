@@ -116,7 +116,6 @@ _INVISIBLE_BASELINE = {
     "test_ble001_enforced.py",
     "test_brain_mcp_installed_layout.py",
     "test_breaking_change_count_converges.py",
-    "test_ci_lanes_are_honest.py",
     "test_coverage_badge.py",
     "test_interview_skill.py",
     "test_mypy_clean.py",

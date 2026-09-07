@@ -21,11 +21,22 @@ So this file asserts, from the test suite itself (which the CI *does* run):
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
+
+# The CI lane definitions this file reads. Declared so the scoped-pytest gate
+# runs these checks when a workflow changes — which is exactly when a lane can
+# stop bootstrapping or start swallowing an exit code, and precisely the change
+# a basename heuristic can never map to a test called "ci_lanes".
+CROSSCUTTING_SCOPE = [
+    ".github/workflows/",
+    ".gitlab-ci.yml",
+    "pyproject.toml",
+]
 
 _ROOT = Path(__file__).resolve().parents[1]
 _WORKFLOW = _ROOT / ".github" / "workflows" / "tests.yml"
@@ -53,11 +64,15 @@ def _collect_count(marker_expr: str | None) -> int:
     if marker_expr is not None:
         cmd += ["-m", marker_expr]
     proc = subprocess.run(
-        cmd, cwd=str(_ROOT), capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300
+        cmd,
+        cwd=str(_ROOT),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=300,
     )
     # The trailing summary line: "N tests collected" (or "N/M tests collected").
-    import re
-
     m = re.search(r"(\d+)(?:/\d+)?\s+tests?\s+collected", proc.stdout)
     assert m, f"could not parse collection count from:\n{proc.stdout[-500:]}\n{proc.stderr[-500:]}"
     return int(m.group(1))
@@ -294,4 +309,92 @@ class TestEveryLaneInstallsWhatTheAddoptsDemand:
         assert not offenders, (
             f"addopts is {addopts!r}, so every lane needs {required}. These install pytest "
             f"without it and will die on `unrecognized arguments`: {offenders}"
+        )
+
+
+class TestALaneThatRunsPytestDeploysFirstAndDoesNotSwallowIt:
+    """A lane may choose not to gate. It may not choose to measure dishonestly.
+
+    MEASURED, on a pristine `git clone` of this repository — the exact thing a
+    CI runner checks out. The deployed IDE profiles and `.tausik/` are bootstrap
+    OUTPUT and gitignored, so they are simply absent there, and FOURTEEN test
+    files fail without them (identical list across two runs). The coverage lane
+    ran pytest with `|| true` and no bootstrap step, so those failures became
+    silence and the published percentage described only the remainder — a number
+    that looks like a measurement and was taken on an incomplete run.
+
+    Both halves are asserted because either alone is defeatable: bootstrapping
+    while still discarding the exit code hides a real regression, and reporting
+    the exit code without bootstrapping reports a failure that is the lane's own
+    fault. The gating lanes already satisfied both before this test existed,
+    which is what makes it a ratchet rather than a description of one file.
+
+    Lanes are DISCOVERED, not listed: a workflow added later is covered without
+    anyone remembering this test.
+    """
+
+    _BOOTSTRAP = "bootstrap/bootstrap.py"
+
+    @staticmethod
+    def _lane_files() -> list[Path]:
+        found = [p for p in sorted(Path(".github/workflows").glob("*.yml"))]
+        gitlab = Path(".gitlab-ci.yml")
+        if gitlab.exists():
+            found.append(gitlab)
+        return found
+
+    @classmethod
+    def _jobs_running_pytest(cls) -> list[tuple[str, str]]:
+        """[(label, job text)] for every CI job that invokes pytest.
+
+        Jobs are split on the key shape each dialect actually uses: a GitHub
+        job sits under `jobs:` at two spaces, a GitLab job is a top-level key.
+        Splitting only the GitHub way cut `.gitlab-ci.yml` into fragments and
+        reported its lane as missing a bootstrap step it has run all along —
+        the test being wrong about a lane that was right, which is the
+        direction that quietly erodes trust in a ratchet.
+        """
+        out: list[tuple[str, str]] = []
+        for path in cls._lane_files():
+            text = path.read_text(encoding="utf-8")
+            if path.name == ".gitlab-ci.yml":
+                # Top-level keys start at column 0. `default:`/`variables:`
+                # come along as their own chunks and simply never match.
+                chunks = re.split(r"\n(?=\S)", text)
+            else:
+                chunks = re.split(r"\n(?=  \w[\w-]*:\n)", text)
+            for job in chunks:
+                for line in job.splitlines():
+                    stripped = line.strip()
+                    # A real invocation — not the word in a comment, and not
+                    # the `pip install pytest ...` that every lane also has.
+                    if stripped.startswith("#") or "pip install" in stripped:
+                        continue
+                    if re.match(r"^(- )?(run: )?pytest\s", stripped):
+                        out.append((f"{path}::{job.strip().splitlines()[0]}", job))
+                        break
+        return out
+
+    def test_at_least_one_lane_is_discovered(self):
+        """PREMISE. A discovery that finds nothing would pass every assertion."""
+        assert len(self._jobs_running_pytest()) >= 2
+
+    def test_every_pytest_lane_deploys_the_profiles_first(self):
+        offenders = [
+            label for label, job in self._jobs_running_pytest() if self._BOOTSTRAP not in job
+        ]
+        assert offenders == [], (
+            f"these lanes run pytest without deploying the IDE profiles first: {offenders}. "
+            "Fourteen test files need them, and a fresh clone has none."
+        )
+
+    def test_no_pytest_lane_discards_its_exit_code(self):
+        offenders = [
+            label
+            for label, job in self._jobs_running_pytest()
+            if re.search(r"pytest[^\n]*\|\|\s*true", job)
+        ]
+        assert offenders == [], (
+            f"these lanes swallow pytest's exit code with `|| true`: {offenders}. "
+            "An advisory lane may decline to gate, but the failure must still be visible."
         )

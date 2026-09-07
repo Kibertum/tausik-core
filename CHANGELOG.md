@@ -9,6 +9,36 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the coverage lane measured a run that was partly failing, and said nothing about it
+
+`.github/workflows/test-coverage.yml` ran `pytest … || true` and never ran
+bootstrap. The deployed IDE profiles and `.tausik/` are bootstrap OUTPUT and
+gitignored, so a fresh clone — which is what a runner checks out — has neither,
+and the tests that need them fail. `|| true` turned that into silence, and the
+published percentage described whatever was left.
+
+MEASURED RATHER THAN ESTIMATED, and the first measurement was of the wrong
+thing: a static grep for tests mentioning a profile directory returns 72 files,
+which answers a different question, since most build their own tree in a temp
+directory. So the lane's condition was reproduced instead — `git clone` into a
+temp dir, run the suite there. FOURTEEN test files fail, the same fourteen
+across two runs, plus about 140 additional skips. That matches the review's
+estimate, arrived at by a different route.
+
+The lane now deploys the profiles first, with the same invocation the gating
+lanes have always used. It stays advisory — the coverage report is still
+uploaded when tests fail, which is what `|| true` was for — but the exit code is
+captured and re-reported as a GitHub warning annotation instead of discarded,
+because a failure that produces no signal is the silent error this project
+refuses everywhere else.
+
+`test_ci_lanes_are_honest.py` grew a ratchet for both halves: every lane that
+runs pytest must bootstrap first and must not swallow the exit code. Lanes are
+DISCOVERED from the workflow files rather than listed, so one added later is
+covered. Writing it surfaced its own bug first — the GitHub job-splitting shape
+cut `.gitlab-ci.yml` into fragments and accused a lane that had been correct all
+along, which is the failure direction that quietly erodes trust in a ratchet.
+
 ### BREAKING — a write gate that cannot read the DB now refuses instead of allowing
 
 `task_gate`, `scope_write_gate` and `bash_write_gate` used to let a write
