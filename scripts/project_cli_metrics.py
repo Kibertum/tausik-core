@@ -134,7 +134,11 @@ def dispatch_metrics_subcmd(svc: ProjectService, args: Any) -> bool:
     if sub == "tokens":
         from service_token_metrics import print_cli
 
-        print_cli(int(getattr(args, "last", 10) or 10), bool(getattr(args, "as_json", False)))
+        print_cli(
+            int(getattr(args, "last", 10) or 10),
+            bool(getattr(args, "as_json", False)),
+            rebuild=bool(getattr(args, "rebuild", False)),
+        )
         return True
     return False
 

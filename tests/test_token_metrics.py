@@ -2,9 +2,15 @@
 
 After defect v14b-defect-token-metrics-no-realworld-write (decision #61),
 per-tool token rows are produced by the SessionEnd transcript-parser in
-scripts/hooks/session_metrics.py (extract_token_rows / replace_session_token_rows /
-resolve_session_id), NOT by a PostToolUse hook. The aggregator
-(scripts/service_token_metrics.py) reads the same JSONL schema as before.
+scripts/hooks/session_metrics.py (extract_token_rows / replace_session_token_rows),
+NOT by a PostToolUse hook. The aggregator (scripts/service_token_metrics.py)
+reads the same JSONL schema, now with `context_tokens` and `source` added and
+`session_id` allowed to be null.
+
+`resolve_session_id` is GONE and so are its tests. It answered "the newest
+session in the DB" and was used to stamp a whole re-walked transcript, which
+made 72.4% of this project's ledger cross-session duplicates. Attribution lives
+in `session_windows` and is tested in test_token_attribution.py.
 """
 
 from __future__ import annotations
@@ -24,7 +30,6 @@ from service_token_metrics import _percentile, aggregate, format_table  # noqa: 
 from session_metrics import (  # noqa: E402
     replace_session_token_rows,
     extract_token_rows,
-    resolve_session_id,
 )
 
 
@@ -58,7 +63,13 @@ class TestAggregate:
         assert agg["events"] == 0
         assert agg["sessions_observed"] == 0
         assert agg["per_tool"] == []
-        assert agg["totals"] == {"input": 0, "output": 0, "cache_read": 0, "cache_create": 0}
+        assert agg["totals"]["input"] == 0
+        # An empty ledger means the context was NOT MEASURED. A 0 here would
+        # assert that nothing was read, which is a different claim entirely.
+        assert agg["totals"]["context"] is None
+        assert agg["sessions_in_db"] is None  # no DB to read the denominator from
+        assert "не измерено" in format_table(agg)
+        assert "context=0" not in format_table(agg)
 
     def test_last_n_zero_returns_empty_window(self, tmp_path):
         self._write_jsonl(
@@ -119,7 +130,12 @@ class TestAggregate:
         assert per_tool["Read"]["input_tokens_p50"] == 20
         assert per_tool["Edit"]["cache_read_total"] == 200
         assert per_tool["Edit"]["cache_create_total"] == 100
-        assert agg["per_tool"][0]["tool_name"] == "Edit"
+        # Legacy rows carry no context_tokens, so the context column is absence,
+        # not zero, and the ordering falls back to call volume: Read (3) first.
+        assert per_tool["Read"]["context_tokens_total"] is None
+        assert agg["totals"]["context"] is None
+        assert agg["totals"]["context_missing_events"] == 4
+        assert agg["per_tool"][0]["tool_name"] == "Read"
 
     def test_filter_keeps_only_last_n_sessions(self, tmp_path):
         rows = [
@@ -379,39 +395,6 @@ class TestReplaceSessionTokenRows:
         assert {json.loads(ln)["session_id"] for ln in self._lines(tmp_path)} == {1, 2}
 
 
-class TestResolveSessionId:
-    def _make_db(self, project_dir: Path, sessions: list[tuple[str, str | None]]) -> None:
-        tausik = project_dir / ".tausik"
-        tausik.mkdir(exist_ok=True)
-        conn = sqlite3.connect(str(tausik / "tausik.db"))
-        conn.execute(canonical_ddl("sessions"))
-        for started, ended in sessions:
-            conn.execute(
-                "INSERT INTO sessions(started_at, ended_at) VALUES (?, ?)",
-                (started, ended),
-            )
-        conn.commit()
-        conn.close()
-
-    def test_no_db_returns_none(self, tmp_path):
-        assert resolve_session_id(project_dir=str(tmp_path)) is None
-
-    def test_empty_table_returns_none(self, tmp_path):
-        self._make_db(tmp_path, [])
-        assert resolve_session_id(project_dir=str(tmp_path)) is None
-
-    def test_returns_most_recent_id_regardless_of_ended_at(self, tmp_path):
-        self._make_db(
-            tmp_path,
-            [
-                ("2026-05-06T10:00:00Z", "2026-05-06T10:30:00Z"),
-                ("2026-05-06T11:00:00Z", None),  # in-progress
-            ],
-        )
-        sid = resolve_session_id(project_dir=str(tmp_path))
-        assert sid == 2
-
-
 class TestEndToEndEmitter:
     """Wire the three functions together against a realistic transcript."""
 
@@ -453,9 +436,12 @@ class TestEndToEndEmitter:
         )
 
         monkeypatch.chdir(tmp_path)
-        sid = resolve_session_id()
-        assert sid == 1
-        rows = extract_token_rows(str(transcript), session_id=sid)
+        from session_windows import make_session_resolver
+
+        rows = extract_token_rows(str(transcript), make_session_resolver())
+        # Both turns fall inside the single open session, so both are attributed
+        # to it — by their own timestamps, not by "whichever session is newest".
+        assert {r["session_id"] for r in rows} == {1}
         assert len(rows) == 3  # 1 + 2 tool_uses
         out = replace_session_token_rows(rows)
         assert out is not None

@@ -265,6 +265,8 @@ module = [
     "tools",
     "hook_supervision",
     "token_rows",
+    "session_windows",
+    "transcript_locator",
     "_common",
     # Reached only after a runtime sys.path.insert into the codebase-rag
     # package, which cannot join `files` while it holds a second server.py

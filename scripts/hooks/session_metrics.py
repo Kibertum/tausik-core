@@ -146,52 +146,20 @@ def find_latest_transcript(session_dir: str) -> str | None:
 
 
 def auto_find_transcript() -> str | None:
-    """Auto-detect Claude Code transcript for current project.
+    """Newest transcript that PROVABLY belongs to the current project, or None.
 
-    Checks ~/.claude/projects/<project-slug>/*.jsonl
-    Project slug is derived from CWD by replacing path separators with dashes.
+    This used to derive a directory name from the CWD and, when that failed to
+    match, return the most recently touched project ANYWHERE on the machine. On
+    Windows the match never succeeded — Claude Code writes `d--Work-…` for
+    `D:\\Work\\…` while the derived slug was `D-Work-…` — so the fallback was the
+    normal path, and this function routinely returned another project's
+    conversation to the session-metrics parser, the token ledger and the model
+    detector. Matching is now on the `cwd` a transcript records about itself;
+    when nothing matches the answer is None, because a wrong transcript is
+    indistinguishable from a right one to every caller here.
     """
-
-    def _auto_find_in_projects_root(projects_dir: str) -> str | None:
-        if not os.path.isdir(projects_dir):
-            return None
-        # Build slug from CWD (shared across IDEs: path separators -> dashes)
-        cwd = os.getcwd()
-        cwd_normalized = cwd.replace("\\", "/").replace(":", "")
-        slug_candidate = cwd_normalized.replace("/", "-")
-
-        # Search for matching directory first
-        for entry in os.listdir(projects_dir):
-            entry_lower = entry.lower()
-            if slug_candidate.lower() in entry_lower or entry_lower in slug_candidate.lower():
-                project_dir = os.path.join(projects_dir, entry)
-                if os.path.isdir(project_dir):
-                    t = find_latest_transcript(project_dir)
-                    if t:
-                        return t
-
-        # Fallback: most recent transcript in this projects root
-        all_transcripts: list[str] = []
-        for entry in os.listdir(projects_dir):
-            project_dir = os.path.join(projects_dir, entry)
-            if os.path.isdir(project_dir):
-                t = find_latest_transcript(project_dir)
-                if t:
-                    all_transcripts.append(t)
-        if all_transcripts:
-            return max(all_transcripts, key=os.path.getmtime)
-        return None
-
-    home = os.path.expanduser("~")
-    candidates = [
-        os.path.join(home, ".claude", "projects"),
-        os.path.join(home, ".cursor", "projects"),
-    ]
-    for projects_dir in candidates:
-        found = _auto_find_in_projects_root(projects_dir)
-        if found:
-            return found
-    return None
+    found: str | None = latest_project_transcript()
+    return found
 
 
 def write_metrics(metrics: dict, output_path: str | None = None) -> str:
@@ -217,31 +185,23 @@ def _load_config_safe() -> dict | None:
 # Token-row extraction and the token_metrics.jsonl writer moved to
 # `token_rows` at the 400-line cap. Re-exported so existing callers and
 # tests keep importing them from here.
+from session_windows import make_session_resolver  # noqa: E402
 from token_rows import (  # noqa: E402,F401
     TOKEN_METRICS_MAX_BYTES,
     _surviving_lines,
     extract_token_rows,
     replace_session_token_rows,
 )
+from transcript_locator import latest_project_transcript  # noqa: E402
 
 
-def resolve_session_id(project_dir: str | None = None) -> int | None:
-    """Most-recent session id from .tausik/tausik.db. None when DB missing/empty."""
-    proj = project_dir or os.getcwd()
-    db = os.path.join(proj, ".tausik", "tausik.db")
-    if not os.path.exists(db):
-        return None
-    try:
-        import sqlite3
-
-        conn = sqlite3.connect(db, timeout=2)
-        try:
-            row = conn.execute("SELECT id FROM sessions ORDER BY id DESC LIMIT 1").fetchone()
-            return int(row[0]) if row else None
-        finally:
-            conn.close()
-    except sqlite3.Error:
-        return None
+# `resolve_session_id()` — "the newest session in the DB" — used to stamp every
+# row of a re-walked transcript. It is DELETED rather than deprecated: its only
+# caller was the token-row emitter, and there it was the defect itself (one
+# transcript spans several sessions, so each of them received a copy of the whole
+# file). Attribution now goes through `session_windows.make_session_resolver`,
+# which places a row by its own timestamp and answers None outside every session.
+# A function kept "just in case" would be an invitation to reintroduce the bug.
 
 
 def record_to_db(metrics: dict, project_root: str | None = None) -> bool:
@@ -377,12 +337,18 @@ def main():
     if record:
         record_to_db(metrics)
 
-    sid = resolve_session_id()
-    if sid is not None:
-        rows = extract_token_rows(path, sid)
-        jsonl = replace_session_token_rows(rows)
-        if jsonl:
-            print(f"token_metrics.jsonl: appended {len(rows)} row(s) to {jsonl}")
+    # Attribute each row to the session its OWN timestamp falls in. Stamping the
+    # whole transcript with resolve_session_id() — the newest session in the DB —
+    # gave three consecutive sessions a copy of the same transcript and made
+    # 72.4% of this project's ledger duplicates (see session_windows).
+    rows = extract_token_rows(path, make_session_resolver())
+    jsonl = replace_session_token_rows(rows)
+    if jsonl:
+        attributed = sum(1 for r in rows if r.get("session_id") is not None)
+        print(
+            f"token_metrics.jsonl: {len(rows)} row(s) -> {jsonl} "
+            f"({attributed} attributed, {len(rows) - attributed} outside any session)"
+        )
 
 
 if __name__ == "__main__":

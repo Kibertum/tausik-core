@@ -36,11 +36,24 @@ metrics [--cost]               # С --cost: агрегат по usage_events п�
 metrics record-session         # Записать LLM usage (tokens/cost/tool/model) для текущей или явной сессии
 metrics log-usage              # Одна строка manual в usage_events (--task-slug опционально; session_usage_metrics не трогаем)
 metrics cost [--since ISO] [--until ISO]   # SUM токенов/cost и COUNT по task (slug NULL исключены)
-metrics tokens [--since ISO] [--until ISO] [--task SLUG]    # Rollup токенов по task (sum input/output/cache tokens)
-                                # Источник: PostToolUse hook scripts/hooks/posttool_usage.py пишет
-                                #   одну usage_events строку на каждый tool call (source='posttool',
-                                #   tool_name=<инструмент>) с привязкой к активной задаче.
-                                # Прайсинг: scripts/cost_pricing.py — единый source of truth.
+metrics tokens [--last N] [--rebuild] [--json]   # Объём контекста по инструментам за последние N смен
+                                # Источник: .tausik/token_metrics.jsonl — его пишет SessionEnd hook
+                                #   scripts/hooks/session_metrics.py, обходя транскрипт и раскладывая
+                                #   message-level usage по tool_use внутри сообщения.
+                                # ГЛАВНАЯ КОЛОНКА — ctx_*: полный контекст сообщения
+                                #   (input + cache_creation + cache_read). Именно она есть предмет
+                                #   утверждения об экономии (решение #338). Колонка in_* — НЕ вход:
+                                #   при включённом кэше это неохваченный кэшем остаток, на нашем
+                                #   дереве буквально 2 токена на сообщение, то есть удвоенный
+                                #   счётчик вызовов.
+                                # --rebuild заново выводит всю ленту из ВСЕХ транскриптов проекта
+                                #   на диске. Нужен потому, что инкрементальный писатель видит лишь
+                                #   транскрипт только что завершившейся сессии, и его охват бывает
+                                #   куда уже реально существующей истории.
+                                # Строка COVERAGE в шапке отчёта называет знаменатель: за сколько
+                                #   смен из всех есть записи и с какой даты. Величина, которой в
+                                #   данных нет, печатается словом «не измерено», НЕ нулём.
+                                # Не путать с `metrics cost` — та считает деньги по usage_events в БД.
                                 # Подробности: docs/{en,ru}/cost-telemetry.md.
 doctor                         # Health check: venv + DB + MCP + skills + drift + устаревший байт-код
 doctor --fix-bytecode          # Удалить РОВНО те .pyc, чей co_filename называет чужой каталог (после переезда дерева)

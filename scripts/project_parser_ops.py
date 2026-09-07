@@ -325,6 +325,16 @@ def add_metrics(sub: argparse._SubParsersAction) -> None:
         help="Window size — last N distinct sessions (default: 10)",
     )
     mt.add_argument(
+        "--rebuild",
+        action="store_true",
+        help=(
+            "Re-derive the whole ledger from every transcript on disk before "
+            "reporting. The SessionEnd writer only ever sees the transcript that "
+            "just ended, so its coverage can be far narrower than the history "
+            "that exists."
+        ),
+    )
+    mt.add_argument(
         "--json",
         action="store_true",
         dest="as_json",

@@ -9,6 +9,60 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the token ledger measured another project, and called 2 tokens "the input"
+
+Release 1.9 intends to claim a token economy. The instrument that would produce
+that number was broken in five ways, three of which nobody had reported.
+
+- **Rows are attributed by their own timestamp.** The emitter stamped every row
+  of a re-walked transcript with "the newest session in the database", and one
+  Claude Code transcript spans several TAUSIK sessions — so each of them
+  received a copy of the whole file. On this project's own ledger 3,840 of 5,301
+  rows (72.4%) were cross-session duplicates, sessions 221/222/223 all began at
+  the same instant, a 25-minute session carried 1,409 rows spanning 16 hours,
+  and the summed `cache_read` was inflated exactly 2.03x by that alone. A row
+  now belongs to the session whose interval contains its timestamp, and to no
+  session when none does — `session_id: null`, never the nearest guess.
+- **The transcript finder returned other projects' conversations.** It derived a
+  directory name from the CWD and, on no match, fell back to "the most recently
+  touched project anywhere on this machine". On Windows the match never
+  succeeded — Claude Code writes `d--Work-…` for `D:\Work\…` while the derived
+  slug was `D-Work-…` — so the fallback was the normal path. Three consecutive
+  ledger rebuilds read 42, then 32, then 10 transcripts from three different
+  projects. Matching is now on the `cwd` each transcript records about itself,
+  across every supported IDE profile rather than two written by hand; no match
+  yields None. This also fed `session_metrics --auto` and the running-model
+  detector, so both were reading foreign transcripts too.
+- **The full input context is recorded.** With prompt caching on, `input_tokens`
+  is the *uncached remainder* — literally 2 on every one of 5,301 rows here —
+  while the context sits in `cache_read` + `cache_create`. The report called the
+  remainder "the input", which made its `in_total` column a doubled call
+  counter. Rows now carry `context_tokens` (input + cache_creation +
+  cache_read), and that is the quantity a token-economy claim is about
+  (decision #338).
+- **A session's rows survive a second transcript.** Replacement was keyed on the
+  session, and the SessionEnd hook only ever sees the transcript that just
+  ended, so the newest one erased what earlier transcripts had recorded for the
+  same session. The key is now the (session, transcript) pair.
+- **`tausik metrics tokens --rebuild`** re-derives the whole ledger from every
+  transcript on disk and prints a receipt. Coverage went from 7 sessions to 65
+  of 227, with 97.1% of rows attributed.
+
+### Changed — the token report states its denominator and refuses to print zero
+
+- A `COVERAGE` line names how many of the project's sessions carry rows, over
+  what dates, and how many rows fall outside every session. "5 session(s)
+  observed total" had read like completeness against a history of 227.
+- A value that was not measured prints as `не измерено` / `n/a`, never as 0 —
+  an empty ledger now says the economy is unmeasured rather than nothing.
+- The tool column widened from 24 to 40 characters: every
+  `mcp__tausik-project__tausik_*` name collapsed to the same prefix, so a report
+  whose job is to say where the tokens go could not tell twenty of its own tools
+  apart.
+- `docs/ru/cli.md` documented `metrics tokens` with flags it does not have
+  (`--since`, `--until`, `--task`) and attributed its data to a different hook
+  and a different table. Corrected.
+
 ### Changed — model prices live in your config, and a price is a pair
 
 Model pricing was a hardcoded Python table with the project's config as a
