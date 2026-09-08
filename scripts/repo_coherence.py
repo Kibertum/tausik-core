@@ -384,3 +384,9 @@ def render_markdown(material: dict[str, Any]) -> str:
 
 def render_json(material: dict[str, Any]) -> str:
     return json.dumps(material, ensure_ascii=False, indent=2)
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests
+    from cli_entrypoint import refuse_direct_run
+
+    refuse_direct_run(__file__, ".tausik/tausik coherence          # this module's collectors, rendered")

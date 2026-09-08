@@ -9,6 +9,41 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — the route an agent must take is checked, and no rule demands the impossible
+
+Measured over this project's own transcripts before anything was built (session
+#233, 4,011 shell commands): `MCP-first` is stated as a hard constraint, and
+1,216 of 1,530 CLI invocations had an MCP twin and used the shell anyway — 79.5%.
+MCP's share of framework calls was 29.1%. Nothing anywhere counted it.
+
+- **The obvious reading was wrong, and the correction reordered the work.** 79
+  direct `python scripts/*.py` runs looked like an agent ignoring the rules —
+  until the scripts were named: 68 of them went to six scripts that have NO
+  wrapper route at all. "Always through `.tausik/tausik`" was UNFOLLOWABLE there.
+  An unfollowable rule is worse than an absent one: it teaches that the rules
+  here are approximate, and that lesson generalises to the rules that matter. So
+  the route was made followable first, and only then required.
+- **Four states, and the fourth was the defect.** ROUTED, REFUSES, ENTRYPOINT —
+  and INERT: run it directly and nothing happens, quietly. Two modules were in
+  that state and each run produced silence somebody then had to diagnose. They
+  refuse now, and the refusal NAMES the replacement instead of saying "use the
+  wrapper" and leaving the reader to find which command.
+- **MCP-first is named at the moment the shell was chosen.** A new PostToolUse
+  hook, on both hook-bearing hosts, prints the twin's tool name — once per
+  command per session, because a note repeated on every call is one the reader
+  learns to skip, and a skipped note costs the attention the next real warning
+  needs.
+- **It nudges and does not block, deliberately.** 20.5% of CLI invocations have
+  no twin; chaining (`verify && task done`) cannot be expressed on the MCP
+  surface; a long multi-line argument is genuinely easier through `"$(cat file)"`.
+  A false block on routine work trains circumvention and costs more than the miss
+  (convention #291).
+- **`doctor` prints the share**, with no threshold. Its first reading was about
+  the session that built it: 0% MCP against 106 shell calls.
+- **The CLI↔MCP correspondence is derived** from the live dispatch table, never
+  listed beside it — and an unreadable server yields UNKNOWN, not "no twin", so
+  the check cannot accuse an agent of a choice it never had.
+
 ### Added — `tausik symbol`: the definition, not its address
 
 Derived from [Graft](https://github.com/trailhq/Graft). What transfers is its

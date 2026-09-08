@@ -200,6 +200,25 @@ def generate_settings_qwen(
         ],
         "PostToolUse": [
             {
+                # MCP-first, made visible at the moment the shell was chosen.
+                # Measured in session #233: 1,216 of 1,530 CLI invocations had an
+                # MCP twin and used the shell anyway — 79.5% — while the rules
+                # call MCP-first a hard constraint and nothing checked it.
+                #
+                # Shell tools only: the nudge is about choosing the shell over a
+                # tool, and it has nothing to say about a Write or a Read. It
+                # lands on BOTH hook-bearing hosts: a capability on one and not
+                # the other is what `cross_model_parity` refuses.
+                "matcher": "Bash|PowerShell",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("mcp_first_nudge.py"),
+                        "timeout": 6,
+                    }
+                ],
+            },
+            {
                 "matcher": "Write|Edit",
                 "hooks": [
                     {

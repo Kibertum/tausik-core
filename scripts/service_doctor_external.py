@@ -126,4 +126,14 @@ def run_optional_checks(
         print_warn("Session model", f"could not validate: {e}")
         warnings += 1
 
+    # Agent route — MCP versus the shell, reported as a number rather than
+    # judged. The rules call MCP-first a hard constraint and nothing counted it.
+    try:
+        from service_doctor_route import check_agent_route
+
+        drain(check_agent_route(svc))
+    except Exception as e:  # noqa: BLE001 — best-effort: a check bug must not crash doctor
+        print_warn("Agent route", f"could not validate: {e}")
+        warnings += 1
+
     return failures, warnings
