@@ -9,6 +9,40 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a doc-drift scan that reported what it could not repair
+
+`--write` repairs what `--check` reports. That is a promise, and it was broken:
+the `N project + M brain` pair form had been SCANNED since review #208 and
+repaired by nobody — `_MCP_COUNT_PAIR_PATTERN` was imported by the scanner and
+by nothing else.
+
+Measured: raising the MCP tool count from 145 to 146 left **eight such
+references across seven files**, `--write` finished red with "drift remains
+after --write", and about **fifteen manual edits** were needed for one changed
+integer. Worse than the labour — a scan that reports drift it cannot fix reads,
+to whoever runs `--write`, as coverage.
+
+- **The pair is now repaired**, both halves judged independently, with the
+  offsets taken from the original match so a width change (99 -> 146) cannot
+  corrupt the second number.
+- **A test asserts the rule, not the instance**: every count family the scanner
+  knows must be known to the fixer, so the next one cannot land half-built.
+- **The repair respects the scan's boundaries** — never inside a fenced block,
+  never inside CLAUDE.md's DYNAMIC section. Documentation teaches by example,
+  and an example silently rewritten to today's numbers stops being one.
+
+### Fixed — the doc-checks page described a machine from six months ago
+
+`docs/{en,ru}/dev-doc-checks.md` was 73 lines that named **one of the seven
+modules** behind the check, and described it as verifying two things: a version
+and the MCP tool counts. It now checks seven distinct kinds of drift. The page
+lists all seven scans with what each one guards, and the module table in
+`architecture.md` went from two entries to seven.
+
+`doc_drift_tables.py` also opened with "Third module of the doc-drift split"
+and listed three, while the split had become four — the same self-description
+drift these modules exist to catch, inside the module that catches it.
+
 ### Fixed — a deleted file could not be declared in the scope, so the framework forced under-declaration
 
 A task that removes a file must name it in `--relevant-files`; the deletion is

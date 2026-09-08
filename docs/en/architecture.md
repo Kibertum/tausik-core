@@ -79,7 +79,13 @@ inheritance, which a per-file cap structurally cannot see. Highlights:
 | `model_routing.py` | Model selection helper |
 | `ide_utils.py` | IDE detection, paths, registry |
 | `tausik_utils.py` + `tausik_version.py` + `project_types.py` | Helpers, version, types |
-| `gen_doc_constants.py` + `mcp_tool_counts.py` | Generate `docs/_generated/constants.json` (v1.5) |
+| `gen_doc_constants.py` | Doc-drift entry point: `--check`, `--write`, regenerate `constants.json` |
+| `doc_drift_common.py` | Shared regex tables, scan targets, text helpers |
+| `doc_drift_scanners.py` | The six drift scans (versions, MCP counts, closed lists, test and code counts) |
+| `doc_drift_tables.py` | Numeric cells of markdown table columns, with their subject registry |
+| `doc_drift_fixes.py` | The auto-fixer `--write` runs |
+| `code_counts.py` | Counts repo state: hooks, stacks, roles, review agents, skills |
+| `mcp_tool_counts.py` | Counts the MCP surface each server advertises |
 | `audit_orphan_files.py` / `audit_stale_docs.py` / `audit_unused_python.py` / `audit_pytest_dedupe.py` | Static audit reports (review-only, v1.5) |
 | `project_cli_hygiene.py` | `tausik hygiene archive` (read-only project hygiene, v1.5) |
 | `hooks/check_docs.py` | Pre-commit / CI wrapper for doc-constants drift (v1.5) |

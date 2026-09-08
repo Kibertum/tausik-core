@@ -80,7 +80,13 @@
 | `model_routing.py` | Helper выбора модели |
 | `ide_utils.py` | Определение IDE, пути, реестр |
 | `tausik_utils.py` + `tausik_version.py` + `project_types.py` | Хелперы, версия, типы |
-| `gen_doc_constants.py` + `mcp_tool_counts.py` | Генерация `docs/_generated/constants.json` (v1.5) |
+| `gen_doc_constants.py` | Точка входа доковых проверок: `--check`, `--write`, перегенерация `constants.json` |
+| `doc_drift_common.py` | Общие таблицы регулярных выражений, цели сканов, текстовые помощники |
+| `doc_drift_scanners.py` | Шесть сканов дрейфа: версии, счётчики MCP, закрытые перечни, числа тестов и кода |
+| `doc_drift_tables.py` | Числовые ячейки колонок таблиц markdown и реестр их предметов |
+| `doc_drift_fixes.py` | Автопочинщик, который запускает `--write` |
+| `code_counts.py` | Считает состояние репозитория: хуки, стеки, роли, агенты ревью, скиллы |
+| `mcp_tool_counts.py` | Считает поверхность MCP, которую объявляет каждый сервер |
 | `audit_orphan_files.py` / `audit_stale_docs.py` / `audit_unused_python.py` / `audit_pytest_dedupe.py` | Static audit reports (review-only, v1.5) |
 | `project_cli_hygiene.py` | `tausik hygiene archive` (read-only гигиена проекта, v1.5) |
 | `hooks/check_docs.py` | Pre-commit / CI wrapper для drift-проверки doc-constants (v1.5) |

@@ -1,8 +1,10 @@
 """Numeric cells of markdown table columns, checked against computed constants.
 
-Third module of the doc-drift split (``doc_drift_common`` holds the shared
-regex tables and text helpers, ``doc_drift_fixes`` the auto-fixer, this one the
-column scan). It carries its OWN subject registry rather than adding it to
+Fourth module of the doc-drift split: ``doc_drift_common`` holds the shared
+regex tables and text helpers, ``doc_drift_scanners`` the scans, ``doc_drift_fixes``
+the auto-fixer, and this one the column scan. It said "third of three" while the
+split had already become four — the same self-description drift these modules
+exist to catch, in the module that catches it. It carries its OWN subject registry rather than adding it to
 ``doc_drift_common``: the two together are well past the 500-line filesize cap
 (decision #190), so merging them would breach it — and the registry belongs
 beside its only consumer for the same reason the fixer does. No line count is
