@@ -226,9 +226,15 @@ def run_claudemd_state_gate() -> gate_outcome.GateOutcome:
     if offenders:
         names = "\n  ".join(os.path.relpath(p, project_root) for p in offenders)
         return gate_outcome.failed(
+            # "this project's database" was inaccurate and misdirected the
+            # reader: the tail may come entirely from the machine-wide SHARED
+            # store — another project's knowledge, legitimately offered to this
+            # one. On a fresh install with a populated shared store that read as
+            # an accusation about a database which is in fact empty (session
+            # #240, found by walking the consumer path).
             f"CLAUDE.md state drift: {len(offenders)} of {len(judged)} agent-instruction "
-            "file(s) carry a DYNAMIC block with NO memory tail while this project's "
-            f"database has knowledge to render:\n  {names}\n"
+            "file(s) carry a DYNAMIC block with NO memory tail while there IS a tail "
+            f"to render (project memory and/or the shared store):\n  {names}\n"
             "That block was not generated from this database — it describes an empty "
             "or foreign project, and the next agent will read it as the truth about "
             "this one.\n"

@@ -9,6 +9,37 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a fresh project could not close its first task
+
+Found by walking the consumer path rather than by reading code: a clean project
+(git init, two functions, one test), bootstrap, task, code, **green verify** —
+and `task done` BLOCKED by two gates at once, both on by default and both
+`severity=block`:
+
+- **`test_dedupe`** — "the ratchet could not be read from `tausik/gates.json`".
+  A fresh install has no such file. The gate conflated NOT ADOPTED with
+  CORRUPTED; only the second is a violation. It now passes with the measurement
+  and the exact JSON to paste in order to start ratcheting — and still refuses
+  when the file EXISTS and cannot be read.
+- **`claudemd_state_drift`** — `init` writes CLAUDE.md with an EMPTY dynamic
+  block, which is precisely what drift looks like. On a machine that already has
+  a shared knowledge store the tail is non-empty from the start, so the gate had
+  something to compare against and the fresh block carried none of it. Bootstrap
+  now renders the block before declaring the project ready.
+
+**Why this went unseen.** Both gates are green on OUR tree: we have a
+`gates.json` with a baseline and a rendered block, both for historical reasons.
+A gate that works for the author and refuses for the user is the same class
+`cross_model_parity` exists for, along a different axis — not the host, the AGE
+OF THE PROJECT.
+
+The gate's message was also inaccurate: it said "this project's database has
+knowledge to render" when the tail can come entirely from the machine-wide
+SHARED store — another project's knowledge, legitimately offered to this one.
+
+**The walk is now a test**, and it raises a real project rather than a fixture:
+the defect was exactly the absence of files a fixture would have prepared.
+
 ### Verified — the upgrade path from 1.8.0 is sixteen migrations, and it is now tested on volume
 
 The v1.8.0 tag shipped `SCHEMA_VERSION = 44`; the current schema is 60. A

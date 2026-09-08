@@ -64,12 +64,29 @@ def _repo_root() -> str:
     return os.path.dirname(here)
 
 
+def ratchet_file_exists(repo_root: str | None = None) -> bool:
+    """Has this project a `tausik/gates.json` at all?
+
+    THE DISTINCTION THIS EXISTS FOR, found by walking the consumer path (session
+    #240): a project that has never recorded a ratchet is not a project whose
+    ratchet is corrupt. A fresh install has no `tausik/gates.json`, and treating
+    that as "unreadable" made this blocking gate refuse the FIRST close of every
+    new project — the gate was green here only because our own tree has the file.
+    """
+    root = repo_root or _repo_root()
+    return os.path.isfile(os.path.join(root, "tausik", "gates.json"))
+
+
 def load_baseline(repo_root: str | None = None) -> dict[str, int] | None:
     """The committed ratchet, or None when it could not be read.
 
     None is not `{}` and neither is zero: an unreadable baseline must not be
     reported as "no debt recorded", which would turn every existing duplicate
     into a fresh violation on a repo nobody touched.
+
+    None also does not distinguish "no file" from "bad node" — ask
+    `ratchet_file_exists` for that. The two deserve different verdicts and only
+    one of them is a violation.
     """
     root = repo_root or _repo_root()
     path = os.path.join(root, "tausik", "gates.json")
@@ -122,9 +139,23 @@ def run_test_dedupe_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
     groups_n, tests_n, groups = measure()
     measured = f"{groups_n} group(s) covering {tests_n} test(s)"
 
+    if baseline is None and not ratchet_file_exists():
+        # NOT ADOPTED is not VIOLATED. A project with no `tausik/gates.json` has
+        # never recorded a ratchet; refusing its first close teaches nothing and
+        # blocks everything. The measurement is still reported, and it is exactly
+        # what the project needs in order to adopt the ratchet — so the notice
+        # carries the numbers rather than sending the reader to compute them.
+        return True, (
+            f"test-dedupe ratchet NOT ADOPTED by this project — measured {measured}. "
+            "This is the absence of a baseline, not a violation of one. To start "
+            "ratcheting, put this into `tausik/gates.json` — "
+            f'"test_dedupe": {{"baseline": {{"groups": {groups_n}, "tests": {tests_n}}}}}'
+        )
+
     if baseline is None:
-        # Unreadable is not clean. Saying "no duplicates recorded" here would
-        # turn the missing file into a green verdict about the tests.
+        # The file EXISTS and its node could not be read. Unreadable is not
+        # clean: saying "no duplicates recorded" here would turn a corrupted
+        # ratchet into a green verdict about the tests.
         return False, (
             "The test-dedupe ratchet could not be read from tausik/gates.json "
             f"(node `test_dedupe.baseline` with integer {' and '.join(_BASELINE_KEYS)}). "

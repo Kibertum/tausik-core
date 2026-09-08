@@ -219,6 +219,30 @@ def run_post_bootstrap(
                 check=True,
                 timeout=30,
             )
+            # RENDER THE DYNAMIC BLOCK BEFORE DECLARING THE PROJECT READY.
+            # `init` writes CLAUDE.md with an EMPTY dynamic block, and the
+            # `claudemd_state_drift` gate — blocking, on by default — then
+            # refuses the project's FIRST close: a block with no memory tail is
+            # exactly what drift looks like. Measured on a real consumer walk
+            # (session #240): bootstrap, task, code, green verify, `task done`
+            # BLOCKED. On a machine that already has a shared knowledge store
+            # the tail is non-empty from the very start, so the gate had
+            # something to compare against and the fresh block carried none of
+            # it.
+            #
+            # Best-effort: a project that cannot render its block is still a
+            # usable project, and failing bootstrap over a generated file would
+            # be the worse trade.
+            try:
+                subprocess.run(
+                    [tausik_wrapper, "update-claudemd"],
+                    cwd=project_dir,
+                    check=False,
+                    timeout=30,
+                    capture_output=True,
+                )
+            except (OSError, subprocess.SubprocessError):
+                pass
             print(f"\nProject '{init_name}' initialized and ready!")
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             print(f"\nBootstrap complete but init failed: {e}\n  Run manually: .tausik/tausik init")
