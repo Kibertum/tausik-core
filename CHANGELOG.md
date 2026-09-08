@@ -9,6 +9,34 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a refusal that named a cause nobody had checked
+
+`push-ok` printed "cannot determine HEAD commit (no git repo or no commits yet)"
+for FOUR different events: a missing repository, a repository with no commits,
+git exiting non-zero for a reason of its own, and git not answering within the
+3-second ceiling. The one recorded failure of the e2e test was therefore
+undiagnosable — the message asserted a state of the world that had never been
+verified. That is decision #334 in the diagnostics.
+
+- **The timeout hypothesis was measured and refuted**, not argued about: 60
+  `git rev-parse HEAD` calls in a fresh repository during a full parallel suite —
+  median 37 ms, p95 92 ms, max 232 ms, and not one of them over the 3 s ceiling.
+  The ceiling is therefore NOT raised; doing so would have been a change made on
+  a guess.
+- **Four outcomes, four messages.** A timeout says it is a timeout and says the
+  repository may be fine. A non-zero exit carries git's OWN stderr instead of our
+  substitute for it. Discarding that line is what turned a five-minute diagnosis
+  into a hypothesis that had to be measured out of existence.
+- **The e2e test is hermetic now** — private HOME, empty global and system git
+  config, and no inherited `GIT_*` reaching either the subprocess under test or
+  the fixture that builds its repository. A test with a hostile `GIT_DIR` in the
+  parent environment proves it, and that probe found the real gap on its first
+  run: the FIXTURE's own `git init` had been inheriting the environment too, so a
+  stray `GIT_DIR` created the repository elsewhere and the subprocess then found
+  no HEAD — the observed failure, exactly.
+- **No retry was added**, and a test asserts that git is called exactly once. A
+  retry would have hidden the cause and left a sensor that measures nothing.
+
 ### Added — the development line finally runs the full test lane
 
 GitLab is where development happens (decision #267) and it ran only the fast half:

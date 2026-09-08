@@ -36,15 +36,50 @@ def _find_tausik_dir(start: Path | None = None) -> Path | None:
     return None
 
 
+#: How long a single git query may take. NOT raised: measured in session #232
+#: under the load of a full parallel suite, `git rev-parse HEAD` ran at a median
+#: of 37 ms and a maximum of 232 ms across 60 calls — a thirteenfold margin, and
+#: not one call over the ceiling. Raising it would be a change made on a guess.
+_GIT_TIMEOUT_SECONDS = 3
+
+
 def _git(args: list[str]) -> str | None:
+    """stdout of a git query, or None. See `_git_detail` for WHY it was None."""
+    value, _ = _git_detail(args)
+    return value
+
+
+def _git_detail(args: list[str]) -> tuple[str | None, str]:
+    """(stdout or None, a reason a human can act on).
+
+    FOUR OUTCOMES, NOT TWO. A missing repository, a repository with no commits,
+    git refusing for a reason of its own, and git not answering in time are
+    different events, and the caller used to print the first one's message for
+    all four. The single observed failure of the e2e test was undiagnosable for
+    exactly that reason — the text asserted a state of the world nobody had
+    checked.
+
+    The reason carries git's OWN stderr when there is one. Discarding it and
+    substituting our guess is what turned a five-minute diagnosis into a
+    hypothesis that had to be measured and refuted.
+    """
     try:
         # git_exec closes stdin (defense-in-depth: never read an inherited MCP stdin pipe).
-        result = git_exec.run(args, timeout=3)
-    except (subprocess.TimeoutExpired, OSError):
-        return None
+        result = git_exec.run(args, timeout=_GIT_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        return None, (
+            f"git did not answer within {_GIT_TIMEOUT_SECONDS}s "
+            f"(command: git {' '.join(args)}). This is a TIMEOUT, not a missing "
+            "repository — the machine was too busy or git was blocked, and the "
+            "repository may be perfectly fine."
+        )
+    except OSError as exc:
+        return None, f"git could not be executed: {exc}"
     if result.returncode != 0:
-        return None
-    return str(result.stdout.strip())
+        stderr = str(result.stderr or "").strip().splitlines()
+        said = stderr[0] if stderr else "(git printed nothing)"
+        return None, f"git exited {result.returncode}: {said}"
+    return str(result.stdout.strip()), ""
 
 
 def write_push_ticket(
@@ -92,12 +127,11 @@ def cmd_push_ok(_svc_unused: Any, args: Any) -> None:
             file=sys.stderr,
         )
         sys.exit(1)
-    sha = _git(["rev-parse", "HEAD"])
+    sha, why = _git_detail(["rev-parse", "HEAD"])
     if not sha:
-        print(
-            "error: cannot determine HEAD commit (no git repo or no commits yet)",
-            file=sys.stderr,
-        )
+        # The reason comes from what actually happened. The old text named one
+        # cause of four and was printed for all of them.
+        print(f"error: cannot determine HEAD commit — {why}", file=sys.stderr)
         sys.exit(1)
     branch = _git(["rev-parse", "--abbrev-ref", "HEAD"]) or ""
     path = write_push_ticket(tausik_dir, ttl_seconds=ttl, commit_sha=sha, branch=branch)

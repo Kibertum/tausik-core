@@ -136,8 +136,13 @@ class TestPushOkPrintsItAndStillIssuesTheTicket:
 
         (tmp_path / ".tausik").mkdir()
         monkeypatch.chdir(tmp_path)
+        # `_git_detail` is the seam now: `cmd_push_ok` needs the REASON a git
+        # query failed, not only its value, so that a refusal can name what
+        # actually happened instead of asserting a cause nobody checked.
         monkeypatch.setattr(
-            cli_push_ok, "_git", lambda args: "a" * 40 if args[:1] == ["rev-parse"] else ""
+            cli_push_ok,
+            "_git_detail",
+            lambda args: (("a" * 40, "") if args[:1] == ["rev-parse"] else ("", "")),
         )
         monkeypatch.setattr(ci_lane_status, "_run", _gh_returning(127, "", "not found"))
 
@@ -159,6 +164,16 @@ class TestPushOkPrintsItAndStillIssuesTheTicket:
 
         (tmp_path / ".tausik").mkdir()
         monkeypatch.chdir(tmp_path)
+        # Two seams now. `cmd_push_ok` asks `_git_detail` for HEAD because it
+        # needs the REASON when the query fails; the remote lookup still goes
+        # through `_git`. Stubbing only the old one left the real git running
+        # in a tmp dir that is not a repository — which the new diagnostic
+        # reported precisely, and that is how this was found.
+        monkeypatch.setattr(
+            cli_push_ok,
+            "_git_detail",
+            lambda args: (("b" * 40, "") if args[:1] == ["rev-parse"] else ("", "")),
+        )
         monkeypatch.setattr(
             cli_push_ok,
             "_git",
