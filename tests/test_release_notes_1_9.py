@@ -156,3 +156,53 @@ class TestTheBreakingSectionIsNotPadded:
             f"changelog marks {len(marked)}. Either the changelog markup is missing "
             "one, or the section is being padded."
         )
+
+
+class TestTheUnmeasuredPromiseSaysSo:
+    """Условие выпуска 1: обещание экономии не публикуется, пока нет числа.
+
+    ЗАМЕР (смена #239): из 57 251 строки телеметрии входные токены несут 233
+    (0%), базы сравнения «без TAUSIK» нет ни одной. Числа нет, а обещание на
+    странице названо — значит рядом обязана стоять оговорка, и стоять ЗАМЕТНО.
+
+    ПОЧЕМУ РЯДОМ, А НЕ НИЖЕ. В этой же смене матрица соответствия чинилась ровно
+    от этого: закрывающий абзац говорил «величину вычислить нельзя», а таблица
+    прямо над ним печатала 100%. Читатель забирает утверждение, а не сноску под
+    ним, поэтому проверяется РАССТОЯНИЕ между обещанием и оговоркой.
+    """
+
+    _NEAR = 1200
+
+    @pytest.mark.parametrize(
+        "lang,promise,caveat",
+        [
+            pytest.param("ru", "экономия токенов", "НЕ ИЗМЕРЕНО", id="ru"),
+            pytest.param("en", "token saving", "NOT YET MEASURED", id="en"),
+        ],
+    )
+    def test_the_caveat_sits_next_to_the_promise(self, lang, promise, caveat):
+        text = _PAGES[lang].read_text(encoding="utf-8")
+        assert promise in text, "обещание исчезло со страницы — предпосылка теста"
+        assert caveat in text, (
+            "обещание экономии названо, а отсутствие числа не названо: "
+            "условие выпуска 1 нарушено"
+        )
+        assert 0 < text.index(caveat) - text.index(promise) < self._NEAR, (
+            "оговорка оторвана от обещания — читатель заберёт обещание"
+        )
+
+    @pytest.mark.parametrize("lang", ["ru", "en"])
+    def test_the_numbers_are_there_and_sourced(self, lang):
+        """AC-4: числа измерены сейчас, а не перенесены из смены #225."""
+        text = _PAGES[lang].read_text(encoding="utf-8").replace("\u00a0", " ").replace("\u202f", " ")
+        assert "233" in text
+        assert "57 251" in text or "57,251" in text
+
+    @pytest.mark.parametrize("lang", ["ru", "en"])
+    def test_absence_is_not_reported_as_a_refutation(self, lang):
+        """Решение #334: невычислимая величина ОТСУТСТВУЕТ. Сказать «экономии
+        нет» было бы таким же непроверенным утверждением, как сказать, что она
+        есть."""
+        text = _PAGES[lang].read_text(encoding="utf-8")
+        needle = "ОТСУТСТВИЕ величины" if lang == "ru" else "ABSENCE of a quantity"
+        assert needle in text

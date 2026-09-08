@@ -10,6 +10,15 @@ question "does the framework enforce discipline". 1.9 asks no question — it ma
 two statements about the product and requires each to be measured: a substantial
 token saving, and higher development quality on any model.
 
+**And one of the two is NOT YET MEASURED, said here rather than in a footnote.**
+There is no token-saving figure. The instrument does not produce one today: of
+57,251 telemetry rows, 233 (0%) carry input tokens, and no "without TAUSIK"
+baseline exists at all. In session #225 it was 0 rows out of 4,777 — the
+instrument moved, and did not reach a number. This is the ABSENCE of a quantity,
+not a measured zero and not a refutation: saying "there is no saving" would be
+as unverified as saying there is one. The promise stays what the release
+undertook to measure, and until the figure exists it is not published as fact.
+
 **🔢 Zero stopped passing itself off as a measurement.** A quantity that cannot
 be obtained is now ABSENT, not nought. That sounds like a nicety until you look
 at the numbers: the telemetry asserted 55,471 times that work had cost $0.00,

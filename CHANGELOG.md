@@ -9,6 +9,26 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — the release notes say the token-saving figure does NOT exist yet
+
+Release condition 1 of `TAUSIK-plan-1.9.md` says the saving promise is not
+published until there is a number, produced by an instrument and given a
+baseline. The notes named the promise — "a substantial token saving" — and
+nowhere said the number was missing.
+
+**Measured now, not carried over.** Of 57,251 telemetry rows, 233 (0%) carry
+input tokens, and no "without TAUSIK" baseline exists at all. Session #225
+measured 0 of 4,777: the instrument moved and did not reach a number.
+
+The promise is neither withdrawn nor quietly reworded. It stays what the release
+undertook to measure, with "NOT YET MEASURED" in the same paragraph rather than a
+footnote — the same defect the compliance matrix was repaired for in this
+release, where a caveat sat under a table printing 100%. A test pins the caveat
+to within 1,200 characters of the promise and goes red when it is removed.
+
+Stating "there is no saving" would be as unverified as claiming one: this is the
+ABSENCE of a quantity (decision #334), not a measured zero and not a refutation.
+
 ### Added — the receipt says WHO ran the verification (schema v4)
 
 A verify receipt is signed with the PROJECT key. It answers "which gates passed
