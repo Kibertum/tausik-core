@@ -238,11 +238,3 @@ def render_rule_notice(profile_dir: str | None) -> str:
         f"{missing} — each governs something this host's own editor or shell does, "
         f"which nothing of ours observes.\n"
     )
-
-
-def profile_dir_for_ide(project_dir: str, ide: str) -> str | None:
-    """Thin pass-through so callers need not import two modules for one answer."""
-    from enforcement_coverage import profile_dir_for
-
-    resolved = profile_dir_for(project_dir, ide)
-    return resolved if resolved and os.path.isdir(resolved) else resolved
