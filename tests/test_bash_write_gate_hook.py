@@ -381,12 +381,23 @@ class TestTransparentCommandPrefixes:
     def test_remaining_boundary_is_pinned_not_assumed(self):
         # NOT closed here, and pinned so the day it is, the change announces
         # itself instead of passing silently (memory #292 — the pattern that
-        # already paid off once this session). `xargs` and `ssh` also carry a
-        # command in their arguments, but their argument grammar is genuinely
-        # different: xargs builds the command line from STDIN, and an ssh
-        # payload runs on another host, where this project's paths mean nothing.
+        # already paid off once this session).
+        #
+        # AND IT ANNOUNCED ITSELF. `xargs` was pinned here as open and is now
+        # closed (session #238, xargs-executes-its-arguments): it turned out to
+        # be an ordinary wrapper, and adding it to `_WRAPPER_VALUE_FLAGS` made
+        # the command behind it visible. The pin did exactly its job — this
+        # assertion went red on the commit that closed the gap rather than
+        # letting it pass unnoticed. Its evidence now lives in
+        # `tests/test_xargs_hides_the_command.py`.
+        #
+        # `ssh` STAYS pinned as open, and for a reason `xargs` never had: its
+        # payload runs on ANOTHER HOST, where this project's paths mean nothing.
         wt = self._wt()
-        assert wt("echo f.py | xargs -I{} bash -c 'echo x > {}'") == []
+        assert wt("echo f.py | xargs -I{} bash -c 'echo x > {}'") == ["{}"], (
+            "the xargs gap reopened, or the placeholder stopped being reported — "
+            "the second would let an unknown write pass silently"
+        )
         assert wt("ssh host 'echo x > /remote/f.py'") == []
 
 

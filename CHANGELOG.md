@@ -9,6 +9,34 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — `xargs` ran commands the write gate could not see
+
+Measured (session #238): the same write, wrapped and unwrapped —
+`sh -c "echo x > f"` was caught, `echo hi | xargs -0 sh -c "cat > f"` was not.
+Six forms, all at `parsed` confidence: the gate was not guessing, it saw no
+command at all. Direction: a HOLE, not a false block.
+
+`xargs` turned out to be an ordinary wrapper of the same kind as `env`, `sudo`
+and `timeout`, so it joins `_WRAPPER_VALUE_FLAGS` rather than getting a
+mechanism beside the existing one. Only the flags whose value is MANDATORY when
+detached (`-I -n -P -L -s -a -d -E`) are listed: GNU gives `-e`, `-i` and `-l`
+OPTIONAL arguments, and listing those would make `xargs -i cp a b` swallow `cp`
+as a flag value and walk past the real command — going blind, the one direction
+this table must never move.
+
+**The pin announced itself.** A previous session had recorded this gap as an
+open boundary with an assertion that `xargs` finds nothing. That assertion went
+red on the commit that closed it, exactly as intended. `ssh` stays pinned open,
+for a reason `xargs` never had: its payload runs on another host, where this
+project's paths mean nothing.
+
+**The placeholder is reported, not filtered.** `xargs -I{} sh -c "echo x > {}"`
+writes wherever the stream says. The first version of the test asked for `{}`
+to be dropped, by analogy with an unexpanded `$VAR` — and the analogy is false:
+`echo x > $VAR/f` is not known to write at all, while this certainly writes,
+just not to a known path. So the target stays unresolvable and the command
+stops at the gate, which is the correct side for a supervision gate.
+
 ### Fixed — an escaped or quoted `>` is data, and the write gate now agrees
 
 Session #211 had the gate block a command that counted closed tasks:

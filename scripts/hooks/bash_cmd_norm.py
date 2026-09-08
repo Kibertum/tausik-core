@@ -100,6 +100,46 @@ _WRAPPER_VALUE_FLAGS: dict[str, frozenset[str]] = {
     "nohup": frozenset(),
     "command": frozenset(),
     "exec": frozenset(),
+    # `xargs` RUNS the command that follows it, and measurement (session #238)
+    # showed the parser blind to every one of them: `sh -c "echo x > f"` was
+    # caught, `xargs -I{} sh -c "echo x > f"` was not — six forms, all at
+    # `parsed` confidence, so the gate was not guessing, it saw no command.
+    # Direction: a HOLE, not a false block.
+    #
+    # DECLARED RESIDUAL: what xargs actually writes can depend on STDIN, which
+    # this parser cannot see. `xargs -I{} sh -c "echo x > {}"` writes wherever
+    # the stream says, and `{}` is not a path — it is not offered as one. What
+    # IS recovered is the command itself, parsed by the ordinary rules, so the
+    # literal half (`xargs tee out.txt`, `xargs -I{} cp a b`) stops being
+    # invisible. Claiming the other half would be a statement wider than the
+    # evidence.
+    #
+    # ONLY THE FLAGS WHOSE VALUE IS MANDATORY when spelled detached. GNU xargs
+    # gives `-e`, `-i` and `-l` OPTIONAL arguments, which in practice are glued
+    # (`-i{}`); listing them here would make `xargs -i cp {} dst` eat `cp` as a
+    # flag value and walk past the real command — going blind, which is the one
+    # direction this table must never move (memory #524).
+    "xargs": frozenset(
+        {
+            "-a",
+            "--arg-file",
+            "-d",
+            "--delimiter",
+            "-E",
+            "--eof",
+            "-I",
+            "--replace",
+            "-L",
+            "--max-lines",
+            "-n",
+            "--max-args",
+            "-P",
+            "--max-procs",
+            "-s",
+            "--max-chars",
+            "--process-slot-var",
+        }
+    ),
 }
 
 #: Flags whose value is not DATA but a COMMAND LINE. `env -S "tee out"` splits
