@@ -1,7 +1,7 @@
 ---
 slug: verification-off-the-critical-path
 title: "A. Проверка уходит с критического пути: CI на рабочей ветке, лента параллельна, ничего не исключено молча"
-status: active
+status: done
 epic: release-19-agent-effectiveness
 ---
 

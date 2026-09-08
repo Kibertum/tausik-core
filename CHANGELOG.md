@@ -9,6 +9,35 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the verify endpoint could share its port with any other local process
+
+Chasing an intermittent `ConnectionAbortedError` in the endpoint's own tests
+turned up a defect in the endpoint itself. `http.server.HTTPServer` sets
+`allow_reuse_address = 1`, and on Windows `SO_REUSEADDR` does not mean what it
+means on POSIX: there it permits rebinding a port left in `TIME_WAIT`, here it
+permits binding an address that is **actively in use by somebody else**.
+
+Measured on this machine: two servers bound the SAME port and both `bind()`
+calls succeeded. After the fix the second is refused with `WSAEADDRINUSE`.
+
+- **Beyond the tests.** `tausik serve` binds 8765 to answer receipt-verification
+  requests. On Windows any other local process could bind the same port and take
+  some of that traffic, and the endpoint would never know. An endpoint whose port
+  can be silently shared is not one whose answers can be relied on.
+- **POSIX keeps the flag**, where it is the ordinary way to restart a service
+  without waiting out `TIME_WAIT`. Turning it off everywhere would be a real
+  regression to fix a problem that platform does not have.
+- **The test fixture now waits on a CONDITION, not a pause**: it waits until the
+  server ANSWERS, because the listening socket exists before `serve_forever`
+  begins accepting. A server that never comes up fails the test with a named
+  reason rather than hanging to a timeout.
+
+**Said plainly: the causal link to the intermittent abort is NOT proven.** The
+port collision reproduces deterministically; the abort did not reproduce in 20
+parallel runs of the file alone, nor in 30 repetitions of a collision-plus-
+teardown sequence built to force it. What is claimed here is a real defect found
+and fixed, plus a frequency measurement — not a diagnosis.
+
 ### Fixed — `graph show` now reads the symbols `graph build` writes
 
 Found by the review sweep: `graph build` wrote **13,312 symbol rows** on this

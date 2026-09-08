@@ -698,6 +698,13 @@ serve [--host H] [--port P]    # run the local receipt-verification endpoint
 
 > `serve` binds `127.0.0.1` by default. Exposing it needs `--yes-expose` — a
 > separate, explicit consent rather than a flag anyone sets by habit.
+>
+> The endpoint does NOT share its port. On Windows the `SO_REUSEADDR` that
+> `http.server` enables by default permits binding an address already in
+> ACTIVE use, and before 1.9 two servers really did bind one port with both
+> calls succeeding. The second is now refused: an endpoint whose port can be
+> silently shared is not one whose answers about receipts can be relied on.
+> On POSIX the flag stays, where it only means rebinding a `TIME_WAIT` port.
 
 ## Constants
 
