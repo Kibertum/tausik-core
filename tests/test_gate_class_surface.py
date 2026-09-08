@@ -9,7 +9,9 @@ classes), because a gate with false positives is a gate that gets disabled.
 
 from __future__ import annotations
 
+import ast
 import json
+import re
 import os
 import sys
 
@@ -264,3 +266,73 @@ def test_no_reason_documents_an_exemption_that_no_longer_exists():
     cfg = _committed_filesize_config()
     orphaned = sorted(set(cfg["_exempt_files_reasons"]) - set(cfg.get("exempt_files") or []))
     assert not orphaned, f"reason kept for a file that is no longer exempt: {orphaned}"
+
+
+# --- Что gates.json ОБЕЩАЕТ про свои гейты, должно существовать -------------
+
+
+def _cited_tests(text: str) -> list[str]:
+    return sorted(set(re.findall(r"tests/[a-z_0-9]+\.py::[A-Za-z_0-9:]+", text)))
+
+
+def test_every_test_gates_json_cites_actually_exists():
+    """`gates.json` объясняет свои храповики ссылкой на охраняющий тест, и
+    одна из пятнадцати ссылок была написана по смыслу, а не вычитана.
+
+    НАЙДЕНО АУДИТОМ 9.5 (смена #238): `_baseline_comment` ссылался на
+    `test_baseline_only_ratchets_down`, которого нет и не было в git —
+    настоящий зовётся `test_committed_baseline_matches_reality_and_only_
+    ratchets_down`. Соседняя строка про гейт дедупликации цитирует
+    `test_the_baseline_only_ratchets_down` в ДРУГОМ файле, где такой тест
+    есть; имя переехало между файлами и потеряло слово.
+
+    ПОЧЕМУ ЭТО НЕ КОСМЕТИКА. Комментарий объясняет, почему базу нельзя
+    поднимать, и подпирает запрет ссылкой. Агент, пошедший её проверить,
+    находит пустоту и выбирает между «теста нет, запрет держится на слове» и
+    «я не там ищу». Оба вывода хуже, чем отсутствие ссылки.
+
+    ПОЧЕМУ ЗДЕСЬ, А НЕ ГЕЙТОМ ПО ВСЕМУ ДЕРЕВУ: это уже пробовали и
+    опровергли замером (тупик #663) — «каждое имя в бэктиках обязано
+    разрешаться» даёт 2689 упоминаний и ноль настоящих находок. Популяция
+    здесь другая: пятнадцать ссылок ФОРМЫ `файл::узел` в одном файле, где
+    каждая — обещание, а не упоминание.
+    """
+    path = os.path.join(_REPO, "tausik", "gates.json")
+    with open(path, encoding="utf-8") as fh:
+        cites = _cited_tests(fh.read())
+    assert cites, "gates.json перестал ссылаться на тесты — охранять стало нечего"
+
+    broken: list[str] = []
+    for citation in cites:
+        file_part, _, node = citation.partition("::")
+        source = os.path.join(_REPO, file_part)
+        if not os.path.isfile(source):
+            broken.append(f"{citation}: нет файла")
+            continue
+        with open(source, encoding="utf-8") as fh:
+            tree = ast.parse(fh.read())
+        names = {
+            n.name
+            for n in ast.walk(tree)
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+        }
+        absent = [part for part in node.split("::") if part and part not in names]
+        if absent:
+            broken.append(f"{citation}: нет символа {', '.join(absent)}")
+    assert not broken, "gates.json обещает тесты, которых нет:\n  " + "\n  ".join(broken)
+
+
+def test_the_guard_refuses_an_invented_citation():
+    """Отрицательная половина. Проверка, которая не может покраснеть, —
+    украшение, а живой файл сегодня зелен, так что отказ надо показать."""
+    invented = _cited_tests('"x": "tests/test_gate_class_surface.py::test_nobody_ever_wrote_this"')
+    assert invented, "разбор цитат перестал их находить"
+    file_part, _, node = invented[0].partition("::")
+    with open(os.path.join(_REPO, file_part), encoding="utf-8") as fh:
+        tree = ast.parse(fh.read())
+    names = {
+        n.name
+        for n in ast.walk(tree)
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+    }
+    assert node not in names

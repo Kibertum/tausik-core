@@ -27,7 +27,7 @@
   "class_surface": {
     "_comment": "Caps the COMPOSED public surface of a class after inheritance, which the line gate structurally cannot see: a god-object built from mixins keeps every file under the line cap while the class they compose has 129 public members. Complements the line cap, does not replace it — 'this class does too much' and 'this file is too long to read' are different defects. Read by scripts/gate_class_surface.py. See task filesize-mro-exempt-mcp.",
     "max_public_members": 60,
-    "_baseline_comment": "RATCHET, may only shrink. These two predate the gate; they fail only if they GROW, so the gate blocks any NEW god-object today while these come down over time. A gate that turns red on everything the day it lands gets switched off. tests/test_gate_class_surface.py::test_baseline_only_ratchets_down pins that these never rise. Removing a name once it is under the cap is the goal.",
+    "_baseline_comment": "RATCHET, may only shrink. These two predate the gate; they fail only if they GROW, so the gate blocks any NEW god-object today while these come down over time. A gate that turns red on everything the day it lands gets switched off. tests/test_gate_class_surface.py::test_committed_baseline_matches_reality_and_only_ratchets_down pins that these never rise. Removing a name once it is under the cap is the goal.",
     "baseline": {
       "SQLiteBackend": 169,
       "ProjectService": 148

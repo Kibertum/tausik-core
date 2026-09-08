@@ -9,6 +9,24 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — `gates.json` promised a test that never existed
+
+Its `_baseline_comment` explains why the `class_surface` baseline may not be
+raised, and backed that prohibition with a citation:
+`tests/test_gate_class_surface.py::test_baseline_only_ratchets_down`. No such
+test is in the tree, and git never had one. The real name is
+`test_committed_baseline_matches_reality_and_only_ratchets_down`; the line beside
+it cites `test_the_baseline_only_ratchets_down` in a *different* file, where that
+name is real. The name travelled between files and lost a word.
+
+An agent following the citation finds nothing and must choose between "the test
+does not exist, so the prohibition rests on an assertion" and "I am looking in
+the wrong place". Both are worse than no citation at all.
+
+All 15 `file::node` citations in `gates.json` are now resolved by a test with a
+red proof — one of the 15 was broken, and it is the third invented citation in
+six sessions. Found by the SENAR 9.5 audit.
+
 ### Changed — the compliance matrix stops printing a conformance score it cannot compute
 
 The page closed with a paragraph saying the conformance percentage for SENAR v1.3
