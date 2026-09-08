@@ -6,7 +6,7 @@
 
 TAUSIK is a discipline layer for AI coding agents. It turns the agent's word — "tests pass," "the task is done" — into something you can actually verify. Plan before code, ship with proof, remember every decision. Not suggestions the agent can ignore: a discipline rail that refuses the easy shortcut and makes the ones it can't refuse visible and recorded — with tamper-evidence against outside edits, not a firewall that claims to stop a determined agent.
 
-[![v1.8.0](https://img.shields.io/badge/version-v1.8.0-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
+[![v1.9.0](https://img.shields.io/badge/version-v1.9.0-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
 [![signed receipts: ed25519](https://img.shields.io/badge/signed%20receipts-ed25519-6f42c1.svg)](docs/en/receipts.md)
 [![10240 tests](https://img.shields.io/badge/tests-10240-brightgreen.svg)](#proof-tausik-built-tausik)
 [![coverage 76%](https://img.shields.io/badge/coverage-76%25-green.svg)](#proof-tausik-built-tausik)
@@ -128,7 +128,7 @@ Those are **suggestions** — text the agent reads and is free to ignore the mom
 - **Lifecycle & gates** — Epic → Story → Task with a state machine; QG-0 at start, QG-2 at close, both fail-closed.
 - **Verifiable trust** — ed25519 signed verification receipts, offline-checkable, with supply-chain signing for skills and stacks.
 - **Project memory** — SQLite + FTS5 store of decisions, patterns, conventions and dead ends, re-injected every session.
-- **A shared knowledge base** (v1.8) — one file per person, not per project. `--global` puts a pattern or a dead end where the NEXT project will find it; search reads both stores. It never leaves this machine, and it has a backup that stays here too. **[How it differs from project memory →](docs/en/knowledge-store.md)**
+- **A shared knowledge base** — one file per person, not per project. `--global` puts a pattern or a dead end where the NEXT project will find it; search reads both stores. It never leaves this machine, and it has a backup that stays here too. **[How it differs from project memory →](docs/en/knowledge-store.md)**
 - **Real-time discipline rails** — hooks for the no-code-without-a-task gate, a bash firewall, a single-use push ticket, and auto-format.
 - **Metrics & routing** — throughput, first-pass success, defect-escape and lead-time tracked automatically; per-task cost/token budgets; complexity-aware model routing across vendor families (Claude and [z.ai GLM](docs/en/kilo-zai.md), data-driven, no code change).
 
@@ -188,49 +188,58 @@ TAUSIK is the reference implementation of [SENAR v1.3 Core](https://senar.tech) 
 
 ---
 
-## v1.8 — knowledge outlives the project, and the state travels in git
+## v1.9 — the release that stopped taking its own word for things
 
-Three things carry this release.
+1.8 answered "does the framework enforce discipline". 1.9 makes two statements
+about the product and requires each to be measured. One of them is not measured
+yet, and this page says so rather than leaving it to be discovered.
 
-**[Team state in git](docs/en/team-state-in-git.md).** Tasks, decisions and
-memory export to a readable `tausik/` tree, ride along in the repository, and
-come back with `tausik sync`. A teammate who clones the repo gets the project's
-history, not an empty database — and no external store has to exist for that to
-work.
+**The artifact graph became framework machinery, not a table in our database.**
+`tausik graph` answers what to read in order to change a file, and what a change
+will break — from three kinds of evidence kept apart: what git saw change
+together, what a task declared, and what a test run actually reached. Roots are
+asked of the PROJECT rather than assumed from our own layout, so a consumer
+project is indexed as itself. Measured: an unranked neighbour list costs 2,881 KB
+to read; the ranked answer costs 927 bytes.
+**[The graph →](docs/en/graph.md)**
 
-**A shared knowledge base — one file per person, not per project.** Patterns,
-dead ends and conventions used to die with the project that learned them.
-`--global` puts knowledge in the shared store or fails saying so; search and the
-knowledge block read it too; an older TAUSIK refuses a newer store instead of
-guessing at it. The store has a backup, and the backup stays on this machine.
+**Evidence stopped being a claim about itself.** A gate now declares WHICH
+CHANGE does not happen while its verdict is negative, and every blocking gate
+has a test that hands it a violation and requires red. A test never observed
+failing has not shown it can fail, and that history is now recorded. A receipt
+says WHO ran the verification, so separation of duties is a checkable property
+rather than a sentence in the documentation — and the first thing it showed is
+that on the verify path there is no separation: across 29 tasks recording both a
+starting and a closing model, none differ.
 
-**The end of the server-side session.** "Session" was two things — work
-continuity and agent context hygiene — and separating them closed a silent
-failure: an absent session no longer means unlimited capacity, so the 200-call
-gate stopped quietly waving work through. A handoff no longer requires an open
-session.
+**A quantity that cannot be obtained is ABSENT, not nought.** That sounds like a
+nicety until you look at the numbers: the telemetry asserted 55,471 times that
+work had cost $0.00, and model pinning had never fired in 231 sessions. Both
+defects looked exactly like "a feature nobody needs".
 
-**Six breaking changes, each with a migration** — the classifier is off the
-publication decision, the shared store moved out of `~/.tausik/`, a project may
-only tighten enforcement, the verify receipt is v3, a verify run with no
-declared scope certifies nothing, and `TAUSIK_HOME` is validated. Read them
-before upgrading: **[What changed in 1.8 →](docs/en/whats-new-1.8.md)**
-([Русский](docs/ru/whats-new-1.8.md)).
+**The token-saving figure does NOT exist yet, and is not published as fact.**
+The instrument does not produce one: of 57,251 telemetry rows, 233 carry input
+tokens, and no "without TAUSIK" baseline exists at all. Saying "there is no
+saving" would be as unverified as claiming one.
 
-v1.8 also continues the hardening on the road to 2.0: signed receipts,
-fail-closed gates, external adversarial review for under-evidenced closures,
-closure-risk scoring, structured root cause, and a skill supply chain that
-verifies the same way on every platform.
+**[What changed in 1.9 →](docs/en/whats-new-1.9.md)**
+([Русский](docs/ru/whats-new-1.9.md)) — including the breaking changes and their
+migrations. Earlier releases: **[1.8 →](docs/en/whats-new-1.8.md)**.
+
+v1.9 continues the hardening on the road to 2.0: signed receipts, fail-closed
+gates, external adversarial review for under-evidenced closures, closure-risk
+scoring, structured root cause, and a skill supply chain that verifies the same
+way on every platform.
 
 A theme runs through this release's fixes, and it is worth stating plainly: a
-check that reports a verdict it never computed is worse than no check. `doctor`
-was asserting a `CLAUDE.md` comparison it had stopped performing — an inverted
-rule inside a tracked section went unseen. `metrics tokens` presented a ranking
-of call counts as a ranking of spend. Both now say what they actually measured,
-and both are pinned by tests. What the rail proves is bounded on purpose —
-tamper-evidence against outside edits, not attestation against the agent that
-holds the key ([receipts](docs/en/receipts.md)). On uncommon paths you may still
-hit doc-vs-behavior drift — if you do,
+mechanism that works and that nothing calls is indistinguishable from one that
+does not work. The graph was built and held zero rows. A schema table added by
+migration alone was missing from every fresh install, and failed silently. A
+detector for invented closure citations existed and nobody ran it. All three now
+have a caller and a test that goes red without one. What the rail proves is
+bounded on purpose — tamper-evidence against outside edits, not attestation
+against the agent that holds the key ([receipts](docs/en/receipts.md)). On
+uncommon paths you may still hit doc-vs-behavior drift — if you do,
 [file an issue](https://github.com/Kibertum/tausik-core/issues) and we'll
 converge it before 2.0.
 

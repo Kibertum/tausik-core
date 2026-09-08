@@ -28,6 +28,13 @@ from audit_translation_drift import (  # noqa: E402
     render_markdown,
 )
 
+#: Ратчет ниже обходит ДЕРЕВО документов, а не фикстуру, поэтому правка в
+#: `docs/` обязана его запускать. Без этой строки гейт scoped-pytest файла не
+#: видит: он сопоставляет тест с исходником по имени, а `docs/ru/cli.md` ни с
+#: каким `test_<basename>.py` не сопоставляется. Поймано
+#: tests/test_crosscutting_registry.py на том же прогоне, где ратчет добавлен.
+CROSSCUTTING_SCOPE = ["docs/"]
+
 
 @pytest.fixture
 def fake_repo(tmp_path: Path) -> Path:

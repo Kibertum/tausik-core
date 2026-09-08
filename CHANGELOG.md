@@ -9,6 +9,30 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — the tree now says 1.9.0, and the README says what 1.9 is
+
+`pyproject.toml` still read `version = "1.8.0"` while shipping 1.9 — and it is
+the single source, so `constants.json`, `CLAUDE.md` and everything generated read
+1.8.0 with it. `scripts/tausik_version.py` carried the same literal separately.
+
+Bumping it reddened exactly what it should: ten version references in the two
+READMEs. Each was resolved on its merits rather than silenced — the badge is now
+`v1.9.0`, the feature list drops a version marker it did not need, and the
+release narrative section was rewritten for 1.9 with 1.8 left to the changelog
+and to `whats-new-1.8.md`.
+
+The README's 1.9 section states the unmeasured promise in the same breath as the
+promise: the token-saving figure does not exist, the instrument does not produce
+one (233 of 57,251 telemetry rows carry input tokens, and no baseline exists),
+and "there is no saving" would be as unverified as claiming one.
+
+**Two existing guards fired on this work, both correctly.** The version scanner
+was proved able to refuse by substituting a version in the README. And
+`test_crosscutting_registry` caught that the new translation-drift ratchet
+iterates the DOCUMENT TREE without declaring `CROSSCUTTING_SCOPE` — meaning an
+edit under `docs/` would not have run it, because the scoped-pytest gate matches
+tests to sources by name and `docs/ru/cli.md` matches no `test_<basename>.py`.
+
 ### Added — an invented closure citation is caught while it can still be fixed
 
 The detector already existed. Across 1,404 closed tasks and 4,026 citations,
