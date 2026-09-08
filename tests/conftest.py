@@ -350,6 +350,33 @@ def projected_task_status(slug: str) -> str | None:
 _slowest_by_nodeid: dict[str, float] = {}
 
 
+
+class _NoRedHistory:
+    """Заглушка на случай, когда модуля нет: наблюдение не смеет ронять прогон."""
+
+    @staticmethod
+    def pytest_runtest_logreport(report):
+        pass
+
+    @staticmethod
+    def pytest_sessionfinish(session, exitstatus):
+        pass
+
+
+def _red_history_plugin():
+    """Модуль записи красной истории, или заглушка.
+
+    Импорт внутри функции и обёрнут: conftest грузится на каждый прогон, а
+    наблюдение обязано быть тише самого прогона.
+    """
+    try:
+        import red_history_plugin
+
+        return red_history_plugin
+    except Exception:  # noqa: BLE001 — наблюдение не смеет ронять прогон
+        return _NoRedHistory
+
+
 def pytest_runtest_logreport(report):
     """Accumulate setup+call+teardown per test.
 
@@ -361,6 +388,7 @@ def pytest_runtest_logreport(report):
     process sees the whole tree; the per-worker duplicate is suppressed below.
     """
     _slowest_by_nodeid[report.nodeid] = _slowest_by_nodeid.get(report.nodeid, 0.0) + report.duration
+    _red_history_plugin().pytest_runtest_logreport(report)
 
 
 def _hang_guard_breach(config) -> str | None:
@@ -396,6 +424,7 @@ def pytest_sessionfinish(session, exitstatus):
     """
     if session.exitstatus == 0 and _hang_guard_breach(session.config) is not None:
         session.exitstatus = 1
+    _red_history_plugin().pytest_sessionfinish(session, exitstatus)
 
 
 # --------------------------------------------------------------------------
@@ -538,3 +567,17 @@ def pytest_runtest_call(item):
         observed_coverage.record(
             observed_coverage.output_path(root), item.nodeid, touched
         )
+
+
+# --- red history: which nodes have ever been observed FAILING ----------------
+#
+# RENAR 9.18.2. Author isolation proves the test was written before the code; it
+# does not prove the test CHECKS anything. A node seen red at least once has
+# demonstrated it can tell one state of the world from another.
+#
+# CALLED FROM THE EXISTING HOOKS, NOT IMPORTED AS NEW ONES. The first version
+# did `from red_history_plugin import pytest_runtest_logreport,
+# pytest_sessionfinish` — and both names ALREADY EXIST in this file, so the
+# import silently replaced the hang-guard accumulator and the breach exit code.
+# ruff caught it (F811); nothing else would have, and the loss would have been
+# two working mechanisms in exchange for a new one. Delegation keeps all three.

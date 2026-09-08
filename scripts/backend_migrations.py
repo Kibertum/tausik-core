@@ -39,6 +39,7 @@ from backend_migrations_v56 import MIGRATION_V56
 from backend_migrations_v57 import MIGRATION_V57
 from backend_migrations_v58 import MIGRATION_V58
 from backend_migrations_v59 import MIGRATION_V59
+from backend_migrations_v60 import MIGRATION_V60
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -423,6 +424,7 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     57: MIGRATION_V57,
     58: MIGRATION_V58,
     59: MIGRATION_V59,
+    60: MIGRATION_V60,
 }
 
 

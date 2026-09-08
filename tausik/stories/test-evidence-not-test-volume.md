@@ -1,7 +1,7 @@
 ---
 slug: test-evidence-not-test-volume
 title: "Доказательность теста вместо количества тестов"
-status: active
+status: done
 epic: release-19-renar-conformance
 ---
 

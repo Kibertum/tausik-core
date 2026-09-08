@@ -29,6 +29,7 @@ that opens its own tasks would be grading its own homework.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any, Callable
 
@@ -306,6 +307,44 @@ def _senar_claim_citations(root: Path) -> list[Finding]:
     return findings
 
 
+def _tests_never_observed_red(root: Path) -> list[Finding]:
+    """How much red history this checkout has accumulated, and what it is worth.
+
+    RENAR §9.18.2: a test never seen failing has not shown it can fail. The
+    history accumulates only by RUNNING the suite, so on a fresh clone it is
+    empty — and an empty history is silence, not a verdict about the tests. The
+    finding therefore reports the SIZE of the history rather than a list of
+    unproven tests, which would be every test in the tree on day one and would
+    be read as an accusation.
+
+    Severity stays low while the rule is reporting-only. Raising it before the
+    threshold in `red_history.REPORTING_ONLY` would put a number at the top of
+    the report that nobody can act on.
+    """
+    import red_history
+
+    db = str(root / ".tausik" / "tausik.db")
+    if not os.path.isfile(db):
+        return []
+    known = red_history.count(db)
+    ready = known >= red_history.BLOCKING_NEEDS_NODES
+    return [
+        Finding(
+            "red_history",
+            "low",
+            f"{known} test node(s) have ever been observed failing on this checkout"
+            + ("" if ready else f" — below the {red_history.BLOCKING_NEEDS_NODES} needed to judge"),
+            source="red_history",
+            count=known,
+            detail=(
+                "A test never seen red has not shown it can fail (RENAR 9.18.2). "
+                "History accumulates only by running the suite and does NOT travel "
+                "between machines: the database is not version-controlled."
+            ),
+        )
+    ]
+
+
 def _rotted_evidence(root: Path, tasks: list[dict[str, Any]]) -> list[Finding]:
     import audit_closure_evidence
 
@@ -387,6 +426,7 @@ def collect(
     findings += _safe("translation_drift", lambda: _translation_drift(root), skipped, ran)
     findings += _safe("doc_number_drift", lambda: _doc_number_drift(root), skipped, ran)
     findings += _safe("senar_claim_citations", lambda: _senar_claim_citations(root), skipped, ran)
+    findings += _safe("red_history", lambda: _tests_never_observed_red(root), skipped, ran)
     if tasks is not None:
         findings += _safe("closure_evidence", lambda: _rotted_evidence(root, tasks), skipped, ran)
     if service is not None:

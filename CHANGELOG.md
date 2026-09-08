@@ -9,6 +9,45 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — red history: a test never observed failing has not shown it can fail
+
+RENAR §9.18.2. Author isolation proves the test was written before the code; it
+does not prove the test CHECKS anything. An empty test, honestly written by an
+isolated agent, is green from birth and passes every P8 axis.
+
+Failing node ids are now recorded (schema v60, `test_red_history`). What this
+claims is deliberately narrow: a red history does not make a test GOOD — it
+rules out exactly one thing, the test that has never in its life been able to
+fail.
+
+- **Only reds are stored.** A green outcome carries no information, and a row
+  per node per run would be 10,357 upserts every time anyone runs the suite.
+- **Measured cost on a green run: 5.1 ms** across all 31,071 test reports, 0.17
+  µs per call, and nothing accumulated. Against a 264-second suite that is
+  0.002%. A mechanism that slows the ordinary run gets switched off, and then it
+  proves nothing.
+- **The hooks live in `red_history_plugin`, not in `conftest.py`**, and that seam
+  was chosen by a failing test: the end-to-end check runs a nested pytest over
+  one deliberately failing test, and our conftest imports a dozen project modules
+  and will not load outside this repository. Testing a copy of the hooks would
+  have let the real ones rot unnoticed.
+- **A global ratchet was considered and rejected**, with the reason recorded in
+  the source. "Nodes without red history may only shrink" is not well-formed —
+  every new test raises it, so it would go red on ordinary work. What is
+  well-formed is per-closure: a task citing a test it just wrote, never seen
+  failing, has cited something unproven.
+- **It reports and does not block**, because history accumulates only by running
+  the suite: on the day it lands no node has any. The threshold for flipping is
+  named as a number — 200 distinct nodes and 30 days.
+- **Declared residual:** `.tausik/tausik.db` is not version-controlled, so red
+  history does NOT travel between machines or agents. Said in the source, not
+  only here.
+
+Three different numbers were being used for one quantity, and measurement
+separated them: `tests/` defines **7,524 test functions**, pytest collects
+**10,357 nodes**, `constants.json` says 10,240. The task description said 5,722,
+which was true earlier in the release.
+
 ### Fixed — `xargs` ran commands the write gate could not see
 
 Measured (session #238): the same write, wrapped and unwrapped —
