@@ -326,8 +326,8 @@ about the behaviour passes. Claiming more would repeat the very defect it exists
 against.
 
 **What it is NOT.** It is not a check that every backticked name resolves to a
-symbol. That was tried and refuted by measurement in the same session (dead end
-#663): backticks here mean "a name in the system" — a config key, a status
+symbol. That was tried and refuted by measurement in the same session (dead
+end #663): backticks here mean "a name in the system" — a config key, a status
 value, a column, a subcommand, or a deliberate mention of something removed. Of
 2,689 such mentions five were even candidates, and all five were intentional.
 

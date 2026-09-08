@@ -9,6 +9,60 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — documentation parity: six drifting pairs down to zero
+
+`tausik coherence` reported six document pairs whose two languages had drifted.
+Reading the headings with fenced blocks stripped showed five were real, and three
+of them concerned what THIS release ships:
+
+- **`receipts.md`** — the English version was missing three sections the Russian
+  had: what the receipt says about itself (schema v3), the run handle, and
+  fail-closed verification on presentation. That is v3 machinery shipping in 1.9;
+  an English reader would not have learned of it.
+- **`cli.md`** — the English version was missing `redact`, the memory-redaction
+  command (v1.9, decision #258). The task filing had called this pair's drift a
+  counter artefact from `#` comments inside code blocks; that was wrong, and the
+  positional heading comparison said so.
+- **`model-providers.md`** — the Russian version was missing cost telemetry for
+  non-Claude models (schema v58, this release).
+- **`sessions.md`** — the English version was missing the note that usage
+  telemetry has LEFT the list of things silently disabled without a session
+  (schema v48).
+- **`graph.md`** — the Russian version was missing "how this sits beside the
+  RENAR drift detectors". Both files were written in this release.
+
+**A byte-order mark was breaking a title.** `docs/ru/enforcement-coverage.md`
+began with a BOM, so its `# ` line did not start with `#` and the document had no
+H1 at all. Stripped there and everywhere else it appeared under `docs/`.
+
+**Also fixed:** a prose line in `docs/en/graph.md` began with `#663):` and
+markdown rendered it as a heading in the middle of a paragraph.
+
+Three documents still exist in one language only — `at-generation-procedure.md`
+(EN), `agent-contract.md` and `hooks-events.md` (RU) — and that is stated rather
+than counted as parity.
+
+### Removed — a dead duplicate inside the supervision gate, and a tool nobody could find
+
+Two findings from `tausik coherence` while checking whether 1.9 was ready.
+
+**`record_direct_edit` is gone.** It was a SECOND implementation of three lines —
+it called `build()` and `emit_supervision_bypass()` — and nothing called it: not
+the product, not the tests, not MCP. The live path does the same and lives in
+`project_cli_events.py`. Shipping a release about honesty with a dead function
+inside the supervision gate is not an option. The test that matters here is not
+"the name is gone" — trivially true and says nothing — but that the LIVE path
+still records a bypass afterwards.
+
+**`rag_retrieval_bench.py` is now documented.** It is not dead code: it is the
+instrument that produced the recall numbers this project quotes (recall@3 on the
+`context` set went 0.4870 → 0.8348). But it appeared nowhere in `docs/`, so only
+someone who already knew it existed could find it — the same class as "the graph
+was built and held zero rows". `architecture.md` now says, in both languages,
+what it measures and how to run it.
+
+Both collectors report zero afterwards, checked by running the lens.
+
 ### Fixed — a table added only as a migration was missing from every fresh install
 
 Found while checking whether 1.9 was ready to ship, on a real bootstrap into an

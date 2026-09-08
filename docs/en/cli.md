@@ -644,6 +644,70 @@ snippet detect [--path X] [--threshold N]  # AST clone detection: normalizes
                                            #   Idempotent (deduped by hash).
 ```
 
+## Redacting from memory (v1.9, decision #258)
+
+The task journal is append-only, memory has no `update`, decisions have only
+`list`. That is deliberate: a record that can be quietly rewritten stops being
+evidence. But irrevocability must have a paired mechanism, or the first line
+recorded in error becomes permanent.
+
+`redact` is that mechanism. It is an **overwrite that leaves a trace**, not a
+deletion.
+
+```bash
+# Dry run — THE DEFAULT. Writes nothing, shows what it would touch.
+tausik redact --pattern "internal.example.com" --label internal-host \
+              --reason "a private host address does not travel to a public repo"
+
+# Apply. IRREVERSIBLE.
+tausik redact --pattern "internal.example.com" --label internal-host \
+              --reason "..." --apply
+
+# By regular expression instead of a literal
+tausik redact --regex --pattern "alpha|beta|gamma" --label third-party-project --reason "..."
+
+# What has been redacted in this project
+tausik redact list --limit 50
+```
+
+**A bad regular expression is refused in words, not in a traceback.** `--regex`
+with an unparseable pattern gives a named refusal with exit code 1: the command
+names the pattern AS TYPED and quotes `re`'s explanation together with the error
+position. The pattern is printed without repr quotes on purpose — `re` reports
+the fault BY POSITION, and repr doubles backslashes and would shift every index.
+The refusal happens BEFORE any read or write, and it is distinguishable from the
+neighbouring "zero matches" outcome: an unparseable pattern and an empty result
+are different answers with different remedies.
+
+**What happens to the text.** A match is replaced by the visible marker
+`[redacted: <label>]`. The reader must see that something stood here: a silently
+shortened sentence is indistinguishable from one that always read that way.
+
+**What happens to the trace.** Every touched column gets a row in the
+`redactions` table: the entity, the field, the CLASS of what was redacted, the
+reason, the number of replacements, the time. The trace is neither deleted nor
+edited — it is the only reason an irrevocable journal can still be trusted once
+rewriting became possible.
+
+**`--label` names the class, not the value.** A trace quoting the secret would
+put the leak back into the database, in a column nobody would think to scan.
+
+**Scope.** Prose columns only, declared in one place —
+`scripts/redact_scope.py`. Structural columns (`slug`, `status`, timestamps,
+foreign keys) are excluded: those are addresses, not text, and rewriting an
+address breaks the rows that reference it while removing nothing a human wrote.
+
+**There is no restore.** The original text is stored nowhere — not in the trace,
+not in a shadow copy. The only way back is a backup of `.tausik/tausik.db` taken
+BEFOREHAND; the dry run says so before anything is written.
+
+**After applying, run `tausik state export`** — the projection is generated from
+the database, and until it is rebuilt the tree still shows the old text.
+
+**Zero matches is its own outcome, not a success.** The command says "no match"
+in its own words: a caller convinced there is a leak must learn that the pattern
+was wrong, rather than receive a clean exit indistinguishable from real work.
+
 ## Maintenance
 
 ```bash

@@ -130,25 +130,6 @@ def build(task_slug: str | None, **fields: str) -> str:
     return encode(fields)
 
 
-def record_direct_edit(project_dir: str, task_slug: str, **fields: str) -> bool:
-    """Write the §8.6(j) record through the existing bypass emitter.
-
-    Returns what the emitter returns: whether the row reached the DB. A False is
-    not a lost record — the emitter's file sink keeps it — it says where it
-    landed.
-    """
-    details = build(task_slug, **fields)
-    import os
-    import sys
-
-    hooks = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hooks")
-    if hooks not in sys.path:
-        sys.path.insert(0, hooks)
-    from hook_supervision import emit_supervision_bypass
-
-    return bool(emit_supervision_bypass(project_dir, DIRECT_EDIT_VECTOR, task_slug, details))
-
-
 def split_nested(summary: dict[str, Any]) -> dict[str, Any]:
     """Separate metric 8 from the bypass frequency it sits INSIDE.
 

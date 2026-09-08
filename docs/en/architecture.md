@@ -151,6 +151,18 @@ still does not appear in what search returns. An index built before v1.8 grows
 into the layout on first open — the column is added and the FTS table rebuilt
 from the chunks, which are the source of truth.
 
+**How that was measured, and how to measure it again.** The headers are not
+"obviously helpful" — their gain is counted by a reproducible instrument,
+`scripts/rag_retrieval_bench.py` (`python scripts/rag_retrieval_bench.py
+[--limit N] [--json]`). It derives its queries MECHANICALLY from the corpus and
+samples them deterministically, so the set cannot be tuned toward a flattering
+result and two runs over the same tree ask the same questions. It measures
+recall@K against the SPECIFIC CHUNK and keeps two query sets at once: `context`,
+the case the header exists for, and `control`, queries built only from words
+already inside the chunk, where the header must not help and above all must not
+hurt. At n=115: recall@3 went 0.4870 → 0.8348 on `context` and 0.5739 → 0.6435
+on `control`, with no regression at any K.
+
 ### Cross-IDE Support
 
 Skills, roles, stacks -- shared across IDEs. So are the MCP servers: `harness/claude/mcp/`

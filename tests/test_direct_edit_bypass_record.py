@@ -165,3 +165,55 @@ class TestTheMetricIsRenderedAsNested:
         from render_metrics import _bypass_lines
 
         assert _bypass_lines({"total": 0, "by_action": {}}) == []
+
+
+class TestУдалениеДубликатаНеУнеслоМеханизм:
+    """AC-2. Худший исход задачи об удалении мёртвого кода — унести с ним
+    работающий механизм.
+
+    `record_direct_edit` была ВТОРОЙ реализацией трёх строк: она звала `build()`
+    и `emit_supervision_bypass()`, и её не вызывал никто — ни продуктовый код,
+    ни тесты, ни MCP. Живой путь тот же самый и живёт в `project_cli_events.py`,
+    который зовёт обе функции сам.
+
+    Проверяется ЖИВОЙ путь целиком, а не отсутствие удалённого имени: отсутствие
+    имени проверяется тривиально и ничего не говорит о том, работает ли запись.
+    """
+
+    def test_живой_путь_записывает_обход(self, tmp_path):
+        sys.path.insert(0, os.path.join(_ROOT, "scripts", "hooks"))
+        from hook_supervision import emit_supervision_bypass
+
+        (tmp_path / ".tausik").mkdir()
+        details = build(
+            "my-task",
+            actor="andrey",
+            rationale="инцидент, агент недоступен",
+            scope="один файл",
+            approval="владелец",
+        )
+        emit_supervision_bypass(str(tmp_path), DIRECT_EDIT_VECTOR, "hook", details)
+
+        written = [p for p in (tmp_path / ".tausik").rglob("*") if p.is_file()]
+        assert written, (
+            "живой путь ничего не записал — удаление дубликата унесло механизм, "
+            "а не только лишнюю копию"
+        )
+
+    def test_удалённое_имя_действительно_исчезло(self):
+        """Предпосылка, а не утверждение: без неё тест выше был бы зелен и до
+        удаления, то есть не проверял бы ничего про эту задачу."""
+        with open(
+            os.path.join(_ROOT, "scripts", "gate_bypass_record.py"), encoding="utf-8"
+        ) as fh:
+            source = fh.read()
+        assert "def record_direct_edit" not in source
+
+    def test_вторая_копия_не_завелась_снова(self):
+        with open(
+            os.path.join(_ROOT, "scripts", "gate_bypass_record.py"), encoding="utf-8"
+        ) as fh:
+            source = fh.read()
+        assert "emit_supervision_bypass" not in source, (
+            "gate_bypass_record снова зовёт эмиттер сам — это и была вторая копия"
+        )

@@ -135,6 +135,117 @@ level, no whitespace, ASCII-only, floats rejected. The same logical receipt
 always serializes to the same bytes, so signatures verify identically across
 machines and platforms.
 
+### What the receipt says about itself (schema v3)
+
+Schema `v2` named `files_hash` — an opaque digest you can **compare** but not
+**read**. Such a receipt could not answer the two questions without which it
+cannot be presented as proof: "over which files?" and "with which gate set?".
+Schema `v3` adds three fields, and they are what turn the receipt from a stamp
+over a row into a document.
+
+- `files` — the sorted list of declared paths. The security predicate applies to
+  THIS list, not to the argument of the `task done` call: otherwise a closer
+  could declare a harmless scope while presenting a receipt that covered `auth/`.
+- `gate_signature` — the same 16 hex that go into `verification_runs.command`.
+  It is **not** recomputed: the gate-set signature is taken from one source, or
+  the receipt could agree with itself and disagree with the row that produced it.
+- `expires_at` — the shelf life **inside the signature**. A policy that sits
+  beside the document gets edited along with it; a policy inside the signature
+  does not.
+
+Receipts of schema `v1` and `v2` remain cryptographically valid, and the old
+closing path (looking up a fresh run) still accepts them. But such a receipt
+cannot be **presented** by handle: it reads as **partial**, and the refusal
+names the missing fields outright. The unknown is reported as unknown — never
+rounded down to "complete" nor up to "tampered".
+
+## The run handle — presenting instead of searching
+
+Decision #218, adopting SEP-2567's "explicit state handles".
+
+**How it was.** `task done` searched `verification_runs` for a row: green, same
+`files_hash`, same gate signature, younger than 600 seconds. The link between "I
+verified" and "I am closing" was a *search*, not a presentation. Three
+consequences, all of them defects: a substantive refusal ("the declared scope is
+already behind the git changes") reached the agent as a **cache miss**; the
+freshness window belonged to the server and was invisible to the model; and two
+processes with different in-memory module state judged "freshness" differently.
+
+**How it is now.** `tausik verify --task <slug>` prints a handle:
+
+```
+Verify handle: 4821.9f3c1a2b4d5e6f7089abcdef01234567
+  valid until 2026-06-13T11:42:07Z (single use). Present it:
+  tausik task done my-feature --ac-verified --verify-handle 4821.9f3c...
+```
+
+The handle is `<run_id>.<nonce>`, where the nonce is 128 bits from `secrets` (a
+SEP-2567 requirement). The server does a **point** lookup by `run_id` rather
+than a search by freshness.
+
+**The shelf life is 3600 seconds (one hour)**, against 600 for the previous
+cache. That is not a loosening but a consequence of the clock no longer being
+the main criterion: on redemption `files_hash` is recomputed over the **live**
+files and the gate signature over the **live** config. A tree that has moved is
+caught by what actually changed, not by a timer. The clock remains only as the
+bound on how long an unredeemed handle may hang about. Overridden by the config
+key `verify_handle_ttl_seconds`.
+
+The shelf life is named in the `tausik_verify` tool description, in the CLI
+output, and in the receipt's own `expires_at` field — on SEP-2567's explicit
+requirement: "A policy only in server documentation is not visible to the model".
+
+### Verification on presentation — fail-closed
+
+Every clause refuses; none passes silently:
+
+| Condition | What the refusal says |
+|---|---|
+| handle of the wrong shape | `<run_id>.<32-hex>` was expected |
+| no such run in this DB | the handle was issued by another project |
+| nonce mismatch (constant-time compare) | handles are single-use and replaced by every verify |
+| the run was red | a red run confers no right to close a task |
+| the run verified a different task | a handle is valid for the task it was issued under |
+| the run is marked `noncacheable\|` | recorded for audit, not as a certificate |
+| the handle is already redeemed | single use (replay, SEP-2322) |
+| expired / unreadable expiry | an unreadable expiry is **not** read as "no expiry" |
+| the project has no usable public key | the handle path is CLOSED; this is a **named mode**, not a failed check — either `tausik key init`, or close without `--verify-handle` |
+| no receipt / broken JSON / bad signature | there is nothing to present |
+| the receipt is signed for a different task than the run row | a substituted receipt |
+| the receipt's `ran_at` disagrees with the run row | a substituted receipt |
+| a v1/v2 receipt | the missing v3 fields are listed |
+| `files` cover a security path | such scopes are re-checked on every close |
+| `files_hash` over the live files diverged | a **substantive** refusal, not a cache miss |
+| the receipt's `files_hash` diverged from the run row | document and record describe different file sets |
+| the gate signature diverged from the row or from the live config | the receipt certifies a gate set that is no longer the one |
+| git sees a security file changed that the receipt does NOT name | gates scoped by the receipt's list never looked at that file |
+
+One divergence deliberately does NOT block: if git sees changes outside the
+receipt's scope but none of them is security-sensitive, the handle is honoured
+and the divergence goes into the verdict text (decision #138 — it fires on
+almost every honest close: CHANGELOG, docs, generated constants). A divergence
+nobody sees equals an unmeasured one, so it is stated rather than swallowed.
+
+**Compatibility.** `task done` **without** `--verify-handle` works as before,
+through the fresh-run lookup. A silent tightening is not allowed: the handle
+changes how a green is **presented**, not which greens count.
+
+**What the handle does NOT give you.** It is not authorisation. The private seed
+lives in the working tree (see "What the signature does NOT prove" below), so an
+agent is capable of producing a signature the key will accept. The handle's job
+is to make the link "verified -> closing" explicit and checkable, and replay
+countable; not to restrain a determined agent. That is precisely why everything
+the old search checked is **recomputed here against live state** rather than
+taken on trust from the presented document (SEP-2322: "servers MUST always
+validate that state, as the client is an untrusted intermediary").
+
+Auditing unredeemed handles:
+
+```sql
+SELECT id, task_slug, handle_expires_at FROM verification_runs
+WHERE handle_nonce IS NOT NULL AND handle_redeemed_at IS NULL;
+```
+
 ## Key management
 
 ```bash
