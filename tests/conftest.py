@@ -501,3 +501,40 @@ def require_posix_bash():
             "(tried: " + ", ".join(_bash_candidates() or ["<none on PATH>"]) + ")"
         )
     return found
+
+
+# --- observed coverage: which test actually reached which file ---------------
+#
+# OFF unless TAUSIK_OBSERVE_COVERAGE is set, and the ordinary run must not pay
+# for a graph it is not building. When on, the profiler is installed around the
+# CALL phase of each test — not around setup and teardown, whose reach belongs
+# to fixtures shared by many tests and would relate every artifact to
+# everything.
+#
+# The import is inside the hook rather than at module scope: `conftest` is
+# imported for every run, and a module the ordinary run never uses should not
+# be loaded by it.
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_call(item):
+    try:
+        import observed_coverage
+    except Exception:  # noqa: BLE001 — observation must never break a run
+        yield
+        return
+
+    if not observed_coverage.is_enabled():
+        yield
+        return
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    observer = observed_coverage.Observer(root)
+    observer.start()
+    try:
+        yield
+    finally:
+        touched = observer.stop()
+        observed_coverage.record(
+            observed_coverage.output_path(root), item.nodeid, touched
+        )

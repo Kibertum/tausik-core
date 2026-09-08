@@ -31,12 +31,13 @@ def add_graph(sub: argparse._SubParsersAction) -> None:
     )
     build.add_argument(
         "--layer",
-        choices=("all", "cochange", "declared"),
+        choices=("all", "cochange", "declared", "observed"),
         default="all",
         help=(
             "Which layer to build. `cochange` reads git history and works for any "
             "language; `declared` reads what this project already stated in its "
-            "tasks. Default: both."
+            "tasks; `observed` ingests what a test run actually reached — record "
+            "it first with `TAUSIK_OBSERVE_COVERAGE=1 pytest`. Default: all three."
         ),
     )
     build.add_argument(

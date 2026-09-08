@@ -175,6 +175,77 @@ rows. The build now runs as one transaction, and that was the whole fix. A build
 nobody will run twice is a build nobody runs, and the framework then ships an
 empty graph everywhere.
 
+## Layer 2: what a test ACTUALLY touched
+
+Before 1.9, test selection mapped `scripts/foo.py` to `tests/test_foo.py` by
+NAME. That is why `CROSSCUTTING_SCOPE` exists — a hand-written patch for the
+cases where the names do not line up. Names cannot see dynamic dispatch,
+monkeypatching, or the local-imports-inside-function-bodies style this codebase
+uses throughout. A run can.
+
+```bash
+TAUSIK_OBSERVE_COVERAGE=1 pytest tests/     # record the observation
+.tausik/tausik graph build --layer observed # ingest it into the graph
+```
+
+The edge runs from the test file to the file it reached: relation `covers`,
+layer `observed_coverage`, confidence 1.0 — and here that is not a shortcut, the
+test DID run and it DID reach that file. `observations` counts how many tests in
+that file reached it.
+
+**Why not `coverage`.** It is not installed and cannot be: the project is
+stdlib-only by a hard constraint. The observer is built on `sys.setprofile` —
+function granularity rather than line granularity, which is all this needs: the
+question is which FILE a test reached, never which line.
+
+**Why a plugin and not a global hook.** Installed before `pytest.main`, the
+profiler does not survive into the tests — measured, and it reported zero files.
+A hook around each test also answers the question that matters: WHICH test
+reached the file, not merely that somebody did.
+
+**Off by default.** The ordinary run does not pay for a graph it is not building.
+
+### The measured cost of observing
+
+| State | 22 tests of one file |
+|---|---|
+| no observation | 5.5s |
+| observation, first version | 14.5s |
+| observation with the verdict cache | 7.7s |
+
+The first version called `os.path.relpath` on EVERY call event — millions of
+times in a suite — and one test hit a five-minute timeout inside
+`ntpath.relpath`, taking an xdist worker down with it. Whether a file is ours
+depends only on its name, and distinct names number in the hundreds against
+millions of events, so the decision is made once and kept in a dict.
+
+### What observation does NOT see, said plainly rather than papered over
+
+The profiler runs IN-PROCESS, so a test that exercises code in a SUBPROCESS —
+which is how this project checks its hooks, its CLI and its gates — leaves the
+observer only its own lines, not what the process it spawned reached. Measured
+on the live tree after the first full observed run: `scripts/service_doctor_hooks.py`
+has four observed tests against twenty-four found by name, import and declared
+scope.
+
+That is not a reason to call observation weak: those four —
+`test_doctor_commit_hooks`, `test_doctor_trust_tier_weakening` and two more —
+are found by NO name-based edge at all. The layers complement each other, which
+is why the selection adds them rather than choosing between them.
+
+
+### The selection is a SUPERSET, and that is arithmetic rather than caution
+
+The observed edge is ADDED to the three that already existed (name, import,
+declared scope) — never substituted for them. An incomplete graph plus an exact
+selection is a false-green machine: a missed test looks passed, while a
+redundant one costs seconds. With nothing observed yet the selection behaves
+exactly as before — absence of an observation is not a claim that nothing covers
+the file.
+
+**A full run stays mandatory** before a tag and before a batch commit. Selection
+speeds the development loop; it does not replace the check before release.
+
 ## The coverage gate: what we ship is what is documented
 
 `doc_coverage` is a blocking gate on `task done` and `commit`. It checks one

@@ -18,6 +18,8 @@ import os
 import sys
 from typing import Any
 
+from service_artifact_graph import classify, fingerprint
+
 
 #: Suffixes a symbol extractor exists for. Everything else is NOT a file
 #: without symbols — it is a file we cannot read symbols out of.
@@ -97,6 +99,57 @@ def index_symbols(svc: Any, root: str, paths: list[str]) -> dict[str, int]:
     return {"symbols": written, "no_extractor": unreadable}
 
 
+def ingest_observed(svc: Any, root: str) -> dict[str, int]:
+    """Turn an observation file into `covers` edges. Returns what it wrote.
+
+    THE EDGE POINTS FROM THE TEST FILE TO THE FILE IT REACHED, and its layer is
+    `observed_coverage` — a record of what happened, distinct from an inference
+    out of git history and from somebody's declaration. The graph's whole
+    discipline is that those three never share a number.
+
+    Confidence is 1.0, and unlike the co-change layer that is not a shortcut:
+    the test DID run and it DID reach that file. `observations` carries how many
+    tests in that file reached it, which is the number that says how central the
+    relationship is.
+
+    A self-edge is never stored. The observer records the test file honestly —
+    it is the file the test lives in — and this is where that fact becomes the
+    edge's SOURCE rather than one of its targets.
+    """
+    from observed_coverage import output_path, read
+
+    path = output_path(root)
+    if not os.path.isfile(path):
+        return {"pairs": 0, "edges": 0, "tests": 0}
+
+    # (test file, reached file) -> how many test FUNCTIONS in that file reached it.
+    counts: dict[tuple[str, str], int] = {}
+    tests: set[str] = set()
+    for test_id, reached in read(path):
+        test_file = test_id.split("::", 1)[0].replace("\\", "/")
+        if not test_file or test_file == reached:
+            continue
+        tests.add(test_id)
+        counts[(test_file, reached)] = counts.get((test_file, reached), 0) + 1
+
+    written = 0
+    for (test_file, reached), observations in counts.items():
+        if not os.path.isfile(os.path.join(root, test_file)):
+            continue
+        if not os.path.isfile(os.path.join(root, reached)):
+            continue
+        src = svc.be.artifact_upsert(test_file, classify(test_file), fingerprint(test_file, root))
+        dst = svc.be.artifact_upsert(reached, classify(reached), fingerprint(reached, root))
+        if src == dst:
+            continue
+        svc.be.artifact_edge_add(
+            src, dst, "covers", "observed_coverage", 1.0,
+            observations=observations, source_ref=path,
+        )
+        written += 1
+    return {"pairs": len(counts), "edges": written, "tests": len(tests)}
+
+
 def _skip_dir(name: str) -> bool:
     from source_roots import _NEVER
 
@@ -174,6 +227,21 @@ def _build(svc: Any, args: Any) -> None:
                 print(
                     "  none — the layer needs a file pair appearing together in at "
                     "least two commits within the window"
+                )
+
+        if layer in ("all", "observed"):
+            seen = ingest_observed(svc, root)
+            print(
+                f"observed edges (from a test run): {seen['edges']} "
+                f"({seen['tests']} test(s) recorded)"
+            )
+            if seen["edges"] == 0:
+                # Absence, with its cause. "No observation file" and "the run
+                # reached nothing" are different facts, and only the first is
+                # the ordinary state of a fresh checkout.
+                print(
+                    "  none — run the suite once with TAUSIK_OBSERVE_COVERAGE=1 to record "
+                    "which test reaches which file"
                 )
 
         if layer in ("all", "declared"):

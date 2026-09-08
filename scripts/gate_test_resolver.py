@@ -370,7 +370,17 @@ def count_test_files(root: str | None = None) -> int:
 def resolve_test_files_for_relevant(
     relevant_files: list[str] | None, *, root: str | None = None
 ) -> list[str]:
-    """Map source files → existing test files. THREE edges, all additive.
+    """Map source files → existing test files. FOUR edges, all additive.
+
+    0. OBSERVED. What a test RUN actually reached, read from the graph. This is
+       the strongest edge and it comes FIRST, because it survives the three
+       things the others cannot see: dynamic dispatch, monkeypatching, and the
+       local-imports-inside-function-bodies style used throughout this codebase.
+       The three below are the FALLBACK — they still run, because the graph is
+       incomplete by construction until a run has observed everything, and an
+       incomplete graph with an exact selection is a false-green machine: a
+       missed test looks passed, while a redundant one costs seconds.
+
 
     1. BASENAME. For `scripts/brain_init.py`, look for `tests/test_brain_init.py`
        and `tests/test_brain_init_*.py`. An entry that IS a test file is returned
@@ -435,4 +445,52 @@ def resolve_test_files_for_relevant(
         for test_rel, prefixes in cc_index.items():
             if any(_under_prefix(f, p) for f in rels for p in prefixes):
                 _add(test_rel)
+
+    # OBSERVED, added last in code and FIRST in authority. Order here is only
+    # de-duplication order; what matters is that the name/import/scope edges
+    # above remain a fallback rather than being replaced. A graph with nothing
+    # observed yet must select exactly what it selected before this existed —
+    # "no observation" is not a claim that no test covers the file.
+    for test_rel in sorted(_observed_tests_for(base, relevant_files)):
+        _add(test_rel)
     return found
+
+
+def _observed_tests_for(base: str, relevant_files: list[str] | None) -> set[str]:
+    """Test files the GRAPH observed reaching any of `relevant_files`.
+
+    Empty whenever the graph is unreachable, empty, or has never been fed an
+    observation — all of which mean "we do not know", never "nothing covers
+    this". The caller adds this to the name-based edges rather than replacing
+    them, so an unknown answer costs nothing.
+    """
+    if not relevant_files:
+        return set()
+    db = os.path.join(base, ".tausik", "tausik.db")
+    if not os.path.isfile(db):
+        return set()
+
+    wanted = [r.replace("\\", "/") for r in relevant_files if r and isinstance(r, str)]
+    if not wanted:
+        return set()
+
+    import sqlite3
+
+    placeholders = ",".join("?" for _ in wanted)
+    try:
+        with sqlite3.connect(db, timeout=2) as conn:
+            rows = conn.execute(
+                "SELECT src.path FROM artifact_edges e "
+                "JOIN artifacts src ON src.id = e.source_artifact_id "
+                "JOIN artifacts dst ON dst.id = e.target_artifact_id "
+                "WHERE e.layer = 'observed_coverage' "
+                f"AND dst.path IN ({placeholders})",
+                wanted,
+            ).fetchall()
+    except sqlite3.Error:
+        return set()
+    return {
+        str(row[0])
+        for row in rows
+        if os.path.isfile(os.path.join(base, str(row[0])))
+    }

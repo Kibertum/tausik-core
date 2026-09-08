@@ -9,6 +9,40 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the graph learns what a test RUN actually reached
+
+Test selection mapped `scripts/foo.py` to `tests/test_foo.py` by NAME. That is
+why `CROSSCUTTING_SCOPE` exists — a hand-written patch for the cases where the
+names do not line up, declared four times in session #157 alone. Names cannot
+see dynamic dispatch, monkeypatching, or the local-imports-inside-function-bodies
+style this codebase uses throughout. A run can.
+
+```bash
+TAUSIK_OBSERVE_COVERAGE=1 pytest tests/     # record
+.tausik/tausik graph build --layer observed # ingest
+```
+
+- **A layer of its own** (`observed_coverage`, migration v59). Observed coverage
+  is neither an inference from git history nor somebody's declaration, and
+  borrowing an existing layer to dodge a migration would have done the one thing
+  this schema exists to prevent: summarise two different claims into one number.
+- **`sys.setprofile`, not `coverage`** — which is not installed and cannot be,
+  the project being stdlib-only. Function granularity is all this needs: the
+  question is which FILE a test reached, never which line.
+- **A pytest plugin, not a global hook.** Installed before `pytest.main` the
+  profiler does not survive into the tests — measured, zero files. Per-test
+  hooks also answer WHICH test reached the file.
+- **Off by default**, and the selection is a SUPERSET: the observed edge is
+  ADDED to the name/import/scope edges, never substituted. An incomplete graph
+  with an exact selection is a false-green machine — a missed test looks passed,
+  a redundant one costs seconds.
+
+Cost, measured on 22 tests of one file: **5.5s** without observation, **14.5s**
+in the first version, **7.7s** after caching the per-filename verdict. The first
+version called `os.path.relpath` on every call event — millions per suite — and
+one test hit a five-minute timeout inside `ntpath.relpath`, taking an xdist
+worker down with it.
+
 ### Fixed — the session capacity gauge counted a closed task's WHOLE LIFE
 
 Sixteen minutes and about twenty-five tool calls into a shift, `tausik status`

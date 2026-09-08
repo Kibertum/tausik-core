@@ -47,6 +47,10 @@ EDGE_LAYERS = (
     "declared_relevant_files",  # layer 1: a task's relevant_files
     "declared_scope_paths",  # layer 1: a task's scope_paths ACL
     "declared_renar",  # layer 1: an existing RENAR link
+    # layer 2 (v59): what a test RUN actually reached. Not an inference from
+    # history and not somebody's statement — a record of what happened, and the
+    # strongest evidence this graph can hold about a test and a file.
+    "observed_coverage",
 )
 
 
