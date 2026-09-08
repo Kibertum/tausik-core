@@ -467,6 +467,15 @@ class TaskDoneReportMixin:
             if rollback_warning:
                 msgs.append(rollback_warning)
                 report["warnings"].append(rollback_warning)
+            # Asked HERE: the last moment an invented citation can be fixed —
+            # the journal is append-only, and the sweep that finds them runs on
+            # demand, months later. Logic lives in its own module (line cap).
+            from closure_citation_check import citation_warning as _cite_check
+
+            citation_warning = _cite_check(slug, notes)
+            if citation_warning:
+                msgs.append(citation_warning)
+                report["warnings"].append(citation_warning)
             if complexity_warning:
                 msgs.append(complexity_warning)
                 report["warnings"].append(complexity_warning)

@@ -9,6 +9,35 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — an invented closure citation is caught while it can still be fixed
+
+The detector already existed. Across 1,404 closed tasks and 4,026 citations,
+`audit_closure_evidence` reports 20 that name a test git NEVER had and 31 that
+name one which vanished after the closure. What was missing was the ASKING: it
+runs on demand — `tausik coherence`, `tausik audit evidence` — and nobody ran it
+at the moment a reference was written. An invented citation surfaced months
+later, when the journal is append-only and there was nothing left to correct.
+
+`task done` now asks about THIS task's citations, and names the ones that never
+existed.
+
+- **A notice, not a block.** The error direction is over-detection: a citation
+  may fail to resolve because the file is not committed yet or the name was
+  quoted as an example. Refusing a close on that teaches the agent not to cite
+  at all — destroying the evidence in order to check it.
+- **The real defect class is a real file with an invented MEMBER**, measured on
+  the live cases: `tests/test_ci_lanes_are_honest.py::TestNoLaneExcludesByPath`
+  — the file exists, the class never did. A wholly invented FILE is usually
+  classified illustrative, and rightly so: `tests/test_foo.py` in prose promises
+  nothing.
+- **It names the reference rather than counting it.** "2 citations do not
+  resolve" sends the reader back to the journal to find which — the search the
+  notice exists to save.
+- **Measured cost: under 0.04 s per close**, against thirteen gates that already
+  run there.
+- Only `never_existed` is reported. `rotted` is not: a test renamed after THIS
+  closure cannot be missing at THIS closure.
+
 ### Fixed — documentation parity: six drifting pairs down to zero
 
 `tausik coherence` reported six document pairs whose two languages had drifted.
