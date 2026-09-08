@@ -230,3 +230,49 @@ class TestAnUnreadableDatabaseYieldsAbsenceNotAnEmptyGraph:
             (tmp_path / ".tausik").mkdir()
         collected = snap.collect(str(root))
         assert collected["edges"] == []
+
+
+class TestACommittedSnapshotIsStillReadable:
+    """A snapshot that git normalised as TEXT is worse than a missing one.
+
+    MEASURED (session #237, immediately after the first snapshot was committed):
+    git announced "CRLF will be replaced by LF", and the committed object was
+    157,749 bytes against 157,751 on disk — two bytes gone and the gzip CRC
+    failing. The file looked saved and could not be read.
+
+    Nothing would have reported it. Git considered the file stored, no test
+    opened it, no gate looked at it — and a release baseline is needed exactly
+    once, while assembling the release, which is the worst possible moment to
+    discover it.
+
+    So the guard is a TEST over the real files rather than a rule in
+    `.gitattributes` alone: the rule protects the files it names, and the test
+    protects the ones somebody adds next.
+    """
+
+    def _snapshots(self) -> list[Path]:
+        directory = _REPO / snap.SNAPSHOT_DIR
+        return sorted(directory.glob("*.json.gz")) if directory.is_dir() else []
+
+    def test_every_stored_snapshot_decompresses(self):
+        stored = self._snapshots()
+        for path in stored:
+            with gzip.open(path, "rb") as fh:
+                payload = json.loads(fh.read().decode("utf-8"))
+            assert isinstance(payload.get("edges"), list), f"{path.name} holds no edges"
+
+    def test_the_guard_can_go_red(self, tmp_path):
+        """The negative half. On a checkout with no snapshots the loop above is
+        vacuous, so the ability to refuse is asserted on a deliberately broken
+        stream — otherwise this class would pass while checking nothing."""
+        broken = tmp_path / "broken.json.gz"
+        broken.write_bytes(b"\x1f\x8b" + b"not really gzip")
+        with pytest.raises((OSError, EOFError, gzip.BadGzipFile)):
+            with gzip.open(broken, "rb") as fh:
+                fh.read()
+
+    def test_the_binary_rule_covers_the_snapshot_directory(self):
+        """The rule and the test guard different things: the rule keeps git from
+        touching these files, the test notices if it did anyway."""
+        text = (_REPO / ".gitattributes").read_text(encoding="utf-8")
+        assert "graph-snapshots" in text and "binary" in text

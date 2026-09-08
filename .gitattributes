@@ -21,3 +21,10 @@ tausik/** text eol=lf
 # a false red on a file nobody touched. Same pin, same reason, as the two trees
 # above.
 ROADMAP.md text eol=lf
+
+# Graph snapshots are gzip, and git normalised the first one as TEXT: 157,751
+# bytes on disk became 157,749 in the commit and the CRC failed on checkout. A
+# file that looks committed and cannot be read is worse than a missing one,
+# because nothing reports it until the moment somebody needs it — which for a
+# release baseline is exactly once, while assembling the release.
+tausik/graph-snapshots/*.json.gz binary
