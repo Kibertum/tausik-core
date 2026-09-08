@@ -239,3 +239,40 @@ def callers_of(repo_root: str | Path, name: str, roots: tuple[str, ...] | None =
             if called == name:
                 hits.append(f"{rel}:{node.lineno}")
     return sorted(hits)
+
+
+def defined_names(repo_root: str | Path, roots: tuple[str, ...] | None = None) -> set[str]:
+    """Every name this tree DEFINES, in one pass: defs, classes and constants.
+
+    Separate from `build_index` because it answers a different question. The
+    index answers "where is this and what does it look like"; this answers only
+    "does the tree define this name at all", which is what a citation checker
+    needs — and it needs it for MODULE CONSTANTS too. `build_index` walks
+    `tree.body` for functions and classes and stops there, so a document citing
+    `NEGATIVE_SCENARIO_KEYWORDS` would be reported as citing something absent
+    while the constant sits in plain sight. That false red is worse than no
+    check: it teaches the reader to disbelieve the checker.
+
+    A file that does not parse is skipped, exactly as in `build_index` — see
+    `unparsable` for the ones that were. So a name missing from this set means
+    "not found", never "definitely absent", and callers must not upgrade it.
+    """
+    root = Path(repo_root)
+    if roots is None:
+        roots, _ = roots_for(root)
+    names: set[str] = set()
+    for path in _iter_python_files(root, roots):
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, SyntaxError, ValueError):
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                names.add(node.name)
+            elif isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        names.add(target.id)
+            elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                names.add(node.target.id)
+    return names

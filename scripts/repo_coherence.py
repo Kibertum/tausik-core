@@ -76,13 +76,25 @@ class Finding:
         }
 
 
-def _safe(name: str, fn: Callable[[], list[Finding]], skipped: list[str]) -> list[Finding]:
+def _safe(
+    name: str,
+    fn: Callable[[], list[Finding]],
+    skipped: list[str],
+    ran: list[str] | None = None,
+) -> list[Finding]:
     """Run one collector; a failure DEMOTES it to a named gap, never to silence.
 
     A lens that quietly drops a collector reports a cleaner repository than it
     measured, which is the one failure mode that makes the whole thing worse
     than nothing.
+
+    `ran` records the ATTEMPT, before the call, so the reported total counts what
+    was actually asked rather than a literal kept in step by hand. The previous
+    `6 + ...` went stale the moment a seventh collector was added — the same
+    class of defect this lens exists to find, sitting in the lens.
     """
+    if ran is not None:
+        ran.append(name)
     try:
         return fn()
     except Exception as e:  # noqa: BLE001 — one collector must not take the lens down
@@ -243,6 +255,57 @@ def _doc_number_drift(root: Path) -> list[Finding]:
     ]
 
 
+def _senar_claim_citations(root: Path) -> list[Finding]:
+    """The conformance pages cite code; does that code still exist?
+
+    Belongs in THIS lens rather than in a gate because it is the same class the
+    lens exists for: each page is internally fine, and only the pairing with the
+    tree is wrong. A renamed module turns a true claim into an unfalsifiable one
+    without editing a word of the claim.
+
+    The uncited rows are surfaced at a lower severity because they are not rot —
+    they are a statement about how evenly the page is evidenced, and the totals
+    printed underneath count them the same as the rest.
+    """
+    import senar_self_check
+
+    # Only pages that EXIST. Asked about a named page, `check` treats absence as
+    # a broken citation and is right to — the page took its evidence with it.
+    # Asked to audit a repository, that same rule would tell every consumer
+    # project that its conformance citations are broken, when those pages are
+    # ours and were never theirs. A lens that cries wolf in every installation
+    # is a lens nobody reads twice.
+    present = tuple(p for p in senar_self_check.MATRICES if (root / p).is_file())
+    if not present:
+        return []
+
+    report = senar_self_check.check(root, present)
+    findings: list[Finding] = []
+    if report.broken:
+        findings.append(
+            Finding(
+                "senar_claim_citations",
+                "high",
+                f"{len(report.broken)} citation(s) on the conformance pages point at code that is gone",
+                source="senar_self_check",
+                count=len(report.broken),
+                detail="\n".join(f"{c.where()} {why}" for c, why in report.broken[:10]),
+            )
+        )
+    if report.uncited:
+        findings.append(
+            Finding(
+                "senar_claim_citations",
+                "low",
+                f"{len(report.uncited)} conformance row(s) cite nothing checkable",
+                source="senar_self_check",
+                count=len(report.uncited),
+                detail="\n".join(f"{c.where()} {c.subject}" for c in report.uncited[:10]),
+            )
+        )
+    return findings
+
+
 def _rotted_evidence(root: Path, tasks: list[dict[str, Any]]) -> list[Finding]:
     import audit_closure_evidence
 
@@ -314,18 +377,20 @@ def collect(
     """
     root = Path(repo_root).resolve()
     skipped: list[str] = []
+    ran: list[str] = []
     findings: list[Finding] = []
 
-    findings += _safe("orphan_files", lambda: _orphans(root), skipped)
-    findings += _safe("duplicate_tests", lambda: _duplicate_tests(root), skipped)
-    findings += _safe("stale_docs", lambda: _stale_docs(root), skipped)
-    findings += _safe("unused_python", lambda: _unused_python(root), skipped)
-    findings += _safe("translation_drift", lambda: _translation_drift(root), skipped)
-    findings += _safe("doc_number_drift", lambda: _doc_number_drift(root), skipped)
+    findings += _safe("orphan_files", lambda: _orphans(root), skipped, ran)
+    findings += _safe("duplicate_tests", lambda: _duplicate_tests(root), skipped, ran)
+    findings += _safe("stale_docs", lambda: _stale_docs(root), skipped, ran)
+    findings += _safe("unused_python", lambda: _unused_python(root), skipped, ran)
+    findings += _safe("translation_drift", lambda: _translation_drift(root), skipped, ran)
+    findings += _safe("doc_number_drift", lambda: _doc_number_drift(root), skipped, ran)
+    findings += _safe("senar_claim_citations", lambda: _senar_claim_citations(root), skipped, ran)
     if tasks is not None:
-        findings += _safe("closure_evidence", lambda: _rotted_evidence(root, tasks), skipped)
+        findings += _safe("closure_evidence", lambda: _rotted_evidence(root, tasks), skipped, ran)
     if service is not None:
-        findings += _safe("artifact_graph", lambda: _graph_staleness(root, service), skipped)
+        findings += _safe("artifact_graph", lambda: _graph_staleness(root, service), skipped, ran)
 
     findings.sort(key=lambda f: (SEVERITY_ORDER.index(f.severity), -f.count))
     shown, hidden = findings[:MAX_FINDINGS], max(0, len(findings) - MAX_FINDINGS)
@@ -333,7 +398,7 @@ def collect(
     return {
         "findings": [f.as_dict() for f in shown],
         "truncated": hidden,
-        "collectors_run": 6 + (1 if tasks is not None else 0) + (1 if service is not None else 0),
+        "collectors_run": len(ran),
         "collectors_skipped": skipped,
         "not_examined": list(NOT_EXAMINED),
     }
@@ -389,4 +454,6 @@ def render_json(material: dict[str, Any]) -> str:
 if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests
     from cli_entrypoint import refuse_direct_run
 
-    refuse_direct_run(__file__, ".tausik/tausik coherence          # this module's collectors, rendered")
+    refuse_direct_run(
+        __file__, ".tausik/tausik coherence          # this module's collectors, rendered"
+    )

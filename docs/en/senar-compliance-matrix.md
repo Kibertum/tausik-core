@@ -95,12 +95,16 @@
 
 ## Overall Score
 
-| Category | Implemented | Partial | Missing | Score |
-|----------|-------------|---------|---------|-------|
-| Quality Gates (13) | 13 | 0 | 0 | **100%** |
-| Rules (13) | 13 | 0 | 0 | **100%** |
-| Metrics (6) | 6 | 0 | 0 | **100%** |
-| Explorations (3) | 3 | 0 | 0 | **100%** |
-| **Total (35)** | **35** | **0** | **0** | **100%** |
+| Category | Implemented | Partial | Missing | Rows citing code |
+|----------|-------------|---------|---------|------------------|
+| Quality Gates (13) | 13 | 0 | 0 | 12 of 13 |
+| Rules (13) | 13 | 0 | 0 | 7 of 13 |
+| Metrics (6) | 6 | 0 | 0 | 6 of 6 |
+| Explorations (3) | 3 | 0 | 0 | 3 of 3 |
+| **Total (35)** | **35** | **0** | **0** | **28 of 35** |
 
-**Claimed edition: SENAR v1.3 Core.** The scores above count the mechanisms this repository implements against the rubric used on the assessment date, which was a later draft than the claimed edition. They are therefore **not** a conformance score for v1.3: that number is *not measured here* and is deliberately left unstated rather than inherited. Producing it is `senar-14-conformance-reassessment-and-self-check`.
+**A "Score" column stood here printing 100% five times, and it is gone.** The paragraph below the table already said the conformance percentage for v1.3 cannot be computed here and is deliberately left unstated (decision #334) — while the table directly above it printed a number. Readers take the number. Session #225 removed the percentage from the prose and did not touch the table; session #238 finished the job.
+
+**What replaces it, and why that is measurable.** The count of implemented mechanisms stays: it is checkable row by row and was checked. A second count is added — how many rows of each section **cite code** that resolves in the tree. The gap between 13 and 7 under "Rules" is the unevenness of the evidence: the other six rows assert a mechanism in prose ("keyword detection in notes", "QG-0 + QG-2 joint enforcement"), and such a statement can be neither confirmed nor refuted by a machine. The "13/13 implemented" total counts them the same as the rest, so the share is named rather than averaged away.
+
+**Claimed edition: SENAR v1.3 Core**, and this page carries no conformance score against it. The standard's normative text is not vendored in this tree — only our own restatement — so any rubric applied here is **ours**, and passing it off as the standard's is not allowed. The checkable property this page genuinely has is the integrity of its citations: `scripts/senar_self_check.py` resolves every function, constant and file named here against the tree and refuses when one is gone. It runs inside `tausik coherence` and in the ordinary test run (`tests/test_senar_self_check.py`). This is not attestation and not certification: §13.7 of the standard states plainly that no certification scheme is created and that the claim is made by the organisation itself.

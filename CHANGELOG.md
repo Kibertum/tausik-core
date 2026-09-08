@@ -9,6 +9,53 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — the compliance matrix stops printing a conformance score it cannot compute
+
+The page closed with a paragraph saying the conformance percentage for SENAR v1.3
+**cannot be computed here** and is deliberately left unstated (decision #334) —
+directly beneath a table printing **100%** five times. Readers take the number.
+Session #225 removed the percentage from the prose and never touched the table.
+
+The `Score` column is gone. What replaces it is measurable: **how many rows of
+each section cite code that resolves in the tree.**
+
+| Category | Implemented | Rows citing code |
+|---|---|---|
+| Quality Gates | 13 | 12 of 13 |
+| Rules | 13 | **7 of 13** |
+| Metrics | 6 | 6 of 6 |
+| Explorations | 3 | 3 of 3 |
+
+The gap under Rules is the finding. Six rows assert a mechanism in prose —
+"keyword detection in notes", "QG-0 + QG-2 joint enforcement" — and such a
+statement can be neither confirmed nor refuted by a machine, while the
+"13/13 implemented" total counts them the same as the rest.
+
+### Added — `senar_self_check`: the claim pages must still cite code that exists
+
+Carried by `tausik coherence` and by the ordinary test run. It resolves every
+file and symbol the matrices name and refuses when one is gone — a renamed module
+turns a true claim into an unfalsifiable one without editing a word of the claim.
+
+- **The rubric is declared OURS, in the report itself.** SENAR's normative text
+  is not vendored here, so no check in this repository is an assessment against
+  it. The report says so before it says anything else, and asserts it is neither
+  certification nor external attestation (§13.7 creates no certification scheme).
+- **It can say NO.** A fixture citing a deleted module and a renamed function is
+  refused by name; the same fixture with working citations is accepted. A verdict
+  that is always the same says nothing.
+- **Absence is refusal when a page is NAMED, and silence when auditing a tree.**
+  Asked about `docs/ru/senar-compliance-matrix.md`, a missing page is a broken
+  citation — it took its evidence with it. Applying that rule to a repository
+  audit would tell every consumer project its conformance citations are broken.
+- **Measured**: 45 rows per matrix in a table with a citation column, 33 citing a
+  file or a symbol, 20 unique files and 16 unique symbols, 0 unresolved.
+
+`symbol_index.defined_names()` was added for it: `build_index` walks `tree.body`
+for functions and classes only, so resolving against it alone reported cited
+MODULE CONSTANTS (`SECURITY_KEYWORDS`) as absent while they sat in plain sight.
+
+
 ### Added — graph snapshots, and what CHANGED IN THE RELATIONS since a release
 
 ```bash
