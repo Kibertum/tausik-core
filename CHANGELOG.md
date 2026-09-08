@@ -9,6 +9,39 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — `tausik symbol`: the definition, not its address
+
+Derived from [Graft](https://github.com/trailhq/Graft). What transfers is its
+deterministic half: a symbol graph built by parsing sources with no model
+involved, and a query that returns the SOURCE inside the answer so the file need
+not be opened afterwards. Graft is TypeScript on tree-sitter; this is Python on
+`ast`, with no dependency added.
+
+- **The measurement first said no, then said yes, and the difference was how it
+  counted.** By TOOL NAME, code navigation was 9.6% of tool result payload — a
+  ceiling of about 2.7% of context growth, not worth carrying. Counting by what
+  the commands actually DO: inside Bash (75.3% of the payload) `grep/sed/find/ls`
+  is 49.2%, i.e. 37.1% of everything, at 1,192 calls averaging 1,501 characters.
+  Real total: about 47%. Half the reconnaissance here wears the name `Bash`, and
+  the first count could not see it — decision #335 arriving somewhere new.
+- **The gain is in CALLS, and the number is ours.** On 25 random functions of 8+
+  lines: `grep` + `sed` is 2 calls and 30,517 characters; `symbol` is 1 call and
+  29,442 (−3.5%) without callers, 34,686 (+13.7%) with them. So half the calls,
+  and roughly the same characters. That is the saving decision #338 defines: a
+  call re-sends the whole conversation, and this project's baseline prices a call
+  at 266,645 context tokens.
+- **Graft's own 42%/46% was NOT borrowed.** It was measured on other
+  repositories; quoting it as ours would be reporting someone else's measurement
+  as our own.
+- **The explanation layer is deliberately not copied.** In Graft a model writes
+  plain-English summaries of each part of the system; that needs a key, a network
+  and money, and the measurable half of the saving is in the deterministic part.
+- **The index is derived, never edited**, rebuilt on every query (13,199 symbols
+  in 1.2 s), so it cannot go stale — and sources are PARSED, never imported, which
+  would execute module-level code from every file in the tree.
+- **Absence is never emptiness**: an unknown symbol gets the nearest names and
+  the roots that were actually searched; a cut body says how many lines were cut.
+
 ### Added — a published tag is a promise, and the promise is now checkable
 
 Measured in session #233 by asking both remotes rather than recalling #181: the

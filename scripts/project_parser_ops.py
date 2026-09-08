@@ -367,6 +367,26 @@ def add_hygiene(sub: argparse._SubParsersAction) -> None:
         help="Emit the collected material as JSON for a model to judge.",
     )
 
+    # `symbol` answers with the DEFINITION rather than a location, so the usual
+    # grep-then-read pair collapses into one call. Measured share of what tools
+    # returned before it existed: ~47% was code exploration.
+    sym_p = sub.add_parser(
+        "symbol",
+        help="Show a symbol's definition, location and callers in one answer",
+    )
+    sym_p.add_argument("name", help="Symbol name, or Class.method")
+    sym_p.add_argument(
+        "--lines",
+        type=int,
+        default=None,
+        help="Max lines of the definition to print before saying how many were cut",
+    )
+    sym_p.add_argument(
+        "--no-callers",
+        action="store_true",
+        help="Skip the caller scan (faster; the scan walks the indexed tree)",
+    )
+
     h_p = sub.add_parser(
         "hygiene",
         help="Project hygiene operations (dry-run by default)",
