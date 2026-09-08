@@ -9,6 +9,31 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the session capacity gauge counted a closed task's WHOLE LIFE
+
+Sixteen minutes and about twenty-five tool calls into a shift, `tausik status`
+printed `Capacity: 419/200 used, 0 planned, -219 remaining ⚠ overshoot`.
+
+The gauge summed `call_actual` over tasks CLOSED since the session started, and
+`call_actual` is a task's whole life. `release-18-breaking-change-notes` had
+accrued 395 calls since session #177 against a budget of 12; closing it dropped
+all 395 onto a shift that had barely begun.
+
+It matters because the operating rule is "end the shift on capacity, do not
+force it". A gauge reading 419 after twenty-five calls stops work for no reason
+— and does it exactly when a long-standing task is finally closed, which is the
+moment the shift was most productive. The defect survived because the two
+readings agree whenever a task opens and closes inside one shift, which is the
+ordinary case.
+
+The count now comes from `usage_events`, which already carries `session_id`. No
+migration: the column was there. After the fix the same shift read `61/200`.
+
+**The scale shifted, and that is worth knowing before reading the new numbers**:
+counting the shift's own calls gives 249 for session #235 where the old formula
+gave 189. Neither is a regression — the old one was answering a different
+question — but a budget of 200 now means something slightly stricter.
+
 ### Fixed — a doc-drift scan that reported what it could not repair
 
 `--write` repairs what `--check` reports. That is a promise, and it was broken:
