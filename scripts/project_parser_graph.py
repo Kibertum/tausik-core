@@ -63,6 +63,27 @@ def add_graph(sub: argparse._SubParsersAction) -> None:
         help="Emit the answer as JSON, including the staleness flags.",
     )
 
+    read = g_sub.add_parser(
+        "read",
+        help="What to read to change a file — ranked by evidence, cut to a budget",
+    )
+    read.add_argument("path", help="Repo-relative path, e.g. scripts/symbol_index.py")
+    read.add_argument(
+        "--affects",
+        action="store_true",
+        help="Ask the other direction instead: what changing this file may affect.",
+    )
+    read.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help=(
+            "How many links to list before stating the remainder. The default is "
+            "deliberately small: an unranked answer on this repository names up to 42 "
+            "files totalling 2.8 MB, which costs more than the grep it replaces."
+        ),
+    )
+
     g_sub.add_parser(
         "status",
         help="How much is stored, how much is stale, and which roots were indexed",

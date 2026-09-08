@@ -9,6 +9,35 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — `tausik graph read`: what to read to change a file, in under a kilobyte
+
+Measured on the live graph BEFORE this existed — an unranked neighbour list is not
+an answer:
+
+    scripts/verify_scope_honesty.py    42 neighbours, 2,881 KB
+    scripts/gate_test_resolver.py      38 neighbours, 2,779 KB
+    scripts/service_artifact_graph.py  29 neighbours, 2,612 KB
+
+An agent handed that reads all of it and spends MORE than the grep the graph was
+meant to replace. After ranking and cutting, the same three answers are **927,
+945 and 916 bytes** — about one three-thousandth.
+
+- **Rank comes from provenance**: what a RUN observed outranks what a person
+  declared, which outranks what git saw changing together; within a layer the
+  observation count decides. Every line carries its reason, because a ranked list
+  without reasons is indistinguishable from an arbitrary one.
+- **Two questions, not mirror images.** The graph has no direction of dependency,
+  so `read` unions both directions — asking one returned 2 neighbours of 42 on
+  the live tree — while `--affects` uses the one directional relation, `covers`.
+- **Not knowing is visible**: an unknown path gets "NOT in the graph — this is
+  'unknown', not 'unrelated'" and the command that fixes it. An empty list would
+  read as "nothing relates to this", which is a confident wrong answer.
+
+**Where the graph stops and RAG starts is now written down** (decision #353): the
+graph answers STRUCTURAL questions — what relates, what covers, what goes red —
+and RAG answers SEMANTIC ones. A third way to search code beside two others would
+have made things worse without that boundary.
+
 ### Added — the graph learns what a test RUN actually reached
 
 Test selection mapped `scripts/foo.py` to `tests/test_foo.py` by NAME. That is

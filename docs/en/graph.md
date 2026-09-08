@@ -118,6 +118,59 @@ cheaper than opening the file. For a file with no extractor the section is
 SILENT rather than empty: an empty heading would read as "defines nothing",
 which is a different claim from "nothing here can read its definitions".
 
+## Navigation: what to read in order to change a file
+
+```bash
+.tausik/tausik graph read <path>            # what to read to change it
+.tausik/tausik graph read <path> --affects  # what a change should turn red
+```
+
+**The answer is ranked and cut rather than complete, and that is arithmetic
+rather than caution.** Measured on the live graph: an unranked neighbour list
+names 42 files for `scripts/verify_scope_honesty.py` totalling 2,881 KB, 38 files
+and 2,779 KB for `gate_test_resolver.py`, 29 and 2,612 KB for
+`service_artifact_graph.py`. An agent handed that reads all of it and spends MORE
+than the grep the graph was meant to replace. Completeness here is the failure
+mode, not the goal.
+
+The same three questions after ranking: **927, 945 and 916 bytes** — roughly one
+three-thousandth of reading the neighbours.
+
+**Rank comes from provenance.** What a RUN observed outranks what a person
+declared, which outranks what git noticed changing together. Within a layer the
+observation count decides. Every line carries its REASON — "a test run reached it
+x36", "worked on together in one task" — because a ranked list without reasons is
+indistinguishable from an arbitrary one, and the reader cannot stop early, which
+is where the saving lives.
+
+**Two questions, and they are not mirror images.** This graph has no direction of
+dependency: co-change is symmetric and git cannot say which side followed which.
+So `read` unions BOTH directions — storing a symmetric edge picks a side
+arbitrarily, and asking one would drop most of the answer (measured on the live
+tree: one direction returned 2 neighbours of 42). `--affects` uses the one
+relation that IS directional, `covers`: which tests reach this file, and so what
+should go red.
+
+**Not knowing is visible.** A path the graph does not hold gets "NOT in the graph
+— this is 'unknown', not 'unrelated'" and the command that fixes it. An empty
+list would read as "nothing relates to this", which is a confident wrong answer.
+
+### How this differs from RAG
+
+The project already ships `codebase-rag` over 16,850 chunks, and a third way to
+search code beside two others would make things worse without a boundary. The
+boundary is:
+
+| Question | What answers it |
+|---|---|
+| What relates to this file, what covers a change, what goes red | **the graph** |
+| Where is this written about, what is it called, is there something similar | **RAG** |
+| Where is this symbol defined and who calls it | **`tausik symbol`** |
+| Where does this string appear | **grep** |
+
+The graph answers STRUCTURAL questions — relations and consequences. RAG answers
+SEMANTIC ones — content. They do not replace or compete with each other.
+
 ## The index corrects itself on every write
 
 Every file the agent writes re-indexes exactly that file, inside the

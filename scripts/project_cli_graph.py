@@ -163,11 +163,14 @@ def cmd_graph(svc: Any, args: Any) -> None:
         _build(svc, args)
     elif sub == "show":
         _show(svc, args)
+    elif sub == "read":
+        _read(args)
     elif sub == "status":
         _status(svc)
     else:
         print(
-            "error: say what to do — `graph build`, `graph show <path>` or `graph status`",
+            "error: say what to do — `graph build`, `graph show <path>`, "
+            "`graph read <path>` or `graph status`",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -339,6 +342,22 @@ def _print_symbols(svc: Any, path: str) -> None:
     more = len(symbols) - len(shown)
     tail = f" (+{more} more)" if more > 0 else ""
     print(f"  defines: {names}{tail}")
+
+
+def _read(args: Any) -> None:
+    """`graph read <path>` — the navigation answer, ranked and bounded."""
+    from graph_navigation import DEFAULT_BUDGET, answer
+
+    path = str(getattr(args, "path", "") or "")
+    limit = getattr(args, "limit", None)
+    print(
+        answer(
+            _root(),
+            path,
+            direction="affects" if getattr(args, "affects", False) else "read",
+            budget=int(limit) if limit else DEFAULT_BUDGET,
+        )
+    )
 
 
 def _status(svc: Any) -> None:
