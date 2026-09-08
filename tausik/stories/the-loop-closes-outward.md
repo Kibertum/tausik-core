@@ -1,7 +1,7 @@
 ---
 slug: the-loop-closes-outward
 title: "D. Петля замыкается наружу: связь задача-тикет и заметки к релизу"
-status: active
+status: done
 epic: release-19-agent-effectiveness
 ---
 
