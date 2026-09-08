@@ -9,6 +9,38 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Verified — the upgrade path from 1.8.0 is sixteen migrations, and it is now tested on volume
+
+The v1.8.0 tag shipped `SCHEMA_VERSION = 44`; the current schema is 60. A
+consumer on the previous release therefore applies v45..v60 in one go, on their
+own data, the first time the database is opened.
+
+What existed before: `test_v1_to_latest` runs the whole chain on a database with
+TWO tasks — it answers "do the statements execute", not "what happens to data
+when there is a lot of it". A live run of v57→v60 on this repository's 78 MB
+database covered three of the sixteen.
+
+**Measured now, v44 → v60 on realistic volume:** 60,000 telemetry rows, 2,000
+tasks, 3,000 memory records — **0.19 s**, no table lost a row,
+`PRAGMA integrity_check` ok, `PRAGMA foreign_key_check` empty. The rebuilt
+`usage_events` carries its new token and cost columns, so the rebuild did the
+thing it was for rather than merely copying the table.
+
+The volume matters because the chain contains TABLE REBUILDS: SQLite cannot
+`ALTER` a CHECK constraint, so v58 copies `usage_events` whole through a
+temporary table. Rebuilding an empty table and rebuilding sixty thousand rows are
+different operations.
+
+**The fixture is built by running migrations 1..44**, not from a snapshot of the
+old schema: a snapshot would drift from the migrations silently and the test
+would then be checking its own copy. Two rounds of NOT NULL and CHECK failures
+during writing proved the point — the required columns and the allowed `source`
+values came from the live v44 schema, not from memory.
+
+**What this does NOT claim:** that another project's data has the same shape.
+That is unknowable from here, and asserting it would be a statement wider than
+the evidence.
+
 ### Changed — the tree now says 1.9.0, and the README says what 1.9 is
 
 `pyproject.toml` still read `version = "1.8.0"` while shipping 1.9 — and it is
