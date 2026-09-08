@@ -104,6 +104,51 @@ Trusting the stored hashes would be cheaper. It would also make a stale answer
 indistinguishable from a fresh one, which is the single outcome this graph must
 never produce.
 
+## The index corrects itself on every write
+
+Every file the agent writes re-indexes exactly that file, inside the
+`auto_format` hook that already runs `PostToolUse` on `Write` and `Edit`. No new
+hook is added for it, and the numbers say why: re-indexing one file is 0.47 ms
+of work, while starting a hook process of its own costs 54 ms — thirty times the
+work in overhead.
+
+The refresh runs AFTER formatting. A fingerprint taken before it would disagree
+with disk in the same instant, and that is a lie, which is worse than being
+behind.
+
+**Quiet on write, loud on query.** The refresh never blocks and prints nothing.
+When it cannot run — the database is unreachable, the file changed outside the
+editor, a `git pull` landed — the artifact simply keeps its old fingerprint, and
+`graph show` recomputes fingerprints from disk on EVERY query and names it as
+stale. A blocking gate on a secondary index would stop primary work, and a false
+block on routine teaches circumvention, which costs more than the miss.
+
+The refresh never ADDS an artifact. A file the graph has not been told about
+stays unknown until `graph build` runs: letting a write quietly widen the graph
+would make the stored count stop matching what the build reported.
+
+### What this freshness cost
+
+| State of the write hook | Median |
+|---|---|
+| before this work | 68 ms |
+| with the refresh through the full backend | 301 ms |
+| with a direct `sqlite3` update | 279 ms |
+| **after removing dead journaling** | **50 ms** |
+
+The first version nearly quadrupled the cost of every write, because opening the
+backend runs `init_schema` and closing it runs `wal_checkpoint(TRUNCATE)` over a
+66 MB database. Both are right for a long-lived process and both are wasted on
+one UPDATE from a process that exits immediately.
+
+The rest of the difference came from elsewhere. A per-file "Modified: <path>"
+journal entry turned out to have been **broken on Windows for years** — the hook
+invoked the POSIX wrapper `.tausik/tausik`, which raises `OSError` there, and the
+surrounding `except` swallowed it. Reviving it would have cost 190 ms on every
+write, so it was removed rather than repaired: git records the changed file more
+precisely, and a machine-written line dilutes the journal entries an agent makes
+on purpose (decision #351).
+
 ## Cost
 
 A full build of this repository — 4,226 artifacts, 13,312 symbols, 17,644

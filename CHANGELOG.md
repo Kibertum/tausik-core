@@ -9,6 +9,45 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the graph stays fresh, and the write hook got FASTER doing it
+
+Every file the agent writes re-indexes exactly that file, inside the hook that
+already runs on writes. No new hook: measured, the work is 0.47 ms and a hook
+process of its own is 54 ms — thirty times the work in overhead, plus a second
+thing to deploy and keep in cross-host parity.
+
+Quiet on write, loud on query: the refresh never blocks and prints nothing, and
+when it cannot run the artifact simply keeps its old fingerprint — which
+`graph show` reports as stale, because it recomputes fingerprints from disk on
+every query. A blocking gate on a SECONDARY index would stop primary work.
+
+    the write hook, before this work                   68 ms
+    ... with the refresh through the full backend     301 ms
+    ... with a direct sqlite3 UPDATE                  279 ms
+    ... after removing dead journaling                 50 ms
+
+- **`SQLiteBackend` is not used for this.** Opening it runs `init_schema`;
+  closing it runs `wal_checkpoint(TRUNCATE)` over a 66 MB database. Both are
+  right for a long-lived process and wasted on one UPDATE from a process that
+  exits immediately. `hooks/_common` set that precedent for the same reason.
+- **The refresh never ADDS an artifact.** A file the graph does not know stays
+  unknown until `graph build` runs, so the stored count keeps matching what the
+  build printed.
+
+### Fixed — a per-write journal entry that had been broken on Windows for years
+
+`auto_format` appended "Modified: <path>" to the active task after every write
+by invoking `.tausik/tausik` — the POSIX shell wrapper. On Windows that raises
+`OSError [WinError 2]`, and the surrounding `except OSError` swallowed it: 4
+tasks out of 1,565 carry such a line, all from before the wrapper split.
+
+**It was removed rather than repaired** (decision #351). Reviving it costs 190 ms
+on every write against a 68 ms hook, git already records which file changed more
+precisely and permanently, and a machine-written line dilutes the journal
+entries an agent makes on purpose. What the block was right about is that a hook
+must not hand-roll what `_common` already does correctly per platform — that
+lesson is left in place of the code.
+
 ### Added — `tausik graph`, and the graph became the framework's, not this repository's
 
 The substrate shipped one day earlier and then held **0 rows in all three of its
