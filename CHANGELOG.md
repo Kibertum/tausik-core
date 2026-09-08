@@ -9,6 +9,26 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the abandoned sweep draft was not merely slow, it was wrong
+
+The first dead-symbol sweep was replaced for being slow. It finished in the
+background after the review had already reported, and claimed 27 dead symbols
+against the working sweep's 14. All thirteen extras were checked by name: every
+one is ALIVE.
+
+The cause is worth writing down, because a reader who trusted that draft would
+have deleted thirteen working functions. Private helpers legitimately share a
+name across modules — `_now_iso` in two, `_cmd_list` in two, `_LABEL` in five.
+The draft subtracted the count of ALL definitions from ONE file's occurrences,
+drove the tally negative, and never registered a hit.
+
+**Two traps in one session, and they point in opposite directions.** Not
+excluding `.tausik/` counts mentions inside the venv as references and shows the
+tree CLEANER than it is — that one cost three missed symbols. This one shows live
+code as dead, and would have cost working code. Both are now written in the
+sweep's own docstring, where the next person to write one will look, and the
+second is pinned by a test over four real names from this tree.
+
 ### Removed — 25 dead symbols, including four MCP handlers that looked alive
 
 `audit_unused_python` answers "which MODULE does nothing import" and returns zero
