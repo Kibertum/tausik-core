@@ -1,7 +1,7 @@
 ---
 slug: gates-declare-what-they-prevent
 title: "Гейт объявляет предотвращаемый эффект и проверяется мутацией (SENAR 1.4)"
-status: active
+status: done
 epic: release-19-renar-conformance
 ---
 
