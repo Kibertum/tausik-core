@@ -1,0 +1,266 @@
+"""CLI handler for `tausik graph` — build it, then ask it.
+
+MEASURED BEFORE THIS EXISTED: `artifacts`, `artifact_symbols` and
+`artifact_edges` held 0 rows each, in the repository that authored them, a day
+after the substrate shipped. Nothing populated them and nothing could: the
+service methods had no caller outside their own tests.
+
+WHAT THIS PRINTS IS WHAT IT STORED, INCLUDING THE ZEROES. A build that produced
+no edges says so and says why — a co-change layer over a repository with four
+commits has almost nothing to observe, and that is a fact about the history, not
+a failure of the build.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+from typing import Any
+
+
+#: Suffixes a symbol extractor exists for. Everything else is NOT a file
+#: without symbols — it is a file we cannot read symbols out of.
+SYMBOL_SUFFIXES = (".py", ".pyi")
+
+
+def _root() -> str:
+    return os.getcwd()
+
+
+def _index_everything(svc: Any, root: str) -> tuple[list[str], list[str], str]:
+    """Index every source file under the project's own roots.
+
+    Returns the PATHS, not just their count: the caller needs the same list to
+    say how many of them have no symbol extractor, and asking the database for
+    it again would mean a new backend method under a ratchet that forbids one.
+    """
+    from source_roots import resolve
+
+    roots, source = resolve(root)
+    paths: list[str] = []
+    for name in roots:
+        base = os.path.join(root, name)
+        if not os.path.isdir(base):
+            continue
+        for current, dirnames, filenames in os.walk(base):
+            dirnames[:] = [d for d in dirnames if not _skip_dir(d)]
+            for filename in filenames:
+                full = os.path.join(current, filename)
+                rel = os.path.relpath(full, root).replace("\\", "/")
+                paths.append(rel)
+    svc.graph_index_paths(paths, root=root)
+    return paths, list(roots), source
+
+
+def index_symbols(svc: Any, root: str, paths: list[str]) -> dict[str, int]:
+    """Fill `artifact_symbols` from the definitions the index already finds.
+
+    WHY THIS EXISTS. Two half-graphs shipped a day apart and did not know about
+    each other: `symbol_index` answered `tausik symbol` by re-walking the tree on
+    every call, while `artifact_symbols` — a table built for exactly these rows —
+    held zero.
+
+    WHY IT LIVES IN THE CLI LAYER and not on `ProjectService`. That class is
+    under a ratchet whose test pins its public surface at 148 members and forbids
+    it to rise; the goal written into the baseline is that it comes DOWN. Adding
+    a 149th for this would have been the growth the ratchet exists to stop, so
+    the composition happens here, beside the command that needs it.
+
+    Returns counts INCLUDING the files it could not read: "0 symbols" and "no
+    extractor for this language" are different answers, and a Go project reading
+    the first would conclude its own code has no definitions (decisions #334,
+    #349).
+    """
+    from symbol_index import build_index, roots_for
+
+    roots, _source = roots_for(root)
+    written = 0
+    for symbol in build_index(root, roots):
+        artifact = svc.be.artifact_get(symbol.path)
+        if not artifact:
+            # Only symbols of artifacts the graph already knows: indexing a file
+            # here as a side effect would put rows in the graph that the build
+            # never counted.
+            continue
+        if svc.be.artifact_symbol_add(int(artifact["id"]), symbol.qualname, symbol.lineno):
+            written += 1
+
+    from service_artifact_graph import classify
+
+    unreadable = sum(
+        1
+        for path in paths
+        if classify(path) in ("code", "config")
+        and not path.lower().endswith(SYMBOL_SUFFIXES)
+    )
+    return {"symbols": written, "no_extractor": unreadable}
+
+
+def _skip_dir(name: str) -> bool:
+    from source_roots import _NEVER
+
+    return name in _NEVER
+
+
+def cmd_graph(svc: Any, args: Any) -> None:
+    """Dispatch `graph build|show|status`."""
+    sub = getattr(args, "graph_cmd", None)
+    if sub == "build":
+        _build(svc, args)
+    elif sub == "show":
+        _show(svc, args)
+    elif sub == "status":
+        _status(svc)
+    else:
+        print(
+            "error: say what to do — `graph build`, `graph show <path>` or `graph status`",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
+def _build(svc: Any, args: Any) -> None:
+    """Build in ONE transaction, and say how long it took.
+
+    MEASURED: the first working build of this repository wrote roughly 22,000
+    rows in 2 minutes 27 seconds — about 6.7 ms each, because the database runs
+    WAL with `synchronous=FULL` and every autocommitted statement pays an fsync.
+    The same work against a fresh database took 4.3 s. Nothing about the graph
+    was slow; the commit boundary was in the wrong place.
+
+    A build nobody will run twice is a build nobody runs, and the framework then
+    ships a graph that is empty everywhere except where somebody was patient —
+    which is the defect this whole task exists to remove.
+    """
+    import time
+
+    root = _root()
+    layer = getattr(args, "layer", "all") or "all"
+    started = time.perf_counter()
+
+    from source_roots import describe
+
+    with svc.be.transaction():
+        if getattr(args, "rebuild", False):
+            removed = svc.be.graph_clear()
+            print(f"cleared: {removed} artifact(s) and everything hanging off them")
+
+        paths, roots, source = _index_everything(svc, root)
+        print(describe(roots, source))
+        print(f"indexed: {len(paths)} artifact(s)")
+
+        symbols = index_symbols(svc, root, paths)
+        print(f"symbols: {symbols['symbols']} from files this framework can parse")
+        if symbols["no_extractor"]:
+            # ABSENCE, NAMED. Saying nothing here would let a Go or Terraform
+            # project read "0 symbols" as "my code has none" rather than "this
+            # framework has no extractor for it yet" (decisions #334, #349).
+            print(
+                f"  {symbols['no_extractor']} source file(s) have NO symbol extractor here — "
+                "Python only in 1.9. Their co-change and declared edges are built as usual."
+            )
+
+        if layer in ("all", "cochange"):
+            window = getattr(args, "window", None)
+            kwargs = {"window": int(window)} if window else {}
+            n = svc.graph_build_cochange(root=root, **kwargs)
+            print(f"co-change edges (from git history): {n}")
+            if n == 0:
+                # A zero that names its cause. Silence here would read as "the
+                # layer is broken" when the honest reading is "this history has
+                # nothing to observe yet" — two states an operator must be able
+                # to tell apart.
+                print(
+                    "  none — the layer needs a file pair appearing together in at "
+                    "least two commits within the window"
+                )
+
+        if layer in ("all", "declared"):
+            n = svc.graph_build_declared(root=root)
+            print(f"declared edges (from this project's own statements): {n}")
+            if n == 0:
+                print("  none — no CROSSCUTTING_SCOPE in tests and no task declared relevant_files")
+
+    print(f"built in {time.perf_counter() - started:.1f}s")
+
+
+def _show(svc: Any, args: Any) -> None:
+    root = _root()
+    path = str(getattr(args, "path", "") or "").replace("\\", "/")
+    answer = svc.neighbours_of(path, root=root)
+
+    if getattr(args, "json", False):
+        print(json.dumps(answer, ensure_ascii=False, indent=2))
+        return
+
+    if not answer.get("known"):
+        print(
+            f"{path}: not in the graph. Run `tausik graph build` — or the path is "
+            "outside this project's source roots."
+        )
+        return
+
+    edges = answer.get("edges") or []
+    print(f"{path}  (indexed {answer.get('indexed_at')})")
+    if answer.get("partially_stale"):
+        # Named, never implied. A stale answer that looks fresh is the one
+        # outcome this graph exists to avoid.
+        print(f"  STALE — these have changed since indexing: {', '.join(answer['stale'])}")
+    if not edges:
+        print("  no edges. Nothing in this project has been observed or declared alongside it.")
+        return
+    for edge in edges:
+        arrow = "->" if edge["direction"] == "out" else "<-"
+        print(
+            f"  {arrow} {edge['target']}  [{_layer_in_words(edge['layer'])}, "
+            f"confidence {edge['confidence']:.2f}, {edge['observations']} observation(s)]"
+        )
+
+
+#: The layer, said in words rather than in the vocabulary. The stored `relation`
+#: for a declared grouping is `co_changes` — deliberately, because a task's
+#: `relevant_files` states "these were worked on together" and NOT "one mentions
+#: the other" (see `_declared_from_tasks`). Printing the raw pair read as a
+#: contradiction: `[co_changes, declared_relevant_files]` looks like an
+#: observation labelled a declaration. The vocabulary is right; showing it to a
+#: reader who has not read the schema was not.
+_LAYER_IN_WORDS = {
+    "git_cochange": "observed together in git history",
+    "declared_crosscutting": "declared: a test names this in CROSSCUTTING_SCOPE",
+    "declared_relevant_files": "declared: worked on together in one task",
+    "declared_scope_paths": "declared: inside one task's scope",
+}
+
+
+def _layer_in_words(layer: str) -> str:
+    return _LAYER_IN_WORDS.get(layer, layer)
+
+
+def _status(svc: Any) -> None:
+    root = _root()
+    from source_roots import describe, resolve
+
+    roots, source = resolve(root)
+    print(describe(roots, source))
+
+    counts = svc.be.graph_counts()
+    print(
+        f"stored: {counts['artifacts']} artifact(s), {counts['symbols']} symbol(s), "
+        f"{counts['edges']} edge(s)"
+    )
+    if not counts["artifacts"]:
+        print("  the graph is empty — `tausik graph build` fills it")
+        return
+    stale = svc.graph_stale_artifacts(root=root)
+    print(f"stale: {len(stale)} artifact(s) no longer match what was indexed")
+    for item in stale[:10]:
+        print(f"  {item['path']}")
+    if len(stale) > 10:
+        print(f"  ... and {len(stale) - 10} more")
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests
+    from cli_entrypoint import refuse_direct_run
+
+    refuse_direct_run(__file__)

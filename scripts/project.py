@@ -52,6 +52,7 @@ def main() -> None:
     from project_cli_config import cmd_config
     from project_cli_doctor import cmd_doctor
     from project_cli_coherence import cmd_coherence
+    from project_cli_graph import cmd_graph
     from project_cli_symbol import cmd_symbol
     from project_cli_hygiene import cmd_hygiene
     from project_cli_redact import cmd_redact
@@ -138,6 +139,7 @@ def main() -> None:
         "run": cmd_run,
         "review": cmd_review,
         "coherence": cmd_coherence,
+        "graph": cmd_graph,
         "symbol": cmd_symbol,
         "hygiene": cmd_hygiene,
         "redact": cmd_redact,

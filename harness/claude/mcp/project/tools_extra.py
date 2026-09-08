@@ -239,6 +239,36 @@ TOOLS_EXTRA = [
         },
     },
     {
+        "name": "tausik_graph",
+        "description": (
+            "Artifact graph: what changes with what, and on what evidence. "
+            "command=build fills it from git history and this project's own "
+            "declarations; command=show <path> answers for one file WITH the "
+            "artifacts it can no longer vouch for; command=status reports how "
+            "much is stored and which source roots were indexed. Roots come "
+            "from the PROJECT (config, else git), never from the framework's "
+            "own directory names."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string",
+                    "enum": ["build", "show", "status"],
+                    "description": "What to do. Default: status.",
+                },
+                "path": {
+                    "type": "string",
+                    "description": "Repo-relative path — required by command=show.",
+                },
+                "rebuild": {
+                    "type": "boolean",
+                    "description": "command=build: drop what is stored first.",
+                },
+            },
+        },
+    },
+    {
         "name": "tausik_doctor",
         "description": "Health diagnostic — venv + DB + MCP + skills + drift + config + gates + session",
         "inputSchema": {"type": "object", "properties": {}},

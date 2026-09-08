@@ -117,6 +117,7 @@ TAUSIK enforces these rules. Violating them triggers warnings or hard blocks.
 Full rule set: [SENAR v1.3](https://senar.tech).
 """
 
+
 def build_commands_section() -> str:
     """The command list, with its own COUNT rather than a hand-picked subset.
 
@@ -141,6 +142,11 @@ def build_commands_section() -> str:
     # for rather than added. This text is re-sent every turn and the generated
     # file is held to 80-180 lines; growing it to advertise discoverability
     # would have been self-defeating.
+    #
+    # `graph` was added at exactly 180 lines, so it was PAID FOR, not appended:
+    # `verify` and `task done` now share one line. They were always one act —
+    # QG-2 is "gates, then close" — and the chained form is also the shape the
+    # tool-choice nudge names as a legitimate reason to stay in the shell.
     return f"""## Commands Quick Reference
 
 Seven carry the workflow; {how_many} exist — `.tausik/tausik --help` lists them.
@@ -148,11 +154,11 @@ Seven carry the workflow; {how_many} exist — `.tausik/tausik --help` lists the
 ```bash
 .tausik/tausik status                          # project overview + warnings
 .tausik/tausik task start <slug>               # activate (QG-0 enforced)
-.tausik/tausik verify --task <slug>            # heavy gates (pytest etc.) → cached green
-.tausik/tausik task done <slug> --ac-verified  # complete (QG-2 enforced via verify cache)
+.tausik/tausik verify --task <slug> && .tausik/tausik task done <slug> --ac-verified  # QG-2
 .tausik/tausik task log <slug> "message"       # log progress
 .tausik/tausik dead-end "approach" "reason"    # document failure (used 0 times in 5,966 calls)
 .tausik/tausik symbol <name>                   # a definition, its file:line and callers
+.tausik/tausik graph show <path>               # what this file changes with, and on what evidence
 ```
 """
 

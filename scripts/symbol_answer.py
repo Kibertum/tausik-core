@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from symbol_index import DEFAULT_BODY_LINES, DEFAULT_ROOTS, Symbol, build_index, callers_of
+from symbol_index import DEFAULT_BODY_LINES, Symbol, build_index, callers_of, roots_for
 
 #: How many callers to list before saying how many more there are. A caller list
 #: is a hint about where to look next, not a report; past a dozen it stops
@@ -63,16 +63,19 @@ def answer(
     query: str,
     *,
     max_lines: int = DEFAULT_BODY_LINES,
-    roots: tuple[str, ...] = DEFAULT_ROOTS,
+    roots: tuple[str, ...] | None = None,
     with_callers: bool = True,
 ) -> str:
     """One answer, complete enough that opening the file is unnecessary."""
     root = Path(repo_root)
+    source = "caller"
+    if roots is None:
+        roots, source = roots_for(root)
     symbols = build_index(root, roots)
     matches = find(symbols, query)
 
     if not matches:
-        return _nothing_found(symbols, query, roots)
+        return _nothing_found(symbols, query, roots, source)
 
     parts: list[str] = []
     for sym in matches[:MAX_MATCHES]:
@@ -93,7 +96,30 @@ def answer(
         parts.append(
             f"{len(matches) - MAX_MATCHES} further match(es) not shown — narrow the query."
         )
+    parts.append(_roots_line(roots, source))
     return "\n".join(parts).rstrip() + "\n"
+
+
+def _roots_line(roots: tuple[str, ...], source: str) -> str:
+    """Where the answer looked, and on whose authority.
+
+    On the POSITIVE answer as well as the negative one. A reader who cannot see
+    the search area cannot tell a complete answer from one that happened to miss
+    a whole subtree — and until this release the area was a constant naming THIS
+    repository's directories, so in somebody else's project that difference was
+    the entire result.
+    """
+    where = {
+        "declared": "declared in .tausik/config.json",
+        "git": "derived from git-tracked files",
+        "disk": "scanned from disk — not a git repository",
+        "fallback": (
+            "NOT DERIVED — no source was located in this tree, so the framework's own "
+            "layout was assumed and this answer may be about the wrong files"
+        ),
+        "caller": "given by the caller",
+    }.get(source, source)
+    return f"searched: {', '.join(roots)} ({where})"
 
 
 def _callers_line(root: Path, sym: Symbol, roots: tuple[str, ...]) -> str:
@@ -105,7 +131,9 @@ def _callers_line(root: Path, sym: Symbol, roots: tuple[str, ...]) -> str:
     return f"called from: {shown}{more}"
 
 
-def _nothing_found(symbols: list[Symbol], query: str, roots: tuple[str, ...]) -> str:
+def _nothing_found(
+    symbols: list[Symbol], query: str, roots: tuple[str, ...], source: str = "caller"
+) -> str:
     """Absence, with the nearest thing to it — never an empty answer.
 
     An empty result is indistinguishable from a broken index, and a reader who
@@ -116,8 +144,13 @@ def _nothing_found(symbols: list[Symbol], query: str, roots: tuple[str, ...]) ->
     stem = lowered[:4]
     near = sorted({s.qualname for s in symbols if stem and stem in s.qualname.lower()})[:8]
     lines = [
-        f"no symbol named {query!r} in the indexed tree "
-        f"({len(symbols)} definitions across {', '.join(roots)})."
+        f"no symbol named {query!r} in the indexed tree ({len(symbols)} definitions).",
+        # WHERE the search area came from, not only what it was. "Nothing here"
+        # and "we were looking in the framework's own directory names because we
+        # could not find yours" are different answers, and only one of them is
+        # about the symbol. The root list lives HERE and not in the line above:
+        # printing it twice made the answer longer without making it truer.
+        _roots_line(roots, source),
     ]
     if near:
         lines.append("nearest names: " + ", ".join(near))

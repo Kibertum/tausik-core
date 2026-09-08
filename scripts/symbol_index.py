@@ -41,9 +41,32 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-#: Trees worth indexing. The deployed IDE profiles are byte-copies of `scripts/`
-#: and would triple every answer with duplicates of the same definition.
+#: The tree THIS repository indexed before roots were derived. Kept as the last
+#: resort for a project whose source cannot be located at all, and as the name
+#: the older tests still ask for -- NOT as a default any caller should rely on.
+#: MEASURED: deriving the roots on this repository yields the identical 13,297
+#: declarations in the same time, and on a consumer project it is the difference
+#: between 4 declarations and 0 (spike ag-spike-schema-against-three-stacks).
 DEFAULT_ROOTS: tuple[str, ...] = ("scripts", "bootstrap", "tests", "harness")
+
+
+def roots_for(repo_root: str | Path) -> tuple[tuple[str, ...], str]:
+    """(roots, where they came from) for a project, asked of the PROJECT.
+
+    Returns the provenance alongside the roots because "declared by the project",
+    "derived from git" and "scanned from disk" are three different strengths of
+    claim, and an answer that hides which one it stands on cannot be checked.
+    """
+    from source_roots import resolve
+
+    roots, source = resolve(str(repo_root))
+    if not roots:
+        # Absence, and it says so. The fallback is named `fallback` rather than
+        # dressed up as a finding, so a caller can tell "we know this project"
+        # from "we gave up and used our own tree's names" (decision #334).
+        return DEFAULT_ROOTS, "fallback"
+    return tuple(roots), source
+
 
 #: Directories never descended into, whatever they contain.
 _SKIP_DIRS = frozenset(
@@ -121,7 +144,7 @@ def _signature(node: ast.AST, source_lines: list[str]) -> str:
     return " ".join(parts).rstrip(":").strip()
 
 
-def build_index(repo_root: str | Path, roots: tuple[str, ...] = DEFAULT_ROOTS) -> list[Symbol]:
+def build_index(repo_root: str | Path, roots: tuple[str, ...] | None = None) -> list[Symbol]:
     """Every definition in the tree. Parsed, never imported.
 
     A file that does not parse is SKIPPED, not fatal: one syntactically broken
@@ -130,6 +153,8 @@ def build_index(repo_root: str | Path, roots: tuple[str, ...] = DEFAULT_ROOTS) -
     reaches a caller as "does not exist".
     """
     root = Path(repo_root)
+    if roots is None:
+        roots, _ = roots_for(root)
     symbols: list[Symbol] = []
     for path in _iter_python_files(root, roots):
         try:
@@ -175,9 +200,11 @@ def _symbols_of(node: ast.AST, rel: str, lines: list[str], parent: str | None) -
     return out
 
 
-def unparsable(repo_root: str | Path, roots: tuple[str, ...] = DEFAULT_ROOTS) -> list[str]:
+def unparsable(repo_root: str | Path, roots: tuple[str, ...] | None = None) -> list[str]:
     """Files the index could not read. Absence of a symbol may be one of these."""
     root = Path(repo_root)
+    if roots is None:
+        roots, _ = roots_for(root)
     bad: list[str] = []
     for path in _iter_python_files(root, roots):
         try:
@@ -187,9 +214,7 @@ def unparsable(repo_root: str | Path, roots: tuple[str, ...] = DEFAULT_ROOTS) ->
     return bad
 
 
-def callers_of(
-    repo_root: str | Path, name: str, roots: tuple[str, ...] = DEFAULT_ROOTS
-) -> list[str]:
+def callers_of(repo_root: str | Path, name: str, roots: tuple[str, ...] | None = None) -> list[str]:
     """`path:line` of every call whose callee is spelled `name`.
 
     BY NAME, and the limit is stated rather than hidden: two functions sharing a
@@ -197,6 +222,8 @@ def callers_of(
     not do — and a list that says so beats a list that quietly picks one.
     """
     root = Path(repo_root)
+    if roots is None:
+        roots, _ = roots_for(root)
     hits: list[str] = []
     for path in _iter_python_files(root, roots):
         try:

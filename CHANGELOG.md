@@ -9,6 +9,59 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — `tausik graph`, and the graph became the framework's, not this repository's
+
+The substrate shipped one day earlier and then held **0 rows in all three of its
+tables, in the repository that wrote it**. It had no CLI command and no MCP tool:
+outside its own tests, nothing called it. Measured before this task, on the real
+consumer-project fixture and on a real repository holding python, terraform and
+markdown:
+
+    symbol index, consumer   0 declarations, while backend/api/orders.py sat
+                             there full of them. Roots were ("scripts",
+                             "bootstrap", "tests", "harness") — OUR names.
+    artifact kinds           9 suffixes for 25 declared stacks, and exactly one
+                             produced `code`: `.py`.
+    full build               2m27s — roughly 22,000 statements, each paying a
+                             WAL fsync of its own.
+
+- **`tausik graph build | show | status`**, with the MCP twin `tausik_graph`.
+  On this repository: 4,226 artifacts, 13,312 symbols, 17,644 edges, ~9s.
+- **Roots come from the PROJECT** — `source_roots` in its config, else its
+  git-tracked files, else a disk scan — and every answer names which of the
+  three spoke. A tree whose source cannot be located yields an EMPTY list and
+  says so, instead of a confident answer about the wrong directories. Deriving
+  them changes nothing on this repository (same 13,297 declarations, same time)
+  and is the difference between 4 and 0 on somebody else's.
+- **The kind table covers the stacks the framework claims.** Imperative source
+  is `code`, declarative source — terraform, helm, kubernetes, ansible — is
+  `config`, and a test is recognised in any stack's convention (`_test.go`,
+  `spec/`, `__tests__/`, `*.spec.ts`). `other` stays the honest answer for a
+  suffix we do not know; no kind was invented, because that would be a schema
+  migration the spike's verdict says is not needed.
+- **An unsupported language is NAMED, not silently zero.** The build reports how
+  many source files have no symbol extractor here — Python only in 1.9 — and
+  says their co-change and declared edges are built as usual.
+- **The build runs in one transaction**, which is the entire 2m27s → 9s
+  difference. A build nobody runs twice is a build nobody runs, and the
+  framework then ships an empty graph everywhere.
+
+### Changed — two ratchets, and only one of them moved
+
+- **The MCP surface ratchet rose by exactly one tool**, 145 → 146, to
+  `tausik_graph` — argued in decision #350 with its price: +799 bytes of
+  serialized surface (+1.4%), and on a schema-deferring host only the name,
+  ~22 of 3,201 bytes. One tool with a `command` argument rather than three,
+  because the surface is paid for on every turn. The baseline moved to the
+  MEASURED number, not to a round one with headroom: headroom is how a ratchet
+  stops ratcheting.
+- **The class-surface ratchet did NOT move.** Its test pins those numbers
+  against rising at all, so the new symbol-indexing step lives beside the
+  command that needs it instead of becoming `ProjectService`'s 149th public
+  member. A dead backend method (`edge_count_by_layer`, no caller anywhere)
+  was folded into the counts the CLI actually reads, which kept that class
+  level too.
+
 ### Changed — a tool TAUSIK ships is named at the moment an alternative is chosen
 
 Measured over this project's own transcripts (session #233, 5,966 tool calls)

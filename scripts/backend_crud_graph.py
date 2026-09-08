@@ -159,14 +159,51 @@ class GraphCrudMixin:
             (artifact_id, artifact_id),
         )
 
-    def edge_count_by_layer(self) -> dict[str, int]:
-        rows = self._q("SELECT layer, COUNT(*) AS n FROM artifact_edges GROUP BY layer")
-        return {str(r["layer"]): int(r["n"]) for r in rows}
+    def graph_counts(self) -> dict[str, int]:
+        """How much the graph actually holds, per table.
 
-    def graph_clear(self) -> None:
-        """Drop every artifact (edges and symbols cascade). Used when reindexing
-        from scratch; kept here so no caller writes the delete order by hand."""
+        Exists because "the graph is empty" and "the graph is fine" were
+        indistinguishable from outside: for a day after the substrate shipped,
+        all three tables held zero rows in the repository that authored them and
+        nothing said so. A count is the cheapest way for that to be visible.
+        """
+        out: dict[str, int] = {}
+        # Per-layer edge counts live here rather than in a method of their own:
+        # `edge_count_by_layer` existed with no caller anywhere in the tree, and
+        # a second entry point for the same question would have grown the public
+        # surface the class-surface ratchet guards without answering anything new.
         try:
-            self._ex("DELETE FROM artifacts")
+            for row in self._q("SELECT layer, COUNT(*) AS n FROM artifact_edges GROUP BY layer"):
+                out[f"edges:{row['layer']}"] = int(row["n"])
         except sqlite3.Error:
-            pass
+            pass  # absence, reported below as -1 rather than raised here
+        for key, table in (
+            ("artifacts", "artifacts"),
+            ("symbols", "artifact_symbols"),
+            ("edges", "artifact_edges"),
+        ):
+            try:
+                # A name of its own: the loop above binds `row` from `_q`, which
+                # always yields a dict, while `_q1` may yield None. Reusing the
+                # name made one variable hold two types.
+                count_row = self._q1(f"SELECT COUNT(*) AS n FROM {table}")
+                out[key] = int(count_row["n"]) if count_row else 0
+            except sqlite3.Error:
+                # A table that cannot be read reports absence, not zero: those
+                # are different facts and only one of them is about the graph.
+                out[key] = -1
+        return out
+
+    def graph_clear(self) -> int:
+        """Drop every artifact (edges and symbols cascade), returning how many.
+
+        Returns the count rather than None so a rebuild can say what it threw
+        away. A destructive step that reports nothing gives the operator no way
+        to notice it destroyed more than intended.
+        """
+        try:
+            before = self.graph_counts().get("artifacts", 0)
+            self._ex("DELETE FROM artifacts")
+            return max(before, 0)
+        except sqlite3.Error:
+            return 0

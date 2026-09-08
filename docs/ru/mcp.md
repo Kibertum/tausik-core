@@ -2,13 +2,13 @@
 
 # TAUSIK MCP — Справочник инструментов
 
-**152 инструмента** для ИИ-агентов (145 project + 7 brain; актуальный счёт, проверено `len(TOOLS)` обоих серверов). MCP-surface покрывает всё, что агент делает день за днём. Несколько CLI-only команд намеренно не имеют MCP-аналога — это оператор/maintenance verbs, которым не место в agent-loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. Для рабочего набора агента предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
+**153 инструмента** для ИИ-агентов (146 project + 7 brain; актуальный счёт, проверено `len(TOOLS)` обоих серверов). MCP-surface покрывает всё, что агент делает день за днём. Несколько CLI-only команд намеренно не имеют MCP-аналога — это оператор/maintenance verbs, которым не место в agent-loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. Для рабочего набора агента предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
 
-> **Опциональный сервер `codebase-rag`** добавляет 7 инструментов (search_code, find_symbol, etc.). Он включается отдельно через bootstrap и НЕ входит в основной счёт 152 — итого с ним 159 инструментов.
+> **Опциональный сервер `codebase-rag`** добавляет 7 инструментов (search_code, find_symbol, etc.). Он включается отдельно через bootstrap и НЕ входит в основной счёт 152 — итого с ним 160 инструментов.
 
 В проекте живут два MCP-сервера:
 
-- `tausik-project` — project-scoped инструменты (145): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging, RENAR substrate (specs + adapts).
+- `tausik-project` — project-scoped инструменты (146): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging, RENAR substrate (specs + adapts).
 - `tausik-brain` — cross-project Shared Brain инструменты (7).
 
 Опционально доступен `codebase-rag` сервер (документирован в конце).
@@ -365,7 +365,7 @@ DEFAULT_STACKS: 25 записей (python, fastapi, django, flask, react, next, 
 | `cache_web_result` | Кешировать web-результат | `query`, `content` |
 | `search_web_cache` | Поиск кешированных web-результатов | `query` |
 
-Эти не входят в основной счёт 152 — принадлежат опциональному `codebase-rag` серверу.
+Эти не входят в основной счёт 153 — принадлежат опциональному `codebase-rag` серверу.
 
 ## Область tool-поверхности (`mcp.scope_tools_exposure`)
 
@@ -386,7 +386,7 @@ Rule 2) и всегда-безопасного ядра — целиком се�
 write-гейт не тронут. Область пересчитывается каждый раз, когда хост запрашивает
 `list_tools` — то есть при каждом подключении к серверу с уже активной задачей.
 
-**Замер стоимости.** Полная авторская поверхность — 152 тула ~ 62 КБ определений
+**Замер стоимости.** Полная авторская поверхность — 153 тула ~ 62 КБ определений
 (~15.9k оценочных токенов; `tests/test_mcp_tool_token_cost.py` фиксирует это и
 держит храповиком). При отложенной загрузке Claude Code (`ENABLE_TOOL_SEARCH`)
 эагерно грузятся только имена, а каждое описание обрезается до 2 КБ — храповой

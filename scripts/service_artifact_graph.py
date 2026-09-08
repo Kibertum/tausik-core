@@ -46,17 +46,93 @@ if TYPE_CHECKING:
 
 #: Extensions that decide an artifact's kind. Deliberately coarse: the kind is
 #: for grouping answers, not for dispatch, and a wrong guess costs a label.
+#:
+#: MEASURED BEFORE THIS TABLE GREW (spike ag-spike-schema-against-three-stacks):
+#: it held nine suffixes, and exactly ONE of them produced `code` -- `.py`.
+#: TAUSIK declares 25 stacks. Every other one -- go, rust, java, php, typescript,
+#: terraform, swift, kotlin, blade, vue, svelte, react, next, nuxt, flutter --
+#: landed in `other`, indistinguishable from a binary blob, in a framework that
+#: claims to support them. The kinds themselves were fine; the table was ours.
+#:
+#: `other` STAYS as the answer for a suffix we genuinely do not know. It means
+#: "something else", which is true, and no new kind is invented for it: the kind
+#: column is a closed list the schema enforces, and widening it would be a
+#: migration -- which decision #349 says this work does not need.
 _KIND_BY_SUFFIX = {
+    # --- imperative source: the 20 stacks whose files hold statements ---
     ".py": "code",
-    ".md": "doc",
-    ".rst": "doc",
+    ".pyi": "code",
+    ".js": "code",
+    ".jsx": "code",
+    ".mjs": "code",
+    ".cjs": "code",
+    ".ts": "code",
+    ".tsx": "code",
+    ".vue": "code",
+    ".svelte": "code",
+    ".go": "code",
+    ".rs": "code",
+    ".java": "code",
+    ".kt": "code",
+    ".kts": "code",
+    ".swift": "code",
+    ".dart": "code",
+    ".php": "code",
+    ".rb": "code",
+    ".sh": "code",
+    ".bash": "code",
+    ".ps1": "code",
+    ".sql": "code",
+    # Blade and Twig are templates, and a template is source: it decides what
+    # the user sees. Calling it `doc` would put it beside the README.
+    ".blade.php": "code",
+    # --- declarative source: `config`, and that is not a demotion ---
+    # Terraform, Helm and Kubernetes describe infrastructure by declaring it.
+    # Their files ARE the system, but they hold no statements, and `code` would
+    # promise a symbol extractor that does not exist for them (decision #349).
+    ".tf": "config",
+    ".tfvars": "config",
+    ".hcl": "config",
     ".yml": "config",
     ".yaml": "config",
     ".json": "config",
     ".toml": "config",
     ".cfg": "config",
     ".ini": "config",
+    ".env": "config",
+    ".dockerfile": "config",
+    # --- prose ---
+    ".md": "doc",
+    ".rst": "doc",
+    ".adoc": "doc",
+    ".txt": "doc",
+    # --- data, distinct from configuration: read by the program, not by it ---
+    ".csv": "data",
+    ".tsv": "data",
+    ".sqlite": "data",
+    ".db": "data",
 }
+
+#: Filenames with no useful suffix that are nonetheless configuration. Checked
+#: by exact name, because `Dockerfile.prod` is one and `Dockerfile.md` is not.
+_KIND_BY_NAME = {
+    "dockerfile": "config",
+    "makefile": "config",
+    "vagrantfile": "config",
+    "gemfile": "config",
+    "rakefile": "config",
+    "procfile": "config",
+    "justfile": "config",
+}
+
+#: How a project says "this is a test" WITHOUT using our layout. Measured
+#: against the declared stacks rather than invented: Go writes `_test.go`,
+#: JS/TS writes `.spec.ts` or `__tests__/`, Ruby and PHP write `spec/`, Python
+#: writes `test_*` or `tests/`. A framework that recognises only the last one
+#: tells 24 stacks that they have no tests.
+_TEST_DIRS = ("tests", "test", "spec", "specs", "__tests__")
+_TEST_SUFFIXES = ("_test.go", "_test.py", "_test.rb", "_test.exs", "test.java")
+_TEST_INFIXES = (".test.", ".spec.")
 
 #: A GROUPING larger than this says nothing per pair, so it produces no edges.
 #: Applies to both layers, because both build pairs out of a set: a sweeping
@@ -68,13 +144,46 @@ _KIND_BY_SUFFIX = {
 #: not dilute the signal, it replaces it.
 _MAX_FILES_PER_GROUP = 25
 
+#: Suffixes a symbol extractor exists for. Everything else is NOT a file
+#: without symbols -- it is a file we cannot read symbols out of, and the two
+#: must not print the same (decision #334; decision #349 puts the non-Python
+#: extractors behind an adapter that 1.9 does not build).
+SYMBOL_SUFFIXES = (".py", ".pyi")
+
 
 def classify(path: str) -> str:
-    """The artifact kind for a repo-relative path."""
-    base = os.path.basename(path)
-    if base.startswith("test_") or path.replace("\\", "/").startswith("tests/"):
+    """The artifact kind for a repo-relative path.
+
+    TEST WINS OVER EVERYTHING ELSE, because a test file is source by suffix and
+    the more useful fact about it is that it is a test.
+    """
+    normalised = path.replace("\\", "/")
+    base = os.path.basename(normalised).lower()
+
+    if _is_test(normalised, base):
         return "test"
-    return _KIND_BY_SUFFIX.get(os.path.splitext(path)[1].lower(), "other")
+
+    # Compound suffixes first (`.blade.php` before `.php`), longest wins, so a
+    # more specific rule is never shadowed by a shorter one that also matches.
+    for suffix, kind in sorted(_KIND_BY_SUFFIX.items(), key=lambda kv: -len(kv[0])):
+        if base.endswith(suffix):
+            return kind
+    return _KIND_BY_NAME.get(base.split(".")[0], "other")
+
+
+def _is_test(normalised: str, base: str) -> bool:
+    """Whether a path is a test IN ANY of the declared stacks' conventions.
+
+    The negative half is the load-bearing one: `data/latest/rows.csv` contains
+    the letters `test`, and a check that looked for the substring would call it
+    a test. Directory names are matched as whole SEGMENTS for that reason.
+    """
+    segments = normalised.split("/")[:-1]
+    if any(seg.lower() in _TEST_DIRS for seg in segments):
+        return True
+    if base.startswith("test_") or base.endswith(_TEST_SUFFIXES):
+        return True
+    return any(infix in base for infix in _TEST_INFIXES)
 
 
 def fingerprint(path: str, root: str) -> str:

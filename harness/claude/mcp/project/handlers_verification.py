@@ -119,7 +119,48 @@ def _handle_gate_toggle(svc, name: str, enable: bool) -> str:
         return f"Error: {e}"
 
 
+def _handle_graph(svc, args: dict) -> str:
+    """`tausik graph`, through the service, with the CLI's own renderer.
+
+    ONE tool for three subcommands rather than three tools. The MCP surface is a
+    ratchet standing at exactly its cap, and every tool's schema is a per-turn
+    tax; three names for one capability would triple that tax for no extra
+    reach. Raising the ratchet by one is argued in its own decision — by three
+    it would not be arguable.
+    """
+    import io
+    from contextlib import redirect_stdout
+
+    try:
+        from project_cli_graph import cmd_graph
+    except Exception as e:  # noqa: BLE001 — a missing module must not kill the server
+        return f"Error: graph command unavailable ({e})"
+
+    class _Args:
+        graph_cmd = str(args.get("command") or "status")
+        path = args.get("path") or ""
+        rebuild = bool(args.get("rebuild"))
+        layer = "all"
+        window = None
+        json = False
+
+    if _Args.graph_cmd == "show" and not _Args.path:
+        return "Error: command=show needs a path, e.g. scripts/symbol_index.py"
+
+    buffer = io.StringIO()
+    try:
+        with redirect_stdout(buffer):
+            cmd_graph(svc, _Args())
+    except SystemExit:
+        # The CLI exits on a bad subcommand; a tool call must answer, not die.
+        pass
+    except Exception as e:  # noqa: BLE001 — MCP handler must not crash the server
+        return f"Error: {e}\n{buffer.getvalue()}"
+    return buffer.getvalue() or "(no output)"
+
+
 VERIFICATION_HANDLERS = {
+    "tausik_graph": _handle_graph,
     "tausik_doctor": lambda svc, args: _handle_doctor(svc),
     "tausik_verify": lambda svc, args: _handle_verify(
         svc,
