@@ -52,3 +52,30 @@ When changing verify / QG / cache text:
 - [CLI — Verification](cli.md#verification)
 - [MCP — Verify-First Contract](mcp.md#verify-first-contract-v14)
 - [Hooks — Disable / bypass](hooks.md#disable--bypass)
+
+### What the framework wrote itself is not the agent's scope
+
+`verify` compares the declared scope against what git reports, and before 1.9 it
+counted against the agent the files the framework rewrites ITSELF during a
+close: `CLAUDE.md` and `AGENTS.md` (via `update-claudemd`), `ROADMAP.md` (via
+`doc roadmap`), `docs/_generated/*`. They cannot be declared in advance, because
+at declaration time they have not changed yet.
+
+Measured in session #235: of 135 under-declared runs in the last 300, **26 (19%)
+consisted of nothing but framework output**, and another 39 (29%) were mixed.
+
+They are now subtracted, on the same principle that already subtracts a task's
+own export (convention #409, decision #283): a check whose subject is "what did
+the AGENT change" does not count what it wrote itself.
+
+**The decision is taken by the DIFF, never by the name.** `CLAUDE.md` and
+`AGENTS.md` are only PARTLY generated: the framework owns the region between the
+`DYNAMIC` markers and a human or an agent owns the rest. Subtracting by name
+would hide real work, so the subtraction fires only when the change lies
+entirely inside the generated region. An unreadable diff, missing markers or no
+git at all leave the file IN the agent's scope: being unable to check is not
+permission.
+
+`CHANGELOG.md` is written by the agent and is NOT subtracted — its absence from
+a declaration is a real under-declaration, and that is what the check exists to
+show.

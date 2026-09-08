@@ -53,6 +53,7 @@ from typing import Any, Callable
 import verify_git_diff
 from security_pattern import is_security_sensitive
 from verify_git_diff import _normalize_repo_path
+from verify_framework_output import subtract_framework_output
 from verify_own_export import subtract_own_bookkeeping
 
 STATUS_COMPLETE = "complete"
@@ -140,6 +141,21 @@ def describe_declared_scope(
         if removed:
             own_subtracted = ", ".join(removed)
         actual = set(covered)
+
+    # The SECOND subtraction, and the same principle as the first (convention
+    # #409): a check whose subject is "what did the AGENT change" must not count
+    # what the framework wrote itself. `update-claudemd` and `doc roadmap` run
+    # during the close, AFTER the agent declared its scope, so those files could
+    # not have been declared. Measured in session #235: of 135 under-declared
+    # runs in the last 300, 26 consisted of nothing else.
+    #
+    # Unconditional on `task_slug`, unlike the subtraction above: the framework
+    # writes these files whether or not a task is in flight, so gating it on a
+    # slug would leave a full-suite run counting them.
+    covered, generated = subtract_framework_output(sorted(actual), root=root)
+    if generated:
+        own_subtracted = ", ".join(filter(None, [own_subtracted, ", ".join(generated)]))
+    actual = set(covered)
     if not actual:
         # Memory #454: an emptied set must not inherit the message that
         # belonged to a set which was never populated. "The agent changed

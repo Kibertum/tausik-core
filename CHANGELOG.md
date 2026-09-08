@@ -9,6 +9,39 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the framework's own output was counted against the agent's declared scope
+
+`verify` compares the declared scope with what git reports, and counted the
+files the framework rewrites ITSELF while closing: `CLAUDE.md` and `AGENTS.md`
+(via `update-claudemd`), `ROADMAP.md` (via `doc roadmap`), `docs/_generated/*`.
+None of them can be declared in advance, because at declaration time they have
+not changed yet.
+
+Measured (session #235, live database): 846 of 2,278 runs recorded an
+under-declared scope, and in the recent window it is **135 of the last 300
+(45%)**. The top of the undeclared list was AGENTS.md 54, CLAUDE.md 54,
+ROADMAP.md 12 — and **26 of those 135 (19%) consisted of nothing else**, with
+another 39 (29%) mixed.
+
+- **Subtracted on the principle that was already written down** — convention
+  #409 and decision #283, which subtract a task's own export for the same
+  reason: a check whose subject is "what did the AGENT change" must not count
+  what the framework wrote.
+- **By the DIFF, never by the name.** `CLAUDE.md` and `AGENTS.md` are only
+  partly generated; the subtraction fires only when the change lies entirely
+  between the `DYNAMIC` markers. A missing marker, an unreadable diff or no git
+  leaves the file IN the agent's scope — being unable to check is not
+  permission.
+- **`CHANGELOG.md` is NOT subtracted.** The agent writes it, so its absence
+  from a declaration is a real under-declaration, and that is what the check
+  exists to show.
+
+A correction to what the previous entries implied: the other headline number —
+"48% of verify runs executed no gate" — is HISTORICAL. In the last 300 runs it
+is 4%, and in the last 100 it is 7%, of which most explicitly declared
+`--no-tests-expected`. The mechanism that refuses to call an empty run a verdict
+is working; under-declaration was the live half.
+
 ### Added — one documentation-coverage gate, in place of a test per kind of thing
 
 `doc_coverage` blocks a close or a commit when a name the framework SHIPS is
