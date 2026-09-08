@@ -22,12 +22,6 @@ from typing import Any
 
 RECEIPT_SCHEMA = "tausik-receipt/v4"
 
-# v1 receipts (pre-l26-verify-git-diff-wire) carry no declared-scope fields.
-# They remain cryptographically valid — verification re-canonicalizes the
-# stored payload rather than rebuilding it from this module — but a reader
-# must treat their scope as UNVERIFIED, not as complete.
-LEGACY_RECEIPT_SCHEMA = "tausik-receipt/v1"
-
 # v2 receipts (pre-v2-verify-receipt-as-argument) name neither the files they
 # covered nor the gate set that ran. They stay cryptographically valid, and the
 # freshness-lookup path still accepts them — but a receipt PRESENTED as the

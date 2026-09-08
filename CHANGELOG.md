@@ -9,6 +9,34 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Removed — 25 dead symbols, including four MCP handlers that looked alive
+
+`audit_unused_python` answers "which MODULE does nothing import" and returns zero
+on this tree. Nobody had asked the narrower question — which FUNCTION, CLASS or
+CONSTANT is defined and mentioned nowhere else — and the answer was 14, cascading
+to 25.
+
+**The costly ones LOOKED alive.** Four functions in the brain MCP server carried
+the names of four MCP tools (`handle_brain_store_pattern` and its neighbours),
+while the dispatcher routed those tools through `_handle_store` and never called
+the named functions. Anyone opening that file would have edited code that does
+not run.
+
+**Two were a second source of truth, not merely dead.**
+`VALID_EPIC_STATUSES` and `VALID_STORY_STATUSES` restated closed lists the
+database already enforces with `CHECK` constraints. Two copies of one list drift
+in silence; the schema is the authority.
+
+**The cascade is why the check has to be repeatable.** Removing two dead entry
+points in `bootstrap` exposed eight functions that only they called, and those a
+constant. `bootstrap/generator.py` turned out to be dead WHOLE and is gone. One
+sweep does not finish the work — it starts it.
+
+The sweep is now a test. What it subtracts is declared out loud — `test_*`,
+`Test*`, `pytest_*`, `cmd_*`, dunders, `main`/`run` are called by convention
+rather than by name — because a check that silently forgives whole classes of
+names reports a cleaner tree than it measured.
+
 ### Changed — historical closure-citation rot is a DECLARED REMAINDER, not a permanent HIGH
 
 The lens reported two `high` findings on every run: 31 closure citations naming a

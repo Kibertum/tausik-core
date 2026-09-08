@@ -5,9 +5,6 @@ from __future__ import annotations
 # --- Constants ---
 
 VALID_TASK_STATUSES = frozenset({"planning", "active", "blocked", "review", "done"})
-VALID_STORY_STATUSES = frozenset({"open", "active", "done"})
-VALID_EPIC_STATUSES = frozenset({"active", "done", "archived"})
-
 # Built-in stacks. Single source of truth lives in `stacks/<name>/stack.json`
 # and is loaded by `stack_registry.default_registry()`. The hardcoded fallback
 # below is used ONLY when the registry can't load (missing dir, IO error,

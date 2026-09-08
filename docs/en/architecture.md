@@ -99,7 +99,7 @@ inheritance, which a per-file cap structurally cannot see. Highlights:
 | `bootstrap_copy.py` | ~180 | Copy skills, scripts, MCP into `.claude/` |
 | `bootstrap_config.py` | ~70 | Configuration, stack detection |
 | `bootstrap_generate.py` | ~300 | Generate settings.json, CLAUDE.md, skill catalog |
-| `analyzer.py` | ~330 | Extended stack detection, codebase analysis |
+| `analyzer.py` | ~260 | Extension-skill detection and tree walking |
 
 ### MCP Server
 

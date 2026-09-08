@@ -200,12 +200,6 @@ def role_create(
     return role_show(be, slug)
 
 
-def _write_skeleton(path: str, slug: str, title: str) -> None:
-    safe_title = title.replace("\n", " ").replace("\r", " ").strip()
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(f"# Role: {safe_title}\n\nProfile for the {slug} role.\n")
-
-
 def role_update(
     be: Any,
     slug: str,

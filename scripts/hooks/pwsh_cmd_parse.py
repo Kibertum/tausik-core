@@ -53,8 +53,6 @@ _SEPARATORS = frozenset({";", "|", "||", "&&", "&", "(", ")", "{", "}"})
 #: dup, whose token carries `&`).
 _REDIR_TOKEN_RE = re.compile(r"^(?:\d+|\*)?>>?&?\d*$")
 
-_QUOTES = "'\"\u2018\u2019\u201c\u201d"
-
 #: PowerShell's smart-quote forms are REAL quotes to the parser — pasted text
 #: routinely carries them, and treating them as ordinary characters would let a
 #: quoted-out payload read as bare command words (or the reverse).

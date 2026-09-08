@@ -174,22 +174,6 @@ def _handle_store(tool_name: str, args: dict) -> str:
     return brain_mcp_write.format_store_result(result, category)
 
 
-def handle_brain_store_decision(args: dict) -> str:
-    return _handle_store("brain_store_decision", args)
-
-
-def handle_brain_store_pattern(args: dict) -> str:
-    return _handle_store("brain_store_pattern", args)
-
-
-def handle_brain_store_gotcha(args: dict) -> str:
-    return _handle_store("brain_store_gotcha", args)
-
-
-def handle_brain_cache_web(args: dict) -> str:
-    return _handle_store("brain_cache_web", args)
-
-
 def handle_brain_draft_artifact(args: dict) -> str:
     import brain_config
     import brain_publish_flow

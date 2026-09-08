@@ -248,10 +248,3 @@ def handle_update_claudemd(svc) -> str:
         for path in resolve_sibling_targets(claudemd)
     ]
     return " ".join(messages)
-
-
-def handle_list(items: list, fmt, empty_msg: str = "None.") -> str:
-    """Format a list of items with a formatter function."""
-    if not items:
-        return empty_msg
-    return "\n".join(fmt(item) for item in items)

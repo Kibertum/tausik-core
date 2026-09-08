@@ -114,16 +114,6 @@ def _is_under_roots(path: str, roots: tuple[str, ...]) -> bool:
     return False
 
 
-def _module_path(name: str) -> str | None:
-    mod = sys.modules.get(name)
-    if mod is None:
-        return None
-    f = getattr(mod, "__file__", None)  # getattr is untyped → coerce to str below
-    if not f:  # builtins, namespace packages → no __file__, silently skipped (AC5)
-        return None
-    return os.path.abspath(str(f))
-
-
 def _loaded_our_module_paths(roots: tuple[str, ...] | None = None) -> dict[str, str]:
     """Ask the PRODUCER for the watch set: every currently-loaded module whose
     `__file__` lives under the deployed server tree. Replaces the old

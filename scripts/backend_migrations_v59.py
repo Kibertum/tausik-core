@@ -32,11 +32,6 @@ forever.
 
 from __future__ import annotations
 
-#: The value being added. Named here rather than imported from
-#: `backend_schema_graph` for the reason in the module docstring: importing it
-#: would make this migration mean whatever that file means TODAY.
-OBSERVED_LAYER = "observed_coverage"
-
 #: SQLite cannot ALTER a CHECK constraint, so the table is rebuilt. The literal
 #: is v58's `artifact_edges` with `observed_coverage` added to the layer list and
 #: NOTHING else changed — the relations, the confidence column, the observation

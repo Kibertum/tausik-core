@@ -269,13 +269,3 @@ def get_file_list(project_dir: str, max_seconds: float | None = None) -> list[di
                 return files
 
     return files
-
-
-def detect_project_languages(project_dir: str) -> dict[str, int]:
-    """Count files per language in the project."""
-    files = get_file_list(project_dir)
-    counts: dict[str, int] = {}
-    for f in files:
-        lang = f["language"]
-        counts[lang] = counts.get(lang, 0) + 1
-    return dict(sorted(counts.items(), key=lambda x: -x[1]))
