@@ -9,6 +9,39 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — a published tag is a promise, and the promise is now checkable
+
+Measured in session #233 by asking both remotes rather than recalling #181: the
+public line carries 9 tags, the private one 17, the working clone 22 — and of the
+eight names that exist on BOTH, **all eight point at different objects**. Not one
+agrees. `v1.8.0` is `623fb4ee` publicly and `3866702f` privately.
+
+- **The question the task refused to let anyone answer silently** — is a tag a
+  promise to a consumer or an internal bookmark — is settled by the README and by
+  git. The README tells consumers to add this repository as a submodule; a
+  submodule is pinned by SHA or tag; `git fetch --tags` declines to clobber one;
+  and force-push is already refused here on the same reasoning. It is a promise.
+- **So the past is not repaired.** The thirteen missing tags are NOT backfilled
+  and the eight divergent ones are NOT reconciled — either would relocate
+  somebody else's pin onto a different tree, silently. The divergence is declared
+  in `docs/{ru,en}/publishing.md` with the objects spelled out, so a consumer can
+  find out instead of being corrected without notice.
+- **Held by a mechanism.** `tausik/published_tags.json` records the nine
+  name→object pairs with the date and the method; a test compares a live
+  `ls-remote` against them through the `tags_unmoved` check that already existed.
+  Changing, vanishing AND appearing all count as movement.
+- **`remote_tag_map` is what that check had been missing** — a remote source. It
+  reads PEELED objects (what a checkout actually resolves a tag to) and raises
+  rather than returning an empty dict: an empty answer compares equal to an empty
+  baseline and would report "nothing moved" about a conversation that never
+  happened. An unreachable remote SKIPS with its reason; it never passes.
+- **Two of the task's own details were corrected by the measurement**: `v1.7.0`
+  is present on GitHub (the task said it was absent), and five local tags never
+  reached the private line either.
+- **From 1.9 the release tag is cut as part of the publication**, in the same
+  pass as the publication commit, with the snapshot updated in the same commit —
+  otherwise the next name diverges exactly as the previous eight did.
+
 ### Added — the publication procedure exists as a page and a mechanism
 
 Decision #267 settled the roles in August — GitLab develops, GitHub mirrors

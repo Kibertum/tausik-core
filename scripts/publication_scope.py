@@ -181,6 +181,54 @@ def tag_map(repo_root: str) -> dict[str, str]:
     return out
 
 
+class RemoteUnreachable(Exception):
+    """The remote could not be asked. NOT the same as "nothing moved".
+
+    A check that cannot reach the remote and returns green asserts something it
+    never measured (decision #334). Callers are made to handle this rather than
+    being handed an empty dict that compares equal to nothing.
+    """
+
+
+def remote_tag_map(remote: str, timeout: int = 30) -> dict[str, str]:
+    """Every tag on `remote` and the object a checkout would resolve it to.
+
+    PEELED where the tag is annotated: `refs/tags/v1.8.0^{}` is what a consumer
+    actually gets, and the tag object above it is an implementation detail that
+    would make every annotated tag look like a difference.
+
+    Raises RemoteUnreachable when the remote cannot be asked — an empty result
+    would compare equal to an empty baseline and report "nothing moved" about a
+    conversation that never happened.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "ls-remote", "--tags", remote],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=timeout,
+            stdin=subprocess.DEVNULL,
+        )
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        raise RemoteUnreachable(f"{remote}: {exc}") from exc
+    if result.returncode != 0:
+        raise RemoteUnreachable(f"{remote}: git ls-remote exited {result.returncode}")
+
+    peeled: dict[str, str] = {}
+    plain: dict[str, str] = {}
+    for line in result.stdout.splitlines():
+        if "\t" not in line:
+            continue
+        sha, ref = line.split("\t", 1)
+        name = ref.strip().removeprefix("refs/tags/")
+        if name.endswith("^{}"):
+            peeled[name[:-3]] = sha
+        else:
+            plain[name] = sha
+    return {name: peeled.get(name, sha) for name, sha in plain.items()}
+
+
 def tags_unmoved(before: dict[str, str], after: dict[str, str]) -> tuple[bool, str]:
     """Did any tag change, appear, or vanish between the two snapshots?
 
