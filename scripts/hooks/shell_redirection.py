@@ -113,7 +113,7 @@ def strip_fd_prefixes(command: str) -> str:
 
 
 def split_redirections(sub: list[str]) -> tuple[list[str], list[str]]:
-    """`(files written, remaining words)` for ONE already-split sub-command.
+    r"""`(files written, remaining words)` for ONE already-split sub-command.
 
     Every redirection — writing or reading — is REMOVED from the word list, so
     what is left is the command and its own arguments. That is what makes the
@@ -125,12 +125,39 @@ def split_redirections(sub: list[str]) -> tuple[list[str], list[str]]:
     descriptor number reaches this point. `>(`/`<(` are deliberately NOT
     redirections here: they open a process substitution and are left in the word
     list for the caller to stop at.
+
+    INSIDE `[[ ... ]]` NOTHING IS A REDIRECTION, and this is grammar rather than
+    a command name. `[[` is a bash compound command: the shell does not parse
+    redirections between it and its `]]`, so `[[ "$a" > "$b" ]]` compares two
+    strings and creates no file. `[ ... ]` is deliberately NOT given the same
+    treatment, and the difference is not an oversight: `[` is an ordinary
+    command, bash DOES read `[ "$a" > "$b" ]` as a redirection, and that is why
+    the idiom requires `\>`. Escaping is handled one layer up, in
+    `argument_data` — with both in place this parser agrees with bash on both
+    spellings.
+
+    A redirection AFTER the closing `]]` is outside the span and still caught.
     """
     targets: list[str] = []
     words: list[str] = []
     i, n = 0, len(sub)
+    depth = 0
     while i < n:
         tok = sub[i]
+        if tok == "[[":
+            depth += 1
+            words.append(tok)
+            i += 1
+            continue
+        if tok == "]]" and depth:
+            depth -= 1
+            words.append(tok)
+            i += 1
+            continue
+        if depth:
+            words.append(tok)
+            i += 1
+            continue
         if tok in _ALL_OPS:
             tgt = sub[i + 1] if i + 1 < n else None
             if tgt is None:

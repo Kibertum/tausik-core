@@ -9,6 +9,47 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — an escaped or quoted `>` is data, and the write gate now agrees
+
+Session #211 had the gate block a command that counted closed tasks:
+`if [ "$d" \> "2026-09-04T11:30:36Z" ]; then ... fi`, declaring the DATE STRING
+a write target. There is no write in that command, and the parse confidence was
+`parsed` — the gate was not guessing, it confidently read data as command.
+
+**The root, measured.** `tokenize` runs shlex with `posix=True` — the setting
+that makes `"a b"` one token — and the same pass strips quotes and resolves
+backslash escapes. After it, `\>`, `">"` and a real `>` are one token. The
+evidence separating data from command survives only in the ORIGINAL TEXT, which
+is where `strip_fd_prefixes` already works for the same reason.
+
+So the rule is structural and lives in one place (`scripts/hooks/argument_data.py`):
+an operator character that is quoted or escaped is marked before tokenization and
+restored after redirection splitting. `[`, `test` and Russian prose are all fixed
+by that one rule — no list of words, arrows or builtin names.
+
+A second rule, also grammar: inside `[[ ... ]]` nothing is a redirection, because
+that is a bash compound command. Single `[` is deliberately NOT exempt — bash
+really does redirect in `[ a > b ]`, which is why the idiom requires `\>`.
+
+**Proved from the dangerous side.** This narrows a blocking supervision gate, so
+the matrix of REAL writes matters more than the phantom list: 12 real
+redirections (plain, append, `2>`, `&>`, no-space, inside an `if` body, in a
+subshell, behind `sh -c`, after a closing `]]`, single-bracket unescaped, `tee`,
+`cp`) all still block through the LIVE HOOK, and 5 phantoms no longer do — 17
+cells, 17 correct.
+
+**What the corpus did and did not show, stated plainly.** Across 5,045 long
+journal arguments: for correctly quoted commands, phantoms at `parsed`
+confidence were 0 both before and after. The corpus does not demonstrate this
+fix; the deterministic forms and the live #211 incident do. On naively quoted
+commands the count went 18 → 13, and the remaining 13 are commands whose inner
+quote broke the outer one, making `>` a real operator — there the parser is
+right and the caller is wrong.
+
+**Untouched on purpose:** whether a blocking gate may act on a `regex_fallback`
+guess. Every form fixed here parsed cleanly, so the trust policy moved in
+neither direction, and 4 declared `regex_fallback` phantoms remain.
+
 ### Fixed — `gates.json` promised a test that never existed
 
 Its `_baseline_comment` explains why the `class_surface` baseline may not be

@@ -39,6 +39,7 @@ from bash_cmd_scan import (  # noqa: E402
 # orphaned `2` was then read as one of the command's own arguments (for
 # `cp`/`mv`/`install`, as the destination itself). Openers of a process
 # substitution are not redirections and are handled where the word list is read.
+from argument_data import mask_quoted_operators, unmask  # noqa: E402
 from shell_redirection import split_redirections, strip_fd_prefixes  # noqa: E402
 
 # Where a relative path may point once the command has moved the shell. Its own
@@ -383,7 +384,11 @@ def _parse(command: str, depth: int, base_dir: str | None = None) -> tuple[list[
     # real target in 9 of 10 cells each — a MISS, not a phantom. See
     # `shell_statements`.
     stripped = split_statement_breaks(strip_fd_prefixes(_strip_heredocs(command)))
-    tokens = tokenize(stripped)
+    # An operator character the author QUOTED or ESCAPED is data, and this is
+    # the last place that is still visible: shlex in POSIX mode resolves both,
+    # after which `\>`, `">"` and a real `>` are the same token. Marked here,
+    # restored on the tokens below. See `argument_data`.
+    tokens = tokenize(mask_quoted_operators(stripped))
     if tokens is None:
         return _redir_targets_regex(stripped), CONFIDENCE_REGEX_FALLBACK
     cands: list[str] = []
@@ -393,11 +398,18 @@ def _parse(command: str, depth: int, base_dir: str | None = None) -> tuple[list[
         if depth >= _MAX_WRAPPER_DEPTH:
             continue
         for payload in _shell_payloads(sub):
-            inner, inner_conf = _parse(payload, depth + 1, base_dir)
+            # Unmasked before descending: the payload of `sh -c "echo hi > f"`
+            # was quoted as a whole, so ITS operators were marked with it — and
+            # inside a shell payload they are operators again. The descent
+            # re-masks whatever the payload quotes for itself.
+            inner, inner_conf = _parse(unmask(payload), depth + 1, base_dir)
             cands += inner
             if inner_conf == CONFIDENCE_REGEX_FALLBACK:
                 confidence = CONFIDENCE_REGEX_FALLBACK
-    return cands, confidence
+    # Restored last, on the candidates alone. Unmasking the token list before
+    # `split_redirections` ran would hand it back the very `>` the mask exists
+    # to hide from it — measured: doing so left all seven phantoms in place.
+    return [unmask(c) for c in cands], confidence
 
 
 def write_targets(command: str, base_dir: str | None = None) -> list[str]:
