@@ -9,6 +9,35 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the publication procedure exists as a page and a mechanism
+
+Decision #267 settled the roles in August — GitLab develops, GitHub mirrors
+releases — after the earlier "GitHub is the primary place of development" went
+five sessions unexecuted. The procedure itself, however, lived only inside
+decisions: of 57 pages in `docs/ru`, not one was about publication. A decision
+executed by an agent's memory rather than by a mechanism is not executed, which
+those five sessions had already demonstrated.
+
+- **`docs/{ru,en}/publishing.md`**: which remote is which, what publication does
+  to the tree (it carries the whole tracked tree, `tausik/` included), and the
+  fast-forward-child procedure with its authorship rule.
+- **The leak classes were RE-MEASURED, not recalled.** Over 4,208 tracked files:
+  a local path carrying the user's name is now 0 files (session #180 counted 12),
+  other clients' project names 0 (were 44), the internal host 5 files (were 17),
+  and a dev-machine path such as `D:\Work` 39 files — a class #180 never
+  measured. Two of the four are fully cleaned, so "publishing is unsafe" is no
+  longer true as stated in #180.
+- **Held by a ratchet, not by care.** The two cleaned classes are pinned at zero
+  and their return is red. The two remainders are pinned at their measured size:
+  they are weaker (a directory layout and an internal address, not an identity),
+  they live mostly in the project's own accounting, and only GROWTH is red. The
+  gap is declared rather than quietly closed.
+- **A file that DESCRIBES a leak is not a leak** — the page, the task, the test.
+  Three names, listed one by one rather than a widened pattern, because a wide
+  pattern would let a real occurrence hide behind a plausible filename.
+- **The check never touches the network**, asserted over its own AST: a
+  precondition that needs the remote fails exactly when it is needed.
+
 ### Fixed — a refusal that named a cause nobody had checked
 
 `push-ok` printed "cannot determine HEAD commit (no git repo or no commits yet)"
