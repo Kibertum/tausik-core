@@ -104,6 +104,20 @@ Trusting the stored hashes would be cheaper. It would also make a stale answer
 indistinguishable from a fresh one, which is the single outcome this graph must
 never produce.
 
+`graph show` also prints what the file DEFINES, reading the symbols already
+stored:
+
+```
+scripts/source_roots.py  (indexed 2026-09-08T12:49:28Z)
+  defines: _roots_from_disk:180, _tracked_files:141, declared_roots:125, resolve:205
+```
+
+The listing is bounded at twelve names and the remainder is stated as a number —
+for the same reason as in `tausik symbol`: past that the answer stops being
+cheaper than opening the file. For a file with no extractor the section is
+SILENT rather than empty: an empty heading would read as "defines nothing",
+which is a different claim from "nothing here can read its definitions".
+
 ## The index corrects itself on every write
 
 Every file the agent writes re-indexes exactly that file, inside the

@@ -388,3 +388,73 @@ class TestTheBuildStaysCheapEnoughToBeRun:
         test on a fast machine would pass either way."""
         source = (_REPO / "scripts" / "project_cli_graph.py").read_text(encoding="utf-8")
         assert "with svc.be.transaction():" in source
+
+
+class TestGraphShowReadsTheSymbolsItStores:
+    """Found by the review sweep of session #235: `graph build` wrote 13,312
+    symbol rows on this repository and `symbols_for_artifact` had no caller
+    anywhere in the tree. Storing and never reading is the same defect as
+    building and never invoking, one level down."""
+
+    @pytest.fixture
+    def svc(self, tmp_path):
+        s = ProjectService(SQLiteBackend(str(tmp_path / "g.db")))
+        yield s
+        s.be.close()
+
+    def _capture(self, svc, root: Path, rel: str) -> str:
+        import io
+        from contextlib import redirect_stdout
+
+        from project_cli_graph import _print_symbols
+
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            _print_symbols(svc, rel)
+        return buffer.getvalue()
+
+    def _seed(self, svc, tmp_path) -> Path:
+        from project_cli_graph import _index_everything, index_symbols
+
+        root = tmp_path / "proj"
+        (root / "app").mkdir(parents=True)
+        (root / "app" / "orders.py").write_text(
+            "def place_order(cart):\n    return cart\n\n\nclass OrderService:\n    pass\n",
+            encoding="utf-8",
+        )
+        (root / "app" / "notes.md").write_text("# Notes\n\nprose only\n", encoding="utf-8")
+        paths, _roots, _source = _index_everything(svc, str(root))
+        index_symbols(svc, str(root), paths)
+        return root
+
+    def test_a_file_with_definitions_lists_them(self, svc, tmp_path):
+        root = self._seed(svc, tmp_path)
+        out = self._capture(svc, root, "app/orders.py")
+        assert "defines:" in out
+        assert "place_order" in out and "OrderService" in out
+
+    def test_a_file_the_framework_cannot_parse_says_NOTHING(self, svc, tmp_path):
+        """An empty heading would read as 'defines nothing', which is a
+        different claim from 'we cannot read its definitions'."""
+        root = self._seed(svc, tmp_path)
+        assert self._capture(svc, root, "app/notes.md") == ""
+
+    def test_an_unknown_path_says_nothing_rather_than_erroring(self, svc, tmp_path):
+        root = self._seed(svc, tmp_path)
+        assert self._capture(svc, root, "app/nowhere.py") == ""
+
+    def test_the_listing_is_bounded_and_the_remainder_is_named(self, svc, tmp_path):
+        """The same bound as `tausik symbol`, for the same reason: past it the
+        answer stops being cheaper than opening the file."""
+        from project_cli_graph import MAX_SYMBOLS_SHOWN, _index_everything, index_symbols
+
+        root = tmp_path / "big"
+        (root / "app").mkdir(parents=True)
+        body = "\n\n".join(f"def f{n}():\n    return {n}" for n in range(MAX_SYMBOLS_SHOWN + 5))
+        (root / "app" / "many.py").write_text(body + "\n", encoding="utf-8")
+        paths, _roots, _source = _index_everything(svc, str(root))
+        index_symbols(svc, str(root), paths)
+
+        out = self._capture(svc, root, "app/many.py")
+        assert "more)" in out, "the cut must be named, not silent"
+        assert out.count(":") >= MAX_SYMBOLS_SHOWN

@@ -9,6 +9,16 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — `graph show` now reads the symbols `graph build` writes
+
+Found by the review sweep: `graph build` wrote **13,312 symbol rows** on this
+repository and `symbols_for_artifact` had no caller anywhere in the tree — the
+one dead declaration a mechanical check over every changed module found.
+Storing and never reading is the same defect as building and never invoking,
+one level down. `graph show <path>` now lists what the file defines, bounded at
+twelve names with the remainder stated, and stays SILENT for a file whose
+language has no extractor rather than printing an empty heading.
+
 ### Fixed — the framework's own output was counted against the agent's declared scope
 
 `verify` compares the declared scope with what git reports, and counted the

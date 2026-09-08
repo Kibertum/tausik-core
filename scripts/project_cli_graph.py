@@ -203,6 +203,7 @@ def _show(svc: Any, args: Any) -> None:
 
     edges = answer.get("edges") or []
     print(f"{path}  (indexed {answer.get('indexed_at')})")
+    _print_symbols(svc, path)
     if answer.get("partially_stale"):
         # Named, never implied. A stale answer that looks fresh is the one
         # outcome this graph exists to avoid.
@@ -235,6 +236,41 @@ _LAYER_IN_WORDS = {
 
 def _layer_in_words(layer: str) -> str:
     return _LAYER_IN_WORDS.get(layer, layer)
+
+
+#: How many definitions `graph show` lists before saying how many more there
+#: are. The same bound, for the same reason, as `tausik symbol`: past this the
+#: answer stops being cheaper than opening the file, which is its whole point.
+MAX_SYMBOLS_SHOWN = 12
+
+
+def _print_symbols(svc: Any, path: str) -> None:
+    """What this file DEFINES, read from the rows `graph build` already wrote.
+
+    The rows existed before this did — 13,312 of them on this repository — and
+    nothing read them back: `symbols_for_artifact` had no caller anywhere in the
+    tree. Storing and never reading is the same defect as building and never
+    invoking, one level down.
+
+    SILENT when there are none, rather than printing an empty heading. A file
+    the framework has no extractor for — markdown, terraform — would otherwise
+    read as "defines nothing", which is a different claim from "we cannot read
+    its definitions" (decisions #334, #349).
+    """
+    try:
+        artifact = svc.be.artifact_get(path)
+        if not artifact:
+            return
+        symbols = svc.be.symbols_for_artifact(int(artifact["id"]))
+    except Exception:  # noqa: BLE001 - a display extra must not break the answer
+        return
+    if not symbols:
+        return
+    shown = symbols[:MAX_SYMBOLS_SHOWN]
+    names = ", ".join(f"{s['name']}:{s['line']}" for s in shown)
+    more = len(symbols) - len(shown)
+    tail = f" (+{more} more)" if more > 0 else ""
+    print(f"  defines: {names}{tail}")
 
 
 def _status(svc: Any) -> None:
