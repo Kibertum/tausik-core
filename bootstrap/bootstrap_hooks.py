@@ -229,7 +229,10 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
         ],
         "PostToolUse": [
             {
-                # MCP-first, made visible at the moment the shell was chosen.
+                # The tool TAUSIK ships, named at the moment an alternative was chosen:
+                # an MCP twin for a CLI call, and `symbol` for a grep after
+                # a definition. Measured before it existed — MCP 29.1% of
+                # framework calls, `symbol` 2 uses against 226 greps.
                 # Measured in session #233: 1,216 of 1,530 CLI invocations had an
                 # MCP twin and used the shell anyway — 79.5% — while the rules
                 # call MCP-first a hard constraint and nothing checked it.
@@ -242,7 +245,7 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 "hooks": [
                     {
                         "type": "command",
-                        "command": hook_cmd("mcp_first_nudge.py"),
+                        "command": hook_cmd("tool_choice_nudge.py"),
                         "timeout": 6,
                     }
                 ],

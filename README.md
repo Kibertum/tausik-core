@@ -8,7 +8,7 @@ TAUSIK is a discipline layer for AI coding agents. It turns the agent's word —
 
 [![v1.8.0](https://img.shields.io/badge/version-v1.8.0-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
 [![signed receipts: ed25519](https://img.shields.io/badge/signed%20receipts-ed25519-6f42c1.svg)](docs/en/receipts.md)
-[![10151 tests](https://img.shields.io/badge/tests-10151-brightgreen.svg)](#proof-tausik-built-tausik)
+[![10184 tests](https://img.shields.io/badge/tests-10184-brightgreen.svg)](#proof-tausik-built-tausik)
 [![coverage 76%](https://img.shields.io/badge/coverage-76%25-green.svg)](#proof-tausik-built-tausik)
 [![0 dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#whats-inside)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -110,7 +110,7 @@ Both are fail-closed: a gate that can't evaluate blocks rather than waves the ta
 TAUSIK was built with TAUSIK — every feature, refactor, and bug fix went through the gates that ship in the box. Not as a vanity metric, as the strongest test of the contract:
 
 - **Every task closed with a goal + acceptance criteria.** Zero closed without verify evidence.
-- **10151 tests** — the discipline core is the most-tested part.
+- **10184 tests** — the discipline core is the most-tested part.
 - **76% line coverage** (baseline, `scripts/`, 4124 selected tests) — refresh with `pytest tests/ --cov=scripts --cov-report=json:coverage.json` and update the badge; CI uploads `coverage.json` as a build artifact on every PR.
 - **0 core dependencies** — Python 3.11+ stdlib only; MCP deps live in an isolated `.tausik/venv/`.
 - **0 phone-home calls** — everything runs and stays on your machine.

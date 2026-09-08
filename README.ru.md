@@ -8,7 +8,7 @@ TAUSIK — это discipline-слой для AI-кодинг-агентов. О�
 
 [![v1.8.0](https://img.shields.io/badge/version-v1.8.0-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
 [![signed receipts: ed25519](https://img.shields.io/badge/signed%20receipts-ed25519-6f42c1.svg)](docs/ru/receipts.md)
-[![10151 тестов](https://img.shields.io/badge/tests-10151-brightgreen.svg)](#proof-tausik-собран-на-tausik)
+[![10184 тестов](https://img.shields.io/badge/tests-10184-brightgreen.svg)](#proof-tausik-собран-на-tausik)
 [![покрытие 76%](https://img.shields.io/badge/coverage-76%25-green.svg)](#proof-tausik-собран-на-tausik)
 [![0 зависимостей](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#что-внутри)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -110,7 +110,7 @@ BLOCKED (QG-2): нет валидного verification-receipt для HEAD a1b2c
 TAUSIK создавался самим TAUSIK — каждая фича, рефакторинг и фикс прошли через гейты, которые поставляются в коробке. Не ради красивой цифры, а как самая жёсткая проверка контракта:
 
 - **Каждая задача закрыта с целью + критериями приёмки.** Ни одна не закрыта без verify-доказательств.
-- **10151 тестов** — ядро дисциплины покрыто тестами плотнее всего.
+- **10184 тестов** — ядро дисциплины покрыто тестами плотнее всего.
 - **0 зависимостей в ядре** — только stdlib Python 3.11+; MCP-зависимости живут в изолированном `.tausik/venv/`.
 - **0 обращений наружу** — всё работает и остаётся на вашей машине.
 

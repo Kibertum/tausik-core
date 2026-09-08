@@ -33,7 +33,7 @@ for _p in (str(_REPO / "scripts"), str(_REPO / "scripts" / "hooks")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-import mcp_first_nudge as nudge  # noqa: E402
+import tool_choice_nudge as nudge  # noqa: E402
 import route_map as rm  # noqa: E402
 
 #: A module whose only mention of the entry-point phrase is prose.
@@ -179,7 +179,7 @@ class TestTheNudgeIsNotNoise:
             "tool_input": {"command": command},
         }
         result = subprocess.run(
-            [sys.executable, str(_REPO / "scripts" / "hooks" / "mcp_first_nudge.py")],
+            [sys.executable, str(_REPO / "scripts" / "hooks" / "tool_choice_nudge.py")],
             input=json.dumps(payload),
             capture_output=True,
             text=True,
@@ -223,7 +223,7 @@ class TestNoFalseBlockOnRoutineWork:
             "tool_input": {"command": ".tausik/tausik task done x"},
         }
         result = subprocess.run(
-            [sys.executable, str(_REPO / "scripts" / "hooks" / "mcp_first_nudge.py")],
+            [sys.executable, str(_REPO / "scripts" / "hooks" / "tool_choice_nudge.py")],
             input=json.dumps(payload),
             capture_output=True,
             text=True,
@@ -257,7 +257,7 @@ class TestNoFalseBlockOnRoutineWork:
 def self_run(tmp_path, command: str) -> str:
     payload = {"tool_name": "Bash", "session_id": "quiet", "tool_input": {"command": command}}
     result = subprocess.run(
-        [sys.executable, str(_REPO / "scripts" / "hooks" / "mcp_first_nudge.py")],
+        [sys.executable, str(_REPO / "scripts" / "hooks" / "tool_choice_nudge.py")],
         input=json.dumps(payload),
         capture_output=True,
         text=True,
@@ -272,7 +272,9 @@ def self_run(tmp_path, command: str) -> str:
 class TestTheNudgeReachesBothHookBearingHosts:
     """A capability on one host and not the other is what `cross_model_parity`
     refuses — and this hook exists because a rule went unenforced, so shipping it
-    half-deployed would be the same defect twice."""
+    half-deployed would be the same defect twice. The module was renamed to
+    `tool_choice_nudge` when it gained the grep -> `symbol` case: a name saying
+    `mcp_first` while doing two things would be a name that lies."""
 
     @pytest.mark.parametrize("ide", ["claude", "qwen"])
     def test_bootstrap_deploys_it(self, tmp_path, ide):
@@ -296,4 +298,4 @@ class TestTheNudgeReachesBothHookBearingHosts:
             for entry in entries
             for hook in entry.get("hooks") or []
         ]
-        assert any("mcp_first_nudge" in c for c in commands), f"{ide} does not deploy the nudge"
+        assert any("tool_choice_nudge" in c for c in commands), f"{ide} does not deploy the nudge"

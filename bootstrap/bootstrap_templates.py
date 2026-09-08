@@ -117,20 +117,47 @@ TAUSIK enforces these rules. Violating them triggers warnings or hard blocks.
 Full rule set: [SENAR v1.3](https://senar.tech).
 """
 
-COMMANDS = """## Commands Quick Reference
+def build_commands_section() -> str:
+    """The command list, with its own COUNT rather than a hand-picked subset.
+
+    The subset named nine of {total} commands, and the eighteen it omitted were
+    ones an agent had no way to learn about — measured in session #233, where
+    they simply went unused. Listing all of them is not the fix either: this text
+    is re-sent to the agent on every turn and is held to a line budget for that
+    reason.
+
+    So the count is stated, `--help` is named, and the nine that carry the
+    workflow stay. The count is DERIVED from the parser: a hand-typed number
+    would be wrong the first time a command is added, and wrong silently.
+    """
+    from route_map import cli_commands
+
+    total = len(cli_commands())
+    # Absence, not a guess: if the parser could not be read, say so rather than
+    # printing a number nobody measured.
+    how_many = f"{total} commands" if total else "the full set"
+    # Seven, not nine, and the two dropped (`task list`, `search`) are named in
+    # the workflow section above — so the line spent introducing `--help` is paid
+    # for rather than added. This text is re-sent every turn and the generated
+    # file is held to 80-180 lines; growing it to advertise discoverability
+    # would have been self-defeating.
+    return f"""## Commands Quick Reference
+
+Seven carry the workflow; {how_many} exist — `.tausik/tausik --help` lists them.
 
 ```bash
 .tausik/tausik status                          # project overview + warnings
-.tausik/tausik task list                       # list tasks
 .tausik/tausik task start <slug>               # activate (QG-0 enforced)
 .tausik/tausik verify --task <slug>            # heavy gates (pytest etc.) → cached green
 .tausik/tausik task done <slug> --ac-verified  # complete (QG-2 enforced via verify cache)
 .tausik/tausik task log <slug> "message"       # log progress
-.tausik/tausik dead-end "approach" "reason"    # document failure
-.tausik/tausik metrics                         # SENAR metrics
-.tausik/tausik search "<query>"                # FTS5 search
+.tausik/tausik dead-end "approach" "reason"    # document failure (used 0 times in 5,966 calls)
+.tausik/tausik symbol <name>                   # a definition, its file:line and callers
 ```
 """
+
+
+COMMANDS = build_commands_section()
 
 QUALITY_GATES = """## Quality Gates
 

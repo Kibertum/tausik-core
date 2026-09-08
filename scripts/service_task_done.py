@@ -26,6 +26,28 @@ if TYPE_CHECKING:
     from project_backend import SQLiteBackend
 
 
+#: Words a journal uses when an approach was tried and did not work. Matched on
+#: the WORD, so "refuted" in a quotation of somebody else's text still counts —
+#: over-detecting a dead end costs a sentence, under-detecting costs the next
+#: agent the whole rediscovery.
+_REFUTATION_MARKERS = (
+    "опроверг",
+    "не сработал",
+    "гипотеза снята",
+    "оказалась неверн",
+    "refuted",
+    "did not work",
+    "turned out to be wrong",
+    "dead end",
+)
+
+
+def _journal_shows_a_refutation(notes: str) -> bool:
+    """Does the journal say something was tried and found not to work?"""
+    lowered = (notes or "").lower()
+    return any(marker in lowered for marker in _REFUTATION_MARKERS)
+
+
 def _format_task_done_failures(report: dict[str, Any]) -> str:
     """v1.4: aggregate ALL blocking failures into the v1 ServiceError message.
 
@@ -319,6 +341,18 @@ class TaskDoneReportMixin:
                 and self.be.decision_count_for_task(slug) == 0
             ):
                 knowledge_warning = "NOTE: No knowledge captured for this task (no memories, decisions, or dead ends). Use --no-knowledge to confirm none needed."
+                if _journal_shows_a_refutation(notes):
+                    # NAMED, because the general warning was measured at zero
+                    # effect: `dead-end` was used 0 times in 5,966 tool calls
+                    # while the journals of that same window carry refuted
+                    # hypotheses. A warning that lists three options is one the
+                    # reader satisfies with whichever is cheapest; this one says
+                    # which of the three the journal is asking for.
+                    knowledge_warning += (
+                        " This task's journal records an approach that was REFUTED — that is a"
+                        " dead end, and the next agent will otherwise pay to rediscover it:"
+                        ' `.tausik/tausik dead-end "<approach>" "<why it failed>"`.'
+                    )
         if no_knowledge:
             self.be.event_add(
                 "task",

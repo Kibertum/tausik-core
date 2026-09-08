@@ -9,6 +9,53 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — a tool TAUSIK ships is named at the moment an alternative is chosen
+
+Measured over this project's own transcripts (session #233, 5,966 tool calls)
+before any of this existed:
+
+    dead-end        0 uses. None — while that same window's journals carry at
+                    least four refuted hypotheses.
+    tausik symbol   2 uses against 226 greps for a definition, one hour after it
+                    shipped.
+    checkpoint      no mechanism at all; the rule asks for one every 30-50 calls.
+    task log        222 uses — one per 26 calls, against "after every step".
+
+Four rules, one defect: the tool exists, the rule demands it, and nothing joins
+them at the moment of choice. Those numbers are what "joined by memory" measures
+to, and none of the four needed a new mechanism to fix.
+
+- **The closure names `dead-end` when the journal shows a refutation.** The
+  general "no knowledge captured" warning offered three options and was satisfied
+  with the cheapest; this one says which of the three the journal is asking for.
+- **A grep for a DEFINITION gets the command to run instead** — `tausik symbol
+  <name>` — through the same hook and the same once-per-subject discipline. A
+  plain text search stays silent: five shapes of ordinary work are asserted quiet,
+  because a notice that fires on routine is one the reader learns to skip.
+- **The checkpoint reminder comes from the counter that already runs.** No second
+  hook to deploy, keep in host parity and pay for on every call, to count
+  something already counted.
+- **The command list states its own count** — 52, derived from the parser — and
+  points at `--help` instead of naming a hand-picked subset. Eighteen commands
+  were named nowhere an agent reads, and they are exactly the ones the window
+  shows unused. The generated file did NOT grow: two commands the workflow
+  section already names were dropped to pay for the line.
+- **`mcp_first_nudge` became `tool_choice_nudge`**, because a name saying
+  `mcp_first` while doing two things is a name that lies. The old path remains as
+  a shim: a host reads `settings.json` at session start, so renaming a deployed
+  hook breaks the RUNNING session — found by breaking this one.
+
+### Known — two things measured and deliberately not acted on
+
+- **138 of 146 MCP tools are unnamed in the rules, and that is correct**: the
+  agent receives them with schemas over the protocol, so restating them in text
+  re-sent every turn would cost budget and add nothing (decision #346).
+- **MCP-first is not tightened until the nudge has a number.** The baseline is
+  pinned — 29.1% of framework calls, 1,216 of 1,530 CLI invocations with a twin —
+  and the decision waits for a full session measured with the nudge in place
+  (decision #347). Changing a mechanism before the number exists is deciding by
+  feel, which is what this release exists against.
+
 ### Changed — the route an agent must take is checked, and no rule demands the impossible
 
 Measured over this project's own transcripts before anything was built (session
