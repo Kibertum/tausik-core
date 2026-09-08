@@ -9,6 +9,36 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the receipt says WHO ran the verification (schema v4)
+
+A verify receipt is signed with the PROJECT key. It answers "which gates passed
+on which state of the code" and, until now, said nothing about who ran them —
+while the entire quality story rests on separation of duties: an external
+reviewer on a DIFFERENT model, and with P8 also "the test author is not the
+implementer". All asserted, none attestable.
+
+**The measurement is harder than the filing was.** Across 1,686 receipts not one
+carries an actor field. `claimed_by` is NULL in all 1,574 tasks. Of the 29 tasks
+recording both a starting and a closing model, **none differ**. On the verify
+path separation of duties does not merely lack attestation — it does not happen,
+and the new field shows that rather than painting over it.
+
+- **The actor is CONTENT of the project-signed receipt, not a second signer.** A
+  second key would mean per-agent key material and an identity registry, both
+  ruled out by the filing. The field is inside the canonical bytes, so an actor
+  edited afterwards breaks the signature.
+- **Three outcomes, never two:** `same`, `different`, `unknown`. A receipt with
+  no actor is not a receipt by a different actor, and a check of the form
+  `!= same` would count all 1,686 legacy receipts as separated.
+- **Role is recorded but is NOT part of the identity.** One agent changing hats
+  is one agent; treating a role change as a different actor is how a separation
+  of duties gets claimed without one.
+- **The boundary is guarded by a test, not by a promise.** The receipt records
+  the actor OF THE VERIFICATION RUN, not who wrote the test versus who wrote the
+  code — that is P8's subject and is out of scope here.
+- **v1–v3 receipts stay valid.** `actor` is deliberately absent from
+  `V3_REQUIRED_FIELDS`: requiring it would stop 1,686 closures reading at once.
+
 ### Added — red history: a test never observed failing has not shown it can fail
 
 RENAR §9.18.2. Author isolation proves the test was written before the code; it

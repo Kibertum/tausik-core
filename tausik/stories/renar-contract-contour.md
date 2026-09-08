@@ -1,7 +1,7 @@
 ---
 slug: renar-contract-contour
 title: "Контрактный контур: ACTZ, итоговое ТЗ и приёмка от контракта"
-status: active
+status: done
 epic: release-19-renar-conformance
 ---
 

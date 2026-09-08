@@ -254,3 +254,35 @@ GitHub Actions snippet.
 - [mcp.md](mcp.md) — the equivalent MCP tools.
 - [no-sdk-verify.md](no-sdk-verify.md) — HTTP verify endpoint (`tausik serve`).
 - [senar.md](senar.md) — the SENAR verify-first principle behind QG-2.
+
+
+## Who did the work (`actor`, v4)
+
+A receipt is signed with the **project** key and answers which gates passed on
+which state of the code. Until v4 it did not answer WHO ran them — while the
+whole quality story rests on separation of duties: an external reviewer on a
+different model, and with P8 also "the test author is not the implementer". All
+of it asserted, none of it attestable.
+
+The measurement behind the field: 1,686 receipts, not one carrying an actor;
+`claimed_by` NULL across all 1,574 tasks; of the 29 tasks recording both a
+starting and a closing model, **none differ**. On the verify path separation of
+duties does not merely lack attestation — it does not happen.
+
+`actor` is **content** of the project-signed receipt, not a second signer. A
+second key would mean per-agent key material and an identity registry; neither is
+created, and keys stay local. The field is inside the canonical bytes, so an
+actor edited after the fact breaks the signature.
+
+**Comparing two receipts yields THREE outcomes, not two:** `same`, `different`
+and `unknown`. A receipt with no `actor` is not a receipt by a different actor,
+and a check of the form `!= same` would count every one of the 1,686 legacy
+receipts as separated. Require `different` explicitly.
+
+**The boundary.** The receipt records the actor OF THE VERIFICATION RUN. It does
+not say who wrote the test and who wrote the code — that is P8's subject, and
+offering this field as evidence for that claim is not allowed.
+
+v1–v3 receipts stay valid: the field is added, not required. `actor` is
+deliberately absent from `V3_REQUIRED_FIELDS`, or 1,686 closures would stop
+reading at once.
