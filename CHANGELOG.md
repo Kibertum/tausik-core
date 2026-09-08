@@ -9,6 +9,33 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — graph snapshots, and what CHANGED IN THE RELATIONS since a release
+
+```bash
+.tausik/tausik graph snapshot v1.9.0
+.tausik/tausik graph diff v1.8.0 v1.9.0
+```
+
+This asks a question nothing else does: "requirement #12 is no longer covered by
+any test" cannot be expressed by comparing TEXTS, however carefully worded — it
+is a statement about EDGES.
+
+- **Stored whole and compressed; no deltas** (decision #354). Measured: 23,695
+  edges are 2,103 KB raw — comparable to all of `scripts/*.py` at 3,683 KB — and
+  150 KB compressed; a live snapshot came out at **154 KB**. A delta chain needs
+  every link intact, and at that size the fragility buys nothing.
+- **A snapshot carries its own COMPLETENESS**, and the diff says so FIRST. Two
+  snapshots taken before and after a test run was ever observed differ by 6,051
+  `observed_coverage` edges that were missing from the INDEX, not from the code.
+  A first report full of false "vanished coverage" destroys trust permanently.
+- **A changed observation count is not drift**: the edge is the same relation.
+
+**It complements the RENAR text detectors and replaces neither** (decision #354).
+`drift-1` re-validates stored rows against cross-field invariants — a question
+about data validity. `drift-7` catches a task closed against a requirement edited
+AFTER the link — a relation in TIME, and graph edges carry no time. Three
+mechanisms, three questions; collapsing them would lose two.
+
 ### Added — `tausik graph read`: what to read to change a file, in under a kilobyte
 
 Measured on the live graph BEFORE this existed — an unranked neighbour list is not

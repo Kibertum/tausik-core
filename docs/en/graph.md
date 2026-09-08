@@ -331,6 +331,53 @@ symbol. That was tried and refuted by measurement in the same session (dead end
 value, a column, a subcommand, or a deliberate mention of something removed. Of
 2,689 such mentions five were even candidates, and all five were intentional.
 
+## Snapshots: what changed IN THE RELATIONS since the last release
+
+```bash
+.tausik/tausik graph snapshot v1.9.0        # remember the relations under a label
+.tausik/tausik graph diff v1.8.0 v1.9.0     # what appeared and what vanished
+.tausik/tausik graph diff v1.9.0 now        # against the live graph
+```
+
+This is a question nothing else asks: "requirement #12 is no longer covered by
+any test" cannot be expressed by comparing TEXTS, however carefully worded — it
+is a statement about EDGES.
+
+**Stored whole and compressed; no deltas.** Measured: 23,695 edges are 2,103 KB
+raw — comparable to all of `scripts/*.py` at 3,683 KB — and 150 KB compressed; a
+live snapshot came out at 154 KB. A delta chain needs a base and every link
+intact, and a broken link invalidates everything after it. At 154 KB per release
+that fragility buys nothing (decision #354).
+
+**A snapshot carries its own COMPLETENESS, and that decides whether the reports
+survive.** Alongside the edges it stores what the graph was at the time: the
+artifact count and the layers with their edge counts. Two snapshots taken at
+different completeness — one before a test run was ever observed — differ by
+6,051 `observed_coverage` edges that were missing from the INDEX, not from the
+code. The report says so on its FIRST line, before any difference:
+
+```
+! layer 'observed_coverage' is present in the earlier snapshot (6051 edges) and
+  ABSENT from the later one — its edges below are a difference in what was
+  INDEXED, not in the code
+```
+
+A first report full of false "vanished coverage" destroys trust in the mechanism
+permanently, and there is no second reading.
+
+**A changed observation count is not structural drift.** The edge is the same
+relation; only how often it was seen has moved, and calling that drift would
+flood every report with the noise of ordinary work.
+
+### How this sits beside the RENAR drift detectors
+
+It complements them and replaces neither (decision #354). `drift-1` re-validates
+stored rows against cross-field invariants a CHECK cannot express — a question
+about DATA VALIDITY, which no snapshot comparison asks. `drift-7` catches a task
+closed against a requirement edited AFTER the link was made — a relation in TIME,
+and graph edges carry no time. Three mechanisms, three questions; collapsing them
+into one would lose two.
+
 ## What the graph does not express
 
 Listed deliberately, so the absence of these relations is not later mistaken for

@@ -84,6 +84,19 @@ def add_graph(sub: argparse._SubParsersAction) -> None:
         ),
     )
 
+    snap = g_sub.add_parser(
+        "snapshot",
+        help="Store the current relations under a label, compressed",
+    )
+    snap.add_argument("label", help="Usually a release tag, e.g. v1.9.0")
+
+    diff_p = g_sub.add_parser(
+        "diff",
+        help="What CHANGED IN THE RELATIONS between two snapshots",
+    )
+    diff_p.add_argument("before", help="The earlier snapshot's label")
+    diff_p.add_argument("after", help="The later snapshot's label, or `now` for the live graph")
+
     g_sub.add_parser(
         "status",
         help="How much is stored, how much is stale, and which roots were indexed",

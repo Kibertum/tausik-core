@@ -165,12 +165,17 @@ def cmd_graph(svc: Any, args: Any) -> None:
         _show(svc, args)
     elif sub == "read":
         _read(args)
+    elif sub == "snapshot":
+        _snapshot(args)
+    elif sub == "diff":
+        _diff(args)
     elif sub == "status":
         _status(svc)
     else:
         print(
             "error: say what to do — `graph build`, `graph show <path>`, "
-            "`graph read <path>` or `graph status`",
+            "`graph read <path>`, `graph snapshot <label>`, "
+            "`graph diff <before> <after>` or `graph status`",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -358,6 +363,54 @@ def _read(args: Any) -> None:
             budget=int(limit) if limit else DEFAULT_BUDGET,
         )
     )
+
+
+def _snapshot(args: Any) -> None:
+    from graph_snapshot import write
+
+    label = str(getattr(args, "label", "") or "")
+    if not label:
+        print("error: give the snapshot a label, usually a release tag", file=sys.stderr)
+        sys.exit(1)
+    path, edges, size = write(_root(), label)
+    rel = os.path.relpath(path, _root()).replace("\\", "/")
+    print(f"snapshot '{label}': {edges} edge(s) -> {rel} ({size // 1024} KB)")
+
+
+def _diff(args: Any) -> None:
+    from graph_snapshot import collect, diff, read, render
+
+    root = _root()
+    before_label = str(getattr(args, "before", "") or "")
+    after_label = str(getattr(args, "after", "") or "")
+
+    before = read(root, before_label)
+    if before is None:
+        # NOT an empty diff. A snapshot that does not exist says nothing about
+        # the relations, and rendering "no changes" would be a confident lie.
+        print(
+            f"error: no snapshot named '{before_label}' — take one with "
+            f"`tausik graph snapshot {before_label}`",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    if after_label == "now":
+        after = collect(root)
+    else:
+        # Narrowed before use rather than after: `read` may answer None, and the
+        # branch below is the only place that state is legitimate.
+        stored = read(root, after_label)
+        if stored is None:
+            print(
+                f"error: no snapshot named '{after_label}' — take one, or pass `now` "
+                "to compare against the live graph",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        after = stored
+
+    print(render(before_label, after_label, diff(before, after)))
 
 
 def _status(svc: Any) -> None:
