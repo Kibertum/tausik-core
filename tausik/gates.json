@@ -107,5 +107,12 @@
     "max_tools": 146,
     "max_bytes": 56907,
     "_host_note": "names-only cost is 3201 bytes (~800 tokens); full surface ~14027 tokens. The first is what THIS host pays and was observed; the second follows from the protocol and was not observed here."
+  },
+  "closure_evidence": {
+    "_comment": "DECLARED REMAINDER, not a ratchet at zero. Closure journals are append-only: these citations were written into tasks closed long ago, and rewriting them would forge the evidence this project exists to keep honest. The set is CLOSED — since session #240 `task done` checks a task's own citations while the author can still fix them (scripts/closure_citation_check.py). So growth is the signal and the history is not. Measured 2026-09-08; may only shrink.",
+    "baseline": {
+      "rotted": 31,
+      "never_existed": 20
+    }
   }
 }

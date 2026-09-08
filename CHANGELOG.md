@@ -9,6 +9,35 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — historical closure-citation rot is a DECLARED REMAINDER, not a permanent HIGH
+
+The lens reported two `high` findings on every run: 31 closure citations naming a
+test that no longer exists, and 20 naming a test git never had. Both are history.
+Closure journals are append-only, and rewriting them would forge the very
+evidence this project exists to keep honest.
+
+A finding that repeats every run and cannot be acted on does not stay unread — it
+teaches the reader to skip its whole SEVERITY. So the historical set is now pinned
+in `tausik/gates.json` with the reason beside the number, and `high` is reserved
+for GROWTH. The set is closed: since this release `task done` checks a task's own
+citations while the author can still fix them.
+
+- **Exceeding the remainder is still `high`**, and the finding counts the excess
+  rather than the total.
+- **A project with no baseline is read strictly** — zero remainder, so every
+  finding is growth. That is the right default for one that has not chosen.
+- **A baseline ABOVE the truth is also reported**: a remainder larger than
+  reality is a lie in the other direction.
+
+**`repo_coherence` was split three ways** in the same change, because it crossed
+the 500-line cap: the SHAPE of a finding (`repo_coherence_shape`), the
+COLLECTORS (`repo_coherence_collectors`), and the assembly plus rendering. The
+two halves change for different reasons — the shape almost never, the collectors
+on every addition. The public surface is unchanged, which existing tests proved
+by failing loudly when the first split broke it.
+
+**Result: the lens reports no `high` finding on this tree.**
+
 ### Fixed — a fresh project could not close its first task
 
 Found by walking the consumer path rather than by reading code: a clean project
