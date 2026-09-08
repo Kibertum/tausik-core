@@ -141,12 +141,3 @@ def classify(path: Path) -> str:
         return "ENTRYPOINT"
     return "INERT"
 
-
-def inert_but_invoked(names: list[str]) -> list[str]:
-    """Of `names`, those that do nothing when run directly and do not say so."""
-    out: list[str] = []
-    for name in names:
-        path = _HERE / name
-        if path.is_file() and classify(path) == "INERT":
-            out.append(name)
-    return sorted(out)
