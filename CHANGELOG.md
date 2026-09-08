@@ -9,6 +9,42 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the development line finally runs the full test lane
+
+GitLab is where development happens (decision #267) and it ran only the fast half:
+every job there inherits `-m 'not slow'` from addopts. The slow-marked modules are
+this project's own regression tests — bootstrap wiring, MCP integration,
+subprocess smoke — and they lived in the GitHub full lane alone, which the working
+branch deliberately never reaches (decision #260). On the branch every line of 1.9
+was written on, they ran nowhere.
+
+- **A third stage, not a second job.** Every runner on this instance is a SHELL
+  executor sharing ONE workspace per project with `GIT_CLEAN_FLAGS=-ffdx`; two
+  pytest jobs in one stage would run concurrently over the same directory and
+  clean the tree underneath each other. Stages are sequential, which is what makes
+  it safe — the same argument the duplicate-pipeline guard in that file already
+  makes.
+- **The fast lane survives, on purpose.** The pain the owner named was waiting.
+  Replacing the fast lane with the full one would have closed the blind spot by
+  putting a nine-minute wait on every push — trading the defect for the pain. A
+  test now guards both directions: losing the full lane is red, and losing the
+  fast one is red too.
+- **The cost is a measured number, and the note's number was stale.** 9m03s for
+  10,023 passed on a 20-core machine with `-n auto`. The task's own notes carried
+  3m48s from an earlier tree; it was re-measured rather than believed, and the
+  figure with its provenance is written into the config so the next reader does
+  not have to.
+- **Its first run found a red.** The freshness ratchet over the committed
+  `ROADMAP.md` is slow-marked and was failing in the tree at the moment the job was
+  written — invisible to the fast lane for as long as the fast lane was the only
+  lane. That is the defect class this job exists for, caught by it immediately.
+- **The lane guard was reading text, and is now reading the fact.** Moving the
+  shared setup into a YAML anchor made `test_every_pytest_lane_deploys_the_profiles_first`
+  declare both GitLab lanes broken — including the one that had bootstrapped since
+  it was written. It resolves anchors now. A guard that reddens when code is
+  reorganised, while the fact it checks is unchanged, teaches the reader to edit
+  the guard.
+
 ### Changed — enforcement is now stated BY RULE, not by whole host
 
 Session #230 stopped the over-claim: a host with no mechanism was told its rules

@@ -1,7 +1,7 @@
 ---
 slug: twelve-tests-return-from-a-silent-ignore
 title: "Двенадцать тестов возвращаются из --ignore, приехавшего молча в сборном релизном коммите"
-status: planning
+status: done
 epic: release-19-agent-effectiveness
 story: verification-off-the-critical-path
 complexity: simple
@@ -12,12 +12,20 @@ call_budget: null
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
-scope_paths: []
+relevant_files:
+  - ".github/workflows/tests.yml"
+  - ".gitlab-ci.yml"
+  - "tests/test_ci_lanes_are_honest.py"
+scope_paths:
+  - ".github/workflows/tests.yml"
+  - ".gitlab-ci.yml"
+  - "tests/test_ci_lanes_are_honest.py"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
 scope_tools: []
 depends_on:
   - full-lane-runs-serial-on-a-twenty-core-machine
-completed_at: null
+completed_at: "2026-09-08T08:51:50Z"
 ---
 
 ## Goal
@@ -29,6 +37,16 @@ completed_at: null
 
 ## Acceptance Criteria
 
+AC1. НИ ОДНА ЛЕНТА CI НЕ ИСКЛЮЧАЕТ ТЕСТОВЫЙ ФАЙЛ ПО ПУТИ. Ни в .github/workflows/tests.yml, ни в .gitlab-ci.yml нет действующего --ignore на tests/.
+
+AC2. ДВЕНАДЦАТЬ ТЕСТОВ ДОСТИЖИМЫ И ЗЕЛЕНЫ. Прогон обоих модулей с -m '' завершается успехом, и это ЗАМЕР, а не рассуждение.
+
+AC3. ЕСТЬ ЛЕНТА, КОТОРАЯ ИХ ДЕЙСТВИТЕЛЬНО ЗАПУСКАЕТ. Существует джоб, зовущий полную ленту (-m ''), — иначе снятие --ignore ничего не меняет: slow-маркер продолжает их отсекать.
+
+AC4 (НЕГАТИВНЫЙ). ВОЗВРАТ --ignore КРАСНЕЕТ. Тест обязан отказать, если исключение по пути вернётся в любой из двух конфигов, — иначе оно приедет молча во второй раз, ровно как в первый.
+
+AC5. ГРАНИЦА. Отсутствие полной ленты в GitLab здесь НЕ чинится: это отдельный открытый дефект gitlab-has-no-full-lane-at-all, и комментарий в самом конфиге об этом говорит.
+
 ## Plan
 
 ## Rollback
@@ -36,3 +54,6 @@ completed_at: null
 Правка двух строк в двух файлах CI. Откат — git revert; продуктовый код не трогается.
 
 ## Journal
+
+- 2026-09-08T08:51:20Z [implementation] — Верификационный чек-лист (SENAR Rule 5): AC-1: ✓ tests/test_ci_lanes_are_honest.py::TestNoLaneExcludesByPath::test_no_ci_command_ignores_a_test_file AC-2: ✓ замер сегодня: pytest tests/test_bootstrap_skills_coverage.py tests/test_bootstrap_real.py -m '' — 12 passed за 63.24 s, exit 0 AC-3: ✓ tests/test_ci_lanes_are_honest.py::test_a_job_runs_the_full_slow_lane AC-4: ✓ tests/test_ci_lanes_are_honest.py::TestNoLaneExcludesByPath::test_no_ci_command_ignores_a_test_file (тот же тест краснеет на возврате) AC-5: ✓ граница соблюдена: .gitlab-ci.yml не менялся, открытый дефект назван в журнале и в комментарии конфига
+- 2026-09-08T08:51:20Z [implementation] — ЗАКРЫВАЕТСЯ ПО ФАКТУ, А НЕ ПОВТОРНОЙ ПРАВКОЙ. Работа приехала внутри задач-предшественниц, ровно как предсказывала сама формулировка («ДЕЛАЕТСЯ ПОСЛЕ решения по сторожу зависаний и включения xdist»). Установлено гитом, а не памятью: — коммит 2bfd3d1 («сторож зависаний перестал убивать здоровые тесты») УБРАЛ оба --ignore из .github/workflows/tests.yml и .gitlab-ci.yml; — коммит 25fe8ef починил триггер ветки в GitLab; — джоб test-full в GitHub зовёт `pytest tests/ -m ''` без исключений, то есть двенадцать тестов там ИСПОЛНЯЮТСЯ. ЗАМЕР СЕГОДНЯ (смена #232): прогон обоих модулей с -m '' — 12 passed за 63.24 s, exit 0. Замер #189 давал 824.32 s последовательно; разница — xdist, включённый задачей про полную ленту. То есть возражение «они длинные» снято не обещанием, а числом: минута. СТОРОЖ НА МЕСТЕ: tests/test_ci_lanes_are_honest.py::TestNoLaneExcludesByPath::test_no_ci_command_ignores_a_test_file отказывает при возврате --ignore на tests/ в любом из двух конфигов и называет решение #275. ОСТАЁТСЯ ОТКРЫТЫМ И НЕ ЗАКРЫВАЕТСЯ ЗДЕСЬ: в GitLab полной ленты нет вовсе, поэтому на линии разработки эти двенадцать по-прежнему не гоняются. Это отдельный дефект gitlab-has-no-full-lane-at-all, и комментарий в .gitlab-ci.yml прямо это говорит.

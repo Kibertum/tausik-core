@@ -177,6 +177,92 @@ class TestWorkflowStructureIsHonest:
         )
 
 
+class TestTheDevelopmentLineReachesTheSlowTests:
+    """GitLab is the development line (decision #267). It must run the full lane.
+
+    `test_a_job_runs_the_full_slow_lane` above is satisfied by GitHub alone — and
+    the working branch deliberately never goes to GitHub (decision #260). So that
+    assertion stayed green through the entire period in which every commit of the
+    1.9 release was verified by the fast half only.
+
+    MEASURED when this was written (session #232): the full lane costs 9m03s for
+    10,023 tests on a 20-core machine with `-n auto`. It is affordable per push;
+    it was never affordable to keep skipping it. Its first run found a red the
+    fast lane could not see — the freshness ratchet over the committed ROADMAP,
+    which is slow-marked.
+    """
+
+    @staticmethod
+    def _gitlab_jobs() -> dict:
+        import yaml
+
+        path = Path(".gitlab-ci.yml")
+        assert path.exists(), ".gitlab-ci.yml is missing — the development gate cannot be checked"
+        doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        return {
+            name: job
+            for name, job in doc.items()
+            if isinstance(job, dict) and not name.startswith(".") and "script" in job
+        }
+
+    def _full_lane_jobs(self) -> list[str]:
+        found = []
+        for name, job in self._gitlab_jobs().items():
+            script = " ".join(
+                TestALaneThatRunsPytestDeploysFirstAndDoesNotSwallowIt._flatten(job["script"])
+            )
+            if "pytest" in script and ("-m ''" in script or '-m ""' in script):
+                found.append(name)
+        return found
+
+    def test_gitlab_has_a_lane_that_reaches_slow_tests(self):
+        assert self._full_lane_jobs(), (
+            "no GitLab job runs `pytest -m ''`. Every lane there inherits "
+            "`-m 'not slow'` from addopts, so this project's own regression tests — "
+            "bootstrap wiring, MCP integration, subprocess smoke — would run on no "
+            "branch anyone develops on. GitHub having a full lane does not help: the "
+            "working branch does not go there (decision #260)."
+        )
+
+    def test_the_full_lane_does_not_share_a_stage_with_another_pytest_lane(self):
+        """Every runner here is a SHELL executor with ONE reused workspace per
+        project and `GIT_CLEAN_FLAGS=-ffdx`. Two pytest jobs in one stage run
+        concurrently over the same directory and clean the tree underneath each
+        other — the same argument this file's duplicate-pipeline guard makes."""
+        by_stage: dict[str, list[str]] = {}
+        for name, job in self._gitlab_jobs().items():
+            script = " ".join(
+                TestALaneThatRunsPytestDeploysFirstAndDoesNotSwallowIt._flatten(job["script"])
+            )
+            if "pytest" in script:
+                by_stage.setdefault(str(job.get("stage") or "test"), []).append(name)
+        clashes = {stage: names for stage, names in by_stage.items() if len(names) > 1}
+        assert not clashes, (
+            f"these stages run more than one pytest lane concurrently: {clashes}. "
+            "The runners share one workspace; concurrent lanes would wipe it under "
+            "each other. Put the second lane in a later stage."
+        )
+
+    def test_the_fast_lane_survives(self):
+        """The other direction. Replacing the fast lane with the full one would
+        close the blind spot by making every push wait nine minutes — trading the
+        defect for the pain the owner actually named."""
+        fast = [
+            name
+            for name, job in self._gitlab_jobs().items()
+            if name not in self._full_lane_jobs()
+            and "pytest"
+            in " ".join(
+                TestALaneThatRunsPytestDeploysFirstAndDoesNotSwallowIt._flatten(job["script"])
+            )
+        ]
+        assert fast, (
+            "GitLab has no fast lane left. A developer now waits for the full run "
+            "on every push, which is the wait the full lane was supposed to move "
+            "OFF the critical path, not onto it."
+        )
+
+
 class TestNoCiLaneExcludesTestFiles:
     """A ratchet against the exclusion that was added silently once already.
 
@@ -343,6 +429,42 @@ class TestALaneThatRunsPytestDeploysFirstAndDoesNotSwallowIt:
             found.append(gitlab)
         return found
 
+    @staticmethod
+    def _flatten(value) -> list[str]:
+        """GitLab allows a nested list in `script`/`before_script` and flattens it."""
+        out: list[str] = []
+        if isinstance(value, str):
+            out.append(value)
+        elif isinstance(value, list):
+            for item in value:
+                out.extend(TestALaneThatRunsPytestDeploysFirstAndDoesNotSwallowIt._flatten(item))
+        return out
+
+    @classmethod
+    def _gitlab_jobs(cls, path: Path, text: str) -> list[tuple[str, str]]:
+        """[(label, every command the job really runs)] for GitLab lanes.
+
+        Anchors are resolved by the YAML parser, so a step shared through
+        `&anchor` counts for every job that takes it — which is what actually
+        happens on the runner.
+        """
+        import yaml
+
+        try:
+            doc = yaml.safe_load(text) or {}
+        except yaml.YAMLError as exc:  # pragma: no cover - a broken file is its own red
+            raise AssertionError(f"{path} does not parse as YAML: {exc}") from exc
+
+        found: list[tuple[str, str]] = []
+        for name, job in doc.items():
+            if not isinstance(job, dict) or name.startswith("."):
+                continue
+            steps = cls._flatten(job.get("before_script")) + cls._flatten(job.get("script"))
+            body = "\n".join(steps)
+            if any(re.match(r"^(- )?pytest\s", line.strip()) for line in steps):
+                found.append((f"{path}::{name}", body))
+        return found
+
     @classmethod
     def _jobs_running_pytest(cls) -> list[tuple[str, str]]:
         """[(label, job text)] for every CI job that invokes pytest.
@@ -358,11 +480,15 @@ class TestALaneThatRunsPytestDeploysFirstAndDoesNotSwallowIt:
         for path in cls._lane_files():
             text = path.read_text(encoding="utf-8")
             if path.name == ".gitlab-ci.yml":
-                # Top-level keys start at column 0. `default:`/`variables:`
-                # come along as their own chunks and simply never match.
-                chunks = re.split(r"\n(?=\S)", text)
-            else:
-                chunks = re.split(r"\n(?=  \w[\w-]*:\n)", text)
+                # RESOLVED, not sliced. Splitting the file into text blocks reads
+                # only what is written inside a job, so the day shared setup moved
+                # into a YAML anchor — the ordinary way to keep two lanes from
+                # drifting — this guard called both lanes broken, including the one
+                # that had bootstrapped since it was written. The fact had not
+                # changed; only where it was spelled had.
+                out.extend(cls._gitlab_jobs(path, text))
+                continue
+            chunks = re.split(r"\n(?=  \w[\w-]*:\n)", text)
             for job in chunks:
                 for line in job.splitlines():
                     stripped = line.strip()
