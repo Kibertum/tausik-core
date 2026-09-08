@@ -9,6 +9,31 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a deleted file could not be declared in the scope, so the framework forced under-declaration
+
+A task that removes a file must name it in `--relevant-files`; the deletion is
+part of the change. Until now that broke the close: the list went to the gate's
+command verbatim, `ruff` got a path that no longer existed and answered `E902`,
+and the run came back `exit=1` with no verify handle. The only way past it was
+to leave the deletion out — to under-declare on purpose.
+
+Measured on a live closure this session: verification_run #2275 failed exactly
+that way, and #2277 and #2278 are both recorded `under-declared` because the
+deletion had to be dropped from the declaration. `declared_scope_status` is the
+number decision #348 put in this release to improve, and the framework was
+pushing the agent toward the answer that number counts as dishonest.
+
+- **The filter sits at ARGUMENT construction**, not where applicability is
+  decided: `file_extensions` and `file_patterns` judge by NAME and must keep
+  working for a file that is already gone.
+- **Only for commands that interpolate `{files}`.** A gate that never receives
+  the list cannot be broken by a deletion, and answering for it would mask the
+  real verdict — a missing tool stays `COULD_NOT_RUN`.
+- **Nothing left is NOT a verdict**: `NOT_APPLICABLE` with the new code
+  `all_files_deleted`, never green. Without that branch the empty list becomes
+  `.` and `ruff check .` lints the whole repository.
+- **The declaration and the receipt keep the full list**, deletions included.
+
 ### Fixed — the verify endpoint could share its port with any other local process
 
 Chasing an intermittent `ConnectionAbortedError` in the endpoint's own tests

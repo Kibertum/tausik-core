@@ -79,3 +79,29 @@ permission.
 `CHANGELOG.md` is written by the agent and is NOT subtracted — its absence from
 a declaration is a real under-declaration, and that is what the check exists to
 show.
+
+### A deleted file can be declared in the scope
+
+A task that DELETES a file must name it in `--relevant-files`: the deletion is
+part of the change. Before 1.9 that was impossible. The list went to the gate's
+command verbatim, `ruff` was handed a path that no longer existed and answered
+`E902 no such file`, and the whole run came back `exit=1` with no handle. The
+only way past it was to leave the deletion out — to under-declare on purpose. A
+mechanism that pushes toward under-declaration has no standing to measure it.
+
+A path that is not on disk is no longer substituted into a gate's command. Three
+boundaries:
+
+- the filter sits where the command's ARGUMENTS are built, not where
+  applicability is decided: `file_extensions` and `file_patterns` judge by NAME
+  and must keep working for a file that is already gone;
+- it applies only to a command that interpolates `{files}`. A gate that never
+  receives the list cannot be broken by a deleted file, and substituting its
+  verdict would be a lie — a missing tool must stay `COULD_NOT_RUN`;
+- if NOTHING survives the filter, the gate returns `NOT_APPLICABLE` with the
+  code `all_files_deleted` rather than "passed". A file gate with nothing to
+  read has checked nothing. Without that branch an empty list becomes `.`, and
+  `ruff check .` would lint the entire repository.
+
+The declaration and the signed receipt keep the FULL list, deletions included:
+the receipt describes the CHANGE, and the change included removing a file.

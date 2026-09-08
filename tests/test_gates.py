@@ -937,6 +937,20 @@ class TestFileConflicts:
         assert set(conflicts[0][2]) == {"x.py", "y.py"}
 
 
+def _touch(tmp_path, *names: str) -> None:
+    """Создать перечисленные пути и перейти в их каталог.
+
+    Гейт с версии 1.9 не подставляет в команду путь, которого нет на диске:
+    удалённый файл ронял `ruff` с E902 и заставлял занижать объявленный объём.
+    Тесты ниже проверяют ФИЛЬТРАЦИЮ ПО ИМЕНИ, поэтому им нужны настоящие файлы —
+    иначе они проверяли бы новый фильтр вместо своего предмета.
+    """
+    for name in names:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("x = 1\n", encoding="utf-8")
+
+
 class TestCommandGateFileExtensions:
     """file_extensions filter in run_command_gate."""
 
@@ -945,12 +959,14 @@ class TestCommandGateFileExtensions:
         stdout = ""
         stderr = ""
 
-    def test_mixed_list_filtered_to_matching(self, monkeypatch):
+    def test_mixed_list_filtered_to_matching(self, monkeypatch, tmp_path):
         calls = []
         monkeypatch.setattr(
             "gate_runner.subprocess.run",
             lambda cmd, **kw: calls.append(cmd) or self._FakeOk(),
         )
+        _touch(tmp_path, "a.py", "b.yml")
+        monkeypatch.chdir(tmp_path)
         gate = {"command": "ruff check {files}", "file_extensions": [".py"]}
         passed, _ = run_command_gate(gate, ["a.py", "b.yml"])
         assert passed is True
@@ -971,19 +987,21 @@ class TestCommandGateFileExtensions:
         assert "No files matching" in output
         assert calls == []
 
-    def test_extension_match_case_insensitive(self, monkeypatch):
+    def test_extension_match_case_insensitive(self, monkeypatch, tmp_path):
         calls = []
         monkeypatch.setattr(
             "gate_runner.subprocess.run",
             lambda cmd, **kw: calls.append(cmd) or self._FakeOk(),
         )
+        _touch(tmp_path, "Main.PY")
+        monkeypatch.chdir(tmp_path)
         gate = {"command": "ruff check {files}", "file_extensions": [".PY"]}
         passed, _ = run_command_gate(gate, ["Main.PY"])
         assert passed is True
         assert len(calls) == 1
         assert "Main.PY" in calls[0]
 
-    def test_no_placeholder_still_honours_the_declared_scope(self, monkeypatch):
+    def test_no_placeholder_still_honours_the_declared_scope(self, monkeypatch, tmp_path):
         """A declared `file_extensions` scopes the gate WHETHER OR NOT the
         command interpolates {files}.
 
@@ -1012,6 +1030,8 @@ class TestCommandGateFileExtensions:
             "gate_runner.subprocess.run",
             lambda cmd, **kw: calls.append(cmd) or self._FakeOk(),
         )
+        _touch(tmp_path, "a.yml", "b.py")
+        monkeypatch.chdir(tmp_path)
         gate = {"command": "ruff check .", "file_extensions": [".py"]}
         passed, output = run_command_gate(gate, ["a.yml"])
         assert passed is True, "empty scope is legitimate emptiness — it must not block"
@@ -1023,13 +1043,15 @@ class TestCommandGateFileExtensions:
         assert passed is True
         assert len(calls) == 1
 
-    def test_no_extensions_config_behaves_as_before(self, monkeypatch):
+    def test_no_extensions_config_behaves_as_before(self, monkeypatch, tmp_path):
         """Backward compat: gate without file_extensions runs on everything."""
         calls = []
         monkeypatch.setattr(
             "gate_runner.subprocess.run",
             lambda cmd, **kw: calls.append(cmd) or self._FakeOk(),
         )
+        _touch(tmp_path, "a.py", "b.yml")
+        monkeypatch.chdir(tmp_path)
         gate = {"command": "ruff check {files}"}
         passed, _ = run_command_gate(gate, ["a.py", "b.yml"])
         assert passed is True
@@ -1037,7 +1059,7 @@ class TestCommandGateFileExtensions:
         assert "a.py" in calls[0]
         assert "b.yml" in calls[0]
 
-    def test_real_py_violation_still_blocks(self, monkeypatch):
+    def test_real_py_violation_still_blocks(self, monkeypatch, tmp_path):
         """Negative: filter doesn't over-exempt — real lint failures still fail."""
 
         class FakeFail:
@@ -1045,6 +1067,8 @@ class TestCommandGateFileExtensions:
             stdout = "bad.py:1:1: E501 line too long"
             stderr = ""
 
+        _touch(tmp_path, "bad.py")
+        monkeypatch.chdir(tmp_path)
         monkeypatch.setattr("gate_runner.subprocess.run", lambda *a, **kw: FakeFail())
         gate = {"command": "ruff check {files}", "file_extensions": [".py"]}
         passed, output = run_command_gate(gate, ["bad.py"])

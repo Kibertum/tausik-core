@@ -94,6 +94,13 @@ REASON_NO_TEST_MAPPING = "no_test_mapping"
 REASON_NO_SCOPE_DECLARED = "no_scope_declared"
 REASON_STACK_MISMATCH = "stack_mismatch"
 REASON_NO_MATCHING_FILES = "no_matching_files"
+# Every declared file is gone from disk — a task whose whole product was
+# deletions. NOT_APPLICABLE and never PASSED: a file gate handed nothing to read
+# has checked nothing, and reporting green there would turn "I deleted things"
+# into a free verdict. Distinct from `no_matching_files`, where files existed and
+# none matched the gate's extensions: those are different facts about the run
+# and only a code, not the sentence beside it, lets a query tell them apart.
+REASON_ALL_FILES_DELETED = "all_files_deleted"
 # A state gate found no artifact to judge. FOUR codes and not one, because the
 # four say different things to whoever reads the receipt: a checkout with no
 # database is not a checkout whose CLAUDE.md has no DYNAMIC markers, and only a

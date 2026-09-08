@@ -1,10 +1,10 @@
 ---
 slug: deleted-file-cannot-be-declared-in-relevant-files
 title: "Удалённый файл невозможно объявить в relevant_files: гейт ruff падает на нём, а не объявить — значит занизить объём"
-status: planning
+status: done
 epic: release-19-renar-conformance
 story: gates-declare-what-they-prevent
-complexity: simple
+complexity: medium
 role: developer
 stack: python
 tier: null
@@ -12,15 +12,32 @@ call_budget: null
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
-scope_paths:
-  - "scripts/service_gates.py"
-  - "scripts/gate_runner*.py"
+relevant_files:
+  - "scripts/gate_command_runner.py"
+  - "scripts/gate_shellless_exec.py"
+  - "scripts/gate_outcome.py"
+  - "tests/test_deleted_file_in_scope.py"
   - "tests/test_gates.py"
+  - "tests/test_gate_truncation_pipe.py"
+  - "docs/ru/verify-glossary.md"
+  - "docs/en/verify-glossary.md"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
+scope_paths:
+  - "scripts/gate_command_runner.py"
+  - "scripts/gate_shellless_exec.py"
+  - "scripts/gate_outcome.py"
+  - "tests/test_gates.py"
+  - "tests/test_gate_truncation_pipe.py"
+  - "tests/test_deleted_file_in_scope.py"
   - "tests/test_verify_scope_honesty.py"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
+  - "docs/ru/verify-glossary.md"
+  - "docs/en/verify-glossary.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-08T15:48:18Z"
 ---
 
 ## Goal
@@ -43,6 +60,16 @@ completed_at: null
 
 ## Acceptance Criteria
 
+AC1. ФАЙЛОВЫЙ ГЕЙТ ПОЛУЧАЕТ ТОЛЬКО СУЩЕСТВУЮЩИЕ ПУТИ. Подстановка списка файлов в команду гейта отфильтровывает пути, которых на диске нет. Проверяется прогоном настоящего гейта ruff с объявленным удалённым файлом: раньше E902, теперь зелено.
+
+AC2. ОБЪЯВЛЕНИЕ ОБЪЁМА И КВИТАНЦИЯ СОХРАНЯЮТ ПОЛНЫЙ СПИСОК. Удалённый файл остаётся в relevant_files и в receipt: квитанция описывает ИЗМЕНЕНИЕ, а изменение включало удаление. Фильтр живёт в исполнителе гейта, а не в объявлении.
+
+AC3. ЕСЛИ ПОСЛЕ ФИЛЬТРА НЕ ОСТАЛОСЬ НИ ОДНОГО ФАЙЛА — ГЕЙТ НЕ ЗАПУСКАЕТСЯ ВХОЛОСТУЮ И НЕ ОТЧИТЫВАЕТСЯ ЗЕЛЁНЫМ. Задача, целиком состоящая из удалений, обязана дать НЕ вердикт, а не «прошло». Иначе фильтр превратится в способ получить зелёный прогон, ничего не проверив, — то самое, против чего выстроен весь релиз.
+
+AC4. НЕГАТИВНАЯ ПОЛОВИНА: существующий файл фильтром не теряется. Тест подаёт смесь существующих и удалённых путей и требует, чтобы гейт получил РОВНО существующие.
+
+AC5. ЗАМЕР ДО И ПОСЛЕ. До правки: закрытие ag-claims-and-docs-checked-against-the-graph с объявленным удалённым файлом дало ruff E902 и прогон без handle (verification_run #2275, exit=1), а обход состоял в том, чтобы файл не объявлять — то есть занизить объём (#2277, #2278 записаны under-declared). После правки тот же состав объявления обязан давать зелёный прогон с handle и статусом complete.
+
 ## Plan
 
 ## Rollback
@@ -50,3 +77,6 @@ completed_at: null
 git revert. Изменение касается фильтрации путей перед запуском файловых гейтов; откат возвращает нынешнее поведение, при котором удалённый файл роняет ruff.
 
 ## Journal
+
+- 2026-09-08T15:43:27Z [implementation] — AC-1: ✓ tests/test_deleted_file_in_scope.py::TestADeletedFileNoLongerBreaksTheGate::test_a_declaration_naming_a_deleted_file_still_passes — настоящий гейт ruff получает объявление из существующего и удалённого пути и проходит; E902 в выводе нет. AC-2: ✓ ::TestTheDeclarationItselfKeepsTheDeletion::test_scope_honesty_still_sees_a_declared_deletion — describe_declared_scope с объявленным удалённым файлом даёт complete и пустой список незаявленного: фильтр живёт в исполнителе гейта, объявление и квитанция сохраняют полный список. AC-3: ✓ ::TestNothingLeftIsNotAVerdict::test_every_declared_file_gone_reports_not_applicable — NOT_APPLICABLE с текстом «2 declared file(s) are gone», а не «пройдено»; ::test_the_reason_code_is_its_own отделяет all_files_deleted от no_matching_files; ::test_an_empty_declaration_is_untouched_by_this сохраняет прежнюю обработку пустого объявления. AC-4: ✓ ::TestADeletedFileNoLongerBreaksTheGate::test_an_existing_file_is_not_lost_by_the_filter — смесь живых и удалённых путей: живой нарушитель по-прежнему роняет гейт, то есть фильтр не стал глушителем. AC-5: ✓ замер до и после. ДО: verification_run #2275 — ruff E902, exit=1, handle не выдан; обход состоял в отказе от объявления, и #2277, #2278 записаны under-declared. ПОСЛЕ: прогон #2285 по тому же классу объявления зелёный, handle выдан. Domain: осмысленно вне тестов — проверено настоящим ruff на настоящем дереве, а не подменённым процессом. Negative: три отрицательных утверждения — живой файл не теряется; пустое объявление обрабатывается по-прежнему; код причины отличается от соседнего. ДВЕ НАХОДКИ В ХОДЕ РАБОТЫ, ОБЕ В МОЕЙ ЖЕ ПРАВКЕ. 1. Первая версия фильтра стояла там, где решается ПРИМЕНИМОСТЬ гейта, и уронила 17 существующих тестов: file_extensions и file_patterns судят по ИМЕНИ и обязаны работать для файла, которого уже нет. Перенесено к построению аргументов. 2. Вторая версия уронила ещё 7: она срабатывала и для гейтов, чья команда вообще не подставляет {files} (mypy читает набор из pyproject, probe-tool не берёт аргументов). Для них «нечего читать» подменяло настоящий вердикт, пряча COULD_NOT_RUN отсутствующего инструмента за NOT_APPLICABLE. Ветка ограничена командами с {files}. ПОЧЕМУ ВЕТКА «НИЧЕГО НЕ ОСТАЛОСЬ» ОБЯЗАТЕЛЬНА, И ЭТО НЕ ТОЛЬКО ПРИНЦИП: без неё пустой список подставляется как «.», и ruff check . линтует ВЕСЬ репозиторий — медленно и не по объёму. ПЯТЬ СУЩЕСТВУЮЩИХ ТЕСТОВ ПОЛУЧИЛИ НАСТОЯЩИЕ ФАЙЛЫ вместо вымышленных путей. Это не подгонка под правку: их предмет — фильтрация по имени и подстановка в команду, и с настоящими файлами они проверяют ровно то же, но по пути, который линтер действительно мог бы открыть.
+- 2026-09-08T15:48:13Z [implementation] — ТРЕТЬЯ НАХОДКА, ГЕЙТ РАЗМЕРА. Правка вывела scripts/gate_command_runner.py на 537 строк при лимите 500, и закрытие было отбито. Файл РАЗДЕЛЁН, а не внесён в исключения: в scripts/gate_shellless_exec.py уехала машинерия запуска без шелла — токенизация команды, разрешение исполняемого файла, конвейер процессов. Граница настоящая, а не удобная: уехавший модуль отвечает на вопрос «превратить строку команды в процессы и код возврата» и ничего не знает ни о гейтах, ни о файлах, ни о вердиктах; оставшийся отвечает на вопрос «что подать гейту и что значит его результат». Итог: 393 и 177 строк. Имена оставлены приватными и не переименованы: три модуля тестов импортируют их по прежним именам, и переименование при механическом переносе превратило бы одно изменение в два — поэтому в прежнем модуле они ре-экспортируются.
