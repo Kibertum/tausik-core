@@ -653,6 +653,52 @@ hud                                   # Live one-screen dashboard: task + sessio
 suggest-model [complexity]            # Recommend Claude model: simple→Haiku, medium→Sonnet, complex→Opus
 ```
 
+## Commands not covered by the sections above
+
+This section exists because of a measurement (session #235): of the 53 commands
+the parser declares, fourteen were named nowhere in this file, so an agent had
+no way to learn they existed. Alphabetical within groups; `--help` carries the
+detail for each.
+
+```bash
+# --- the RENAR contract line ---
+actz create|point|sign|verify|show|list|delta|link|unlink|delete|search
+actz decided-in|decided-in-remove|final-tz|orphans   # ACTZ acts and the final TZ
+adapt create|interpret|finding|sign|verify|show|list|delta|link|unlink|delete|search
+                                                    # adapting a norm to this project
+spec list|show|add|update|delete|link|unlink|search  # requirements and their links
+at create|show|list|delete|search                    # acceptance tests
+at check-freshness|record-result|diagnose|release-readiness
+
+# --- evidence and signatures ---
+key init                       # create the project keypair under .tausik/keys/
+key show                       # print the public key fingerprint
+receipt show                   # print AND re-verify the latest signed receipt
+receipt export|verify          # export a receipt, or check one on its own
+
+# --- code navigation (see graph.md and symbol-index.md) ---
+graph build                    # fill the artifact graph: index plus both edge layers
+graph show <path>              # what relates to a file, and on what evidence
+graph status                   # how much is stored, what is stale, which roots
+symbol <name>                  # a definition, its file:line and its callers
+coherence [--json]             # collect the tree's coherence material for a judge
+
+# --- tree and store maintenance ---
+knowledge export|restore|import-brain   # the shared knowledge store to a file and back
+db prune                       # delete the oldest .tausik/tausik.db.bak.* files
+config show                    # the resolved configuration, with the tier each value came from
+config set <key> <value>       # persist an override into .tausik/config.json
+redact --pattern <pattern>     # scrub a secret from the knowledge history (--apply: not a dry run)
+redact list                    # show the redactions already applied
+
+# --- release and network ---
+push-ok [--ttl N]              # issue a git-push ticket (60 seconds by default)
+serve [--host H] [--port P]    # run the local receipt-verification endpoint
+```
+
+> `serve` binds `127.0.0.1` by default. Exposing it needs `--yes-expose` — a
+> separate, explicit consent rather than a flag anyone sets by habit.
+
 ## Constants
 
 | Concept | Values |

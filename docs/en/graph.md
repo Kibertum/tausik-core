@@ -161,6 +161,38 @@ rows. The build now runs as one transaction, and that was the whole fix. A build
 nobody will run twice is a build nobody runs, and the framework then ships an
 empty graph everywhere.
 
+## The coverage gate: what we ship is what is documented
+
+`doc_coverage` is a blocking gate on `task done` and `commit`. It checks one
+thing: every name the framework SHIPS is named in the document a reader would go
+to.
+
+Two pairs are covered today, and adding a third is one line in
+`gate_doc_coverage.COVERED`, not a new test file:
+
+| What ships | Where a reader looks | How a mention is recognised |
+|---|---|---|
+| CLI commands (53, from the parser) | `docs/{ru,en}/cli.md` | at a line start, or after `tausik ` |
+| `doctor` checks (21, from the sources) | `docs/{ru,en}/doctor.md` | as a phrase, aliases allowed |
+
+**Measured when it landed:** of the 53 commands, fourteen appeared in neither
+`docs/ru/cli.md` nor `docs/en/cli.md`. Among them `graph` and `symbol` — both
+shipped by this same release, both with documentation pages of their own, and
+both missing from the command reference. A command an agent cannot discover is a
+command nobody uses: the previous release measured that as 2 uses against 226
+greps.
+
+**The honesty boundary.** The gate sees whether a name is MENTIONED, not whether
+what is written about it is true. A sentence correct about every name and wrong
+about the behaviour passes. Claiming more would repeat the very defect it exists
+against.
+
+**What it is NOT.** It is not a check that every backticked name resolves to a
+symbol. That was tried and refuted by measurement in the same session (dead end
+#663): backticks here mean "a name in the system" — a config key, a status
+value, a column, a subcommand, or a deliberate mention of something removed. Of
+2,689 such mentions five were even candidates, and all five were intentional.
+
 ## What the graph does not express
 
 Listed deliberately, so the absence of these relations is not later mistaken for

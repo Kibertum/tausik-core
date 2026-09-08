@@ -250,6 +250,26 @@ _SCOPED: tuple[GateSpec, ...] = (
             "description": "Block writes that route project knowledge into a foreign agent's memory",
         },
     ),
+    # One coverage gate in place of a hand-written test per kind of thing.
+    # BLOCK: a name the framework ships and documents nowhere is a name nobody
+    # can discover, and the release before this measured exactly what that costs
+    # — a tool used twice against 226 greps. Ignores `files`; see the impl.
+    GateSpec(
+        name="doc_coverage",
+        prevents=(
+            "A command or check ships while the document a reader would go to never "
+            "names it, so the only way to learn it exists is to read the parser. "
+        ),
+        phase=PHASE_SCOPED,
+        impl="gate_doc_coverage:run_doc_coverage_gate",
+        default_config={
+            "enabled": True,
+            "severity": "block",
+            "trigger": ["task-done", "commit"],
+            "command": None,
+            "description": "Block a shipped name that no document mentions",
+        },
+    ),
     # RENAR §3.11 drift detectors (warning-mode). Read-only scans of the RENAR
     # artifact store; ignore `files`. Warn-only by design — see renar_drift.py.
     GateSpec(

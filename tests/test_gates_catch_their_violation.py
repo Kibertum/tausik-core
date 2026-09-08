@@ -334,6 +334,14 @@ EXCUSED: dict[str, tuple[str, str, str, str]] = {
         "test_one_file_missing_blocks_naming_it",
         "test_both_files_written_allows",
     ),
+    "doc_coverage": (
+        "tree-bound: reads the live parser and the live documents, so a "
+        "violation is a whole repository shape rather than a file handed in; "
+        "driven there against a temporary tree with a command left undocumented",
+        "test_doc_coverage_gate.py",
+        "test_a_command_missing_from_the_reference_is_refused",
+        "test_the_repository_passes",
+    ),
 }
 
 

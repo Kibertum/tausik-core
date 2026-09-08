@@ -34,6 +34,10 @@
     }
   },
   "red_proofs": {
+    "doc_coverage": {
+      "test": "tests/test_doc_coverage_gate.py::TestTheGateGoesRedOnARealOmission::test_a_command_missing_from_the_reference_is_refused",
+      "violation": "a command the parser declares that the CLI reference names nowhere — the shape measured at 14 of 53 when this gate landed"
+    },
     "_comment": "RED-PROOF REGISTRY. For every blocking gate IN FORCE: the test that hands it a VIOLATION and requires red. Not 'is covered by tests' — a gate that has forgotten how to fail passes its whole happy path. Read by scripts/gate_degeneracy.py, which resolves every `test` node against the tree's AST and reddens, naming the gate, when an entry is missing, unresolvable, or names a gate the live registry no longer blocks on. BORROWED from ADR-021, NOT owed to it: §3.1 of that ADR rejects the 'for every mandatory control' form and its norm lives in §13.9.4, the procedure for amending the STANDARD, which we are not doing. Adding a blocking gate means adding a line here. See task no-degeneracy-measure-for-our-own-mandatory-controls.",
     "_command_gate_note": "ruff and pytest are COMMAND gates: the framework's share of the contract is 'a nonzero exit becomes a blocking FAIL', and that is what their proof feeds. Whether the TOOL detects a given violation is the tool's business, not this registry's. Naming that limit beats a proof that pretends to cover it.",
     "ruff": {

@@ -9,6 +9,38 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — one documentation-coverage gate, in place of a test per kind of thing
+
+`doc_coverage` blocks a close or a commit when a name the framework SHIPS is
+named in no document a reader would go to. Two pairs are covered — CLI commands
+against `docs/{ru,en}/cli.md`, `doctor` checks against `docs/{ru,en}/doctor.md`
+— and adding a third is one line in a registry rather than another test file.
+
+Measured when it landed: **14 of the 53 commands the parser declares appeared in
+neither CLI reference**. Two of them were `graph` and `symbol` — shipped by this
+same release, each with a documentation page of its own, and neither in the
+command reference. All fourteen are now documented; the gate keeps them there.
+
+- **It replaced a hand-written test, it did not join one.** The doctor's own
+  coverage test is gone; its subject moved into the gate's registry, and the one
+  check in it that was NOT coverage — "the docs must not restate a check count
+  by hand" — moved to the new test file intact.
+- **The honesty boundary is in the code and in the docs**: the gate sees whether
+  a name is MENTIONED, not whether what is written about it is true.
+
+### Known — "every backticked name must resolve to a symbol" was tried and refused
+
+Dead end #663, with the numbers: 2,689 backticked mentions in docstrings, of
+which 1,868 do not resolve; 821 survive excluding parameters, database columns
+and module names; 182 if only leading-underscore names count; 17 unresolved; 5
+candidates — and **all five turned out to be deliberate**: "Renamed off
+`_audit_extra`", "This used to count vocabulary. `_TIER_KEYWORDS` held…",
+"verbatim from the CLI's former `_maybe_print_skill_set_warning`".
+
+The docstrings in this project name removed things ON PURPOSE, to explain why
+they are gone. A gate firing on 821 legitimate places is a gate switched off on
+day one, so the mechanism was dropped rather than tuned.
+
 ### Added — the graph stays fresh, and the write hook got FASTER doing it
 
 Every file the agent writes re-indexes exactly that file, inside the hook that

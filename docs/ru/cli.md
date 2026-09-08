@@ -716,6 +716,51 @@ hud                                   # Live dashboard: задача + сесс�
 suggest-model [complexity]            # Рекомендация Claude-модели: simple→Haiku, medium→Sonnet, complex→Opus
 ```
 
+## Команды, не попавшие в разделы выше
+
+Раздел заведён замером смены #235: из 53 команд парсера четырнадцать не были
+названы в этом файле нигде, и агент не имел способа о них узнать. Порядок —
+алфавитный; подробности у каждой по `--help`.
+
+```bash
+# --- контрактный контур RENAR ---
+actz create|point|sign|verify|show|list|delta|link|unlink|delete|search
+actz decided-in|decided-in-remove|final-tz|orphans   # ACTZ: акты и итоговое ТЗ
+adapt create|interpret|finding|sign|verify|show|list|delta|link|unlink|delete|search
+                                                    # адаптация нормы под проект
+spec list|show|add|update|delete|link|unlink|search  # требования и их привязки
+at create|show|list|delete|search                    # приёмочные тесты
+at check-freshness|record-result|diagnose|release-readiness
+
+# --- доказательства и подписи ---
+key init                       # завести пару ключей проекта в .tausik/keys/
+key show                       # показать отпечаток открытого ключа
+receipt show                   # напечатать и ПЕРЕПРОВЕРИТЬ последнюю квитанцию
+receipt export|verify          # выгрузить и сверить квитанцию отдельно
+
+# --- навигация по коду (см. graph.md и symbol-index.md) ---
+graph build                    # наполнить граф артефактов: индекс и оба слоя рёбер
+graph show <путь>              # что связано с файлом и на каком основании
+graph status                   # сколько хранится, что протухло, какие корни
+symbol <имя>                   # определение, его файл:строка и вызывающие
+coherence [--json]             # собрать материал о связности дерева для судьи
+
+# --- работа с деревом и хранилищем ---
+knowledge export|restore|import-brain   # общее хранилище знаний в файл и обратно
+db prune                       # удалить старые .tausik/tausik.db.bak.*
+config show                    # показать разрешённую конфигурацию с её тирами
+config set <ключ> <значение>   # записать переопределение в .tausik/config.json
+redact --pattern <шаблон>      # вычистить секрет из истории знаний (--apply — не сухой прогон)
+redact list                    # показать применённые вычистки
+
+# --- выпуск и сеть ---
+push-ok [--ttl N]              # выписать билет на git push (по умолчанию 60 секунд)
+serve [--host H] [--port P]    # поднять локальную точку проверки квитанций
+```
+
+> `serve` по умолчанию слушает `127.0.0.1`. Выставление наружу требует
+> `--yes-expose` — отдельного явного согласия, а не флага по умолчанию.
+
 ## Константы
 
 | Концепция | Значения |
