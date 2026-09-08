@@ -9,6 +9,38 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a table added only as a migration was missing from every fresh install
+
+Found while checking whether 1.9 was ready to ship, on a real bootstrap into an
+empty project: `meta.schema_version` said 60, the database had 91 tables, and
+`test_red_history` — added hours earlier by the red-history work — was not among
+them.
+
+**Why.** A NEW database runs no migration. `backend_init` stamps
+`meta.schema_version` with the current `SCHEMA_VERSION` and then calls
+`run_migrations(conn, SCHEMA_VERSION)`, which applies only migrations strictly
+ABOVE that number — none. Every table a fresh install has comes from a
+`CREATE TABLE` on the fresh path.
+
+**Why it is worse than an ordinary defect.** The failure is silent by
+construction: `record_reds` swallows the sqlite error so that observation can
+never break a test run. So on every new project the red history recorded nothing,
+the database honestly reported schema 60, and no gate objected — a working
+mechanism nobody calls, reporting success. Exactly the class this release was
+assembled to remove, reproduced by the task that closed the last of it.
+
+**Fixed as a property, not as a case.** `tests/test_fresh_install_has_every_migrated_table.py`
+builds a real fresh database and requires every table any migration creates to be
+present in it. Two lessons came from making it go red on demand:
+
+- rebuild scaffolding is named with a version suffix here (`usage_events_v58`,
+  `artifact_edges_v59`), and without exempting that shape the guard reddened on
+  two legitimate rebuilds — it would have been switched off first;
+- the negative test must inject a migration numbered NOT ABOVE `SCHEMA_VERSION`.
+  The first version used 9999, which *does* run on a fresh database, so the guard
+  appeared unable to fail. The tables that vanish silently are precisely those
+  whose migration is at or below the stamped version — that is, every shipped one.
+
 ### Changed — the release notes say the token-saving figure does NOT exist yet
 
 Release condition 1 of `TAUSIK-plan-1.9.md` says the saving promise is not

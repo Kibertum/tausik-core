@@ -100,6 +100,14 @@ CLASSES_AT_DECLARATION = frozenset(
         # fields §13.3.5 pos/neg pairing or ADR-013's TC.environment-ref duty
         # are about.
         "ats",
+        # p9-a-test-never-observed-red-is-not-evidence (RENAR §9.18.2): which
+        # test NODES have ever been observed FAILING. NOT a TC (test case)
+        # artifact class — it holds no assertion, no polarity and no environment
+        # reference, only an observation that a node identified elsewhere was
+        # once red. §13.3.5 pos/neg pairing and ADR-013's TC.environment-ref
+        # duty stay dormant. Caught by this very guard when the table appeared,
+        # which is what it is for.
+        "test_red_history",
     # Artifact graph (v56). Code, docs and the edges between them: a map of what
     # the repository CONTAINS and how its parts move together, with the layer
     # each edge was obtained by. Not TC artifacts -- none of them records a

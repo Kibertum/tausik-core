@@ -32,6 +32,7 @@ from backend_schema_adapts import ADAPTS_SQL
 from backend_schema_at import AT_SQL
 from backend_schema_graph import GRAPH_SQL
 from backend_schema_gate_runs import GATE_RUNS_SQL
+from backend_schema_red_history import RED_HISTORY_SQL
 from backend_schema_snippets import SNIPPETS_SQL
 from backend_schema_specs import SPECS_SQL
 
@@ -167,6 +168,11 @@ def init_schema(conn: sqlite3.Connection) -> None:
     cur.executescript(GRAPH_SQL)
     cur.executescript(SNIPPETS_SQL)  # snippet store (v15-snippet-table)
     cur.executescript(GATE_RUNS_SQL)  # per-gate outcomes (l26-gate-results-persist)
+    # A fresh database runs NO migration (see below: the version is stamped
+    # first, so `run_migrations` finds nothing above it). Every table a new
+    # install has must therefore be created here — v60 was added as a
+    # migration alone and was missing from every fresh project.
+    cur.executescript(RED_HISTORY_SQL)  # red history (p9-a-test-never-observed-red)
     row = cur.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()
     if not row:
         cur.execute(
