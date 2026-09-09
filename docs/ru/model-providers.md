@@ -17,7 +17,7 @@ TAUSIK не привязан к конкретной модели. Skills раб
 | Qwen Code | да | `.qwen/settings.json` | `.qwen/skills/` | `QWEN.md` |
 | Kilo Code | да | `.kilo/` | `.kilo/skills/` | `AGENTS.md` |
 | OpenCode | да | `opencode.json` | `.opencode/skills/` | `.opencode/tausik-rules.md` |
-| Codex | нет | `.codex/config.toml` | — | `AGENTS.md` |
+| Codex | да | `.codex/config.toml` + `.codex/hooks.json` | `.codex/skills/` | `AGENTS.md` |
 | Windsurf | нет | `.windsurf/` | — | `.windsurfrules` |
 
 > **OpenCode (с v1.7.0).** `bootstrap.py --ide opencode` пишет `opencode.json`
@@ -36,7 +36,41 @@ TAUSIK не привязан к конкретной модели. Skills раб
 >    OpenCode мерджит с вашим `AGENTS.md`, поэтому для `--ide opencode` TAUSIK свой
 >    `AGENTS.md` не генерирует — иначе те же правила попали бы в контекст дважды.
 >
-> **Codex пока не scaffolded** — TAUSIK кладёт для него только `AGENTS.md`.
+> **Codex (с v1.9.0).** `bootstrap.py --ide codex` пишет `.codex/hooks.json`,
+> раскладывает навыки в `.codex/skills/` и генерирует `AGENTS.md`, который Codex
+> читает штатно. Набор хуков берётся из ТОГО ЖЕ объявления, которым пользуется
+> профиль Claude Code, поэтому гейт, добавленный одному хосту, не может молча
+> не появиться у другого.
+>
+> **Если Codex не видит инструменты TAUSIK после перезапуска.** Приоритет
+> проектного конфига над глобальным `~/.codex/config.toml` зависит от версии
+> хоста, и проверяется он одним способом — открыть Codex и посмотреть список
+> инструментов. Запасной путь прямой и не требует правок в коде: скопировать
+> блок между маркерами `# >>> TAUSIK MCP servers` и `# <<< TAUSIK MCP servers`
+> из `.codex/config.toml` в `~/.codex/config.toml`. Пути там абсолютные, поэтому
+> блок работает из любого файла; маркеры позволяют найти и убрать его потом.
+>
+> MCP-серверы регистрируются в ПРОЕКТНОМ `.codex/config.toml`, а не в
+> `~/.codex/config.toml`: домашний каталог пользователя не принадлежит
+> bootstrap проекта. Блок ДОПИСЫВАЕТСЯ между маркерами, а не переписывается —
+> в Python 3.11 `tomllib` умеет только читать, а разбор с обратной
+> сериализацией потерял бы комментарии и порядок секций, ради сохранения
+> которых preserve-first и существует. Файл, который не разбирается,
+> оставляется нетронутым и об этом сообщается: Codex не прочтёт его и без
+> нас, а спрятать чужую поломку под своим блоком значит получить жалобу
+> «TAUSIK сломал мне конфиг».
+>
+> У Codex есть настоящий API хуков — `PreToolUse`, `PostToolUse`, `SessionStart`,
+> `SessionEnd`, `UserPromptSubmit`, `Stop` и тот же протокол
+> `hook_event_name`/`permissionDecision`, — поэтому Rule 1 и ACL области там
+> ПРИНУЖДАЮТСЯ, а не просто предписываются.
+>
+> Чего у него НЕТ — так это переменной рабочей области: ни `CLAUDE_PROJECT_DIR`,
+> ни `CODEX_PROJECT_ROOT`, ни `workspaceFolder`. Поэтому команды хуков пишутся
+> абсолютными путями, и переименование каталога проекта требует повторного
+> bootstrap. `.codex/hooks.json` с оставленным `${CLAUDE_PROJECT_DIR}` раскроет
+> его в пустоту и отключит все гейты, продолжая их перечислять, — ровно тот
+> отказ, ради которого написан этот генератор.
 > См. [добавление новой IDE](/docs/ru/adding-new-ide).
 
 ## Использование GigaChat (Сбер)

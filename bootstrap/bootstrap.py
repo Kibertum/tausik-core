@@ -67,6 +67,7 @@ from bootstrap_generate import (
     generate_settings_claude,
 )
 from bootstrap_kilo import generate_kilo_commands, generate_kilo_config
+from bootstrap_codex import scaffold_codex
 from bootstrap_opencode import scaffold_opencode
 from bootstrap_qwen import generate_qwen_md, generate_settings_qwen
 
@@ -205,6 +206,10 @@ def bootstrap_ide(
         n_cmds = generate_kilo_commands(target_dir)
         if n_cmds:
             print(f"  Kilo commands: {n_cmds} stub(s)")
+    elif ide == "codex":
+        # AGENTS.md is NOT generated here — the shared step below writes it for
+        # every host but OpenCode, and Codex reads exactly that file.
+        scaffold_codex(project_dir, target_dir, venv_python, lib_dir)
     elif ide == "opencode":
         scaffold_opencode(
             project_dir,

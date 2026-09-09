@@ -330,3 +330,50 @@ class TestDoctorSaysItAloud:
 
     def test_an_unscaffolded_project_says_nothing(self, tmp_path: Path):
         assert list(sde.check_enforcement_coverage(str(tmp_path))) == []
+
+
+class TestCodexПлатитЗаСВОЁИмяФайла:
+    """Отчёт О ПРИНУЖДЕНИИ, недосчитавший принуждения, — та же болезнь.
+
+    Codex держит тот же полезный груз в `hooks.json`, а не в `settings.json`.
+    Пока список форм этого не знал, `doctor` писал «codex: none», при том что в
+    `.codex/` лежали двадцать четыре команды хуков, и читатель, решающий, защищён
+    ли этот хост, получал ровно обратное правде (смена #241).
+    """
+
+    def _write_codex_hooks(self, profile: Path, n: int) -> None:
+        profile.mkdir(parents=True, exist_ok=True)
+        (profile / "hooks.json").write_text(
+            json.dumps(
+                {
+                    "hooks": {
+                        "PreToolUse": [
+                            {
+                                "matcher": "Write",
+                                "hooks": [
+                                    {"type": "command", "command": f"h{i}"} for i in range(n)
+                                ],
+                            }
+                        ]
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def test_хуки_из_hooks_json_считаются(self, tmp_path: Path):
+        profile = tmp_path / ".codex"
+        self._write_codex_hooks(profile, 5)
+        assert "5 hook commands" in be.describe_enforcement(be.deployed_enforcement(str(profile)))
+
+    def test_форма_имени_объявлена_а_не_зашита_в_условие(self):
+        """Список форм — точка расширения, и она названа. Следующий хост со
+        своим именем файла добавляется сюда, а не новой веткой в счётчике."""
+        assert "hooks.json" in be.SETTINGS_FILES
+        assert "settings.json" in be.SETTINGS_FILES
+
+    def test_пустой_профиль_codex_по_прежнему_ноль(self, tmp_path: Path):
+        """Отрицательная половина: новая форма не смеет засчитывать пустоту."""
+        profile = tmp_path / ".codex"
+        profile.mkdir()
+        assert be.describe_enforcement(be.deployed_enforcement(str(profile))) == ""

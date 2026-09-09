@@ -36,7 +36,12 @@ from ide_utils import IDE_REGISTRY
 #: ARTIFACT SHAPE, not a host: whatever profile directory is handed in gets
 #: probed for both, so a host that grows a second mechanism is counted without
 #: anyone remembering to add it here.
-SETTINGS_FILES = ("settings.json", "settings.local.json")
+# `hooks.json` is Codex's name for the same payload. Added in session #241 with
+# the Codex scaffold, and the omission was not cosmetic: `doctor` reported
+# "codex: none" while twenty-four hook commands sat deployed in `.codex/`, i.e.
+# a report ABOUT ENFORCEMENT understated enforcement. A reader deciding whether
+# that host is guarded would have been told the opposite of the truth.
+SETTINGS_FILES = ("settings.json", "settings.local.json", "hooks.json")
 PLUGIN_SUBDIR = "plugins"
 PLUGIN_SUFFIXES = (".js", ".mjs")
 

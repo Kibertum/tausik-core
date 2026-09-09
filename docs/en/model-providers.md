@@ -17,7 +17,7 @@ hand. The scaffolded set is the single source of truth in
 | Qwen Code | yes | `.qwen/settings.json` | `.qwen/skills/` | `QWEN.md` |
 | Kilo Code | yes | `.kilo/` | `.kilo/skills/` | `AGENTS.md` |
 | OpenCode | yes | `opencode.json` | `.opencode/skills/` | `.opencode/tausik-rules.md` |
-| Codex | no | `.codex/config.toml` | — | `AGENTS.md` |
+| Codex | yes | `.codex/config.toml` + `.codex/hooks.json` | `.codex/skills/` | `AGENTS.md` |
 | Windsurf | no | `.windsurf/` | — | `.windsurfrules` |
 
 > **OpenCode (since v1.7.0).** `bootstrap.py --ide opencode` writes `opencode.json`
@@ -38,8 +38,39 @@ hand. The scaffolded set is the single source of truth in
 >    `--ide opencode` generates no AGENTS.md — it would put the same rules in the
 >    context twice.
 >
-> **Codex is not scaffolded yet** — TAUSIK writes only an `AGENTS.md` for it.
-> See [adding a new IDE](/docs/adding-new-ide).
+> **Codex (since v1.9.0).** `bootstrap.py --ide codex` writes `.codex/hooks.json`,
+> deploys the skills to `.codex/skills/` and generates `AGENTS.md`, which Codex
+> reads natively. The hook set is the SAME declaration Claude Code's profile uses,
+> so a gate added to one host cannot silently miss the other.
+>
+> **If Codex does not show the TAUSIK tools after a restart.** Whether the
+> project config takes precedence over the global `~/.codex/config.toml` depends
+> on the host version, and there is one way to find out: open Codex and look at
+> the tool list. The fallback needs no code change — copy the block between the
+> `# >>> TAUSIK MCP servers` and `# <<< TAUSIK MCP servers` markers from
+> `.codex/config.toml` into `~/.codex/config.toml`. The paths in it are absolute,
+> so it works from either file, and the markers make it findable to remove later.
+>
+> MCP servers are registered in the PROJECT's `.codex/config.toml`, never in
+> `~/.codex/config.toml`: a project's bootstrap does not own the user's home
+> directory. The block is APPENDED between markers rather than rewritten —
+> Python 3.11 ships `tomllib` for reading only, and a parse-and-reemit would
+> drop the comments and section order that "preserve-first" is about. A file
+> that does not parse is left untouched and reported: Codex would not read it
+> either, and hiding someone's breakage under our block earns the complaint
+> "TAUSIK broke my config".
+>
+> Codex has a real hook API — `PreToolUse`, `PostToolUse`, `SessionStart`,
+> `SessionEnd`, `UserPromptSubmit`, `Stop`, and the same
+> `hook_event_name`/`permissionDecision` protocol — so Rule 1 and the write ACL
+> are ENFORCED there, not merely instructed.
+>
+> What it does NOT have is any workspace variable: `CLAUDE_PROJECT_DIR`,
+> `CODEX_PROJECT_ROOT` and `workspaceFolder` are all absent. Hook commands are
+> therefore written as absolute paths, which means renaming the project directory
+> requires re-running bootstrap. A `.codex/hooks.json` carrying Claude's
+> `${CLAUDE_PROJECT_DIR}` expands it to nothing and disables every gate while
+> still listing them all — the failure this generator exists to prevent.
 
 ## Using GigaChat (Sber)
 
