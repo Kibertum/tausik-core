@@ -2,8 +2,8 @@
 slug: fail-closed-covers-policy-but-not-infrastructure
 title: "Fail-closed объявлен для политики, но не для инфраструктуры: невозможность записать квитанцию не имеет отдельного отказа"
 status: planning
-epic: landscape-2026-h2
-story: l26-narrative
+epic: release-19-renar-conformance
+story: evidence-is-substance-not-keywords
 complexity: medium
 role: backend
 stack: null

@@ -2,8 +2,8 @@
 slug: unify-the-four-privacy-checks-into-one-publication-boundary
 title: "[1.9] Свести четыре проверки приватности к одной границе публикации"
 status: planning
-epic: shared-knowledge
-story: kb-notion
+epic: release-19-renar-conformance
+story: knowledge-sheds-notion-and-its-hygiene
 complexity: medium
 role: architect
 stack: python

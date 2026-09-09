@@ -2,8 +2,8 @@
 slug: nothing-scans-the-installed-harness-state
 title: "Никто не сканирует установленную обвязку: мы проверяем входящее и не смотрим на то, что уже лежит"
 status: planning
-epic: release-110-deferred-from-19
-story: deferred-110-host-parity-refactors
+epic: release-19-agent-effectiveness
+story: surfaces-do-not-diverge
 complexity: medium
 role: backend
 stack: null

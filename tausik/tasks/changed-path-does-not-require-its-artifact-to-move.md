@@ -2,8 +2,8 @@
 slug: changed-path-does-not-require-its-artifact-to-move
 title: "Изменение пути не требует, чтобы сдвинулся его артефакт: гейт привязан к задаче, а не к путям"
 status: planning
-epic: landscape-2026-h2
-story: l26-narrative
+epic: release-19-renar-conformance
+story: evidence-is-substance-not-keywords
 complexity: complex
 role: architect
 stack: null

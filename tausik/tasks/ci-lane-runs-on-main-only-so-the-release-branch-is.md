@@ -2,8 +2,8 @@
 slug: ci-lane-runs-on-main-only-so-the-release-branch-is
 title: "CI lane runs on main only, so the release branch is never checked"
 status: blocked
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: obligations-to-people-are-settled
 complexity: null
 role: developer
 stack: null

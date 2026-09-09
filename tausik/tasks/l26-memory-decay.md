@@ -2,8 +2,8 @@
 slug: l26-memory-decay
 title: "Забывание и консолидация памяти вместо только компакции"
 status: planning
-epic: shared-knowledge
-story: km-knowledge-layer
+epic: release-19-agent-effectiveness
+story: memory-retrieves-by-relevance
 complexity: complex
 role: architect
 stack: python

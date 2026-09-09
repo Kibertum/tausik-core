@@ -2,8 +2,8 @@
 slug: epistemic-overview-what-this-project-knows
 title: "Старт даёт процессное состояние, но не отвечает, ЧТО проект знает"
 status: planning
-epic: landscape-2026-h2
-story: borrow-kaeru
+epic: release-19-agent-effectiveness
+story: memory-retrieves-by-relevance
 complexity: medium
 role: architect
 stack: python

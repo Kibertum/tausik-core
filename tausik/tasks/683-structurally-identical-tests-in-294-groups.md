@@ -2,8 +2,8 @@
 slug: "683-structurally-identical-tests-in-294-groups"
 title: "683 структурно одинаковых теста в 294 группах: тестов много, а сколько из них разные — неизвестно"
 status: planning
-epic: landscape-2026-h2
-story: repo-hygiene-19
+epic: release-19-renar-conformance
+story: evidence-is-substance-not-keywords
 complexity: complex
 role: qa
 stack: null

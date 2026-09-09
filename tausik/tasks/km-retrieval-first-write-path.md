@@ -2,8 +2,8 @@
 slug: km-retrieval-first-write-path
 title: "Путь записи: каскад кандидатов, отказ писать вслепую, supersession вместо перезаписи"
 status: planning
-epic: shared-knowledge
-story: km-knowledge-layer
+epic: release-19-agent-effectiveness
+story: memory-retrieves-by-relevance
 complexity: complex
 role: developer
 stack: python

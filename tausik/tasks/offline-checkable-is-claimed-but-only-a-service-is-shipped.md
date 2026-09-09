@@ -2,8 +2,8 @@
 slug: offline-checkable-is-claimed-but-only-a-service-is-shipped
 title: "README дважды обещает офлайновую проверку квитанции, а документирован только HTTP-сервис"
 status: planning
-epic: landscape-2026-h2
-story: l26-narrative
+epic: release-19-renar-conformance
+story: evidence-is-substance-not-keywords
 complexity: complex
 role: backend
 stack: null

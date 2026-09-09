@@ -2,8 +2,8 @@
 slug: weighted-links-and-recallable-reasoning-chains
 title: "Связи памяти не имеют веса, и путь рассуждения нельзя ни увидеть, ни сохранить"
 status: planning
-epic: landscape-2026-h2
-story: borrow-kaeru
+epic: release-19-agent-effectiveness
+story: memory-retrieves-by-relevance
 complexity: complex
 role: architect
 stack: python

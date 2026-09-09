@@ -1,9 +1,9 @@
 ---
 slug: both-trackers-carry-fixed-issues-nobody-closed
 title: "Оба трекера несут исправленные тикеты, которых никто не закрыл — и это не забывчивость, а отсутствие шага"
-status: planning
-epic: release-110-deferred-from-19
-story: deferred-110-outward-loop-and-test-authorship
+status: done
+epic: release-19-renar-conformance
+story: obligations-to-people-are-settled
 complexity: medium
 role: developer
 stack: python
@@ -12,11 +12,40 @@ call_budget: 60
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
-scope_paths: []
+relevant_files:
+  - "scripts/tracker_ref.py"
+  - "scripts/tracker_closure_proposal.py"
+  - "scripts/closure_reminders.py"
+  - "scripts/backend_migrations_v61.py"
+  - "scripts/backend_schema.py"
+  - "scripts/project_parser_task.py"
+  - "scripts/project_cli_task.py"
+  - "scripts/service_task_done.py"
+  - "scripts/project_backend.py"
+  - "tests/test_tracker_ref.py"
+  - "tests/test_tracker_closure_proposal.py"
+  - "tests/test_fresh_install_has_every_migrated_table.py"
+  - "docs/ru/cli.md"
+  - "docs/en/cli.md"
+scope_paths:
+  - "scripts/tracker_ref.py"
+  - "scripts/tracker_closure_proposal.py"
+  - "scripts/closure_reminders.py"
+  - "scripts/backend_migrations_v61.py"
+  - "scripts/backend_schema.py"
+  - "scripts/backend_migrations.py"
+  - "scripts/project_parser_task.py"
+  - "scripts/project_cli_task.py"
+  - "scripts/service_task_done.py"
+  - "scripts/project_backend.py"
+  - "tests/test_tracker_ref.py"
+  - "tests/test_tracker_closure_proposal.py"
+  - "tests/test_fresh_install_has_every_migrated_table.py"
+  - "docs/ru/cli.md"
+  - "docs/en/cli.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-09T16:42:18Z"
 ---
 
 ## Goal
@@ -29,6 +58,8 @@ completed_at: null
 
 ## Acceptance Criteria
 
+AC-1 Связь задача-тикет существует как ДАННЫЕ: поле на задаче, читаемое CLI и видимое в task show, переживающее экспорт/импорт состояния. AC-2 Ссылка проверяется на форму при записи: мусор отвергается с указанием верной формы, а не принимается молча. AC-3 НЕГАТИВ: закрытие задачи с привязанным тикетом ПЕЧАТАЕТ предложение закрыть тикет со ссылкой на коммит и не закрывает его само - тест доказывает, что при закрытии не делается ни одного сетевого вызова и состояние тикета не меняется. AC-4 Задача без привязки не печатает при закрытии ничего нового. AC-5 Свежая установка получает поле: колонка есть и на пути миграции, и на пути свежей БД, и расхождение ловится тестом по КОЛОНКАМ, а не только по таблицам.
+
 ## Plan
 
 ## Rollback
@@ -38,3 +69,29 @@ completed_at: null
 ## Journal
 
 - 2026-08-29T12:24:23Z [planning] — [#189] РУЧНОЙ РАЗБОР ВЫПОЛНЕН ПО РАСПОРЯЖЕНИЮ ВЛАДЕЛЬЦА: отвечено во ВСЕ одиннадцать открытых тикетов обоих трекеров, ни один не закрыт молча. ИСПРАВЛЕНО И ВОЙДЁТ В 1.9 (ответ со ссылкой на коммит): GitLab #3 (056818b), #4 (b487f87), #7 (3de2528), #9 (5a58b50); GitHub #7 (056818b), #8 (3de2528 + b487f87). GitLab #10 РАЗОБРАН ПО ПАТЧАМ, а не целиком: 0002 снимается (b487f87, обнаружение корней тестов дотянулось до вложенных), 0003 снимается (6eec011), 0004 ОСТАЁТСЯ у потребителя до решения владельца по scope-гейту — сказано прямо, что держать патч придётся. НЕ ВХОДИТ В 1.9, сказано честно: GitLab #5, #6, #8 (задачи в planning, работа не начиналась), #11 (задача заведена сегодня, развилка не решена, обещания на релиз НЕ дано). ФОРМА ОТВЕТА ВЫБРАНА ОДНА НА ВСЕ: тикет НЕ закрывается по коммиту ветки разработки — закроется по публикации релиза. Причина названа в самих ответах GitHub: SHA исправлений в публичном репозитории НЕ РАЗРЕШАЕТСЯ (проверено: ни один из четырёх не достижим ни из github/main, ни из github/release/1.9), и ссылаться на них как на проверяемое доказательство было бы неправдой. КОРНЕВАЯ ПРИЧИНА ЭТИМ НЕ ЗАКРЫТА: связи задача-тикет как данных по-прежнему нет, и следующая партия исправлений снова не узнает, что пришла из трекера. Задача остаётся в planning ровно за этим.
+- 2026-09-09T09:14:47Z [implementation] — ОСТАНОВЛЕНО ПО РАСПОРЯЖЕНИЮ ВЛАДЕЛЬЦА, смена #241. Работа НЕ закончена, дерево НЕ закоммичено.
+- 2026-09-09T09:14:47Z [implementation] — СДЕЛАНО: scripts/tracker_ref.py — разбор и отказ при ЗАПИСИ. Голый номер отвергается, потому что номера ДВУХ трекеров этого репозитория столкнулись: GitHub #7 и GitLab #7 разные тикеты. 28 тестов зелёные (tests/test_tracker_ref.py).
+- 2026-09-09T09:14:47Z [implementation] — СДЕЛАНО: поле tracker_refs есть на обоих путях — миграция v61 (scripts/backend_migrations_v61.py, ALTER TABLE tasks ADD COLUMN) и определение таблицы в backend_schema.py; SCHEMA_VERSION 60->61; белый список _TASK_FIELDS в project_backend.py расширен.
+- 2026-09-09T09:14:48Z [implementation] — СДЕЛАНО: CLI --ticket на task add и task update (project_parser_task.py, project_cli_task.py), показ tracker_refs в task show. Справка говорит ЧЕРЕЗ ПРОБЕЛ — прямо чтобы не повторить GitLab #13, где 'JSON-list' в справке толкает к запятой.
+- 2026-09-09T09:14:48Z [implementation] — СДЕЛАНО: scripts/closure_reminders.py — два вопроса момента закрытия (цитаты + тикет) в одном модуле; service_task_done.py переведён на него и стал 499 строк вместо 500.
+- 2026-09-09T09:14:48Z [implementation] — СДЕЛАНО: scripts/tracker_closure_proposal.py — текст напоминания при закрытии. Сети нет. Текст говорит про ДОСТИЖИМОСТЬ исправления, а не 'закрой с SHA': ни один из четырёх коммитов-исправлений не достижим из github/main или github/release/1.9, проверено.
+- 2026-09-09T09:14:49Z [implementation] — СДЕЛАНО ПОПУТНО: tests/test_fresh_install_has_every_migrated_table.py обобщён с ТАБЛИЦ на КОЛОНКИ. Дыра была настоящая: охрана смены #240 свою же следующую миграцию не поймала бы, потому что ALTER TABLE ADD COLUMN она не видела. 10 тестов зелёные.
+- 2026-09-09T09:15:04Z [implementation] — ОСТАЛОСЬ 1: tests/test_tracker_closure_proposal.py не написан. Это AC-3 и AC-4 — отрицательная половина. Замысел был: заблокировать socket.socket и пройти путь закрытия, доказав, что сети нет; плюс тест, что задача БЕЗ привязки не печатает при закрытии ни одной новой строки.
+- 2026-09-09T09:15:05Z [implementation] — ОСТАЛОСЬ 2: миграция v61 на живой базе НЕ прогонялась. Проверить: .tausik/tausik doctor, затем что PRAGMA table_info(tasks) несёт tracker_refs.
+- 2026-09-09T09:15:05Z [implementation] — ОСТАЛОСЬ 3: сквозная проверка CLI. --ticket ни разу не вызывался живьём; отказ на голом номере проверен только модульно.
+- 2026-09-09T09:15:05Z [implementation] — ОСТАЛОСЬ 4: docs/ru/cli.md и docs/en/cli.md не тронуты, хотя объявлены в области. Флаг --ticket в них не описан.
+- 2026-09-09T09:15:05Z [implementation] — ОСТАЛОСЬ 5: ручной ответ в пять новых тикетов GitLab (#12-#16). Они пришли ПОСЛЕ ручного разбора смены #189 и комментариев не имеют.
+- 2026-09-09T09:15:06Z [implementation] — ЗАМЕР смены #241: в GitLab 13 открытых тикетов, не 11. Новые #12, #13, #14, #15, #16 заведены 8-9 дней назад, ответов ноль. GitHub: #7 и #8 по-прежнему открыты, SHA исправлений в публичном репозитории по-прежнему недостижимы.
+- 2026-09-09T09:15:06Z [implementation] — НАХОДКА, подтверждающая задачу: тема GitLab #12 (ёмкость списывает на смену всю жизнь задачи) уже закрыта задачей session-capacity-counts-a-tasks-whole-life-not-this-shift в статусе done. Автор об этом не знает — ровно тот дефект, ради которого эта задача заведена, найденный ещё раз.
+- 2026-09-09T09:15:06Z [implementation] — НЕ УСТАНОВЛЕНО: соответствие задачам у #13, #14, #15, #16. Грубый поиск по LIKE даёт только шум и ответа не даёт — нужен точный разбор при возобновлении, и это первое, что стоит сделать.
+- 2026-09-09T09:20:16Z [implementation] — ВАЖНО ДЛЯ ПРОДОЛЖЕНИЯ: коммита нет, дерево committed-состояние ЗЕЛЁНОЕ. Красное живёт только в рабочей копии и снимется либо починкой дефекта v43, либо откатом моей колонки. Порядок работ: сперва дефект v43, потом доделка этой задачи — иначе паритет схемы будет краснеть на каждом прогоне.
+- 2026-09-09T09:20:16Z [implementation] — КРАСНОЕ НА РАБОЧЕЙ КОПИИ, 4 теста: test_schema_upgrade_parity (3) и test_migration_v43_model_mismatch (1). Причина УСТАНОВЛЕНА и это не мой частный случай: maybe_rebuild_tasks_v43 зовётся из run_post_migrations ПОСЛЕ версионной петли и пересобирает tasks по замороженному списку колонок эпохи v43, стирая tracker_refs. Заведён отдельный дефект post-migration-v43-erases-every-column-added-after-it.
+- 2026-09-09T09:20:16Z [implementation] — ПРОВЕРЕНО ЗЕЛЁНЫМ на рабочей копии: tests/test_tracker_ref.py 28, tests/test_fresh_install_has_every_migrated_table.py 10, tests/test_closure_citation_check.py 13 (два теста в нём перенацелены с прямого импорта на closure_reminders). ruff check по scripts/ и tests/ чист.
+- 2026-09-09T15:57:50Z [implementation] — AC-1: ✓ поле tracker_refs на задаче; проверено ЖИВЫМ CLI — task add --ticket gitlab#17 записал ['gitlab#17'], task show его печатает. Первой же привязкой стал тикет, ради которого владелец переключает разработку.
+- 2026-09-09T15:57:50Z [implementation] — AC-2: ✓ tests/test_tracker_ref.py::TestГолыйНомерОтвергнут::test_номер_без_трекера_отказ
+- 2026-09-09T15:57:51Z [implementation] — AC-3: ✓ tests/test_tracker_closure_proposal.py::TestПриЗакрытииНЕТСЕТИ::test_напоминание_собирается_без_единого_сокета — сеть заглушена, путь проходит целиком
+- 2026-09-09T15:57:51Z [implementation] — AC-4: ✓ tests/test_tracker_closure_proposal.py::TestБезПривязкиНиОднойНовойСтроки::test_молчит
+- 2026-09-09T15:57:51Z [implementation] — AC-5: ✓ tests/test_fresh_install_has_every_migrated_table.py::TestСтолбецИзМиграцииЕстьИНаСвежемПути::test_каждый_столбец_миграций_есть_на_свежей_базе
+- 2026-09-09T15:57:52Z [implementation] — Domain: связь — ССЫЛКА, а не копия чужой строки; фреймворк не хранит состояния тикета вовсе, и это закреплено структурно (TestФреймворкНеХранитСОСТОЯНИЯТикета). Поэтому автоматически закрывать нечего даже при желании.
+- 2026-09-09T15:57:52Z [implementation] — ОСТАЁТСЯ ЗА РАМКАМИ ЭТОЙ ЗАДАЧИ и записано отдельно: ответить в пять новых тикетов GitLab #12-#16 и установить соответствие задачам у #13-#16. Механизм связи теперь есть — работа по нему ручная и остаётся ручной по замыслу.
+- 2026-09-09T15:57:52Z [implementation] — ПОБОЧНО НАЙДЕНО И ЗАКРЫТО ОТДЕЛЬНОЙ ЗАДАЧЕЙ: пост-миграция v43 стирала любую колонку tasks, добавленную после v43 — эта была первой за восемнадцать версий. См. post-migration-v43-erases-every-column-added-after-it (done).

@@ -2,8 +2,8 @@
 slug: qg0-accepts-a-placeholder-as-an-acceptance-criterion
 title: "QG-0 принимает заглушку за критерий приёмки: он считает ключевые слова, но не вещество"
 status: planning
-epic: landscape-2026-h2
-story: l26-narrative
+epic: release-19-renar-conformance
+story: evidence-is-substance-not-keywords
 complexity: medium
 role: backend
 stack: null

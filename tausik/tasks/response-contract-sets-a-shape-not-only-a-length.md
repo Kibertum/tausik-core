@@ -2,8 +2,8 @@
 slug: response-contract-sets-a-shape-not-only-a-length
 title: "Контракт ответа задаёт ФОРМУ, а не только краткость: сейчас у агента нет обязательной структуры"
 status: planning
-epic: release-110-deferred-from-19
-story: deferred-110-context-and-output-shape
+epic: release-19-renar-conformance
+story: evidence-is-substance-not-keywords
 complexity: null
 role: architect
 stack: null

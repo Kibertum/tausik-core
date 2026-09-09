@@ -2,8 +2,8 @@
 slug: refusal-does-not-separate-stale-from-failed
 title: "Отказ не отличает устаревшее от непрошедшего: stale и fail подаются одним словом"
 status: planning
-epic: landscape-2026-h2
-story: l26-narrative
+epic: release-19-renar-conformance
+story: evidence-is-substance-not-keywords
 complexity: simple
 role: backend
 stack: null

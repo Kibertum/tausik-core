@@ -2,8 +2,8 @@
 slug: km-topics-aliases-index
 title: "Темы, алиасы и индекс тем в инъекции вместо обрезанных последних записей"
 status: planning
-epic: shared-knowledge
-story: km-knowledge-layer
+epic: release-19-agent-effectiveness
+story: memory-retrieves-by-relevance
 complexity: complex
 role: developer
 stack: python

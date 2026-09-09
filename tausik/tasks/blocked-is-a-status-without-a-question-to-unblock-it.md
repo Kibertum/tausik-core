@@ -2,8 +2,8 @@
 slug: blocked-is-a-status-without-a-question-to-unblock-it
 title: "blocked — статус без вопроса: чем разблокировать задачу, знает только текст журнала"
 status: planning
-epic: landscape-2026-h2
-story: l26-narrative
+epic: release-19-renar-conformance
+story: evidence-is-substance-not-keywords
 complexity: medium
 role: backend
 stack: null

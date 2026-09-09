@@ -2,8 +2,8 @@
 slug: memory-tail-by-relevance-not-recency
 title: "Хвост памяти в CLAUDE.md отбирается по свежести, а не по значимости"
 status: planning
-epic: landscape-2026-h2
-story: borrow-kaeru
+epic: release-19-agent-effectiveness
+story: memory-retrieves-by-relevance
 complexity: complex
 role: architect
 stack: python

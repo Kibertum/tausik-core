@@ -2,8 +2,8 @@
 slug: shared-store-has-no-threat-model-and-no-secret-detector
 title: "У общей базы знаний нет threat-model и нет детектора секретов, а обоснование «не покидает машину» держится на ней одной"
 status: planning
-epic: landscape-2026-h2
-story: l26-narrative
+epic: release-19-agent-effectiveness
+story: memory-retrieves-by-relevance
 complexity: complex
 role: backend
 stack: null

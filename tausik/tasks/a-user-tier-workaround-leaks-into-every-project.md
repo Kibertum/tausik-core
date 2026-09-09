@@ -2,8 +2,8 @@
 slug: a-user-tier-workaround-leaks-into-every-project
 title: "Обходной путь в пользовательском тире молча распространяется на все проекты машины"
 status: planning
-epic: landscape-2026-h2
-story: l26-narrative
+epic: release-19-agent-effectiveness
+story: surfaces-do-not-diverge
 complexity: medium
 role: backend
 stack: null

@@ -2,8 +2,8 @@
 slug: km-memory-lint-report
 title: "memory lint как отчёт: все проверки реализованы, НИ ОДНА не блокирует"
 status: planning
-epic: shared-knowledge
-story: km-knowledge-layer
+epic: release-19-agent-effectiveness
+story: memory-retrieves-by-relevance
 complexity: medium
 role: developer
 stack: python

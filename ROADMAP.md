@@ -21,7 +21,7 @@
 | История | Статус | Осталось | Заблокировано | Закрыто |
 |---|---|---|---|---|
 | `agent-output-discipline`<br>Дисциплина ответа агента: форма, крышки вывода и измеренная цена инъекции | done | 0 | 0 | 10 |
-| `context-carries-over-between-sessions`<br>Контекст переживает границу сессии: ядро памяти, релевантное извлечение, инструктированная компакция, учение с холодным стартом | done | 0 | 0 | 2 |
+| `context-carries-over-between-sessions`<br>Контекст переживает границу сессии: ядро памяти, релевантное извлечение, инструктированная компакция, учение с холодным стартом | done | 1 | 0 | 2 |
 | `guarantees-are-not-claude-only`<br>Гарантии кроссмодельны или объявлены отсутствующими: хост без механизма не имеет права выглядеть как хост с механизмом | done | 0 | 0 | 7 |
 | `verification-off-the-critical-path`<br>A. Проверка уходит с критического пути: CI на рабочей ветке, лента параллельна, ничего не исключено молча | done | 0 | 0 | 13 |
 | `the-loop-closes-outward`<br>D. Петля замыкается наружу: связь задача-тикет и заметки к релизу | done | 0 | 0 | 4 |
@@ -29,7 +29,7 @@
 | `gates-declare-what-they-prevent`<br>Гейт объявляет предотвращаемый эффект и проверяется мутацией (SENAR 1.4) | done | 0 | 0 | 42 |
 | `renar-contract-contour`<br>Контрактный контур: ACTZ, итоговое ТЗ и приёмка от контракта | done | 0 | 0 | 11 |
 | `test-evidence-not-test-volume`<br>Доказательность теста вместо количества тестов | done | 0 | 0 | 5 |
-| **Итого** | | **0** | **0** | **121** |
+| **Итого** | | **1** | **0** | **121** |
 
 ## Что в релиз НЕ входит
 
@@ -37,27 +37,34 @@
 
 | История | Статус | Осталось |
 |---|---|---|
-| `bookmarks-2026-08` | open | 3 |
+| `bookmarks-2026-08` | open | 2 |
 | `borrow-cubest-onyx` | done | 0 |
-| `borrow-kaeru` | open | 6 |
+| `borrow-kaeru` | open | 1 |
+| `codex-is-a-first-class-host` | active | 4 |
+| `evidence-and-hygiene-debt-paid-in-19` | active | 5 |
 | `evidence-is-durable` | open | 4 |
+| `evidence-is-substance-not-keywords` | open | 25 |
 | `external-proof-and-open-axes` | done | 0 |
 | `github-primary-gitlab-mirror` | done | 0 |
 | `knowledge-records-what-failed-19` | active | 8 |
+| `knowledge-sheds-notion-and-its-hygiene` | open | 6 |
 | `l26-arch-debt` | done | 0 |
 | `l26-ecosystem` | done | 0 |
 | `l26-hygiene` | done | 0 |
 | `l26-mcp-spec` | done | 0 |
-| `l26-narrative` | active | 22 |
+| `l26-narrative` | active | 5 |
 | `l26-provable` | done | 0 |
-| `l26-silent-failures-in-shipped-commands` | active | 3 |
+| `l26-silent-failures-in-shipped-commands` | active | 0 |
 | `l26-trust-boundary` | done | 0 |
+| `memory-retrieves-by-relevance` | open | 20 |
+| `obligations-to-people-are-settled` | active | 4 |
 | `parallel-work-runs-without-collisions` | active | 5 |
 | `proof-and-positioning-outward` | open | 7 |
 | `release-18-audit` | done | 0 |
 | `renar-debt-implemented-wrong` | done | 0 |
-| `repo-hygiene-19` | open | 2 |
+| `repo-hygiene-19` | open | 0 |
 | `standards-drift-detection` | done | 0 |
+| `surfaces-do-not-diverge` | open | 14 |
 
 ## Траектория объёма
 
@@ -67,7 +74,7 @@
 35 → 38 → 37 → 39 → 42 → 40 → 42 → 43 → 39 → 34 → 32 → 28 → 32 → 31 → 29 → 25 → 23 → 21 → 20 → 22 → 20 → 18 → 16 → 74 → 22
 ```
 
-Объявлено там же: 22. В живой базе сейчас: 0. Разница — это работа, закрытая или заведённая ПОСЛЕ решения; объявленное число не ошибочно, оно просто старше.
+Объявлено там же: 22. В живой базе сейчас: 1. Разница — это работа, закрытая или заведённая ПОСЛЕ решения; объявленное число не ошибочно, оно просто старше.
 
 ## TAUSIK-roadmap.pdf — снимок, который сознательно не переиздаётся
 

@@ -2,8 +2,8 @@
 slug: kb-docs-consistency
 title: "Сквозная согласованность документации и doc-drift гейты"
 status: planning
-epic: shared-knowledge
-story: kb-docs
+epic: release-19-renar-conformance
+story: knowledge-sheds-notion-and-its-hygiene
 complexity: medium
 role: tech-writer
 stack: null

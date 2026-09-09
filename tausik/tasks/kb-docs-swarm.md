@@ -2,8 +2,8 @@
 slug: kb-docs-swarm
 title: "Роевое обновление документации по зонам"
 status: planning
-epic: shared-knowledge
-story: kb-docs
+epic: release-19-renar-conformance
+story: knowledge-sheds-notion-and-its-hygiene
 complexity: complex
 role: tech-writer
 stack: null

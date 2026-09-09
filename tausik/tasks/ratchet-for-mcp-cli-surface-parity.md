@@ -2,8 +2,8 @@
 slug: ratchet-for-mcp-cli-surface-parity
 title: "Расхождение MCP и CLI ловится глазами трижды подряд — нужен храповик, а не четвёртая точечная правка"
 status: planning
-epic: landscape-2026-h2
-story: l26-silent-failures-in-shipped-commands
+epic: release-19-agent-effectiveness
+story: surfaces-do-not-diverge
 complexity: complex
 role: architect
 stack: python

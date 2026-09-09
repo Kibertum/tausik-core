@@ -2,8 +2,8 @@
 slug: user-tier-config-recreates-the-directory-18-removed
 title: "Пользовательский тир конфига воссоздаёт каталог, который 1.8 убирала ломающим изменением"
 status: planning
-epic: landscape-2026-h2
-story: l26-narrative
+epic: release-19-agent-effectiveness
+story: surfaces-do-not-diverge
 complexity: complex
 role: backend
 stack: null

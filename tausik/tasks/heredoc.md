@@ -2,8 +2,8 @@
 slug: heredoc
 title: "Гейт рамок не видит записи, сделанной питоновским скриптом через heredoc"
 status: planning
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: evidence-is-substance-not-keywords
 complexity: null
 role: developer
 stack: python

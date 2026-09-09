@@ -2,8 +2,8 @@
 slug: kb-docs-map
 title: "Карта затронутой документации и разбиение на зоны для роя"
 status: planning
-epic: shared-knowledge
-story: kb-docs
+epic: release-19-renar-conformance
+story: knowledge-sheds-notion-and-its-hygiene
 complexity: medium
 role: architect
 stack: null

@@ -2,8 +2,8 @@
 slug: port-external-pr5-hook-coverage
 title: "Перенести внешний PR #5 (покрытие хуков) в основной репозиторий: часть уже сделана в 1.8, часть нет"
 status: planning
-epic: landscape-2026-h2
-story: l26-narrative
+epic: release-19-renar-conformance
+story: obligations-to-people-are-settled
 complexity: complex
 role: backend
 stack: null

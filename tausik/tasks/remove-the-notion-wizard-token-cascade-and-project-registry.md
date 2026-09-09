@@ -2,8 +2,8 @@
 slug: remove-the-notion-wizard-token-cascade-and-project-registry
 title: "[1.9] Удалить мастер настройки Notion, каскад из трёх способов хранения токена и реестр проектов"
 status: planning
-epic: shared-knowledge
-story: kb-notion
+epic: release-19-renar-conformance
+story: knowledge-sheds-notion-and-its-hygiene
 complexity: complex
 role: developer
 stack: python

@@ -2,8 +2,8 @@
 slug: framework-version-stamp-reads-as-the-products-version
 title: "Штамп версии фреймворка стоит в документе продукта без подписи и читается как версия продукта"
 status: planning
-epic: landscape-2026-h2
-story: l26-narrative
+epic: release-19-renar-conformance
+story: evidence-is-substance-not-keywords
 complexity: simple
 role: tech-writer
 stack: null

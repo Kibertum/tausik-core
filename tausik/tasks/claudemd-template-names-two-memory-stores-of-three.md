@@ -2,8 +2,8 @@
 slug: claudemd-template-names-two-memory-stores-of-three
 title: "Шаблон CLAUDE.md называет два хранилища памяти из трёх: общая база 1.8 не попала в таблицу маршрутизации"
 status: planning
-epic: landscape-2026-h2
-story: l26-narrative
+epic: release-19-agent-effectiveness
+story: memory-retrieves-by-relevance
 complexity: simple
 role: tech-writer
 stack: null

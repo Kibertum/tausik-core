@@ -2,8 +2,8 @@
 slug: mcp-tools-list-caching-conflicts-with-scope-hiding
 title: "Кэшируемый tools/list против скрытия инструментов по scope: клиент покажет поверхность, которой уже нет"
 status: planning
-epic: landscape-2026-h2
-story: l26-narrative
+epic: release-19-agent-effectiveness
+story: surfaces-do-not-diverge
 complexity: medium
 role: backend
 stack: null

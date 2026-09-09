@@ -2,8 +2,8 @@
 slug: search-has-no-morphology-and-strips-the-wildcard
 title: "Поиск не знает словоформ, а санитайзер вырезает единственный обходной путь"
 status: planning
-epic: landscape-2026-h2
-story: borrow-kaeru
+epic: release-19-agent-effectiveness
+story: memory-retrieves-by-relevance
 complexity: medium
 role: backend
 stack: python
