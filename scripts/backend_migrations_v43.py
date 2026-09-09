@@ -43,6 +43,7 @@ this point without init's scaffolding.
 from __future__ import annotations
 
 import logging
+import re
 import sqlite3
 
 # Version-bump marker: the real work is the guarded post-migration below. The
@@ -244,4 +245,64 @@ def maybe_rebuild_tasks_v43(conn: sqlite3.Connection) -> int:
     if violations:
         raise RuntimeError(f"v43 tasks rebuild broke FK integrity: {violations}")
     _log.info("v43: rebuilt tasks — model_mismatch is now NOT NULL DEFAULT 0")
+    restored = reapply_columns_added_after_v43(conn)
+    if restored:
+        _log.info("v43: re-added columns the frozen rebuild could not know about: %s", restored)
     return 1
+
+
+#: `ALTER TABLE tasks ADD [COLUMN] <name>` — the only shape a later migration
+#: uses to widen this table, and the shape the rebuild above silently undoes.
+#:
+#: THE NAME IS `\w+`, NOT `[A-Za-z_]\w*`, and that is a fix rather than a
+#: flourish. SQLite accepts a non-ASCII identifier, and against an ASCII-only
+#: name class the optional `COLUMN` group BACKTRACKS: `ADD COLUMN приснившаяся`
+#: fails on the identifier, gives the keyword back, and captures the literal
+#: word "COLUMN". The column would then never be recognised as present, so the
+#: repair would re-run its ALTER on every open and fail the second time. Found
+#: by the negative test that feeds it exactly such a name.
+_ADD_TASKS_COLUMN = re.compile(
+    r"^ALTER\s+TABLE\s+tasks\s+ADD\s+(?:COLUMN\s+)?[\"'`\[]?(\w+)",
+    re.IGNORECASE,
+)
+
+
+def reapply_columns_added_after_v43(conn: sqlite3.Connection) -> list[str]:
+    """Put back every `tasks` column that a migration ABOVE v43 had added.
+
+    WHY THIS EXISTS. The rebuild above copies rows into a table whose column
+    list is FROZEN at v43 (convention #646, and rightly so — a rebuild that read
+    the live schema would mean something different every year). But it runs from
+    `run_post_migrations`, i.e. AFTER the whole version loop, so on a database
+    upgrading from below v43 the sequence is: v44..vNN add their columns, then
+    this rebuild drops the table and recreates it without them. Measured in
+    session #241 on the v1 chain: `run_migrations` returned 61 and
+    `tasks.tracker_refs` — added by v61 seconds earlier — was gone, while the
+    fresh path had it. `test_schema_upgrade_parity` is what caught it, on the
+    first column anyone had added after v43 in eighteen versions.
+
+    NO DATA IS LOST BY RE-ADDING THEM EMPTY, and that is worth stating rather
+    than hoping. The rebuild only fires when `model_mismatch` is still nullable,
+    which is only true of a database that has not yet passed v43 — so every
+    post-v43 column it drops was created empty minutes ago by this same run. A
+    database that already carries data in such a column has been through the
+    tightening, `_needs_rebuild` returns 0, and none of this runs.
+
+    Reads the live migration table rather than a second frozen list: a copy here
+    would be one more thing to update when v62 lands, and forgetting it would
+    reproduce exactly the defect this function repairs. Import is local — the
+    migration module imports the post-migration step that calls us.
+    """
+    from backend_migrations import MIGRATIONS
+
+    present = {row[1] for row in conn.execute("PRAGMA table_info(tasks)")}
+    restored: list[str] = []
+    for version in sorted(v for v in MIGRATIONS if v > 43):
+        for statement in MIGRATIONS[version]:
+            match = _ADD_TASKS_COLUMN.match((statement or "").strip())
+            if not match or match.group(1) in present:
+                continue
+            conn.execute(statement.strip())
+            present.add(match.group(1))
+            restored.append(match.group(1))
+    return restored

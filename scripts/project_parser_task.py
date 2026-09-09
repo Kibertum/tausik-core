@@ -81,6 +81,14 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         help="SENAR Rule 6: how to undo this change (git revert / migration "
         "down / feature flag off).",
     )
+    ta.add_argument(
+        "--ticket",
+        nargs="*",
+        default=None,
+        dest="add_tickets",
+        help="External ticket(s) this task answers, SPACE-separated: "
+        "--ticket github#7 gitlab#12 (or a full ticket URL). The tracker name is required — this repo has two trackers whose numbers collide.",
+    )
     _add_scope_acl_flags(ta)
     _add_unit_flags(ta)
 
@@ -245,6 +253,14 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         default=None,
         dest="update_relevant_files",
         help="JSON-list scope for scoped verify / pytest gate (overwrites prior)",
+    )
+    tupdate.add_argument(
+        "--ticket",
+        nargs="*",
+        default=None,
+        dest="update_tickets",
+        help="External ticket(s) this task answers, SPACE-separated: "
+        "--ticket github#7 gitlab#12 (or a full ticket URL). The tracker name is required — this repo has two trackers whose numbers collide.",
     )
     _add_scope_acl_flags(tupdate)
     _add_unit_flags(tupdate)

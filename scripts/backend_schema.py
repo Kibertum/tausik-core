@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 60
+SCHEMA_VERSION = 61
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -71,7 +71,17 @@ CREATE TABLE IF NOT EXISTS tasks (
     tokens_actual INTEGER,
     tier TEXT CHECK(tier IS NULL OR tier IN
         ('trivial','light','moderate','substantial','deep')),
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    -- JSON list of external ticket references (`tracker_ref`), e.g.
+    -- ["github#7"]. NULL and [] both mean "nobody filed this" — the normal
+    -- case. Added in v61: closing a task could not remind anyone to answer a
+    -- ticket while the link did not exist as data.
+    --
+    -- LAST on purpose, after created_at/updated_at: the upgrade path adds it
+    -- with ALTER TABLE, which appends. A column placed "logically" mid-table
+    -- here would differ in ORDER from every migrated database, and
+    -- test_schema_upgrade_parity reds on exactly that.
+    tracker_refs TEXT
 );
 
 CREATE TABLE IF NOT EXISTS sessions (

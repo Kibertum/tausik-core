@@ -42,6 +42,7 @@ _TASK_FIELDS = frozenset(
         "acceptance_criteria",
         "scope",
         "relevant_files",
+        "tracker_refs",
         "started_at",
         "completed_at",
         "blocked_at",

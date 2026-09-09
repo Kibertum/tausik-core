@@ -125,7 +125,16 @@ task unblock <slug>             # blocked → active
 task review <slug>              # active → review
 task update <slug> [--title T] [--goal G] [--notes N] [--notes-overwrite] [--acceptance-criteria AC]
                   [--scope S] [--scope-exclude S] [--stack S] [--complexity C] [--role ROLE]
-                  [--call-budget N] [--tier TIER]
+                  [--call-budget N] [--tier TIER] [--ticket REF ...]
+                                # --ticket (1.9): внешний тикет, на который отвечает задача.
+                                #   ЧЕРЕЗ ПРОБЕЛ, не через запятую: --ticket github#7 gitlab#12
+                                #   Форма `<трекер>#<номер>` либо полный https-адрес. Имя трекера
+                                #   ОБЯЗАТЕЛЬНО, и голый `#7` отвергается при записи: у этого
+                                #   репозитория два трекера, и GitHub #7 с GitLab #7 — РАЗНЫЕ
+                                #   тикеты разных авторов. Тот же флаг есть у `task add`.
+                                #   При закрытии задачи привязка ПЕЧАТАЕТ напоминание ответить
+                                #   автору. Ничего никуда не отправляется и ни один тикет не
+                                #   закрывается: тикет мог описывать больше, чем закрыла задача.
                                 # ⚠ --notes ЗАМЕНЯЕТ весь журнал (notes — append-only история,
                                 #   пишется через `task log`). По умолчанию перезапись непустого
                                 #   журнала ОТКЛОНЯЕТСЯ; чтобы дописать — `task log`, чтобы

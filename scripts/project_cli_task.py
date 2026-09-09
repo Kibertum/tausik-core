@@ -23,6 +23,21 @@ if TYPE_CHECKING:
     from project_service import ProjectService
 
 
+
+def _apply_tickets(svc: ProjectService, slug: str, tickets: list[str] | None) -> None:
+    """Привязка к тикету, записанная СРАЗУ при заведении задачи.
+
+    Отдельной функцией, потому что `task add` создаёт задачу одним вызовом
+    сервиса и дописывает необязательные поля следом — как это уже делают
+    rollback_plan и ACL области. Отказ разбора поднимается наверх: молча
+    проглоченная ссылка означала бы задачу, которая ДУМАЕТ, что помнит тикет.
+    """
+    if tickets is None:
+        return
+    import tracker_ref
+
+    svc.task_update(slug, tracker_refs=tracker_ref.dumps(tracker_ref.normalise_all(tickets)))
+
 def cmd_task(svc: ProjectService, args: Any) -> None:
     from project_cli import _print_table
 
@@ -57,6 +72,7 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
         }
         if acl:
             svc.task_update(slug, **acl)
+        _apply_tickets(svc, slug, getattr(args, "add_tickets", None))
     elif c == "list":
         tasks = svc.task_list(
             args.status,
@@ -211,6 +227,11 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
         rf = getattr(args, "update_relevant_files", None)
         if rf is not None:
             fields["relevant_files"] = _json.dumps(list(rf))
+        tickets = getattr(args, "update_tickets", None)
+        if tickets is not None:
+            import tracker_ref
+
+            fields["tracker_refs"] = tracker_ref.dumps(tracker_ref.normalise_all(list(tickets)))
         if fields:
             print(svc.task_update(args.slug, **fields))
         else:
@@ -303,6 +324,7 @@ def _print_task_detail(task: dict[str, Any]) -> None:
         "completed_at",
         "blocked_at",
         "relevant_files",
+        "tracker_refs",
         "defect_of",
         "claimed_by",
         "attempts",

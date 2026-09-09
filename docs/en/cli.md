@@ -119,7 +119,16 @@ task unblock <slug>             # blocked -> active
 task review <slug>              # active -> review
 task update <slug> [--title T] [--goal G] [--notes N] [--acceptance-criteria AC]
                   [--scope S] [--scope-exclude S] [--stack S] [--complexity C] [--role ROLE]
-                  [--call-budget N] [--tier TIER]
+                  [--call-budget N] [--tier TIER] [--ticket REF ...]
+                                # --ticket (1.9): the external ticket(s) this task answers.
+                                #   SPACE-separated, never comma: --ticket github#7 gitlab#12
+                                #   Form `<tracker>#<id>` or a full https ticket URL. The tracker
+                                #   name is REQUIRED and a bare `#7` is refused at write time:
+                                #   this repo has two trackers, and GitHub #7 and GitLab #7 are
+                                #   DIFFERENT tickets by different authors. `task add` takes it too.
+                                #   Closing the task PRINTS a reminder to answer the author. Nothing
+                                #   is sent anywhere and no ticket is closed: the ticket may have
+                                #   described more than the task closed.
 task delete <slug>
 task delegate <slug>            # Orchestrator-worker: mark a complexity<=medium task delegated to a worker sub-agent (records recommended model + parent session; complex refused)
 task undelegate <slug>          # Clear a task's delegation

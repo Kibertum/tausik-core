@@ -123,14 +123,21 @@ class TestЗакрытиеДействительноЕёЗовёт:
     """Модуль, который работает и которого никто не зовёт, — тот самый класс,
     что этот релиз вычищает. Проверяется ВЫЗОВ, а не наличие функции."""
 
-    def test_путь_закрытия_импортирует_проверку(self):
-        source = (_REPO / "scripts" / "service_task_done.py").read_text(encoding="utf-8")
-        assert "from closure_citation_check import citation_warning" in source
-        assert "citation_warning" in source
+    def test_сборщик_напоминаний_действительно_её_зовёт(self):
+        """ВЫЗОВОМ, а не чтением исходника. С v61 закрытие спрашивает не эту
+        проверку напрямую, а `closure_reminders`, который задаёт оба вопроса
+        момента закрытия; проверка живёт ровно постольку, поскольку он её зовёт.
+        """
+        import closure_reminders
 
-    def test_предупреждение_попадает_в_список_предупреждений(self):
+        notes = "AC-1: ✓ tests/test_выдуманного_файла_нет.py::test_ничего"
+        got = closure_reminders.reminders_at_close("t", notes, {})
+        assert got, "сборщик молчит на заведомо испорченной цитате"
+        assert any("test_выдуманного_файла_нет" in note for note in got)
+
+    def test_напоминание_попадает_в_список_предупреждений(self):
         source = (_REPO / "scripts" / "service_task_done.py").read_text(encoding="utf-8")
-        block = source[source.index("citation_warning = _cite_check") :][:300]
-        assert 'report["warnings"].append(citation_warning)' in block, (
-            "предупреждение вычисляется и никуда не кладётся"
+        block = source[source.index("for note in reminders_at_close") :][:300]
+        assert 'report["warnings"].append(note)' in block, (
+            "напоминание вычисляется и никуда не кладётся"
         )
