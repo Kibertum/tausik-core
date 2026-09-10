@@ -17,6 +17,10 @@ import tomllib
 
 import pytest
 
+# This module reads the canonical Claude-agent source and exercises the bootstrap
+# converter.  A change elsewhere in scripts/ is not its subject.
+CROSSCUTTING_SCOPE = ["harness/claude/subagents/", "bootstrap/bootstrap_copy.py"]
+
 REPO = os.path.join(os.path.dirname(__file__), "..")
 SUBAGENT_PATH = os.path.join(REPO, "harness", "claude", "subagents", "tausik-reviewer.md")
 BOOTSTRAP_DIR = os.path.join(REPO, "bootstrap")
