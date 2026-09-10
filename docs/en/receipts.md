@@ -129,6 +129,13 @@ Three properties that matter when reading someone else's receipt:
    parent EPIC is not subtracted: a task's lifecycle was measured not to touch
    it. When the subtraction is the only reason nothing is left, the reason names
    the files instead of claiming the tree never moved.
+4. **A committed sibling is excluded only with commit-local proof.** An active
+   task can overlap a release-accumulation commit, but its timestamp does not
+   make every path in that commit its work. `verify` subtracts a path only when
+   that same commit transitions another task export to `done` and that committed
+   export declares the path in `relevant_files`. Uncommitted paths, malformed
+   exports and paths claimed by more than one completed task remain in the
+   comparison.
 
 The receipt is **canonical** (JCS / RFC 8785 spirit): keys sorted at every
 level, no whitespace, ASCII-only, floats rejected. The same logical receipt

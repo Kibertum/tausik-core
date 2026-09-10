@@ -54,6 +54,7 @@ import verify_git_diff
 from security_pattern import is_security_sensitive
 from verify_git_diff import _normalize_repo_path
 from verify_framework_output import subtract_framework_output
+from verify_commit_ownership import foreign_completed_paths_since
 from verify_own_export import subtract_own_bookkeeping
 
 STATUS_COMPLETE = "complete"
@@ -141,6 +142,19 @@ def describe_declared_scope(
         if removed:
             own_subtracted = ", ".join(removed)
         actual = set(covered)
+
+    # A task active across a release-accumulation commit must not inherit every
+    # completed sibling's declared work merely because git knows only time.
+    # The helper removes nothing without a same-commit, completed-task proof;
+    # uncommitted, malformed and ambiguous paths keep their strict verdict.
+    foreign_owned = foreign_completed_paths_since(
+        task_created_at, task_slug, changed_paths=actual, root=root, runner=runner
+    )
+    if foreign_owned:
+        actual -= foreign_owned
+        own_subtracted = ", ".join(
+            filter(None, [own_subtracted, "committed sibling work: " + ", ".join(sorted(foreign_owned))])
+        )
 
     # The SECOND subtraction, and the same principle as the first (convention
     # #409): a check whose subject is "what did the AGENT change" must not count

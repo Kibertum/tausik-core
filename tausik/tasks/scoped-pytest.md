@@ -1,7 +1,7 @@
 ---
 slug: scoped-pytest
 title: "Сузить scoped pytest по доказательным краям без потери честности"
-status: active
+status: blocked
 epic: null
 story: null
 complexity: medium

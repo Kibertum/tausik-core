@@ -1,7 +1,7 @@
 ---
 slug: verify-uses-commit-history-as-task-diff
 title: "Verify считает коммиты других задач изменениями активной задачи"
-status: blocked
+status: active
 epic: release-19-renar-conformance
 story: release19-proof-integrity
 complexity: medium
@@ -52,3 +52,4 @@ git revert of the dedicated commit restores the prior strict history-based verif
 - 2026-09-10T12:24:53Z [implementation] — Шаг 1: причина подтверждена в scripts/verify_git_diff.py: changed_files_since объединяет git log --since=<started_at> с git diff HEAD без происхождения. Коммит 52097532 содержит завершённые Codex-задачи и активную pathlib-задачу, поэтому последняя ложно видит чужие пути. Важно: одной временной метки недостаточно для ownership.
 - 2026-09-10T12:28:44Z [implementation] — Шаги 2–4: выбран и реализован консервативный commit-local ownership. Вычитаются только пути, которые тот же commit однозначно связывает с переходом другого task export в done и его committed relevant_files; uncommitted, malformed и ambiguous paths остаются. Добавлены real-git регрессии: sibling completion не краснит subject, staged undeclared path всё ещё краснит.
 - 2026-09-10T12:30:45Z [implementation] — Шаг 5: MCP verify #2391: ruff PASS, но pytest FAIL из-за scope selector: для изменённых verify-модулей выбрано 78 тестовых файлов и gate не завершился за свой лимит. Это не исправлять повышением timeout: причина и требуемое доказательство принадлежат существующей release-задаче verify-certifies-a-run-that-touched-no-test-of-the-subject.
+- 2026-09-10T13:14:50Z [implementation] — Focused real-git regressions: 42 passed; ruff, mypy and dedupe baseline passed. A fresh-source verify was launched but its stdout transport detached while the process continued; its result cannot be used as evidence, so the confirmed project.py→pytest process tree was terminated. Need a persistent/captured verification invocation after MCP/runtime refresh; no certificate or closure attempted.
