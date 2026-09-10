@@ -1,7 +1,7 @@
 ---
 slug: verify-certifies-a-run-that-touched-no-test-of-the-subject
 title: "verify сертифицирует зелёным прогон, в котором ни один тест предмета не участвовал: маппер идёт от ИМЕНИ файла"
-status: planning
+status: blocked
 epic: release-19-renar-conformance
 story: release19-proof-integrity
 complexity: medium
@@ -11,14 +11,19 @@ tier: null
 call_budget: null
 defect_of: publish-risk-gate-docstring-lies-after-205
 scope: null
-scope_exclude: null
-relevant_files: []
+scope_exclude: "Do not change task lifecycle or receipt cryptography except where a no-subject test must withhold certification; do not broaden to transitive imports, rewrite test history, alter CI, release, tag or push."
+relevant_files:
+  - "scripts/gate_test_resolver.py"
+  - "scripts/gate_command_runner.py"
+  - "scripts/gate_outcome.py"
+  - "tests/test_gate_test_resolver_import_edge.py"
+  - "tests/test_gate_command_runner.py"
 scope_paths:
   - "scripts/gate_test_resolver.py"
-  - "scripts/verify_*.py"
-  - "tests/*"
-  - CHANGELOG.md
-  - CHANGELOG.ru.md
+  - "scripts/gate_command_runner.py"
+  - "scripts/gate_outcome.py"
+  - "tests/test_gate_test_resolver_import_edge.py"
+  - "tests/test_gate_command_runner.py"
 scope_tools: []
 depends_on: []
 completed_at: null
@@ -47,8 +52,16 @@ completed_at: null
 
 ## Plan
 
+[{"step": "Reproduce filename-only selection and inventory the resolver, gate and receipt/handle boundary.", "done": true}, {"step": "Define direct-import evidence, explicit opt-out and parse-error reporting without transitive expansion.", "done": true}, {"step": "Implement direct-import mapping and a non-certifying result for a non-empty scope with no subject test.", "done": true}, {"step": "Add behavioral tests for historical filename, no-subject refusal, opt-out, parse error and scope disclosure.", "done": true}, {"step": "Run the audit over scripts, then full pytest, mypy, ruff, dedupe and signed verify.", "done": true}]
+
 ## Rollback
 
 git revert. Изменение затрагивает резолвер тестов и формулировку вывода verify; поведение продукта не меняется, откат возвращает сопоставление только по имени.
 
 ## Journal
+
+- 2026-09-10T12:31:04Z [implementation] — Задача активирована как прямое следствие verify #2391: текущий filename/import mapper выбрал 78 файлов для двух verify-модулей и не завершился в timeout. Не повышать лимит; измерить direct-import subject coverage и сузить/сделать честным сертификат.
+- 2026-09-10T12:32:29Z [implementation] — Шаг 1: текущий resolver уже имеет direct import edge и no-test-mapped отказ: scripts/brain_publish_flow.py выбирает tests/test_decide_classifies_what_it_publishes.py. Но 78 файлов у verify_scope_honesty приходят главным образом от широких CROSSCUTTING_SCOPE=[scripts/], а parse errors в test source сейчас молча превращаются в absence. Следующая работа: разделить доказательные edges в результате резолвера, явно сообщать parse-failure и измерить direct/observed coverage, не отменяя законные basename/crosscutting guards.
+- 2026-09-10T12:43:29Z [implementation] — Шаги 2–4: resolver теперь называет неразбираемый candidate test source, а pytest gate возвращает COULD_NOT_RUN с reason test_source_parse_error вместо тихого сужения. SCOPE теперь отдельно печатает число direct-import subject tests; basename/CROSSCUTTING/observed остаются additive, потому что не все законные проверки импортируют продукт. Targeted tests: 53 passed; ruff clean. Разовый audit scripts/: 420 modules, 45 без direct-import-or-observed evidence; список записан в handoff/terminal (главным образом versioned migrations и CLI adapters), это измерение, не автоматическое обвинение.
+- 2026-09-10T12:47:44Z [implementation] — Added an integration regression: a syntactically broken test that names the changed module now yields blocking COULD_NOT_RUN/test_source_parse_error before pytest is spawned. Focused resolver + command-runner suite: 54 passed; ruff on changed implementation/tests: passed.
+- 2026-09-10T12:49:09Z [implementation] — Formal verify #2392 did not certify: pytest scoped 71/521 test files and hit its time budget after 34.7s (output reached 10%). It also reports three paths changed since task start but absent from declared scope. This confirms the remaining blocker is selector/time-budget and scope ownership, not the new parse-error behavior.

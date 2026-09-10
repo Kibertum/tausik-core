@@ -84,6 +84,7 @@ REASON_NO_GATE_IMPLEMENTATION = "no_gate_implementation"
 REASON_COMMAND_NOT_RUNNABLE = "command_not_runnable"
 REASON_TIMED_OUT = "timed_out"
 REASON_RUNNER_ERROR = "runner_error"
+REASON_TEST_SOURCE_PARSE_ERROR = "test_source_parse_error"
 # The configured command failed validation. The gate the user asked for did not
 # run, and running the built-in default in its place would report one check's
 # verdict under another check's name (GitLab #9).

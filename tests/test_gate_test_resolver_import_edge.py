@@ -105,6 +105,17 @@ class TestResolverFollowsImports:
         got = gtr.resolve_test_files_for_relevant(["docs/backend_schema.md"], root=str(tmp_path))
         assert "tests/test_ddl_parity.py" not in got
 
+    def test_unparseable_candidate_is_named_not_silently_dropped(self, tmp_path):
+        self._tree(tmp_path)
+        _mk(tmp_path, "tests/test_broken.py", "import backend_schema\ndef (:\n")
+        assert gtr.parse_errors_for_relevant(["scripts/backend_schema.py"], root=str(tmp_path)) == [
+            "tests/test_broken.py"
+        ]
+
+    def test_direct_import_count_excludes_a_mere_mention(self, tmp_path):
+        self._tree(tmp_path)
+        assert gtr.direct_import_count_for_relevant(["scripts/backend_schema.py"], root=str(tmp_path)) == 1
+
     def test_transitive_import_is_deliberately_not_followed(self, tmp_path):
         """DEPTH ONE, measured and chosen. A test importing `handlers` does NOT run
         when `backend_schema`, which `handlers` imports, changes. Following the

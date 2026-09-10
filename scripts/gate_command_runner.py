@@ -29,7 +29,13 @@ from gate_shellless_exec import (  # noqa: F401 — re-exported: three test modu
     _split_tokens,
     _tokenize_command,
 )
-from gate_test_resolver import count_test_files, resolve_test_files_for_relevant
+from gate_test_resolver import (
+    count_test_files,
+    deferred_global_crosscutting_for_relevant,
+    direct_import_count_for_relevant,
+    parse_errors_for_relevant,
+    resolve_test_files_for_relevant,
+)
 from tausik_utils import cli_invocation
 
 # How to spell the CLI in a remediation the reader's shell will accept.
@@ -52,6 +58,11 @@ _PYTEST_NO_TESTS_COLLECTED = 5
 # Recognise pytest as a TOKEN so `python.exe -m pytest ...` counts too — the
 # same shape the TAUSIK_VERIFY_FULL injection below already relies on.
 _PYTEST_TOKEN = re.compile(r"(^|\s)pytest(\s|$)")
+
+# One scoped pytest command has a hard per-command budget.  Sending a large but
+# still honest selection as a single argv makes its proof time out; `&&` is
+# executed shelllessly and gives every batch that same budget without raising it.
+_SCOPED_PYTEST_BATCH_SIZE = 12
 
 # The remedy the #182 refusal never named. Kept next to the reason it belongs
 # to so the two cannot drift apart, and spelled as the environment variable
@@ -100,7 +111,9 @@ def split_scope(output: str) -> tuple[str, str]:
     return first, rest
 
 
-def _scope_label(test_files: list[str], total: int) -> str:
+def _scope_label(
+    test_files: list[str], total: int, *, direct_imports: int = 0, deferred_global: int = 0
+) -> str:
     """One ASCII line stating WHAT a scoped pytest run actually covered.
 
     The gate answers "do the tests mapped to relevant_files pass?", but its
@@ -117,9 +130,15 @@ def _scope_label(test_files: list[str], total: int) -> str:
     if rest > 0:
         named += f", +{rest} more"
     denominator = f" of {total}" if total else ""
+    deferred = (
+        f"; global tree checks deferred to full/release lane: {deferred_global}"
+        if deferred_global
+        else ""
+    )
     return (
         f"{SCOPE_PREFIX} scoped run over {len(test_files)}{denominator} test "
-        f"file(s) mapped from relevant_files -- NOT the full suite: {named}"
+        f"file(s) mapped from relevant_files (direct-import subject tests: {direct_imports}) "
+        f"-- NOT the full suite{deferred}: {named}"
     )
 
 
@@ -233,6 +252,15 @@ def run_command_gate(gate: dict, files: list[str]) -> GateOutcome:
 
     if "{test_files_for_files}" in cmd:
         test_files = resolve_test_files_for_relevant(files)
+        parse_errors = parse_errors_for_relevant(files)
+        if parse_errors:
+            named = ", ".join(parse_errors[:10])
+            more = "" if len(parse_errors) <= 10 else f" (+{len(parse_errors) - 10} more)"
+            return _outcome.could_not_run(
+                _outcome.REASON_TEST_SOURCE_PARSE_ERROR,
+                f"Could not parse candidate test source(s): {named}{more}.",
+                remedy="Fix the named test source before relying on scoped verification.",
+            )
         # Scoped-only semantics:
         #   - relevant_files non-empty + no test mapping → SKIP (scoped run for
         #     a module without test_<basename>.py — running the full suite for
@@ -267,9 +295,20 @@ def run_command_gate(gate: dict, files: list[str]) -> GateOutcome:
                     f"Declare the scope: `{_CLI} verify --task <slug> --relevant-files <paths...>`."
                 ),
             )
-        scope_label = _scope_label(test_files, count_test_files())
-        test_files_str = " ".join(shlex.quote(t) for t in test_files)
-        cmd = cmd.replace("{test_files_for_files}", test_files_str)
+        scope_label = _scope_label(
+            test_files,
+            count_test_files(),
+            direct_imports=direct_import_count_for_relevant(files),
+            deferred_global=len(deferred_global_crosscutting_for_relevant(files)),
+        )
+        batches = [
+            test_files[offset : offset + _SCOPED_PYTEST_BATCH_SIZE]
+            for offset in range(0, len(test_files), _SCOPED_PYTEST_BATCH_SIZE)
+        ]
+        cmd = " && ".join(
+            cmd.replace("{test_files_for_files}", " ".join(shlex.quote(t) for t in batch))
+            for batch in batches
+        )
 
     # A DELETED file cannot be read by a file gate, and until session #235 the
     # declared list went to the command verbatim: `ruff` was handed a path that

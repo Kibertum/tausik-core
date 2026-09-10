@@ -101,7 +101,7 @@ class TestResolverIncludesCrosscutting:
         assert got == []
 
     def test_prefix_without_trailing_slash_matches_dir(self, tmp_path):
-        _mk(tmp_path, "tests/test_h.py", "CROSSCUTTING_SCOPE = ['harness']\n")
+        _mk(tmp_path, "tests/test_h.py", "CROSSCUTTING_SCOPE = ['harness/claude']\n")
         got = gtr.resolve_test_files_for_relevant(
             ["harness/claude/mcp/server.py"], root=str(tmp_path)
         )
@@ -111,6 +111,19 @@ class TestResolverIncludesCrosscutting:
         _mk(tmp_path, "tests/test_optout.py", "CROSSCUTTING_SCOPE = []\n")
         got = gtr.resolve_test_files_for_relevant(["scripts/hooks/x.py"], root=str(tmp_path))
         assert got == []
+
+    def test_whole_tree_declaration_is_deferred_from_scoped_selection(self, tmp_path):
+        _mk(tmp_path, "tests/test_global.py", "CROSSCUTTING_SCOPE = ['scripts/']\n")
+        assert gtr.resolve_test_files_for_relevant(["scripts/foo.py"], root=str(tmp_path)) == []
+        assert gtr.deferred_global_crosscutting_for_relevant(
+            ["scripts/foo.py"], root=str(tmp_path)
+        ) == {"tests/test_global.py"}
+
+    def test_nested_declaration_remains_a_scoped_edge(self, tmp_path):
+        _mk(tmp_path, "tests/test_hooks.py", "CROSSCUTTING_SCOPE = ['scripts/hooks/']\n")
+        assert gtr.resolve_test_files_for_relevant(
+            ["scripts/hooks/foo.py"], root=str(tmp_path)
+        ) == ["tests/test_hooks.py"]
 
 
 class TestDeclaredScopesResolveInRealRepo:

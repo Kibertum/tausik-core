@@ -53,6 +53,7 @@ if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
 
 from gate_test_resolver import (  # noqa: E402
+    deferred_global_crosscutting_for_relevant,
     read_crosscutting_scope,
     resolve_test_files_for_relevant,
 )
@@ -198,6 +199,12 @@ def _invisible_to_every_edge() -> set[str]:
     """
     sources = _tracked_sources()
     selectable = {os.path.basename(p) for p in resolve_test_files_for_relevant(sources, root=_ROOT)}
+    # Whole-tree declarations are not evidence from an ordinary scoped receipt,
+    # but are explicit full/release-lane obligations, not invisible tests.
+    selectable |= {
+        os.path.basename(p)
+        for p in deferred_global_crosscutting_for_relevant(sources, root=_ROOT)
+    }
     return {fn for fn in _test_files() if fn not in selectable}
 
 
@@ -284,7 +291,7 @@ class TestInvisibleToEveryEdge:
         assert not new, (
             "no change to any tracked source file would ever select these tests — "
             "they match no basename, import no product module, and declare no "
-            "CROSSCUTTING_SCOPE, so a scoped run silently skips them:\n  "
+            "scoped or full/release CROSSCUTTING_SCOPE, so every lane silently skips them:\n  "
             + "\n  ".join(sorted(new))
         )
 

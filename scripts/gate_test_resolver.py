@@ -247,14 +247,7 @@ def _crosscutting_index(base: str) -> dict[str, list[str]]:
 
 
 def top_level_imports(text: str) -> set[str]:
-    """Top-level module names a source imports, or empty when it does not parse.
-
-    `import backend_schema` and `from backend_schema import SCHEMA_SQL` both yield
-    `backend_schema`. Relative imports (`from . import x`) name no module of their
-    own and are skipped. Parsed with AST, never by substring: a substring match
-    hits the name inside a comment, a string or a longer word, and a check that
-    asserts a literal breaks on the next rename (convention #417).
-    """
+    """Top-level imported modules, or an empty set when parsing fails."""
     try:
         tree = ast.parse(text)
     except (SyntaxError, ValueError):
@@ -269,29 +262,7 @@ def top_level_imports(text: str) -> set[str]:
 
 
 def _tests_importing(base: str, modules: set[str], tests_index: dict[str, list[str]]) -> set[str]:
-    """Tests that IMPORT a changed module — the edge a basename can never carry.
-
-    `tests/test_ddl_fixture_parity.py` guards `scripts/backend_schema.py`, and no
-    naming rule maps one to the other: the guard is named after the RELATION it
-    pins, not after either side of it. Measured on this repo before the edge
-    existed: of 408 test files, 200 (49%) could not be selected by ANY change to
-    any of the 3142 tracked source files. The import edge revives 180 of those 200.
-
-    DEPTH ONE, DELIBERATELY — and this is a real limitation, not an oversight. A
-    test importing `handlers_task`, which imports `project_service`, is NOT pulled
-    in by a change to `project_service`. Transitive closure was measured and
-    rejected: it takes the median module's fan-out from 1 test to 177 of 408, which
-    is the full lane wearing a scope's clothes. At depth one the median module
-    pulls 1 test, 281 of 285 modules pull <= 20, and exactly three pull more —
-    project_backend 121, project_service 105, tausik_utils 58 — all three being
-    changes that genuinely are broad. What depth one cannot reach stays visible
-    instead of silent: `tests/test_crosscutting_registry.py` fails the build for a
-    test reachable by neither basename nor import unless it declares its scope.
-
-    Cost: parsing all 408 test files costs ~920 ms, so the read is prefiltered by
-    substring first and only candidates are parsed — the substring decides what to
-    PARSE, never what to select.
-    """
+    """Find depth-one import edges; transitive imports deliberately do not count."""
     if not modules:
         return set()
     out: set[str] = set()
@@ -309,15 +280,47 @@ def _tests_importing(base: str, modules: set[str], tests_index: dict[str, list[s
     return out
 
 
-def _basename_matches(stem: str, tests_index: dict[str, list[str]]) -> list[str]:
-    """Test files a source file named `<stem>.<ext>` pulls in by NAME alone.
+def parse_errors_for_relevant(relevant_files: list[str] | None, *, root: str | None = None) -> list[str]:
+    """Name candidate test sources the import resolver could not parse."""
+    if not relevant_files:
+        return []
+    base = root or os.getcwd()
+    modules = {
+        os.path.splitext(os.path.basename(path.replace("\\", "/")))[0]
+        for path in relevant_files
+        if isinstance(path, str) and path.endswith(".py")
+    }
+    if not modules:
+        return []
+    errors: list[str] = []
+    for paths in build_tests_index(base).values():
+        for rel in paths:
+            try:
+                with open(os.path.join(base, rel.replace("/", os.sep)), encoding="utf-8") as fh:
+                    text = fh.read()
+                if not any(module in text for module in modules):
+                    continue
+                ast.parse(text)
+            except (OSError, SyntaxError, ValueError):
+                errors.append(rel)
+    return sorted(errors)
 
-    Exact `test_<stem>.py` plus suffix variants `test_<stem>_*.py`, at any depth.
-    Extracted so `resolve_test_files_for_relevant` and the visibility ratchet in
-    `tests/test_crosscutting_registry.py` cannot answer "would a change select
-    this test?" differently — a ratchet running its own copy of the rule would
-    keep passing while the real selection quietly changed underneath it.
-    """
+
+def direct_import_count_for_relevant(relevant_files: list[str] | None, *, root: str | None = None) -> int:
+    """Count depth-one import edges for an honest scoped-pytest label."""
+    if not relevant_files:
+        return 0
+    base = root or os.getcwd()
+    modules = {
+        os.path.splitext(os.path.basename(path.replace("\\", "/")))[0]
+        for path in relevant_files
+        if isinstance(path, str) and path.endswith(".py")
+    }
+    return len(_tests_importing(base, modules, build_tests_index(base)))
+
+
+def _basename_matches(stem: str, tests_index: dict[str, list[str]]) -> list[str]:
+    """Return exact and suffix basename matches for a source stem."""
     out: list[str] = []
     out.extend(tests_index.get(f"test_{stem}.py", []))
     prefix = f"test_{stem}_"
@@ -335,6 +338,26 @@ def _under_prefix(path: str, prefix: str) -> bool:
     if not prefix:
         return False
     return path == prefix or path.startswith(prefix + "/")
+
+
+def _is_global_tree_prefix(prefix: str) -> bool:
+    """Whether a declaration names an entire top-level repository tree."""
+    return len([part for part in prefix.replace("\\", "/").strip("/").split("/") if part]) == 1
+
+
+def deferred_global_crosscutting_for_relevant(
+    relevant_files: list[str] | None, *, root: str | None = None
+) -> set[str]:
+    """Global guards matching this scope but deferred to the full/release lane."""
+    if not relevant_files:
+        return set()
+    base = root or os.getcwd()
+    rels = [r.replace("\\", "/") for r in relevant_files if r and isinstance(r, str)]
+    return {
+        test_rel
+        for test_rel, prefixes in _crosscutting_index(base).items()
+        if any(_is_global_tree_prefix(p) and _under_prefix(rel, p) for rel in rels for p in prefixes)
+    }
 
 
 def build_tests_index(base: str) -> dict[str, list[str]]:
@@ -370,31 +393,7 @@ def count_test_files(root: str | None = None) -> int:
 def resolve_test_files_for_relevant(
     relevant_files: list[str] | None, *, root: str | None = None
 ) -> list[str]:
-    """Map source files → existing test files. FOUR edges, all additive.
-
-    0. OBSERVED. What a test RUN actually reached, read from the graph. This is
-       the strongest edge and it comes FIRST, because it survives the three
-       things the others cannot see: dynamic dispatch, monkeypatching, and the
-       local-imports-inside-function-bodies style used throughout this codebase.
-       The three below are the FALLBACK — they still run, because the graph is
-       incomplete by construction until a run has observed everything, and an
-       incomplete graph with an exact selection is a false-green machine: a
-       missed test looks passed, while a redundant one costs seconds.
-
-
-    1. BASENAME. For `scripts/brain_init.py`, look for `tests/test_brain_init.py`
-       and `tests/test_brain_init_*.py`. An entry that IS a test file is returned
-       as-is.
-    2. IMPORT. Any test that imports the changed module at top level (see
-       `_tests_importing`). This is what makes a guard named after a relation —
-       `test_ddl_fixture_parity` for `backend_schema` — selectable at all.
-    3. DECLARED SCOPE. A test whose `CROSSCUTTING_SCOPE` prefix contains a changed
-       path, for the guards that import nothing and only read files.
-
-    Returns a deduplicated list of existing test file paths (forward-slashed).
-    Empty list = no mapping; caller decides whether to fall back to the full
-    suite (only safe when relevant_files itself is empty) or to skip.
-    """
+    """Resolve observed, basename, depth-one-import and narrow declared edges."""
     if not relevant_files:
         return []
     base = root or os.getcwd()
@@ -443,7 +442,11 @@ def resolve_test_files_for_relevant(
     if cc_index:
         rels = [r.replace("\\", "/") for r in relevant_files if r and isinstance(r, str)]
         for test_rel, prefixes in cc_index.items():
-            if any(_under_prefix(f, p) for f in rels for p in prefixes):
+            if any(
+                not _is_global_tree_prefix(p) and _under_prefix(f, p)
+                for f in rels
+                for p in prefixes
+            ):
                 _add(test_rel)
 
     # OBSERVED, added last in code and FIRST in authority. Order here is only
