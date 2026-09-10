@@ -64,6 +64,23 @@ MAX_SCRIPT_BYTES = 256 * 1024
 #: here on purpose: `r+` is an update mode and the text reading missed it.
 _WRITE_MODE_CHARS = frozenset("wax+")
 
+#: One declared catalogue of the Python file-system mutations this reader
+#: recognises.  It deliberately names AST shapes, not imported runtime objects:
+#: resolving arbitrary aliases would require executing the source.  Every form
+#: here is covered through both `python -c` and `python script.py` substrates.
+RECOGNISED_PYTHON_WRITE_FORMS = (
+    "open(path, write-mode)",
+    "Path(path).write_text/write_bytes/open(write-mode)",
+    "Path(path).unlink/mkdir/rename",
+    "shutil.copy/move(..., destination)",
+    "os.replace(source, destination)",
+)
+_PATH_MUTATING_METHODS = frozenset({"write_text", "write_bytes", "unlink", "mkdir"})
+_PATH_OPEN_METHOD = "open"
+_PATH_RENAME_METHOD = "rename"
+_SHUTIL_DESTINATION_METHODS = frozenset({"copy", "move"})
+_OS_REPLACE_METHOD = "replace"
+
 
 def _constant_str(node: ast.expr | None) -> str | None:
     """The value of a string (or bytes) literal node, else None.
@@ -80,6 +97,42 @@ def _constant_str(node: ast.expr | None) -> str | None:
     if isinstance(node.value, bytes):
         return node.value.decode("utf-8", errors="replace")
     return None
+
+
+def _literal_path(node: ast.expr | None, bindings: dict[str, str]) -> str | None:
+    """A literal path, including one simple string binding, else None.
+
+    Bindings are intentionally local and straight-line only (see
+    `_WriteVisitor`).  This covers `target = "x"; Path(target).write_text(...)`
+    without pretending to evaluate expressions, imports or control flow.
+    """
+    value = _constant_str(node)
+    if value is not None:
+        return value
+    if isinstance(node, ast.Name):
+        return bindings.get(node.id)
+    return None
+
+
+def _is_path_constructor(node: ast.expr) -> bool:
+    """Whether *node* spells `Path`, directly or as `pathlib.Path`."""
+    return isinstance(node, ast.Name) and node.id == "Path" or (
+        isinstance(node, ast.Attribute) and node.attr == "Path"
+    )
+
+
+def _path_constructor_target(node: ast.expr | None, bindings: dict[str, str]) -> str | None:
+    """The literal target in `Path(target)`, else None."""
+    if not isinstance(node, ast.Call) or not _is_path_constructor(node.func):
+        return None
+    if len(node.args) != 1 or node.keywords:
+        return None
+    return _literal_path(node.args[0], bindings)
+
+
+def _path_value_target(node: ast.expr | None, bindings: dict[str, str]) -> str | None:
+    """A path argument written as a literal or a literal `Path(...)`."""
+    return _path_constructor_target(node, bindings) or _literal_path(node, bindings)
 
 
 def _open_call_target(call: ast.Call) -> str | None:
@@ -116,6 +169,135 @@ def _open_call_target(call: ast.Call) -> str | None:
     return path
 
 
+def _mode_is_writing(call: ast.Call) -> bool:
+    """Whether a `Path.open` call has a literal write-capable mode."""
+    mode = _constant_str(call.args[0]) if call.args else None
+    for kw in call.keywords:
+        if kw.arg == "mode":
+            mode = _constant_str(kw.value)
+    return bool(mode and _WRITE_MODE_CHARS & set(mode))
+
+
+def _module_call_name(node: ast.expr, module: str) -> str | None:
+    """Method name for a direct `module.method(...)` spelling, else None."""
+    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == module:
+        return node.attr
+    return None
+
+
+def _write_call_targets(call: ast.Call, bindings: dict[str, str]) -> list[str]:
+    """Targets written or mutated by one recognised Python call.
+
+    This is the sole catalogue consumer.  `open` stays separate because it
+    predates the pathname family and has a distinct `file=` grammar.
+    """
+    open_target = _open_call_target(call)
+    if open_target is not None:
+        return [open_target]
+
+    func = call.func
+    if isinstance(func, ast.Attribute):
+        receiver = _path_constructor_target(func.value, bindings)
+        if receiver is not None:
+            if func.attr in _PATH_MUTATING_METHODS:
+                return [receiver]
+            if func.attr == _PATH_OPEN_METHOD and _mode_is_writing(call):
+                return [receiver]
+            if func.attr == _PATH_RENAME_METHOD:
+                destination = _path_value_target(call.args[0], bindings) if call.args else None
+                return [target for target in (receiver, destination) if target is not None]
+
+    shutil_method = _module_call_name(func, "shutil")
+    if shutil_method in _SHUTIL_DESTINATION_METHODS:
+        destination = _path_value_target(call.args[1], bindings) if len(call.args) > 1 else None
+        for kw in call.keywords:
+            if kw.arg == "dst":
+                destination = _path_value_target(kw.value, bindings)
+        return [destination] if destination is not None else []
+
+    if _module_call_name(func, "os") == _OS_REPLACE_METHOD:
+        source = _path_value_target(call.args[0], bindings) if call.args else None
+        destination = _path_value_target(call.args[1], bindings) if len(call.args) > 1 else None
+        return [target for target in (source, destination) if target is not None]
+    return []
+
+
+class _WriteVisitor(ast.NodeVisitor):
+    """Read calls with just enough local binding to retain literal paths."""
+
+    def __init__(self) -> None:
+        self.targets: list[str] = []
+        self.bindings: dict[str, str] = {}
+
+    def visit_Assign(self, node: ast.Assign) -> None:
+        self.visit(node.value)
+        value = _constant_str(node.value)
+        for target in node.targets:
+            if isinstance(target, ast.Name):
+                if value is None:
+                    self.bindings.pop(target.id, None)
+                else:
+                    self.bindings[target.id] = value
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+        if node.value is not None:
+            self.visit(node.value)
+        if isinstance(node.target, ast.Name):
+            value = _constant_str(node.value)
+            if value is None:
+                self.bindings.pop(node.target.id, None)
+            else:
+                self.bindings[node.target.id] = value
+
+    def visit_AugAssign(self, node: ast.AugAssign) -> None:
+        self.visit(node.value)
+        if isinstance(node.target, ast.Name):
+            self.bindings.pop(node.target.id, None)
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self._visit_isolated(node.body)
+
+    visit_AsyncFunctionDef = visit_FunctionDef
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        self._visit_isolated(node.body)
+
+    def visit_If(self, node: ast.If) -> None:
+        self.visit(node.test)
+        self._visit_isolated(node.body)
+        self._visit_isolated(node.orelse)
+
+    def visit_For(self, node: ast.For) -> None:
+        self.visit(node.iter)
+        self._visit_isolated(node.body)
+        self._visit_isolated(node.orelse)
+
+    visit_AsyncFor = visit_For
+
+    def visit_While(self, node: ast.While) -> None:
+        self.visit(node.test)
+        self._visit_isolated(node.body)
+        self._visit_isolated(node.orelse)
+
+    def visit_Try(self, node: ast.Try) -> None:
+        self._visit_isolated(node.body)
+        for handler in node.handlers:
+            self._visit_isolated(handler.body)
+        self._visit_isolated(node.orelse)
+        self._visit_isolated(node.finalbody)
+
+    def visit_Call(self, node: ast.Call) -> None:
+        self.targets.extend(_write_call_targets(node, self.bindings))
+        self.generic_visit(node)
+
+    def _visit_isolated(self, body: list[ast.stmt]) -> None:
+        outer = self.bindings
+        self.bindings = outer.copy()
+        for statement in body:
+            self.visit(statement)
+        self.bindings = outer
+
+
 def writes_in_text(text: str) -> list[str]:
     """The TEXT reading — see `OPEN_RE` for the two callers that still need it."""
     return list(OPEN_RE.findall(text))
@@ -142,13 +324,9 @@ def writes_in_source(text: str) -> list[str]:
         tree = ast.parse(text)
     except (SyntaxError, ValueError, RecursionError, MemoryError):
         return writes_in_text(text)
-    out: list[str] = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Call):
-            target = _open_call_target(node)
-            if target is not None:
-                out.append(target)
-    return out
+    visitor = _WriteVisitor()
+    visitor.visit(tree)
+    return visitor.targets
 
 
 def writes_in_inline_code(sub: list[str]) -> list[str]:

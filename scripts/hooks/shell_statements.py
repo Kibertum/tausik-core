@@ -132,6 +132,28 @@ def split_statement_breaks(text: str) -> str:
 _HEREDOC_RE = re.compile(r"""<<(-?)\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\2""")
 
 
+def heredoc_bodies(command: str) -> list[tuple[str, str]]:
+    """`(header, body)` for each real heredoc, without treating body as shell."""
+    lines = command.split("\n")
+    out: list[tuple[str, str]] = []
+    i = 0
+    while i < len(lines):
+        header = lines[i]
+        i += 1
+        for match in _HEREDOC_RE.finditer(header):
+            dash, delimiter = match.group(1), match.group(3)
+            body: list[str] = []
+            while i < len(lines):
+                candidate = lines[i].rstrip("\r")
+                if (candidate.lstrip("\t") == delimiter) if dash else (candidate == delimiter):
+                    break
+                body.append(lines[i])
+                i += 1
+            i += 1
+            out.append((header, "\n".join(body)))
+    return out
+
+
 def strip_heredoc_bodies(
     command: str,
     keep_body: Callable[[str], bool] | None = None,

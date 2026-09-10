@@ -36,10 +36,12 @@ def _list_builtin_skills() -> list[str]:
     return out
 
 
-def _run_bootstrap(target: str, *extra_args: str) -> subprocess.CompletedProcess:
+def _run_bootstrap(
+    target: str, *extra_args: str, ide: str = "claude"
+) -> subprocess.CompletedProcess:
     env = {**os.environ, "PYTHONUTF8": "1"}
     return subprocess.run(
-        [sys.executable, _bootstrap, "--project-dir", target, "--ide", "claude", *extra_args],
+        [sys.executable, _bootstrap, "--project-dir", target, "--ide", ide, *extra_args],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -64,6 +66,40 @@ def _enable_brain_for_test(target: str) -> None:
 
 
 class TestBootstrapSkillsCoverage:
+    def test_codex_skills_match_claude_apply_overlay_and_preserve_agents(self, tmp_path):
+        """Codex receives the same skills, then its session rebuild applies its delta."""
+        claude_project = tmp_path / "claude"
+        codex_project = tmp_path / "codex"
+        _enable_brain_for_test(str(claude_project))
+        _enable_brain_for_test(str(codex_project))
+        assert _run_bootstrap(str(claude_project)).returncode == 0
+        assert _run_bootstrap(str(codex_project), ide="codex").returncode == 0
+
+        claude_skills = claude_project / ".claude" / "skills"
+        codex_skills = codex_project / ".codex" / "skills"
+        assert {path.name for path in claude_skills.iterdir()} == {
+            path.name for path in codex_skills.iterdir()
+        }
+        assert all((path / "SKILL.md").is_file() for path in codex_skills.iterdir())
+
+        stale_skill = codex_skills / "stale"
+        stale_skill.mkdir()
+        agent_dir = codex_project / ".codex" / "agents"
+        agent_dir.mkdir(exist_ok=True)
+        user_agent = agent_dir / "user-agent.toml"
+        user_agent.write_text('name = "user-agent"\n', encoding="utf-8")
+        assert _run_bootstrap(str(codex_project), ide="codex").returncode == 0
+        assert not stale_skill.exists()
+        assert user_agent.is_file()
+
+        sys.path.insert(0, os.path.join(_repo_root, "scripts"))
+        from skill_profile_rebuild import rebuild_skills
+
+        rebuilt = rebuild_skills(str(codex_skills), ide="codex", force=True)
+        assert not rebuilt["errors"]
+        start_text = (codex_skills / "start" / "SKILL.md").read_text(encoding="utf-8")
+        assert "Use the `tausik_*` MCP tools as the primary interface." in start_text
+
     def test_every_builtin_skill_lands_in_claude_skills(self, tmp_path):
         builtin = _list_builtin_skills()
         assert builtin, "harness/skills/ should contain at least one built-in skill"

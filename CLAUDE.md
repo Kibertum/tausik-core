@@ -65,10 +65,10 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #241 (active) | Branch: v1-9-wave | Version: 1.9.0
-Tasks: 1420/1587 done, 1 active, 1 blocked
-Active: both-trackers-carry-fixed-issues-nobody-closed
-Blocked: ci-lane-runs-on-main-only-so-the-release-branch-is
+Session: #242 (active) | Branch: v1-9-wave | Version: 1.9.0
+Tasks: 1428/1598 done, 1 active, 2 blocked
+Active: write-gate-is-blind-to-pathlib-writes
+Blocked: ci-lane-runs-on-main-only-so-the-release-branch-is, codex-live-acceptance-proves-the-host
 
 ### Memory tail
 Context (5):
@@ -78,17 +78,17 @@ Context (5):
 - #674 Аудит SENAR 9.5 за смены #235-#238: одна новая находка, и она в файле, который инструктирует агентов
 - #670 Ревью пяти закрытий смен #235-#236: одна выдуманная цитата класса, ноль мёртвых объявлений, и гейт ё
 Decisions (5):
+- #361 1.9 scope is extended by owner approval: release19-proof-integrity and release19-effective-context join the release stor
+- #360 1.9 scope is restated and supersedes decision #337: agent-output-discipline, context-carries-over-between-sessions, guar
+- #359 Codex sub-agent TOML files are generated from harness/claude/subagents Markdown as the sole canonical instruction source
 - #358 ОТ NOTION ОТКАЗЫВАЕМСЯ ЦЕЛИКОМ. Решение владельца, смена #241. Следствия шире задачи об удалении мастера настройки: уход
 - #357 ДЕЯТЕЛЬ ЕСТЬ СОДЕРЖИМОЕ ПОДПИСАННОЙ КВИТАНЦИИ, А НЕ ВТОРОЙ ПОДПИСАНТ, И СРАВНЕНИЕ ДАЁТ ТРИ ИСХОДА. Второй ключ означал б
-- #356 КРАСНАЯ ИСТОРИЯ ХРАНИТ ТОЛЬКО КРАСНОЕ, СУДИТ ПО ЗАКРЫТИЮ И СНАЧАЛА ТОЛЬКО СООБЩАЕТ. Зелёный исход не несёт сведений — те
-- #355 САМОПРОВЕРКА СООТВЕТСТВИЯ МЕРЯЕТ ЦЕЛОСТНОСТЬ ДОКАЗАТЕЛЬСТВ, А НЕ СООТВЕТСТВИЕ, И ГОВОРИТ ЭТО ПЕРВОЙ СТРОКОЙ. Нормативног
-- #354 СТРУКТУРНЫЕ ДЕТЕКТОРЫ ДОПОЛНЯЮТ ТЕКСТОВЫЕ RENAR, НЕ ЗАМЕНЯЮТ, И НИ ОДИН НЕ СНИМАЕТСЯ. Проверено чтением того, что тексто
 Conventions (5):
+- #686 Хост, добавляемый в SCAFFOLD_IDES, проверяется ЗАМЕРОМ БИНАРЯ, а не документацией
 - #682 Мёртвый код ищут по СИМВОЛАМ, а не по модулям, и повторяемо — потому что удаление обнажает следующий
 - #673 Столбец с числом в документе обязан быть СОСЧИТАН чем-то, иначе он гниёт молча
 - #669 Имя КЛАССА теста опаснее имени функции: оба выдуманных случая за две смены были классами
 - #664 Критерий, требующий НОВОЙ СУЩНОСТИ В ЗАКРЫТОМ ПЕРЕЧНЕ, проверяй на совместимость с критерием «схему 
-- #661 Храповик, который пинается тестом «никогда не растёт», не поднимают — работу переносят туда, где она
 Dead ends (3):
 - #680 Считать дрейф cli.md артефактом счётчика: комментарии '# --- ... ---' внутри блоков кода принимаются
 - #678 Добавить релизную ветку v*-wave в триггер push у .github/workflows/tests.yml, чтобы опубликованная л

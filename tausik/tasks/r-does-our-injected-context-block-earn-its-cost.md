@@ -2,8 +2,8 @@
 slug: r-does-our-injected-context-block-earn-its-cost
 title: "R: окупает ли себя наш собственный впрыск контекста — или мы платим 20% за минус к успеху"
 status: planning
-epic: research-with-a-death-date
-story: r19-hypotheses
+epic: release-19-agent-effectiveness
+story: release19-effective-context
 complexity: null
 role: qa
 stack: python

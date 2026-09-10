@@ -3,7 +3,7 @@ slug: codex-bootstrap-writes-hooks-that-actually-fire
 title: "Codex получает bootstrap с ЖИВЫМИ хуками: у хоста есть API, а лежащий в проекте файл раскрывается в несуществующие пути"
 status: done
 epic: release-19-renar-conformance
-story: codex-is-a-first-class-host
+story: codex-first-class-19
 complexity: complex
 role: developer
 stack: python

@@ -3,7 +3,7 @@ slug: codex-mcp-registration-appends-never-rewrites
 title: "Регистрация MCP для Codex: дописать блок в .codex/config.toml, не переписывая чужой TOML"
 status: done
 epic: release-19-renar-conformance
-story: codex-is-a-first-class-host
+story: codex-first-class-19
 complexity: medium
 role: developer
 stack: python

@@ -3,7 +3,7 @@ slug: verify-certifies-a-run-that-touched-no-test-of-the-subject
 title: "verify сертифицирует зелёным прогон, в котором ни один тест предмета не участвовал: маппер идёт от ИМЕНИ файла"
 status: planning
 epic: release-19-renar-conformance
-story: evidence-is-substance-not-keywords
+story: release19-proof-integrity
 complexity: medium
 role: developer
 stack: python

@@ -73,6 +73,26 @@ TAUSIK не привязан к конкретной модели. Skills раб
 > отказ, ради которого написан этот генератор.
 > См. [добавление новой IDE](/docs/ru/adding-new-ide).
 
+### Матрица принуждения Codex
+
+Это закрытый перечень контрактов управления, которые заявляются для Codex в
+v1.9. **Hard** означает, что TAUSIK отказывает в операции: либо на границе
+сервиса MCP/CLI, либо перехватом операции хоста. Это не означает, что любая
+advisory-политика является блокировкой: например, сканер секретов сохраняет
+отдельно настраиваемую строгость warn/strict.
+
+| Контракт | Режим | Механизм на диске |
+|----------|-------|-------------------|
+| QG-0 Context Gate | hard | `tausik_task_start` отклоняет неполную задачу через MCP и CLI. |
+| QG-2 Implementation Gate / Verify-First | hard | `tausik_task_done` отказывает в закрытии без свежей подписанной квитанции `tausik_verify`. |
+| Rule 9.2 Session limit | hard | `tausik_task_start` отказывает в работе после лимита active-time. |
+| Rule 1 Task before code | hard | `.codex/hooks.json` подключает `task_gate.py` к Codex `PreToolUse`. |
+| Rule 2 Scope Boundaries | hard | `.codex/hooks.json` подключает `scope_write_gate.py` и `bash_write_gate.py` к Codex `PreToolUse`; покрытие shell — объявленный каталог, а не обещание истолковать любую программу. |
+
+`tests/test_codex_support_matrix.py` читает обе языковые таблицы, требует этот
+полный перечень и генерирует профиль Codex до принятия любой строки `hard`.
+Поэтому правка документации не может молча расширить обещание за пределы механизма.
+
 ## Использование GigaChat (Сбер)
 
 Модели GigaChat доступны через OpenCode с помощью liteLLM:

@@ -48,7 +48,7 @@ from shell_redirection import split_redirections, strip_fd_prefixes  # noqa: E40
 # relative operand a future gate reads. See `shell_roots` for the three
 # successive wrong answers that produced it.
 from shell_roots import resolution_roots  # noqa: E402
-from shell_statements import split_statement_breaks, strip_heredoc_bodies  # noqa: E402
+from shell_statements import heredoc_bodies, split_statement_breaks, strip_heredoc_bodies  # noqa: E402
 
 _PROC_SUB = ("<(", ">(")
 
@@ -62,7 +62,9 @@ from python_invocation import is_python as _is_python  # noqa: E402
 from python_source_writes import MAX_SCRIPT_BYTES as _MAX_SCRIPT_BYTES  # noqa: E402,F401
 from python_source_writes import writes_in_inline_code as _inline_code_writes  # noqa: E402
 from python_source_writes import writes_in_script_file as _script_file_writes  # noqa: E402
+from python_source_writes import writes_in_source as _source_writes  # noqa: E402
 from python_source_writes import writes_in_text as _text_writes  # noqa: E402
+from python_invocation import python_stdin as _python_stdin  # noqa: E402
 
 
 
@@ -97,6 +99,23 @@ def _strip_heredocs(command: str) -> str:
     keep the bodies an interpreter would execute, so it passes a predicate.
     """
     return strip_heredoc_bodies(command)
+
+
+def _python_stdin_heredoc_writes(command: str) -> list[str]:
+    """Literal writes in a heredoc that `python -` actually executes."""
+    targets: list[str] = []
+    for header, body in heredoc_bodies(command):
+        header_tokens = tokenize(header)
+        if header_tokens is None:
+            continue
+        _redirects, command_tokens = split_redirections(header_tokens)
+        command_tokens = _strip_prefixes(command_tokens)
+        if not command_tokens:
+            continue
+        base = os.path.basename(command_tokens[0]).lower().removesuffix(".exe")
+        if _is_python(base) and _python_stdin(command_tokens[1:]):
+            targets += _source_writes(body)
+    return targets
 
 
 def _opt_value(args: list[str], short: str | None, long: str | None) -> str | None:
@@ -354,9 +373,11 @@ def write_targets_with_confidence(
     """
     roots = resolution_roots(command, base_dir)
     cands, confidence = _parse(command, 0, roots[0])
+    cands += _python_stdin_heredoc_writes(command)
     targets = [t for t in cands if _plausible_path(t)]
     for root in roots[1:]:
         extra_cands, _c = _parse(command, 0, root)
+        extra_cands += _python_stdin_heredoc_writes(command)
         for extra in extra_cands:
             if _plausible_path(extra) and extra not in targets:
                 targets.append(extra)

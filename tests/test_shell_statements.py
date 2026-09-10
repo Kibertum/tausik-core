@@ -41,7 +41,7 @@ if _HOOKS not in sys.path:
     sys.path.insert(0, _HOOKS)
 
 from bash_write_parse import write_targets  # noqa: E402
-from shell_statements import split_statement_breaks  # noqa: E402
+from shell_statements import heredoc_bodies, split_statement_breaks  # noqa: E402
 
 #: Destination every writer in the matrix aims at. A path under `tests/` rather
 #: than a bare name so the string is a plausible in-tree target.
@@ -135,6 +135,10 @@ class TestANewlineBashWouldNotHonourDoesNotBecomeABoundary:
         resurrect them."""
         command = f"cat > {_DST} <<EOF\ncp evil.txt stolen.txt\nEOF"
         assert write_targets(command) == [_DST]
+
+    def test_bodies_keep_their_header_for_the_program_that_receives_stdin(self):
+        command = "python - <<PY\nprint('x')\nPY"
+        assert heredoc_bodies(command) == [("python - <<PY", "print('x')")]
 
 
 def test_a_newline_inside_an_interpreter_payload_is_also_a_boundary():

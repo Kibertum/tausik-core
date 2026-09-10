@@ -27,6 +27,15 @@ target and block an honest write). Only targets **inside** the project tree are
 gated, exactly as for Write; the scratchpad, `/tmp`, `/dev/null` and other repos
 are allowed.
 
+**Python AST catalogue.** `python_source_writes.RECOGNISED_PYTHON_WRITE_FORMS`
+is the single declared list: literal `open` with a write mode; literal
+`Path`/`pathlib.Path` `write_text`, `write_bytes`, write-mode `open`, `unlink`,
+`mkdir` and `rename`; `shutil.copy`/`move` to a literal destination; and
+`os.replace`'s literal source and destination. A simple string bound earlier in
+the same straight-line Python scope is accepted as a `Path` argument. The same
+reader handles `python -c`, Python script files, and `python - <<PY` when its
+header proves Python receives the body on stdin.
+
 **What it does NOT catch (the explicit residual).** A shell is Turing-complete,
 so a total gate is impossible. Not intercepted: a path built or passed through a
 variable (`f=scripts/x.py; echo >$f`, `echo > $SCRATCH/x`, `$env:TEMP\x` — a
@@ -34,8 +43,8 @@ token carrying `$` is treated as unresolvable and dropped); `base64 -d | sh` and
 other obfuscation; a command assembled from STDIN (`… | xargs -I{} bash -c '…'`)
 or executed on another host (`ssh host 'cmd'` — this project's paths mean nothing
 there); `curl -O`/`wget` without `-O`; `tar`/`unzip` extraction into the current
-directory with no `-C`/`-d`; arbitrary interpreter code that writes a file by any
-route other than a literal `open(...)`.
+directory with no `-C`/`-d`; arbitrary interpreter code that writes a file by a
+form outside that declared Python AST catalogue.
 
 **The `bash -c` / `sh -c` wrapper — CLOSED.** `bash -c 'echo x > scripts/foo.py'`
 used to yield NO target at all: the redirection lives inside one quoted argument

@@ -9,6 +9,14 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the write gate now reads declared `pathlib` mutations
+
+The shared Python AST reader now catches the declared `Path` mutation family,
+`shutil.copy`/`move`, and `os.replace`, including a simple literal path binding.
+It also reads the body of `python - <<PY` only when Python actually receives it
+on stdin, closing the measured ACL bypass without treating heredoc prose as
+shell commands.
+
 ### Added — Codex is a first-class bootstrap target, and its gates actually fire
 
 `bootstrap.py --ide codex` now scaffolds the host, and `--ide all` includes it.
@@ -53,6 +61,27 @@ configured.
 
 The proof that it works is not "the file exists": a test starts the server with
 the exact command the config declares and requires an answer to `initialize`.
+
+### Added — Codex sub-agents derive from Claude's canonical instructions
+
+`bootstrap --ide codex` now converts every `harness/claude/subagents/*.md` into
+`.codex/agents/*.toml`. The generated TOML preserves each agent's name,
+description, and complete instructions, so there is no second prompt copy to
+drift. Re-running bootstrap deliberately replaces modified generated agents.
+
+### Added — Codex receives the active skill profile and host guidance
+
+`bootstrap --ide codex` delivers the same active `SKILL.md` set as Claude.
+The `/start` skill now adds a Codex-specific MCP-first delta when its profile is
+rebuilt; coverage proves the overlay is present, stale skills are removed on a
+repeat bootstrap, and user-created `.codex/agents` entries survive.
+
+### Added — Codex support promise is tied to generated enforcement
+
+The EN/RU provider docs now publish the closed five-rule Codex enforcement
+matrix. Its test builds a clean Codex hooks profile, requires a mechanism for
+every `hard` row, and proves that removing the profile makes the host-operation
+claims fail. The IDE guide now also consistently calls Codex scaffolded.
 
 ### Fixed — `doctor` reported "codex: none" while 24 hooks sat deployed
 

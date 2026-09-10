@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import sys
@@ -48,6 +49,14 @@ def _files_identical(a: str, b: str) -> bool:
             return False
         with open(a, "rb") as fa, open(b, "rb") as fb:
             return fa.read() == fb.read()
+    except OSError:
+        return False
+
+
+def _files_identical_text(path: str, expected: str) -> bool:
+    try:
+        with open(path, encoding="utf-8", newline="") as file:
+            return file.read() == expected
     except OSError:
         return False
 
@@ -271,13 +280,33 @@ def copy_mcp(lib_dir: str, target_dir: str, ide: str) -> int:
     return len(os.listdir(mcp_dst))
 
 
-def copy_subagents(lib_dir: str, target_dir: str, ide: str) -> int:
-    """Copy Claude-native named sub-agents (harness/claude/subagents/*.md → <target>/agents/*.md).
+def _codex_subagent_toml(markdown: str, source: str) -> str:
+    """Convert one canonical Claude sub-agent document to Codex's TOML schema."""
+    if not markdown.startswith("---\n"):
+        raise ValueError(f"{source} has no YAML frontmatter")
+    frontmatter, separator, body = markdown[4:].partition("\n---\n")
+    if not separator:
+        raise ValueError(f"{source} has unclosed YAML frontmatter")
+    fields = dict(line.split(":", 1) for line in frontmatter.splitlines() if ":" in line)
+    name = fields.get("name", "").strip()
+    description = fields.get("description", "").strip()
+    if not name or not description:
+        raise ValueError(f"{source} must declare name and description")
+    return (
+        f"name = {json.dumps(name, ensure_ascii=False)}\n"
+        f"description = {json.dumps(description, ensure_ascii=False)}\n"
+        f"developer_instructions = {json.dumps(body, ensure_ascii=False)}\n"
+    )
 
-    Currently Claude-only — Cursor/Qwen have no named-subagent concept.
-    Returns 0 silently for non-Claude IDEs or when the source dir is absent.
+
+def copy_subagents(lib_dir: str, target_dir: str, ide: str) -> int:
+    """Deploy canonical sub-agents for Claude or converted TOML agents for Codex.
+
+    The source remains ``harness/claude/subagents/*.md``. Codex files are
+    regenerated on bootstrap and intentionally overwrite changed generated files.
+    Hosts without named sub-agents still receive nothing.
     """
-    if ide != "claude":
+    if ide not in {"claude", "codex"}:
         return 0
     src = os.path.join(lib_dir, "harness", "claude", "subagents")
     if not os.path.isdir(src):
@@ -288,7 +317,16 @@ def copy_subagents(lib_dir: str, target_dir: str, ide: str) -> int:
     for entry in os.listdir(src):
         if not entry.endswith(".md"):
             continue
-        _conditional_copy(os.path.join(src, entry), os.path.join(dst, entry))
+        source = os.path.join(src, entry)
+        if ide == "claude":
+            _conditional_copy(source, os.path.join(dst, entry))
+        else:
+            target = os.path.join(dst, f"{os.path.splitext(entry)[0]}.toml")
+            with open(source, encoding="utf-8") as file:
+                converted = _codex_subagent_toml(file.read(), source)
+            if not os.path.isfile(target) or not _files_identical_text(target, converted):
+                with open(target, "w", encoding="utf-8", newline="\n") as file:
+                    file.write(converted)
         n += 1
     return n
 

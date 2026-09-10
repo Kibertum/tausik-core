@@ -1,9 +1,9 @@
 ---
 slug: codex-gets-the-subagents-it-can-actually-run
 title: "Сабагенты не доезжают до Codex: copy_subagents отказывает всем, кроме Claude, а у Codex они есть"
-status: planning
+status: done
 epic: release-19-renar-conformance
-story: codex-is-a-first-class-host
+story: codex-first-class-19
 complexity: medium
 role: developer
 stack: python
@@ -11,12 +11,23 @@ tier: null
 call_budget: null
 defect_of: null
 scope: null
-scope_exclude: null
-relevant_files: []
-scope_paths: []
+scope_exclude: "harness/claude/subagents/* (canonical source must not change)"
+relevant_files:
+  - "bootstrap/bootstrap_copy.py"
+  - "tests/test_subagent_reviewer.py"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
+scope_paths:
+  - "bootstrap/bootstrap_copy.py"
+  - "tests/test_subagent_reviewer.py"
+  - "tests/test_bootstrap_codex.py"
+  - ".codex/agents/*"
+  - ".claude/agents/*"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-09T17:16:17Z"
 ---
 
 ## Goal
@@ -38,3 +49,10 @@ AC-1 После bootstrap --ide codex в .codex/agents/ лежат те же с�
 Расширение copy_subagents конверсией в TOML; откат — git revert. Каталог .codex в .gitignore и пересоздаётся bootstrap-ом.
 
 ## Journal
+
+- 2026-09-09T17:11:27Z [planning] — Measured task premise: copy_subagents has Claude-only guard; Codex agent TOMLs are outside bootstrap and may be absent in fresh clone. Starting implementation.
+- 2026-09-09T17:14:04Z [implementation] — Implemented Codex TOML conversion from canonical Claude subagent Markdown. Added tests for all canonical agent names, descriptions, full instructions, overwrite policy, and non-agent hosts. Bootstrap --ide codex deployed four agents; scoped tests passed.
+- 2026-09-09T17:14:45Z [implementation] — AC evidence: bootstrap --ide codex reported Sub-agents: 4 copied. tests/test_subagent_reviewer.py asserts canonical name equality, TOML name/description/full instructions, deterministic overwrite on rerun, and cursor/qwen/windsurf no-op. Verification receipt #2380: ruff PASS; scoped pytest PASS (35 modules).
+- 2026-09-09T17:14:54Z [implementation] — AC verified: 1. ✓ bootstrap --ide codex copied all four canonical agents; test preserves names, descriptions, full instructions, rerun overwrite, and non-agent-host no-op. Verification receipt #2380 (ruff PASS; scoped pytest PASS).
+- 2026-09-09T17:15:41Z [implementation] — Added matched EN/RU changelog entry required by QG-2; re-verifying expanded relevant file set.
+- 2026-09-09T17:16:14Z [implementation] — AC verified: 1. ✓ Canonical Markdown produces four Codex TOML agents with equal names, descriptions and full instructions; rerun replacement and Cursor/Qwen/Windsurf no-op are covered. QG-2 changelog entries are matched in EN/RU. Verification receipt #2382: ruff PASS; scoped pytest PASS (36 modules).

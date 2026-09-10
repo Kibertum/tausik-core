@@ -3,7 +3,7 @@ slug: claude-and-codex-coexist-and-it-is-pinned
 title: "Два хоста живут в одном проекте одновременно, и это закреплено тестом, а не везением"
 status: done
 epic: release-19-renar-conformance
-story: codex-is-a-first-class-host
+story: codex-first-class-19
 complexity: medium
 role: developer
 stack: python

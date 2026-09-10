@@ -72,6 +72,26 @@ hand. The scaffolded set is the single source of truth in
 > `${CLAUDE_PROJECT_DIR}` expands it to nothing and disables every gate while
 > still listing them all — the failure this generator exists to prevent.
 
+### Codex enforcement matrix
+
+This is the closed set of governance contracts claimed for Codex in v1.9.
+**Hard** means TAUSIK refuses the operation, either at its MCP/CLI service boundary
+or by intercepting the host operation. It does not mean every advisory policy is a
+block: for example, secret scanning retains its separately configured warn/strict
+severity.
+
+| Contract | Mode | Disk-backed mechanism |
+|----------|------|-----------------------|
+| QG-0 Context Gate | hard | `tausik_task_start` refuses an incomplete task through MCP and CLI. |
+| QG-2 Implementation Gate / Verify-First | hard | `tausik_task_done` refuses closure without a fresh signed `tausik_verify` receipt. |
+| Rule 9.2 Session limit | hard | `tausik_task_start` refuses work past the active-time limit. |
+| Rule 1 Task before code | hard | `.codex/hooks.json` wires `task_gate.py` to Codex `PreToolUse`. |
+| Rule 2 Scope Boundaries | hard | `.codex/hooks.json` wires `scope_write_gate.py` and `bash_write_gate.py` to Codex `PreToolUse`; shell coverage is the declared catalogue, not a claim to interpret every program. |
+
+`tests/test_codex_support_matrix.py` reads both language tables, requires this
+complete list, and generates a Codex profile before accepting any `hard` row. A
+documentation edit cannot silently widen the promise beyond its mechanism.
+
 ## Using GigaChat (Sber)
 
 GigaChat models can be used via OpenCode with liteLLM:

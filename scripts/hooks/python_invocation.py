@@ -137,3 +137,9 @@ def python_inline_code(args: list[str]) -> str | None:
     if glued:
         return glued
     return args[i] if i < len(args) else None
+
+
+def python_stdin(args: list[str]) -> bool:
+    """Whether `python [options] -` receives its program on standard input."""
+    i, stop, _glued = _walk_options(args)
+    return stop is None and i < len(args) and args[i] == "-"

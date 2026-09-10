@@ -3,7 +3,7 @@ slug: compaction-contract-lives-in-claude-md
 title: "Политика компакции не выражена нигде: сжатие само решает, что забыть"
 status: planning
 epic: release-19-agent-effectiveness
-story: memory-retrieves-by-relevance
+story: release19-effective-context
 complexity: simple
 role: tech-writer
 stack: null

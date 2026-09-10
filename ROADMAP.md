@@ -40,7 +40,7 @@
 | `bookmarks-2026-08` | open | 2 |
 | `borrow-cubest-onyx` | done | 0 |
 | `borrow-kaeru` | open | 1 |
-| `codex-is-a-first-class-host` | active | 4 |
+| `codex-is-a-first-class-host` | active | 3 |
 | `evidence-and-hygiene-debt-paid-in-19` | active | 5 |
 | `evidence-is-durable` | open | 4 |
 | `evidence-is-substance-not-keywords` | open | 25 |
