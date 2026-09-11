@@ -66,9 +66,8 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 <!-- DYNAMIC:START -->
 ## Current State
 Session: #242 (active) | Branch: v1-9-wave | Version: 1.9.0
-Tasks: 1428/1598 done, 1 active, 2 blocked
-Active: write-gate-is-blind-to-pathlib-writes
-Blocked: ci-lane-runs-on-main-only-so-the-release-branch-is, codex-live-acceptance-proves-the-host
+Tasks: 1428/1601 done, 0 active, 7 blocked
+Blocked: verify-certifies-a-run-that-touched-no-test-of-the-subject, ci-lane-runs-on-main-only-so-the-release-branch-is, write-gate-is-blind-to-pathlib-writes, codex-live-acceptance-proves-the-host, verify-uses-commit-history-as-task-diff, scoped-pytest, tree-subagent-reviewer
 
 ### Memory tail
 Context (5):
