@@ -6,8 +6,10 @@ long-running task remains active, treating every later commit as that task's
 work makes a narrow verification receipt permanently under-declared.
 
 This module removes only paths whose ownership is proved by the same commit:
-it must change a ``tausik/tasks/<slug>.md`` export from a non-done state to
-``done``, and the committed export must declare the path in ``relevant_files``.
+it must change a ``tausik/tasks/<slug>.md`` export, and the committed export
+must declare the path in ``relevant_files``.  Task lifecycle state is not file
+ownership: requiring ``done`` creates a QG-2 cycle for independently committed
+tasks that need the verifier in order to close.
 Unknown, malformed, ambiguous and uncommitted changes deliberately remain.
 """
 
@@ -65,7 +67,7 @@ def foreign_completed_paths_since(
     root: str | None = None,
     runner: Callable[..., subprocess.CompletedProcess] | None = None,
 ) -> set[str]:
-    """Return paths conclusively owned by another task's committed completion.
+    """Return paths conclusively owned by another task's committed export.
 
     An empty result means either no such proof exists or ownership could not be
     inspected.  That degradation is safe: callers retain the original strict
@@ -105,25 +107,20 @@ def foreign_completed_paths_since(
             current = _task_metadata(
                 _git_text(["git", "show", f"{commit}:{export_path}"], base=base, run=run)
             )
-            previous = _task_metadata(
-                _git_text(["git", "show", f"{commit}^:{export_path}"], base=base, run=run)
-            )
-            if not current or not previous:
+            if not current:
                 continue
             slug = current.get("slug")
             if (
                 not isinstance(slug, str)
                 or slug == task_slug
-                or current.get("status") != "done"
-                or previous.get("status") == "done"
             ):
                 continue
             declared = current.get("relevant_files")
             if not isinstance(declared, list):
                 continue
             owned = {_normalize_repo_path(str(path)) for path in declared}
-            # These two projections are framework output of the proven
-            # transition, not undeclared work by the task being verified.
+            # These projections are framework output of the commit-local
+            # ownership proof, not undeclared work by the task being verified.
             owned.add(export_path)
             story = current.get("story")
             if isinstance(story, str) and story:

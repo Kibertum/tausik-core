@@ -1,7 +1,7 @@
 ---
 slug: verify-uses-commit-history-as-task-diff
 title: "Verify считает коммиты других задач изменениями активной задачи"
-status: active
+status: blocked
 epic: release-19-renar-conformance
 story: release19-proof-integrity
 complexity: medium

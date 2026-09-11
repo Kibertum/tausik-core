@@ -6,6 +6,8 @@ import os
 import subprocess
 import sys
 
+import pytest
+
 _SCRIPTS = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts"))
 if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
@@ -39,12 +41,13 @@ def _repo(tmp_path):
     return tmp_path
 
 
-def test_completed_sibling_commit_is_not_charged_to_active_task(tmp_path):
+@pytest.mark.parametrize("sibling_status", ["active", "blocked", "done"])
+def test_committed_sibling_scope_is_not_charged_to_active_task(tmp_path, sibling_status):
     root = _repo(tmp_path)
     _write(root, "foreign.py", "owned by sibling\n")
-    _write(root, "tausik/tasks/sibling.md", _task("sibling", "done", ["foreign.py"]))
+    _write(root, "tausik/tasks/sibling.md", _task("sibling", sibling_status, ["foreign.py"]))
     _git(root, "add", ".")
-    _git(root, "commit", "-m", "complete sibling")
+    _git(root, "commit", "-m", "commit sibling scope")
 
     description = honesty.describe_declared_scope(
         ["subject.py"], "1970-01-01T00:00:00Z", root=str(root), task_slug="subject"
