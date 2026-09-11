@@ -1,7 +1,7 @@
 ---
 slug: verify-dynamic-state
 title: "Verify отличает dynamic state от правки инструкций"
-status: active
+status: blocked
 epic: null
 story: null
 complexity: medium

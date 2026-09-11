@@ -170,7 +170,7 @@ class TestScopedRunNamesItsScope:
         )
 
         assert outcome.outcome == "PASSED"
-        assert len(calls) == 2
+        assert len(calls) == 4
         selected = [arg for call in calls for arg in call if arg.startswith("tests/test_alpha")]
         assert len(selected) == 14
 

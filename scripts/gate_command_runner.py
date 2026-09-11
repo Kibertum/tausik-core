@@ -62,7 +62,10 @@ _PYTEST_TOKEN = re.compile(r"(^|\s)pytest(\s|$)")
 # One scoped pytest command has a hard per-command budget.  Sending a large but
 # still honest selection as a single argv makes its proof time out; `&&` is
 # executed shelllessly and gives every batch that same budget without raising it.
-_SCOPED_PYTEST_BATCH_SIZE = 12
+# The slowest proof modules take roughly one transport window alone.  Four
+# modules leave them room under the existing per-command timeout; a larger
+# batch makes a complete, honest selection fail merely by aggregation.
+_SCOPED_PYTEST_BATCH_SIZE = 4
 
 # The remedy the #182 refusal never named. Kept next to the reason it belongs
 # to so the two cannot drift apart, and spelled as the environment variable

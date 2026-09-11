@@ -145,8 +145,9 @@ Three layers, strict separation: **CLI never touches DB. Service validates. Back
 <!-- DYNAMIC:START -->
 ## Current State
 Session: #242 (active) | Branch: v1-9-wave | Version: 1.9.0
-Tasks: 1428/1601 done, 0 active, 7 blocked
-Blocked: verify-certifies-a-run-that-touched-no-test-of-the-subject, ci-lane-runs-on-main-only-so-the-release-branch-is, write-gate-is-blind-to-pathlib-writes, codex-live-acceptance-proves-the-host, verify-uses-commit-history-as-task-diff, scoped-pytest, tree-subagent-reviewer
+Tasks: 1428/1603 done, 1 active, 8 blocked
+Active: scoped-pytest
+Blocked: verify-certifies-a-run-that-touched-no-test-of-the-subject, ci-lane-runs-on-main-only-so-the-release-branch-is, write-gate-is-blind-to-pathlib-writes, codex-live-acceptance-proves-the-host, verify-uses-commit-history-as-task-diff, tree-subagent-reviewer, commit-ownership, verify-dynamic-state
 
 ### Memory tail
 Context (5):
@@ -168,9 +169,9 @@ Conventions (5):
 - #669 Имя КЛАССА теста опаснее имени функции: оба выдуманных случая за две смены были классами
 - #664 Критерий, требующий НОВОЙ СУЩНОСТИ В ЗАКРЫТОМ ПЕРЕЧНЕ, проверяй на совместимость с критерием «схему 
 Dead ends (3):
+- #687 Use the standard MCP verify receipt as immediate closure evidence for verify-dynamic-state.
 - #680 Считать дрейф cli.md артефактом счётчика: комментарии '# --- ... ---' внутри блоков кода принимаются
 - #678 Добавить релизную ветку v*-wave в триггер push у .github/workflows/tests.yml, чтобы опубликованная л
-- #663 Гейт «утверждение упоминает символ, которого нет»: сверять имена в обратных кавычках с символьным ин
 
 **Shared knowledge — from other projects (11):**
 - [decision] v139-D (клиентский mux) НЕ делается в 1.3.9 как «фикс троттлинга». Предпосылка задачи неверна для на

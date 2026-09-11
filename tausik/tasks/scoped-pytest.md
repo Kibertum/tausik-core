@@ -1,7 +1,7 @@
 ---
 slug: scoped-pytest
 title: "Сузить scoped pytest по доказательным краям без потери честности"
-status: blocked
+status: active
 epic: null
 story: null
 complexity: medium
@@ -54,3 +54,5 @@ git revert the selector provenance/budget change.
 - 2026-09-10T12:56:56Z [implementation] — Clean repeat verify #2395 confirms real policy/cost failure: 66/521 selected, only 10% completed in 27.7s. Decision for implementation: preserve direct-import, basename and narrow declared-path edges; treat declarations at whole top-level source-tree breadth (e.g. scripts/) as deferred global checks, disclose their count in SCOPE, and do not let them alone certify a no-subject change. This neither raises timeout nor claims deferred checks ran.
 - 2026-09-10T13:01:19Z [implementation] — Fresh source entrypoint (python scripts/project.py verify) validates new policy: selected 28/521, direct-import subject tests=17, deferred global tree checks=40, versus 66 before. It still times out after 13.4s at 28%, so selection reduction alone is insufficient. Next design: execute the preserved scoped set in bounded subprocess batches; do not raise per-command timeout or discard subject tests.
 - 2026-09-10T13:07:49Z [implementation] — Fresh source verify #2400: PASS ruff+pytest, 28/521 in 20.5s, 40 deferred global guards disclosed; handle not used because git-mismatch. Authorized commit attempt was correctly blocked: resolver is 559>500 lines, test-dedupe grew 322/753→323/755, and state_roundtrip requires two task exports owned by other work. No commit created; do not stage foreign task files.
+- 2026-09-11T12:41:19Z [implementation] — Возобновлено после снятия формального prerequisite: registry-contract tree reviewer исправлен в 173f0249. Resolver/batched execution уже в 8422b977. Новое измерение требуется потому что verify-dynamic-state выбирает 73 теста: direct imports verify_scope_honesty тянут широкий proof-suite; задача selector должна доказать bounded execution и точный SCOPE без выдачи narrowed run за full suite.
+- 2026-09-11T12:46:25Z [implementation] — Новая выборка для relevant_files verify-dynamic-state текущим source resolver: 36 тестовых модулей (4 direct-import, 40 global guards deferred; overlap снижает union). Это честнее прежних 73 MCP-stale. Batches 1 и 2 по 12 прошли: 248 passed in 8.05s; 237 passed in 7.76s. Последняя партия (service/verify proof suite) с xdist доходит до 96% и остаётся живой после transport window; без xdist спустя 30s лишь 38%. Два подтверждённых зависших дочерних pytest процесса от непредъявимых повторов остановлены. Не менять batch size до профилирования конкретного тяжёлого модуля: уменьшение может не помочь, если один модуль сам длинный.
