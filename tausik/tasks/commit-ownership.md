@@ -1,7 +1,7 @@
 ---
 slug: commit-ownership
 title: "Отделить commit ownership от статуса закрытия задачи"
-status: active
+status: blocked
 epic: null
 story: null
 complexity: medium
@@ -44,3 +44,4 @@ git revert the dedicated ownership-status decoupling commit.
 ## Journal
 
 - 2026-09-11T12:22:57Z [implementation] — Removed the lifecycle-status predicate from commit-local ownership: task export + declared relevant path + same commit prove ownership whether sibling is active, blocked or done. Added a parameterized real-git regression across all three states; 44 focused tests, mypy, ruff and dedupe baseline pass. Unknown/uncommitted/ambiguous paths remain covered by existing negative behavior.
+- 2026-09-11T12:26:10Z [implementation] — Verify #2403 confirms commit-local active/blocked ownership works for task commits, but exposes a separate source: framework-generated AGENTS.md/CLAUDE.md dynamic-state commit has no task export and therefore correctly remains unknown under this task's strict rule. Do not broaden ownership to arbitrary commits; handle generated dynamic-block-only changes in a dedicated task.

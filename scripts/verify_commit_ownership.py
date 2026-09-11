@@ -16,6 +16,7 @@ Unknown, malformed, ambiguous and uncommitted changes deliberately remain.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 from collections import defaultdict
@@ -27,6 +28,10 @@ from verify_git_diff import _is_repo_root, _normalize_repo_path
 
 _TASK_PREFIX = "tausik/tasks/"
 _TASK_SUFFIX = ".md"
+_DYNAMIC_FILES = frozenset({"AGENTS.md", "CLAUDE.md"})
+_DYNAMIC_BLOCK = re.compile(
+    r"<!-- DYNAMIC:START -->.*?<!-- DYNAMIC:END -->", re.DOTALL
+)
 
 
 def _git_text(
@@ -57,6 +62,17 @@ def _task_metadata(blob: str | None) -> dict[str, object] | None:
         return parse_frontmatter(frontmatter)
     except ParseError:
         return None
+
+
+def _is_dynamic_only_change(previous: str | None, current: str | None) -> bool:
+    """True only when one well-formed DYNAMIC block is the whole change."""
+    if previous is None or current is None:
+        return False
+    previous_blocks = _DYNAMIC_BLOCK.findall(previous)
+    current_blocks = _DYNAMIC_BLOCK.findall(current)
+    if len(previous_blocks) != 1 or len(current_blocks) != 1:
+        return False
+    return _DYNAMIC_BLOCK.sub("<dynamic>", previous) == _DYNAMIC_BLOCK.sub("<dynamic>", current)
 
 
 def foreign_completed_paths_since(
@@ -100,6 +116,11 @@ def foreign_completed_paths_since(
         if names is None:
             continue
         changed = {_normalize_repo_path(line) for line in names.splitlines() if line.strip()}
+        for path in changed & _DYNAMIC_FILES:
+            previous_blob = _git_text(["git", "show", f"{commit}^:{path}"], base=base, run=run)
+            current_blob = _git_text(["git", "show", f"{commit}:{path}"], base=base, run=run)
+            if _is_dynamic_only_change(previous_blob, current_blob):
+                claimants[path].add("__dynamic_projection__")
         task_exports = sorted(
             path for path in changed if path.startswith(_TASK_PREFIX) and path.endswith(_TASK_SUFFIX)
         )

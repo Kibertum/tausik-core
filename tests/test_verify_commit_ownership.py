@@ -15,8 +15,14 @@ if _SCRIPTS not in sys.path:
 import verify_scope_honesty as honesty  # noqa: E402
 
 
-def _git(root, *args):
-    return subprocess.run(["git", *args], cwd=root, check=True, capture_output=True, text=True)
+def _git(root, *args, date=None):
+    env = os.environ.copy()
+    if date:
+        env["GIT_AUTHOR_DATE"] = date
+        env["GIT_COMMITTER_DATE"] = date
+    return subprocess.run(
+        ["git", *args], cwd=root, check=True, capture_output=True, text=True, env=env
+    )
 
 
 def _task(slug, status, files):
@@ -39,6 +45,15 @@ def _repo(tmp_path):
     _git(tmp_path, "add", ".")
     _git(tmp_path, "commit", "-m", "seed")
     return tmp_path
+
+
+def _instructions(dynamic, *, static="static\n"):
+    return (
+        static
+        + "<!-- DYNAMIC:START -->\n"
+        + dynamic
+        + "\n<!-- DYNAMIC:END -->\n"
+    )
 
 
 @pytest.mark.parametrize("sibling_status", ["active", "blocked", "done"])
@@ -72,3 +87,36 @@ def test_uncommitted_undeclared_path_still_reddens_after_sibling_commit(tmp_path
 
     assert description["status"] == honesty.STATUS_UNDER_DECLARED
     assert description["undeclared"] == ["secret.py"]
+
+
+@pytest.mark.parametrize("path", ["AGENTS.md", "CLAUDE.md"])
+def test_committed_dynamic_block_only_is_not_charged_to_subject(tmp_path, path):
+    root = _repo(tmp_path)
+    _write(root, path, _instructions("old"))
+    _git(root, "add", path)
+    _git(root, "commit", "-m", "add instructions", date="2000-01-01T00:00:00Z")
+    _write(root, path, _instructions("new"))
+    _git(root, "add", path)
+    _git(root, "commit", "-m", "refresh dynamic state", date="2000-01-02T00:00:00Z")
+
+    description = honesty.describe_declared_scope(
+        ["subject.py"], "2000-01-01T12:00:00Z", root=str(root), task_slug="subject"
+    )
+
+    assert description["status"] == honesty.STATUS_COMPLETE
+
+
+def test_static_instruction_edit_stays_undeclared(tmp_path):
+    root = _repo(tmp_path)
+    _write(root, "AGENTS.md", _instructions("old"))
+    _git(root, "add", "AGENTS.md")
+    _git(root, "commit", "-m", "add instructions", date="2000-01-01T00:00:00Z")
+    _write(root, "AGENTS.md", _instructions("new", static="changed static\n"))
+    _git(root, "add", "AGENTS.md")
+    _git(root, "commit", "-m", "edit instructions", date="2000-01-02T00:00:00Z")
+
+    description = honesty.describe_declared_scope(
+        ["subject.py"], "2000-01-01T12:00:00Z", root=str(root), task_slug="subject"
+    )
+
+    assert description["undeclared"] == ["AGENTS.md"]
