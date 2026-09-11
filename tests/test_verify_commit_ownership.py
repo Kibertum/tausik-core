@@ -89,6 +89,21 @@ def test_uncommitted_undeclared_path_still_reddens_after_sibling_commit(tmp_path
     assert description["undeclared"] == ["secret.py"]
 
 
+def test_two_sibling_exports_in_one_commit_remain_ambiguous(tmp_path):
+    root = _repo(tmp_path)
+    _write(root, "foreign.py", "claimed twice\n")
+    _write(root, "tausik/tasks/sibling.md", _task("sibling", "active", ["foreign.py"]))
+    _write(root, "tausik/tasks/other.md", _task("other", "active", ["foreign.py"]))
+    _git(root, "add", ".")
+    _git(root, "commit", "-m", "ambiguous sibling scope")
+
+    description = honesty.describe_declared_scope(
+        ["subject.py"], "1970-01-01T00:00:00Z", root=str(root), task_slug="subject"
+    )
+
+    assert description["undeclared"] == ["foreign.py"]
+
+
 @pytest.mark.parametrize("path", ["AGENTS.md", "CLAUDE.md"])
 def test_committed_dynamic_block_only_is_not_charged_to_subject(tmp_path, path):
     root = _repo(tmp_path)
@@ -114,6 +129,37 @@ def test_static_instruction_edit_stays_undeclared(tmp_path):
     _write(root, "AGENTS.md", _instructions("new", static="changed static\n"))
     _git(root, "add", "AGENTS.md")
     _git(root, "commit", "-m", "edit instructions", date="2000-01-02T00:00:00Z")
+
+    description = honesty.describe_declared_scope(
+        ["subject.py"], "2000-01-01T12:00:00Z", root=str(root), task_slug="subject"
+    )
+
+    assert description["undeclared"] == ["AGENTS.md"]
+
+
+def test_malformed_dynamic_marker_stays_undeclared(tmp_path):
+    root = _repo(tmp_path)
+    _write(root, "AGENTS.md", _instructions("old"))
+    _git(root, "add", "AGENTS.md")
+    _git(root, "commit", "-m", "add instructions", date="2000-01-01T00:00:00Z")
+    _write(root, "AGENTS.md", "static\n<!-- DYNAMIC:START -->\nnew\n")
+    _git(root, "add", "AGENTS.md")
+    _git(root, "commit", "-m", "break marker", date="2000-01-02T00:00:00Z")
+
+    description = honesty.describe_declared_scope(
+        ["subject.py"], "2000-01-01T12:00:00Z", root=str(root), task_slug="subject"
+    )
+
+    assert description["undeclared"] == ["AGENTS.md"]
+
+
+def test_uncommitted_dynamic_block_stays_undeclared(tmp_path):
+    root = _repo(tmp_path)
+    _write(root, "AGENTS.md", _instructions("old"))
+    _git(root, "add", "AGENTS.md")
+    _git(root, "commit", "-m", "add instructions", date="2000-01-01T00:00:00Z")
+    _write(root, "AGENTS.md", _instructions("new"))
+    _git(root, "add", "AGENTS.md")
 
     description = honesty.describe_declared_scope(
         ["subject.py"], "2000-01-01T12:00:00Z", root=str(root), task_slug="subject"

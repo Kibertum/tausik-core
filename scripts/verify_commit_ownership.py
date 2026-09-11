@@ -105,6 +105,7 @@ def foreign_completed_paths_since(
         return set()
 
     claimants: dict[str, set[str]] = defaultdict(set)
+    ambiguous: set[str] = set()
     for commit in (line.strip() for line in commits.splitlines()):
         if not commit:
             continue
@@ -116,11 +117,12 @@ def foreign_completed_paths_since(
         if names is None:
             continue
         changed = {_normalize_repo_path(line) for line in names.splitlines() if line.strip()}
-        for path in changed & _DYNAMIC_FILES:
+        commit_claimants: dict[str, set[str]] = defaultdict(set)
+        for path in changed & _DYNAMIC_FILES & changed_paths:
             previous_blob = _git_text(["git", "show", f"{commit}^:{path}"], base=base, run=run)
             current_blob = _git_text(["git", "show", f"{commit}:{path}"], base=base, run=run)
             if _is_dynamic_only_change(previous_blob, current_blob):
-                claimants[path].add("__dynamic_projection__")
+                commit_claimants[path].add("__dynamic_projection__")
         task_exports = sorted(
             path for path in changed if path.startswith(_TASK_PREFIX) and path.endswith(_TASK_SUFFIX)
         )
@@ -147,5 +149,10 @@ def foreign_completed_paths_since(
             if isinstance(story, str) and story:
                 owned.add(f"tausik/stories/{story}.md")
             for path in owned & changed_paths & changed:
-                claimants[path].add(slug)
-    return {path for path, owners in claimants.items() if len(owners) == 1}
+                commit_claimants[path].add(slug)
+        for path, owners in commit_claimants.items():
+            if len(owners) == 1:
+                claimants[path].update(owners)
+            else:
+                ambiguous.add(path)
+    return set(claimants).difference(ambiguous)
