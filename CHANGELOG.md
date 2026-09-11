@@ -9,6 +9,12 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — action-first I-Have-ADHD output skill on every bootstrap host
+
+The shared harness now deploys the MIT-licensed, source-attributed adapted
+`/i-have-adhd` skill to every supported host. It shapes user-facing output
+without shortening TAUSIK journals, signed verify receipts, or QG-2 evidence.
+
 ### Fixed — the write gate now reads declared `pathlib` mutations
 
 The shared Python AST reader now catches the declared `Path` mutation family,

@@ -66,9 +66,9 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 <!-- DYNAMIC:START -->
 ## Current State
 Session: #242 (active) | Branch: v1-9-wave | Version: 1.9.0
-Tasks: 1428/1603 done, 1 active, 8 blocked
-Active: scoped-pytest
-Blocked: verify-certifies-a-run-that-touched-no-test-of-the-subject, ci-lane-runs-on-main-only-so-the-release-branch-is, write-gate-is-blind-to-pathlib-writes, codex-live-acceptance-proves-the-host, verify-uses-commit-history-as-task-diff, tree-subagent-reviewer, commit-ownership, verify-dynamic-state
+Tasks: 1428/1603 done, 1 active, 10 blocked
+Active: adopt-the-i-have-adhd-answer-rules-as-the-project-
+Blocked: brainh-reliability, verify-certifies-a-run-that-touched-no-test-of-the-subject, ci-lane-runs-on-main-only-so-the-release-branch-is, write-gate-is-blind-to-pathlib-writes, codex-live-acceptance-proves-the-host, verify-uses-commit-history-as-task-diff, scoped-pytest, tree-subagent-reviewer, commit-ownership, verify-dynamic-state
 
 ### Memory tail
 Context (5):

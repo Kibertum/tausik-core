@@ -66,6 +66,16 @@ def _enable_brain_for_test(target: str) -> None:
 
 
 class TestBootstrapSkillsCoverage:
+    def test_i_have_adhd_skill_keeps_evidence_outside_presentation_rule(self):
+        skill = os.path.join(_builtin_skills_dir, "i-have-adhd", "SKILL.md")
+        text = open(skill, encoding="utf-8").read()
+
+        assert "https://github.com/ayghri/i-have-adhd" in text
+        assert "not a verbatim copy" in text
+        assert "output-presentation" in text
+        assert "signed verify receipts" in text
+        assert os.path.isfile(os.path.join(os.path.dirname(skill), "LICENSE"))
+
     def test_codex_skills_match_claude_apply_overlay_and_preserve_agents(self, tmp_path):
         """Codex receives the same skills, then its session rebuild applies its delta."""
         claude_project = tmp_path / "claude"
@@ -81,6 +91,10 @@ class TestBootstrapSkillsCoverage:
             path.name for path in codex_skills.iterdir()
         }
         assert all((path / "SKILL.md").is_file() for path in codex_skills.iterdir())
+        for skills_dir in (claude_skills, codex_skills):
+            deployed = skills_dir / "i-have-adhd"
+            assert "output-presentation" in (deployed / "SKILL.md").read_text(encoding="utf-8")
+            assert "MIT License" in (deployed / "LICENSE").read_text(encoding="utf-8")
 
         stale_skill = codex_skills / "stale"
         stale_skill.mkdir()
@@ -154,6 +168,7 @@ class TestBootstrapSkillsCoverage:
             "checkpoint",
             "explore",
             "brain",
+            "i-have-adhd",
         }
         _enable_brain_for_test(str(tmp_path))
         result = _run_bootstrap(str(tmp_path))

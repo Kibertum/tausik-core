@@ -296,10 +296,10 @@ def build_header(project_name: str, stacks: list[str], agent_name: str) -> str:
 def build_skills_section(ide_subdir: str) -> str:
     return (
         f"## Skills\n\n"
-        f"After bootstrap, **12 core skills** ship from `harness/skills/` and are always available: "
+        f"After bootstrap, **14 core skills** ship from `harness/skills/` and are always available: "
         f"`/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, "
-        f"`/review`, `/test`, `/debug`, `/explore`, `/interview`. "
-        f"`/brain` is the 13th core skill but only deploys when the project has Notion configured "
+        f"`/review`, `/test`, `/debug`, `/explore`, `/interview`, `/reason`, `/i-have-adhd`. "
+        f"`/brain` is the 15th core skill but only deploys when the project has Notion configured "
         f"(`tausik brain init`).\n\n"
         f"**25+ official/vendor skills** are opt-in via `python .tausik-lib/bootstrap/bootstrap.py "
         f"--include-official` (full bundle) or `tausik skill install <name>` (per skill) from the "

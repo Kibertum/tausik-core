@@ -1,22 +1,30 @@
 ---
 slug: adopt-the-i-have-adhd-answer-rules-as-the-project-
 title: "adopt the i-have-adhd answer rules as the project answer style"
-status: planning
+status: done
 epic: release-19-agent-effectiveness
 story: context-carries-over-between-sessions
-complexity: null
+complexity: medium
 role: tech-writer
-stack: null
+stack: python
 tier: null
 call_budget: null
 defect_of: null
-scope: null
-scope_exclude: null
-relevant_files: []
+scope: "harness/skills/i-have-adhd/; shared skill-deployment manifests/templates and focused tests/docs that enumerate cross-host discovery."
+scope_exclude: "Do not weaken task journals, verify receipts, acceptance evidence or docstrings; do not modify unrelated official skills; do not release, tag, push, or touch user-owned .agents/."
+relevant_files:
+  - "harness/skills/i-have-adhd/SKILL.md"
+  - "harness/skills/i-have-adhd/LICENSE"
+  - "bootstrap/bootstrap_templates.py"
+  - "tests/test_bootstrap_skills_coverage.py"
+  - "docs/en/skills.md"
+  - "docs/ru/skills.md"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
 scope_paths: []
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-11T13:13:44Z"
 ---
 
 ## Goal
@@ -38,6 +46,14 @@ AC-4. НЕГАТИВ: правило не должно сокращать то, 
 
 ## Plan
 
+[{"step": "Inspect the upstream SKILL.md and license plus existing cross-host skill deployment surfaces.", "done": true}, {"step": "Vendor the source-attributed skill and connect it through the shared harness without altering evidence requirements.", "done": true}, {"step": "Add focused behavioral/documentation coverage proving every supported host sees it and that evidence remains full.", "done": true}, {"step": "Run focused tests, lint/type checks and a review; record evidence before signed verify.", "done": true}]
+
 ## Rollback
 
+git revert of the dedicated skill adoption commit
+
 ## Journal
+
+- 2026-09-11T13:06:02Z [implementation] — L3 review found four MEDIUM issues. Fixed: generated bootstrap inventory now names 14 always-on skills including /reason and /i-have-adhd, with /brain conditional as 15th; cross-host test now asserts deployed SKILL.md and MIT LICENSE in both Claude and Codex. Re-run: 165 focused tests PASS, ruff PASS. Remaining review item before closure: establish source-fidelity policy for condensed adaptation versus verbatim upstream skill; do not claim the shortened SKILL is a verbatim vendor copy.
+- 2026-09-11T13:06:59Z [implementation] — Resolved L3 source-fidelity finding without a false verbatim claim: SKILL now identifies itself as an adapted derivative, cites upstream path/date/license, states omitted upstream rationale/examples, retained normative intent, and identifies the TAUSIK overlay. Focused suite re-run: 165 passed in 4.16s; skill_spec_conformance and git diff --check pass. Remaining before QG-2: captured real cross-host bootstrap result, final review gates, signed verify.
+- 2026-09-11T13:11:37Z [implementation] — Final evidence: source verify #2408 is signed/presentable with declared scope complete, ruff=PASS and pytest=PASS in 35.5s. Review gate was re-run on all six changed carriers; no surviving process or diff-whitespace finding. L3 review #43 findings resolved: host template, cross-host MIT-copy assertion, count drift, and explicit adapted-derivative/source-fidelity record. AC-1 source+MIT; AC-2 shared bootstrap + Claude/Codex assertions; AC-3 TAUSIK boundary; AC-4 signed verify preserves full evidence.
