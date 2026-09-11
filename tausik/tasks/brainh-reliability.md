@@ -1,7 +1,7 @@
 ---
 slug: brainh-reliability
 title: "Notion как опциональный двусторонний sync: offline-очередь + local-first + health"
-status: planning
+status: blocked
 epic: shared-knowledge
 story: kb-notion
 complexity: complex
