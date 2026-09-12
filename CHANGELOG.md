@@ -9,6 +9,11 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — release roadmap is regenerated from live task state
+
+The committed release roadmap is refreshed after task lifecycle changes, so its
+counters remain subject to the live-database ratchet.
+
 ### Fixed — the version-ref drift check exempted the generated block only in CLAUDE.md
 
 `scan_version_refs` stripped the generated DYNAMIC block (memory tail, decision
