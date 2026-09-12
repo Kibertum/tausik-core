@@ -2,8 +2,8 @@
 slug: full-suite-runs-only-in-ci-and-ci-has-not-run
 title: "Полный прогон живёт только в CI, а CI не запускался 13 дней и 11 коммитов"
 status: planning
-epic: arch-debt-post-18
-story: adp18-quality-signals
+epic: release-110-deferred-from-19
+story: deferred-110-audit-hygiene
 complexity: medium
 role: qa
 stack: null

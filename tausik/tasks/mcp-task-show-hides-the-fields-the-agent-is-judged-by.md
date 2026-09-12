@@ -2,8 +2,8 @@
 slug: mcp-task-show-hides-the-fields-the-agent-is-judged-by
 title: "MCP task_show скрывает поля, по которым агента судят: область записи и план отката"
 status: planning
-epic: release-19-agent-effectiveness
-story: surfaces-do-not-diverge
+epic: release-110-deferred-from-19
+story: deferred-110-host-parity-refactors
 complexity: medium
 role: backend
 stack: python

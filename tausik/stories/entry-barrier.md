@@ -1,7 +1,7 @@
 ---
 slug: entry-barrier
 title: "Барьер входа: от трёх шагов к одной команде"
-status: open
+status: done
 epic: visibility-stream
 ---
 

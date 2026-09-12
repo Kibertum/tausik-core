@@ -2,8 +2,8 @@
 slug: rule-on-ruff-016-new-defaults
 title: "Принять или отвергнуть новые умолчания ruff 0.16: 1539 находок, по каждому правилу решение"
 status: planning
-epic: landscape-2026-h2
-story: l26-narrative
+epic: release-110-deferred-from-19
+story: deferred-110-audit-hygiene
 complexity: medium
 role: backend
 stack: null

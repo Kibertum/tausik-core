@@ -1,7 +1,7 @@
 ---
 slug: kb-global
 title: "Общая база знаний в папке пользователя"
-status: active
+status: done
 epic: shared-knowledge
 ---
 

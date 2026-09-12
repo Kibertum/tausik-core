@@ -2,8 +2,8 @@
 slug: cmd-wrapper-silently-truncates-multiline-arguments
 title: "Windows-обёртка tausik.cmd молча обрезает любой многострочный аргумент по первой строке"
 status: planning
-epic: arch-debt-post-18
-story: adp18-module-boundaries
+epic: release-110-deferred-from-19
+story: deferred-110-architecture-and-research
 complexity: medium
 role: backend
 stack: null

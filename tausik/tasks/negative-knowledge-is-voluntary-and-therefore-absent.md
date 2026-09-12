@@ -2,8 +2,8 @@
 slug: negative-knowledge-is-voluntary-and-therefore-absent
 title: "Отрицательное знание добровольно и потому отсутствует: 67 задач с красным verify и ноль dead_end"
 status: planning
-epic: release-19-renar-conformance
-story: knowledge-records-what-failed-19
+epic: release-110-deferred-from-19
+story: deferred-110-knowledge-lifecycle
 complexity: medium
 role: architect
 stack: python

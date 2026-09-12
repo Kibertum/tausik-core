@@ -2,8 +2,8 @@
 slug: tc-as-a-first-class-artifact-coverage-from-statements
 title: "TC как артефакт: покрытие считается от утверждений, а не от числа тестов"
 status: planning
-epic: release-19-renar-conformance
-story: evidence-is-substance-not-keywords
+epic: release-110-deferred-from-19
+story: deferred-110-audit-hygiene
 complexity: complex
 role: architect
 stack: python

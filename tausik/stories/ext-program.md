@@ -1,7 +1,7 @@
 ---
 slug: ext-program
 title: "Этапы p0-p4 программы расширения"
-status: open
+status: done
 epic: vscode-extension
 ---
 

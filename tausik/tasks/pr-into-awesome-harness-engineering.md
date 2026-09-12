@@ -2,8 +2,8 @@
 slug: pr-into-awesome-harness-engineering
 title: "PR в awesome-harness-engineering: нас там ноль упоминаний"
 status: planning
-epic: visibility-stream
-story: field-presence
+epic: release-110-deferred-from-19
+story: deferred-110-outward-loop-and-test-authorship
 complexity: simple
 role: tech-writer
 stack: null

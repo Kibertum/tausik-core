@@ -2,8 +2,8 @@
 slug: document-deliberate-gaps-apart-from-known-bugs
 title: "Намеренные пробелы не отделены от дефектов, и читатель принимает их за гарантии"
 status: planning
-epic: release-19-renar-conformance
-story: evidence-is-substance-not-keywords
+epic: release-110-deferred-from-19
+story: deferred-110-audit-hygiene
 complexity: medium
 role: tech-writer
 stack: python

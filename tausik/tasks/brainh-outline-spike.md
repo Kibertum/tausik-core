@@ -2,8 +2,8 @@
 slug: brainh-outline-spike
 title: "[P2] Spike: Outline как alt-backend brain"
 status: planning
-epic: brain-hardening
-story: brainh-core
+epic: release-110-deferred-from-19
+story: deferred-110-knowledge-lifecycle
 complexity: medium
 role: architect
 stack: null

@@ -2,8 +2,8 @@
 slug: two-absoluteness-predicates-must-become-one
 title: "Два предиката абсолютности пути живут в двух модулях и обязаны стать одним"
 status: planning
-epic: arch-debt-post-18
-story: adp18-module-boundaries
+epic: release-110-deferred-from-19
+story: deferred-110-architecture-and-research
 complexity: simple
 role: backend
 stack: null

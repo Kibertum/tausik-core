@@ -1,7 +1,7 @@
 ---
 slug: adp18-module-boundaries
 title: "Границы модулей и области проверок, найденные при работе над 1.8"
-status: active
+status: done
 epic: arch-debt-post-18
 ---
 

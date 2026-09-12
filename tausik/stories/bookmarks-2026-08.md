@@ -1,7 +1,7 @@
 ---
 slug: bookmarks-2026-08
 title: "Разбор закладок владельца за июнь-август 2026: сигнал ландшафта"
-status: open
+status: done
 epic: landscape-2026-h2
 ---
 

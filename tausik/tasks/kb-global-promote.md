@@ -2,8 +2,8 @@
 slug: kb-global-promote
 title: "Предложение повысить запись в общую базу при повторе в разных проектах"
 status: planning
-epic: release-19-agent-effectiveness
-story: memory-retrieves-by-relevance
+epic: release-110-deferred-from-19
+story: deferred-110-knowledge-lifecycle
 complexity: complex
 role: architect
 stack: python

@@ -2,8 +2,8 @@
 slug: orphaned-edges-never-converge-so-every-departure-pays-for-them
 title: "Осиротевшие рёбра не очищаются никогда: каждый уход записи платит за все прошлые, и счёт растёт монотонно"
 status: planning
-epic: release-19-renar-conformance
-story: knowledge-sheds-notion-and-its-hygiene
+epic: release-110-deferred-from-19
+story: deferred-110-audit-hygiene
 complexity: medium
 role: developer
 stack: python

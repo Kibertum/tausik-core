@@ -2,8 +2,8 @@
 slug: doctor-warns-forever-about-a-deliberate-verify-profile
 title: "doctor предупреждает вечно о профиле Verify-First, который выбран осознанно — предупреждение, которое нельзя погасить, обесценивает все остальные"
 status: planning
-epic: arch-debt-post-18
-story: adp18-quality-signals
+epic: release-110-deferred-from-19
+story: deferred-110-audit-hygiene
 complexity: null
 role: architect
 stack: python

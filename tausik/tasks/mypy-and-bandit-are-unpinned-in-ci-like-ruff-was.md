@@ -2,8 +2,8 @@
 slug: mypy-and-bandit-are-unpinned-in-ci-like-ruff-was
 title: "mypy и bandit в CI стоят без пина — тот же класс, что уронил гейт ruff в день выпуска"
 status: planning
-epic: landscape-2026-h2
-story: l26-narrative
+epic: release-110-deferred-from-19
+story: deferred-110-audit-hygiene
 complexity: simple
 role: backend
 stack: null

@@ -2,8 +2,8 @@
 slug: memory-supersede-edges-are-data
 title: "Отменяющие связи в памяти живут в промпте, а не в данных"
 status: planning
-epic: release-19-renar-conformance
-story: knowledge-records-what-failed-19
+epic: release-110-deferred-from-19
+story: deferred-110-knowledge-lifecycle
 complexity: medium
 role: developer
 stack: python

@@ -2,8 +2,8 @@
 slug: one-live-handoff-slot-supersedes-the-previous
 title: "Передача смены не имеет единственного живого держателя"
 status: planning
-epic: landscape-2026-h2
-story: borrow-kaeru
+epic: release-110-deferred-from-19
+story: deferred-110-architecture-and-research
 complexity: medium
 role: backend
 stack: python

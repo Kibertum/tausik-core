@@ -2,8 +2,8 @@
 slug: tool-call-syntax-leaks-into-entity-text
 title: "Синтаксис tool-call протекает в текстовые поля сущностей и уезжает в git-проекцию: 64 файла, 147 строк"
 status: planning
-epic: arch-debt-post-18
-story: adp18-quality-signals
+epic: release-110-deferred-from-19
+story: deferred-110-audit-hygiene
 complexity: medium
 role: developer
 stack: python

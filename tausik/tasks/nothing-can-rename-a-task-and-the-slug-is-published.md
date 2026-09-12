@@ -2,8 +2,8 @@
 slug: nothing-can-rename-a-task-and-the-slug-is-published
 title: "Фреймворк не умеет переименовать задачу, а слаг есть имя публикуемого файла"
 status: planning
-epic: arch-debt-post-18
-story: adp18-quality-signals
+epic: release-110-deferred-from-19
+story: deferred-110-audit-hygiene
 complexity: medium
 role: backend
 stack: null

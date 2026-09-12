@@ -2,8 +2,8 @@
 slug: throwaway-db-guard-has-no-caller-while-its-docstring-names-one
 title: "Гард принадлежности БД мёртв: у is_working_project_db нет ни одного вызова, а докстринг называет его защитой единственного внешнего пути"
 status: planning
-epic: release-19-renar-conformance
-story: evidence-is-substance-not-keywords
+epic: release-110-deferred-from-19
+story: deferred-110-audit-hygiene
 complexity: medium
 role: developer
 stack: python

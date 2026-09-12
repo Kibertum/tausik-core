@@ -2,8 +2,8 @@
 slug: decisions-have-no-lifecycle
 title: "У решений нет жизненного цикла: неверное решение остаётся указанием навсегда, отвергнутое не ищется"
 status: planning
-epic: release-19-renar-conformance
-story: knowledge-records-what-failed-19
+epic: release-110-deferred-from-19
+story: deferred-110-knowledge-lifecycle
 complexity: complex
 role: architect
 stack: python

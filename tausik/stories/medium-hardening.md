@@ -1,6 +1,6 @@
 ---
 slug: medium-hardening
 title: "Medium-priority hardening (MED+LOW)"
-status: open
+status: done
 epic: v131-blind-review-fixes
 ---

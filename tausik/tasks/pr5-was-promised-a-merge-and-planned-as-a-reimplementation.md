@@ -2,8 +2,8 @@
 slug: pr5-was-promised-a-merge-and-planned-as-a-reimplementation
 title: "Внешнему автору публично обещан МЕРЖ его коммитов, а запланирован ПЕРЕНОС чужими руками — обещанию 25 дней, PR открыт"
 status: planning
-epic: release-19-renar-conformance
-story: obligations-to-people-are-settled
+epic: release-110-deferred-from-19
+story: deferred-110-outward-loop-and-test-authorship
 complexity: complex
 role: architect
 stack: null

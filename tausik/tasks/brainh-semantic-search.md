@@ -2,8 +2,8 @@
 slug: brainh-semantic-search
 title: "[P1] Brain semantic search (локальные embeddings)"
 status: planning
-epic: shared-knowledge
-story: km-knowledge-layer
+epic: release-110-deferred-from-19
+story: deferred-110-knowledge-lifecycle
 complexity: complex
 role: developer
 stack: python

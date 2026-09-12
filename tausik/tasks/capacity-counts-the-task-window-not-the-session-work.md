@@ -2,8 +2,8 @@
 slug: capacity-counts-the-task-window-not-the-session-work
 title: "Ёмкость и калибровка считаются по окну задачи, а не по работе сессии: свежая сессия объявлена перерасходованной"
 status: planning
-epic: release-19-agent-effectiveness
-story: parallel-work-runs-without-collisions
+epic: release-110-deferred-from-19
+story: deferred-110-architecture-and-research
 complexity: complex
 role: backend
 stack: null

@@ -2,8 +2,8 @@
 slug: task-quick-slugifier-drops-cyrillic-and-yields-deg
 title: "task quick slugifier drops Cyrillic and yields degenerate slugs"
 status: planning
-epic: null
-story: null
+epic: release-110-deferred-from-19
+story: deferred-110-architecture-and-research
 complexity: null
 role: developer
 stack: python

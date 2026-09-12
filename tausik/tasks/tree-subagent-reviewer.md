@@ -2,8 +2,8 @@
 slug: tree-subagent-reviewer
 title: "Объявить предмет tree-итератора subagent reviewer"
 status: blocked
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: release19-proof-integrity
 complexity: simple
 role: developer
 stack: python

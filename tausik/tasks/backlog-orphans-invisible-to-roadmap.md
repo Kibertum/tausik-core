@@ -2,8 +2,8 @@
 slug: backlog-orphans-invisible-to-roadmap
 title: "Девятнадцать сирот бэклога разложить по историям: невидимы для roadmap и для охвата релиза"
 status: planning
-epic: arch-debt-post-18
-story: adp18-quality-signals
+epic: release-110-deferred-from-19
+story: deferred-110-audit-hygiene
 complexity: simple
 role: architect
 stack: python

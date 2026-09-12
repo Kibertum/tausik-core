@@ -2,8 +2,8 @@
 slug: checklist-warning-contradicts-the-evidence-it-reads
 title: "Предупреждение о чек-листе утверждает, что критерии не называют тестов, когда они их называют"
 status: planning
-epic: release-19-renar-conformance
-story: evidence-is-substance-not-keywords
+epic: release-110-deferred-from-19
+story: deferred-110-audit-hygiene
 complexity: simple
 role: developer
 stack: python

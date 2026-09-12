@@ -2,8 +2,8 @@
 slug: doc-language-pairs-have-drifted-and-three-are-unpaired
 title: "Пять пар документов разошлись между языками, три существуют в одном языке — читатель второй половины видит другой продукт"
 status: planning
-epic: release-19-agent-effectiveness
-story: surfaces-do-not-diverge
+epic: release-110-deferred-from-19
+story: deferred-110-host-parity-refactors
 complexity: medium
 role: developer
 stack: python

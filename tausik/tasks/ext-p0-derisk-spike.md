@@ -2,8 +2,8 @@
 slug: ext-p0-derisk-spike
 title: "[ext P0] De-risk spike: bundled MCP + per-client config + hybrid Python"
 status: planning
-epic: vscode-extension
-story: ext-program
+epic: v2-client
+story: v2-client-delivery
 complexity: null
 role: architect
 stack: null

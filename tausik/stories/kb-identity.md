@@ -1,7 +1,7 @@
 ---
 slug: kb-identity
 title: "Кросс-машинная идентичность записей"
-status: open
+status: done
 epic: shared-knowledge
 ---
 

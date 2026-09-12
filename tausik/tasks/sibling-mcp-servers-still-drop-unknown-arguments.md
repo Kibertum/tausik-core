@@ -2,8 +2,8 @@
 slug: sibling-mcp-servers-still-drop-unknown-arguments
 title: "Два соседних MCP-сервера по-прежнему принимают необъявленный параметр молча"
 status: planning
-epic: release-19-agent-effectiveness
-story: surfaces-do-not-diverge
+epic: release-110-deferred-from-19
+story: deferred-110-host-parity-refactors
 complexity: medium
 role: developer
 stack: python

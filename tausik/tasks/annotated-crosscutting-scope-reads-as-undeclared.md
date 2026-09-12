@@ -2,8 +2,8 @@
 slug: annotated-crosscutting-scope-reads-as-undeclared
 title: "Аннотированное объявление области читается парсером как отсутствие объявления"
 status: planning
-epic: arch-debt-post-18
-story: adp18-quality-signals
+epic: release-110-deferred-from-19
+story: deferred-110-audit-hygiene
 complexity: simple
 role: backend
 stack: null

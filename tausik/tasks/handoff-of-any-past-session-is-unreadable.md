@@ -2,8 +2,8 @@
 slug: handoff-of-any-past-session-is-unreadable
 title: "Хэндофф любой сессии, кроме последней, не читается ни CLI, ни MCP"
 status: planning
-epic: arch-debt-post-18
-story: adp18-module-boundaries
+epic: release-110-deferred-from-19
+story: deferred-110-architecture-and-research
 complexity: simple
 role: backend
 stack: null

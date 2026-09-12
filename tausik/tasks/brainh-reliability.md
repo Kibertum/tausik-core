@@ -1,6 +1,6 @@
 ---
 slug: brainh-reliability
-title: "Notion как опциональный двусторонний sync: offline-очередь + local-first + health"
+title: "[SUPERSEDED] Notion bidirectional sync"
 status: blocked
 epic: shared-knowledge
 story: kb-notion
@@ -21,15 +21,11 @@ completed_at: null
 
 ## Goal
 
-Локальный KB — источник истины. Когда Notion включён, синхронизировать с ним двусторонне: local-first запись (никогда не блокируем на сети), offline-очередь для отложенной доставки, health-сигнал состояния синхронизации в doctor. Разрешение конфликтов детерминировано (local wins по умолчанию, с журналом расхождений). Часть KB-трека 1.8 (перенесено из brain-hardening по решению «Notion остаётся опцией»).
+Исходная реализация Notion sync НЕ выполняется: предмет снят решением владельца #358, которое удаляет Notion целиком. Терминальный результат этой задачи — зафиксированная отмена без продуктовых изменений; необходимое удаление выполняется отдельно в [1.9] remove-the-notion-wizard-token-cascade-and-project-registry.
 
 ## Acceptance Criteria
 
-1. Локальный KB — источник истины; запись local-first НИКОГДА не блокируется на сети (тест: при недоступном Notion запись проходит немедленно).
-2. При включённом Notion работает двусторонняя синхронизация; отложенная доставка идёт через offline-очередь.
-3. Разрешение конфликтов детерминировано (local wins по умолчанию) с журналом расхождений.
-4. doctor показывает health-сигнал состояния синхронизации (в норме / очередь не пуста / ошибка).
-CHANGELOG.md [Unreleased] и зеркало CHANGELOG.ru.md обновлены прозаической записью об этом изменении.
+AC-1: решение #358 и замена задачей удаления Notion зафиксированы в журнале. AC-2: не добавлены offline queue, retry, health signal или двусторонняя синхронизация. AC-3 (negative): задача не заявляет, что исходные функциональные AC реализованы.
 
 ## Plan
 
@@ -38,3 +34,5 @@ CHANGELOG.md [Unreleased] и зеркало CHANGELOG.ru.md обновлены �
 ## Journal
 
 - 2026-07-20T10:40:42Z [planning] — КАНДИДАТ НА ЗАКРЫТИЕ (решение #153, сессия #120). Решает ту же проблему, что kb-notion-publisher, но противоположным способом: делает Notion надёжнее ВНУТРИ критического пути агента (offline-очередь, retry, health), тогда как shared-knowledge убирает Notion из критического пути вовсе. Второй подход строго лучше: он снимает класс отказа, а не смягчает его. Закрывать после того, как kb-notion-publisher принят к работе.
+- 2026-09-12T10:44:09Z — SUPERSEDED terminal disposition: owner decision #358 removes Notion entirely. Original AC are retired, not implemented; replacement is the approved 1.9 removal task.
+- 2026-09-12T10:44:19Z — AC verified for terminal disposition: 1) decision #358 and replacement task are recorded; 2) no Notion sync implementation was added; 3) original functional AC are explicitly retired, not claimed.

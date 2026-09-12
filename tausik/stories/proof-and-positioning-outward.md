@@ -1,7 +1,7 @@
 ---
 slug: proof-and-positioning-outward
 title: "[ПЕРЕНЕСЕНО В 1.10] Доказательства и позиционирование наружу: внешний бенчмарк, соседи, имя дисциплины"
-status: open
+status: done
 epic: release-19-renar-conformance
 ---
 

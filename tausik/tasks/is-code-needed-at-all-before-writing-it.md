@@ -2,8 +2,8 @@
 slug: is-code-needed-at-all-before-writing-it
 title: "Нет проверки на то, что задача вообще не требует кода"
 status: planning
-epic: release-19-renar-conformance
-story: evidence-is-substance-not-keywords
+epic: release-110-deferred-from-19
+story: deferred-110-audit-hygiene
 complexity: medium
 role: architect
 stack: python

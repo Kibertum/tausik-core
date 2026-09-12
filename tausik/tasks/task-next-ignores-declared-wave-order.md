@@ -2,8 +2,8 @@
 slug: task-next-ignores-declared-wave-order
 title: "task next не уважает объявленный порядок волны: голова волны не выдаётся, выигрывает несвязанная задача"
 status: planning
-epic: release-19-agent-effectiveness
-story: parallel-work-runs-without-collisions
+epic: release-110-deferred-from-19
+story: deferred-110-architecture-and-research
 complexity: medium
 role: architect
 stack: python

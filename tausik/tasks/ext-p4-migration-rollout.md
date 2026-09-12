@@ -2,8 +2,8 @@
 slug: ext-p4-migration-rollout
 title: "[ext P4] Migrate 30 projects off submodule-vendoring to extension-managed"
 status: planning
-epic: vscode-extension
-story: ext-program
+epic: v2-client
+story: v2-client-delivery
 complexity: null
 role: developer
 stack: null

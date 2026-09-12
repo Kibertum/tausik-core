@@ -2,8 +2,8 @@
 slug: v2-projection-hook-covers-every-write
 title: "[2.0] Перехват проекции покрывает КАЖДУЮ запись, а не UPDATE по слагу: снять ручной слой и сделать обещание кодом"
 status: planning
-epic: arch-debt-post-18
-story: adp18-projection-coverage
+epic: release-110-deferred-from-19
+story: deferred-110-architecture-and-research
 complexity: complex
 role: architect
 stack: python

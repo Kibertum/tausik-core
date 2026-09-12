@@ -2,8 +2,8 @@
 slug: schema-migrations-of-the-release-run-as-one-campaign
 title: "Десять миграций схемы в одном релизе, написанных независимо, — отдельный риск, а не сумма задач"
 status: planning
-epic: release-19-agent-effectiveness
-story: evidence-is-durable
+epic: release-110-deferred-from-19
+story: deferred-110-audit-hygiene
 complexity: medium
 role: architect
 stack: python

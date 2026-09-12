@@ -2,8 +2,8 @@
 slug: a-user-tier-workaround-leaks-into-every-project
 title: "Обходной путь в пользовательском тире молча распространяется на все проекты машины"
 status: planning
-epic: release-19-agent-effectiveness
-story: surfaces-do-not-diverge
+epic: release-110-deferred-from-19
+story: deferred-110-host-parity-refactors
 complexity: medium
 role: backend
 stack: null

@@ -2,8 +2,8 @@
 slug: r-mine-history-into-memory-candidates-30-or-dead-end
 title: "R: майнер истории в кандидаты памяти — тридцать процентов принятых или тупик"
 status: planning
-epic: research-with-a-death-date
-story: r19-hypotheses
+epic: release-110-deferred-from-19
+story: deferred-110-architecture-and-research
 complexity: complex
 role: architect
 stack: null

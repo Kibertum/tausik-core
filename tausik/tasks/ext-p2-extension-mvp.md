@@ -2,8 +2,8 @@
 slug: ext-p2-extension-mvp
 title: "[ext P2] Extension MVP: activation, .tausik provisioning, MCP registration, skills"
 status: planning
-epic: vscode-extension
-story: ext-program
+epic: v2-client
+story: v2-client-delivery
 complexity: null
 role: developer
 stack: null

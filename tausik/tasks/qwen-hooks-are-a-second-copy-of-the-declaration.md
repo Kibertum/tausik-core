@@ -2,8 +2,8 @@
 slug: qwen-hooks-are-a-second-copy-of-the-declaration
 title: "Профиль qwen строит хуки своим списком вместо общего объявления — разойдётся молча и не сразу"
 status: planning
-epic: release-19-renar-conformance
-story: codex-is-a-first-class-host
+epic: release-110-deferred-from-19
+story: deferred-110-host-parity-refactors
 complexity: medium
 role: developer
 stack: python

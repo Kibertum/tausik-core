@@ -1,7 +1,7 @@
 ---
 slug: kb-docs
 title: "Роевое комплексное обновление документации"
-status: active
+status: done
 epic: shared-knowledge
 ---
 

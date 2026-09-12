@@ -2,8 +2,8 @@
 slug: redact-exists-in-cli-and-is-absent-from-mcp
 title: "redact есть в CLI и отсутствует в MCP: поверхности разошлись на новой команде"
 status: planning
-epic: release-19-agent-effectiveness
-story: surfaces-do-not-diverge
+epic: release-110-deferred-from-19
+story: deferred-110-host-parity-refactors
 complexity: simple
 role: backend
 stack: null

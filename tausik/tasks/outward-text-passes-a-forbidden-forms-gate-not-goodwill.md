@@ -2,8 +2,8 @@
 slug: outward-text-passes-a-forbidden-forms-gate-not-goodwill
 title: "Текст, уходящий наружу, проверяется гейтом запрещённых форм, а не добросовестностью вызывающего"
 status: planning
-epic: release-19-renar-conformance
-story: evidence-is-substance-not-keywords
+epic: release-110-deferred-from-19
+story: deferred-110-audit-hygiene
 complexity: complex
 role: backend
 stack: null

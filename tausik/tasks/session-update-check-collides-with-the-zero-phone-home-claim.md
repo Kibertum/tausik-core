@@ -2,8 +2,8 @@
 slug: session-update-check-collides-with-the-zero-phone-home-claim
 title: "Проверка обновления раз в сессию сталкивается с обещанием README «0 обращений наружу»"
 status: planning
-epic: landscape-2026-h2
-story: l26-narrative
+epic: release-110-deferred-from-19
+story: deferred-110-audit-hygiene
 complexity: complex
 role: architect
 stack: null

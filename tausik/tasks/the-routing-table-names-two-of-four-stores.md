@@ -2,8 +2,8 @@
 slug: the-routing-table-names-two-of-four-stores
 title: "Таблица маршрутизации памяти называет два адреса из четырёх — и противоречит собственному выводу (GitLab #6)"
 status: planning
-epic: release-19-renar-conformance
-story: knowledge-records-what-failed-19
+epic: release-110-deferred-from-19
+story: deferred-110-knowledge-lifecycle
 complexity: medium
 role: tech-writer
 stack: null

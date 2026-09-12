@@ -2,8 +2,8 @@
 slug: closing-a-task-reddens-the-next-verify-silently
 title: "Закрытие задачи делает ROADMAP.md устаревшим, и следующий verify падает без указания причины"
 status: planning
-epic: release-19-renar-conformance
-story: evidence-and-hygiene-debt-paid-in-19
+epic: release-110-deferred-from-19
+story: deferred-110-audit-hygiene
 complexity: medium
 role: developer
 stack: python

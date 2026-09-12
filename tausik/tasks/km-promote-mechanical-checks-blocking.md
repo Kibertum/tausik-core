@@ -2,8 +2,8 @@
 slug: km-promote-mechanical-checks-blocking
 title: "В блокирующие — только механические проверки; перепрогон замера и решение продолжать или остановиться"
 status: planning
-epic: release-19-agent-effectiveness
-story: memory-retrieves-by-relevance
+epic: release-110-deferred-from-19
+story: deferred-110-knowledge-lifecycle
 complexity: medium
 role: developer
 stack: python

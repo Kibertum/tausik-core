@@ -2,8 +2,8 @@
 slug: a-passing-irrelevant-gate-unblocks-an-empty-verify
 title: "Квитанция подписывается, когда пропущен единственный значимый гейт: холостой PASS снимает защиту от полностью пропущенного прогона"
 status: planning
-epic: release-19-renar-conformance
-story: evidence-and-hygiene-debt-paid-in-19
+epic: release-110-deferred-from-19
+story: deferred-110-audit-hygiene
 complexity: medium
 role: architect
 stack: python

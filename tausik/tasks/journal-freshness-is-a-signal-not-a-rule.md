@@ -2,8 +2,8 @@
 slug: journal-freshness-is-a-signal-not-a-rule
 title: "Свежесть журнала — правило для агента, а не механизм: между записями теряется всё"
 status: planning
-epic: release-19-agent-effectiveness
-story: evidence-is-durable
+epic: release-110-deferred-from-19
+story: deferred-110-audit-hygiene
 complexity: medium
 role: developer
 stack: python

@@ -1,7 +1,7 @@
 ---
 slug: deferred-110-context-and-output-shape
 title: "1.10: непрерывность контекста и ФОРМА ответа — улучшают работу, но экономию не доказывают"
-status: open
+status: done
 epic: release-110-deferred-from-19
 ---
 

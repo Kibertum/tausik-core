@@ -2,8 +2,8 @@
 slug: schema-index-drift-fresh-vs-migrated
 title: "Индексы расходятся между свежей и мигрированной базой в обе стороны"
 status: planning
-epic: arch-debt-post-18
-story: adp18-quality-signals
+epic: release-110-deferred-from-19
+story: deferred-110-audit-hygiene
 complexity: medium
 role: architect
 stack: python

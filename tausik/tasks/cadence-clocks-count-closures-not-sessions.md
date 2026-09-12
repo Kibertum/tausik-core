@@ -2,8 +2,8 @@
 slug: cadence-clocks-count-closures-not-sessions
 title: "Каденция аудита считает сессии — последняя зависимость правила качества от ритуала"
 status: planning
-epic: release-19-agent-effectiveness
-story: evidence-is-durable
+epic: release-110-deferred-from-19
+story: deferred-110-audit-hygiene
 complexity: simple
 role: developer
 stack: python

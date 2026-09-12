@@ -2,8 +2,8 @@
 slug: tausik-verify-github-action-badge
 title: "Бейдж проверенной квитанции в чужих пул-реквестах"
 status: planning
-epic: visibility-stream
-story: field-presence
+epic: release-110-deferred-from-19
+story: deferred-110-outward-loop-and-test-authorship
 complexity: medium
 role: backend
 stack: null

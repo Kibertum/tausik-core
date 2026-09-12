@@ -2,8 +2,8 @@
 slug: verify-cache-miss-reads-as-git-mismatch-instead-of-a-reason
 title: "Отказ verify печатает cache_status=git-mismatch вместо содержательной причины: симптом сессии #152 чинится отдельно и дешевле"
 status: planning
-epic: release-19-renar-conformance
-story: evidence-is-substance-not-keywords
+epic: release-110-deferred-from-19
+story: deferred-110-audit-hygiene
 complexity: simple
 role: developer
 stack: python

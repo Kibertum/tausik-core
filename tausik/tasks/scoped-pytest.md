@@ -2,8 +2,8 @@
 slug: scoped-pytest
 title: "Сузить scoped pytest по доказательным краям без потери честности"
 status: blocked
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: release19-proof-integrity
 complexity: medium
 role: developer
 stack: python

@@ -2,8 +2,8 @@
 slug: demo-of-a-caught-lie-as-first-touch
 title: "Демка пойманной лжи: первое касание перестаёт быть запретом"
 status: planning
-epic: visibility-stream
-story: entry-barrier
+epic: release-110-deferred-from-19
+story: deferred-110-outward-loop-and-test-authorship
 complexity: medium
 role: tech-writer
 stack: null

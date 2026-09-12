@@ -2,8 +2,8 @@
 slug: r-capture-tool-traces-and-prove-they-answer-something
 title: "R: захват траекторий вызовов инструментов — отвечают ли они на вопрос, на который журнал не отвечает"
 status: planning
-epic: research-with-a-death-date
-story: r19-hypotheses
+epic: release-110-deferred-from-19
+story: deferred-110-architecture-and-research
 complexity: complex
 role: architect
 stack: null

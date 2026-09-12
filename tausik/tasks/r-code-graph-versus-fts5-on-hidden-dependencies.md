@@ -2,8 +2,8 @@
 slug: r-code-graph-versus-fts5-on-hidden-dependencies
 title: "R: граф кода против FTS5 на вопросах о скрытых зависимостях"
 status: planning
-epic: research-with-a-death-date
-story: r19-hypotheses
+epic: release-110-deferred-from-19
+story: deferred-110-architecture-and-research
 complexity: complex
 role: architect
 stack: null

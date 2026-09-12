@@ -2,8 +2,8 @@
 slug: context-order-and-the-rewind-blind-spot
 title: "Порядок инъекции контекста под кэш и слепое пятно /rewind нигде не записаны"
 status: planning
-epic: release-19-agent-effectiveness
-story: memory-retrieves-by-relevance
+epic: release-110-deferred-from-19
+story: deferred-110-knowledge-lifecycle
 complexity: simple
 role: tech-writer
 stack: null

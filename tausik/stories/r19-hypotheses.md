@@ -1,6 +1,6 @@
 ---
 slug: r19-hypotheses
 title: "Гипотезы с объявленным порогом провала"
-status: open
+status: done
 epic: research-with-a-death-date
 ---

@@ -1,7 +1,7 @@
 ---
 slug: l26-narrative
 title: "Нарратив в соответствии с кодом"
-status: active
+status: done
 epic: landscape-2026-h2
 ---
 

@@ -2,8 +2,8 @@
 slug: package-skills-and-mcp-as-one-plugin
 title: "Скиллы и MCP пакуются врозь, хотя появился общий формат плагина"
 status: planning
-epic: landscape-2026-h2
-story: bookmarks-2026-08
+epic: release-110-deferred-from-19
+story: deferred-110-architecture-and-research
 complexity: medium
 role: backend
 stack: python

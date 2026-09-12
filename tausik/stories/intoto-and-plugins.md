@@ -1,7 +1,7 @@
 ---
 slug: intoto-and-plugins
 title: "Предикат in-toto и подпись поверх Agent Plugins"
-status: open
+status: done
 epic: standards-window
 ---
 

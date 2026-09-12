@@ -1,7 +1,7 @@
 ---
 slug: borrow-kaeru
 title: "Заимствования из kaeru (LamantinAI): память как типизированный граф"
-status: open
+status: done
 epic: landscape-2026-h2
 ---
 

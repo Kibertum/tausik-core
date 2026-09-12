@@ -1,6 +1,6 @@
 ---
 slug: brainh-audit
-title: "[P0-first] Brain pain-point аудит → improvement spec"
+title: "[SUPERSEDED] Notion pain-point audit"
 status: planning
 epic: shared-knowledge
 story: kb-notion
@@ -21,17 +21,17 @@ completed_at: null
 
 ## Goal
 
-Перед улучшениями — аудит tausik-brain: латентность Notion API, доля промахов brain_search, актуальность local index, лимиты/ошибки за историю использования, UX-фрикции (когда агент НЕ зовёт brain). Выход — короткая спека улучшений с приоритетами, уточняющая остальные задачи эпика. AC: документ docs/research/ с метриками и топ-5 болей; задачи эпика откорректированы по результатам.
+Исходный аудит Notion API НЕ проводится: его предмет снят решением владельца #358, которое удаляет Notion как транспорт. Терминальный результат — отмена исследования без продуктовых изменений.
 
 ## Acceptance Criteria
 
-1. В docs/research/ создан документ аудита tausik-brain с измеренными метриками: латентность Notion API, доля промахов brain_search, актуальность локального индекса, история лимитов/ошибок использования.
-2. В документе выписан топ-5 болей с приоритетами и UX-фрикции — конкретные сценарии, когда агент НЕ зовёт brain.
-3. Задачи эпика откорректированы по результатам аудита: правки видны в их goal/AC со ссылкой на документ.
-CHANGELOG.md [Unreleased] и зеркало CHANGELOG.ru.md обновлены прозаической записью об этом изменении.
+AC-1: решение #358 указано как причина отмены. AC-2: не создаётся новый Notion audit или улучшение транспорта. AC-3 (negative): задача не заявляет проведение исходного аудита.
 
 ## Plan
 
 ## Rollback
 
 ## Journal
+
+- 2026-09-12T10:44:09Z [planning] — SUPERSEDED terminal disposition: owner decision #358 removes Notion entirely. Original audit is retired and was not performed.
+- 2026-09-12T10:44:19Z [planning] — AC verified for terminal disposition: 1) decision #358 is recorded; 2) no Notion audit or transport enhancement was added; 3) the original audit was explicitly not performed.

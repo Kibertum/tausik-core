@@ -1,7 +1,7 @@
 ---
 slug: knowledge-records-what-failed-19
 title: "[ПЕРЕНЕСЕНО В 1.10] Знание записывает отрицательное: отвергнутое, отменённое, не сработавшее"
-status: active
+status: done
 epic: release-19-renar-conformance
 ---
 

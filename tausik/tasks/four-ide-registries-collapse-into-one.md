@@ -2,8 +2,8 @@
 slug: four-ide-registries-collapse-into-one
 title: "Четыре несинхронизированных реестра хостов сводятся в один с гейт-тестом"
 status: planning
-epic: release-19-agent-effectiveness
-story: surfaces-do-not-diverge
+epic: release-110-deferred-from-19
+story: deferred-110-host-parity-refactors
 complexity: medium
 role: developer
 stack: python

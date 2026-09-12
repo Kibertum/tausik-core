@@ -2,8 +2,8 @@
 slug: score-tausik-on-repocompliancebench
 title: "Внешний бенчмарк дисциплины уже существует — RepoComplianceBench меряет ровно то, что мы продаём"
 status: planning
-epic: release-19-renar-conformance
-story: proof-and-positioning-outward
+epic: release-110-deferred-from-19
+story: deferred-110-outward-loop-and-test-authorship
 complexity: medium
 role: qa
 stack: python

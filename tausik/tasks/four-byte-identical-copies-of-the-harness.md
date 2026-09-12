@@ -2,8 +2,8 @@
 slug: four-byte-identical-copies-of-the-harness
 title: "Четыре побайтово одинаковые копии обвязки: 171 тысяча строк дублирования в рабочем дереве"
 status: planning
-epic: release-19-agent-effectiveness
-story: surfaces-do-not-diverge
+epic: release-110-deferred-from-19
+story: deferred-110-host-parity-refactors
 complexity: null
 role: architect
 stack: python

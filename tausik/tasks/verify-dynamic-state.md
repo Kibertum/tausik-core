@@ -2,8 +2,8 @@
 slug: verify-dynamic-state
 title: "Verify отличает dynamic state от правки инструкций"
 status: blocked
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: release19-proof-integrity
 complexity: medium
 role: developer
 stack: python

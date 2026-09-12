@@ -1,7 +1,7 @@
 ---
 slug: field-presence
 title: "Присутствие в поле: списки, витрины, тексты"
-status: open
+status: done
 epic: visibility-stream
 ---
 

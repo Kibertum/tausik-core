@@ -2,8 +2,8 @@
 slug: task-ownership-is-a-dead-primitive
 title: "Владение задачей не выражено: task claim не использован ни разу за 1439 задач"
 status: planning
-epic: release-19-agent-effectiveness
-story: parallel-work-runs-without-collisions
+epic: release-110-deferred-from-19
+story: deferred-110-architecture-and-research
 complexity: medium
 role: developer
 stack: python

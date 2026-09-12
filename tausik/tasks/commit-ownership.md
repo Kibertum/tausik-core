@@ -2,8 +2,8 @@
 slug: commit-ownership
 title: "Отделить commit ownership от статуса закрытия задачи"
 status: blocked
-epic: null
-story: null
+epic: release-19-renar-conformance
+story: release19-proof-integrity
 complexity: medium
 role: developer
 stack: python

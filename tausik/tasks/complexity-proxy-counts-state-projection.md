@@ -2,8 +2,8 @@
 slug: complexity-proxy-counts-state-projection
 title: "Детектор занижения сложности считает сгенерированную проекцию tausik/ поведенческими файлами и пишет ложные занижения в лог супервизии"
 status: planning
-epic: arch-debt-post-18
-story: adp18-quality-signals
+epic: release-110-deferred-from-19
+story: deferred-110-audit-hygiene
 complexity: medium
 role: developer
 stack: python

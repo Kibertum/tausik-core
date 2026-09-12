@@ -2,8 +2,8 @@
 slug: commit-per-closed-task
 title: "Коммит на закрытие задачи: state_roundtrip запрещает частичный коммит и делает работу пакетной"
 status: planning
-epic: release-19-agent-effectiveness
-story: evidence-is-durable
+epic: release-110-deferred-from-19
+story: deferred-110-audit-hygiene
 complexity: complex
 role: architect
 stack: python

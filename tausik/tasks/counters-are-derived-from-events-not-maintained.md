@@ -2,8 +2,8 @@
 slug: counters-are-derived-from-events-not-maintained
 title: "Счётчики ёмкости и чекпоинта ведутся рядом с журналом, хотя выводятся из него"
 status: planning
-epic: release-19-agent-effectiveness
-story: parallel-work-runs-without-collisions
+epic: release-110-deferred-from-19
+story: deferred-110-architecture-and-research
 complexity: medium
 role: developer
 stack: python

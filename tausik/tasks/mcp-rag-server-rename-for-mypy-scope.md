@@ -2,8 +2,8 @@
 slug: mcp-rag-server-rename-for-mypy-scope
 title: "Переименовать codebase-rag/server.py: коллизия имён держит пакет вне области mypy"
 status: planning
-epic: arch-debt-post-18
-story: adp18-module-boundaries
+epic: release-110-deferred-from-19
+story: deferred-110-architecture-and-research
 complexity: medium
 role: developer
 stack: python

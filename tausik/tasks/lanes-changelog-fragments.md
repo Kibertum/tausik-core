@@ -2,8 +2,8 @@
 slug: lanes-changelog-fragments
 title: "Гейт changelog принимает фрагмент на задачу вместо строки в общем файле — иначе полосы конфликтуют на каждой задаче"
 status: planning
-epic: shared-knowledge
-story: kb-git-sync
+epic: release-110-deferred-from-19
+story: deferred-110-audit-hygiene
 complexity: medium
 role: developer
 stack: python

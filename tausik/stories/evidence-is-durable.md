@@ -1,7 +1,7 @@
 ---
 slug: evidence-is-durable
 title: "[ПЕРЕНЕСЕНО В 1.10] Доказательство долговечно: коммит на закрытие задачи и свежесть журнала"
-status: open
+status: done
 epic: release-19-agent-effectiveness
 ---
 
