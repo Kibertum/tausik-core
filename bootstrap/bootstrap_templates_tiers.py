@@ -44,6 +44,24 @@ MINIMAL_COMMANDS = """## Commands (minimal)
 Full CLI: [docs/en/cli.md](docs/en/cli.md).
 """
 
+COMPACTION_CONTRACT = """## Compaction contract (what must survive a context compaction)
+
+Compaction can be instructed; an uninstructed one drops the context whose value shows up later. When your host compacts the conversation, carry these forward VERBATIM, by name — and drop narration, tool output and resolved intermediate states first:
+1. **The active task and its slug** — and its current plan step.
+2. **The declared scope and the verify receipt** — `relevant_files`, the last `verify` run id / handle.
+3. **This session's measurements with their numbers** — a lost measurement costs the run that produced it.
+4. **Retired or superseded rules** — a forgotten retirement resurrects a dead rule.
+5. **Owner prohibitions** — in the owner's words.
+6. **Open forks** — decisions raised and not taken, with the options named.
+"""
+
+MINIMAL_COMPACTION = """## Compaction (minimal)
+
+Carry forward verbatim through any compaction: the active task and slug, the declared
+scope and verify receipt, this session's measurements, retired rules, owner prohibitions,
+open forks. Full contract: `context_tier: standard`.
+"""
+
 MINIMAL_TIER_FOOTER = """## Rule pack size
 
 This body was generated with **`context_tier: minimal`** (`.tausik/config.json`). Switch to

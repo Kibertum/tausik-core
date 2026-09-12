@@ -9,6 +9,16 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — a compaction contract in CLAUDE.md and in the bootstrap template
+
+Compaction can be instructed, and an uninstructed one drops the context whose
+value shows up later — here a paid-for measurement or a retired rule. CLAUDE.md
+and the generated consumer CLAUDE.md (standard and full tiers; a one-paragraph
+pointer in minimal) now list, by name, what must survive a context compaction:
+the active task and its slug, the declared scope and verify receipt, this
+session's measurements with their numbers, retired or superseded rules, owner
+prohibitions, open forks. A test fails when any item leaves either place.
+
 ### Fixed — the cross-cutting read after the Notion departure
 
 The six claims of the documentation map now sound the same on every page in

@@ -15,7 +15,9 @@ import sys
 # import MINIMAL_MEMORY` call sites keep working.
 from bootstrap_templates_tiers import (  # noqa: F401 — re-exported
     FULL_TIER_NOTE,
+    COMPACTION_CONTRACT,
     MINIMAL_COMMANDS,
+    MINIMAL_COMPACTION,
     MINIMAL_MEMORY,
     MINIMAL_TIER_FOOTER,
     MINIMAL_WORKFLOW,
@@ -57,13 +59,9 @@ WORKFLOW = """## Workflow
 start → plan → task → [review | test] → commit → end
 ```
 
-- `start` — load session state, active tasks, handoff from previous session
-- `plan` — create task with complexity scoring + stack detection
-- `task <slug>` — pick up or continue a task
-- `review` — code review with parallel sub-agents (bugs, fake tests, drift)
-- `test` — run or write tests
-- `commit` — standardized commit with SENAR metadata
-- `end` — close session with handoff for next agent
+- `start` — load session state, active tasks, handoff from previous session · `plan` — create task with complexity scoring + stack detection
+- `task <slug>` — pick up or continue a task · `review` — code review with parallel sub-agents (bugs, fake tests, drift)
+- `test` — run or write tests · `commit` — standardized commit with SENAR metadata · `end` — close session with handoff for next agent
 
 **Cost-aware model selection:** `tausik suggest-model <complexity>` prints a recommended Claude model (Haiku for simple 1 SP tasks, Sonnet for medium 3 SP, Opus for complex 8 SP). Claude Code doesn't switch models programmatically — apply the suggestion manually via the IDE model picker, and persist your default for the next session with `tausik config set model_profile <slug>` (note: `/fast` only toggles fast-output on Opus, it does NOT downgrade to a smaller model).
 """
@@ -77,21 +75,17 @@ MEMORY = """## Memory (two systems — use the right one)
 
 Memory types: `pattern`, `gotcha`, `convention`, `context`, `dead_end`.
 
-**Memory-first recall (hard rule).** Before asking the user for — or guessing —
-an established project fact (hosts/machines, environments, where credentials
-live, paths, service URLs, prior decisions), you MUST `memory_search` /
-`decisions_list` FIRST. Asking the user for something already recorded in
-project memory is a process violation. Record durable environment facts as
-`context` so future sessions inherit them.
+**Memory-first recall (hard rule).** Before asking the user for — or guessing — an established
+project fact (hosts, environments, where credentials live, paths, service URLs, prior decisions),
+you MUST `memory_search` / `decisions_list` FIRST; asking for something already recorded is a
+process violation. Record durable environment facts as `context` so future sessions inherit them.
 
-**Routing litmus (hard).** *Would another agent, in another tool, need this to work on
-THIS project?* → yes = `memory add`. Never your host's own memory: `~/.claude/**/memory/`,
-`.cursor/rules/`, `.windsurf/rules/`, `.github/copilot-instructions.md`,
-`.github/instructions/`, `.clinerules`, `.roo/rules/`, `.continue/rules/`, `.aider*` are
-blocked by the `memory_route` gate — and a cloud-side memory writes no file for any gate
-to see, so there this line is the only enforcement there is.
-
-Skills that need persistent data respect the `CLAUDE_PLUGIN_DATA` env var when set; otherwise fall back to `.tausik/plugin_data/`.
+**Routing litmus (hard).** *Would another agent, in another tool, need this to work on THIS
+project?* → yes = `memory add`. Never your host's own memory (`~/.claude/**/memory/`, `.cursor/rules/`,
+`.windsurf/rules/`, `.github/copilot-instructions.md`, `.github/instructions/`, `.clinerules`, `.roo/rules/`,
+`.continue/rules/`, `.aider*` — blocked by the `memory_route` gate); a cloud-side memory writes no
+file for any gate to see, so there this line is the only enforcement. Skills that need persistent
+data respect `CLAUDE_PLUGIN_DATA` when set, else `.tausik/plugin_data/`.
 """
 
 SENAR_RULES = """## SENAR Rules Compliance
@@ -110,9 +104,7 @@ TAUSIK enforces these rules. Violating them triggers warnings or hard blocks.
 | Rule 9.3 Checkpoint | Every 30-50 tool calls | Instruction |
 | Rule 9.4 Dead Ends + Logging | Document failed approaches, log progress | Instruction |
 
-> **Where "Hard" is hard.** Rule 1 is a process gate only on a host where TAUSIK deployed a real-time mechanism; the notice at the top of this file states which case this host is in, derived from what bootstrap actually wrote, not from a list of intentions. Where it is not deployed, Rule 1 is enforced by the agent reading this line — and the reason is that TAUSIK does not generate a payload for that host, NOT that the host cannot accept one. Those are different claims and only the first is ours to make.
->
-> The rest hold everywhere regardless: QG-0, QG-2 and the session limit live in the `tausik-project` MCP server and in the CLI, so they run wherever the tools run. For a process-level Rule 1 on a host without a mechanism, route writes through the `tausik_task_start` / `tausik_task_done_v2` MCP tools and treat raw file edits as non-conformant in review.
+> **Where "Hard" is hard.** Rule 1 is a process gate only on a host where TAUSIK deployed a real-time mechanism; the notice at the top of this file states which case this host is in, derived from what bootstrap actually wrote. Where it is not deployed, Rule 1 is enforced by the agent reading this line — because TAUSIK generates no payload for that host, NOT because the host cannot accept one; only the first claim is ours to make. The rest hold everywhere: QG-0, QG-2 and the session limit live in the `tausik-project` MCP server and the CLI. For a process-level Rule 1 without a mechanism, route writes through `tausik_task_start` / `tausik_task_done_v2` and treat raw file edits as non-conformant in review.
 
 Full rule set: [SENAR v1.3](https://senar.tech).
 """
@@ -397,6 +389,7 @@ def build_full_body(
             HARD_CONSTRAINTS,
             MINIMAL_WORKFLOW,
             MINIMAL_MEMORY,
+            MINIMAL_COMPACTION,
             MINIMAL_COMMANDS,
             RESPONSE_LANGUAGE,
             CAVEMAN_DIRECTIVE if caveman else "",
@@ -413,6 +406,7 @@ def build_full_body(
         WORKFLOW,
         TOOL_ROUTING,
         MEMORY,
+        COMPACTION_CONTRACT,
         SENAR_RULES,
         COMMANDS,
         QUALITY_GATES,

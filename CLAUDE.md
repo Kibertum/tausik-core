@@ -12,7 +12,7 @@ Stack: Python 3.11+ stdlib | CLI `.tausik/tausik` | DB SQLite+FTS5 | Tests pytes
 
 - **Нулевая толерантность к тихим ошибкам.** Ошибка CLI — заведи баг-задачу.
 - **Agent-first.** Перед закрытием: "поймёт ли свежий агент?"
-- **Dogfooding.** Этот фреймворк — наш же пользователь. Неудобно — баг.
+- **Dogfooding.** Мы сами пользователь. Неудобно — баг.
 - **SENAR.** Контекст важнее кода. Верификация важнее скорости. Знания важнее опыта.
 
 ## Ограничения (жёсткие)
@@ -26,11 +26,11 @@ Stack: Python 3.11+ stdlib | CLI `.tausik/tausik` | DB SQLite+FTS5 | Tests pytes
 - **Исходники в корне** (`scripts/`, `docs/`, `harness/`, `bootstrap/`). Не редактируй `.claude/` напрямую.
 - **MCP-first.** MCP > CLI когда equivalent.
 - **Git: спроси перед commit/push.**
-- **Макс. 500 строк/файл.** Filesize gate (промежуточный лимит, decision #190). Исключения: тесты, generated.
+- **Макс. 500 строк/файл.** Filesize gate (decision #190). Исключения: тесты, generated.
 - **Непрерывное журналирование.** `task log <slug> "msg"` после каждого шага.
 - **Документируй dead ends.** `tausik dead-end "approach" "reason"`.
 - **Checkpoint каждые 30-50 tool calls.** `/checkpoint`, `/end`.
-- **Лимит сессии 180 мин ACTIVE** (gap-based ≥10мин = AFK).
+- **Лимит сессии 180 мин ACTIVE** (пауза ≥10 мин = AFK).
 - **Знания фреймворка остаются здесь.** Не сохраняй инструкции TAUSIK в auto-memory.
 
 ## Память
@@ -43,6 +43,10 @@ Stack: Python 3.11+ stdlib | CLI `.tausik/tausik` | DB SQLite+FTS5 | Tests pytes
 Типы: `pattern`, `gotcha`, `convention`, `context`, `dead_end`.
 CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scripts/project.py` напрямую.
 
+## Компакция
+
+Через сжатие контекста переноси дословно: активную задачу и slug; scope и квитанцию verify; замеры сессии с числами; отменённые правила; запреты владельца; открытые развилки. Выбрасывай нарратив и вывод инструментов — не эти шесть.
+
 ## Команды
 
 ```bash
@@ -51,17 +55,13 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 .tausik/tausik verify --task <slug>            # heavy gates, cache 10 мин
 .tausik/tausik task done <slug> --ac-verified  # завершить (QG-2)
 .tausik/tausik task log <slug> "message"       # журнал
-.tausik/tausik dead-end "approach" "reason"    # dead end
-.tausik/tausik metrics                         # SENAR метрики + LLM cost
-.tausik/tausik search "<query>"                # FTS5 поиск
-.tausik/tausik doctor                          # health check
 ```
 
-Статусы: `planning → active → blocked|review → done`.
+Остальное (`dead-end`, `metrics`, `search`, `doctor`) — `docs/ru/cli.md`.
 
 ## Reference
 
-Полный контракт (estimation, SENAR matrix, roles, custom_stacks, QG-2): `docs/ru/agent-contract.md`. CLI: `docs/ru/cli.md`. Архитектура: `docs/ru/architecture.md`. Quickstart: `docs/ru/quickstart.md`. Changelog: `CHANGELOG.md`.
+Контракт (estimation, SENAR, roles, QG-2): `docs/ru/agent-contract.md`. CLI: `docs/ru/cli.md`. Архитектура: `docs/ru/architecture.md`. Quickstart: `docs/ru/quickstart.md`.
 
 <!-- DYNAMIC:START -->
 ## Current State
