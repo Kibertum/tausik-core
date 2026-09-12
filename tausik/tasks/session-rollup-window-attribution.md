@@ -1,7 +1,7 @@
 ---
 slug: session-rollup-window-attribution
 title: "Разделить посессионный rollup метрик по временным окнам транскрипта"
-status: active
+status: done
 epic: release-19-agent-effectiveness
 story: release19-effective-context
 complexity: medium
@@ -33,7 +33,7 @@ scope_paths:
   - "tausik/stories/release19-effective-context.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-12T12:17:26Z"
 ---
 
 ## Goal
@@ -46,7 +46,7 @@ AC-1: rollup session_usage_metrics получает только записи т
 
 ## Plan
 
-[{"step": "Reproduce the incorrect full-transcript rollup with a two-session transcript and establish the smallest window-aware metric boundary.", "done": true}, {"step": "Implement a pure per-session transcript aggregation path and make SessionEnd record only the active session's attributable metrics.", "done": true}, {"step": "Add focused behavioral regression coverage for split, missing timestamp, and single-session compatibility.", "done": true}, {"step": "Run focused checks, ruff and signed verify; record evidence without modifying historical measurements.", "done": false}]
+[{"step": "Reproduce the incorrect full-transcript rollup with a two-session transcript and establish the smallest window-aware metric boundary.", "done": true}, {"step": "Implement a pure per-session transcript aggregation path and make SessionEnd record only the active session's attributable metrics.", "done": true}, {"step": "Add focused behavioral regression coverage for split, missing timestamp, and single-session compatibility.", "done": true}, {"step": "Run focused checks, ruff and signed verify; record evidence without modifying historical measurements.", "done": true}]
 
 ## Rollback
 
@@ -61,3 +61,5 @@ Revert the dedicated commit; no historical DB migration or destructive data rewr
 - 2026-09-12T10:18:13Z [review] — The lone undeclared path is the parent benchmark's foreign task export, changed when the benchmark was blocked before this defect task. It is a real foreign projection (not this task's own export), so it is now declared rather than subtracted or ignored.
 - 2026-09-12T10:51:34Z [implementation] — Commit gate found a concrete type defect in this task's uncommitted implementation: session_metrics.py:77 calls an optional timestamp resolver without a narrowing check. Fix is confined to the existing rollup scope; then rerun focused tests, mypy and signed verify.
 - 2026-09-12T10:51:53Z [implementation] — Fixed the optional resolver narrowing required by mypy; focused session rollup tests and mypy now run before retrying the independent backlog-state commit.
+- 2026-09-12T12:14:55Z [implementation] — AC verified: AC-1 ✓ parse_transcript filters every accounting field through make_session_resolver() — the same [started_at, ended_at) containment used by token rows (tests/test_token_attribution.py 37/37). AC-2 ✓ TestParseTranscriptSessionAttribution::test_one_transcript_is_split_by_the_target_session — 110 vs 220, not a copy. AC-3 ✓ test_unattributable_timestamp_is_excluded_not_guessed — tokens_total 0, messages 0. AC-4 ✓ single-session path and JSONL rows unchanged: 22/22 parse tests + 37/37 token attribution green. AC-5 ✓ test_session_end_triggers_metrics_hook proves --session-id 1 is passed by the service; record_to_db forwards it (test at test_session_metrics_parse.py:384). Not unit-covered: the no-ID/no-open-window skip branch (main:367-373) — verified by reading; it refuses the DB write and says so on stderr. ruff, mypy clean; signed verify below. Domain: sessions #241/#242 had byte-identical usage rows because of this defect; new rows will differ per session.
+- 2026-09-12T12:14:55Z [implementation] — Root cause (logic-error): session_metrics.main parsed the whole latest transcript and record_to_db called record-session without --session-id, so ProjectService resolved 'the newest session' and every SessionEnd UPSERTed a multi-session total into the current row; the timestamp-window resolver existed only for token_metrics.jsonl. Prevention: parse_transcript requires session_resolver+session_id together (ValueError otherwise), service_session passes the ID it just closed, and an IDE hook without an ID records only when the newest window is provably open.

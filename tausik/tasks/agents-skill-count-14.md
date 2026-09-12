@@ -1,7 +1,7 @@
 ---
 slug: agents-skill-count-14
 title: "Синхронизировать onboarding AGENTS с 14 core навыками"
-status: active
+status: done
 epic: release-19-agent-effectiveness
 story: release19-effective-context
 complexity: simple
@@ -23,7 +23,7 @@ scope_paths:
   - "tausik/stories/release19-effective-context.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-12T12:12:40Z"
 ---
 
 ## Goal
@@ -36,7 +36,7 @@ AC-1: AGENTS.md static repository structure describes 14 core skills, matching g
 
 ## Plan
 
-[{"step": "Confirm the stale static AGENTS count and preserve the dynamic block boundary.", "done": true}, {"step": "Correct only the static count to the canonical generated value.", "done": true}, {"step": "Run focused check-docs proof and signed verify, then unblock the dependent documentation tasks.", "done": false}]
+[{"step": "Confirm the stale static AGENTS count and preserve the dynamic block boundary.", "done": true}, {"step": "Correct only the static count to the canonical generated value.", "done": true}, {"step": "Run focused check-docs proof and signed verify, then unblock the dependent documentation tasks.", "done": true}]
 
 ## Rollback
 
@@ -47,3 +47,5 @@ Revert the one static onboarding count correction if canonical constants change.
 - 2026-09-12T10:25:20Z [implementation] — Corrected only AGENTS.md's static repository-tree count (13→14), leaving the DYNAMIC block untouched. Running the authoritative check-docs proof now.
 - 2026-09-12T10:25:47Z [implementation] — Found and corrected both static AGENTS references: documentation-map label and repository-tree count, each 13→14. DYNAMIC region remains unchanged by this task.
 - 2026-09-12T10:52:33Z [implementation] — After the backlog-state commit, the real-repository check_docs test and pytest dedupe audit are rerun against the static 14-core onboarding correction.
+- 2026-09-12T12:11:51Z [implementation] — Root cause (documentation): AGENTS.md carries two static core-skill counts (documentation-map row and repository-tree line) that are hand-maintained, and the skill-adding commit 4720e8e0 updated neither, so check_docs compared generated 14 against static 13. Prevention: the static count now matches generated constants; the check-docs real-repo test guards it, and the next skill addition must touch both static lines (they are named in this task's notes).
+- 2026-09-12T12:11:52Z [implementation] — AC verified: AC-1 ✓ AGENTS.md:100 and :111 both read 14 core skills, equal to skills_core_count=14 in docs/_generated/constants.json. AC-2 ✓ exactly one DYNAMIC:START/END pair remains and git shows the block untouched by the two static edits in 6013fb2e. AC-3 ✓ TestDriftDetected::test_drifted_json_returns_1 still rejects a stale declaration. AC-4 ✓ tests/test_check_docs_hook.py 6/6 green, signed verify below. Domain: a fresh agent reading AGENTS.md sees the same catalog size that bootstrap actually deploys (14 + brain conditional).

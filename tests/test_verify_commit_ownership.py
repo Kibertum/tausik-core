@@ -216,21 +216,25 @@ def test_missing_predeclared_scope_does_not_own_later_commit(tmp_path):
 
 
 @pytest.mark.parametrize(
-    ("sibling_files", "sibling_scope"),
-    [(["foreign.py"], None), ([], ["*.py"])],
-    ids=["two-relevant-files", "relevant-files-versus-acl-glob"],
+    ("sibling_scope", "other_files", "other_scope"),
+    [
+        (None, ["foreign.py"], None),
+        (["*.py"], ["foreign.py"], None),
+        (["*.py"], [], ["foreign.*"]),
+    ],
+    ids=["two-relevant-files", "relevant-files-versus-acl-glob", "two-acl-globs"],
 )
 def test_two_sibling_exports_in_one_commit_remain_ambiguous(
-    tmp_path, sibling_files, sibling_scope
+    tmp_path, sibling_scope, other_files, other_scope
 ):
     root = _repo(tmp_path)
     _write(root, "foreign.py", "claimed twice\n")
     _write(
         root,
         "tausik/tasks/sibling.md",
-        _task("sibling", "active", sibling_files, sibling_scope),
+        _task("sibling", "active", [] if sibling_scope else ["foreign.py"], sibling_scope),
     )
-    _write(root, "tausik/tasks/other.md", _task("other", "active", ["foreign.py"]))
+    _write(root, "tausik/tasks/other.md", _task("other", "active", other_files, other_scope))
     _git(root, "add", ".")
     _git(root, "commit", "-m", "ambiguous sibling scope")
 
