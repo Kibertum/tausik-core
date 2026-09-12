@@ -89,8 +89,13 @@ def scan_version_refs(repo_root: Path, expected_version: str) -> list[str]:
         if not path.is_file():
             continue
         text = _strip_fenced_blocks(path.read_text(encoding="utf-8"))
-        if rel == "CLAUDE.md":
-            text = _strip_dynamic_block(text)
+        # The generated DYNAMIC block (memory tail, decision titles) is not an
+        # authored version claim wherever it appears: CLAUDE.md AND its sibling
+        # AGENTS.md carry the same block. Keyed on the markers, not the file
+        # name — a filename key let a decision titled "... corpus v1.1" in
+        # AGENTS.md read as a TAUSIK version (session #250). A file without
+        # the markers is left untouched by the substitution.
+        text = _strip_dynamic_block(text)
         for m in _VERSION_RE.finditer(text):
             if _is_foreign_version(text, m.start()):
                 continue

@@ -32,7 +32,7 @@ because "everything here is instructions" is untrue too on a host without hooks:
 closing a task IS refused there.
 
 Full list of changes: [CHANGELOG.md](../../CHANGELOG.md). This page is not a
-retelling: the Unreleased section holds 229 entries (the figure is counted by
+retelling: the Unreleased section holds 230 entries (the figure is counted by
 `tests/test_release_notes_1_9.py`), and what is selected here is what changes
 the experience of UPGRADING.
 

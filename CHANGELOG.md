@@ -9,6 +9,14 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the version-ref drift check exempted the generated block only in CLAUDE.md
+
+`scan_version_refs` stripped the generated DYNAMIC block (memory tail, decision
+titles) for CLAUDE.md by file name, while AGENTS.md carries the same block as
+the sibling target; a decision titled "... corpus v1.1" read as a TAUSIK version
+claim there. The strip is keyed on the markers now, for every scan target; an
+authored stale version in the static body is still a finding (test).
+
 ### Changed — RENAR re-assessed under corpus v1.1: eighth clause vacuous, manifest 1.1
 
 The standard's corpus moved to v1.1 and §13.4.3 makes a minor edition a

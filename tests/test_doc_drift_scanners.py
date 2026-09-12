@@ -24,6 +24,7 @@ from doc_drift_common import (  # noqa: E402
 from doc_drift_scanners import (  # noqa: E402
     CROSS_FILE_SCAN_TARGETS,
     scan_code_counts,
+    scan_version_refs,
     write_cross_file_fixes,
 )
 
@@ -104,6 +105,30 @@ class TestHooksCountQualifiers:
         # the qualifier is an explicit allow-list (real-time/python/active), not \\w+.
         _write_readme(tmp_path, "We ran 5 integration tests before the hooks fire.\n")
         assert scan_code_counts(tmp_path, _PAYLOAD) == []
+
+
+class TestTheDynamicBlockIsNotAnAuthoredVersionClaim:
+    """Session #250: decision #364's title 'RENAR re-assessment under corpus
+    v1.1' landed in AGENTS.md's generated memory tail and the scanner read it as
+    a TAUSIK version claim — the DYNAMIC strip was keyed on the name CLAUDE.md,
+    and AGENTS.md carries the same generated block as the sibling target."""
+
+    _BLOCK = (
+        "<!-- DYNAMIC:START -->\n## Current State\nSession: #250\n\n"
+        "Decisions (1):\n- #364 RENAR re-assessment under corpus v1.1 goes by option (a)\n"
+        "<!-- DYNAMIC:END -->\n"
+    )
+
+    def test_a_generated_title_in_agents_md_is_not_a_finding(self, tmp_path):
+        _write_target(tmp_path, "AGENTS.md", "# AGENTS.md\n\nrules\n\n" + self._BLOCK)
+        assert scan_version_refs(tmp_path, "1.9.0") == []
+
+    def test_an_authored_ref_in_the_static_body_is_still_a_finding(self, tmp_path):
+        """NEGATIVE: the strip reaches the block only; a hand-written stale
+        version above it is exactly what the scanner exists to catch."""
+        _write_target(tmp_path, "AGENTS.md", "# AGENTS.md\n\nShips with v1.1.\n\n" + self._BLOCK)
+        msgs = scan_version_refs(tmp_path, "1.9.0")
+        assert len(msgs) == 1 and "AGENTS.md:3" in msgs[0], msgs
 
 
 class TestHooksMdInScanSet:
