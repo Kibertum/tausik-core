@@ -131,11 +131,23 @@ Three properties that matter when reading someone else's receipt:
    the files instead of claiming the tree never moved.
 4. **A committed sibling is excluded only with commit-local proof.** An active
    task can overlap a release-accumulation commit, but its timestamp does not
-   make every path in that commit its work. `verify` subtracts a path only when
-   that same commit transitions another task export to `done` and that committed
-   export declares the path in `relevant_files`. Uncommitted paths, malformed
-   exports and paths claimed by more than one completed task remain in the
-   comparison.
+   make every path in that commit its work. For every commit since `started_at`
+   `verify` reads three tiers of evidence and resolves each changed path on the
+   strongest tier that names anyone — one name owns the path, two or more keep
+   it ambiguous, and a weaker tier is never consulted once a stronger one has
+   spoken:
+   - *same commit* — another task's export committed alongside the path
+     declares it in `relevant_files`, or the export is `active`/`blocked`/`done`
+     and its `scope_paths` ACL matches it;
+   - *parent tree* — an `active`/`blocked`/`done` export already committed
+     before this commit declared the path in `relevant_files` (a task may
+     declare first and commit its implementation later);
+   - *projection* — the path IS another task's export, its parent story, or a
+     DYNAMIC-block-only refresh of `AGENTS.md`/`CLAUDE.md`.
+
+   A task never holds a work claim on its own export, whichever field spells it.
+   Uncommitted paths, malformed exports, `planning` exports and paths with two
+   claimants on the deciding tier remain in the comparison.
 
 The receipt is **canonical** (JCS / RFC 8785 spirit): keys sorted at every
 level, no whitespace, ASCII-only, floats rejected. The same logical receipt

@@ -7,8 +7,8 @@ story: null
 complexity: complex
 role: architect
 stack: python
-tier: substantial
-call_budget: 150
+tier: moderate
+call_budget: 60
 defect_of: null
 scope: null
 scope_exclude: "Do not modify product code, bootstrap behavior, tests, release metadata, tag, push or user-owned .agents/."
@@ -51,3 +51,4 @@ Revert the dedicated backlog-normalization commit; task-state changes are restor
 - 2026-09-12T10:45:01Z [implementation] — Закрыты пустые исторические контейнеры arch-debt-post-18, landscape-2026-h2, research-with-a-death-date, visibility-stream, standards-window, brain-hardening и vscode-extension после переноса их pending задач. Они не содержат скрытых релизных обязательств.
 - 2026-09-12T10:45:27Z [implementation] — Обнаружен legacy epic universal-vscode-extension со статусом done; чтобы 2.0 client не висел внутри закрытого контейнера, создан явный active epic v2-client/v2-client-delivery и три клиентские задачи перенесены туда. Старый пустой контейнер закрыт.
 - 2026-09-12T10:47:30Z [implementation] — Закрыты пустые active/open stories, включая v14-polish follow-up и legacy 1.3/1.5 контейнеры. Empty 1.10 context story также закрыта: контекстный объём 1.10 не потерян, но сейчас не имеет задач и не должен выглядеть обязательством.
+- 2026-09-12T13:15:47Z [implementation] — call_budget re-estimated 150→60 in session #244: steps 1-3 are done and committed (e2f55369); the remaining work is three supersession closures, the orphan/label check and one signed verify. The 150 planned calls were holding the whole session capacity (remaining 1/200) and blocking the start of a release-critical defect task.

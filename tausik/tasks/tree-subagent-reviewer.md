@@ -1,7 +1,7 @@
 ---
 slug: tree-subagent-reviewer
 title: "Объявить предмет tree-итератора subagent reviewer"
-status: blocked
+status: done
 epic: release-19-renar-conformance
 story: release19-proof-integrity
 complexity: simple
@@ -20,7 +20,7 @@ scope_paths:
   - "tests/test_crosscutting_registry.py"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-12T12:22:36Z"
 ---
 
 ## Goal
@@ -43,3 +43,5 @@ git revert the CROSSCUTTING_SCOPE declaration.
 
 - 2026-09-10T12:54:35Z [implementation] — Declared the actual subject narrowly: harness/claude/subagents/ and bootstrap/bootstrap_copy.py. Behavior check: changing the canonical reviewer source selects test_subagent_reviewer; scripts/unrelated.py does not. Registry + reviewer tests: 17 passed serially; ruff clean.
 - 2026-09-10T12:55:29Z [implementation] — Signed verify #2394 ran real ruff+pytest successfully (11/521 scoped tests, 12.6s), but status=git-mismatch because nine files from other unfinished tasks are dirty and cannot truthfully be declared here. Handle is deliberately not used for closure.
+- 2026-09-12T12:22:03Z [implementation] — AC verified: AC-1 ✓ test_new_tree_iterator_must_declare_or_optout green. AC-2 ✓ CROSSCUTTING_SCOPE = [harness/claude/subagents/, bootstrap/bootstrap_copy.py] — exactly the tree os.listdir walks at line 164 and the copier it exercises. AC-3 ✓ selector and registry untouched (git log shows only tests/test_subagent_reviewer.py in 173f0249). AC-4 ✓ Negative: resolve_test_files_for_relevant([scripts/render_memory.py]) does not select test_subagent_reviewer; [harness/claude/subagents/tausik-reviewer.md] does. AC-5 ✓ 11/11 targeted, ruff clean, signed verify below. Domain: a change to a subagent Markdown now pulls the reviewer-deployment test into the scoped lane instead of only the full lane.
+- 2026-09-12T12:22:03Z [implementation] — Unblocked: the nine uncommitted sibling paths that made receipt #2394 git-mismatch are all committed now (52097532…15f61052) and the tiered ownership resolver (42a87f8d) attributes committed sibling work; nothing in this task's scope changed.
