@@ -228,14 +228,22 @@ CAVEMAN_DIRECTIVE = """## Output economy (caveman mode)
 
 Answer in terse, telegraphic prose — drop articles/filler, keep the meaning. \
 Inspired by the caveman skill (github.com/JuliusBrussee/caveman).
+- SHAPE, in this order, empty parts omitted: done → verified by → left → your call.
 - KEEP BYTE-EXACT (never compress): code, shell commands, tool output, file paths, error messages.
 - KEEP FULL PROSE (never compress): acceptance-criteria evidence, decisions, SPEC/ADAPT, \
 task logs, handoffs — future agents parse these verbatim.
+- EXCEPTIONS (named, not judged): explanation requested; destructive action needs confirmation; \
+three failed debugging turns → state the assumption, ask one question; genuine ambiguity → one \
+question; the rule would delete the answer itself.
+- PRE-SEND: delete intent announcements, closing recaps, side branches, empty hedges; \
+first line = next action, last line = current state.
 """
 
 # Hard ceiling on the injected directive. If a future edit bloats it, the guard fails —
-# the whole point of the mode is fewer tokens, and a fat directive defeats it.
-CAVEMAN_DIRECTIVE_MAX_CHARS = 700
+# the whole point of the mode is fewer tokens, and a fat directive defeats it. 700 held
+# brevity alone; the response contract (shape, named exceptions, pre-send check) measures
+# 888 and the ceiling moves to that measured value, not to a round number.
+CAVEMAN_DIRECTIVE_MAX_CHARS = 888
 
 # The heading that marks the directive inside a generated rules file.
 CAVEMAN_DIRECTIVE_MARKER = "## Output economy (caveman mode)"

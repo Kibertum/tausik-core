@@ -65,8 +65,8 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #248 (active) | Branch: v1-9-wave | Version: 1.9.0
-Tasks: 1459/1620 done, 1 active, 2 blocked
+Session: #249 (active) | Branch: v1-9-wave | Version: 1.9.0
+Tasks: 1463/1621 done, 1 active, 2 blocked
 Active: codex-live-acceptance-proves-the-host
 Blocked: v14b-rag-nudge-replay-benchmark, scoped-pytest
 

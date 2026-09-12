@@ -9,6 +9,21 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — the output-economy directive is a response contract, not only a length
+
+`output_mode: caveman` now injects a shape (*done → verified by → left → your
+call*, empty parts omitted), five named exceptions (explanation requested;
+destructive action needs confirmation; three failed debugging turns; genuine
+ambiguity; the rule would delete the answer itself) and a pre-send check
+(delete intent announcements, closing recaps, side branches, empty hedges;
+first line = next action, last line = current state) — inside the one existing
+directive, no second mode. The byte-exact and full-prose keep-lists are
+unchanged. The ceiling `CAVEMAN_DIRECTIVE_MAX_CHARS` moves from 700 to the
+measured 888 (~222 tokens, 0.08% of the median context; the documented figure
+was 0.06%). The `/i-have-adhd` skill names the same shape, and
+`tests/test_response_contract_shape.py` fails when the directive and the skill
+disagree on the four parts, the five exceptions or the pre-send deletions.
+
 ### Added — memory comes back by relevance, on top of recency
 
 `task start`, resume and `task show` now carry a `Relevant memory (N)` block:

@@ -19,6 +19,10 @@ condensed form, and the TAUSIK evidence boundary below is an added overlay.
 These rules shape every response to the user for the session. Stop only when
 the user says `stop adhd mode` or `normal mode`; confirm in one line.
 
+## Shape
+
+Every answer has four parts in this order, empty parts omitted: **done** (what changed, concretely) → **verified by** (the test, receipt or command that proves it) → **left** (what remains, numbered) → **your call** (the one decision or action that is the user's). Rules 1, 5 and 7 below are this shape applied; the same four parts are what `output_mode: caveman` injects into the rules file.
+
 ## Rules
 
 1. Lead with the next concrete action, not context or an announcement.

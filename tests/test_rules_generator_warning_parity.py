@@ -12,9 +12,10 @@ ONCE at bootstrap, not every turn". Answered by running things, session #230:
     delivery is per-turn; what happens once is the WRITE.
   * It survives compaction by construction, because rules are in the request
     PREFIX and compaction shortens the conversation history.
-  * Cost: the directive is capped at 700 characters (~175 tokens) against a
-    median per-call context of 276,702 — 0.06%, against a measured ceiling of
-    about 2% saved. It repays roughly thirty times over.
+  * Cost: the directive is capped at 888 characters (~222 tokens; 700 before
+    the 1.9 response contract) against a median per-call context of 276,702 —
+    0.08%, against a measured ceiling of about 2% saved. It repays roughly
+    twenty-five times over.
 
 WHAT THE MEASUREMENT DID FIND is what this file guards. All five generators that
 write a rules file — claude, agents, cursorrules, qwen, opencode — call
@@ -144,14 +145,17 @@ class TestTheCheckWouldNoticeASilentGenerator:
 
 
 class TestTheDirectiveStaysTheOnlyLeverAndStaysSmall:
-    def test_the_cap_is_unchanged(self):
-        """This task measured the lever; it did not add one or resize it."""
+    def test_the_cap_is_pinned(self):
+        """The measuring task did not add a lever or resize it (700). The 1.9
+        response contract moved the cap to its measured 888 — by measurement,
+        not by rounding up; `tests/test_response_contract_shape.py` pins the
+        no-headroom half of that."""
         import sys
 
         sys.path.insert(0, str(_BOOTSTRAP))
         from bootstrap_templates import CAVEMAN_DIRECTIVE, CAVEMAN_DIRECTIVE_MAX_CHARS
 
-        assert CAVEMAN_DIRECTIVE_MAX_CHARS == 700
+        assert CAVEMAN_DIRECTIVE_MAX_CHARS == 888
         assert len(CAVEMAN_DIRECTIVE) <= CAVEMAN_DIRECTIVE_MAX_CHARS
 
     def test_the_session_start_hook_does_not_carry_a_second_copy(self):
