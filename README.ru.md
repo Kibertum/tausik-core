@@ -137,7 +137,7 @@ TAUSIK создавался самим TAUSIK — каждая фича, реф�
 - **153 MCP-инструментов** (146 project + 7 brain) — полный программный доступ к базе проекта.
 - **24 real-time-хука** — task gate, bash firewall, push gate, auto-format, drift detection, memory pre/post audit и другие.
 - **25 stack-aware verify-наборов** — pytest, ruff, mypy, tsc, eslint, cargo, go vet, phpstan, helm-lint, hadolint и прочие, по затронутым файлам.
-- **13 core-скиллов** разворачиваются автоматически (+ `/brain` после настройки); 20 official-скиллов по запросу через `bootstrap --include-official` или `tausik skill install <name>`.
+- **14 core-скиллов** разворачиваются автоматически (+ `/brain` после настройки); 20 official-скиллов по запросу через `bootstrap --include-official` или `tausik skill install <name>`.
 - **6 автоматических метрик**, **общий cross-project brain** (опционально, зеркало в Notion), **пакетное выполнение** (`/run plan.md`).
 
 </details>
@@ -150,11 +150,11 @@ TAUSIK создавался самим TAUSIK — каждая фича, реф�
 
 | IDE | MCP-инструменты | Скиллы | Хуки | Статус |
 |---|---|---|---|---|
-| **Claude Code** | 153 | 13 core + по запросу | 24 (полностью) | First-class |
-| **Qwen Code** | 153 | 13 core + по запросу | 24 (паритет с Claude) | First-class |
-| **Kilo Code** (+ [z.ai GLM](docs/ru/kilo-zai.md)) | 153 | 13 core + по запросу | — (гейты на task start/done) | First-class через MCP |
-| **Cursor** | 153 | 13 core + по запросу | — (гейты на task start/done) | Через MCP |
-| VSCode + Claude Extension | 153 | 13 core + по запросу | 24 | Прогнано E2E |
+| **Claude Code** | 153 | 14 core + по запросу | 24 (полностью) | First-class |
+| **Qwen Code** | 153 | 14 core + по запросу | 24 (паритет с Claude) | First-class |
+| **Kilo Code** (+ [z.ai GLM](docs/ru/kilo-zai.md)) | 153 | 14 core + по запросу | — (гейты на task start/done) | First-class через MCP |
+| **Cursor** | 153 | 14 core + по запросу | — (гейты на task start/done) | Через MCP |
+| VSCode + Claude Extension | 153 | 14 core + по запросу | 24 | Прогнано E2E |
 | Windsurf / Codex-подобные | MCP + правила | зависит от хоста | специфично для хоста | Ожидается / вручную |
 
 Хуки — это real-time-рельсы (нет кода без задачи, bash-firewall, push gate) — работают в **Claude Code и Qwen Code**. Kilo, Cursor, Windsurf и другие MCP-хосты получают те же 153 инструмента и скиллы, с quality gates на `task start` и `task done`.

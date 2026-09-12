@@ -216,6 +216,7 @@ def run_command_gate(gate: dict, files: list[str]) -> GateOutcome:
         )
 
     scope_label = ""
+    batch_commands: list[str] | None = None
 
     # `file_extensions` объявляет, КОГДА гейт применим, и это не зависит от
     # того, подставляет ли команда {files}. Прежнее условие требовало наличия
@@ -308,10 +309,11 @@ def run_command_gate(gate: dict, files: list[str]) -> GateOutcome:
             test_files[offset : offset + _SCOPED_PYTEST_BATCH_SIZE]
             for offset in range(0, len(test_files), _SCOPED_PYTEST_BATCH_SIZE)
         ]
-        cmd = " && ".join(
+        batch_commands = [
             cmd.replace("{test_files_for_files}", " ".join(shlex.quote(t) for t in batch))
             for batch in batches
-        )
+        ]
+        cmd = " && ".join(batch_commands)
 
     # A DELETED file cannot be read by a file gate, and until session #235 the
     # declared list went to the command verbatim: `ruff` was handed a path that
@@ -370,7 +372,12 @@ def run_command_gate(gate: dict, files: list[str]) -> GateOutcome:
     # 7459 against the fast lane's 7317. Whatever else a consumer put in addopts
     # (coverage, timeouts, their own -p flags) now survives the full lane too.
     if os.environ.get("TAUSIK_VERIFY_FULL"):
-        cmd = re.subn(r"(^|\s)pytest(\s|$)", r"\1pytest -m ''\2", cmd, count=1)[0]
+        cmd = re.subn(r"(^|\s)pytest(\s|$)", r"\1pytest -m ''\2", cmd)[0]
+        if batch_commands is not None:
+            batch_commands = [
+                re.subn(r"(^|\s)pytest(\s|$)", r"\1pytest -m ''\2", batch)[0]
+                for batch in batch_commands
+            ]
     # Cross-platform truncation: strip `[2>&1] | head/tail -N`, filter later.
     # Windows note: shlex (posix) strips backslashes from paths and subprocess
     # cannot launch a relative forward-slash executable (WinError 2); the
@@ -388,7 +395,26 @@ def run_command_gate(gate: dict, files: list[str]) -> GateOutcome:
     is_pytest = bool(_PYTEST_TOKEN.search(cmd))
 
     try:
-        returncode, raw_output = _run_shellless(cmd, timeout)
+        if batch_commands is None:
+            returncode, raw_output = _run_shellless(cmd, timeout)
+        else:
+            returncode = 0
+            raw_output = ""
+            saw_test_batch = False
+            for batch in batch_commands:
+                returncode, batch_output = _run_shellless(batch, timeout)
+                raw_output += batch_output
+                if returncode == 0:
+                    saw_test_batch = True
+                    continue
+                # Pytest's exit 5 means this particular batch collected no
+                # tests.  It cannot certify a wholly empty run, but it cannot
+                # erase tests a prior batch already ran either.
+                if is_pytest and returncode == _PYTEST_NO_TESTS_COLLECTED and saw_test_batch:
+                    raw_output += "\npytest batch collected no tests; prior batch evidence retained\n"
+                    returncode = 0
+                    continue
+                break
         output = raw_output.strip()
         if line_filter:
             output = _apply_line_filter(output, line_filter)

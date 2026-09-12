@@ -21,7 +21,13 @@ def _git(root, *args, date=None):
         env["GIT_AUTHOR_DATE"] = date
         env["GIT_COMMITTER_DATE"] = date
     return subprocess.run(
-        ["git", *args], cwd=root, check=True, capture_output=True, text=True, env=env
+        ["git", *args],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        env=env,
     )
 
 

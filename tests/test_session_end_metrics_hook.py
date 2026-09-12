@@ -35,6 +35,8 @@ def test_session_end_triggers_metrics_hook(monkeypatch, tmp_path: Path) -> None:
         assert calls, "session_end should attempt to run session_metrics hook"
         assert "--auto" in calls[0]
         assert "--record" in calls[0]
+        pos = calls[0].index("--session-id")
+        assert calls[0][pos + 1] == "1"
     finally:
         svc.be.close()
 

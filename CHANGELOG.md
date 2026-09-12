@@ -9,6 +9,21 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — scoped pytest preserves evidence across an empty late batch
+
+Bounded scoped pytest batches now retain earlier passing evidence when a later
+batch contains only deselected tests (`pytest` exit 5). A wholly empty run is
+still non-evidence, and a real failing batch remains blocking. The full-lane
+marker is applied to every batch.
+
+### Fixed — session token rollups no longer copy a whole transcript into one session
+
+Session-end accounting now binds the closed TAUSIK session ID explicitly and
+counts only transcript entries inside that session's timestamp window. Entries
+without attributable timestamps remain uncounted rather than being guessed into
+the nearest session, so `session_usage_metrics` can support an honest paired
+token-use comparison.
+
 ### Added — action-first I-Have-ADHD output skill on every bootstrap host
 
 The shared harness now deploys the MIT-licensed, source-attributed adapted

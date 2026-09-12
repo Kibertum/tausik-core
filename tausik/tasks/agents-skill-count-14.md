@@ -12,7 +12,9 @@ call_budget: null
 defect_of: root-skill-count-14
 scope: "Edit only the static AGENTS.md core-skill count; do not alter its dynamic state block; use the existing focused check-docs proof."
 scope_exclude: "Do not alter generated constants, README, skills, bootstrap behavior, release/tag/push or user-owned .agents/."
-relevant_files: []
+relevant_files:
+  - AGENTS.md
+  - "tests/test_check_docs_hook.py"
 scope_paths:
   - AGENTS.md
   - "tests/test_check_docs_hook.py"
@@ -44,3 +46,4 @@ Revert the one static onboarding count correction if canonical constants change.
 
 - 2026-09-12T10:25:20Z [implementation] — Corrected only AGENTS.md's static repository-tree count (13→14), leaving the DYNAMIC block untouched. Running the authoritative check-docs proof now.
 - 2026-09-12T10:25:47Z [implementation] — Found and corrected both static AGENTS references: documentation-map label and repository-tree count, each 13→14. DYNAMIC region remains unchanged by this task.
+- 2026-09-12T10:52:33Z [implementation] — After the backlog-state commit, the real-repository check_docs test and pytest dedupe audit are rerun against the static 14-core onboarding correction.

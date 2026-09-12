@@ -140,6 +140,58 @@ class TestParseTranscriptModelHandling:
         assert result["cost_usd"] == 0.0
 
 
+class TestParseTranscriptSessionAttribution:
+    """The database rollup must use the same containment rule as token rows."""
+
+    def test_one_transcript_is_split_by_the_target_session(self, tmp_path):
+        sm = _import_module()
+        path = _write_transcript(
+            tmp_path,
+            [
+                {
+                    "type": "assistant",
+                    "timestamp": "2026-09-11T10:10:00Z",
+                    "model": "claude-sonnet-4-6",
+                    "usage": {"input_tokens": 100, "output_tokens": 10},
+                },
+                {
+                    "type": "assistant",
+                    "timestamp": "2026-09-11T11:10:00Z",
+                    "model": "claude-sonnet-4-6",
+                    "usage": {"input_tokens": 200, "output_tokens": 20},
+                },
+            ],
+        )
+        by_timestamp = {
+            "2026-09-11T10:10:00Z": 11,
+            "2026-09-11T11:10:00Z": 12,
+        }
+
+        first = sm.parse_transcript(path, session_resolver=by_timestamp.get, session_id=11)
+        second = sm.parse_transcript(path, session_resolver=by_timestamp.get, session_id=12)
+
+        assert first["tokens_total"] == 110
+        assert second["tokens_total"] == 220
+
+    def test_unattributable_timestamp_is_excluded_not_guessed(self, tmp_path):
+        sm = _import_module()
+        path = _write_transcript(
+            tmp_path,
+            [
+                {
+                    "type": "assistant",
+                    "model": "claude-sonnet-4-6",
+                    "usage": {"input_tokens": 100, "output_tokens": 10},
+                },
+            ],
+        )
+
+        metrics = sm.parse_transcript(path, session_resolver=lambda _timestamp: None, session_id=12)
+
+        assert metrics["tokens_total"] == 0
+        assert metrics["messages"] == 0
+
+
 class TestParseTranscriptCompactionBilling:
     """Compaction billed under usage.iterations is counted ONCE, not twice.
 
@@ -316,6 +368,22 @@ class TestRecordToDbSelfLocation:
 
         assert ok is False
         assert "project.py not found" in capsys.readouterr().err
+
+    def test_explicit_session_id_is_forwarded_to_the_cli(self, tmp_path, monkeypatch):
+        sm = _import_module()
+        import _common  # type: ignore[import-not-found]
+
+        root = tmp_path / "src"
+        (root / "scripts").mkdir(parents=True)
+        (root / "scripts" / "project.py").write_text("# stub\n", encoding="utf-8")
+        monkeypatch.setattr(_common, "profile_dir", lambda: None)
+        monkeypatch.setattr(_common, "project_root", lambda: str(root))
+        captured: dict = {}
+        self._stub_run(monkeypatch, captured)
+
+        assert sm.record_to_db({"tokens_input": 1}, session_id=42) is True
+        pos = captured["cmd"].index("--session-id")
+        assert captured["cmd"][pos + 1] == "42"
 
     def test_no_hardcoded_profile_in_deployed_script_join(self):
         """The dead `<profile>/.claude/scripts/project.py` join must be gone.

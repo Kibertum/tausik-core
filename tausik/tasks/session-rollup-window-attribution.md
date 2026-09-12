@@ -1,7 +1,7 @@
 ---
 slug: session-rollup-window-attribution
 title: "Разделить посессионный rollup метрик по временным окнам транскрипта"
-status: blocked
+status: active
 epic: release-19-agent-effectiveness
 story: release19-effective-context
 complexity: medium
@@ -59,3 +59,5 @@ Revert the dedicated commit; no historical DB migration or destructive data rewr
 - 2026-09-11T13:25:02Z [implementation] — Review gate run is blocked despite pytest output showing 55 passed: gate reports pytest FAIL without a failing assertion. Treating this as an unexplained gate/infrastructure result, not as passing evidence; investigating before signed verify.
 - 2026-09-12T10:17:22Z [review] — The first signed verify was intentionally non-evidence because relevant_files had never been declared (scope_paths is only an edit ACL). Declared the actual source, tests and changelogs now; task export itself is deliberately excluded per verify receipt ownership convention.
 - 2026-09-12T10:18:13Z [review] — The lone undeclared path is the parent benchmark's foreign task export, changed when the benchmark was blocked before this defect task. It is a real foreign projection (not this task's own export), so it is now declared rather than subtracted or ignored.
+- 2026-09-12T10:51:34Z [implementation] — Commit gate found a concrete type defect in this task's uncommitted implementation: session_metrics.py:77 calls an optional timestamp resolver without a narrowing check. Fix is confined to the existing rollup scope; then rerun focused tests, mypy and signed verify.
+- 2026-09-12T10:51:53Z [implementation] — Fixed the optional resolver narrowing required by mypy; focused session rollup tests and mypy now run before retrying the independent backlog-state commit.

@@ -51,9 +51,9 @@
   "review_agents_count": 6,
   "roles_count": 7,
   "schema_version": 1,
-  "skills_core_count": 13,
+  "skills_core_count": 14,
   "skills_official_count": 20,
   "stacks_count": 25,
   "tausik_version": "1.9.0",
-  "test_count": 10576
+  "test_count": 10775
 }

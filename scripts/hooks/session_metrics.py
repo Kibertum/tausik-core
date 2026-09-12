@@ -14,6 +14,7 @@ Can be used as a Claude Code hook (PostSessionEnd) or called from /end skill.
 import json
 import os
 import sys
+from collections.abc import Callable
 from glob import glob
 
 # Own directory FIRST: the siblings below are imported by bare name, and
@@ -27,7 +28,12 @@ from cost_pricing import calculate_cost_usd  # noqa: E402
 from token_accounting import sum_usage_tokens  # noqa: E402
 
 
-def parse_transcript(path: str, tool_rows_out: list | None = None) -> dict:
+def parse_transcript(
+    path: str,
+    tool_rows_out: list | None = None,
+    session_resolver: Callable[[object], int | None] | None = None,
+    session_id: int | None = None,
+) -> dict:
     """Parse JSONL transcript and extract metrics.
 
     Returns:
@@ -41,6 +47,9 @@ def parse_transcript(path: str, tool_rows_out: list | None = None) -> dict:
     extension has no business changing the shape of either. Absent, nothing is
     collected and the walk is exactly as before.
     """
+    if (session_resolver is None) != (session_id is None):
+        raise ValueError("session_resolver and session_id must be supplied together")
+
     tool_rows = tool_rows_out if tool_rows_out is not None else []
     tokens_input = 0
     tokens_output = 0
@@ -58,6 +67,18 @@ def parse_transcript(path: str, tool_rows_out: list | None = None) -> dict:
             try:
                 entry = json.loads(line)
             except json.JSONDecodeError:
+                continue
+
+            # A Claude transcript can span several TAUSIK sessions.  The
+            # session rollup therefore filters before it counts *anything*;
+            # otherwise the newest session receives a copy of the whole file.
+            # No timestamp is not evidence of ownership, so the resolver's
+            # None is deliberately excluded rather than assigned by proximity.
+            if (
+                session_id is not None
+                and session_resolver is not None
+                and session_resolver(entry.get("timestamp")) != session_id
+            ):
                 continue
 
             # Extract timestamp
@@ -212,7 +233,9 @@ from transcript_locator import latest_project_transcript  # noqa: E402
 # A function kept "just in case" would be an invitation to reintroduce the bug.
 
 
-def record_to_db(metrics: dict, project_root: str | None = None) -> bool:
+def record_to_db(
+    metrics: dict, project_root: str | None = None, session_id: int | None = None
+) -> bool:
     """Call project.py metrics record-session to write metrics to CouchDB.
 
     Returns True on success, False on failure.
@@ -264,6 +287,8 @@ def record_to_db(metrics: dict, project_root: str | None = None) -> bool:
         "--model",
         metrics.get("model", ""),
     ]
+    if session_id is not None:
+        cmd.extend(["--session-id", str(session_id)])
     try:
         result = subprocess.run(
             cmd,
@@ -296,6 +321,19 @@ def main():
     record = "--record" in sys.argv
     args = [a for a in sys.argv[1:] if a != "--record"]
 
+    session_id = None
+    if "--session-id" in args:
+        index = args.index("--session-id")
+        if index + 1 >= len(args):
+            print("Error: --session-id requires an integer", file=sys.stderr)
+            sys.exit(1)
+        try:
+            session_id = int(args[index + 1])
+        except ValueError:
+            print("Error: --session-id requires an integer", file=sys.stderr)
+            sys.exit(1)
+        del args[index : index + 2]
+
     if not args:
         print("Error: no transcript path provided", file=sys.stderr)
         sys.exit(1)
@@ -321,8 +359,30 @@ def main():
         print(f"File not found: {path}", file=sys.stderr)
         sys.exit(1)
 
+    # The service closes its session before invoking this hook, and passes that
+    # exact ID.  An IDE SessionEnd hook can instead still have one open TAUSIK
+    # session; use it only when the window proves it is current.  With neither
+    # proof, write the human-readable full transcript summary but refuse to
+    # put an un-attributable total in the authoritative per-session table.
+    if record and session_id is None:
+        from session_windows import load_session_windows
+
+        windows = load_session_windows()
+        if windows and windows[-1][1] is None:
+            session_id = windows[-1][2]
+        else:
+            print("No attributable TAUSIK session; skipping DB record", file=sys.stderr)
+
     tool_rows: list = []
-    metrics = parse_transcript(path, tool_rows)
+    if record and session_id is not None:
+        metrics = parse_transcript(
+            path,
+            tool_rows,
+            session_resolver=make_session_resolver(),
+            session_id=session_id,
+        )
+    else:
+        metrics = parse_transcript(path, tool_rows)
     output = write_metrics(metrics)
     # `cost_usd` is None when it could not be computed — no model, or no price
     # for the one named. Printed as words, never as $0.00: the whole point of
@@ -347,8 +407,8 @@ def main():
             json.dump(otlp, f, indent=2, ensure_ascii=False)
         print(f"OTLP trace: {otlp_path}")
 
-    if record:
-        record_to_db(metrics)
+    if record and session_id is not None:
+        record_to_db(metrics, session_id=session_id)
 
     # Attribute each row to the session its OWN timestamp falls in. Stamping the
     # whole transcript with resolve_session_id() — the newest session in the DB —
