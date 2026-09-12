@@ -1,7 +1,7 @@
 ---
 slug: docs-generated-constants-19-drift
 title: "Синхронизировать сгенерированные константы документации с 1.9"
-status: blocked
+status: active
 epic: release-19-renar-conformance
 story: release19-proof-integrity
 complexity: simple
@@ -12,7 +12,9 @@ call_budget: null
 defect_of: scoped-pytest-empty-late-batch
 scope: "Regenerate only docs/_generated/constants.json from its checked-in sources, with focused proof in the existing check-docs test; update generated task/story state."
 scope_exclude: "Do not change product version, MCP tools, documentation prose, release/tag/push, or user-owned .agents/."
-relevant_files: []
+relevant_files:
+  - "docs/_generated/constants.json"
+  - "tests/test_check_docs_hook.py"
 scope_paths:
   - "docs/_generated/constants.json"
   - "tests/test_check_docs_hook.py"
@@ -34,7 +36,7 @@ AC-1: generator output matches live pyproject and MCP tool source for 1.9.0. AC-
 
 ## Plan
 
-[{"step": "Inspect generator inputs and reproduce the check_docs drift without editing source claims.", "done": false}, {"step": "Regenerate the checked-in constants artifact from live sources.", "done": false}, {"step": "Run focused check-docs proof and signed verify, recording evidence.", "done": false}]
+[{"step": "Inspect generator inputs and reproduce the check_docs drift without editing source claims.", "done": true}, {"step": "Regenerate the checked-in constants artifact from live sources.", "done": true}, {"step": "Run focused check-docs proof and signed verify, recording evidence.", "done": false}]
 
 ## Rollback
 
@@ -44,3 +46,5 @@ Revert the generated constants update if the generator output is shown inconsist
 
 - 2026-09-12T10:22:59Z [implementation] — Reproducing generator drift from checked-in sources before any edit. The task is artifact-only: version and MCP source remain read-only inputs.
 - 2026-09-12T10:23:24Z [implementation] — Generator updated constants.json from live sources (skills_core_count 13→14; test_count 10576→10775). The focused real-repo check now fails only because README.md and README.ru.md still claim 13 core skills. This is a separate documentation drift introduced by the new skill, not a reason to alter generator output or source counts. An attempted scripts/check_docs.py invocation was invalid because that file does not exist; the existing pytest proof is the authoritative check.
+- 2026-09-12T11:16:37Z — Recheck after the committed 14-core README synchronization: authoritative real-repo check_docs is green, so the prior external blocker is resolved. Unblocking for QG-2.
+- 2026-09-12T11:16:47Z [implementation] — Steps 1–2 complete from the recorded reproduction: generator output was regenerated only from live sources; no version or MCP source was changed.

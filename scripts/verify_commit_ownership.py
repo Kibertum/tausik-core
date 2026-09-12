@@ -22,6 +22,7 @@ import re
 import shutil
 import subprocess
 from collections import defaultdict
+from fnmatch import fnmatchcase
 from typing import Callable
 
 import git_exec
@@ -80,6 +81,22 @@ def _is_dynamic_only_change(previous: str | None, current: str | None) -> bool:
     if len(previous_blocks) != 1 or len(current_blocks) != 1:
         return False
     return _DYNAMIC_BLOCK.sub("<dynamic>", previous) == _DYNAMIC_BLOCK.sub("<dynamic>", current)
+
+
+def _scope_path_matches(path: str, scope_paths: object) -> bool:
+    """Whether a commit-local task ACL explicitly covers ``path``.
+
+    ``scope_paths`` is the immutable write ACL stored in the same commit, not
+    the current worktree.  A malformed entry never matches; glob matching uses
+    the repository-normalized spelling used by the rest of this verifier.
+    """
+    if not isinstance(scope_paths, list):
+        return False
+    return any(
+        isinstance(pattern, str)
+        and fnmatchcase(path, _normalize_repo_path(pattern))
+        for pattern in scope_paths
+    )
 
 
 def _parent_scope_claimants(
@@ -197,9 +214,11 @@ def foreign_completed_paths_since(
             ):
                 continue
             declared = current.get("relevant_files")
-            if not isinstance(declared, list):
-                continue
-            owned = {_normalize_repo_path(str(path)) for path in declared}
+            owned = (
+                {_normalize_repo_path(str(path)) for path in declared}
+                if isinstance(declared, list)
+                else set()
+            )
             # These projections are framework output of the commit-local
             # ownership proof, not undeclared work by the task being verified.
             owned.add(export_path)
@@ -208,6 +227,9 @@ def foreign_completed_paths_since(
                 owned.add(f"tausik/stories/{story}.md")
             for path in owned & changed_paths & changed:
                 commit_claimants[path].add(slug)
+            for path in changed & changed_paths:
+                if _scope_path_matches(path, current.get("scope_paths")):
+                    commit_claimants[path].add(slug)
         for path in changed & changed_paths:
             commit_claimants[path].update(
                 _parent_scope_claimants(

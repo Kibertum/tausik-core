@@ -31,9 +31,13 @@ def _git(root, *args, date=None):
     )
 
 
-def _task(slug, status, files):
+def _task(slug, status, files, scope_paths=None):
     listed = "\n".join(f'  - "{path}"' for path in files)
-    return f"---\nslug: {slug}\nstatus: {status}\nrelevant_files:\n{listed}\n---\n"
+    scope_listed = "\n".join(f'  - "{path}"' for path in (scope_paths or []))
+    return (
+        f"---\nslug: {slug}\nstatus: {status}\nrelevant_files:\n{listed}"
+        f"\nscope_paths:\n{scope_listed}\n---\n"
+    )
 
 
 def _write(root, relative, content):
@@ -110,6 +114,42 @@ def test_predeclared_active_sibling_scope_owns_later_commit(tmp_path):
 
     assert description["status"] == honesty.STATUS_COMPLETE
     assert "foreign.py" not in description["undeclared"]
+
+
+def test_same_commit_scope_path_glob_owns_matching_state_file(tmp_path):
+    root = _repo(tmp_path)
+    _write(root, "tausik/tasks/moved.md", "state moved\n")
+    _write(
+        root,
+        "tausik/tasks/sibling.md",
+        _task("sibling", "active", [], ["tausik/tasks/*.md"]),
+    )
+    _git(root, "add", ".")
+    _git(root, "commit", "-m", "move sibling state")
+
+    description = honesty.describe_declared_scope(
+        ["subject.py"], "1970-01-01T00:00:00Z", root=str(root), task_slug="subject"
+    )
+
+    assert description["status"] == honesty.STATUS_COMPLETE
+
+
+def test_same_commit_scope_path_outside_pattern_remains_undeclared(tmp_path):
+    root = _repo(tmp_path)
+    _write(root, "foreign.py", "outside declared state tree\n")
+    _write(
+        root,
+        "tausik/tasks/sibling.md",
+        _task("sibling", "active", [], ["tausik/tasks/*.md"]),
+    )
+    _git(root, "add", ".")
+    _git(root, "commit", "-m", "commit scope path and foreign file")
+
+    description = honesty.describe_declared_scope(
+        ["subject.py"], "1970-01-01T00:00:00Z", root=str(root), task_slug="subject"
+    )
+
+    assert description["undeclared"] == ["foreign.py"]
 
 
 def test_ambiguous_predeclared_sibling_scopes_remain_undeclared(tmp_path):
