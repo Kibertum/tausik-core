@@ -40,7 +40,6 @@
 | `TAUSIK_PUSH_TICKET_PATH` | Override пути к single-use ticket (тесты). |
 | `TAUSIK_ALLOW_PUSH=1` | **No-op с v1.4** — env-bypass удалён, заменён ticket-файлом от `tausik push-ok`. |
 | `TAUSIK_SKIP_MEMORY_HOOK=1` | Bypass `memory_pretool_block.py` (или использовать `confirm: cross-project` в промпте). |
-| `TAUSIK_BRAIN_HOOK_DEBUG=1` | Brain-хуки пишут в stderr. |
 | `TAUSIK_E2E=1` | Маркер end-to-end тестов. |
 
 ### Project + IDE detection
@@ -51,7 +50,6 @@
 |---|---|
 | `TAUSIK_DIR` / `TAUSIK_PROJECT_DIR` / `TAUSIK_PROJECT_NAME` | Override discovery `.tausik/` / project root / project name. |
 | `TAUSIK_MANIFEST` | Альтернативный bootstrap-manifest (advanced/testing). |
-| `TAUSIK_BRAIN_REGISTRY` | Override `~/.tausik-brain/projects/`. |
 | `CLAUDE_PROJECT_DIR` | Корень проекта (Claude Code). |
 | `CLAUDE_PLUGIN_DATA`, `CLAUDE_CODE_ENTRYPOINT`, `CLAUDE_CODE_SSE_PORT` | Внутренние сигналы Claude Code. |
 | `CURSOR_DIR` / `CURSOR_TRACE_DIR` / `CURSOR_TRACE_ID` | Set by Cursor. |
@@ -69,14 +67,6 @@
 | `CLAUDE_MODEL` / `CLAUDE_CODE_MODEL` | Если хост — Claude Code. |
 | `CURSOR_MODEL` | Если хост — Cursor. |
 | `ANTHROPIC_MODEL` / `OPENAI_MODEL` / `OPENAI_API_MODEL` / `QWEN_MODEL` | Provider-flavoured fallbacks. |
-
-### Brain / Notion
-
-| Переменная | Эффект |
-|---|---|
-| `NOTION_TAUSIK_TOKEN` | Notion integration token (default; имя override'ится `brain.notion_integration_token_env`). |
-| `NOTION_TOKEN` | Generic fallback. |
-| `NOTION_RICH_TEXT_CHUNK` | Размер rich-text чанка для Notion-writer (default 1800). |
 
 ### Windows-specifics
 

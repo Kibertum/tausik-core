@@ -33,16 +33,17 @@ See also: [environment.md](environment.md) — env vars, [permissions.md](permis
 |---|---|---|
 | `gates` | `{}` | Per-gate overrides: `{ "pytest": { "enabled": true }, "filesize": { "max_lines": 600 } }`. Merges over `default_gates.py`. |
 
-## Brain (Shared knowledge layer)
+## Publication (what a redacted export hides)
+
+The shared store (`~/.tausik-knowledge`) needs no configuration: `--global` on
+`decide` / `memory add` writes to it, `$TAUSIK_HOME` moves it. These keys feed
+`knowledge export --redacted` only (see [knowledge-store.md](knowledge-store.md)).
 
 | Key | Default | Purpose |
 |---|---|---|
-| `brain.enabled` | `false` | Master switch for cross-project Notion brain. |
-| `brain.local_mirror_path` | `~/.tausik-brain/brain.db` | Local SQLite mirror of Notion DBs. Tilde + `$ENV` expanded. |
-| `brain.notion_integration_token_env` | `NOTION_TAUSIK_TOKEN` | Env var name holding Notion integration token. |
-| `brain.database_ids` | `{}` | Notion DB IDs (`decisions`, `web_cache`, `patterns`, `gotchas`). Wizard-populated by `tausik brain init`. |
-| `brain.private_url_patterns` | `[]` | URL patterns scrubbed before brain writes (regex strings). |
-| `brain.project_names_blocklist` | `[]` | Project-name substrings scrubbed before brain writes. |
+| `publication.project_names` | `[]` | Project names to replace with `[REDACTED:project]`, in addition to this project's directory name. |
+| `publication.private_url_patterns` | `[]` | Regex strings; a URL matching one becomes `[REDACTED:url]`. |
+| `brain.local_mirror_path` | `~/.tausik-brain/brain.db` | Only read by the one-off `knowledge import-brain`: where the retired Notion transport left its local mirror. |
 
 ## Example
 
@@ -56,9 +57,9 @@ See also: [environment.md](environment.md) — env vars, [permissions.md](permis
     "filesize": { "max_lines": 500 },
     "ruff": { "enabled": false }
   },
-  "brain": {
-    "enabled": true,
-    "notion_integration_token_env": "NOTION_TAUSIK_TOKEN"
+  "publication": {
+    "project_names": ["acme"],
+    "private_url_patterns": ["acme\\.internal"]
   }
 }
 ```

@@ -131,13 +131,15 @@ restoring it into an empty store carries the placeholders, never the originals.
 The boundary is the one place this question is answered: a test walks the tree
 and fails on any module that reads the store and writes files without it.
 
-**One-off import from the Notion mirror:**
+**One-off import from the retired Notion mirror:**
 
 ```bash
 tausik knowledge import-brain
 ```
 
-Copies the local Notion-brain mirror into the shared store. No network required.
+Copies the local mirror file the Notion transport left behind
+(`~/.tausik-brain/brain.db`) into the shared store. No network required, and
+nothing to configure: the transport itself is gone since 1.9 (decision #358).
 
 **Where is it right now:** `tausik doctor` prints the resolved store path, and
 names the reason when a location is refused.
@@ -148,11 +150,11 @@ names the reason when a location is refused.
 
 This is not a list of gaps. Each item is a decision.
 
-**It does not redact content.** Text enters the shared store as written: no
-scrubber, no path stripping, no name substitution. The Notion brain cannot work
-that way — an entry there leaves the machine, so a linter cleans it and a risk
-classifier judges it. Here there is no cleaning, and the entire justification is
-that **the store never leaves this machine**.
+**It does not redact content on write.** Text enters the shared store as
+written: no scrubber, no path stripping, no name substitution. The entire
+justification is that **the store never leaves this machine** — and the one
+command that makes it leave, `knowledge export --redacted`, is where redaction
+happens (see the publication boundary above).
 
 **It does not leave the machine.** Hence the `TAUSIK_HOME` validation added in
 1.8: a network path (UNC or a mapped volume) and a cloud-sync directory
@@ -172,17 +174,17 @@ clients, one client's directory name was readable from another client's project.
 It now holds a `basename@fingerprint` label. Existing rows are rewritten on the
 next open.
 
-**It is not the Notion brain.** Three stores, three different answers to "where
-does this go":
+**It is not a transport.** Two stores, two answers to "where does this go",
+and both are chosen by you:
 
 | Command | Destination | Leaves the machine |
 |---|---|---|
 | `tausik memory add ...` | project database | no |
 | `tausik memory add ... --global` | shared store on this machine | no |
-| `tausik brain move --to-brain <id>` | Notion | **yes** |
+| `tausik knowledge export --to <dir> --redacted` | a local directory, redacted | only if you carry it |
 
-Since 1.8 there is no automatic routing: the classifier no longer decides what
-gets published. Anything going outward goes by the third command, by hand.
+Nothing routes itself and nothing publishes: the classifier that used to decide
+went in 1.8 (decision #221), the Notion transport in 1.9 (decision #358).
 
 ---
 

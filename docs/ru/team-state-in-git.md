@@ -248,7 +248,7 @@ edges:
 | `epics` | `epic add`, `epic done`, `epic delete` |
 | `stories` | `story add`, `story done`, `story delete` |
 | `tasks` | `task add/quick`, `update`, `start`, `log`, `plan`, `step`, `block`, `unblock`, `review`, `move`, `done`, `delete` |
-| `decisions` | `decide` — все ветки, включая привязанную к задаче и уехавшую в brain |
+| `decisions` | `decide` — все ветки, включая привязанную к задаче |
 | `memory` | `memory add`, `dead-end`, `memory delete`, `memory link/unlink`, `memory archive` |
 
 Сущность, покинувшая проекцию (удалена или, для памяти, архивирована), **теряет

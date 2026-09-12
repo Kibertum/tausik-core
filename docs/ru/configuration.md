@@ -33,16 +33,17 @@
 |---|---|---|
 | `gates` | `{}` | Per-gate overrides: `{ "pytest": { "enabled": true }, "filesize": { "max_lines": 600 } }`. Мержится поверх `default_gates.py`. |
 
-## Brain (общая база знаний)
+## Публикация (что скрывает вычищенный экспорт)
+
+Общее хранилище (`~/.tausik-knowledge`) не требует настройки: `--global` у
+`decide` / `memory add` пишет в него, `$TAUSIK_HOME` переносит. Эти ключи читает
+только `knowledge export --redacted` (см. [knowledge-store.md](knowledge-store.md)).
 
 | Ключ | Дефолт | Назначение |
 |---|---|---|
-| `brain.enabled` | `false` | Master switch для cross-project Notion brain. |
-| `brain.local_mirror_path` | `~/.tausik-brain/brain.db` | Локальный SQLite mirror Notion-баз. Тильда + `$ENV` раскрываются. |
-| `brain.notion_integration_token_env` | `NOTION_TAUSIK_TOKEN` | Имя env-переменной с Notion integration token. |
-| `brain.database_ids` | `{}` | Notion DB ID'ы. Заполняются wizard'ом `tausik brain init`. |
-| `brain.private_url_patterns` | `[]` | Regex-паттерны URL для scrub'инга перед записью в brain. |
-| `brain.project_names_blocklist` | `[]` | Подстроки имён проектов для scrub'инга. |
+| `publication.project_names` | `[]` | Имена проектов, заменяемые на `[REDACTED:project]`, в дополнение к имени каталога этого проекта. |
+| `publication.private_url_patterns` | `[]` | Regex-строки; URL, подходящий под одну из них, становится `[REDACTED:url]`. |
+| `brain.local_mirror_path` | `~/.tausik-brain/brain.db` | Читается только разовым `knowledge import-brain`: где отставленный транспорт Notion оставил локальное зеркало. |
 
 ## Пример
 
@@ -56,9 +57,9 @@
     "filesize": { "max_lines": 500 },
     "ruff": { "enabled": false }
   },
-  "brain": {
-    "enabled": true,
-    "notion_integration_token_env": "NOTION_TAUSIK_TOKEN"
+  "publication": {
+    "project_names": ["acme"],
+    "private_url_patterns": ["acme\\.internal"]
   }
 }
 ```
