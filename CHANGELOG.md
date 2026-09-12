@@ -9,6 +9,21 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the generated half of CLAUDE.md is measured: cost per part and two usage proxies
+
+`scripts/context_block_audit.py` splits the rules file at the generator's own
+markers (handwritten | Current State | memory tail | shared knowledge),
+prices each part against the measured median context (the generated half is
+0.41 % per request, not the paper's +20 %), and reads this machine's
+transcripts for two usage proxies with thresholds declared before the run:
+the state block is re-fetched in the first 8 calls in 43.6 % of 94 sessions
+(threshold < 75 %: stays); a memory id the agent cites that no earlier tool
+result or human message carried, and that the tail carried at some point in
+CLAUDE.md's history, appears in 37.2 % of sessions (threshold ≥ 25 %: stays).
+Session-style numbers are not credited to the tail; ids the tail never
+carried are not credited; task success — the paper's metric — is not
+measured and is named as such next to the figures.
+
 ### Added — response-contract adherence is measured, and the lever is not built
 
 `scripts/response_contract_audit.py` reads user-facing answers (the last
