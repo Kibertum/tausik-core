@@ -40,6 +40,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
+from renar_br_premise import CONTROL_POINT_DECLARATION, premise_broken as _br_premise_broken
 from renar_clause_reactive_adapt import SPEC_PROVENANCE_FIELDS
 
 # The provenance field whose absence the owner's ruling is about. A SPEC may
@@ -100,6 +101,9 @@ DECLARATIONS: list[dict[str, str]] = [
             "inapplicable is only the SPEC-side reference, which no column can hold"
         ),
     },
+    # §13.3.8 / §10.11.1 (RENAR v1.1): the control-point half of the eighth
+    # clause; the verdict half is `implements-edge-subsystem` in the clauses.
+    CONTROL_POINT_DECLARATION,
 ]
 
 # Emptiness must be DECLARED, never merely reached: "nothing to disclose" and
@@ -188,6 +192,15 @@ def spec_adapt_reference_possible(conn: sqlite3.Connection) -> bool:
     is how a gate over nothing gets built.
     """
     return "source_adapt" in _provenance_columns(conn) if _has_specs_table(conn) else False
+
+
+def implements_edge_carrier_exists(conn: sqlite3.Connection) -> bool:
+    """Can a §13.3.8 implements-edge be written at all — the third declaration's
+    premise, inverted. Delegates to `renar_br_premise.premise_broken`, which reads
+    the schema for a BR class, a `level` admitting `subsystem`, or an `implements`
+    column. True means the control point has acquired a subject and the
+    declaration must be re-decided, not widened."""
+    return bool(_br_premise_broken(conn))
 
 
 def section(conn: sqlite3.Connection) -> dict[str, Any]:

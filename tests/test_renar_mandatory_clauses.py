@@ -53,7 +53,7 @@ def _clauses(svc):
 
 def test_every_clause_carries_a_basis_from_the_closed_list(svc):
     clauses = _clauses(svc)
-    assert len(clauses) == 7
+    assert len(clauses) == 8, sorted(clauses)
     for name, c in clauses.items():
         assert c["basis"] in BASIS_KINDS, f"{name}: basis {c.get('basis')!r}"
         assert c["evidence"].strip(), f"{name}: evidence is empty"
@@ -106,6 +106,8 @@ def test_the_bases_are_what_the_measurement_table_decided(svc):
         "tc-pos-neg-pairing": "vacuous",
         "quality-gates-closed-list": "declared",
         "closed-lists-backward-findings": "measured",
+        # v1.1, session #250: no BR class, no level column (renar_br_premise)
+        "implements-edge-subsystem": "vacuous",
     }
 
 

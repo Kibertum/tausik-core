@@ -9,6 +9,20 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — RENAR re-assessed under corpus v1.1: eighth clause vacuous, manifest 1.1
+
+The standard's corpus moved to v1.1 and §13.4.3 makes a minor edition a
+re-assessment trigger (decision #364). `renar-version` is now `1.1`
+(manifest-version 22). The eighth mandatory clause §13.3.8 (`implements`-edge on
+subsystem BR) is published as `implements-edge-subsystem: true` with basis
+`vacuous`: the substrate holds no BR class and no `level` column, and the two
+`implements` occurrences here run from work to requirement, not BR → BR. The
+§10.11.1 control point is declared under normative-inapplicability with the same
+premise. The premise is a ratchet, not a sentence: `renar_br_premise.premise_broken`
+reads the canonical schema for a `level` admitting `subsystem`, a BR-named table
+or an `implements` column, and `tests/test_renar_br_premise.py` runs it in CI.
+`level` stays null (§1.5.4). The live-corpus drift test is green again.
+
 ### Changed — what's new 1.9 counts its entries and names the context work
 
 The entry figure on `docs/{ru,en}/whats-new-1.9.md` is now the live count of

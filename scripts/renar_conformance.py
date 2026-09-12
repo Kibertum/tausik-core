@@ -59,7 +59,10 @@ from renar_normative_inapplicability import section as inapplicability_section
 from renar_tc_premise import pairing_clause
 from service_specs import SPEC_TYPES
 
-RENAR_VERSION = "1.0"
+# v1.1 since session #250 (decision #364): the corpus moved to v1.1 at c3dd6b0 and
+# §13.4.3 makes a minor edition a re-assessment trigger; the eighth clause
+# §13.3.8 is assessed in renar_br_premise.
+RENAR_VERSION = "1.1"
 SENAR_VERSION = "1.3"
 
 # Derived from the canonical closed list (single source) → "SPEC-<TYPE>" labels.

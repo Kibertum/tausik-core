@@ -108,7 +108,7 @@ def test_yaml_round_trips(svc):
     loaded = yaml.safe_load(text)
     # The header comment is dropped by the loader; body must equal the manifest.
     assert loaded == manifest
-    assert loaded["renar-version"] == "1.0"
+    assert loaded["renar-version"] == "1.1"
 
 
 # --- honest level inference -------------------------------------------------
@@ -342,7 +342,7 @@ class TestScopeApplicability:
     def test_no_renar_n_token_anywhere_in_the_manifest_text(self, svc):
         """AC-3 in the manifest: no RENAR-N reads as a claim.
 
-        `renar-version: "1.0"` and the level ladder inside assessment-evidence
+        `renar-version: "1.1"` and the level ladder inside assessment-evidence
         are not claims, so the assertion is scoped to the claim-bearing keys.
         """
         svc.adapt_create("ad1", "Adapt 1", "TZ-1")

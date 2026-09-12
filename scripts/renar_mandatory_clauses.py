@@ -1,4 +1,7 @@
-"""The seven mandatory clauses (§13.3), each with the BASIS its verdict rests on.
+"""The eight mandatory clauses (§13.3), each with the BASIS its verdict rests on.
+
+Seven under RENAR v1.0; v1.1 added §13.3.8 (implements-edge on subsystem BR),
+assessed in session #250 (decision #364) as `vacuous` — see renar_br_premise.
 
 `mandatory-clauses-confirmed` prints a bare ``true`` per clause, and the header
 said every ``true`` was earned. Measured in session #213: of the seven, two
@@ -38,6 +41,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from renar_br_premise import BR_PREMISE_WATCH, implements_edge_clause
 from renar_clause_reactive_adapt import Subcheck
 
 # Closed list of bases. A clause carries exactly one.
@@ -140,7 +144,7 @@ TC_PREMISE_WATCH = (
 
 
 def eval_mandatory_clauses(bundle: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    """The seven §13.3 verdicts, each with ``confirmed``, ``evidence`` and ``basis``."""
+    """The eight §13.3 verdicts, each with ``confirmed``, ``evidence`` and ``basis``."""
     s = bundle["signals"]
     return {
         # §13.3.1 — policy clause. The violations it names (reverse-engineering
@@ -176,6 +180,12 @@ def eval_mandatory_clauses(bundle: dict[str, Any]) -> dict[str, dict[str, Any]]:
         },
         # §13.3.7 — backward-finding categories and ADAPT statuses, measured.
         "closed-lists-backward-findings": {**bundle["clause_13_3_7"], "basis": "measured"},
+        # §13.3.8 (v1.1) — vacuous while no BR class exists (renar_br_premise).
+        "implements-edge-subsystem": {
+            **implements_edge_clause(),
+            "basis": "vacuous",
+            "premise-watched-by": BR_PREMISE_WATCH,
+        },
     }
 
 

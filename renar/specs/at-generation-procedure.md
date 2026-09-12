@@ -2,7 +2,8 @@
 artifact: spec
 content_ref: docs/en/at-generation-procedure.md
 created_at: '2026-09-06T17:59:09Z'
-linked_tasks: []
+linked_tasks:
+- at-acceptance-tests-derived-by-an-isolated-agent
 slug: at-generation-procedure
 status: active
 type: PROC
@@ -18,4 +19,4 @@ Status **active** · version **v1**
 
 Content ref: `docs/en/at-generation-procedure.md`
 
-Linked tasks: (none)
+Linked tasks: at-acceptance-tests-derived-by-an-isolated-agent

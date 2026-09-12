@@ -36,6 +36,12 @@ mandatory-clauses-basis:
     it, the premise watched by the named repository test. `vacuous`: the obligation
     has no subject here, the arrival of one watched by the named ratchet. A constant
     is not a measurement, and this block is what keeps the two from reading alike.'
+  implements-edge-subsystem:
+    basis: vacuous
+    premise-watched-by: renar_br_premise.premise_broken via tests/test_renar_br_premise.py,
+      on the canonical schema (conftest.canonical_schema_db — what `tausik init` creates,
+      from git, so it RUNS IN CI); it reads the schema for a `level` column admitting
+      `subsystem`, a BR-named table or an `implements` column, not a list of names
   quality-gates-closed-list:
     basis: declared
   sot-inversion:
@@ -59,13 +65,14 @@ mandatory-clauses-basis:
 mandatory-clauses-confirmed:
   adapt-per-tz: false
   closed-lists-backward-findings: true
+  implements-edge-subsystem: true
   quality-gates-closed-list: true
   sot-inversion: true
   spec-types-closed-list: true
   substrate-v1-v6: true
   tc-pos-neg-pairing: true
 pre-adoption: false
-renar-version: '1.0'
+renar-version: '1.1'
 scope-exclusion:
   clause: §1.5.4
   decided-in: decisions#292
