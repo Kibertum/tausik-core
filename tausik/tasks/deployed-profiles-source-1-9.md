@@ -1,7 +1,7 @@
 ---
 slug: deployed-profiles-source-1-9
 title: "Синхронизировать deployed profiles с source 1.9"
-status: active
+status: done
 epic: release-19-renar-conformance
 story: release19-proof-integrity
 complexity: simple
@@ -40,7 +40,7 @@ scope_paths:
   - "tausik/stories/release19-proof-integrity.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-12T11:15:56Z"
 ---
 
 ## Goal
@@ -53,7 +53,7 @@ AC-1: bootstrap --check reports no deployed drift. AC-2: all six present profile
 
 ## Plan
 
-[{"step": "Record the exact read-only bootstrap drift inventory.", "done": true}, {"step": "Redeploy copy-only profiles using the framework bootstrap command.", "done": true}, {"step": "Run check, focused bootstrap tests and signed verify.", "done": false}]
+[{"step": "Record the exact read-only bootstrap drift inventory.", "done": true}, {"step": "Redeploy copy-only profiles using the framework bootstrap command.", "done": true}, {"step": "Run check, focused bootstrap tests and signed verify.", "done": true}]
 
 ## Rollback
 
@@ -63,3 +63,4 @@ Restore the generated profile copies by rerunning bootstrap from the prior sourc
 
 - 2026-09-12T11:13:11Z [implementation] — Step 1 done: read-only bootstrap --check reported exactly 18 drifted files: the same three scripts in each of Claude, Codex, Cursor, Kilo, OpenCode and Qwen profiles.
 - 2026-09-12T11:13:32Z [implementation] — Step 2 done: ran supported bootstrap --ide all; all six installed profiles were regenerated from current source, including Codex. Source and user-owned .agents/ remain untouched.
+- 2026-09-12T11:15:51Z [implementation] — Step 3 complete. AC-1: ✓ python bootstrap/bootstrap.py --check reports no drift. AC-2: ✓ six profile trees were regenerated from the same source. AC-3: ✓ git status shows no source/profile changes and .agents/ stayed unmodified. AC-4: ✓ 29 focused bootstrap tests passed; signed verify #2428 has ruff/pytest PASS. Domain: task-done bootstrap gate now loads and compares the deployed host copies, so it independently proves the live-profile boundary.
