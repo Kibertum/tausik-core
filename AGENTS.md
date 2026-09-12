@@ -144,10 +144,10 @@ Three layers, strict separation: **CLI never touches DB. Service validates. Back
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #242 (active) | Branch: v1-9-wave | Version: 1.9.0
-Tasks: 1429/1604 done, 1 active, 11 blocked
-Active: session-rollup-window-attribution
-Blocked: brainh-reliability, v14b-rag-nudge-replay-benchmark, verify-certifies-a-run-that-touched-no-test-of-the-subject, ci-lane-runs-on-main-only-so-the-release-branch-is, write-gate-is-blind-to-pathlib-writes, codex-live-acceptance-proves-the-host, verify-uses-commit-history-as-task-diff, scoped-pytest, tree-subagent-reviewer, commit-ownership, verify-dynamic-state
+Session: #244 (active) | Branch: v1-9-wave | Version: 1.9.0
+Tasks: 1447/1616 done, 1 active, 5 blocked
+Active: normalize-release-backlog-19-110-20
+Blocked: brainh-reliability, v14b-rag-nudge-replay-benchmark, ci-lane-runs-on-main-only-so-the-release-branch-is, codex-live-acceptance-proves-the-host, scoped-pytest
 
 ### Memory tail
 Context (5):
@@ -157,11 +157,11 @@ Context (5):
 - #674 Аудит SENAR 9.5 за смены #235-#238: одна новая находка, и она в файле, который инструктирует агентов
 - #670 Ревью пяти закрытий смен #235-#236: одна выдуманная цитата класса, ноль мёртвых объявлений, и гейт ё
 Decisions (5):
+- #362 Backlog release map after owner confirmation: 1.9 is limited to owner decisions #358, #360 and #361 (Notion removal, pro
 - #361 1.9 scope is extended by owner approval: release19-proof-integrity and release19-effective-context join the release stor
 - #360 1.9 scope is restated and supersedes decision #337: agent-output-discipline, context-carries-over-between-sessions, guar
 - #359 Codex sub-agent TOML files are generated from harness/claude/subagents Markdown as the sole canonical instruction source
 - #358 ОТ NOTION ОТКАЗЫВАЕМСЯ ЦЕЛИКОМ. Решение владельца, смена #241. Следствия шире задачи об удалении мастера настройки: уход
-- #357 ДЕЯТЕЛЬ ЕСТЬ СОДЕРЖИМОЕ ПОДПИСАННОЙ КВИТАНЦИИ, А НЕ ВТОРОЙ ПОДПИСАНТ, И СРАВНЕНИЕ ДАЁТ ТРИ ИСХОДА. Второй ключ означал б
 Conventions (5):
 - #686 Хост, добавляемый в SCAFFOLD_IDES, проверяется ЗАМЕРОМ БИНАРЯ, а не документацией
 - #682 Мёртвый код ищут по СИМВОЛАМ, а не по модулям, и повторяемо — потому что удаление обнажает следующий
@@ -169,9 +169,9 @@ Conventions (5):
 - #669 Имя КЛАССА теста опаснее имени функции: оба выдуманных случая за две смены были классами
 - #664 Критерий, требующий НОВОЙ СУЩНОСТИ В ЗАКРЫТОМ ПЕРЕЧНЕ, проверяй на совместимость с критерием «схему 
 Dead ends (3):
+- #689 Ограничить parent-tree претензии done-задач условием completed_at >= started_at верифицируемой задач
+- #688 Treat the scoped review pytest FAIL as a test failure, then re-run with TAUSIK_VERIFY_FULL=1.
 - #687 Use the standard MCP verify receipt as immediate closure evidence for verify-dynamic-state.
-- #680 Считать дрейф cli.md артефактом счётчика: комментарии '# --- ... ---' внутри блоков кода принимаются
-- #678 Добавить релизную ветку v*-wave в триггер push у .github/workflows/tests.yml, чтобы опубликованная л
 
 **Shared knowledge — from other projects (11):**
 - [decision] v139-D (клиентский mux) НЕ делается в 1.3.9 как «фикс троттлинга». Предпосылка задачи неверна для на
