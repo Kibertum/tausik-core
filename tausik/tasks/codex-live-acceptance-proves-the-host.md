@@ -1,7 +1,7 @@
 ---
 slug: codex-live-acceptance-proves-the-host
 title: "Codex вживую: MCP, skills, agents и нативный hook подтверждены на реальном хосте"
-status: blocked
+status: active
 epic: release-19-renar-conformance
 story: codex-first-class-19
 complexity: medium
@@ -40,3 +40,4 @@ Delete the named disposable probe; it contains no user or product data. Any evid
 ## Journal
 
 - 2026-09-10T07:00:38Z [implementation] — User-authorized disposable probe tausik-live-acceptance-probe-codex.txt was created, existence confirmed, then deleted and absence confirmed. This validates cleanup only: it was performed through the workspace tool, not the Codex extension, so it is explicitly NOT native-hook acceptance evidence.
+- 2026-09-12T13:38:00Z [implementation] — Unblocked in session #244: the prerequisite write-gate-is-blind-to-pathlib-writes is closed (signed run #2474), so Rule 2 may be claimed hard for the pathlib idiom in the live run. This task is reserved for a real Codex host session: the evidence must be live host observation, not Claude's tests. Checklist for the Codex run: (1) bootstrap --ide codex, bootstrap --check clean; (2) call tausik-project MCP (tausik_status) and record the structured reply; (3) list .codex/skills and .codex/agents and invoke one skill and one agent by name; (4) with an active task whose scope_paths exclude it, run python - <<PY that Path('outside.txt').write_text(...) — the native hook must block before the file exists; (5) confirm no residue file after the refusal; (6) log each step as live evidence with the host's own output.
