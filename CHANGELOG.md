@@ -9,6 +9,17 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the ownership walk reads the window in one `git log`
+
+`verify` used to run `git diff-tree` for every commit since the task started
+and `git show` for every task export inside each, even when the receipt
+inspected a single path: a task window of 630 commits cost 168 s, tripped the
+pytest hang guard in any scoped batch that carried
+`tests/test_service_verification.py`, and turned 213 green tests into a FAIL.
+The walk now reads commits and their paths with one `git log --name-only`
+and skips every commit that touches nothing under inspection; a commit that
+does is read exactly as before. Measured: 168 s → 0.6 s.
+
 ### Fixed — a moved task export no longer competes with the ACL that moved it
 
 Commit-local ownership now resolves each path on the strongest tier of proof

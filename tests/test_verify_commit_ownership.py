@@ -288,6 +288,70 @@ def test_same_commit_export_outranks_a_predeclared_parent_tree_claim(tmp_path):
     assert "foreign.py" not in description["undeclared"]
 
 
+def _counting_runner(root):
+    """The real git, with every invocation's subcommand recorded."""
+    import verify_commit_ownership as ownership
+
+    seen = []
+
+    def run(args, **kwargs):
+        seen.append(args[1])
+        return subprocess.run(args, **kwargs)
+
+    return ownership, seen, run
+
+
+def test_a_commit_touching_no_inspected_path_costs_no_git_show(tmp_path):
+    root = _repo(tmp_path)
+    _write(root, "elsewhere.py", "unrelated commit\n")
+    _write(root, "tausik/tasks/sibling.md", _task("sibling", "active", ["elsewhere.py"]))
+    _git(root, "add", ".")
+    _git(root, "commit", "-m", "commit that touches nothing under inspection")
+    ownership, seen, run = _counting_runner(root)
+
+    owned = ownership.foreign_completed_paths_since(
+        "1970-01-01T00:00:00Z",
+        "subject",
+        changed_paths={"never-committed.py"},
+        root=str(root),
+        runner=run,
+    )
+
+    assert owned == set()
+    assert seen == ["log"], seen
+
+
+def test_a_commit_touching_an_inspected_path_still_reads_its_exports(tmp_path):
+    root = _repo(tmp_path)
+    _write(root, "foreign.py", "owned by sibling\n")
+    _write(root, "tausik/tasks/sibling.md", _task("sibling", "active", ["foreign.py"]))
+    _git(root, "add", ".")
+    _git(root, "commit", "-m", "commit sibling scope")
+    ownership, seen, run = _counting_runner(root)
+
+    owned = ownership.foreign_completed_paths_since(
+        "1970-01-01T00:00:00Z",
+        "subject",
+        changed_paths={"foreign.py"},
+        root=str(root),
+        runner=run,
+    )
+
+    assert owned == {"foreign.py"}
+    assert seen[0] == "log" and "show" in seen and "diff-tree" not in seen, seen
+
+
+@pytest.mark.parametrize(
+    "history",
+    ["", "\x01not-a-hash\nfoo.py\n", "foo.py\n\x01\n"],
+    ids=["empty", "malformed-header", "orphan-paths"],
+)
+def test_malformed_history_yields_no_commits(history):
+    import verify_commit_ownership as ownership
+
+    assert ownership._commits_with_paths(history) == []
+
+
 @pytest.mark.parametrize("path", ["AGENTS.md", "CLAUDE.md"])
 def test_committed_dynamic_block_only_is_not_charged_to_subject(tmp_path, path):
     root = _repo(tmp_path)

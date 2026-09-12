@@ -49,6 +49,11 @@ _PREDECLARED_STATUSES = frozenset({"active", "blocked", "done"})
 # bounded candidate set the historical declaration is not cheap enough to
 # inspect during a verification receipt, so it remains undeclared (safe).
 _MAX_PARENT_SCOPE_CANDIDATES = 64
+# One `git log --name-only` answers "which commits changed which paths" for the
+# whole window.  The mark prefixes each commit header so a path can never be
+# mistaken for one; a header that is not a hexadecimal hash is dropped.
+_COMMIT_MARK = "\x01"
+_COMMIT_HASH = re.compile(r"^[0-9a-f]{7,64}$")
 _DYNAMIC_BLOCK = re.compile(
     r"<!-- DYNAMIC:START -->.*?<!-- DYNAMIC:END -->", re.DOTALL
 )
@@ -93,6 +98,23 @@ def _is_dynamic_only_change(previous: str | None, current: str | None) -> bool:
     if len(previous_blocks) != 1 or len(current_blocks) != 1:
         return False
     return _DYNAMIC_BLOCK.sub("<dynamic>", previous) == _DYNAMIC_BLOCK.sub("<dynamic>", current)
+
+
+def _commits_with_paths(history: str) -> list[tuple[str, set[str]]]:
+    """Parse ``git log --format=<mark>%H --name-only`` into (commit, paths)."""
+    commits: list[tuple[str, set[str]]] = []
+    current: set[str] | None = None
+    for raw in history.splitlines():
+        line = raw.strip()
+        if line.startswith(_COMMIT_MARK):
+            header = line[len(_COMMIT_MARK):].strip()
+            current = None
+            if _COMMIT_HASH.match(header):
+                current = set()
+                commits.append((header, current))
+        elif line and current is not None:
+            current.add(_normalize_repo_path(line))
+    return commits
 
 
 def _scope_path_matches(path: str, scope_paths: object) -> bool:
@@ -187,26 +209,24 @@ def foreign_completed_paths_since(
     if not _is_repo_root(base):
         return set()
     run = runner or git_exec.run_git
-    commits = _git_text(
-        ["git", "log", f"--since={task_started_at}", "--format=%H"], base=base, run=run
+    history = _git_text(
+        ["git", "log", f"--since={task_started_at}", f"--format={_COMMIT_MARK}%H", "--name-only"],
+        base=base,
+        run=run,
     )
-    if commits is None:
+    if history is None:
         return set()
 
     claimants: dict[str, set[str]] = defaultdict(set)
     ambiguous: set[str] = set()
-    for commit in (line.strip() for line in commits.splitlines()):
-        if not commit:
-            continue
-        names = _git_text(
-            ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", commit],
-            base=base,
-            run=run,
-        )
-        if names is None:
-            continue
-        changed = {_normalize_repo_path(line) for line in names.splitlines() if line.strip()}
+    for commit, changed in _commits_with_paths(history):
+        # A commit that touches nothing under inspection can claim nothing:
+        # skipping it is what keeps a long-lived task from paying one `git
+        # show` per export for every commit of the window (measured: 630
+        # commits, 168 s, on a one-path inspection).
         inspected = changed & changed_paths
+        if not inspected:
+            continue
         same_commit: dict[str, set[str]] = defaultdict(set)
         projection: dict[str, set[str]] = defaultdict(set)
         for path in inspected & _DYNAMIC_FILES:
