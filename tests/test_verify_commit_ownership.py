@@ -134,40 +134,36 @@ def test_same_commit_scope_path_glob_owns_matching_state_file(tmp_path):
     assert description["status"] == honesty.STATUS_COMPLETE
 
 
-def test_same_commit_scope_path_outside_pattern_remains_undeclared(tmp_path):
+@pytest.mark.parametrize(
+    ("status", "changed_path", "content", "expected"),
+    [
+        ("active", "foreign.py", "outside declared state tree\n", "foreign.py"),
+        (
+            "planning",
+            "tausik/tasks/moved.md",
+            "state moved without an active owner\n",
+            "tausik/tasks/moved.md",
+        ),
+    ],
+)
+def test_same_commit_scope_path_without_active_matching_owner_stays_undeclared(
+    tmp_path, status, changed_path, content, expected
+):
     root = _repo(tmp_path)
-    _write(root, "foreign.py", "outside declared state tree\n")
+    _write(root, changed_path, content)
     _write(
         root,
         "tausik/tasks/sibling.md",
-        _task("sibling", "active", [], ["tausik/tasks/*.md"]),
+        _task("sibling", status, [], ["tausik/tasks/*.md"]),
     )
     _git(root, "add", ".")
-    _git(root, "commit", "-m", "commit scope path and foreign file")
+    _git(root, "commit", "-m", "commit non-owning scope path")
 
     description = honesty.describe_declared_scope(
         ["subject.py"], "1970-01-01T00:00:00Z", root=str(root), task_slug="subject"
     )
 
-    assert description["undeclared"] == ["foreign.py"]
-
-
-def test_same_commit_planning_scope_path_does_not_own_state_file(tmp_path):
-    root = _repo(tmp_path)
-    _write(root, "tausik/tasks/moved.md", "state moved without an active owner\n")
-    _write(
-        root,
-        "tausik/tasks/sibling.md",
-        _task("sibling", "planning", [], ["tausik/tasks/*.md"]),
-    )
-    _git(root, "add", ".")
-    _git(root, "commit", "-m", "commit planning scope path")
-
-    description = honesty.describe_declared_scope(
-        ["subject.py"], "1970-01-01T00:00:00Z", root=str(root), task_slug="subject"
-    )
-
-    assert description["undeclared"] == ["tausik/tasks/moved.md"]
+    assert description["undeclared"] == [expected]
 
 
 def test_ambiguous_predeclared_sibling_scopes_remain_undeclared(tmp_path):
