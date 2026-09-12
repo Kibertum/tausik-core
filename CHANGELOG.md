@@ -9,6 +9,22 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — response-contract adherence is measured, and the lever is not built
+
+`scripts/response_contract_audit.py` reads user-facing answers (the last
+assistant text before the next human message; replies to harness
+notifications excluded) from Claude Code transcripts, Codex rollouts filtered
+by cwd, and generic `{"text"}` JSONL, and scores four bilingual markers —
+the contract's own pre-send deletions (intent opener, closing recap, side
+branch, empty hedge) — on prose after protected content (code, quoted
+output, paths, AC/decision lines) is stripped. The failure threshold was
+declared before the run: below 10 % of answers with a marker, no lever.
+Measured on session #249 over 451 answers: 7.1 % (Claude 317 / Codex 134),
+so no adherence lever ships; the instrument, its 25 cases and the figure do.
+The shape (done → verified by → left → your call) is NOT measured by this and
+adherence to it is not claimed. `--threshold` re-measures the same corpus
+later; an empty corpus is named, never reported as 0 %.
+
 ### Changed — the output-economy directive is a response contract, not only a length
 
 `output_mode: caveman` now injects a shape (*done → verified by → left → your
