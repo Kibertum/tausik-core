@@ -142,6 +142,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="LOCAL directory to write into. Remote destinations (s3://, https://, UNC) "
         "are refused: the store is kept unredacted and must not leave this machine.",
     )
+    kn_export.add_argument(
+        "--redacted",
+        action="store_true",
+        help="Pass every text field through the publication boundary: absolute paths, "
+        "e-mails, private URLs (publication.private_url_patterns) and project names "
+        "(this project's directory name plus publication.project_names) become typed "
+        "placeholders. The manifest says the backup is redacted. Use this for a backup "
+        "that will leave the machine; a plain backup stays faithful for restore.",
+    )
     kn_restore = kn_sub.add_parser(
         "restore", help="Rebuild the shared store from a backup (matches records by uuid)"
     )

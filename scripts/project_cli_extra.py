@@ -27,6 +27,33 @@ from render_memory import (
 _render_tags = render_tags
 
 
+def _publication_blocklists() -> tuple[list[str], list[str]]:
+    """What the boundary must not let through by name: this project's directory
+    name, plus whatever `publication.project_names` and
+    `publication.private_url_patterns` list in the config. The registry that used
+    to union every project on the machine left with the Notion transport
+    (decision #358); the config is the explicit replacement."""
+    import os
+
+    from project_config import find_tausik_dir, load_config
+
+    names: list[str] = []
+    try:
+        names.append(os.path.basename(os.path.dirname(os.path.abspath(find_tausik_dir()))))
+    except Exception:  # noqa: BLE001 — no project here: the config lists are still honoured
+        pass
+    try:
+        section = load_config().get("publication") or {}
+    except Exception:  # noqa: BLE001 — an unreadable config must not turn redaction off silently
+        section = {}
+    if isinstance(section, dict):
+        names += [n for n in section.get("project_names", []) or [] if isinstance(n, str)]
+        patterns = [p for p in section.get("private_url_patterns", []) or [] if isinstance(p, str)]
+    else:
+        patterns = []
+    return [n for n in names if n.strip()], patterns
+
+
 def cmd_knowledge(svc: ProjectService, args: Any) -> None:
     """`tausik knowledge export|restore` — back up the shared store, or rebuild it.
 
@@ -38,10 +65,20 @@ def cmd_knowledge(svc: ProjectService, args: Any) -> None:
 
     sub = getattr(args, "knowledge_cmd", None)
     if sub == "export":
-        counts = export_shared_knowledge(args.to)
-        total = sum(counts.values())
-        detail = ", ".join(f"{n} {name}" for name, n in counts.items())
+        redacted = bool(getattr(args, "redacted", False))
+        names, url_patterns = _publication_blocklists() if redacted else ((), ())
+        counts = export_shared_knowledge(
+            args.to, redacted=redacted, project_names=names, private_url_patterns=url_patterns
+        )
+        records = {k: v for k, v in counts.items() if not k.startswith("redacted_")}
+        total = sum(records.values())
+        detail = ", ".join(f"{n} {name}" for name, n in records.items())
         print(f"Backed up {total} record(s) to {args.to} ({detail}).")
+        if redacted:
+            hits = ", ".join(
+                f"{n} {k.removeprefix('redacted_')}" for k, n in counts.items() if k.startswith("redacted_")
+            )
+            print(f"Redacted: {hits or 'nothing matched'} — the manifest records it.")
         return
     if sub == "restore":
         counts = restore_shared_knowledge(args.from_dir)

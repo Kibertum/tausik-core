@@ -748,6 +748,7 @@ coherence [--json]             # collect the tree's coherence material for a jud
 
 # --- tree and store maintenance ---
 knowledge export|restore|import-brain   # the shared knowledge store to a file and back
+knowledge export --to <dir> --redacted  # a copy meant to travel: paths, e-mails, private URLs, project names -> placeholders
 db prune                       # delete the oldest .tausik/tausik.db.bak.* files
 config show                    # the resolved configuration, with the tier each value came from
 config set <key> <value>       # persist an override into .tausik/config.json

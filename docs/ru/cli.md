@@ -746,6 +746,7 @@ coherence [--json]             # собрать материал о связно
 
 # --- работа с деревом и хранилищем ---
 knowledge export|restore|import-brain   # общее хранилище знаний в файл и обратно
+knowledge export --to <dir> --redacted  # копия в дорогу: пути, e-mail, приватные URL, имена проектов -> плейсхолдеры
 db prune                       # удалить старые .tausik/tausik.db.bak.*
 config show                    # показать разрешённую конфигурацию с её тирами
 config set <ключ> <значение>   # записать переопределение в .tausik/config.json

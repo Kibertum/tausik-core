@@ -112,6 +112,26 @@ The export is not a dump but a file per record: readable by eye, storable in a
 private dotfiles repository, and comprehensible a year later. `restore` matches
 on `uuid`, so running it twice does not duplicate anything.
 
+**A backup that leaves the machine goes through the publication boundary.**
+The store is kept unredacted — a memory can name a client outright — and the
+only argument for that is "it never leaves the machine". A plain export refuses
+remote destinations (`s3://`, `https://`, UNC) and stays faithful for restore.
+For a copy that will travel, add `--redacted`:
+
+```bash
+tausik knowledge export --to ~/travel/knowledge --redacted
+```
+
+Every text field then passes `publication_boundary.redact`: absolute paths,
+e-mails, private URLs (`publication.private_url_patterns` in the config) and
+project names (this project's directory name plus `publication.project_names`)
+become typed placeholders such as `[REDACTED:email]`, and the manifest records
+`redacted: true` with a count per detector. Restoring a redacted backup over a
+live store changes nothing — `restore` never overwrites an existing uuid — and
+restoring it into an empty store carries the placeholders, never the originals.
+The boundary is the one place this question is answered: a test walks the tree
+and fails on any module that reads the store and writes files without it.
+
 **One-off import from the Notion mirror:**
 
 ```bash

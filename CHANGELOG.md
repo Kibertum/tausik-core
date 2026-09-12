@@ -9,6 +9,21 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — one publication boundary for knowledge that leaves the machine
+
+The four places that used to decide "may this leave?" left with the Notion
+transport; the one path that remains is `tausik knowledge export`, which checked
+a destination's shape and nothing about the content. `publication_boundary` now
+owns both questions: `assert_local_destination` (moved from the exporter) and
+`redact`, built on the scrubber's four detectors but replacing each match with
+a typed placeholder instead of refusing. `knowledge export --redacted` passes
+every text field through it, records `redacted: true` and per-detector counts
+in the manifest, and takes project names from the project directory plus
+`publication.project_names` and URL patterns from
+`publication.private_url_patterns`. A plain export stays faithful. A tree-walk
+test fails on any module that reads the store and writes files without the
+boundary, and its allowlist must be exercised or the suite fails.
+
 ### BREAKING — the Notion transport is gone
 
 Decision #358: the shared knowledge base stays local and file-based, and the
