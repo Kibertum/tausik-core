@@ -228,7 +228,10 @@ def foreign_completed_paths_since(
             for path in owned & changed_paths & changed:
                 commit_claimants[path].add(slug)
             for path in changed & changed_paths:
-                if _scope_path_matches(path, current.get("scope_paths")):
+                if (
+                    current.get("status") in _PREDECLARED_STATUSES
+                    and _scope_path_matches(path, current.get("scope_paths"))
+                ):
                     commit_claimants[path].add(slug)
         for path in changed & changed_paths:
             commit_claimants[path].update(
