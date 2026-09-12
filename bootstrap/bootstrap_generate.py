@@ -18,6 +18,21 @@ _CLAUDE_HOOK_VAR = "${CLAUDE_PROJECT_DIR}"
 _CURSOR_VAR = "${workspaceFolder}"
 
 
+# Managed entries an earlier bootstrap wrote and this one no longer produces.
+# A consumer upgrading from 1.8 keeps its own servers (they are preserved by
+# name) but must not keep OURS pointing at a server.py that no longer ships:
+# the host would spawn nothing and log an MCP error on every start.
+RETIRED_MCP_SERVERS: tuple[str, ...] = ("tausik-brain",)
+
+
+def retire_managed_servers(servers: dict) -> list[str]:
+    """Drop retired managed entries from a live ``mcpServers``-style dict; return the names removed."""
+    removed = [name for name in RETIRED_MCP_SERVERS if name in servers]
+    for name in removed:
+        del servers[name]
+    return removed
+
+
 def _stdio_mcp_server(command: str, args: list[str]) -> dict[str, Any]:
     """Cursor / VS Code MCP stdio transport — ``type`` required per host docs."""
     return {"type": "stdio", "command": command, "args": args}
@@ -86,6 +101,7 @@ def generate_mcp_json(project_dir: str, ide_dir: str, venv_python: str | None = 
             pass
 
     servers = existing.get("mcpServers", {})
+    retire_managed_servers(servers)
 
     # Rename-proof: in-project paths become ${CLAUDE_PROJECT_DIR:-.}-relative;
     # external paths (system venv) stay absolute. --project uses the same var.
@@ -107,12 +123,6 @@ def generate_mcp_json(project_dir: str, ide_dir: str, venv_python: str | None = 
         servers["tausik-project"] = _stdio_mcp_server(
             cmd,
             [_pp(project_server), "--project", proj_arg],
-        )
-    brain_server = os.path.join(ide_dir, "mcp", "brain", "server.py")
-    if os.path.exists(brain_server):
-        servers["tausik-brain"] = _stdio_mcp_server(
-            cmd,
-            [_pp(brain_server), "--project", proj_arg],
         )
 
     mcp_config = {**existing, "mcpServers": servers}
@@ -141,6 +151,7 @@ def generate_cursor_mcp_json(
             pass
 
     servers = existing.get("mcpServers", {})
+    retire_managed_servers(servers)
 
     # Cursor expands ${workspaceFolder} at launch → rename-proof for in-project
     # paths; external paths stay absolute.
@@ -161,12 +172,6 @@ def generate_cursor_mcp_json(
         servers["tausik-project"] = _stdio_mcp_server(
             cmd,
             [_pp(project_server), "--project", proj_arg],
-        )
-    brain_server = os.path.join(ide_dir, "mcp", "brain", "server.py")
-    if os.path.exists(brain_server):
-        servers["tausik-brain"] = _stdio_mcp_server(
-            cmd,
-            [_pp(brain_server), "--project", proj_arg],
         )
 
     mcp_config = {**existing, "mcpServers": servers}

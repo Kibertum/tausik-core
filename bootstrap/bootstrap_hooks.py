@@ -199,16 +199,6 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 ],
             },
             {
-                "matcher": "WebSearch|WebFetch",
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": hook_cmd("brain_search_proactive.py"),
-                        "timeout": 5,
-                    }
-                ],
-            },
-            {
                 # The `"if": "Bash(git push *)"` clause that used to narrow this
                 # registration is gone. It was a SECOND, dialect-specific copy
                 # of a decision the hook already makes for itself
@@ -280,16 +270,6 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                         "type": "command",
                         "command": hook_cmd("task_done_verify.py"),
                         "timeout": 6,
-                    }
-                ],
-            },
-            {
-                "matcher": "WebFetch",
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": hook_cmd("brain_post_webfetch.py"),
-                        "timeout": 10,
                     }
                 ],
             },

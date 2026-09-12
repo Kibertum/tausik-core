@@ -22,7 +22,6 @@ from doc_drift_common import (
     _CODE_COUNT_PATTERNS,
     _DYNAMIC_BLOCK_RE,
     _FENCED_BLOCK_RE,
-    _MCP_COUNT_PAIR_PATTERN,
     _MCP_COUNT_PATTERNS,
     _TEST_COUNT_PATTERNS,
     _VERSION_RE,
@@ -73,35 +72,6 @@ def _replace_two_groups(match: "re.Match[str]", first: str, second: str) -> str:
     for start, end, digits in sorted(spans, reverse=True):
         whole = whole[:start] + digits + whole[end:]
     return whole
-
-
-def _fix_pair(
-    text: str, pattern: "re.Pattern[str]", first: int, second: int
-) -> tuple[str, bool]:
-    """Repair the `N project + M brain` form, whose scanner had no fixer.
-
-    MEASURED (session #234): raising the MCP tool count from 145 to 146 left
-    EIGHT of these across seven files, and `--write` finished red saying "drift
-    remains after --write; a ref is outside the known patterns". A detector
-    without a repairer forces by hand exactly the work it exists to automate,
-    and — worse — suggests the drift is covered when it is not.
-
-    Each half is compared on its own: a pair whose first number is stale and
-    whose second is correct rewrites only the first.
-    """
-    spans = _protected_spans(text, dynamic=False)
-    changed = False
-
-    def repl(m: "re.Match[str]") -> str:
-        nonlocal changed
-        if _in_span(m.start(), spans):
-            return m.group(0)
-        if int(m.group(1)) == first and int(m.group(2)) == second:
-            return m.group(0)
-        changed = True
-        return _replace_two_groups(m, str(first), str(second))
-
-    return pattern.sub(repl, text), changed
 
 
 def _fix_counts(text: str, pattern: "re.Pattern[str]", expected: int) -> tuple[str, bool]:
@@ -183,15 +153,6 @@ def write_cross_file_fixes(repo_root: Path, payload: dict[str, object]) -> list[
         file_changed = False
         for _kind, pattern, expected in count_specs:
             text, ch = _fix_counts(text, pattern, expected)
-            file_changed = file_changed or ch
-        # The pair form, whose scanner has existed since review #208 while its
-        # repairer did not. Kept out of `count_specs` because that list carries
-        # single-group patterns and this one has two.
-        pair_re, (pair_k1, pair_k2), _pair_label = _MCP_COUNT_PAIR_PATTERN
-        pair_first = payload.get(pair_k1)
-        pair_second = payload.get(pair_k2)
-        if isinstance(pair_first, int) and isinstance(pair_second, int):
-            text, ch = _fix_pair(text, pair_re, pair_first, pair_second)
             file_changed = file_changed or ch
         if rel in VERSION_SCAN_TARGETS:
             text, ch = _fix_versions(

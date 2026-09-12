@@ -96,18 +96,6 @@ def _verify_first_autouse_compat_shim(request, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def _isolated_brain_registry(tmp_path_factory, monkeypatch):
-    """Redirect the global brain registry to a throwaway path for every test.
-
-    Prevents tests that go through scrub_with_config(union_with_registry=True)
-    from reading or writing the dev's real ~/.tausik-brain/projects.json.
-    """
-    reg_dir = tmp_path_factory.mktemp("brain_registry")
-    monkeypatch.setenv("TAUSIK_BRAIN_REGISTRY", str(reg_dir / "projects.json"))
-    yield
-
-
-@pytest.fixture(autouse=True)
 def _isolated_config_trust_tiers(tmp_path_factory, monkeypatch):
     """Point the user/managed config tiers at throwaway paths for every test.
 

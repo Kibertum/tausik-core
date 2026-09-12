@@ -233,21 +233,6 @@ def load_config(config_path: str) -> dict[str, Any]:
     return dict(DEFAULT_CONFIG)
 
 
-def is_brain_enabled(full_cfg: dict[str, Any] | None) -> bool:
-    """Brain skill is opt-in: deployed only when `brain.enabled` is set in
-    the project config (.tausik/config.json top-level `brain` section).
-
-    Mirrors scripts/brain_config.is_brain_enabled — duplicated here so
-    bootstrap stays standalone (no scripts/ import). Used by bootstrap_copy
-    to filter brain out of the deployed skill set unless the user has run
-    `tausik brain init`. Saves ~600 tokens/turn for projects without Notion.
-    """
-    if not isinstance(full_cfg, dict):
-        return False
-    brain = full_cfg.get("brain", {}) or {}
-    return bool(brain.get("enabled", False))
-
-
 def save_config(config_path: str, cfg: dict[str, Any]) -> None:
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
     with open(config_path, "w", encoding="utf-8") as f:

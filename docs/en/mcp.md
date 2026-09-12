@@ -2,9 +2,9 @@
 
 # TAUSIK MCP — Tool Reference
 
-**153 tools** for AI agents (146 project + 7 brain; current actual count, asserted via `len(TOOLS)` on both servers). The MCP surface covers everything an agent does day-to-day. A few CLI-only commands have no MCP equivalent — they are operator / maintenance verbs that don't belong in an agent loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. For the agent's working set, prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
+**146 tools** for AI agents (146 project + 7 brain; current actual count, asserted via `len(TOOLS)` on both servers). The MCP surface covers everything an agent does day-to-day. A few CLI-only commands have no MCP equivalent — they are operator / maintenance verbs that don't belong in an agent loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. For the agent's working set, prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
 
-> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 152 count - total with it is 160 tools.
+> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 152 count - total with it is 153 tools.
 
 Two MCP servers live in this project:
 
@@ -322,39 +322,6 @@ Role storage is hybrid: SQLite metadata + `harness/roles/{role}.md` profile mark
 | `tausik_update_claudemd` | Update dynamic section in CLAUDE.md | — |
 | `tausik_fts_optimize` | Optimize FTS5 indexes | — |
 
-## Shared Brain (`tausik-brain`, 7 tools)
-
-| Tool | Description | Required Parameters |
-|---|---|---|
-| `brain_search` | Search the Notion-backed brain (FTS over local mirror) | `query` |
-| `brain_get` | Get a brain record by id | `id`, `category` |
-| `brain_store_decision` | Store a cross-project decision | `name`, `decision` |
-| `brain_store_pattern` | Store a cross-project pattern | `name`, `description` |
-| `brain_store_gotcha` | Store a cross-project gotcha | `name`, `description` |
-| `brain_draft_artifact` | Dry-run artifact publish (taxonomy + scrub + classifier risk; no Notion write) | `kind` |
-| `brain_cache_web` | Cache a web result for token reuse | `name`, `url`, `content` |
-
-The `tausik-brain` MCP server runs config-agnostic at startup and reads registry from `.tausik-brain/` configuration. The total tool count for this server is 7 (verified via `len(TOOLS)` in `harness/claude/mcp/brain/tools.py`).
-
-### Brain config requirements
-
-Since 1.8, `tausik_decide` does **not** route to the brain at all — recording a
-decision never publishes it anywhere (decision #221). Brain config governs only
-the explicit outward path: `brain_store_*`, `brain_cache_web`, and
-`tausik brain move --to-brain`. When `brain.enabled=true` in
-`.tausik/config.json`, ALL of the following must be set or those operations fail
-rather than mirroring:
-
-- `brain.database_ids.decisions`, `database_ids.patterns`, `database_ids.gotchas`, `database_ids.web_cache` — all four Notion database UUIDs.
-- `brain.notion_integration_token_env` — env var name (default `NOTION_TAUSIK_TOKEN`) that must resolve to a non-empty token via env, `.tausik/.env`, or `brain.notion_integration_token` in config.
-
-`tausik doctor` surfaces validation errors as a `Brain config` warning row. The fastest fix is `tausik brain init` (interactive wizard) or set `brain.enabled=false` to opt out cleanly.
-
-`tausik brain move --to-brain` is the only outward path, and it is a deliberate
-act — not a catch-up for a misconfiguration window. Decisions stay local because
-that is the rule now, not because the config was broken; nothing accumulates a
-backlog waiting to be flushed to Notion.
-
 ## Codebase RAG (separate optional MCP server)
 
 | Tool | Description | Required Parameters |
@@ -367,7 +334,7 @@ backlog waiting to be flushed to Notion.
 | `cache_web_result` | Cache web search result for reuse | `query`, `content` |
 | `search_web_cache` | Search cached web results | `query` |
 
-These are not part of the main 153 count — they belong to the optional `codebase-rag` server.
+These are not part of the main 146 count — they belong to the optional `codebase-rag` server.
 
 ## Scoped tool surface (`mcp.scope_tools_exposure`)
 
@@ -388,7 +355,7 @@ directly still passes the existing scope enforcement, and the write-gate is
 untouched. The scoped list is recomputed each time the host fetches
 `list_tools` — i.e. on every server connect with a task already active.
 
-**Measured cost.** The full authored surface is 153 tools ≈ 62 KB of tool
+**Measured cost.** The full authored surface is 146 tools ≈ 62 KB of tool
 definitions (~15.9k estimated tokens; `tests/test_mcp_tool_token_cost.py` pins
 this and ratchets it). Under Claude Code deferred loading (`ENABLE_TOOL_SEARCH`)
 only tool names load eagerly and each description is truncated to 2 KB — a ratchet

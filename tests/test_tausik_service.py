@@ -556,12 +556,6 @@ class TestKnowledge:
             svc.memory_show(9999)
 
     def test_decisions(self, svc, monkeypatch):
-        # Stub brain disabled so decide() doesn't read the real project's
-        # half-configured brain (would surface the v14b BLOCKED warning
-        # instead of the "recorded" path this dispatch test asserts).
-        import brain_config
-
-        monkeypatch.setattr(brain_config, "load_brain", lambda cfg=None: {"enabled": False})
         msg = svc.decide("Use REST API", rationale="Simpler than GraphQL")
         assert "recorded" in msg
         decs = svc.decisions()

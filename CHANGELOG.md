@@ -9,6 +9,30 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### BREAKING — the Notion transport is gone
+
+Decision #358: the shared knowledge base stays local and file-based, and the
+transport that mirrored it to a Notion workspace leaves the framework whole.
+Removed: the `tausik brain` command tree (`init`, `status`, `sync`, `move`,
+`draft`, `publish`), the `tausik-brain` MCP server and its seven tools, the
+`/brain` skill, the `brain_search_proactive` and `brain_post_webfetch` hooks,
+the project registry, the token cascade and thirty-one `brain_*` modules with
+their tests (11 k lines). Every host profile stops registering the server, and
+a bootstrap over a 1.8 checkout REMOVES the stale `tausik-brain` entry it
+finds in `.mcp.json`, `.cursor/mcp.json`, `.qwen/settings.json`,
+`.kilocode/mcp.json` and the Codex `config.toml` block, which is now rewritten
+in place instead of skipped. `snippet extract` keeps only `--scope global`.
+
+What stays: `~/.tausik-knowledge` and every `--global` path; `tausik knowledge
+import-brain`, which still reads the local mirror file `~/.tausik-brain/brain.db`
+(path now resolved by `knowledge_mirror`); the universality hint (regex layer
+only — the FTS layer searched the mirror); `brain_scrubbing` as the scrubber
+the publication boundary will unify; snippet detection. The registry union
+that scrubbing used to fold in is gone with the registry — that blocklist is
+the boundary task's to rebuild. Counts: hooks 24 → 22, core skills 14 → 13,
+main MCP tools 153 → 146. Prose documentation that still describes the
+transport is rewritten by kb-docs-map/swarm/consistency.
+
 ### Added — a trusted-tier weakening can be scoped to one project
 
 `~/.tausik/config.json` and the managed tier may carry a `projects` object

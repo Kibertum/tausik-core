@@ -88,7 +88,7 @@ _TABLE_COUNT_SUBJECTS: tuple[tuple[re.Pattern[str], str, tuple[str, ...], str], 
     (
         re.compile(r"\b(?:MCP\s+(?:tools|инструмент(?:ы|ов|а))|tausik\s+tools)\b", re.IGNORECASE),
         "mcp_main_tools",
-        ("mcp_project_tools", "mcp_brain_tools"),
+        ("mcp_project_tools",),
         "MCP tool-count",
     ),
     (
@@ -186,8 +186,9 @@ STATED_ONLY_WHERE_NOTHING_READS: dict[str, str] = {
 # and "1.5" (decorations that change what the number claims).
 _TABLE_COUNT_CELL_RE = re.compile(r"^\*{0,2}(\d+)\*{0,2}(?P<rest>.*)$")
 
-# The split a total sometimes spells out: "152 (145+7)". Read only when the
-# subject declares which constants the components are.
+# The split a total sometimes spells out: "152 (145+7)". Checked against the
+# subject's declared components; a split with more parts than the subject
+# declares is a sum the repository no longer computes.
 _TABLE_COUNT_SPLIT_RE = re.compile(r"^\s*\((\d+)\s*\+\s*(\d+)\)")
 
 # Punctuation, backticks and emphasis carry no meaning in a header cell, and
@@ -372,12 +373,23 @@ def _check_cell(
             f"{rel}:{line_no}: {label} cell '{cell}' does not match constants.json {key}={expected}"
         )
     split = _TABLE_COUNT_SPLIT_RE.match(rest)
-    if split is not None and len(parts) == 2:
-        for got, part_key in zip((split.group(1), split.group(2)), parts, strict=True):
-            part_expected = payload.get(part_key)
-            if isinstance(part_expected, int) and int(got) != part_expected:
-                messages.append(
-                    f"{rel}:{line_no}: {label} split '{split.group(0).strip()}' in cell "
-                    f"'{cell}' does not match constants.json {part_key}={part_expected}"
-                )
+    if split is not None:
+        groups = (split.group(1), split.group(2))
+        if len(parts) != len(groups):
+            # "(146+7)" after the brain server left: the doc spells out a sum
+            # the repository no longer computes. That is drift even when the
+            # total happens to be right.
+            messages.append(
+                f"{rel}:{line_no}: {label} split '{split.group(0).strip()}' in cell "
+                f"'{cell}' names {len(groups)} components but the subject has "
+                f"{len(parts)} ({', '.join(parts)})"
+            )
+        else:
+            for got, part_key in zip(groups, parts, strict=True):
+                part_expected = payload.get(part_key)
+                if isinstance(part_expected, int) and int(got) != part_expected:
+                    messages.append(
+                        f"{rel}:{line_no}: {label} split '{split.group(0).strip()}' in cell "
+                        f"'{cell}' does not match constants.json {part_key}={part_expected}"
+                    )
     return messages

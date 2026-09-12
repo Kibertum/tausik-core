@@ -9,7 +9,7 @@ own module bottom, which is safe because common has no back-edge to either).
 
 Covered drift classes (see the scanners for the walking logic):
   - version refs (`vX.Y` / `vX.Y.Z`) vs `tausik_version`
-  - MCP tool counts (`**N tools**`, `N project tools`, brain header, pair)
+  - MCP tool counts (`**N tools**`, `N project tools`, stale `brain = N` sums)
   - test counts (badge URL/label, `pytest suite (N tests)`, `**N tests**`)
   - repo-state counts (stacks / hooks / review agents / roles / skills)
   - counted table columns (registry + scan live in :mod:`doc_drift_tables`)
@@ -96,15 +96,11 @@ _TOOL_WORD = r"(?:tools?|инструмент(?:а|ов)?)"
 
 # MCP tool-count patterns. Each entry is (compiled regex, constants_key, label).
 # The capture group is a single integer compared against constants.json[key].
-# Patterns are ordered specific-first so context-rich matches (brain header)
-# fire before generic ones (`X project tools`).
+# Patterns are ordered specific-first so context-rich matches fire before
+# generic ones (`X project tools`). The `brain = N` sums stay as detectors of a
+# STALE claim: the brain server left with the Notion transport (decision #358),
+# so any doc still adding brain tools to the main count is drift by definition.
 _MCP_COUNT_PATTERNS: tuple[tuple[re.Pattern[str], str, str], ...] = (
-    # `tausik-brain`, N tools — brain server header, e.g. "## Shared Brain (`tausik-brain`, 7 tools)"
-    (
-        re.compile(rf"`tausik-brain`[^)]*?,\s*(\d+)\s+{_TOOL_WORD}", re.IGNORECASE),
-        "mcp_brain_tools",
-        "tausik-brain server header",
-    ),
     # **N tools** / **N MCP tools** / **N MCP-инструментов** — markdown bold main count
     (
         re.compile(rf"\*\*(\d+)\s+(?:MCP[-\s]+)?{_TOOL_WORD}\*\*", re.IGNORECASE),
@@ -116,12 +112,6 @@ _MCP_COUNT_PATTERNS: tuple[tuple[re.Pattern[str], str, str], ...] = (
         re.compile(rf"\b(\d+)\s+project\s+{_TOOL_WORD}\b", re.IGNORECASE),
         "mcp_project_tools",
         "project count",
-    ),
-    # N brain tools — explicit brain count, e.g. "7 brain tools"
-    (
-        re.compile(rf"\b(\d+)\s+brain\s+{_TOOL_WORD}\b", re.IGNORECASE),
-        "mcp_brain_tools",
-        "brain count",
     ),
     # "brain = N tools" / "brain = N инструментов" — the sum written after a
     # pair, where the bold spans the whole phrase so the bold pattern above
@@ -248,15 +238,6 @@ _MCP_COUNT_PATTERNS: tuple[tuple[re.Pattern[str], str, str], ...] = (
         "mcp_main_tools",
         "authored-surface count (ru)",
     ),
-)
-
-# Pair pattern: "(N project + M brain ...)" — both groups checked independently.
-# The parenthesis is optional: "**121 project + 7 brain = 128 инструментов**"
-# carries the pair without one and was invisible to the guard (review #208).
-_MCP_COUNT_PAIR_PATTERN: tuple[re.Pattern[str], tuple[str, str], str] = (
-    re.compile(r"\(?\b(\d+)\s+project\s*\+\s*(\d+)\s+brain", re.IGNORECASE),
-    ("mcp_project_tools", "mcp_brain_tools"),
-    "project+brain pair",
 )
 
 # Test-count patterns. Each entry is (compiled regex, label). The capture

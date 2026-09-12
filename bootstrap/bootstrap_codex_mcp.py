@@ -37,7 +37,6 @@ CONFIG_FILE = "config.toml"
 _SERVERS = (
     ("tausik-project", os.path.join("project", "server.py")),
     ("codebase-rag", os.path.join("codebase-rag", "server.py")),
-    ("tausik-brain", os.path.join("brain", "server.py")),
 )
 
 #: Границы нашего блока. По ним же он и опознаётся при повторном прогоне —
@@ -137,9 +136,6 @@ def register_mcp_servers(
         except (OSError, UnicodeDecodeError) as e:
             print(f"  WARNING: {path} нечитаем ({e}) — MCP-серверы для Codex НЕ зарегистрированы.")
             return path, 0
-    if already_registered(existing):
-        return path, 0
-
     # РАЗБОР ДО ЗАПИСИ, а не только после. Файл, уже не разбираемый, Codex не
     # прочтёт и сам; дописать в него значило бы спрятать чужую поломку под своим
     # блоком и получить жалобу «TAUSIK сломал мне конфиг». Не трогаем и говорим.
@@ -157,6 +153,30 @@ def register_mcp_servers(
     if not block:
         print("  WARNING: ни одного server.py не найдено — MCP-серверы для Codex не записаны.")
         return path, 0
+
+    if already_registered(existing):
+        # Наш блок уже есть: перезаписать ЕГО, не дописывать второй и не
+        # оставлять в нём сервер, которого больше нет (tausik-brain ушёл вместе с
+        # Notion, решение #358). Чужой текст вокруг блока не трогается.
+        start = existing.index(BEGIN)
+        end_marker = existing.find(END, start)
+        if end_marker < 0:
+            print(f"  WARNING: в {path} есть начало блока TAUSIK без конца — файл не изменён.")
+            return path, 0
+        end = end_marker + len(END)
+        if existing[end : end + 1] == "\n":
+            end += 1
+        updated = existing[:start] + block + existing[end:]
+        if updated == existing:
+            return path, 0
+        try:
+            parsed = tomllib.loads(updated)
+        except tomllib.TOMLDecodeError as e:  # pragma: no cover — наш блок собран из литералов
+            print(f"  WARNING: перегенерированный блок сломал бы {path} ({e}) — файл не изменён.")
+            return path, 0
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(updated)
+        return path, len(parsed.get("mcp_servers", {}))
 
     # Ровно одна пустая строка между чужим текстом и нашим блоком: без неё
     # секция приклеится к последней строке пользователя, а две подряд копятся с

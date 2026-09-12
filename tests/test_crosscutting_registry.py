@@ -115,7 +115,6 @@ _GRANDFATHERED = {
 _INVISIBLE_BASELINE = {
     "test_adversarial_review_mode.py",
     "test_ble001_enforced.py",
-    "test_brain_mcp_installed_layout.py",
     "test_breaking_change_count_converges.py",
     "test_coverage_badge.py",
     "test_interview_skill.py",

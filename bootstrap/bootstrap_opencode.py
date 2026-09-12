@@ -52,7 +52,6 @@ _DRIVE_PREFIX = re.compile(r"^[A-Za-z]:")
 _SERVERS = (
     ("tausik-project", os.path.join("project", "server.py")),
     ("codebase-rag", os.path.join("codebase-rag", "server.py")),
-    ("tausik-brain", os.path.join("brain", "server.py")),
 )
 
 # OpenCode reads project config from the project ROOT, not from .opencode/.

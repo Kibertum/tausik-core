@@ -123,7 +123,8 @@ class TestTheRegistryCannotGoBlind:
 
     def test_the_doctor_labels_are_not_empty_and_include_ones_outside_the_handler(self):
         labels = set(gate.doctor_checks())
-        assert len(labels) >= 20, f"suspiciously few labels parsed: {sorted(labels)}"
+        # 20 until decision #358 retired the two brain labels (MCP server (brain), Brain config).
+        assert len(labels) >= 18, f"suspiciously few labels parsed: {sorted(labels)}"
         for moved in ("Commit hooks", "Enforcement coverage", "Session model"):
             assert moved in labels, (
                 f"{moved} is printed by doctor from OUTSIDE project_cli_doctor.py — "

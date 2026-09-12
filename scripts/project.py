@@ -61,7 +61,6 @@ def main() -> None:
     from project_cli_audit import cmd_audit
     from project_cli_metrics import cmd_metrics
     from project_cli_ops import (
-        cmd_brain,
         cmd_dead_end,
         cmd_doc,
         cmd_explore,
@@ -134,7 +133,6 @@ def main() -> None:
         "dead-end": cmd_dead_end,
         "explore": cmd_explore,
         "audit": cmd_audit,
-        "brain": cmd_brain,
         "doc": cmd_doc,
         "run": cmd_run,
         "review": cmd_review,

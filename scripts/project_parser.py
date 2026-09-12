@@ -387,10 +387,9 @@ def build_parser() -> argparse.ArgumentParser:
     snip_extract.add_argument("id", type=int, help="Snippet id (from `snippet detect`)")
     snip_extract.add_argument(
         "--scope",
-        choices=("brain", "global"),
-        default="brain",
-        help="Destination: 'brain' publishes to Notion (network, scrubbed); "
-        f"'global' copies into the local SHARED store ({shared_store})",
+        choices=("global",),
+        default="global",
+        help=f"Destination: 'global' copies into the local SHARED store ({shared_store})",
     )
 
     # --- events ---
@@ -458,7 +457,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # --- SENAR ops subparsers (delegated) ---
-    from project_parser_brain import add_brain
     from project_parser_config import add_config
     from project_parser_graph import add_graph
     from project_parser_ops import (
@@ -481,7 +479,6 @@ def build_parser() -> argparse.ArgumentParser:
     add_skill(sub)
     add_metrics(sub)
     add_hygiene(sub)
-    add_brain(sub)
     add_run(sub)
     add_doc(sub)
     add_review(sub)

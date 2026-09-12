@@ -1,8 +1,6 @@
 """r14-qwen-parity-or-honesty: Qwen Code hooks must match Claude Code.
 
 Pre-1.4 the Qwen bootstrap quietly omitted four hooks that Claude shipped:
-- brain_search_proactive (PreToolUse on Web*)
-- brain_post_webfetch (PostToolUse on WebFetch)
 - task_call_counter (PostToolUse on every tool)
 - activity_event (PostToolUse on every tool)
 
@@ -101,11 +99,9 @@ def test_critical_hooks_present_in_both(claude_settings, qwen_settings):
         "secret_scan.py",
         "bash_firewall.py",
         "git_push_gate.py",
-        "brain_search_proactive.py",
         "auto_format.py",
         "memory_posttool_audit.py",
         "task_done_verify.py",
-        "brain_post_webfetch.py",
         "task_call_counter.py",
         "activity_event.py",
         "session_start.py",

@@ -240,12 +240,6 @@ class TestKnowledge:
         assert "Auth pattern" in result
 
     def test_decide(self, svc, monkeypatch):
-        # Stub brain disabled so decide() doesn't read the real project's
-        # half-configured brain (would surface the v14b BLOCKED warning
-        # instead of the "recorded" path this dispatch test asserts).
-        import brain_config
-
-        monkeypatch.setattr(brain_config, "load_brain", lambda cfg=None: {"enabled": False})
         result = _handle_tool(
             svc,
             "tausik_decide",

@@ -194,7 +194,7 @@ keeps True. To disable it for real, set it in the user tier
 ```json
 {
   "projects": {
-    "D:/Work/clients/vaflower": {
+    "/home/me/clients/vaflower": {
       "task_done": {"auto_verify": true, "_reason": "код о деньгах срабатывает у security_pattern; сессия #11"}
     }
   }

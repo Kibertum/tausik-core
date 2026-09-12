@@ -16,7 +16,6 @@ import os
 import sys
 from typing import Any
 
-from brain_cli_ops import cmd_brain  # noqa: F401  re-exported for project.py
 from project_service import ProjectService
 
 

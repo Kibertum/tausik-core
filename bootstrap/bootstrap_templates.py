@@ -186,8 +186,8 @@ Don't reach for `Grep`/`Glob` first. TAUSIK ships dedicated retrieval MCP server
 |---|---|---|
 | Find a function/symbol/usage in code | `mcp__codebase-rag__search_code` | `Grep` (only if RAG returns no hits or index is stale) |
 | Recall a past project decision | `tausik_decisions_list` / `tausik_memory_search` (`type=convention/pattern`) | — |
-| Cross-project pattern or gotcha | `mcp__tausik-brain__brain_search` | — |
-| Web lookup (docs, API, errors) | `mcp__tausik-brain__brain_get` against the cached web result first | `WebFetch` (auto-cached on success) |
+| Cross-project pattern or gotcha | `tausik_memory_search` (the shared store is folded into the results) | — |
+| Web lookup (docs, API, errors) | `WebFetch` | — |
 | Understand the project structure | `tausik_status` + `tausik_roadmap` | `Glob` for raw file listing |
 
 Run `mcp__codebase-rag__rag_status` once per session to confirm the index is fresh. If `chunks=0`, run `mcp__codebase-rag__reindex` before any `search_code` call.
@@ -202,7 +202,7 @@ Bootstrap (`python bootstrap/bootstrap.py --ide cursor` or `--ide all`) generate
 
 If tools do not appear: open **Cursor Settings → MCP**, ensure project MCP is enabled, then **Developer: Reload Window**.
 
-Servers: `tausik-project`, `tausik-brain`, optional `codebase-rag`.
+Servers: `tausik-project`, optional `codebase-rag`.
 
 """
 
@@ -296,11 +296,9 @@ def build_header(project_name: str, stacks: list[str], agent_name: str) -> str:
 def build_skills_section(ide_subdir: str) -> str:
     return (
         f"## Skills\n\n"
-        f"After bootstrap, **14 core skills** ship from `harness/skills/` and are always available: "
+        f"After bootstrap, **13 core skills** ship from `harness/skills/` and are always available: "
         f"`/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, "
-        f"`/review`, `/test`, `/debug`, `/explore`, `/interview`, `/reason`, `/i-have-adhd`. "
-        f"`/brain` is the 15th core skill but only deploys when the project has Notion configured "
-        f"(`tausik brain init`).\n\n"
+        f"`/review`, `/test`, `/debug`, `/explore`, `/interview`, `/reason`, `/i-have-adhd`.\n\n"
         f"**25+ official/vendor skills** are opt-in via `python .tausik-lib/bootstrap/bootstrap.py "
         f"--include-official` (full bundle) or `tausik skill install <name>` (per skill) from the "
         f"`tausik-skills` repo or `skills-official/`: `/audit`, `/zero-defect`, `/markitdown`, "

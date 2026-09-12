@@ -97,8 +97,8 @@
     "_comment": "Structurally indistinguishable tests, measured by scripts/audit_pytest_dedupe.py (AST shape modulo names, strings and numbers) and enforced by scripts/gate_test_dedupe.py. The detector predates the gate by a long way and had a --check flag nobody ran, so the number grew unwatched: 294 groups / 683 tests in session #178, 322 / 753 when the gate landed.",
     "_baseline_comment": "RATCHET, may only turn down. Existing debt does not block; GROWTH does. A baseline found ABOVE the measurement is itself a failure — tests/test_gate_test_dedupe.py::test_the_baseline_only_ratchets_down requires lowering it to what was achieved, or the line stops being a ratchet and becomes a list. The subject is DISTINGUISHABILITY, not count: this gate never looks at how many tests exist, so it can never be satisfied by deleting them.",
     "baseline": {
-      "groups": 322,
-      "tests": 753
+      "groups": 290,
+      "tests": 686
     }
   },
   "mcp_surface": {

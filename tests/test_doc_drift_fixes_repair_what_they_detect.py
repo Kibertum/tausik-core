@@ -14,6 +14,11 @@ hand in seven documents — about fifteen manual edits for one changed integer.
 
 WORSE THAN THE LABOUR: a scan that reports drift it cannot fix reads, to anyone
 running `--write`, as "the drift is covered". It is not.
+
+The pair form itself is gone: the brain server left with the Notion transport
+(decision #358), so `(N project + M brain)` is no longer a count the repository
+computes and neither side carries the pattern. The rule below still holds for
+every family that remains.
 """
 
 from __future__ import annotations
@@ -28,94 +33,18 @@ if str(_REPO / "scripts") not in sys.path:
     sys.path.insert(0, str(_REPO / "scripts"))
 
 import doc_drift_common as common  # noqa: E402
-import doc_drift_fixes as fixes  # noqa: E402
 
 CROSSCUTTING_SCOPE = ["scripts/", "docs/"]
-
-
-class TestThePairFormIsRepairedNotOnlyDetected:
-    """AC3 and AC4."""
-
-    @property
-    def _pattern(self):
-        return common._MCP_COUNT_PAIR_PATTERN[0]
-
-    @pytest.mark.parametrize(
-        "before,after",
-        [
-            pytest.param("(145 project + 7 brain)", "(146 project + 7 brain)", id="parenthesised"),
-            pytest.param(
-                "**145 project + 7 brain = 152 tools**",
-                "**146 project + 7 brain = 152 tools**",
-                id="bare_pair_inside_bold",
-            ),
-            pytest.param("145 project + 7 brain", "146 project + 7 brain", id="no_punctuation"),
-        ],
-    )
-    def test_the_stale_half_is_rewritten(self, before, after):
-        result, changed = fixes._fix_pair(before, self._pattern, 146, 7)
-        assert changed is True
-        assert result == after
-
-    def test_the_correct_half_is_left_alone(self):
-        """Each half is judged on its own: a pair whose second number is already
-        right must not be 'fixed' into the same value it already had."""
-        text = "(145 project + 7 brain)"
-        result, _ = fixes._fix_pair(text, self._pattern, 146, 7)
-        assert result.count("7 brain") == 1
-        assert "7 brain" in result
-
-    def test_an_already_correct_pair_is_not_touched(self):
-        text = "the (146 project + 7 brain) pair"
-        result, changed = fixes._fix_pair(text, self._pattern, 146, 7)
-        assert changed is False
-        assert result == text
-
-    def test_a_width_change_does_not_corrupt_the_second_number(self):
-        """The offsets come from the ORIGINAL match. Replacing the first group
-        first shifts everything after it, so 99 -> 146 would land the second
-        substitution in the wrong place if the two were applied left to right.
-        145 -> 146 would never have caught this: the widths match."""
-        result, changed = fixes._fix_pair("(99 project + 7 brain)", self._pattern, 146, 12)
-        assert changed is True
-        assert result == "(146 project + 12 brain)"
-
-
-class TestTheRepairRespectsTheSameBoundariesAsTheScan:
-    """AC5. A fixer that edits where the scanner does not look would rewrite
-    examples and frozen history — the opposite of keeping documents true."""
-
-    def test_a_pair_inside_a_fenced_block_is_untouched(self):
-        text = "before\n```\n(145 project + 7 brain)\n```\nafter\n"
-        result, changed = fixes._fix_pair(text, common._MCP_COUNT_PAIR_PATTERN[0], 146, 7)
-        assert changed is False
-        assert result == text
-
-    def test_a_pair_outside_the_fence_is_still_repaired(self):
-        """PREMISE. If the guard above passed because nothing is ever repaired,
-        it would assert nothing at all."""
-        text = "```\ncode\n```\n(145 project + 7 brain)\n"
-        result, changed = fixes._fix_pair(text, common._MCP_COUNT_PAIR_PATTERN[0], 146, 7)
-        assert changed is True
-        assert "(146 project + 7 brain)" in result
 
 
 class TestEveryDetectedFamilyHasARepairer:
     """AC6. The rule that keeps this from happening again, checked by machine
     rather than promised in a comment."""
 
-    def test_the_pair_pattern_reaches_the_fixer(self):
-        source = (_REPO / "scripts" / "doc_drift_fixes.py").read_text(encoding="utf-8")
-        assert "_MCP_COUNT_PAIR_PATTERN" in source, (
-            "the pair form is detected by the scanner and repaired by nobody — "
-            "the exact gap that cost about fifteen manual edits for one integer"
-        )
-
     @pytest.mark.parametrize(
         "family",
         [
             "_MCP_COUNT_PATTERNS",
-            "_MCP_COUNT_PAIR_PATTERN",
             "_TEST_COUNT_PATTERNS",
             "_CODE_COUNT_PATTERNS",
         ],

@@ -537,16 +537,6 @@ Negative-сценарии (unknown skill, untrusted repo URL, missing skill)
 traceback не показывается (v1.5: `SkillManagerError` ловится наравне
 с `ServiceError` в `main()`).
 
-## Shared Brain (cross-project)
-
-```bash
-brain init                      # Инициализация: 4 Notion DB + конфиг
-brain status                    # Mirror freshness, sync state, registered проекты (v1.5: добавлено `stale: N min`)
-brain sync [--category C] [--json]  # Подтянуть обновления из Notion в локальное зеркало (v1.5)
-brain move <source_id> --to-brain --kind {decision,pattern,gotcha} [--keep-source]
-brain move <notion_page_id> --to-local --category {decisions,patterns,gotchas,web_cache} [--force]
-```
-
 ## Поиск и навигация
 
 ```bash

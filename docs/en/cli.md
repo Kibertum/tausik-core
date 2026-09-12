@@ -529,16 +529,6 @@ a friendly `Error: ...` line on stderr and exit `1`. They never produce
 a Python traceback (v1.5: `SkillManagerError` is caught alongside
 `ServiceError` in `main()`).
 
-## Shared Brain (cross-project)
-
-```bash
-brain init                      # Initialize brain: 4 Notion DBs + config
-brain status                    # Mirror freshness, sync state, registered projects (v1.5: also `stale: N min`)
-brain sync [--category C] [--json]  # Pull updates from Notion into the local mirror (v1.5)
-brain move <source_id> --to-brain --kind {decision,pattern,gotcha} [--keep-source]
-brain move <notion_page_id> --to-local --category {decisions,patterns,gotchas,web_cache} [--force]
-```
-
 ## Search and Navigation
 
 ```bash

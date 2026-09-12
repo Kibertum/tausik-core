@@ -2,7 +2,7 @@
 
 # Hooks
 
-TAUSIK uses Claude Code hooks for automatic quality control. Hooks intercept agent actions **before** and **after** execution — they are gates, not instructions. **24 Python hooks + 1 shell `pre-commit`** ship with TAUSIK — 24 gates in total (v1.4 introduced `secret_scan.py`, `posttool_usage.py`, `tool_output_truncation_nudge.py`, and `task_cost_budget_check.py`; 1.8 added `scope_write_gate.py` and `bash_write_gate.py`; 1.9 added `read_ledger_gate.py`, off by default).
+TAUSIK uses Claude Code hooks for automatic quality control. Hooks intercept agent actions **before** and **after** execution — they are gates, not instructions. **22 Python hooks + 1 shell `pre-commit`** ship with TAUSIK — 24 gates in total (v1.4 introduced `secret_scan.py`, `posttool_usage.py`, `tool_output_truncation_nudge.py`, and `task_cost_budget_check.py`; 1.8 added `scope_write_gate.py` and `bash_write_gate.py`; 1.9 added `read_ledger_gate.py`, off by default).
 
 ## What Are Hooks
 

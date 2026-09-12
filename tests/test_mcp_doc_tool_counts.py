@@ -45,12 +45,12 @@ def _parse_doc_main_total(path: Path) -> tuple[int, int | None]:
     ["docs/en/mcp.md", "docs/ru/mcp.md"],
 )
 def test_mcp_markdown_main_count_matches_code(rel):
-    n_project, n_brain, n_rag = _code_counts()
-    main_expected = n_project + n_brain
+    n_project, n_rag = _code_counts()
+    main_expected = n_project
     path = REPO / rel
     main_doc, total_doc = _parse_doc_main_total(path)
     assert main_doc == main_expected, (
-        f"{rel}: doc claims {main_doc} main tools, code has {n_project}+{n_brain}={main_expected}"
+        f"{rel}: doc claims {main_doc} main tools, code has {main_expected}"
     )
     if total_doc is not None:
         assert total_doc == main_expected + n_rag, (
@@ -59,42 +59,28 @@ def test_mcp_markdown_main_count_matches_code(rel):
 
 
 def test_rag_tool_count_matches_server_py():
-    _, _, n_rag = _code_counts()
+    _, n_rag = _code_counts()
     assert n_rag == 7
 
 
 def test_readme_mcp_hero_bullets_match_code():
     """README EN/RU hero line stays aligned with len(TOOLS) (same contract as mcp.md)."""
-    n_project, n_brain, _ = _code_counts()
-    main_expected = n_project + n_brain
+    n_project, _ = _code_counts()
     patterns = [
-        (
-            "README.md",
-            re.compile(
-                r"\*\*(\d+)\s+MCP tools?\*\*\s*\((\d+)\s+project\s*\+\s*(\d+)\s+brain\)",
-                re.IGNORECASE,
-            ),
-        ),
-        (
-            "README.ru.md",
-            re.compile(
-                r"\*\*(\d+)\s+MCP[- ]инструмент\w*\*\*\s*\((\d+)\s+project\s*\+\s*(\d+)\s+brain\)",
-                re.IGNORECASE,
-            ),
-        ),
+        ("README.md", re.compile(r"\*\*(\d+)\s+MCP tools?\*\*", re.IGNORECASE)),
+        ("README.ru.md", re.compile(r"\*\*(\d+)\s+MCP[- ]инструмент\w*\*\*", re.IGNORECASE)),
     ]
     for rel, rx in patterns:
         text = (REPO / rel).read_text(encoding="utf-8")
         m = rx.search(text)
-        assert m, f"{rel}: missing **N MCP…** (X project + Y brain) hero bullet"
-        assert int(m.group(1)) == main_expected, f"{rel}: total mismatch"
-        assert int(m.group(2)) == n_project, f"{rel}: project count mismatch"
-        assert int(m.group(3)) == n_brain, f"{rel}: brain count mismatch"
+        assert m, f"{rel}: missing **N MCP…** hero bullet"
+        assert int(m.group(1)) == n_project, f"{rel}: total mismatch"
+        assert "brain" not in text[m.start() : m.end() + 40], f"{rel}: hero bullet still adds a brain count"
 
 
 def test_docs_readme_index_mcp_count_matches_code():
-    n_project, n_brain, _ = _code_counts()
-    main_expected = n_project + n_brain
+    n_project, _ = _code_counts()
+    main_expected = n_project
     path = REPO / "docs" / "README.md"
     text = path.read_text(encoding="utf-8")
     row = re.search(
@@ -108,18 +94,14 @@ def test_docs_readme_index_mcp_count_matches_code():
 
 def test_agents_md_mcp_counts_match_code():
     """AGENTS.md — Documentation Map, model/host table, repo tree stay aligned with TOOLS."""
-    n_project, n_brain, n_rag = _code_counts()
-    main_expected = n_project + n_brain
+    n_project, n_rag = _code_counts()
     text = (REPO / "AGENTS.md").read_text(encoding="utf-8")
-    assert f"{n_project} project + {n_brain} brain = {main_expected}" in text, (
-        "AGENTS.md: missing canonical N project + N brain = main"
-    )
-    assert str(main_expected + n_rag) in text, (
+    assert f"**{n_project}**" in text, "AGENTS.md: host table must carry the main count"
+    assert str(n_project + n_rag) in text, (
         "AGENTS.md: missing total-with-RAG count (main + codebase-rag)"
     )
-    tree = re.search(
-        rf"tausik-project\s*\({n_project}\)\s*\+\s*tausik-brain\s*\({n_brain}\)\s*=\s*{main_expected}\s+main",
-        text,
-        re.IGNORECASE | re.MULTILINE,
+    tree = re.search(rf"tausik-project\s*\({n_project}\)\s+main", text, re.IGNORECASE | re.MULTILINE)
+    assert tree, "AGENTS.md: repository tree line must echo tausik-project (N) main"
+    assert "tausik-brain" not in text.split("<!-- DYNAMIC:START -->")[0], (
+        "AGENTS.md static text still names the retired brain server"
     )
-    assert tree, "AGENTS.md: repository tree line must echo tausik-project (N) + brain (N) = main"

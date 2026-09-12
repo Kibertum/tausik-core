@@ -16,7 +16,7 @@ scanners).
 
 Covered drift classes:
   - version refs (`vX.Y` / `vX.Y.Z`) vs `tausik_version`
-  - MCP tool counts (`**N tools**`, `N project tools`, brain header, pair)
+  - MCP tool counts (`**N tools**`, `N project tools`, stale `brain = N` sums)
   - test counts (badge URL/label, `pytest suite (N tests)`, `**N tests**`)
   - repo-state counts (stacks / hooks / review agents / roles / skills)
   - counted table columns (delegated to :mod:`doc_drift_tables`)
@@ -30,7 +30,6 @@ from doc_drift_common import (
     _CLOSED_LIST_COUNT_RE,
     _CLOSED_LIST_ENUM_RE,
     _CODE_COUNT_PATTERNS,
-    _MCP_COUNT_PAIR_PATTERN,
     _MCP_COUNT_PATTERNS,
     _PY_VERSION_RE,
     _TEST_COUNT_PATTERNS,
@@ -142,11 +141,10 @@ def scan_mcp_tool_counts(repo_root: Path, payload: dict[str, object]) -> list[st
     """Return drift messages for cross-file MCP tool-count refs.
 
     Walks :data:`CROSS_FILE_SCAN_TARGETS`, strips fenced code blocks, and flags
-    every ``**N tools**`` / ``N project tools`` / ``N brain tools`` /
-    ``(N project + M brain`` / ```tausik-brain`, N tools`` whose captured int
-    does not match the corresponding constants.json key.
+    every ``**N tools**`` / ``N project tools`` / ``brain = N tools`` whose
+    captured int does not match the corresponding constants.json key.
 
-    Patterns are deliberately specific-context (require "project"/"brain"/
+    Patterns are deliberately specific-context (require "project"/
     backtick-wrapped server name nearby) to avoid noise on generic phrases like
     "200 tool calls" or "Should have 26+ tools".
 
@@ -175,20 +173,6 @@ def scan_mcp_tool_counts(repo_root: Path, payload: dict[str, object]) -> list[st
                     f"(found={found}) does not match constants.json {key}={expected}"
                 )
 
-        pair_re, (k1, k2), pair_label = _MCP_COUNT_PAIR_PATTERN
-        exp1 = payload.get(k1)
-        exp2 = payload.get(k2)
-        if isinstance(exp1, int) and isinstance(exp2, int):
-            for m in pair_re.finditer(text):
-                got1, got2 = int(m.group(1)), int(m.group(2))
-                if got1 == exp1 and got2 == exp2:
-                    continue
-                line_no = text[: m.start()].count("\n") + 1
-                messages.append(
-                    f"{rel}:{line_no}: MCP {pair_label} drift '{m.group(0)}' "
-                    f"(found={got1} project + {got2} brain) does not match "
-                    f"constants.json {k1}={exp1}, {k2}={exp2}"
-                )
     return messages
 
 

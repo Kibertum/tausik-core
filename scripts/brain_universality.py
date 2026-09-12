@@ -72,7 +72,7 @@ _TOPIC_PATTERNS: Final[dict[str, list[re.Pattern[str]]]] = {
     ],
 }
 
-# Public — used by brain_universality_semantic to filter FTS5 matches.
+# Public — the catalogue is what the tests and the hint share.
 KNOWN_UNIVERSAL_TOPICS: Final[frozenset[str]] = frozenset(_TOPIC_PATTERNS.keys())
 
 
@@ -108,27 +108,21 @@ def format_universality_hint(topics: list[str]) -> str:
     joined = ", ".join(topics)
     return (
         f"Universal pattern(s) detected: {joined} — "
-        f"consider promoting via `brain_draft_artifact` "
-        f"(or skip with `confirm: cross-project`)."
+        f"consider `memory add --global` (or skip with `confirm: cross-project`)."
     )
 
 
 def emit_universality_hint(text: str, *, cfg: dict | None = None) -> None:
     """Detect universal patterns in ``text`` and print hint to stderr.
 
-    Two layers, both advisory and crash-safe:
-      1. Regex (this module) — fast, synchronous, stdlib-only.
-      2. FTS5 semantic (brain_universality_semantic) — opt-in via
-         ``brain.semantic_universality_enabled`` (default True). Catches
-         synonyms regex misses (e.g. "access control" → rbac). No-op when
-         brain disabled, mirror missing, or module fails to import.
-
-    ``cfg`` is the merged-brain dict (as returned by
-    :func:`brain_config.load_brain`). When omitted the semantic layer
-    re-reads config itself — call-sites without cfg in hand can pass None.
+    One layer, advisory and crash-safe: the regex catalogue of this module.
+    The FTS5 semantic layer that used to follow it searched the Notion
+    mirror and left with the transport (decision #358). ``cfg`` is accepted
+    and ignored so call-sites keep their signature.
 
     Never raises, never blocks.
     """
+    del cfg
     try:
         topics = detect_universal_patterns(text)
         hint = format_universality_hint(topics)
@@ -136,11 +130,5 @@ def emit_universality_hint(text: str, *, cfg: dict | None = None) -> None:
             import sys
 
             print(hint, file=sys.stderr)
-    except Exception:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
-        pass
-    try:
-        from brain_universality_semantic import emit_semantic_universality_hint
-
-        emit_semantic_universality_hint(text, cfg=cfg)
-    except Exception:  # noqa: BLE001 — best-effort: brain op is non-fatal to the local flow
+    except Exception:  # noqa: BLE001 — best-effort: the hint is non-fatal to the local flow
         pass

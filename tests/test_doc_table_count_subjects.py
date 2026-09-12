@@ -30,7 +30,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
 from doc_drift_common import (  # noqa: E402
     _CODE_COUNT_PATTERNS,
-    _MCP_COUNT_PAIR_PATTERN,
     _MCP_COUNT_PATTERNS,
 )
 from doc_drift_common import (  # noqa: E402
@@ -54,7 +53,6 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _PAYLOAD = {
     "mcp_main_tools": 152,
     "mcp_project_tools": 145,
-    "mcp_brain_tools": 7,
     "hooks_count": 22,
     "skills_core_count": 13,
 }
@@ -74,7 +72,7 @@ def _doc(tmp_path: Path, body: str, rel: str = "README.md") -> None:
 _AGENTS_TABLE_BEFORE = (
     "| Model / host | Primary TAUSIK surface | Main `tausik_*` tools (two servers) | Notes |\n"
     "|---|---|---|---|\n"
-    "| Claude (Code, VS Code Extension) | MCP | **152** (145+7) | Hooks + MCP |\n"
+    "| Claude (Code, VS Code Extension) | MCP | **152** | Hooks + MCP |\n"
     "| Cursor / Composer / GPT-5.5+ | Same MCP | **100** (93+7) | self-serve |\n"
 )
 
@@ -99,10 +97,12 @@ def test_a_header_that_names_the_count_in_other_words_is_still_found(tmp_path):
 
 
 def test_the_split_a_total_spells_out_is_checked_too(tmp_path):
-    """`(93+7)` is two more claims, and both were wrong while the scan was green."""
+    """`(93+7)` spells a project+brain sum; the brain server is gone, so the
+    split names one component more than the subject declares — drift even where
+    the total is right."""
     _doc(tmp_path, _AGENTS_TABLE_BEFORE, rel="AGENTS.md")
     msgs = scan_table_count_columns(tmp_path, _PAYLOAD)
-    assert any("split '(93+7)'" in m and "mcp_project_tools=145" in m for m in msgs), msgs
+    assert any("split '(93+7)'" in m and "names 2 components" in m for m in msgs), msgs
 
 
 def test_several_counted_columns_in_one_table_are_all_read(tmp_path):
@@ -192,9 +192,6 @@ def _prose_bound_keys() -> set[str]:
     for pattern, key, _label in (*_MCP_COUNT_PATTERNS, *_CODE_COUNT_PATTERNS):
         if any(pattern.search(text) for text in texts):
             keys.add(key)
-    pair_re, pair_keys, _pair_label = _MCP_COUNT_PAIR_PATTERN
-    if any(pair_re.search(text) for text in texts):
-        keys |= set(pair_keys)
     # test_count has its own pattern table, whose entries carry a label instead
     # of a key because every one of them compares against the same constant.
     keys.add("test_count")

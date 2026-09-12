@@ -138,18 +138,12 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
 
     ide, ide_rel = resolve_profile(project_dir)
     mcp_project = os.path.join(project_dir, ide_rel, "mcp", "project", "server.py")
-    mcp_brain = os.path.join(project_dir, ide_rel, "mcp", "brain", "server.py")
     if os.path.isfile(mcp_project):
         _print_ok("MCP server (project)", f"{ide_rel}/mcp/project/server.py")
     else:
         hint = missing_profile_hint(project_dir, ide)
         _print_fail("MCP server (project)", f"{ide_rel}/mcp/project/server.py {hint}")
         failures += 1
-    if os.path.isfile(mcp_brain):
-        _print_ok("MCP server (brain)", f"{ide_rel}/mcp/brain/server.py")
-    else:
-        _print_warn("MCP server (brain)", "missing — bootstrap may have skipped it")
-        warnings += 1
 
     _f, _w = run_optional_checks(project_dir, svc, _print_ok, _print_warn, _print_fail)
     failures += _f
@@ -167,9 +161,6 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
             "ship",
             "checkpoint",
         }
-        brain_critical, brain_undetermined = brain_skill_requirement()
-        if brain_critical:
-            critical.add("brain")
         missing = critical - set(skills)
         if not missing:
             _print_ok("Core skills", f"{len(skills)} deployed (all critical present)")
@@ -179,18 +170,6 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
                 f"missing critical: {sorted(missing)} — re-run bootstrap",
             )
             failures += 1
-        if brain_undetermined:
-            # A WARNING, never a failure. Inserting this block above once stole
-            # the `failures += 1` that belonged to the branch overhead — which
-            # both stopped missing critical skills from failing the check AND
-            # made an unreadable config fail it, the exact inversion of what the
-            # message right here promises. Counting stays with the FAIL branch.
-            _print_warn(
-                "Shared Brain",
-                "config unreadable — could not tell whether brain is enabled. "
-                "Treating it as OFF (the default), so this does not fail the check. "
-                "If you do use the Notion brain, fix .tausik/config.json and re-run.",
-            )
     else:
         _print_fail("Core skills", f"no {ide_rel}/skills/ — run bootstrap")
         failures += 1
@@ -281,29 +260,6 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
         _print_fail("Quality gates", f"config failed to resolve: {type(e).__name__}: {e}")
         failures += 1
 
-    # Brain config — surfaces "enabled but misconfigured" before the user
-    # accumulates local-only decisions/gotchas that should reach Notion.
-    # See defect v14b-defect-brain-decisions-empty.
-    try:
-        from brain_config import is_brain_enabled, validate_brain
-
-        if is_brain_enabled():
-            brain_errors = validate_brain()
-            if brain_errors:
-                first = brain_errors[0]
-                more = f" (+{len(brain_errors) - 1} more)" if len(brain_errors) > 1 else ""
-                _print_warn(
-                    "Brain config",
-                    f"enabled but misconfigured: {first}{more} — "
-                    f"run `tausik brain init` or set `brain.enabled=false`",
-                )
-                warnings += 1
-            else:
-                _print_ok("Brain config", "enabled, all 4 database_ids + token set")
-        else:
-            _print_ok("Brain config", "disabled (opt-in)")
-    except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
-        _print_warn("Brain config", f"could not validate: {e}")
         warnings += 1
 
     try:
@@ -329,57 +285,6 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
 
 def _print_ok(label: str, detail: str) -> None:
     print(f"  {GREEN}  {label:<25} {detail}")
-
-
-def brain_skill_requirement() -> tuple[bool, bool]:
-    """(is_critical, undetermined) — is the opt-in brain skill required here?
-
-    Required only when `brain.enabled` is true. The rule lives here, in one
-    readable place, rather than inside `cmd_doctor` — which is how the
-    contradiction described below survived: a branch nine lines under the
-    comment that forbids it is far enough that nobody read them together, and
-    buried mid-function it was not testable either.
-
-    WHAT THE OLD BRANCH ACTUALLY DID. It added the brain skill to the critical
-    set when the config could not be loaded — "default-on when config
-    unreadable" — turning an OPT-IN subsystem into a required one. Two things
-    are worth stating precisely, because an earlier version of this docstring
-    got the second one wrong and review caught it.
-
-    First: it was a real inversion. Uncertainty must not manufacture a
-    requirement, and `enabled` defaults to False, so following the default is
-    the only reading consistent with the rest of the config layer.
-
-    Second, and contrary to what this docstring first claimed: a fresh project
-    with no config NEVER reached that branch. `load_config` already swallows a
-    missing or malformed file, prints "Config corrupted — using defaults", and
-    returns `{}`. So the except path fires only on unusual failures — an import
-    error, a filesystem fault — and the story about new projects failing their
-    health check was invented, not observed.
-
-    WHY EVERYTHING IS INSIDE THE TRY. The return used to sit outside it, and
-    that was a regression this very fix introduced: `{"brain": true}` — an
-    ordinary typo, valid JSON, no exception from `load_config` — made
-    `.get()` raise AttributeError out of a call `cmd_doctor` does not guard,
-    crashing the whole health check. A doctor that dies on a malformed config is
-    worse than one that misjudges it, because it reports nothing at all.
-
-    The second return value exists so the caller SAYS it could not tell: an
-    undetermined check that reports nothing is indistinguishable from one that
-    passed, and that is how a check quietly stops existing.
-    """
-    try:
-        from project_config import load_config  # noqa: PLC0415
-
-        cfg = load_config() or {}
-        brain = cfg.get("brain")
-        if not isinstance(brain, dict):
-            # Present but not a mapping — `{"brain": true}` and friends. Not an
-            # opt-in, and not a crash: treat it as off and say we could not tell.
-            return False, brain is not None
-        return bool(brain.get("enabled", False)), False
-    except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
-        return False, True
 
 
 def _print_warn(label: str, detail: str) -> None:

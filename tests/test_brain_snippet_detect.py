@@ -9,7 +9,6 @@ _SCRIPTS = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "script
 if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
 
-import brain_publish_flow as bpf  # noqa: E402
 import brain_snippet_detect as bsd  # noqa: E402
 
 
@@ -156,49 +155,3 @@ def test_autofill_defaults_knob_on_when_absent():
 
 
 # --- draft_artifact_publish integration ------------------------------------
-
-
-def test_draft_surfaces_inferred_snippet():
-    out = bpf.draft_artifact_publish("patterns", _snippet_fields(), {})
-    assert out["taxonomy_inferred"] == "snippet"
-    # dry-run must not mutate the caller's fields
-    fields = _snippet_fields()
-    bpf.draft_artifact_publish("patterns", fields, {})
-    assert "artifact_taxonomy_kind" not in fields
-
-
-def test_draft_inferred_none_for_prose():
-    out = bpf.draft_artifact_publish(
-        "patterns", {"name": "x", "description": "Plain prose, nothing to reuse."}, {}
-    )
-    assert out["taxonomy_inferred"] is None
-
-
-def test_draft_inferred_none_when_caller_supplied():
-    fields = _snippet_fields()
-    fields["artifact_taxonomy_kind"] = "pattern"
-    out = bpf.draft_artifact_publish("patterns", fields, {})
-    assert out["taxonomy_inferred"] is None
-
-
-def test_draft_inferred_respects_knob_off():
-    out = bpf.draft_artifact_publish(
-        "patterns", _snippet_fields(), {"auto_detect_snippet_kind": False}
-    )
-    assert out["taxonomy_inferred"] is None
-
-
-def test_draft_strict_mode_passes_when_inferred():
-    """Strict mode + inferrable snippet: dry-run taxonomy_ok mirrors the real
-    write (auto-fill satisfies require_artifact_taxonomy_kind)."""
-    cfg = {"require_artifact_taxonomy_kind": True, "auto_detect_snippet_kind": True}
-    out = bpf.draft_artifact_publish("patterns", _snippet_fields(), cfg)
-    assert out["taxonomy_inferred"] == "snippet"
-    assert out["taxonomy_ok"] is True
-
-
-def test_draft_report_renders_inferred():
-    out = bpf.draft_artifact_publish("patterns", _snippet_fields(), {})
-    report = bpf.format_draft_report(out)
-    assert "taxonomy_inferred" in report
-    assert "snippet" in report

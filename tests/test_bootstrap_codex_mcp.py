@@ -173,3 +173,38 @@ class TestНенайденныйСерверНеЗаписывается:
         _, written = mcp.register_mcp_servers(str(tmp_path), str(target))
         assert written == 0
         assert "WARNING" in capsys.readouterr().out
+
+
+class TestНашБлокПерегенерируется:
+    """Блок с маркерами переписывается на месте: сервер, которого больше нет
+    (tausik-brain ушёл с Notion, решение #358), исчезает из него, а чужой текст
+    вокруг блока не меняется."""
+
+    def _target(self, tmp_path: Path) -> Path:
+        target = tmp_path / ".codex"
+        (target / "mcp" / "project").mkdir(parents=True)
+        (target / "mcp" / "project" / "server.py").write_text("# сервер", encoding="utf-8")
+        return target
+
+    def test_устаревший_сервер_уходит_из_нашего_блока(self, tmp_path):
+        target = self._target(tmp_path)
+        foreign = '# мой комментарий\n[mcp_servers.my_server]\ncommand = "node"\nargs = []\n'
+        stale = (
+            f"{foreign}\n{mcp.BEGIN}\n[mcp_servers.tausik-project]\ncommand = \"old\"\nargs = []\n\n"
+            f"[mcp_servers.tausik-brain]\ncommand = \"old\"\nargs = []\n\n{mcp.END}\n"
+        )
+        (target / "config.toml").write_text(stale, encoding="utf-8")
+        _path, written = mcp.register_mcp_servers(str(tmp_path), str(target))
+        after = (target / "config.toml").read_text(encoding="utf-8")
+        assert after.startswith(foreign), "чужая часть файла изменилась"
+        assert "tausik-brain" not in after
+        assert "[mcp_servers.tausik-project]" in after and after.count(mcp.BEGIN) == 1
+        assert written == 2, "the count is every server the parsed file holds: ours plus my_server"
+
+    def test_блок_без_конца_не_трогается(self, tmp_path):
+        target = self._target(tmp_path)
+        broken = f"{mcp.BEGIN}\n[mcp_servers.tausik-brain]\ncommand = \"old\"\nargs = []\n"
+        (target / "config.toml").write_text(broken, encoding="utf-8")
+        _path, written = mcp.register_mcp_servers(str(tmp_path), str(target))
+        assert written == 0
+        assert (target / "config.toml").read_text(encoding="utf-8") == broken

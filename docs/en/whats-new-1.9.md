@@ -57,6 +57,25 @@ Unlock the DB (usually by closing a parallel process) or disable the gate
 deliberately in the config. `TAUSIK_SKIP_HOOKS=1` still works and is still
 telemetered.
 
+### 2. The Notion transport is gone
+
+**Before.** The shared knowledge base could be mirrored to a Notion workspace:
+`tausik brain init/status/sync/move/draft/publish`, the `tausik-brain` MCP
+server with seven tools, the `/brain` skill and two hooks that searched the
+brain before a web fetch.
+
+**Now.** None of that ships (decision #358). The shared store is local and
+file-based — `~/.tausik-knowledge` — and `--global` on `decide` and
+`memory add` is the only way a record leaves this project. `tausik knowledge
+import-brain` still reads the local mirror file `~/.tausik-brain/brain.db`, so
+nothing already mirrored is lost.
+
+**Does this affect me.** Only if you ran the brain. Bootstrap over a 1.8
+checkout removes the stale `tausik-brain` entry from every host config it
+manages, so your IDE stops logging an MCP error for a server that no longer
+exists. Run `tausik knowledge import-brain` once if the mirror holds records
+you want in the shared store.
+
 ---
 
 ## What else changes on upgrade

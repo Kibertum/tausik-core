@@ -2,9 +2,9 @@
 
 # TAUSIK MCP — Справочник инструментов
 
-**153 инструмента** для ИИ-агентов (146 project + 7 brain; актуальный счёт, проверено `len(TOOLS)` обоих серверов). MCP-surface покрывает всё, что агент делает день за днём. Несколько CLI-only команд намеренно не имеют MCP-аналога — это оператор/maintenance verbs, которым не место в agent-loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. Для рабочего набора агента предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
+**146 инструмента** для ИИ-агентов (146 project + 7 brain; актуальный счёт, проверено `len(TOOLS)` обоих серверов). MCP-surface покрывает всё, что агент делает день за днём. Несколько CLI-only команд намеренно не имеют MCP-аналога — это оператор/maintenance verbs, которым не место в agent-loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. Для рабочего набора агента предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
 
-> **Опциональный сервер `codebase-rag`** добавляет 7 инструментов (search_code, find_symbol, etc.). Он включается отдельно через bootstrap и НЕ входит в основной счёт 152 — итого с ним 160 инструментов.
+> **Опциональный сервер `codebase-rag`** добавляет 7 инструментов (search_code, find_symbol, etc.). Он включается отдельно через bootstrap и НЕ входит в основной счёт 152 — итого с ним 153 инструментов.
 
 В проекте живут два MCP-сервера:
 
@@ -320,39 +320,6 @@ DEFAULT_STACKS: 25 записей (python, fastapi, django, flask, react, next, 
 | `tausik_update_claudemd` | Обновить динамическую секцию в CLAUDE.md | — |
 | `tausik_fts_optimize` | Оптимизировать FTS5 индексы | — |
 
-## Shared Brain (`tausik-brain`, 7 инструментов)
-
-| Инструмент | Описание | Обязательные параметры |
-|---|---|---|
-| `brain_search` | Поиск в Notion-backed brain (FTS по local mirror) | `query` |
-| `brain_get` | Получить brain-запись по id | `id`, `category` |
-| `brain_store_decision` | Сохранить cross-project решение | `name`, `decision` |
-| `brain_store_pattern` | Сохранить cross-project паттерн | `name`, `description` |
-| `brain_store_gotcha` | Сохранить cross-project gotcha | `name`, `description` |
-| `brain_draft_artifact` | Dry-run публикация артефакта (taxonomy + scrub + risk-classifier; без записи в Notion) | `kind` |
-| `brain_cache_web` | Кешировать web-результат для token reuse | `name`, `url`, `content` |
-
-`tausik-brain` MCP-сервер запускается config-agnostic и читает реестр из `.tausik-brain/` конфигурации. Полный счётчик brain-инструментов = 7 (проверено через `len(TOOLS)` в `harness/claude/mcp/brain/tools.py`).
-
-### Требования к brain-конфигу
-
-С 1.8 `tausik_decide` **не** маршрутизируется в brain вообще — запись решения
-больше никуда его не публикует (решение #221). Brain-конфиг управляет только
-явным внешним путём: `brain_store_*`, `brain_cache_web` и
-`tausik brain move --to-brain`. Когда в `.tausik/config.json` стоит
-`brain.enabled=true`, все нижеперечисленные поля ДОЛЖНЫ быть заданы — иначе эти
-операции откажут, а не зеркалируют:
-
-- `brain.database_ids.decisions`, `database_ids.patterns`, `database_ids.gotchas`, `database_ids.web_cache` — все четыре Notion-database UUID.
-- `brain.notion_integration_token_env` — имя env-переменной (по умолчанию `NOTION_TAUSIK_TOKEN`), которая должна резолвиться в непустой токен через env, `.tausik/.env` или поле `brain.notion_integration_token` в конфиге.
-
-`tausik doctor` поднимает ошибки валидации как WARN-строку `Brain config`. Быстрый фикс — `tausik brain init` (интерактивный wizard) или `brain.enabled=false` для явного отказа.
-
-`tausik brain move --to-brain` — единственный путь наружу, и это осознанное
-действие, а не догоняющая синхронизация после мисконфига. Решения остаются
-локальными потому, что теперь таково правило, а не потому, что сломан конфиг;
-никакой очереди, ждущей выгрузки в Notion, не копится.
-
 ## Codebase RAG (отдельный опциональный MCP-сервер)
 
 | Инструмент | Описание | Обязательные параметры |
@@ -365,7 +332,7 @@ DEFAULT_STACKS: 25 записей (python, fastapi, django, flask, react, next, 
 | `cache_web_result` | Кешировать web-результат | `query`, `content` |
 | `search_web_cache` | Поиск кешированных web-результатов | `query` |
 
-Эти не входят в основной счёт 153 — принадлежат опциональному `codebase-rag` серверу.
+Эти не входят в основной счёт 146 — принадлежат опциональному `codebase-rag` серверу.
 
 ## Область tool-поверхности (`mcp.scope_tools_exposure`)
 
@@ -386,7 +353,7 @@ Rule 2) и всегда-безопасного ядра — целиком се�
 write-гейт не тронут. Область пересчитывается каждый раз, когда хост запрашивает
 `list_tools` — то есть при каждом подключении к серверу с уже активной задачей.
 
-**Замер стоимости.** Полная авторская поверхность — 153 тула ~ 62 КБ определений
+**Замер стоимости.** Полная авторская поверхность — 146 тула ~ 62 КБ определений
 (~15.9k оценочных токенов; `tests/test_mcp_tool_token_cost.py` фиксирует это и
 держит храповиком). При отложенной загрузке Claude Code (`ENABLE_TOOL_SEARCH`)
 эагерно грузятся только имена, а каждое описание обрезается до 2 КБ — храповой

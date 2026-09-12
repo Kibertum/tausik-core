@@ -69,7 +69,6 @@ _DOMAIN_TOKENS = (
     "claudemd",
     "self_check",
     "usage",
-    "brain",
     "draft",
     "fts",
     "optimize",
@@ -113,9 +112,7 @@ def _load_tools(rel_path: str, mod_name: str, pkg_dir: str) -> list[dict]:
 
 
 def _all_tools() -> list[dict]:
-    return _load_tools(
-        "project/tools.py", "_ptools", os.path.join(_HARNESS, "project")
-    ) + _load_tools("brain/tools.py", "_btools", os.path.join(_HARNESS, "brain"))
+    return _load_tools("project/tools.py", "_ptools", os.path.join(_HARNESS, "project"))
 
 
 # ---------------------------------------------------------------- AC1: measure ---

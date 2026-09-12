@@ -23,13 +23,13 @@ import json
 import os
 from typing import Any
 
+from bootstrap_generate import retire_managed_servers
 from bootstrap_paths import portable_path
 
 # (server-name, relative path under an mcp/ root) — order is the emit order.
 _SERVERS = (
     ("tausik-project", os.path.join("project", "server.py")),
     ("codebase-rag", os.path.join("codebase-rag", "server.py")),
-    ("tausik-brain", os.path.join("brain", "server.py")),
 )
 
 # Default Kilo config files to write, relative to project_dir (Decision #120).
@@ -107,6 +107,7 @@ def _merge_into_file(path: str, servers: dict[str, Any]) -> None:
     mcp = existing.get("mcp")
     if not isinstance(mcp, dict):
         mcp = {}
+    retire_managed_servers(mcp)
     mcp.update(servers)
     existing["mcp"] = mcp
     with open(path, "w", encoding="utf-8") as f:

@@ -142,44 +142,6 @@ def test_memory_block_detects_uppercase_memory_dir():
 # ---------------------------------------------------------------------------
 # Brain plaintext leak: tags/stack/etc must be scrubbed
 # ---------------------------------------------------------------------------
-def test_brain_scrub_inputs_covers_tags_and_stack():
-    """v1.3 blind-review: project name in tags array must be caught by scrubber."""
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
-    from brain_mcp_write import scrub_inputs
-
-    cfg = {"project_names": ["kibertum-project"], "private_url_patterns": []}
-    fields = {
-        "name": "Some decision",
-        "context": "OK",
-        "decision": "OK",
-        "rationale": "OK",
-        "tags": ["architecture", "kibertum-project"],
-        "stack": ["python"],
-    }
-    result = scrub_inputs("decisions", fields, cfg)
-    assert result["ok"] is False, "project name in tags must be blocked"
-
-
-def test_brain_scrub_inputs_passes_clean_data():
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
-    from brain_mcp_write import scrub_inputs
-
-    cfg = {"project_names": ["secret-proj"], "private_url_patterns": []}
-    fields = {
-        "name": "Use urllib",
-        "context": "Need stdlib HTTP",
-        "decision": "Use urllib",
-        "rationale": "Zero deps",
-        "tags": ["architecture", "python"],
-        "stack": ["python"],
-    }
-    result = scrub_inputs("decisions", fields, cfg)
-    assert result["ok"] is True
-
-
-# ---------------------------------------------------------------------------
-# Stack registry: no hardcoded fallback drift
-# ---------------------------------------------------------------------------
 def test_default_gates_no_fallback_on_registry_failure(monkeypatch):
     """v1.3 blind-review: registry failure must return empty dict + log, not stale hardcode."""
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))

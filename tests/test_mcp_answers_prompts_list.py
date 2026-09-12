@@ -18,7 +18,7 @@ free and keeps the log truthful.
 Two levels, because neither alone is enough:
 
   * `test_every_harness_server_registers_*` — a structural sweep over every shipped
-    server (brain, project, codebase-rag). Catches a NEW server that forgets the
+    server (project, codebase-rag). Catches a NEW server that forgets the
     handlers.
   * `test_decorator_pattern_really_registers_*` — proves the pattern we used actually
     lands a handler in the SDK's `request_handlers` and flips `get_capabilities`.
@@ -26,7 +26,8 @@ Two levels, because neither alone is enough:
 
 This sweep used to cover six servers, because harness/cursor/mcp held a byte-copy of
 harness/claude/mcp. That mirror is gone (see test_mcp_single_canonical_tree.py):
-copy_mcp hands the canonical tree to every IDE, so three servers is the whole set.
+copy_mcp hands the canonical tree to every IDE, so two servers is the whole set
+(the brain server left with the Notion transport, decision #358).
 
 Run: pytest tests/test_mcp_answers_prompts_list.py -v
 """
@@ -69,8 +70,8 @@ def _registered_decorators(path: str) -> set[str]:
 
 def test_servers_were_discovered():
     """A glob that silently matches nothing would make every test below vacuous."""
-    assert len(_SERVERS) >= 3, (
-        f"expected >=3 harness MCP servers (brain, project, codebase-rag), "
+    assert len(_SERVERS) >= 2, (
+        f"expected >=2 harness MCP servers (project, codebase-rag), "
         f"found {len(_SERVERS)}: {_SERVERS}"
     )
 

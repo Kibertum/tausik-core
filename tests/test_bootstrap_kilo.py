@@ -188,3 +188,21 @@ def test_commands_written(tmp_path):
     assert (target / "commands" / "start.md").is_file()
     # Idempotent: existing files are not recreated.
     assert bk.generate_kilo_commands(str(target)) == 0
+
+
+def test_a_retired_managed_server_is_removed_from_the_kilo_config(tmp_path):
+    import json
+
+    project = tmp_path / "proj"
+    project.mkdir()
+    lib = _make_lib(tmp_path)
+    kilo_dir = project / ".kilocode"
+    kilo_dir.mkdir()
+    (kilo_dir / "mcp.json").write_text(
+        json.dumps({"mcp": {"mine": {"command": "node"}, "tausik-brain": {"command": "python"}}}),
+        encoding="utf-8",
+    )
+    bk.generate_kilo_config(str(project), str(project / ".kilo"), "py", lib)
+    cfg = json.loads((kilo_dir / "mcp.json").read_text(encoding="utf-8"))
+    assert "tausik-brain" not in cfg["mcp"]
+    assert "mine" in cfg["mcp"]

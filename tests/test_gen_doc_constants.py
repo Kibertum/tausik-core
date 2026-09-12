@@ -28,13 +28,13 @@ from mcp_tool_counts import count_mcp_tool_totals, mcp_descriptions_digest  # no
 
 def test_build_constants_matches_tool_totals():
     d = build_constants_doc(REPO)
-    n_p, n_b, n_r = count_mcp_tool_totals(REPO)
+    n_p, n_r = count_mcp_tool_totals(REPO)
     assert isinstance(d["tausik_version"], str) and d["tausik_version"]
     assert d["mcp_project_tools"] == n_p
-    assert d["mcp_brain_tools"] == n_b
+    assert "mcp_brain_tools" not in d, "the brain server left with the Notion transport"
     assert d["mcp_rag_tools"] == n_r
-    assert d["mcp_main_tools"] == n_p + n_b
-    assert d["mcp_tools_with_optional_rag"] == n_p + n_b + n_r
+    assert d["mcp_main_tools"] == n_p
+    assert d["mcp_tools_with_optional_rag"] == n_p + n_r
 
 
 def test_constants_json_file_matches_live():
@@ -247,7 +247,6 @@ _FAKE_MCP_PAYLOAD: dict[str, object] = {
     "schema_version": 1,
     "tausik_version": "1.4.0",
     "mcp_project_tools": 93,
-    "mcp_brain_tools": 7,
     "mcp_main_tools": 100,
     "mcp_rag_tools": 7,
     "mcp_tools_with_optional_rag": 107,
@@ -271,19 +270,11 @@ def test_scan_mcp_counts_clean_when_all_match(tmp_path: Path):
     assert scan_mcp_tool_counts(repo, _FAKE_MCP_PAYLOAD) == []
 
 
-def test_scan_mcp_counts_flags_pair_drift(tmp_path: Path):
-    repo = _seed_cross_file_repo(tmp_path)
-    (repo / "README.md").write_text("Surface: (90 project + 10 brain)\n", encoding="utf-8")
-    drifts = scan_mcp_tool_counts(repo, _FAKE_MCP_PAYLOAD)
-    assert any("README.md:1" in d and "project+brain pair" in d for d in drifts)
-
-
 @pytest.mark.parametrize(
     ("line", "label"),
     [
         # docs/ru/architecture.md sat at "117 + 7 = 124" with `--check` green:
         # no "(" before the pair, and the bold spans the whole phrase.
-        ("**117 project + 7 brain = 100 инструментов**", "project+brain pair"),
         ("**93 project + 7 brain = 124 инструментов**", "main count (after =)"),
         # The compliance-matrix headline carries no bold at all.
         ("| MCP coverage 124 tools | ok |", "MCP coverage headline"),
@@ -408,12 +399,10 @@ def test_run_main_check_passes_with_skip_mcp_counts(
     import gen_doc_constants as g
 
     repo = _seed_cross_file_repo(tmp_path)
-    (repo / "docs/en/mcp.md").write_text(
-        "## Shared Brain (`tausik-brain`, 6 tools)\n", encoding="utf-8"
-    )
+    (repo / "docs/en/mcp.md").write_text("**101 tools** across the servers\n", encoding="utf-8")
     monkeypatch.setattr(g, "build_constants_doc", lambda _root: dict(_FAKE_MCP_PAYLOAD))
     assert run_main(repo, check=False) == 0
-    # Without skip — fails on brain drift
+    # Without skip — fails on the main-count drift
     assert run_main(repo, check=True) == 1
     # With skip-mcp-counts — passes (no version drift in this fixture)
     assert run_main(repo, check=True, skip_mcp_counts=True) == 0
@@ -541,9 +530,9 @@ def test_run_main_test_count_shrink_is_drift(tmp_path: Path, monkeypatch: pytest
             "scan_mcp_tool_counts",
             "_FAKE_MCP_PAYLOAD",
             "docs/en/mcp.md",
-            "## Shared Brain (`tausik-brain`, 6 tools)\n",
-            ("docs/en/mcp.md:1", "tausik-brain", "found=6"),
-            id="scan_mcp_counts_flags_brain_header_drift",
+            "**93 project tools + 7 brain tools = 124**\n",
+            ("docs/en/mcp.md:1", "brain tools = 124", "found=124"),
+            id="scan_mcp_counts_flags_a_stale_brain_sum",
         ),
         pytest.param(
             "scan_mcp_tool_counts",

@@ -195,7 +195,7 @@ resolved is that directory:
 ```json
 {
   "projects": {
-    "D:/Work/clients/vaflower": {
+    "/home/me/clients/vaflower": {
       "task_done": {"auto_verify": true, "_reason": "money code trips security_pattern; session #11"}
     }
   }

@@ -62,25 +62,6 @@ Render in this order, **omit empty sections silently**:
 
 Do **not** render: planning tasks list (use `tausik task next` on demand), metrics block, audit reminder (status surfaces it), "Memory block loaded" notice (it's in CLAUDE.md).
 
-## Brain primer — opt-in only
-
-Brain primer (cross-project knowledge from `tausik-brain`) is **not** in the default `/start` flow because:
-- It costs 2 HTTP round-trips to Notion on local-index shortfall.
-- Most session starts don't need cross-project context — only kickoffs of a new feature do.
-
-If user invokes `/start --brain` or asks "what does the brain say about X", run:
-
-```
-brain_search(query="<stack-tags-or-feature-words>", category="patterns", limit=3)
-brain_search(query="<same-query>", category="gotchas", limit=3)
-```
-
-Filter out any page id appearing in `tausik_memory_list type=convention` with title prefix `brain.ignored:` — same pattern as `/task` and `/plan`. The user already dismissed those suggestions; re-surfacing them costs tokens for no signal.
-
-`brain_search` already fails fast (5s timeout) and returns local-only results on Notion failure — never blocks.
-
-If `tausik-brain` MCP is not configured: skip silently, no warning, no fallback. The primer is opt-in by design.
-
 ## Code search hierarchy
 
 Prefer cheapest tool that fits:

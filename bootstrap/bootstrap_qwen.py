@@ -11,7 +11,7 @@ import os
 import sys
 from typing import Any
 
-from bootstrap_generate import _stdio_mcp_server
+from bootstrap_generate import _stdio_mcp_server, retire_managed_servers
 
 # The shell-tool matcher is IMPORTED, not restated. Every matcher below used to
 # carry its own copy of the string "Bash" under a comment promising parity with
@@ -32,9 +32,8 @@ def generate_settings_qwen(
 
     Qwen Code uses the same hook format as Claude Code (PreToolUse, PostToolUse,
     SessionEnd) — so we generate the **same** SENAR enforcement hooks. v1.4
-    closed the four-hook gap audited as r14-qwen-parity-or-honesty
-    (brain_search_proactive, brain_post_webfetch, task_call_counter,
-    activity_event). Parity is now pinned by tests/test_bootstrap_hooks_parity.py.
+    closed the hook gap audited as r14-qwen-parity-or-honesty; parity is pinned
+    by tests/test_bootstrap_hooks_parity.py.
     MCP config goes into mcpServers key in the same file.
     """
     python_exe = venv_python or sys.executable
@@ -68,6 +67,7 @@ def generate_settings_qwen(
 
     # MCP servers
     servers = existing.get("mcpServers", {})
+    retire_managed_servers(servers)
     rag_server = os.path.join(target_dir, "mcp", "codebase-rag", "server.py")
     if os.path.exists(rag_server):
         servers["codebase-rag"] = _stdio_mcp_server(
@@ -79,12 +79,6 @@ def generate_settings_qwen(
         servers["tausik-project"] = _stdio_mcp_server(
             _p(python_exe),
             [_p(project_server), "--project", _p(project_dir)],
-        )
-    brain_server = os.path.join(target_dir, "mcp", "brain", "server.py")
-    if os.path.exists(brain_server):
-        servers["tausik-brain"] = _stdio_mcp_server(
-            _p(python_exe),
-            [_p(brain_server), "--project", _p(project_dir)],
         )
 
     # Hooks — same SENAR enforcement as Claude Code
@@ -187,16 +181,6 @@ def generate_settings_qwen(
                     }
                 ],
             },
-            {
-                "matcher": "WebSearch|WebFetch",
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": _hook_cmd("brain_search_proactive.py"),
-                        "timeout": 5,
-                    }
-                ],
-            },
         ],
         "PostToolUse": [
             {
@@ -252,16 +236,6 @@ def generate_settings_qwen(
                         "type": "command",
                         "command": _hook_cmd("task_done_verify.py"),
                         "timeout": 6,
-                    }
-                ],
-            },
-            {
-                "matcher": "WebFetch",
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": _hook_cmd("brain_post_webfetch.py"),
-                        "timeout": 5,
                     }
                 ],
             },

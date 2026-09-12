@@ -25,7 +25,6 @@ from bootstrap_config import (
     SCAFFOLD_IDES,
     detect_extension_skills,
     detect_stacks,
-    is_brain_enabled,
     parse_strict_model_profile_env,
     resolve_output_mode,
     save_tausik_config,
@@ -111,7 +110,6 @@ def bootstrap_ide(
     *,
     full_cfg: dict | None = None,
     include_official_stubs: bool = False,
-    brain_enabled: bool = True,
 ) -> None:
     """Bootstrap for a single IDE."""
     target_dir = get_ide_target(project_dir, ide)
@@ -125,7 +123,6 @@ def bootstrap_ide(
         ide,
         vendor_skills,
         include_official_stubs=include_official_stubs,
-        brain_enabled=brain_enabled,
     )
     print(f"  Skills: {n_skills} copied")
 
@@ -256,9 +253,6 @@ def main() -> None:
 
     # v14b-skill-core-cleanup gating decisions (computed once, passed per IDE).
     include_official_stubs = bool(args.include_official or args.include_vendor)
-    brain_enabled = is_brain_enabled(full_cfg)
-    if not brain_enabled:
-        print("  brain: skipped (Notion not configured — `tausik brain init` to enable)")
     if not include_official_stubs:
         print("  Official-skill stubs: opt-in (use --include-official to deploy them)")
 
@@ -362,7 +356,6 @@ def main() -> None:
             context_tier,
             full_cfg=full_cfg,
             include_official_stubs=include_official_stubs,
-            brain_enabled=brain_enabled,
         )
 
     if "claude" in ides:

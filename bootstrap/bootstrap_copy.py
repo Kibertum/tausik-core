@@ -121,13 +121,10 @@ def copy_skills(
     vendor_skills: dict[str, str] | None = None,
     *,
     include_official_stubs: bool = False,
-    brain_enabled: bool = True,
 ) -> int:
     """Copy skills to target IDE directory.
 
-    Built-in skills (in harness/skills/) are always copied in full, except
-    `brain` which is gated on `brain_enabled` (set by bootstrap from the
-    project's brain config — `tausik brain init` flips it on).
+    Built-in skills (in harness/skills/) are always copied in full.
 
     Official skills (skills-official/registry.json) are auto-stubbed only
     when `include_official_stubs=True` (CLI flag --include-official). Default
@@ -177,12 +174,6 @@ def copy_skills(
     if os.path.isdir(builtin_dir):
         for name in sorted(os.listdir(builtin_dir)):
             if name.startswith(".") or name.startswith("_"):
-                continue
-            if name == "brain" and not brain_enabled:
-                # v14b-skill-core-cleanup: brain stays in source but is not
-                # surfaced into the system-reminder list until the project
-                # has Notion configured (`tausik brain init`). Saves ~600
-                # tokens/turn for projects that never use the shared brain.
                 continue
             if os.path.isdir(os.path.join(builtin_dir, name)):
                 builtin_names.append(name)

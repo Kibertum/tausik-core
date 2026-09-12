@@ -8,7 +8,7 @@ TAUSIK — это discipline-слой для AI-кодинг-агентов. О�
 
 [![v1.9.0](https://img.shields.io/badge/version-v1.9.0-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
 [![signed receipts: ed25519](https://img.shields.io/badge/signed%20receipts-ed25519-6f42c1.svg)](docs/ru/receipts.md)
-[![10240 тестов](https://img.shields.io/badge/tests-10240-brightgreen.svg)](#proof-tausik-собран-на-tausik)
+[![10146 тестов](https://img.shields.io/badge/tests-10146-brightgreen.svg)](#proof-tausik-собран-на-tausik)
 [![покрытие 76%](https://img.shields.io/badge/coverage-76%25-green.svg)](#proof-tausik-собран-на-tausik)
 [![0 зависимостей](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#что-внутри)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -110,7 +110,7 @@ BLOCKED (QG-2): нет валидного verification-receipt для HEAD a1b2c
 TAUSIK создавался самим TAUSIK — каждая фича, рефакторинг и фикс прошли через гейты, которые поставляются в коробке. Не ради красивой цифры, а как самая жёсткая проверка контракта:
 
 - **Каждая задача закрыта с целью + критериями приёмки.** Ни одна не закрыта без verify-доказательств.
-- **10240 тестов** — ядро дисциплины покрыто тестами плотнее всего.
+- **10146 тестов** — ядро дисциплины покрыто тестами плотнее всего.
 - **0 зависимостей в ядре** — только stdlib Python 3.11+; MCP-зависимости живут в изолированном `.tausik/venv/`.
 - **0 обращений наружу** — всё работает и остаётся на вашей машине.
 
@@ -134,10 +134,10 @@ TAUSIK создавался самим TAUSIK — каждая фича, реф�
 <details>
 <summary>Сырые цифры</summary>
 
-- **153 MCP-инструментов** (146 project + 7 brain) — полный программный доступ к базе проекта.
-- **24 real-time-хука** — task gate, bash firewall, push gate, auto-format, drift detection, memory pre/post audit и другие.
+- **146 MCP-инструментов** — полный программный доступ к базе проекта.
+- **22 real-time-хука** — task gate, bash firewall, push gate, auto-format, drift detection, memory pre/post audit и другие.
 - **25 stack-aware verify-наборов** — pytest, ruff, mypy, tsc, eslint, cargo, go vet, phpstan, helm-lint, hadolint и прочие, по затронутым файлам.
-- **14 core-скиллов** разворачиваются автоматически (+ `/brain` после настройки); 20 official-скиллов по запросу через `bootstrap --include-official` или `tausik skill install <name>`.
+- **13 core-скиллов** разворачиваются автоматически; 20 official-скиллов по запросу через `bootstrap --include-official` или `tausik skill install <name>`.
 - **6 автоматических метрик**, **общий cross-project brain** (опционально, зеркало в Notion), **пакетное выполнение** (`/run plan.md`).
 
 </details>
@@ -150,11 +150,11 @@ TAUSIK создавался самим TAUSIK — каждая фича, реф�
 
 | IDE | MCP-инструменты | Скиллы | Хуки | Статус |
 |---|---|---|---|---|
-| **Claude Code** | 153 | 14 core + по запросу | 24 (полностью) | First-class |
-| **Qwen Code** | 153 | 14 core + по запросу | 24 (паритет с Claude) | First-class |
-| **Kilo Code** (+ [z.ai GLM](docs/ru/kilo-zai.md)) | 153 | 14 core + по запросу | — (гейты на task start/done) | First-class через MCP |
-| **Cursor** | 153 | 14 core + по запросу | — (гейты на task start/done) | Через MCP |
-| VSCode + Claude Extension | 153 | 14 core + по запросу | 24 | Прогнано E2E |
+| **Claude Code** | 146 | 13 core + по запросу | 22 (полностью) | First-class |
+| **Qwen Code** | 146 | 13 core + по запросу | 22 (паритет с Claude) | First-class |
+| **Kilo Code** (+ [z.ai GLM](docs/ru/kilo-zai.md)) | 146 | 13 core + по запросу | — (гейты на task start/done) | First-class через MCP |
+| **Cursor** | 146 | 13 core + по запросу | — (гейты на task start/done) | Через MCP |
+| VSCode + Claude Extension | 146 | 13 core + по запросу | 22 | Прогнано E2E |
 | Windsurf / Codex-подобные | MCP + правила | зависит от хоста | специфично для хоста | Ожидается / вручную |
 
 Хуки — это real-time-рельсы (нет кода без задачи, bash-firewall, push gate) — работают в **Claude Code и Qwen Code**. Kilo, Cursor, Windsurf и другие MCP-хосты получают те же 153 инструмента и скиллы, с quality gates на `task start` и `task done`.
