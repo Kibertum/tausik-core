@@ -145,23 +145,23 @@ Three layers, strict separation: **CLI never touches DB. Service validates. Back
 <!-- DYNAMIC:START -->
 ## Current State
 Session: #250 (active) | Branch: v1-9-wave | Version: 1.9.0
-Tasks: 1470/1624 done, 1 active, 1 blocked
+Tasks: 1471/1625 done, 1 active, 1 blocked
 Active: codex-live-acceptance-proves-the-host
 Blocked: v14b-rag-nudge-replay-benchmark
 
 ### Memory tail
 Context (5):
+- #691 Аудит SENAR 9.5 за смены #243-#250: улики закрытий, когерентность, полный прогон — три находки, ни о
 - #684 Трекеры на момент остановки смены #241: 13 открытых в GitLab, 2 в GitHub
 - #683 Большое ревью 1.9, смена #241: двенадцать осей проверено, мёртвого кода ноль, три оси дали находки
 - #677 Сверка шести условий выпуска 1.9, смена #239: четыре держатся, одно починено, одно у владельца
 - #674 Аудит SENAR 9.5 за смены #235-#238: одна новая находка, и она в файле, который инструктирует агентов
-- #670 Ревью пяти закрытий смен #235-#236: одна выдуманная цитата класса, ноль мёртвых объявлений, и гейт ё
 Decisions (5):
+- #365 The declared closure-evidence remainder in tausik/gates.json is raised from rotted 31 / never-existed 20 to the measured
 - #364 RENAR re-assessment under corpus v1.1 goes by option (a): renar-version bumps to 1.1 with manifest-version incremented; 
 - #363 1.9 scope confirmed by the owner in session #244, three answers: (1) a project-scoped channel for user-tier weakening JO
 - #362 Backlog release map after owner confirmation: 1.9 is limited to owner decisions #358, #360 and #361 (Notion removal, pro
 - #361 1.9 scope is extended by owner approval: release19-proof-integrity and release19-effective-context join the release stor
-- #360 1.9 scope is restated and supersedes decision #337: agent-output-discipline, context-carries-over-between-sessions, guar
 Conventions (5):
 - #686 Хост, добавляемый в SCAFFOLD_IDES, проверяется ЗАМЕРОМ БИНАРЯ, а не документацией
 - #682 Мёртвый код ищут по СИМВОЛАМ, а не по модулям, и повторяемо — потому что удаление обнажает следующий
