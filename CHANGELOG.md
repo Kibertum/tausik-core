@@ -9,6 +9,19 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — a trusted-tier weakening can be scoped to one project
+
+`~/.tausik/config.json` and the managed tier may carry a `projects` object
+keyed by absolute project directory; an entry applies only when that directory
+is the project being resolved (compared by realpath, case-folded on Windows).
+The 1.8 defect this closes: a workaround written for one consumer project sat
+at the top level of the user tier and silently governed every project on the
+machine. Top-level keys keep their machine-wide meaning, and `doctor` now
+labels them MACHINE-WIDE with the exact `projects["..."]` spelling to move a
+project-only workaround under; entries for other projects are counted, never
+applied. Malformed sections are ignored with a warning; a reader without a
+known project directory applies no entry.
+
 ### Fixed — the ownership walk reads the window in one `git log`
 
 `verify` used to run `git diff-tree` for every commit since the task started

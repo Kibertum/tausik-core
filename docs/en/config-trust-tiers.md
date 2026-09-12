@@ -179,6 +179,44 @@ keeps True. To disable it for real, set it in the user tier
 (~/.tausik/config.json) or in $TAUSIK_MANAGED_CONFIG.
 ```
 
+## Project-scoped entries in a trusted tier
+
+A trusted tier is per-machine, and 1.8 paid for that: a workaround written for
+ONE consumer project — `task_done.auto_verify` for a repository whose payment
+code trips the security classifier, `gates.bootstrap_drift.enabled=false` for a
+submodule layout — sat at the top level of `~/.tausik/config.json` and governed
+every project on the box. A fresh project then had to notice a foreign
+`auto_verify` and tighten it back (gotcha #690).
+
+Both trusted tiers may carry a `projects` object. Its keys are absolute project
+directories, its values are overlays that apply ONLY when the project being
+resolved is that directory:
+
+```json
+{
+  "projects": {
+    "D:/Work/clients/vaflower": {
+      "task_done": {"auto_verify": true, "_reason": "money code trips security_pattern; session #11"}
+    }
+  }
+}
+```
+
+- The key is a **path, not a name**: a repository can call itself anything, but
+  it cannot choose where the operator cloned it. Directories are compared by
+  `realpath` with case folding on Windows, so slashes, case and 8.3 short names
+  do not matter.
+- The `projects` key never reaches the effective config; a section or entry that
+  is not an object is ignored with a warning, never applied to everyone.
+- A reader that cannot say which project it speaks for applies no entry at all
+  (fail-closed). Hooks read through `tausik_utils.load_effective_config`, which
+  hands the directory through, so they see the same view `doctor` reports.
+- Top-level keys keep their machine-wide meaning. `doctor` now says so: a
+  machine-wide weakening in effect is reported as **MACHINE-WIDE** with the
+  exact `projects["..."]` spelling to move it under; a scoped one is reported
+  as scoped to this project; entries for other projects are counted in the OK
+  line and not applied.
+
 ## Environment variables
 
 | Variable | Purpose |

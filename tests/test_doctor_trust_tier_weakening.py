@@ -69,6 +69,43 @@ def tiers(tmp_path, monkeypatch):
 # --- The reader -------------------------------------------------------------
 
 
+def test_a_machine_wide_weakening_in_effect_says_so_and_points_at_the_scoped_form(tiers, tmp_path):
+    """Gotcha #690: the line must tell the operator that the key governs every
+    project on the box and WHERE the narrower spelling goes."""
+    project = str(tmp_path / "here")
+    tiers({"task_done": {"auto_verify": True, "_reason": "vaflower money code"}})
+
+    lines, ok = ctw.summary({"task_done": {"auto_verify": True}}, project)
+
+    assert ok is None
+    (line,) = lines
+    assert "MACHINE-WIDE" in line
+    assert 'projects["' in line and ctw.project_key(project) in line
+
+
+def test_a_weakening_scoped_to_this_project_is_reported_as_such(tiers, tmp_path):
+    project = str(tmp_path / "here")
+    tiers({"projects": {project: {"task_done": {"auto_verify": True, "_reason": "this repo only"}}}})
+
+    lines, ok = ctw.summary({"task_done": {"auto_verify": True}}, project)
+
+    assert ok is None
+    (line,) = lines
+    assert "scoped to this project" in line
+    assert "MACHINE-WIDE" not in line and 'move it under' not in line
+
+
+def test_another_projects_scoped_entry_is_counted_not_applied(tiers, tmp_path):
+    tiers({"projects": {str(tmp_path / "elsewhere"): {"task_done": {"auto_verify": True}}}})
+
+    lines, ok = ctw.summary({}, str(tmp_path / "here"))
+
+    assert lines == []
+    assert ok is not None and "1 project-scoped entry for other projects, not applied here" in ok
+
+
+
+
 def test_user_tier_weakening_is_named_with_its_tier_key_and_file(tiers):
     user, _ = tiers({"task_done": {"auto_verify": True, "_reason": "set for another project"}})
     (found,) = ctw.trusted_tier_weakenings()

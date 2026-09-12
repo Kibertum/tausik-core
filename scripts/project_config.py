@@ -321,7 +321,9 @@ def load_config_with_rejections(tausik_dir: str | None = None) -> tuple[dict, li
 
     handle = tausik_dir or find_tausik_dir()
     project = load_project_tier(handle, load_project_config(handle))
-    cfg, rejections = resolve(project)
+    # The handle is the project's `.tausik/`; its parent is the directory a
+    # trusted tier's `projects` entry names (config_trust_projects).
+    cfg, rejections = resolve(project, project_dir=os.path.dirname(os.path.abspath(handle)))
     for r in rejections:
         logger.warning("Config trust tier: %s", r.describe())
     return cfg, rejections

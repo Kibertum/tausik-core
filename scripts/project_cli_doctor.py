@@ -248,7 +248,7 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
         # here, not a verdict.
         from config_trust_weakening import summary
 
-        weak_lines, weak_ok = summary(cfg)
+        weak_lines, weak_ok = summary(cfg, project_dir)
         for r in trust_rejections:
             _print_warn("Config trust tier", r.describe())
         for line in weak_lines:

@@ -36,6 +36,20 @@ implied: an agent that can run shell commands can write the user tier or export
 raised bar and, above all, visibility — weakening must now happen outside the
 repository, so it can no longer hide in a diff that looks like a config tweak.
 
+PROJECT-SCOPED ENTRIES. A trusted tier is per-machine, and that is the 1.8
+defect gotcha #690 measured: a workaround written for ONE consumer project
+(``task_done.auto_verify`` for a repository whose money code trips the
+security classifier; a gate disabled for one submodule layout) sat at the top
+level of ``~/.tausik/config.json`` and silently governed every project on the
+box. Both tiers may therefore carry a ``projects`` object whose keys are
+absolute project directories and whose values are overlays applied ONLY when
+the project being resolved is that directory (compared by realpath, case-folded
+on Windows). The key is a path rather than a name on purpose: a repository can
+call itself anything, but it cannot choose where the operator cloned it. The
+``projects`` key never reaches the effective config, a malformed entry is
+ignored with a warning, and with no known project directory no entry applies.
+Top-level keys keep their machine-wide meaning; ``doctor`` names them as such.
+
 Deliberately unguarded (decision #137): ``gates.filesize.exempt_files`` and
 ``verify_cache_ttl_seconds`` scope or tune supervision rather than switch it off.
 Still open and named rather than implied: a gate ``command`` can be reduced to an
@@ -51,6 +65,8 @@ import json
 import logging
 import os
 from typing import Any, Callable, NamedTuple
+
+from config_trust_projects import machine_wide, scoped_entry
 
 logger = logging.getLogger(__name__)
 
@@ -259,10 +275,24 @@ def raw_layers() -> tuple[dict, dict]:
     )
 
 
-def load_trusted_layers() -> dict:
-    """Merge user and managed tiers (managed wins). Absent tiers → ``{}``."""
+def effective_layer(layer: dict, tier: str, project_dir: str | None) -> dict:
+    """One tier as it applies to *project_dir*: machine-wide keys under the
+    matching project entry. The ``projects`` key itself never survives."""
+    return deep_merge(machine_wide(layer), scoped_entry(layer, tier, project_dir))
+
+
+def load_trusted_layers(project_dir: str | None = None) -> dict:
+    """Merge user and managed tiers (managed wins). Absent tiers → ``{}``.
+
+    *project_dir* selects which ``projects`` entries apply; ``None`` applies
+    none, so a caller that does not know its project can never inherit another
+    project's overlay.
+    """
     user, managed = raw_layers()
-    return deep_merge(user, managed)
+    return deep_merge(
+        effective_layer(user, "user", project_dir),
+        effective_layer(managed, "managed", project_dir),
+    )
 
 
 # --- Merge + enforcement ----------------------------------------------------
@@ -414,11 +444,15 @@ def restore_tightenings(merged: dict, cleaned: dict, trusted: dict) -> None:
                 _overwrite(merged, path, project_value)
 
 
-def resolve(project: dict, trusted: dict | None = None) -> tuple[dict, list[Rejection]]:
+def resolve(
+    project: dict, trusted: dict | None = None, *, project_dir: str | None = None
+) -> tuple[dict, list[Rejection]]:
     """Effective config from a raw project layer. Trusted tiers are read from
-    disk unless supplied (tests, callers that already loaded them)."""
+    disk unless supplied (tests, callers that already loaded them); *project_dir*
+    is the directory whose ``projects`` overlays apply, and is ignored when
+    *trusted* is handed in already composed."""
     if trusted is None:
-        trusted = load_trusted_layers()
+        trusted = load_trusted_layers(project_dir)
     cleaned, rejections = enforce_project_tier(project, trusted)
     merged = deep_merge(cleaned, trusted)
     restore_tightenings(merged, cleaned, trusted)

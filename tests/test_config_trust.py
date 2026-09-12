@@ -277,6 +277,102 @@ class TestTrustedTiersOutrankTheProject:
         assert ct.load_trusted_layers()["qg0"]["scope_hard_gate"] is True
 
 
+class TestProjectScopedEntries:
+    """Gotcha #690: a workaround for ONE project used to govern every project on
+    the machine, because the trusted tiers had no narrower place to put it.
+    A `projects` entry keyed by the project directory is that place."""
+
+    @staticmethod
+    def _user_tier(tmp_path, monkeypatch, layer: dict) -> None:
+        monkeypatch.setenv("TAUSIK_USER_CONFIG", _write(str(tmp_path / "user.json"), layer))
+        monkeypatch.delenv("TAUSIK_MANAGED_CONFIG", raising=False)
+
+    def test_entry_applies_to_its_project_however_the_path_is_spelled(self, tmp_path, monkeypatch):
+        project = tmp_path / "vaflower"
+        project.mkdir()
+        spelled = str(project).replace(os.sep, "/").upper()
+        self._user_tier(
+            tmp_path, monkeypatch, {"projects": {spelled: {"task_done": {"auto_verify": True}}}}
+        )
+
+        cfg, rejections = ct.resolve({}, project_dir=str(project))
+
+        assert rejections == []
+        assert cfg["task_done"]["auto_verify"] is True
+        assert "projects" not in cfg
+
+    @pytest.mark.parametrize("other", ["another-project", None], ids=["other-project", "unknown-project"])
+    def test_entry_does_not_leak_to_another_or_unknown_project(self, tmp_path, monkeypatch, other):
+        project = tmp_path / "vaflower"
+        project.mkdir()
+        self._user_tier(
+            tmp_path, monkeypatch, {"projects": {str(project): {"task_done": {"auto_verify": True}}}}
+        )
+        target = str(tmp_path / other) if other else None
+
+        cfg, _ = ct.resolve({}, project_dir=target)
+
+        assert "auto_verify" not in cfg.get("task_done", {})
+        assert "projects" not in cfg
+
+    @pytest.mark.parametrize(
+        "layer",
+        [
+            {"projects": "not-an-object", "qg0": {"scope_hard_gate": False}},
+            {"projects": {"{project}": ["not", "an", "object"]}, "qg0": {"scope_hard_gate": False}},
+        ],
+        ids=["section-not-object", "entry-not-object"],
+    )
+    def test_malformed_scoping_is_ignored_not_elevated(self, tmp_path, monkeypatch, layer, caplog):
+        project = tmp_path / "vaflower"
+        project.mkdir()
+        rendered = json.loads(json.dumps(layer).replace("{project}", str(project).replace("\\", "/")))
+        self._user_tier(tmp_path, monkeypatch, rendered)
+
+        with caplog.at_level("WARNING", logger="config_trust"):
+            cfg, _ = ct.resolve({}, project_dir=str(project))
+
+        assert cfg["qg0"]["scope_hard_gate"] is False, "the machine-wide key still applies"
+        assert "projects" not in cfg
+        assert any("projects" in record.getMessage() for record in caplog.records)
+
+    def test_managed_entry_outranks_user_entry_for_the_same_project(self, tmp_path, monkeypatch):
+        project = tmp_path / "vaflower"
+        project.mkdir()
+        monkeypatch.setenv(
+            "TAUSIK_USER_CONFIG",
+            _write(str(tmp_path / "user.json"), {"projects": {str(project): {"qg0": {"scope_hard_gate": False}}}}),
+        )
+        monkeypatch.setenv(
+            "TAUSIK_MANAGED_CONFIG",
+            _write(str(tmp_path / "managed.json"), {"projects": {str(project): {"qg0": {"scope_hard_gate": True}}}}),
+        )
+
+        assert ct.load_trusted_layers(str(project))["qg0"]["scope_hard_gate"] is True
+
+    def test_machine_wide_key_keeps_governing_every_project(self, tmp_path, monkeypatch):
+        self._user_tier(tmp_path, monkeypatch, {"qg0": {"scope_hard_gate": False}})
+
+        for target in (str(tmp_path / "one"), str(tmp_path / "two"), None):
+            cfg, _ = ct.resolve({}, project_dir=target)
+            assert cfg["qg0"]["scope_hard_gate"] is False
+
+    def test_the_hook_reader_honours_a_scoped_entry(self, tmp_path, monkeypatch):
+        """`tausik_utils.load_effective_config` is what hooks read as a fresh
+        subprocess; it must hand the directory through, or hooks would keep
+        seeing the machine-wide view while doctor reports the scoped one."""
+        import tausik_utils
+
+        project = tmp_path / "vaflower"
+        (project / ".tausik").mkdir(parents=True)
+        self._user_tier(
+            tmp_path, monkeypatch, {"projects": {str(project): {"qg0": {"scope_hard_gate": False}}}}
+        )
+
+        assert tausik_utils.load_effective_config(str(project))["qg0"]["scope_hard_gate"] is False
+        assert "qg0" not in tausik_utils.load_effective_config(str(tmp_path / "other"))
+
+
 # --- Negative / robustness --------------------------------------------------
 
 
