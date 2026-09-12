@@ -65,8 +65,8 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #244 (active) | Branch: v1-9-wave | Version: 1.9.0
-Tasks: 1451/1616 done, 1 active, 2 blocked
+Session: #246 (active) | Branch: v1-9-wave | Version: 1.9.0
+Tasks: 1454/1618 done, 1 active, 2 blocked
 Active: codex-live-acceptance-proves-the-host
 Blocked: v14b-rag-nudge-replay-benchmark, scoped-pytest
 
@@ -78,11 +78,11 @@ Context (5):
 - #674 Аудит SENAR 9.5 за смены #235-#238: одна новая находка, и она в файле, который инструктирует агентов
 - #670 Ревью пяти закрытий смен #235-#236: одна выдуманная цитата класса, ноль мёртвых объявлений, и гейт ё
 Decisions (5):
+- #363 1.9 scope confirmed by the owner in session #244, three answers: (1) a project-scoped channel for user-tier weakening JO
 - #362 Backlog release map after owner confirmation: 1.9 is limited to owner decisions #358, #360 and #361 (Notion removal, pro
 - #361 1.9 scope is extended by owner approval: release19-proof-integrity and release19-effective-context join the release stor
 - #360 1.9 scope is restated and supersedes decision #337: agent-output-discipline, context-carries-over-between-sessions, guar
 - #359 Codex sub-agent TOML files are generated from harness/claude/subagents Markdown as the sole canonical instruction source
-- #358 ОТ NOTION ОТКАЗЫВАЕМСЯ ЦЕЛИКОМ. Решение владельца, смена #241. Следствия шире задачи об удалении мастера настройки: уход
 Conventions (5):
 - #686 Хост, добавляемый в SCAFFOLD_IDES, проверяется ЗАМЕРОМ БИНАРЯ, а не документацией
 - #682 Мёртвый код ищут по СИМВОЛАМ, а не по модулям, и повторяемо — потому что удаление обнажает следующий
