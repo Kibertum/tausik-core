@@ -95,6 +95,72 @@ def test_uncommitted_undeclared_path_still_reddens_after_sibling_commit(tmp_path
     assert description["undeclared"] == ["secret.py"]
 
 
+def test_predeclared_active_sibling_scope_owns_later_commit(tmp_path):
+    root = _repo(tmp_path)
+    _write(root, "tausik/tasks/sibling.md", _task("sibling", "active", ["foreign.py"]))
+    _git(root, "add", "tausik/tasks/sibling.md")
+    _git(root, "commit", "-m", "declare sibling scope")
+    _write(root, "foreign.py", "owned by predeclared sibling\n")
+    _git(root, "add", "foreign.py")
+    _git(root, "commit", "-m", "commit sibling implementation")
+
+    description = honesty.describe_declared_scope(
+        ["subject.py"], "1970-01-01T00:00:00Z", root=str(root), task_slug="subject"
+    )
+
+    assert description["status"] == honesty.STATUS_COMPLETE
+    assert "foreign.py" not in description["undeclared"]
+
+
+def test_ambiguous_predeclared_sibling_scopes_remain_undeclared(tmp_path):
+    root = _repo(tmp_path)
+    _write(root, "tausik/tasks/sibling.md", _task("sibling", "active", ["foreign.py"]))
+    _write(root, "tausik/tasks/other.md", _task("other", "blocked", ["foreign.py"]))
+    _git(root, "add", "tausik/tasks")
+    _git(root, "commit", "-m", "declare ambiguous sibling scopes")
+    _write(root, "foreign.py", "claimed by two predeclared tasks\n")
+    _git(root, "add", "foreign.py")
+    _git(root, "commit", "-m", "commit ambiguous implementation")
+
+    description = honesty.describe_declared_scope(
+        ["subject.py"], "1970-01-01T00:00:00Z", root=str(root), task_slug="subject"
+    )
+
+    assert description["undeclared"] == ["foreign.py"]
+
+
+def test_predeclared_planning_scope_does_not_own_later_commit(tmp_path):
+    root = _repo(tmp_path)
+    _write(root, "tausik/tasks/sibling.md", _task("sibling", "planning", ["foreign.py"]))
+    _git(root, "add", "tausik/tasks/sibling.md")
+    _git(root, "commit", "-m", "draft sibling scope")
+    _write(root, "foreign.py", "not yet active\n")
+    _git(root, "add", "foreign.py")
+    _git(root, "commit", "-m", "commit unstarted implementation")
+
+    description = honesty.describe_declared_scope(
+        ["subject.py"], "1970-01-01T00:00:00Z", root=str(root), task_slug="subject"
+    )
+
+    assert description["undeclared"] == ["foreign.py"]
+
+
+def test_missing_predeclared_scope_does_not_own_later_commit(tmp_path):
+    root = _repo(tmp_path)
+    _write(root, "foreign.py", "no sibling declaration\n")
+    _git(root, "add", "foreign.py")
+    _git(root, "commit", "-m", "commit undeclared implementation")
+
+    description = honesty.describe_declared_scope(
+        ["subject.py", "tausik/tasks/sibling.md"],
+        "1970-01-01T00:00:00Z",
+        root=str(root),
+        task_slug="subject",
+    )
+
+    assert description["undeclared"] == ["foreign.py"]
+
+
 def test_two_sibling_exports_in_one_commit_remain_ambiguous(tmp_path):
     root = _repo(tmp_path)
     _write(root, "foreign.py", "claimed twice\n")

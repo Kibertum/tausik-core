@@ -1,7 +1,7 @@
 ---
 slug: scoped-pytest-empty-late-batch
 title: "Не считать пустой поздний pytest-batch провалом уже доказанного scoped run"
-status: blocked
+status: active
 epic: release-19-renar-conformance
 story: release19-proof-integrity
 complexity: medium
@@ -51,3 +51,4 @@ Revert the dedicated commit; retain the existing fail-closed result when no batc
 - 2026-09-12T10:19:15Z [implementation] — Started after reproducing the real run: 55 tests pass in the first scoped batch, then a later all-deselected batch returns pytest exit 5 and incorrectly collapses the aggregate to FAIL. Next: add a direct runner-level red regression before changing aggregate semantics.
 - 2026-09-12T10:20:32Z [implementation] — Implemented explicit scoped-pytest batch aggregation: prior passing batches establish evidence; a later exit-5/no-tests batch is disclosed and neutral, while empty-only and real failures remain non-passing. TAUSIK_VERIFY_FULL now reaches every batch. Red regression passed after fix: 11 focused tests plus ruff.
 - 2026-09-12T10:22:17Z [implementation] — After batching fix, the real 59-file scoped gate advances past the empty-batch symptom but still fails on two unrelated crosscutting failures: tests/test_hook_encoding.py names test_verify_commit_ownership.py:23 without encoding='utf-8', and tests/test_check_docs_hook.py reports docs/_generated/constants.json drift. A direct crosscutting run reproduced 989 passed, 2 failed. These must not be excluded or attributed to batching.
+- 2026-09-12T11:05:00Z — Unblocking after commit 6013fb2e: the two independently reproduced crosscutting defects (explicit UTF-8 and generated constants) are fixed; retry QG-2 under the repaired batch aggregation.

@@ -5,11 +5,13 @@ For a release branch that commits several independently planned tasks while a
 long-running task remains active, treating every later commit as that task's
 work makes a narrow verification receipt permanently under-declared.
 
-This module removes only paths whose ownership is proved by the same commit:
-it must change a ``tausik/tasks/<slug>.md`` export, and the committed export
-must declare the path in ``relevant_files``.  Task lifecycle state is not file
-ownership: requiring ``done`` creates a QG-2 cycle for independently committed
-tasks that need the verifier in order to close.
+This module removes only paths whose ownership is proved by immutable commit
+history.  The usual proof changes a ``tausik/tasks/<slug>.md`` export and that
+committed export declares the path in ``relevant_files``.  A second, equally
+bounded proof reads the parent tree: an already active, blocked or done task
+may declare a path before its later implementation-only commit.  Task lifecycle
+state is not normally file ownership: requiring ``done`` creates a QG-2 cycle
+for independently committed tasks that need the verifier in order to close.
 Unknown, malformed, ambiguous and uncommitted changes deliberately remain.
 """
 
@@ -29,6 +31,11 @@ from verify_git_diff import _is_repo_root, _normalize_repo_path
 _TASK_PREFIX = "tausik/tasks/"
 _TASK_SUFFIX = ".md"
 _DYNAMIC_FILES = frozenset({"AGENTS.md", "CLAUDE.md"})
+_PREDECLARED_STATUSES = frozenset({"active", "blocked", "done"})
+# A generic filename can appear in hundreds of task journals.  Beyond this
+# bounded candidate set the historical declaration is not cheap enough to
+# inspect during a verification receipt, so it remains undeclared (safe).
+_MAX_PARENT_SCOPE_CANDIDATES = 64
 _DYNAMIC_BLOCK = re.compile(
     r"<!-- DYNAMIC:START -->.*?<!-- DYNAMIC:END -->", re.DOTALL
 )
@@ -73,6 +80,57 @@ def _is_dynamic_only_change(previous: str | None, current: str | None) -> bool:
     if len(previous_blocks) != 1 or len(current_blocks) != 1:
         return False
     return _DYNAMIC_BLOCK.sub("<dynamic>", previous) == _DYNAMIC_BLOCK.sub("<dynamic>", current)
+
+
+def _parent_scope_claimants(
+    commit: str,
+    path: str,
+    *,
+    task_slug: str | None,
+    base: str,
+    run: Callable[..., subprocess.CompletedProcess],
+) -> set[str]:
+    """Return active sibling slugs that declared ``path`` in ``commit``'s parent.
+
+    ``git grep`` is only a candidate finder; the parent blob is parsed and the
+    exact ``relevant_files`` entry is checked before a claimant is returned.
+    Reading the parent tree, rather than today's projection, prevents a later
+    declaration from retroactively claiming an earlier implementation commit.
+    """
+    parent = f"{commit}^"
+    matches = _git_text(
+        ["git", "grep", "-l", "-F", "--", path, parent, "--", "tausik/tasks"],
+        base=base,
+        run=run,
+    )
+    if matches is None:
+        return set()
+    claimants: set[str] = set()
+    candidate_exports = matches.splitlines()
+    if len(candidate_exports) > _MAX_PARENT_SCOPE_CANDIDATES:
+        return set()
+    for match in candidate_exports:
+        _revision, separator, export_path = match.partition(":")
+        if not separator or not export_path.startswith(_TASK_PREFIX) or not export_path.endswith(_TASK_SUFFIX):
+            continue
+        parent_metadata = _task_metadata(
+            _git_text(["git", "show", f"{parent}:{export_path}"], base=base, run=run)
+        )
+        if not parent_metadata:
+            continue
+        slug = parent_metadata.get("slug")
+        status = parent_metadata.get("status")
+        declared = parent_metadata.get("relevant_files")
+        if (
+            not isinstance(slug, str)
+            or slug == task_slug
+            or status not in _PREDECLARED_STATUSES
+            or not isinstance(declared, list)
+        ):
+            continue
+        if path in {_normalize_repo_path(str(item)) for item in declared}:
+            claimants.add(slug)
+    return claimants
 
 
 def foreign_completed_paths_since(
@@ -150,6 +208,12 @@ def foreign_completed_paths_since(
                 owned.add(f"tausik/stories/{story}.md")
             for path in owned & changed_paths & changed:
                 commit_claimants[path].add(slug)
+        for path in changed & changed_paths:
+            commit_claimants[path].update(
+                _parent_scope_claimants(
+                    commit, path, task_slug=task_slug, base=base, run=run
+                )
+            )
         for path, owners in commit_claimants.items():
             if len(owners) == 1:
                 claimants[path].update(owners)
