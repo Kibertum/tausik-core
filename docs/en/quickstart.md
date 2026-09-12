@@ -116,8 +116,6 @@ Team members who clone the repo just need to run `git submodule update --init` t
 `.claude/` and `CLAUDE.md` — keep these under version control. These are instructions
 for the agent, they should be in the repository.
 
-> **v1.4 — Shared Brain prompt.** When you run `bootstrap.py` with `--interactive --init`, the bootstrap will offer to launch the Shared Brain wizard at the very end (`Setup Shared Brain (cross-project knowledge in Notion)? [y/N]`). Saying `y` runs `.tausik/tausik brain init` immediately so cross-project decisions, patterns and gotchas become available without an extra step. Saying `N` (default) skips it; you can run `.tausik/tausik brain init` later. CI and non-TTY runs never see the prompt.
-
 ## Step 3. Verify Installation
 
 ```bash

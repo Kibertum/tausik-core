@@ -115,8 +115,6 @@ echo ".tausik/" >> .gitignore
 `.claude/` и `CLAUDE.md` — оставьте под версионным контролем. Это инструкции
 для агента, они должны быть в репозитории.
 
-> **v1.4 — Подсказка про Shared Brain.** Если запустить `bootstrap.py` с `--interactive --init`, в самом конце bootstrap предложит запустить мастер настройки Shared Brain (`Setup Shared Brain (cross-project knowledge in Notion)? [y/N]`). Ответ `y` запустит `.tausik/tausik brain init` сразу, и кросс-проектные решения, паттерны и гочи станут доступны без отдельного шага. Ответ `N` (по умолчанию) пропустит — мастер можно запустить позже командой `.tausik/tausik brain init`. CI и не-TTY запуски этот вопрос никогда не видят.
-
 ## Шаг 3. Проверьте установку
 
 ```bash

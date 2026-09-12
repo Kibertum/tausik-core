@@ -72,7 +72,7 @@
 | `project_config.py` + `default_gates.py` | Загрузчик конфигурации, настройка шлюзов, автовключение |
 | `gate_runner.py` + `gate_stack_dispatch.py` + `gate_test_resolver.py` | Scoped pytest mapping + dispatch |
 | `skill_manager.py` + `skill_repos.py` | Установка/удаление навыков из репозиториев |
-| `brain_*.py` | Shared Brain (Notion mirror, sync, classifier, registry) |
+| `publication_boundary.py` + `knowledge_export.py` | Единственное место, где содержимое общего хранилища покидает машину (`knowledge export --redacted`) |
 | `cq_client.py` | Cross-project queue клиент |
 | `doc_extract.py` | markitdown интеграция |
 | `docs_lint.py` | Warning-only stale-version линтер |
@@ -108,12 +108,12 @@
 |------|------------|
 | `harness/claude/mcp/project/server.py` | JSON-RPC stdio-сервер |
 | `harness/claude/mcp/project/tools.py` | core tool definitions |
-| `harness/claude/mcp/project/tools_extra.py` | расширенные tool definitions (skills, gates, doctor, verify, roles, stacks, brain) |
+| `harness/claude/mcp/project/tools_extra.py` | расширенные tool definitions (skills, gates, doctor, verify, roles, stacks) |
 | `harness/claude/mcp/project/handlers.py` | Только диспетчеризация: счётчик вызовов, `handle_tool`, слияние доменных таблиц |
 | `harness/claude/mcp/project/handlers_<домен>.py` | Обработчики по доменам: `task`, `session`, `status`, `knowledge`, `hierarchy`, `stack`, `role`, `verification`, `cq`, `skill`, `spec`, `adapt`. Каждый модуль экспортирует `<DOMAIN>_HANDLERS`, `handlers.py` сливает их в `_DISPATCH` |
 | `harness/claude/mcp/project/handlers_render.py` | Общий рендер списков (`render_list`) — пустой результат обязан читаться как «ничего нет», а не как пустая строка |
 
-Полный MCP-surface: **146 project + 7 brain = 146 инструментов** (опциональный
+Полный MCP-surface: **146 project-инструментов** (опциональный
 `codebase-rag` добавляет ещё 7; не в основном счёте).
 
 **ЦЕНА ЭТОЙ ПОВЕРХНОСТИ ПЛАТИТСЯ НА КАЖДОМ ХОДУ, И ОНА РАЗНАЯ ПО ХОСТАМ.**
@@ -171,11 +171,11 @@ project-сервера весят 56 108 байт (порядка 14 000 ток�
 такое лежало в `harness/cursor/` и удалено в v1.7.0.
 ```
 harness/
-├── skills/           # 13 core auto-deployed + brain условно + 20 в skills-official/ (opt-in через --include-official)
+├── skills/           # 13 core auto-deployed + 20 в skills-official/ (opt-in через --include-official)
 ├── roles/            # 7 ролей (architect, developer, devops, qa, researcher, tech-writer, ui-ux)
 ├── stacks/           # Руководства по стекам
 ├── overrides/        # Переопределения для конкретных сред (claude/, cursor/, qwen/)
-├── claude/mcp/       # MCP-серверы (project, brain, codebase-rag) — канон для ВСЕХ сред
+├── claude/mcp/       # MCP-серверы (project, codebase-rag) — канон для ВСЕХ сред
 └── opencode/plugins/ # Плагин дисциплины QG-0 для OpenCode (tool.execute.before)
 ```
 
@@ -337,7 +337,7 @@ Code (паттерн orchestrator-workers от Anthropic). TAUSIK даёт **sca
 | Шаг | Команда / механизм |
 |---|---|
 | Делегировать | `tausik task delegate <slug>` — пишет {рекоменд. модель, parent session} в `meta` kv (без миграции). **complex отвергается** (остаётся у координатора). |
-| Handoff-контракт | `tausik task handoff <slug>` — детерминированный JSON {slug, goal, acceptance_criteria, scope, scope_exclude, model, skills}; trimmed профиль `WORKER_SKILLS` (без plan/explore/brain). Оркестратор передаёт его в Agent tool; воркер возвращает обратно (round-trip identity). |
+| Handoff-контракт | `tausik task handoff <slug>` — детерминированный JSON {slug, goal, acceptance_criteria, scope, scope_exclude, model, skills}; trimmed профиль `WORKER_SKILLS` (без plan/explore). Оркестратор передаёт его в Agent tool; воркер возвращает обратно (round-trip identity). |
 | Распознавание in-session | `task start` делегированной задачи показывает **worker mode** (operating contract) и подавляет orchestrator-only баннер модели. |
 | Scope hard-gate | воркер ограничен scope — `scope_write_gate` блокирует edits вне `scope_paths`, а делегированная задача **без** scope блокируется до объявления (нет legacy fail-open для воркеров). |
 | Summary-back | `tausik task summary-back <slug> "<summary>" [--gates …]` — воркер возвращает структурный результат (в `meta`, виден в `task show`), чтобы координатор взял его **без** транскрипта воркера. |
@@ -349,7 +349,6 @@ Code (паттерн orchestrator-workers от Anthropic). TAUSIK даёт **sca
 
 Все hook-файлы в `scripts/hooks/` регистрируются через `bootstrap/bootstrap_generate.py` (Claude Code) и `bootstrap/bootstrap_qwen.py` (Qwen Code). Hook-скрипты non-blocking (exit 0), ошибки в stderr. Общие helper'ы в `scripts/hooks/_common.py`.
 
-Brain-хуки делят helpers в `scripts/brain_hook_utils.py` — одна реализация mirror-lookup + TTL семантики. Brain-connection setup в `scripts/brain_runtime.py`: `open_brain_deps() -> (conn, client, cfg)`. Skill `/brain` — диалоговый UI.
 
 ## Memory Aggregates
 

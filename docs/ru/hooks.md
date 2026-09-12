@@ -18,7 +18,6 @@ TAUSIK использует хуки Claude Code для автоматическ
 | `secret_scan.py` (v1.4) | Перед Write/Edit/MultiEdit | Сканирует `tool_input` на типичные секреты (AWS/GitHub/Slack/Stripe/OpenAI/Anthropic токены, JWT, блоки приватного ключа, generic `password`/`api_key`). По умолчанию warning; `TAUSIK_SECRET_SCAN_STRICT=1` — блокировка. (SENAR Rule 10.12). **Оболочечные каналы не покрывает** — ни Bash, ни PowerShell; см. матрицу покрытия в [`enforcement-coverage.md`](enforcement-coverage.md). |
 | `bash_firewall.py` | Перед Bash **и PowerShell** | Блокирует опасные команды (`rm -rf /`, `Remove-Item -Recurse C:\`, DROP TABLE, `Format-Volume`, force push, …). Диалект выбирается по `tool_name`: POSIX-лексер не умеет читать PowerShell, где `\` — обычный символ пути, а не экранирование. |
 | `bash_write_gate.py` | Перед Bash **и PowerShell** | Применяет к записи через оболочку те же QG-0 (Rule 1) и scope-ACL (Rule 2), что и Write — переиспользуя решения `scope_write_gate`, а не копируя их. Разбирает редиректы, `tee`/`dd`/`sed -i`/`cp`/`mv` и `Set-Content`/`Add-Content`/`Out-File`/`New-Item`/`Tee-Object`. |
-| `brain_search_proactive.py` | Перед WebSearch/WebFetch | Проактивно query'ит shared brain на релевантные decisions/patterns перед web-вызовами |
 | `git_push_gate.py` | Перед Bash **и PowerShell** | Блокирует push без свежего, одноразового тикета `.tausik/.push_ticket.json`, привязанного к SHA HEAD. `/ship` и `/commit` запускают `tausik push-ok && git push` после вашего "y" — `push-ok` пишет 60-секундный тикет, хук съедает его на следующем push. Сужающей клаузы `if` больше нет: она была второй копией решения, которое хук принимает сам, и называла только одну оболочку. |
 
 ## PostToolUse — реакции после действия
@@ -28,7 +27,6 @@ TAUSIK использует хуки Claude Code для автоматическ
 | `auto_format.py` | После Write/Edit | Авто-форматирование через ruff/prettier/gofmt + лог "Modified: X" в задачу |
 | `memory_posttool_audit.py` | После Write/Edit/MultiEdit в auto-memory | Аудитит cross-project leakage (использует regex-библиотеку `memory_markers.py`) и предупреждает |
 | `task_done_verify.py` | После `mcp__tausik-project__tausik_task_done` | Аудитит AC evidence через 5 правило-base проверок (Ralph-mode-lite). |
-| `brain_post_webfetch.py` | После WebFetch | Авто-кешит результат в shared brain `web_cache` для token reuse |
 | `task_call_counter.py` | После любого tool call | Инкрементирует per-task `call_actual` счётчик; warning'ит на 1.5×budget |
 | `posttool_usage.py` (v1.4) | После любого tool call | Записывает token-usage события в `usage_events` для per-task cost rollup |
 | `activity_event.py` | После любого tool call | Записывает activity-таймстемпы для **gap-based active-time** метрики (SENAR Rule 9.2) |

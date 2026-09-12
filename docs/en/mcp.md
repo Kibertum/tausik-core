@@ -9,7 +9,6 @@
 Two MCP servers live in this project:
 
 - `tausik-project` — project-scoped tools (146): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging.
-- `tausik-brain` — cross-project Shared Brain tools (7).
 
 There is also an optional `codebase-rag` server documented at the bottom.
 

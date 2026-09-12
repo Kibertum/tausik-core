@@ -71,7 +71,7 @@ inheritance, which a per-file cap structurally cannot see. Highlights:
 | `project_config.py` + `default_gates.py` | Config loader, gates config, auto-enable |
 | `gate_runner.py` + `gate_stack_dispatch.py` + `gate_test_resolver.py` | Scoped pytest mapping + dispatch |
 | `skill_manager.py` + `skill_repos.py` | Skill install/uninstall from repositories |
-| `brain_*.py` | Shared Brain (Notion mirror, sync, classifier, registry) |
+| `publication_boundary.py` + `knowledge_export.py` | The one place shared-store content leaves the machine (`knowledge export --redacted`) |
 | `cq_client.py` | Cross-project queue client |
 | `doc_extract.py` | markitdown integration |
 | `docs_lint.py` | Warning-only stale-version linter |
@@ -107,12 +107,12 @@ inheritance, which a per-file cap structurally cannot see. Highlights:
 |------|---------|
 | `harness/claude/mcp/project/server.py` | JSON-RPC stdio server |
 | `harness/claude/mcp/project/tools.py` | core tool definitions |
-| `harness/claude/mcp/project/tools_extra.py` | extended tool definitions (skills, gates, doctor, verify, roles, stacks, brain) |
+| `harness/claude/mcp/project/tools_extra.py` | extended tool definitions (skills, gates, doctor, verify, roles, stacks) |
 | `harness/claude/mcp/project/handlers.py` | Dispatch only: tool-call counter, `handle_tool`, merge of the per-domain tables |
 | `harness/claude/mcp/project/handlers_<domain>.py` | Handlers by domain: `task`, `session`, `status`, `knowledge`, `hierarchy`, `stack`, `role`, `verification`, `cq`, `skill`, `spec`, `adapt`. Each module exports `<DOMAIN>_HANDLERS`; `handlers.py` merges them into `_DISPATCH` |
 | `harness/claude/mcp/project/handlers_render.py` | Shared list rendering (`render_list`) — an empty result must read as "nothing here", not as an empty string |
 
-Total MCP surface: **146 project tools + 7 brain tools = 146** (optional
+Total MCP surface: **146 project tools** (optional
 `codebase-rag` adds 7 more; not part of the main count).
 
 **THAT SURFACE IS PAID FOR ON EVERY TURN, AND THE PRICE DIFFERS BY HOST.** The
@@ -171,11 +171,11 @@ own (all of them, today). A per-IDE copy would be a mirror waiting to drift — 
 exist under `harness/cursor/` and was deleted in v1.7.0.
 ```
 harness/
-+-- skills/           # 13 core auto-deployed + brain conditional + 20 in skills-official/ (opt-in via --include-official)
++-- skills/           # 13 core auto-deployed + 20 in skills-official/ (opt-in via --include-official)
 +-- roles/            # 7 roles (architect, developer, devops, qa, researcher, tech-writer, ui-ux)
 +-- stacks/           # Stack guides
 +-- overrides/        # IDE-specific overrides (claude/, cursor/, qwen/)
-+-- claude/mcp/       # MCP servers (project, brain, codebase-rag) — canonical for ALL IDEs
++-- claude/mcp/       # MCP servers (project, codebase-rag) — canonical for ALL IDEs
 +-- opencode/plugins/ # QG-0 enforcement plugin for OpenCode (tool.execute.before)
 ```
 
@@ -334,7 +334,7 @@ the delegation **scaffolding/state**; the agent performs the actual spawn.
 | Step | Command / mechanism |
 |---|---|
 | Delegate | `tausik task delegate <slug>` — records {recommended model, parent session} in the `meta` kv (no schema migration). **complex tasks are refused** (they stay with the coordinator). |
-| Handoff contract | `tausik task handoff <slug>` — deterministic JSON {slug, goal, acceptance_criteria, scope, scope_exclude, model, skills}; the trimmed `WORKER_SKILLS` profile (no plan/explore/brain). The orchestrator passes it to the Agent tool; the worker echoes it back (round-trip identity). |
+| Handoff contract | `tausik task handoff <slug>` — deterministic JSON {slug, goal, acceptance_criteria, scope, scope_exclude, model, skills}; the trimmed `WORKER_SKILLS` profile (no plan/explore). The orchestrator passes it to the Agent tool; the worker echoes it back (round-trip identity). |
 | In-session recognition | `task start` on a delegated task surfaces **worker mode** (operating contract) and suppresses the orchestrator-only model-recommendation banner. |
 | Scope hard-gate | the worker is scope-bounded — `scope_write_gate` blocks edits outside `scope_paths`, and a delegated task with **no** scope is blocked until it declares one (no legacy fail-open for workers). |
 | Summary-back | `tausik task summary-back <slug> "<summary>" [--gates …]` — the worker returns a structured result (stored in `meta`, surfaced in `task show`) so the coordinator picks it up **without** the worker transcript. |
@@ -346,7 +346,6 @@ lives entirely in the `meta` table (`delegation:<slug>`, `worker_summary:<slug>`
 
 All hook files under `scripts/hooks/` are registered via `bootstrap/bootstrap_generate.py` (Claude Code) and `bootstrap/bootstrap_qwen.py` (Qwen Code). Hook scripts are non-blocking (exit 0); errors go to stderr. Shared helpers live in `scripts/hooks/_common.py`.
 
-Brain hooks share helpers in `scripts/brain_hook_utils.py` — a single mirror-lookup + TTL-semantics implementation. Brain-connection setup is in `scripts/brain_runtime.py`: `open_brain_deps() -> (conn, client, cfg)`. The `/brain` skill provides the conversational UI.
 
 ## Memory Aggregates
 

@@ -42,7 +42,6 @@ Or via MCP: `tausik_doctor` (no parameters). The MCP variant returns the same da
 | **Config** | Trust tier | Distinguishes THREE states, not two. Nothing weakens enforcement — OK. A project-scope key TRIED to weaken it and was dropped on read — WARN, naming the key and the value applied instead. A key a TRUSTED tier (`~/.tausik/config.json`, `$TAUSIK_MANAGED_CONFIG`) holds weaker than the framework default — WARN, naming the tier, the file and the reason recorded beside it. The third state used to print as the first: the resolver measures a candidate against the trusted tiers, so a tier is never weaker than itself, and the OK line read as "nothing is weakened" while the user tier bypassed the signed QG-2 receipt in every project on the machine. WARN and never FAIL — a trusted tier is the operator's word, and doctor owes visibility here, not a verdict. See [config-trust-tiers.md](config-trust-tiers.md). |
 | **Config** | Verify-First profile | `auto_verify` is not silently enabling itself on an interactive machine. |
 | **IDE** | Kilo / OpenCode config | Present only when that IDE profile is installed: the config parses and its `tausik-project` MCP stanza resolves. |
-| **Brain** | Notion config | Present only when Brain is enabled: all four `database_ids` plus a token are set. |
 
 ## Sample Output
 
@@ -81,7 +80,6 @@ The exit code reflects the worst level: `0` for OK/WARN, `1` for FAIL.
 | `WARN Bootstrap drift` | `python .tausik-lib/bootstrap/bootstrap.py --refresh` and restart the MCP server |
 | `FAIL MCP server` | Re-run bootstrap; ensure `.claude/mcp/` was generated |
 | `WARN Core skills` | `tausik skill list`; `tausik skill activate <name>` for missing core skills |
-| `WARN Shared Brain` | Only appears when `.tausik/config.json` could not be interpreted — a malformed file, or a `brain` key that is not a mapping (`{"brain": true}`). The brain is treated as OFF, which is its default, so this never fails the check. Fix the config if you do use the Notion brain; ignore it if you do not. |
 | `WARN Backlog hygiene` | `tausik task move <slug> <story>` for each named task — or create a story for them if they form a coherent group |
 | `WARN Commit hooks` | `git config core.hooksPath scripts/hooks` (dev checkout) or `.tausik-lib/scripts/hooks` (consumer project); or `git config --unset core.hooksPath` if the hooks are being switched off on purpose |
 | `WARN Enforcement coverage` | The named rules file contradicts its host's profile. Delete that file and re-run `python .tausik-lib/bootstrap/bootstrap.py --ide all` — rules files are preserved when present, so the stale sentence survives a plain re-run |

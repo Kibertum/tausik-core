@@ -43,18 +43,6 @@ The Verify-First Contract's 60 s envelope timeout
 (`verify_pipeline_timeout_seconds`) catches new servers; stale ones loaded
 their code BEFORE that timer was added and ignore it.
 
-## Shared Brain (Notion)
-
-Brain is Notion-backed — there is no Docker, CouchDB, Meilisearch or Raven to run. The local mirror is a single SQLite file at `~/.tausik-brain/brain.db`.
-
-| Error Pattern | Diagnosis | Fix |
-|---|---|---|
-| `notion API: unauthorized` / `401` | Missing or wrong Notion integration token | Export `NOTION_TAUSIK_TOKEN=<your token>` (the var name is configurable via `brain.notion_integration_token_env` in `.tausik/config.json`) and re-run `.tausik/tausik brain status` |
-| `brain not initialised` | Project never ran the wizard | `.tausik/tausik brain init` — creates Notion databases and writes `.tausik/config.json` entries |
-| `404 page_not_found` | Wrong `brain.notion_parent_page_id` or the integration was not invited to that page | Open the parent page in Notion → Connections → invite your integration |
-| `sync stalled / cursor stuck` | Local mirror corrupt or stale | `rm ~/.tausik-brain/brain.db` and re-run `.tausik/tausik brain sync --full` |
-| Mirror file missing | Never synced | `.tausik/tausik brain sync` (pull from Notion into mirror) |
-
 ## RAG (FTS5)
 
 | Error Pattern | Diagnosis | Fix Command |

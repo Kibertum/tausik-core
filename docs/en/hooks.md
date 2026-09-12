@@ -18,7 +18,6 @@ Hooks are scripts that run automatically with every agent action. They decide wh
 | `secret_scan.py` (v1.4) | Before Write/Edit/MultiEdit | Scans `tool_input` for likely secrets (AWS/GitHub/Slack/Stripe/OpenAI/Anthropic tokens, JWT, private-key blocks, generic `password`/`api_key` literals). Warns by default; set `TAUSIK_SECRET_SCAN_STRICT=1` to block. (SENAR Rule 10.12). **Covers neither shell channel** — not Bash, not PowerShell; see the channel-coverage matrix in [`enforcement-coverage.md`](enforcement-coverage.md). |
 | `bash_firewall.py` | Before Bash **and PowerShell** | Blocks dangerous commands (`rm -rf /`, `Remove-Item -Recurse C:\`, DROP TABLE, `Format-Volume`, force push, etc.). The dialect is chosen by `tool_name`: the POSIX lexer cannot read PowerShell, where `\` is an ordinary path character rather than an escape. |
 | `bash_write_gate.py` | Before Bash **and PowerShell** | Applies the same QG-0 (Rule 1) and scope-ACL (Rule 2) verdict to a shell write that the Write tool gets — by importing `scope_write_gate`'s decisions, not copying them. Parses redirections, `tee`/`dd`/`sed -i`/`cp`/`mv`, and `Set-Content`/`Add-Content`/`Out-File`/`New-Item`/`Tee-Object`. |
-| `brain_search_proactive.py` | Before WebSearch/WebFetch | Proactively queries shared brain for relevant decisions/patterns before web calls |
 | `git_push_gate.py` | Before Bash **and PowerShell** | Blocks unless `.tausik/.push_ticket.json` is fresh, single-use, and bound to HEAD SHA. `/ship` and `/commit` run `tausik push-ok && git push` after your "y" — `push-ok` writes the 60-second ticket; the hook consumes it on the next push. The narrowing `if` clause is gone: it was a second copy of a decision the hook makes itself, and it named only one shell. |
 
 ## PostToolUse — Reactions After an Action
@@ -28,7 +27,6 @@ Hooks are scripts that run automatically with every agent action. They decide wh
 | `auto_format.py` | After Write/Edit | Auto-formats with ruff/prettier/gofmt + logs "Modified: X" to task |
 | `memory_posttool_audit.py` | After Write/Edit/MultiEdit to auto-memory | Audits cross-project leakage (uses `memory_markers.py` regex library) and warns |
 | `task_done_verify.py` | After `mcp__tausik-project__tausik_task_done` | Audits AC evidence via 5 rule-based checks (Ralph-mode-lite). |
-| `brain_post_webfetch.py` | After WebFetch | Auto-caches result in shared brain `web_cache` for token reuse |
 | `task_call_counter.py` | After any tool call | Increments per-task `call_actual` counter; warns at 1.5×budget |
 | `posttool_usage.py` (v1.4) | After any tool call | Records token-usage events to `usage_events` for per-task cost rollup |
 | `activity_event.py` | After any tool call | Records activity timestamps for **gap-based active-time** session metric (SENAR Rule 9.2) |

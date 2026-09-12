@@ -4,15 +4,15 @@
 
 Skills are intent-based instructions that define agent behaviour. You don't memorize names or syntax — you write what you want, and the agent picks the right skill. Slash-prefix (`/plan`, `/ship`) explicitly invokes one.
 
-After bootstrap, **14 core skills** ship with TAUSIK from `harness/skills/` (plus `/brain` *conditionally* when the project has Notion configured — see [Shared Brain](shared-brain.md)). Additional **official / vendor skills** (20) are available on demand: install per-skill via `tausik skill install <name>`, or expand the whole bundle via `python .tausik-lib/bootstrap/bootstrap.py --include-official` (alias: `--include-vendor`). **Map of repo skills:** [Skill ecosystem (one page)](skill-ecosystem.md). **Bulk install by group:** [Skill Bundles](skill-bundles.md).
+After bootstrap, **13 core skills** ship with TAUSIK from `harness/skills/`. Additional **official / vendor skills** (20) are available on demand: install per-skill via `tausik skill install <name>`, or expand the whole bundle via `python .tausik-lib/bootstrap/bootstrap.py --include-official` (alias: `--include-vendor`). **Map of repo skills:** [Skill ecosystem (one page)](skill-ecosystem.md). **Bulk install by group:** [Skill Bundles](skill-bundles.md).
 
-> **v1.4.x default change.** Before v1.4.x bootstrap auto-deployed all 38 source + registry skills (~1,520 tok in the system-reminder list). The default now ships 14 + brain conditional skills; re-run bootstrap with `--include-official` if you want the full set surfaced to the agent. **v1.4.0 also dropped 5 redundant skills** (`/go`, `/next`, `/diff`, `/onboard`, `/init`) — bringing the vendor count to 20. See **[Skill Bundles Migration](skill-bundles-migration.md)**.
+> **v1.4.x default change.** Before v1.4.x bootstrap auto-deployed all 38 source + registry skills (~1,520 tok in the system-reminder list). The default now ships 13 core skills; re-run bootstrap with `--include-official` if you want the full set surfaced to the agent. **v1.4.0 also dropped 5 redundant skills** (`/go`, `/next`, `/diff`, `/onboard`, `/init`) — bringing the vendor count to 20. See **[Skill Bundles Migration](skill-bundles-migration.md)**.
 
 **Multi-host variants:** skills can ship optional **`variants/<profile>.md`** overlays — see [Skill profiles & variants](skill-profiles.md).
 
-## Core Skills (13 + brain conditional)
+## Core Skills (13)
 
-These are always available after bootstrap — the workflow primitives every TAUSIK project needs. `/brain` is the 14th core skill but only deployed when `tausik brain init` has set up Notion config (so projects that never use the shared brain don't pay its token cost).
+These are always available after bootstrap — the workflow primitives every TAUSIK project needs.
 
 ### Workflow
 
@@ -30,7 +30,6 @@ These are always available after bootstrap — the workflow primitives every TAU
 
 | Skill | When |
 |-------|------|
-| `/brain` *(conditional)* | Query/store cross-project knowledge in the Shared Brain (Notion + local mirror). Deployed only when `tausik brain init` has populated `brain.notion_db_ids` in `.tausik/config.json`. |
 | `/explore` | Time-boxed investigation (default 30 min) before committing to an approach |
 | `/interview` | Socratic Q&A — at most 3 questions to pin down requirements |
 | `/reason` | Record a structured reasoning trace (intent→premise→action→verification) on a task — see [Reasoning Trace](reasoning-trace.md) |
