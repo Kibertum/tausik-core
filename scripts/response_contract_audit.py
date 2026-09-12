@@ -14,9 +14,9 @@ and decision lines are stripped first, so a hedge word inside an error message
 is not a hit. Nothing from a transcript is stored anywhere; the audit prints
 counts.
 
-Adapters: Claude Code project transcripts (`*.jsonl` under
-`~/.claude/projects/<slug>/`), Codex rollouts (`~/.codex/sessions/**.jsonl`,
-filtered by the session's cwd), and a generic JSONL of `{"text": ...}` records.
+Adapters: Claude Code project transcripts (the `*.jsonl` files the IDE keeps
+per project), Codex rollouts (its sessions directory, filtered by the session's
+cwd), and a generic JSONL of `{"text": ...}` records. Pass the directories.
 
     python scripts/response_contract_audit.py <dir-or-file>... [--project DIR]
         [--json] [--threshold PCT]

@@ -144,6 +144,7 @@ def tail_ids_in_history(repo: str, rules: str = "CLAUDE.md", limit: int = 400) -
         shas = subprocess.run(
             ["git", "-C", repo, "log", f"-{limit}", "--format=%H", "--", rules],
             capture_output=True,
+            stdin=subprocess.DEVNULL,
             text=True,
             check=True,
         ).stdout.split()
@@ -154,6 +155,7 @@ def tail_ids_in_history(repo: str, rules: str = "CLAUDE.md", limit: int = 400) -
         shown = subprocess.run(
             ["git", "-C", repo, "show", f"{sha}:{rules}"],
             capture_output=True,
+            stdin=subprocess.DEVNULL,
             text=True,
             encoding="utf-8",
             errors="replace",

@@ -22,7 +22,8 @@ result or human message carried, and that the tail carried at some point in
 CLAUDE.md's history, appears in 37.2 % of sessions (threshold ≥ 25 %: stays).
 Session-style numbers are not credited to the tail; ids the tail never
 carried are not credited; task success — the paper's metric — is not
-measured and is named as such next to the figures.
+measured and is named as such next to the figures. Both audit scripts pass
+the tree guards (no IDE-profile literal, stdin-guarded git calls).
 
 ### Added — response-contract adherence is measured, and the lever is not built
 
