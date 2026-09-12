@@ -27,6 +27,9 @@ import knowledge_db  # noqa: E402
 import knowledge_export as kx  # noqa: E402
 import publication_boundary as pb  # noqa: E402
 
+# The property walk reads these trees; a change under either must select this file.
+CROSSCUTTING_SCOPE = ["scripts/", "harness/"]
+
 _TS = "2026-09-12T10:00:00Z"
 
 

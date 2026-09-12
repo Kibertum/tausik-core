@@ -1,7 +1,7 @@
 ---
 slug: publication-boundary-test-declares-its-tree
 title: "Property-тест границы публикации обходит дерево, не объявив CROSSCUTTING_SCOPE"
-status: planning
+status: done
 epic: release-19-renar-conformance
 story: release19-proof-integrity
 complexity: simple
@@ -21,7 +21,7 @@ scope_paths:
   - "tausik/stories/release19-proof-integrity.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-12T15:15:39Z"
 ---
 
 ## Goal
@@ -39,3 +39,6 @@ AC-1: tests/test_publication_boundary.py declares CROSSCUTTING_SCOPE = ['scripts
 git revert одной строки.
 
 ## Journal
+
+- 2026-09-12T15:15:01Z [implementation] — Root cause (missing-validation): the new property test walked scripts/ and harness/ without the CROSSCUTTING_SCOPE declaration the registry demands from every tree iterator, so the scoped lane could not select it for changes in those trees; the boundary task's own scoped verify did not map to test_crosscutting_registry. Prevention: the declaration names exactly the two trees the walk reads; the full lane's visibility test caught it the same day.
+- 2026-09-12T15:15:02Z [implementation] — AC verified: AC-1 ✓ CROSSCUTTING_SCOPE = ['scripts/', 'harness/'] in tests/test_publication_boundary.py. AC-2 ✓ tests/test_crosscutting_registry.py 22/22 incl. test_new_tree_iterator_must_declare_or_optout and the shrink-only baseline. AC-3 ✓ Negative: resolve_test_files_for_relevant(['docs/en/cli.md']) does not select the file; ['scripts/knowledge_export.py'] does. AC-4 ✓ signed verify below.

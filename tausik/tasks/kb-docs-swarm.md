@@ -1,7 +1,7 @@
 ---
 slug: kb-docs-swarm
 title: "Роевое обновление документации по зонам"
-status: active
+status: done
 epic: release-19-renar-conformance
 story: knowledge-sheds-notion-and-its-hygiene
 complexity: complex
@@ -40,7 +40,7 @@ scope_paths:
   - "tausik/stories/knowledge-sheds-notion-and-its-hygiene.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-12T15:14:12Z"
 ---
 
 ## Goal
