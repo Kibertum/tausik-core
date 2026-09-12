@@ -409,10 +409,10 @@ session recompute               # Retro: сравнить wall-clock vs active (
 ## Знания
 
 ```bash
-decide <text> [--task SLUG] [--rationale TEXT]
+decide <text> [--task SLUG] [--rationale TEXT] [--global]   # --global: общее хранилище ~/.tausik-knowledge, без строки в проекте
 decisions [--limit N]           # Список решений (default: 20)
 
-memory add <type> <title> <content> [--tags T1 T2 ...] [--task SLUG]
+memory add <type> <title> <content> [--tags T1 T2 ...] [--task SLUG] [--global]
 memory list [--type TYPE] [--limit N]
 memory search <query>           # FTS5 полнотекстовый поиск
 memory show <id>

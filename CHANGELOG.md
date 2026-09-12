@@ -9,6 +9,15 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the cross-cutting read after the Notion departure
+
+The six claims of the documentation map now sound the same on every page in
+both languages; `cli.md` documents `--global` on `decide` and `memory add`,
+architecture names the shared-store modules beside the boundary, and the
+backup example in `knowledge-store.md` uses the real `--to` / `--from`
+syntax that the parser has required all along. No page presents Notion as a
+step; the counters equal `constants.json`.
+
 ### Changed — the documentation no longer describes the Notion transport
 
 The four brain pages are gone (shared-brain, brain-db-schema,

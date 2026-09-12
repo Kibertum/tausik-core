@@ -16,10 +16,10 @@
 
 | История | Статус | Осталось | Заблокировано | Закрыто |
 |---|---|---|---|---|
-| `release19-proof-integrity`<br>1.9: квитанция и hard-гарантии не могут лгать | active | 2 | 1 | 17 |
+| `release19-proof-integrity`<br>1.9: квитанция и hard-гарантии не могут лгать | active | 2 | 1 | 18 |
 | `kb-docs`<br>Роевое комплексное обновление документации | done | 0 | 0 | 1 |
 | `release19-effective-context`<br>1.9: эффективный контекст и измеренная дисциплина ответа | active | 6 | 1 | 4 |
-| **Итого** | | **8** | **2** | **22** |
+| **Итого** | | **8** | **2** | **23** |
 
 ## Что в релиз НЕ входит
 
@@ -44,7 +44,7 @@
 | `kb-notion` | done | 0 |
 | `km-knowledge-layer` | done | 0 |
 | `knowledge-records-what-failed-19` | done | 0 |
-| `knowledge-sheds-notion-and-its-hygiene` | active | 2 |
+| `knowledge-sheds-notion-and-its-hygiene` | done | 0 |
 | `memory-retrieves-by-relevance` | done | 0 |
 | `obligations-to-people-are-settled` | done | 0 |
 | `parallel-work-runs-without-collisions` | done | 0 |

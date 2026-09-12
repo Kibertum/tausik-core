@@ -72,6 +72,7 @@
 | `project_config.py` + `default_gates.py` | Загрузчик конфигурации, настройка шлюзов, автовключение |
 | `gate_runner.py` + `gate_stack_dispatch.py` + `gate_test_resolver.py` | Scoped pytest mapping + dispatch |
 | `skill_manager.py` + `skill_repos.py` | Установка/удаление навыков из репозиториев |
+| `knowledge_db.py` + `knowledge_write.py` + `knowledge_read.py` | Общее локальное хранилище `~/.tausik-knowledge` (`--global` у `decide` / `memory add`; входит в `memory search`) |
 | `publication_boundary.py` + `knowledge_export.py` | Единственное место, где содержимое общего хранилища покидает машину (`knowledge export --redacted`) |
 | `cq_client.py` | Cross-project queue клиент |
 | `doc_extract.py` | markitdown интеграция |

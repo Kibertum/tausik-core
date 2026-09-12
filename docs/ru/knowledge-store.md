@@ -102,8 +102,8 @@ tausik search "fts5 дефис"
 **Бэкап и восстановление:**
 
 ```bash
-tausik knowledge export ~/backup/knowledge   # по читаемому файлу на запись
-tausik knowledge restore ~/backup/knowledge  # сопоставление по uuid
+tausik knowledge export --to ~/backup/knowledge     # по читаемому файлу на запись
+tausik knowledge restore --from ~/backup/knowledge  # сопоставление по uuid
 ```
 
 Экспорт — не дамп, а по файлу на запись: его можно прочитать глазами, положить в

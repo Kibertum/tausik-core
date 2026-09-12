@@ -103,8 +103,8 @@ The knowledge block injected at session start reads both as well.
 **Backup and restore:**
 
 ```bash
-tausik knowledge export ~/backup/knowledge   # one readable file per record
-tausik knowledge restore ~/backup/knowledge  # records matched by uuid
+tausik knowledge export --to ~/backup/knowledge     # one readable file per record
+tausik knowledge restore --from ~/backup/knowledge  # records matched by uuid
 ```
 
 The export is not a dump but a file per record: readable by eye, storable in a

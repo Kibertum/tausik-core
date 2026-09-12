@@ -71,6 +71,7 @@ inheritance, which a per-file cap structurally cannot see. Highlights:
 | `project_config.py` + `default_gates.py` | Config loader, gates config, auto-enable |
 | `gate_runner.py` + `gate_stack_dispatch.py` + `gate_test_resolver.py` | Scoped pytest mapping + dispatch |
 | `skill_manager.py` + `skill_repos.py` | Skill install/uninstall from repositories |
+| `knowledge_db.py` + `knowledge_write.py` + `knowledge_read.py` | The shared local store `~/.tausik-knowledge` (`--global` on `decide` / `memory add`; folded into `memory search`) |
 | `publication_boundary.py` + `knowledge_export.py` | The one place shared-store content leaves the machine (`knowledge export --redacted`) |
 | `cq_client.py` | Cross-project queue client |
 | `doc_extract.py` | markitdown integration |

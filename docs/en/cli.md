@@ -401,10 +401,10 @@ On `session end`, TAUSIK also performs a best-effort usage capture via `scripts/
 ## Knowledge
 
 ```bash
-decide <text> [--task SLUG] [--rationale TEXT]
+decide <text> [--task SLUG] [--rationale TEXT] [--global]   # --global: the shared store ~/.tausik-knowledge, no project row
 decisions [--limit N]           # List decisions (default: 20)
 
-memory add <type> <title> <content> [--tags T1 T2 ...] [--task SLUG]
+memory add <type> <title> <content> [--tags T1 T2 ...] [--task SLUG] [--global]
 memory list [--type TYPE] [--limit N]
 memory search <query>           # FTS5 full-text search
 memory show <id>
