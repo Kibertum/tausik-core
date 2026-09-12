@@ -1,7 +1,7 @@
 ---
 slug: v14b-rag-nudge-replay-benchmark
 title: "Замер AC8 из v14b-rag-first-nudges: расход токенов на исследование до и после rag-first подсказок"
-status: active
+status: blocked
 epic: release-19-agent-effectiveness
 story: release19-effective-context
 complexity: medium
