@@ -1,22 +1,23 @@
 ---
 slug: brainh-reliability
 title: "[SUPERSEDED] Notion bidirectional sync"
-status: blocked
+status: done
 epic: shared-knowledge
 story: kb-notion
 complexity: complex
 role: developer
 stack: python
-tier: substantial
-call_budget: 100
+tier: trivial
+call_budget: 5
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
+relevant_files:
+  - "tausik/tasks/brainh-reliability.md"
 scope_paths: []
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-12T13:33:28Z"
 ---
 
 ## Goal

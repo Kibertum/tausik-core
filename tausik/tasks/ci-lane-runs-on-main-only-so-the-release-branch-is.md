@@ -1,18 +1,19 @@
 ---
 slug: ci-lane-runs-on-main-only-so-the-release-branch-is
 title: "[SUPERSEDED] GitHub trigger for unpublished development branch"
-status: blocked
+status: done
 epic: release-19-renar-conformance
 story: release19-proof-integrity
 complexity: null
 role: developer
 stack: null
-tier: null
-call_budget: null
+tier: trivial
+call_budget: 5
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
+relevant_files:
+  - "tausik/tasks/ci-lane-runs-on-main-only-so-the-release-branch-is.md"
 scope_paths:
   - ".github/workflows/tests.yml"
   - "tests/test_ci_lanes_are_honest.py"
@@ -21,7 +22,7 @@ scope_paths:
   - ROADMAP.md
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-12T13:33:37Z"
 ---
 
 ## Goal

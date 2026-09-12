@@ -1,22 +1,23 @@
 ---
 slug: brainh-audit
 title: "[SUPERSEDED] Notion pain-point audit"
-status: planning
+status: done
 epic: shared-knowledge
 story: kb-notion
 complexity: medium
 role: architect
 stack: null
-tier: moderate
-call_budget: 60
+tier: trivial
+call_budget: 5
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
+relevant_files:
+  - "tausik/tasks/brainh-audit.md"
 scope_paths: []
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-12T13:33:36Z"
 ---
 
 ## Goal

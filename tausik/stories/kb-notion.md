@@ -1,7 +1,7 @@
 ---
 slug: kb-notion
 title: "Notion как необязательный публикатор"
-status: active
+status: done
 epic: shared-knowledge
 ---
 
