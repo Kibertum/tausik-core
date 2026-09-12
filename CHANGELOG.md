@@ -60,6 +60,8 @@ token-use comparison.
 The shared harness now deploys the MIT-licensed, source-attributed adapted
 `/i-have-adhd` skill to every supported host. It shapes user-facing output
 without shortening TAUSIK journals, signed verify receipts, or QG-2 evidence.
+Its catalog description now fits the 60-character contract and names the
+skill, so the full lane's description tests are green again.
 
 ### Fixed — the write gate now reads declared `pathlib` mutations
 

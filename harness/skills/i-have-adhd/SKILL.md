@@ -1,6 +1,6 @@
 ---
 name: i-have-adhd
-description: "Shape user-facing output for action: next action first, numbered bounded steps, visible state and no tangents."
+description: "i-have-adhd output — next action first, bounded steps."
 license: MIT
 metadata:
   source: "https://github.com/ayghri/i-have-adhd"

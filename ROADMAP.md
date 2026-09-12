@@ -6,75 +6,56 @@
 
 ## Вопрос версии
 
-Задано решением #256 от 2026-08-25:
+Задано решением #360 от 2026-09-10:
 
-> 1.9 ПЕРЕОПРЕДЕЛЁН: ЭТО МАЖОРНЫЙ РЕФАКТОРИНГ ЯДРА ДОКАЗАТЕЛЬСТВА, А НЕ ПАРТИЯ ДЕФЕКТОВ. Глобальная установка, пакет и multi-tenant уезжают в 2.0 по решению владельца. Отвергнуты: слить 1.9 и 2.0 в один релиз; резать содержание ради срока; продолжать закрывать дефекты по одному.
->
-> НАХОДКИ СЕССИИ #178 ОКАЗАЛИСЬ ОДНИМ КЛАССОМ, А НЕ ПЯТЬЮ. Тесты не привязаны к утверждениям; гейты не называют предотвращаемый эффект; ноль выполненных гейтов даёт положительный вердикт; подписывает проект, а не деятель; две реализации команды дают два вердикта; README обещает несуществующее. Всё это отвечает на два вопроса: ЧТО СЧИТАЕТСЯ ДОКАЗАТЕЛЬСТВОМ и КТО ЭТО ГОВОРИТ. Квитанция, привязанная к состоянию кода, есть единственное наше отличие от поля — и её ядро не построено.
->
-> ПЕРИФЕРИЯ НЕ ТРОГАЕТСЯ: задачи, сессии, память, brain, скиллы, роли работают. Рефакторится ядро, а не продукт.
+> 1.9 scope is restated and supersedes decision #337: agent-output-discipline, context-carries-over-between-sessions, guarantees-are-not-claude-only, verification-off-the-critical-path, the-loop-closes-outward, evidence-primitives, gates-declare-what-they-prevent, renar-contract-contour, test-evidence-not-test-volume, and codex-first-class-19 are the release stories. Codex support is a release promise only after a live acceptance run proves MCP registration, deployed skills, named agents, and native enforcement hooks; the unrelated qwen-hooks-are-a-second-copy-of-the-declaration remains outside 1.9.
 
 ## Что входит в 1.9
 
-Состав — из последнего решения, называющего истории релиза: #337 от 2026-09-07. Счётчики сняты с живой базы в момент перевыпуска этого файла.
+Состав — из последнего решения, называющего истории релиза: #361 от 2026-09-10. Счётчики сняты с живой базы в момент перевыпуска этого файла.
 
 | История | Статус | Осталось | Заблокировано | Закрыто |
 |---|---|---|---|---|
-| `agent-output-discipline`<br>Дисциплина ответа агента: форма, крышки вывода и измеренная цена инъекции | done | 0 | 0 | 10 |
-| `context-carries-over-between-sessions`<br>Контекст переживает границу сессии: ядро памяти, релевантное извлечение, инструктированная компакция, учение с холодным стартом | done | 1 | 0 | 2 |
-| `guarantees-are-not-claude-only`<br>Гарантии кроссмодельны или объявлены отсутствующими: хост без механизма не имеет права выглядеть как хост с механизмом | done | 0 | 0 | 7 |
-| `verification-off-the-critical-path`<br>A. Проверка уходит с критического пути: CI на рабочей ветке, лента параллельна, ничего не исключено молча | done | 0 | 0 | 13 |
-| `the-loop-closes-outward`<br>D. Петля замыкается наружу: связь задача-тикет и заметки к релизу | done | 0 | 0 | 4 |
-| `evidence-primitives`<br>Примитивы доказательства: один вердикт, три исхода, одна реализация | done | 0 | 0 | 27 |
-| `gates-declare-what-they-prevent`<br>Гейт объявляет предотвращаемый эффект и проверяется мутацией (SENAR 1.4) | done | 0 | 0 | 42 |
-| `renar-contract-contour`<br>Контрактный контур: ACTZ, итоговое ТЗ и приёмка от контракта | done | 0 | 0 | 11 |
-| `test-evidence-not-test-volume`<br>Доказательность теста вместо количества тестов | done | 0 | 0 | 5 |
-| **Итого** | | **1** | **0** | **121** |
+| `release19-proof-integrity`<br>1.9: квитанция и hard-гарантии не могут лгать | active | 3 | 3 | 13 |
+| `release19-effective-context`<br>1.9: эффективный контекст и измеренная дисциплина ответа | active | 6 | 1 | 4 |
+| `research`<br>Research — анализ багов и статьи Habr | done | 0 | 0 | 2 |
+| **Итого** | | **9** | **4** | **19** |
 
 ## Что в релиз НЕ входит
 
-Истории эпика (landscape-2026-h2, release-19-agent-effectiveness, release-19-renar-conformance), которых решение о составе не называет. Они не отменены — они не в этой версии, и их счётчики здесь для того, чтобы граница релиза была видна вместе с ценой, которую она отложила.
+Истории эпика (release-19-agent-effectiveness, release-19-renar-conformance, session3-improvements), которых решение о составе не называет. Они не отменены — они не в этой версии, и их счётчики здесь для того, чтобы граница релиза была видна вместе с ценой, которую она отложила.
 
 | История | Статус | Осталось |
 |---|---|---|
-| `bookmarks-2026-08` | open | 2 |
-| `borrow-cubest-onyx` | done | 0 |
-| `borrow-kaeru` | open | 1 |
-| `codex-is-a-first-class-host` | active | 3 |
-| `evidence-and-hygiene-debt-paid-in-19` | active | 5 |
-| `evidence-is-durable` | open | 4 |
-| `evidence-is-substance-not-keywords` | open | 25 |
+| `cleanup` | done | 0 |
+| `codex-first-class-19` | active | 1 |
+| `codex-is-a-first-class-host` | done | 0 |
+| `context-carries-over-between-sessions` | done | 0 |
+| `evidence-and-hygiene-debt-paid-in-19` | done | 0 |
+| `evidence-is-durable` | done | 0 |
+| `evidence-is-substance-not-keywords` | done | 0 |
+| `evidence-primitives` | done | 0 |
 | `external-proof-and-open-axes` | done | 0 |
+| `gates-declare-what-they-prevent` | done | 0 |
 | `github-primary-gitlab-mirror` | done | 0 |
-| `knowledge-records-what-failed-19` | active | 8 |
-| `knowledge-sheds-notion-and-its-hygiene` | open | 6 |
-| `l26-arch-debt` | done | 0 |
-| `l26-ecosystem` | done | 0 |
-| `l26-hygiene` | done | 0 |
-| `l26-mcp-spec` | done | 0 |
-| `l26-narrative` | active | 5 |
-| `l26-provable` | done | 0 |
-| `l26-silent-failures-in-shipped-commands` | active | 0 |
-| `l26-trust-boundary` | done | 0 |
-| `memory-retrieves-by-relevance` | open | 20 |
-| `obligations-to-people-are-settled` | active | 4 |
-| `parallel-work-runs-without-collisions` | active | 5 |
-| `proof-and-positioning-outward` | open | 7 |
-| `release-18-audit` | done | 0 |
+| `guarantees-are-not-claude-only` | done | 0 |
+| `knowledge-records-what-failed-19` | done | 0 |
+| `knowledge-sheds-notion-and-its-hygiene` | open | 5 |
+| `memory-retrieves-by-relevance` | done | 0 |
+| `obligations-to-people-are-settled` | done | 0 |
+| `parallel-work-runs-without-collisions` | done | 0 |
+| `proof-and-positioning-outward` | done | 0 |
+| `renar-contract-contour` | done | 0 |
 | `renar-debt-implemented-wrong` | done | 0 |
-| `repo-hygiene-19` | open | 0 |
 | `standards-drift-detection` | done | 0 |
-| `surfaces-do-not-diverge` | open | 14 |
+| `surfaces-do-not-diverge` | done | 0 |
+| `test-evidence-not-test-volume` | done | 0 |
+| `the-loop-closes-outward` | done | 0 |
+| `verification-off-the-critical-path` | done | 0 |
 
 ## Траектория объёма
 
-Точки, как их записало решение #337:
-
-```
-35 → 38 → 37 → 39 → 42 → 40 → 42 → 43 → 39 → 34 → 32 → 28 → 32 → 31 → 29 → 25 → 23 → 21 → 20 → 22 → 20 → 18 → 16 → 74 → 22
-```
-
-Объявлено там же: 22. В живой базе сейчас: 1. Разница — это работа, закрытая или заведённая ПОСЛЕ решения; объявленное число не ошибочно, оно просто старше.
+Решение #361 траекторию не записало — не «ноль точек», а не записало. Ряд восстанавливается по журналу решений об объёме.
 
 ## TAUSIK-roadmap.pdf — снимок, который сознательно не переиздаётся
 

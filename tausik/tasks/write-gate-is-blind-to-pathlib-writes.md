@@ -1,7 +1,7 @@
 ---
 slug: write-gate-is-blind-to-pathlib-writes
 title: "Гейт записи не видит pathlib: Rule 2 обеспечен только для перечисленных форм, а репозиторий написан неперечисленной"
-status: blocked
+status: done
 epic: release-19-renar-conformance
 story: release19-proof-integrity
 complexity: medium
@@ -46,7 +46,7 @@ scope_paths:
   - CHANGELOG.ru.md
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-12T13:28:45Z"
 ---
 
 ## Goal
@@ -59,7 +59,7 @@ AC-1 pathlib.Path(x).write_text/write_bytes/open('w') распознаются �
 
 ## Plan
 
-[{"step": "Reproduce every stated pathlib and neighbouring write/read form through the current inline-Python write detector; record the exact false-negative boundary.", "done": true}, {"step": "Find the single declaration point for recognized Python write operations and extend it without duplicating parser logic.", "done": true}, {"step": "Add parametrized behavioral tests for Path write/mutation and negative read-only forms, plus the controlled outside-ACL command regression.", "done": true}, {"step": "Update enforcement documentation and Codex support claim so it names the corrected coverage rather than a broader promise.", "done": true}, {"step": "Run focused hook/parser tests, dedupe, bootstrap/profile checks and signed verify; only then unblock the live Codex acceptance task.", "done": false}]
+[{"step": "Reproduce every stated pathlib and neighbouring write/read form through the current inline-Python write detector; record the exact false-negative boundary.", "done": true}, {"step": "Find the single declaration point for recognized Python write operations and extend it without duplicating parser logic.", "done": true}, {"step": "Add parametrized behavioral tests for Path write/mutation and negative read-only forms, plus the controlled outside-ACL command regression.", "done": true}, {"step": "Update enforcement documentation and Codex support claim so it names the corrected coverage rather than a broader promise.", "done": true}, {"step": "Run focused hook/parser tests, dedupe, bootstrap/profile checks and signed verify; only then unblock the live Codex acceptance task.", "done": true}]
 
 ## Rollback
 
@@ -71,3 +71,5 @@ AC-1 pathlib.Path(x).write_text/write_bytes/open('w') распознаются �
 - 2026-09-10T07:12:57Z [implementation] — Уточнение после воспроизведения AC-5: exact форма python - <<PY требует безопасно извлечь только heredoc, который Python реально получает на stdin; добавлены общие python_invocation, bash_write_parse и shell_statements с существующими тестами. Не сканировать тело heredoc как shell: это прежний источник ложных срабатываний.
 - 2026-09-10T07:17:44Z [implementation] — Шаги 2–4: единый каталог RECOGNISED_PYTHON_WRITE_FORMS введён в AST-читателе; добавлены Path, shutil, os и простая прямолинейная строковая привязка. Для exact python - <<PY heredoc извлекается отдельно и читается только при python_stdin, поэтому не превращает его прозу в shell. EN/RU граница и Codex Rule 2 теперь говорят о каталоге, а не о всеядном анализе. Focused cross-channel и Codex-profile suite: 583 passed; ruff clean; audit_pytest_dedupe без новой дублирующей структуры.
 - 2026-09-10T12:13:26Z [implementation] — Step 5 verification: scoped critical verify #2389 executed ruff PASS and mapped 63 tests, but receipt status is git-mismatch. The worktree contains prior, separately-scoped Codex/release-composition changes from before this task started; they are not included in this task's ACL, so verify correctly refuses a presentable handle. Do not inflate this task's scope to make the receipt green. Focused manual evidence remains 583 passed, ruff clean, dedupe audit run.
+- 2026-09-12T13:26:37Z [implementation] — Unblocked in session #244: the false git-mismatch from sibling commits after started_at is fixed by the tiered, one-call ownership resolver (42a87f8d, 9e7f61a5); implementation has been committed since 52097532.
+- 2026-09-12T13:26:39Z [implementation] — AC verified: AC-1 ✓ writes_in_source: pathlib.Path('out/a.txt').write_text → ['out/a.txt']; bound variable p='out/b.txt'; Path(p).write_bytes → ['out/b.txt']; Path(...).open('w') → target. AC-2 ✓ Path.unlink, shutil.copy(..., dest), os.replace(src,dest) each yield the destination (rename/mkdir in _PATH_RENAME_METHOD/_PATH_MUTATING_METHODS, parametrized in tests/test_write_gate_reads_code_not_text.py). AC-3 ✓ Negative: Path('out/g.txt').read_text() → [], open('out/h.txt').read() → []. AC-4 ✓ RECOGNISED_PYTHON_WRITE_FORMS is the single declared catalogue and docs/{ru,en}/enforcement-coverage.md name it and its forms. AC-5 ✓ test_pathlib_python_stdin_write_outside_scope_is_blocked (tests/test_bash_write_gate_hook.py:190) is the before/after measurement — the same python - <<PY pathlib write outside the ACL now blocks. Focused: 575/575 across the four hook/parser test files; dedupe 322; bootstrap --check clean; signed verify below. Domain: the repository's own idiom (Path.write_text) is now inside Rule 2, so the Codex live acceptance can claim it.
