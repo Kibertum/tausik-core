@@ -162,7 +162,7 @@ $ tausik doctor
 `save_config()` сохраняет то, что ему дали. Писатель, прочитавший эффективный
 конфиг, скопировал бы настройки пользователя и оператора в файл репозитория. Все
 round-trip-писатели (`ProjectService.gate_enable/gate_disable`, MCP
-`_handle_gate_toggle`, brain `_ConfigOps`) читают сырой слой.
+`_handle_gate_toggle`) читают сырой слой.
 
 ## Поведение `gates disable`
 

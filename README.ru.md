@@ -138,7 +138,7 @@ TAUSIK создавался самим TAUSIK — каждая фича, реф�
 - **22 real-time-хука** — task gate, bash firewall, push gate, auto-format, drift detection, memory pre/post audit и другие.
 - **25 stack-aware verify-наборов** — pytest, ruff, mypy, tsc, eslint, cargo, go vet, phpstan, helm-lint, hadolint и прочие, по затронутым файлам.
 - **13 core-скиллов** разворачиваются автоматически; 20 official-скиллов по запросу через `bootstrap --include-official` или `tausik skill install <name>`.
-- **6 автоматических метрик**, **общий cross-project brain** (опционально, зеркало в Notion), **пакетное выполнение** (`/run plan.md`).
+- **6 автоматических метрик**, **общее локальное хранилище знаний** (`~/.tausik-knowledge`, `--global`), **пакетное выполнение** (`/run plan.md`).
 
 </details>
 

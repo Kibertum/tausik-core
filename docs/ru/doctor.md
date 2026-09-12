@@ -4,7 +4,7 @@
 
 `doctor` — единая команда, проверяющая подвижные части TAUSIK-инсталляции: venv, БД, MCP-серверы, скиллы, дрейф развёртывания, конфиг, гейты, сессию и гигиену бэклога. Она **не** автофиксит — говорит, что не так и как исправить.
 
-Часть проверок выполняется, только если проверяемое установлено (конфиги Kilo и OpenCode, Brain), поэтому число строк в выводе зависит от вашей раскладки. В таблице ниже перечислены все проверки, которые могут появиться.
+Часть проверок выполняется, только если проверяемое установлено (конфиги Kilo и OpenCode), поэтому число строк в выводе зависит от вашей раскладки. В таблице ниже перечислены все проверки, которые могут появиться.
 
 ## Запуск
 
@@ -24,10 +24,9 @@
 | **DB** | Schema migration | Применена последняя миграция (соответствует `backend_migrations.py`) |
 | **DB** | FTS5 индексы | Все FTS-таблицы присутствуют и query'абельны |
 | **MCP** | Project server | `.claude/mcp/project/server.py` существует |
-| **MCP** | Brain server | `.claude/mcp/brain/server.py` существует |
 | **MCP** | Server can start | `python server.py --probe` возвращает success |
 | **Skills** | Deployment | Skills присутствуют в `.claude/skills/` (количество) |
-| **Skills** | Critical skills | core skills `start`, `end`, `task`, `plan`, `checkpoint`, `commit`, `explore`, `review`, `test`, `ship`, `debug` все на месте (плюс `/brain` опционально, если настроен Notion) |
+| **Skills** | Critical skills | core skills `start`, `end`, `task`, `plan`, `checkpoint`, `commit`, `explore`, `review`, `test`, `ship`, `debug` все на месте |
 | **Drift** | Bootstrap freshness | Файлы в `.claude/` соответствуют генераторам в `harness/`/`bootstrap/`. Drift = устаревшая сгенерированная копия. |
 | **Config** | Knobs | `session_max_minutes`, `session_warn_threshold_minutes`, `session_idle_threshold_minutes`, `session_capacity_calls`, `verify_cache_ttl_seconds` |
 | **Gates** | Registered gates | Stack-detected + universal gates count |
@@ -51,8 +50,7 @@ TAUSIK doctor — health check
   OK    Python venv               .tausik/venv
   OK    Project DB                .tausik/tausik.db (3136 KB)
   OK    MCP server (project)      .claude/mcp/project/server.py
-  OK    MCP server (brain)        .claude/mcp/brain/server.py
-  OK    Core skills               12 core + brain conditional, 20 vendor opt-in (all critical present)
+  OK    Core skills               13 deployed (all critical present)
   WARN  Bootstrap drift           1 script(s) differ — restart MCP server or re-bootstrap
   OK    Config knobs              max=180m warn=150m idle=10m capacity=200 cache_ttl=600s
   OK    Quality gates             6 registered
@@ -89,7 +87,6 @@ Exit code отражает худший уровень: `0` для OK/WARN, `1` 
 
 - **Не** автофиксит. Каждая строка показывает, что не так; команду fix запускаете вы.
 - **Не** валидирует корректность vendor skill'ов — только наличие.
-- **Не** тестирует синк brain mirror'а (используйте `tausik brain status`).
 - **Не** запускает quality gates (используйте `tausik gates status` / `tausik verify`).
 
 ## См. также

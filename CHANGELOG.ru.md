@@ -11,6 +11,18 @@
 
 ## [Unreleased]
 
+### Изменено — документация больше не описывает транспорт Notion
+
+Четыре страницы brain удалены (shared-brain, brain-db-schema,
+brain-artifact-taxonomy, brain-search-ranking, ru+en), а страницы, которые их
+называли, — knowledge-store, memory-merge-guidelines, configuration,
+environment, skills, hooks, doctor, mcp, architecture, quickstart, security,
+skill-spec, troubleshooting, индекс docs, оба README и дюжина однострочных
+упоминаний — говорят одно и то же: два хранилища и никакого третьего, Notion нет,
+настраивать нечего кроме `--global`, `knowledge export --redacted` — единственный
+выход наружу, счётчики из `constants.json`, скраббер — набор детекторов границы.
+Карта, по которой это делалось, лежит в `docs/ru/research/notion-departure-doc-map.md`.
+
 ### Изменено — карта документации после ухода Notion
 
 `docs/ru/research/notion-departure-doc-map.md` называет каждый файл документации,

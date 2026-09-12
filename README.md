@@ -139,7 +139,7 @@ Those are **suggestions** — text the agent reads and is free to ignore the mom
 - **22 real-time hooks** — task gate, bash firewall, push gate, auto-format, drift detection, memory pre/post audit, and more.
 - **25 stack-aware verify suites** — pytest, ruff, mypy, tsc, eslint, cargo, go vet, phpstan, helm-lint, hadolint, and others, scoped to the files you touched.
 - **13 core skills** auto-deployed; 20 official skills opt-in via `bootstrap --include-official` or `tausik skill install <name>`.
-- **6 automatic metrics**, **cross-project shared brain** (optional, Notion-mirrored), **batch execution** (`/run plan.md`).
+- **6 automatic metrics**, **a shared local knowledge store** (`~/.tausik-knowledge`, `--global`), **batch execution** (`/run plan.md`).
 
 </details>
 

@@ -83,7 +83,7 @@ reader would look**.
 |---|---|---|
 | `scan_version_refs` | `vX.Y.Z` written into prose drifting from `pyproject.toml` | `doc_drift_scanners.py` |
 | `scan_py_version_constants` | the same version restated as a Python constant | `doc_drift_scanners.py` |
-| `scan_mcp_tool_counts` | `**N tools**`, `N project tools`, the brain header, and the `N project + M brain` pair | `doc_drift_scanners.py` |
+| `scan_mcp_tool_counts` | `**N tools**`, `N project tools`, and stale `brain = N` sums (the brain server is retired, so any such sum is drift) | `doc_drift_scanners.py` |
 | `scan_closed_list_enums` | a documented list of values that the code's own closed list has outgrown | `doc_drift_scanners.py` |
 | `scan_test_counts` | "N tests" in prose against the number pytest actually collects | `doc_drift_scanners.py` |
 | `scan_code_counts` | repo-state counters — hooks, stacks, roles, review agents, core and official skills | `doc_drift_scanners.py` |
@@ -104,8 +104,8 @@ The modules behind them:
 ## Detection and repair must stay in lockstep
 
 `--write` repairs what `--check` reports. That is a PROMISE, and it was broken:
-`_MCP_COUNT_PAIR_PATTERN` — the `N project + M brain` form — was scanned from
-review #208 onward and repaired by nobody. Measured in session #234: raising the
+the `N project + M brain` pair form (retired with the brain server in 1.9) was
+scanned from review #208 onward and repaired by nobody. Measured in session #234: raising the
 MCP tool count from 145 to 146 left **eight such references across seven files**,
 `--write` finished red with "drift remains after --write", and about fifteen
 edits had to be made by hand for one changed integer.

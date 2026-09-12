@@ -4,7 +4,7 @@
 
 `doctor` is a single command that checks the moving parts of a TAUSIK install — venv, DB, MCP servers, skills, deployment drift, config, gates, session, and backlog hygiene. It does **not** auto-fix: it tells you what is wrong and how to fix it.
 
-Some checks only run when the thing they check is installed (the Kilo and OpenCode config checks, the Brain check), so the number of lines you see depends on your setup. The table below lists every check that can appear.
+Some checks only run when the thing they check is installed (the Kilo and OpenCode config checks), so the number of lines you see depends on your setup. The table below lists every check that can appear.
 
 ## Run It
 
@@ -24,10 +24,9 @@ Or via MCP: `tausik_doctor` (no parameters). The MCP variant returns the same da
 | **DB** | Schema migration | Latest migration applied (matches `backend_migrations.py`) |
 | **DB** | FTS5 indexes | All FTS tables present and queryable |
 | **MCP** | Project server | `.claude/mcp/project/server.py` exists |
-| **MCP** | Brain server | `.claude/mcp/brain/server.py` exists |
 | **MCP** | Server can start | `python server.py --probe` returns success |
 | **Skills** | Deployment | Skills present in `.claude/skills/` (count) |
-| **Skills** | Critical skills | core skills `start`, `end`, `task`, `plan`, `checkpoint`, `commit`, `explore`, `review`, `test`, `ship`, `debug` all present (plus `/brain` conditional if Notion configured) |
+| **Skills** | Critical skills | core skills `start`, `end`, `task`, `plan`, `checkpoint`, `commit`, `explore`, `review`, `test`, `ship`, `debug` all present |
 | **Drift** | Bootstrap freshness | Files in `.claude/` match generators in `harness/`/`bootstrap/`. Drift = stale generated copy. |
 | **Config** | Knobs | `session_max_minutes`, `session_warn_threshold_minutes`, `session_idle_threshold_minutes`, `session_capacity_calls`, `verify_cache_ttl_seconds` |
 | **Gates** | Registered gates | Stack-detected + universal gates count |
@@ -51,8 +50,7 @@ TAUSIK doctor — health check
   OK    Python venv               .tausik/venv
   OK    Project DB                .tausik/tausik.db (3136 KB)
   OK    MCP server (project)      .claude/mcp/project/server.py
-  OK    MCP server (brain)        .claude/mcp/brain/server.py
-  OK    Core skills               12 core + brain conditional, 20 vendor opt-in (all critical present)
+  OK    Core skills               13 deployed (all critical present)
   WARN  Bootstrap drift           1 script(s) differ — restart MCP server or re-bootstrap
   OK    Config knobs              max=180m warn=150m idle=10m capacity=200 cache_ttl=600s
   OK    Quality gates             6 registered
@@ -89,7 +87,6 @@ The exit code reflects the worst level: `0` for OK/WARN, `1` for FAIL.
 
 - It does **not** auto-fix. Each line shows what's wrong; the fix command is yours to run.
 - It does **not** validate vendor skill correctness — only presence.
-- It does **not** test the brain mirror sync (use `tausik brain status`).
 - It does **not** run quality gates (use `tausik gates status` / `tausik verify`).
 
 ## What's Next

@@ -83,7 +83,7 @@ python scripts/hooks/check_docs.py || exit 1
 |---|---|---|
 | `scan_version_refs` | `vX.Y.Z`, написанный в прозе и разошедшийся с `pyproject.toml` | `doc_drift_scanners.py` |
 | `scan_py_version_constants` | та же версия, повторённая питоновской константой | `doc_drift_scanners.py` |
-| `scan_mcp_tool_counts` | `**N tools**`, `N project tools`, заголовок brain и пара `N project + M brain` | `doc_drift_scanners.py` |
+| `scan_mcp_tool_counts` | `**N tools**`, `N project tools` и устаревшие суммы `brain = N` (сервер brain отставлен, любая такая сумма — дрейф) | `doc_drift_scanners.py` |
 | `scan_closed_list_enums` | документированный перечень значений, который закрытый список кода уже перерос | `doc_drift_scanners.py` |
 | `scan_test_counts` | «N тестов» в прозе против числа, которое pytest реально собирает | `doc_drift_scanners.py` |
 | `scan_code_counts` | счётчики состояния репозитория — хуки, стеки, роли, агенты ревью, скиллы | `doc_drift_scanners.py` |
@@ -104,8 +104,8 @@ python scripts/hooks/check_docs.py || exit 1
 ## Находить и чинить обязаны идти в ногу
 
 `--write` чинит то, о чём сообщает `--check`. Это ОБЕЩАНИЕ, и оно было нарушено:
-`_MCP_COUNT_PAIR_PATTERN` — форма `N project + M brain` — сканировался с ревью
-#208 и не чинился никем. Замер смены #234: подъём числа инструментов MCP со 145
+парная форма `N project + M brain` (отставлена вместе с сервером brain в 1.9)
+сканировалась с ревью #208 и не чинилась никем. Замер смены #234: подъём числа инструментов MCP со 145
 до 146 оставил **восемь таких ссылок в семи файлах**, `--write` завершился
 красным со словами «drift remains after --write», и на одно изменённое целое
 пришлось около пятнадцати ручных правок.

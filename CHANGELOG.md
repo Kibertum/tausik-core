@@ -9,6 +9,19 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — the documentation no longer describes the Notion transport
+
+The four brain pages are gone (shared-brain, brain-db-schema,
+brain-artifact-taxonomy, brain-search-ranking, ru+en), and the pages that
+named them — knowledge-store, memory-merge-guidelines, configuration,
+environment, skills, hooks, doctor, mcp, architecture, quickstart, security,
+skill-spec, troubleshooting, the docs index, both READMEs and a dozen
+one-line mentions — say the same six things everywhere: two stores and no
+third, no Notion, nothing to configure but `--global`, `knowledge export
+--redacted` as the only way out, counts from `constants.json`, and the
+scrubber as the boundary's detector set. The map that planned this sits in
+`docs/ru/research/notion-departure-doc-map.md`.
+
 ### Changed — the documentation map for the Notion departure
 
 `docs/ru/research/notion-departure-doc-map.md` names every documentation file

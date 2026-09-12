@@ -163,7 +163,7 @@ The split is mandatory, not cosmetic:
 `save_config()` persists whatever it is handed. A writer that read the effective
 config would copy the user's and the operator's settings into the repository
 file. Every round-trip writer (`ProjectService.gate_enable/gate_disable`, MCP
-`_handle_gate_toggle`, brain `_ConfigOps`) reads the raw layer.
+`_handle_gate_toggle`) reads the raw layer.
 
 ## `gates disable` behavior
 

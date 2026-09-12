@@ -217,7 +217,7 @@ overshoot is intentional (audit event + notes line trace it).
 | Метрика: Cost per Task | avg hours by complexity | Hard (auto) |
 | Section 5.1 Explorations | `tausik_explore_*` MCP + CLI | Hard |
 | Multi-lang Gates | Auto-enable по стеку (TS, Go, Rust, PHP, Java) | Hard (auto) |
-| MCP Coverage | 146 инструмента (146 project + 7 brain); agent-loop verbs полностью покрыты, CLI-only — только намеренные maintenance/operator verbs (список в mcp.md) | Hard |
+| MCP Coverage | 146 инструмента; agent-loop verbs полностью покрыты, CLI-only — только намеренные maintenance/operator verbs (список в mcp.md) | Hard |
 | Batch Execution | `/run plan.md` — автономное выполнение планов | Instruction |
 | Structured Logs | `task_logs` таблица с phase + FTS5 | Hard (auto) |
 | Fake Test Detection | 10 паттернов в testing review agent | Warning |
@@ -383,7 +383,7 @@ Coverage (% done defect-задач со структурой) выводится
 **Граф workflow:** `start → plan → task → [review, test] → commit → end`
 **Batch workflow:** `run plan.md → [task start → subagent → validate → commit] × N → summary`
 
-**Полный CLI:** `epic | story | task | session | gates | skill | brain | stack | role | memory | doctor | hud | metrics | roadmap | events | search | decide | dead-end | explore | audit | run | doc | verify | suggest-model | team | update-claudemd | fts | init`. Подробности — `docs/ru/cli.md`.
+**Полный CLI:** `epic | story | task | session | gates | skill | stack | role | memory | doctor | hud | metrics | roadmap | events | search | decide | dead-end | explore | audit | run | doc | verify | suggest-model | team | update-claudemd | fts | init`. Подробности — `docs/ru/cli.md`.
 
 **Знания:** решение → `decide`. dead end → `dead-end`. паттерн → `memory add`. конец сессии → `session handoff`.
 
