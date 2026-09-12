@@ -9,6 +9,15 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — the documentation map for the Notion departure
+
+`docs/ru/research/notion-departure-doc-map.md` names every documentation file
+the transport's removal touches (45, counted by the command the map quotes),
+splits them into four non-overlapping zones with one owner per ru/en pair, lists
+the six cross-cutting claims that must read the same on every page, and the
+gates the rewrite has to pass. Planning artifact for kb-docs-swarm and
+kb-docs-consistency; no page is rewritten by it.
+
 ### Added — one publication boundary for knowledge that leaves the machine
 
 The four places that used to decide "may this leave?" left with the Notion

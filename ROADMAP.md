@@ -44,7 +44,7 @@
 | `kb-notion` | done | 0 |
 | `km-knowledge-layer` | done | 0 |
 | `knowledge-records-what-failed-19` | done | 0 |
-| `knowledge-sheds-notion-and-its-hygiene` | active | 3 |
+| `knowledge-sheds-notion-and-its-hygiene` | active | 2 |
 | `memory-retrieves-by-relevance` | done | 0 |
 | `obligations-to-people-are-settled` | done | 0 |
 | `parallel-work-runs-without-collisions` | done | 0 |
