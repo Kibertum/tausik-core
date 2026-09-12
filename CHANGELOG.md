@@ -9,6 +9,13 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — verify recognizes uniquely predeclared committed task work
+
+Scoped verification can now attribute a later implementation-only commit to one
+already active, blocked, or done task when its immutable parent-tree export
+uniquely declared that exact path. Ambiguous, planning, malformed, and
+uncommitted cases remain fail-closed.
+
 ### Fixed — scoped pytest preserves evidence across an empty late batch
 
 Bounded scoped pytest batches now retain earlier passing evidence when a later

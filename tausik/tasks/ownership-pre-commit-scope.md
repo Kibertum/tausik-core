@@ -1,7 +1,7 @@
 ---
 slug: ownership-pre-commit-scope
 title: "Доказать ownership по pre-commit объявленной scope"
-status: active
+status: done
 epic: release-19-renar-conformance
 story: release19-proof-integrity
 complexity: medium
@@ -15,16 +15,18 @@ scope_exclude: "Do not trust current worktree declarations, alter dynamic-block 
 relevant_files:
   - "scripts/verify_commit_ownership.py"
   - "tests/test_verify_commit_ownership.py"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
 scope_paths:
   - "scripts/verify_commit_ownership.py"
   - "tests/test_verify_commit_ownership.py"
-  - "docs/en/receipts.md"
-  - "docs/ru/receipts.md"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
   - "tausik/tasks/ownership-pre-commit-scope.md"
   - "tausik/stories/release19-proof-integrity.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-12T11:14:53Z"
 ---
 
 ## Goal
