@@ -9,6 +9,19 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — memory comes back by relevance, on top of recency
+
+`task start`, resume and `task show` now carry a `Relevant memory (N)` block:
+one FTS5 query built from the task's own declaration (title, slug, the stems
+and path segments of `relevant_files` / `scope_paths`, its story, linked
+decisions' tags) with OR semantics — a new `memory_search_any` beside the
+implicit-AND `memory_search` — ranked by bm25 and then by where a term matched
+(tag 3, title 2, body 1); up to eight live rows, superseded ones yielding to
+their replacement. An empty answer is named with the terms tried and a failing
+search degrades to a named line, never to a failed task start. Measured on
+session #189: the parity task that had to carry memory #425 by hand now gets
+it second. The recency tail in CLAUDE.md is unchanged; this sits on top of it.
+
 ### Added — a compaction contract in CLAUDE.md and in the bootstrap template
 
 Compaction can be instructed, and an uninstructed one drops the context whose

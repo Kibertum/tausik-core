@@ -17,6 +17,12 @@ How to keep **local** project memory (`.tausik/tausik.db`) and the **shared loca
 
 If unsure, run **`tausik search`** / **`memory_search`** (the shared store is folded into the results) before writing.
 
+## What comes back on its own: relevance, on top of recency
+
+Two things pull memory back into the window without a search. The **recency tail** in CLAUDE.md (newest decisions, conventions, dead ends, context) is the core and is always there. On **`task start`**, on resume (`task start` of an already active task) and in **`task show`**, a `Relevant memory (N)` block is added on top of it: one FTS5 query built from the task's own declaration — title and slug words, the stems and path segments of `relevant_files` / `scope_paths`, its story, the tags of decisions linked to it — with OR semantics, ranked by bm25 and then by *where* a term matched (a tag counts 3, a title 2, the body 1). Up to eight live rows, each with the terms that matched it; a superseded row yields to its replacement.
+
+An empty answer is **named**, never silent: `Relevant memory: none matched <terms>` lists what was tried, so silence cannot be read as "no memory on this topic". A failing search degrades to the same kind of line and never stops `task start`. Measured on session #189: the task whose files name the scoped registry now gets #425 (the retired five-names rule) second; the process gotcha #428 (a receipt is not a commit) reaches the candidate set through `gate` but competes with dozens of gate-tagged rows in the live store — that kind of row is the recency tail's job.
+
 ## Alignment with the publication boundary
 
 The boundary answers only **what may leave** and **in what form**. It does **not** choose a destination, and it does **not** deduplicate or merge rows — you should still apply merge-vs-new discipline **inside** local memory so FTS stays usable.

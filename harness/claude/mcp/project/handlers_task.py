@@ -166,6 +166,7 @@ def _handle_task_show(svc: Any, args: dict) -> str:
                 lines.append(f"  [{mark}] {i}. {s['step']}")
         except (json.JSONDecodeError, TypeError):
             lines.append("Plan: (corrupted)")
+    lines.extend(task.get("relevant_memory") or [])
     return "\n".join(lines)
 
 

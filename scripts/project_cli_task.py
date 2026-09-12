@@ -364,6 +364,8 @@ def _print_task_detail(task: dict[str, Any]) -> None:
         print(f"Decisions ({len(decisions)}):")
         for d in decisions:
             print(f"  - {d['decision']}")
+    for line in task.get("relevant_memory") or []:
+        print(line)
     steps = task.get("reasoning_steps", [])
     if steps:
         print(f"Reasoning trace ({len(steps)}):")

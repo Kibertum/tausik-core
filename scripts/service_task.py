@@ -139,6 +139,9 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         task["reasoning_steps"] = self.be.reasoning_step_list(slug)
         task["specs"] = self.be.specs_for_task(slug)
         task["adapts"] = self.be.adapts_for_target("task", slug)
+        from memory_relevance import lines_for_task
+
+        task["relevant_memory"] = lines_for_task(self.be, slug, task)
         return task
 
     def task_start(self, slug: str, _internal_force: bool = False, force: bool = False) -> str:
@@ -146,7 +149,9 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         if task["status"] == "done":
             raise ServiceError(f"Task '{slug}' is already done")
         if task["status"] == "active":
-            return f"Task '{slug}' is already active."
+            from memory_relevance import lines_for_task
+
+            return "\n".join([f"Task '{slug}' is already active (resumed).", *lines_for_task(self.be, slug)])
         qg0_warnings: list[str] = []
         capacity_audit = ""
         if not _internal_force:
@@ -177,6 +182,9 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         rec_msg = start_recognition_message(self.be, slug, task.get("complexity"))
         if rec_msg:
             msgs.append(rec_msg)
+        from memory_relevance import lines_for_task
+
+        msgs.extend(lines_for_task(self.be, slug))
         try:
             from model_routing_session import record_active_task_recommendation
             from project_config import find_tausik_dir
