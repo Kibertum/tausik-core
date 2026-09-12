@@ -37,7 +37,7 @@ AC-1: real-git test proves one pre-existing sibling declaration owns a later com
 
 ## Plan
 
-[{"step": "Add strict parent-commit declaration candidate extraction and preserve same-commit ownership.", "done": true}, {"step": "Add real-git behavioral tests for unique predeclared, ambiguous, missing and uncommitted cases.", "done": true}, {"step": "Run focused pytest, ruff, mypy and dedupe; then signed verify.", "done": false}]
+[{"step": "Add strict parent-commit declaration candidate extraction and preserve same-commit ownership.", "done": true}, {"step": "Add real-git behavioral tests for unique predeclared, ambiguous, missing and uncommitted cases.", "done": true}, {"step": "Run focused pytest, ruff, mypy and dedupe; then signed verify.", "done": true}]
 
 ## Rollback
 
@@ -46,3 +46,5 @@ Revert the dedicated ownership-provenance commit.
 ## Journal
 
 - 2026-09-12T11:08:24Z [implementation] — Steps 1–2 done: added immutable parent-tree declaration proof via git grep candidate lookup plus parsed exact relevant_files validation; real-git tests cover unique active owner, ambiguity, planning, missing declaration, existing same-commit and uncommitted negatives.
+- 2026-09-12T11:12:11Z [implementation] — Step 3 complete: 14 real-git ownership regressions, ruff, module mypy and dedupe audit pass. Signed verify #2423 is presentable (status=miss; ruff/pytest PASS; hadolint skipped).
+- 2026-09-12T11:12:18Z [implementation] — AC verified: 1. unique pre-existing active sibling declaration owns its later committed path (real-git regression); 2. two pre-existing claimant exports remain undeclared; 3. missing declaration, planning status and uncommitted path remain undeclared; 4. existing same-commit and dynamic-only regressions pass; 5. pytest=14 passed, ruff PASS, mypy PASS, dedupe audit completed, signed verify #2423 PASS.
