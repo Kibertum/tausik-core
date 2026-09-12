@@ -60,15 +60,11 @@ TAUSIK is an engineering governance framework for AI coding agents. It forces pl
 | **[Skill profiles](en/skill-profiles.md)** | Multi-model variants (frontmatter + variants/) |
 | **[CLAUDE.md guide](en/claude-md-guide.md)** | Anatomy of CLAUDE.md (static + dynamic blocks) |
 
-### Memory & shared brain
+### Memory & shared store
 
 | Document | Audience |
 |----------|----------|
 | **[Memory merge guidelines](en/memory-merge-guidelines.md)** | When to merge entries vs add new |
-| **[Shared Brain](en/shared-brain.md)** | Optional cross-project Notion knowledge base |
-| **[Brain DB schema](en/brain-db-schema.md)** | 4 Notion databases — structure & properties |
-| **[Brain search ranking](en/brain-search-ranking.md)** | Stack-aware bm25 boost rules |
-| **[Brain artifact taxonomy](en/brain-artifact-taxonomy.md)** | Artifact / pattern / snippet boundaries |
 
 ### Sessions & lifecycle
 
@@ -159,15 +155,11 @@ These are agent-facing specifications consumed by AI assistants — not user-fac
 | **[Профили скиллов](ru/skill-profiles.md)** | Multi-model варианты (frontmatter + variants/) |
 | **[Гайд по CLAUDE.md](ru/claude-md-guide.md)** | Анатомия CLAUDE.md (static + dynamic блоки) |
 
-### Память и Shared Brain
+### Память и общее хранилище
 
 | Документ | Для кого |
 |----------|----------|
-| **[Память: merge vs новая запись](ru/memory-merge-guidelines.md)** | Редакция записей; classifier и scrubbing |
-| **[Shared Brain](ru/shared-brain.md)** | Опциональная кросс-проектная база на Notion |
-| **[Brain DB schema](ru/brain-db-schema.md)** | 4 Notion-базы — структура и свойства |
-| **[Brain search ranking](ru/brain-search-ranking.md)** | Stack-aware bm25 boost правила |
-| **[Brain artifact taxonomy](ru/brain-artifact-taxonomy.md)** | Границы artifact / pattern / snippet |
+| **[Память: merge vs новая запись](ru/memory-merge-guidelines.md)** | Редакция записей; граница публикации |
 
 ### Сессии и lifecycle
 

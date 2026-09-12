@@ -4,9 +4,8 @@ New in 1.8. A local file, `~/.tausik-knowledge/knowledge.db`, one per person
 rather than one per project.
 
 This page answers two questions: **how it works** and **how it differs from the
-project database**. The Notion brain is a separate page,
-[shared-brain.md](shared-brain.md) — that is a THIRD store, and it is not this
-one.
+project database**. There are two stores and no third: the Notion transport that
+used to mirror this one outward left the framework in 1.9 (decision #358).
 
 ---
 
@@ -205,8 +204,6 @@ at all and the move is yours.
 
 - [whats-new-1.8.md](whats-new-1.8.md) — what changed in 1.8, including the move
   and the `TAUSIK_HOME` validation.
-- [shared-brain.md](shared-brain.md) — the Notion brain: the third store, and the
-  only one that leaves the machine.
 - [memory-merge-guidelines.md](memory-merge-guidelines.md) — when to merge an
   entry and when to write a new one.
 - [architecture.md](architecture.md) — where the `knowledge_*` modules live.

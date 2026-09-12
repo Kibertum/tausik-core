@@ -107,7 +107,4 @@ Activation gate (defaults в `scripts/brain_config.py`):
 
 ## См. также
 
-- [Shared Brain](shared-brain.md) — модель, синк, приватность.
-- [Таксономия артефактов brain](brain-artifact-taxonomy.md) — draft/publish, `risk_blocked`.
-- [Схема brain DB](brain-db-schema.md) — роль scrubbing.
 - [CLI — Знания](cli.md#знания) — `memory add`, `memory link`, поиск.

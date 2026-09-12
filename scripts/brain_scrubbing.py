@@ -15,7 +15,7 @@ Four detectors, all `block` severity in v1:
 A non-empty `issues` list means `ok = False`: the write should be
 refused and the issue list returned to the caller verbatim.
 
-Design reference: references/brain-db-schema.md §2 (privacy model).
+Design reference: docs/{en,ru}/knowledge-store.md (publication boundary).
 """
 
 from __future__ import annotations

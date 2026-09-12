@@ -107,7 +107,4 @@ Implementation: [scripts/brain_universality_semantic.py](https://github.com/Kibe
 
 ## See also
 
-- [Shared Brain](shared-brain.md) — setup, sync, privacy model.
-- [Brain artifact taxonomy](brain-artifact-taxonomy.md) — draft/publish, `risk_blocked`, `confirm_high_risk`.
-- [Brain DB schema](brain-db-schema.md) — scrubbing responsibilities.
 - [CLI — Knowledge](cli.md#knowledge) — `memory add`, `memory link`, search.
