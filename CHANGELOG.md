@@ -9,6 +9,19 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a moved task export no longer competes with the ACL that moved it
+
+Commit-local ownership now resolves each path on the strongest tier of proof
+that names anyone: a `relevant_files` or `scope_paths` declaration stored in the
+same commit, then a parent-tree predeclaration, then the framework's own
+projection of a task export or story. Flattening the tiers had marked 151 of
+200 paths in one backlog commit ambiguous between an export and the task whose
+ACL moved it, so two proofs that a path was foreign cancelled each other and
+scoped receipts stayed under-declared by hundreds of state files. A task never
+holds a work claim on its own export, whichever field spells it. Two same-commit
+work claims, two predeclarations, uncommitted and malformed paths stay
+fail-closed.
+
 ### Fixed — verify recognizes uniquely predeclared committed task work
 
 Scoped verification can now attribute a later implementation-only commit to one

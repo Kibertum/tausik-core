@@ -215,10 +215,21 @@ def test_missing_predeclared_scope_does_not_own_later_commit(tmp_path):
     assert description["undeclared"] == ["foreign.py"]
 
 
-def test_two_sibling_exports_in_one_commit_remain_ambiguous(tmp_path):
+@pytest.mark.parametrize(
+    ("sibling_files", "sibling_scope"),
+    [(["foreign.py"], None), ([], ["*.py"])],
+    ids=["two-relevant-files", "relevant-files-versus-acl-glob"],
+)
+def test_two_sibling_exports_in_one_commit_remain_ambiguous(
+    tmp_path, sibling_files, sibling_scope
+):
     root = _repo(tmp_path)
     _write(root, "foreign.py", "claimed twice\n")
-    _write(root, "tausik/tasks/sibling.md", _task("sibling", "active", ["foreign.py"]))
+    _write(
+        root,
+        "tausik/tasks/sibling.md",
+        _task("sibling", "active", sibling_files, sibling_scope),
+    )
     _write(root, "tausik/tasks/other.md", _task("other", "active", ["foreign.py"]))
     _git(root, "add", ".")
     _git(root, "commit", "-m", "ambiguous sibling scope")
@@ -228,6 +239,49 @@ def test_two_sibling_exports_in_one_commit_remain_ambiguous(tmp_path):
     )
 
     assert description["undeclared"] == ["foreign.py"]
+
+
+@pytest.mark.parametrize(
+    ("moved_status", "moved_scope"),
+    [("planning", None), ("active", ["tausik/tasks/moved.md"])],
+    ids=["projection-only", "own-export-listed-in-acl"],
+)
+def test_moved_export_belongs_to_the_acl_owner_not_to_itself(
+    tmp_path, moved_status, moved_scope
+):
+    root = _repo(tmp_path)
+    _write(root, "tausik/tasks/moved.md", _task("moved", moved_status, [], moved_scope))
+    _write(
+        root,
+        "tausik/tasks/sibling.md",
+        _task("sibling", "active", [], ["tausik/tasks/*.md"]),
+    )
+    _git(root, "add", ".")
+    _git(root, "commit", "-m", "move a sibling export under an ACL owner")
+
+    description = honesty.describe_declared_scope(
+        ["subject.py"], "1970-01-01T00:00:00Z", root=str(root), task_slug="subject"
+    )
+
+    assert description["status"] == honesty.STATUS_COMPLETE
+
+
+def test_same_commit_export_outranks_a_predeclared_parent_tree_claim(tmp_path):
+    root = _repo(tmp_path)
+    _write(root, "tausik/tasks/other.md", _task("other", "active", ["foreign.py"]))
+    _git(root, "add", "tausik/tasks/other.md")
+    _git(root, "commit", "-m", "predeclare a competing scope")
+    _write(root, "foreign.py", "committed with the sibling export\n")
+    _write(root, "tausik/tasks/sibling.md", _task("sibling", "active", ["foreign.py"]))
+    _git(root, "add", ".")
+    _git(root, "commit", "-m", "commit sibling work with its export")
+
+    description = honesty.describe_declared_scope(
+        ["subject.py"], "1970-01-01T00:00:00Z", root=str(root), task_slug="subject"
+    )
+
+    assert description["status"] == honesty.STATUS_COMPLETE
+    assert "foreign.py" not in description["undeclared"]
 
 
 @pytest.mark.parametrize("path", ["AGENTS.md", "CLAUDE.md"])

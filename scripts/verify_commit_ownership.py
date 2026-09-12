@@ -13,6 +13,18 @@ may declare a path before its later implementation-only commit.  Task lifecycle
 state is not normally file ownership: requiring ``done`` creates a QG-2 cycle
 for independently committed tasks that need the verifier in order to close.
 Unknown, malformed, ambiguous and uncommitted changes deliberately remain.
+
+Claims are not all of one kind.  A task's own export and its parent story are
+*projections* the framework writes for whichever task moved state; a
+``relevant_files`` entry or a ``scope_paths`` ACL stored in the same commit is a
+*work* claim; a declaration read from the parent tree is a weaker, earlier work
+claim.  A path is resolved on the strongest tier that names anyone: one name
+there owns it, two or more keep it ambiguous, and a weaker tier is never
+consulted once a stronger one has spoken.  Flattening the tiers made every
+export moved by a backlog commit ambiguous between itself and the task whose
+ACL moved it (151 of 200 paths in one measured commit) -- two independent proofs
+that the path is foreign cancelled each other.  A task never holds a work claim
+on its own export, whichever field spells it: that file is its projection.
 """
 
 from __future__ import annotations
@@ -141,6 +153,7 @@ def _parent_scope_claimants(
         if (
             not isinstance(slug, str)
             or slug == task_slug
+            or export_path == path
             or status not in _PREDECLARED_STATUSES
             or not isinstance(declared, list)
         ):
@@ -148,6 +161,7 @@ def _parent_scope_claimants(
         if path in {_normalize_repo_path(str(item)) for item in declared}:
             claimants.add(slug)
     return claimants
+
 
 
 def foreign_completed_paths_since(
@@ -192,12 +206,14 @@ def foreign_completed_paths_since(
         if names is None:
             continue
         changed = {_normalize_repo_path(line) for line in names.splitlines() if line.strip()}
-        commit_claimants: dict[str, set[str]] = defaultdict(set)
-        for path in changed & _DYNAMIC_FILES & changed_paths:
+        inspected = changed & changed_paths
+        same_commit: dict[str, set[str]] = defaultdict(set)
+        projection: dict[str, set[str]] = defaultdict(set)
+        for path in inspected & _DYNAMIC_FILES:
             previous_blob = _git_text(["git", "show", f"{commit}^:{path}"], base=base, run=run)
             current_blob = _git_text(["git", "show", f"{commit}:{path}"], base=base, run=run)
             if _is_dynamic_only_change(previous_blob, current_blob):
-                commit_claimants[path].add("__dynamic_projection__")
+                projection[path].add("__dynamic_projection__")
         task_exports = sorted(
             path for path in changed if path.startswith(_TASK_PREFIX) and path.endswith(_TASK_SUFFIX)
         )
@@ -213,35 +229,42 @@ def foreign_completed_paths_since(
                 or slug == task_slug
             ):
                 continue
+            # These projections are framework output of the commit-local
+            # ownership proof, not undeclared work by the task being verified.
+            if export_path in inspected:
+                projection[export_path].add(slug)
+            story = current.get("story")
+            if isinstance(story, str) and story:
+                story_path = f"tausik/stories/{story}.md"
+                if story_path in inspected:
+                    projection[story_path].add(slug)
             declared = current.get("relevant_files")
             owned = (
                 {_normalize_repo_path(str(path)) for path in declared}
                 if isinstance(declared, list)
                 else set()
             )
-            # These projections are framework output of the commit-local
-            # ownership proof, not undeclared work by the task being verified.
-            owned.add(export_path)
-            story = current.get("story")
-            if isinstance(story, str) and story:
-                owned.add(f"tausik/stories/{story}.md")
-            for path in owned & changed_paths & changed:
-                commit_claimants[path].add(slug)
-            for path in changed & changed_paths:
+            for path in (owned & inspected) - {export_path}:
+                same_commit[path].add(slug)
+            for path in inspected - {export_path}:
                 if (
                     current.get("status") in _PREDECLARED_STATUSES
                     and _scope_path_matches(path, current.get("scope_paths"))
                 ):
-                    commit_claimants[path].add(slug)
-        for path in changed & changed_paths:
-            commit_claimants[path].update(
-                _parent_scope_claimants(
+                    same_commit[path].add(slug)
+        for path in inspected:
+            # Strongest tier that names anyone decides; weaker tiers are not
+            # consulted, so a projection cannot compete with a work claim and
+            # the parent tree is only read when the commit itself is silent.
+            owners = same_commit.get(path, set())
+            if not owners:
+                owners = _parent_scope_claimants(
                     commit, path, task_slug=task_slug, base=base, run=run
                 )
-            )
-        for path, owners in commit_claimants.items():
+            if not owners:
+                owners = projection.get(path, set())
             if len(owners) == 1:
                 claimants[path].update(owners)
-            else:
+            elif owners:
                 ambiguous.add(path)
     return set(claimants).difference(ambiguous)
