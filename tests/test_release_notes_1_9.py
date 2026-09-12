@@ -6,8 +6,9 @@ tag cannot be re-cut, so that one is permanent. This file exists so 1.9 cannot
 repeat it while it is still cheap to fix.
 
 THE PAGE IS NOT A RETELLING OF THE CHANGELOG. The Unreleased section held 163
-entries when these notes were written, exactly one of them marked BREAKING. A
-page carrying all 163 would be as unread as the file it stands in for, so what is
+entries when these notes were written (the page now states the live count and
+this file recounts it), two of them marked BREAKING. A page carrying them all
+would be as unread as the file it stands in for, so what is
 checked is the part that must not be lost: every entry the CHANGELOG itself calls
 breaking has to appear in the notes.
 
@@ -37,6 +38,11 @@ _CHANGELOGS = {
 }
 _BREAKING_HEADING = {"ru": "## ЛОМАЮЩИЕ ИЗМЕНЕНИЯ", "en": "## BREAKING CHANGES"}
 _BREAKING_ENTRY = {"ru": re.compile(r"^### ЛОМАЮЩЕЕ\b"), "en": re.compile(r"^### BREAKING\b")}
+# The sentence on each page that states the Unreleased entry count.
+_ENTRY_FIGURE = {
+    "ru": re.compile(r"в разделе Unreleased (\d+) записи"),
+    "en": re.compile(r"the Unreleased section holds (\d+) entries"),
+}
 
 
 def _unreleased(lang: str) -> list[str]:
@@ -132,6 +138,19 @@ class TestThePageIsNotTheChangelog:
         )
 
     @pytest.mark.parametrize("lang", sorted(_PAGES))
+    def test_the_entry_figure_on_the_page_is_the_live_count(self, lang):
+        """The page states how many entries the Unreleased section holds. That
+        number was 163 when written and 227 when first recounted — a figure
+        nothing counts rots silently (convention #673), so this counts it."""
+        page = _PAGES[lang].read_text(encoding="utf-8")
+        stated = re.search(_ENTRY_FIGURE[lang], page)
+        assert stated, f"{_PAGES[lang].name} no longer states its entry figure"
+        assert int(stated.group(1)) == len(_unreleased(lang)), (
+            f"{_PAGES[lang].name} says {stated.group(1)} entries, the CHANGELOG holds "
+            f"{len(_unreleased(lang))} — recount the figure on the page"
+        )
+
+    @pytest.mark.parametrize("lang", sorted(_PAGES))
     def test_it_points_at_the_changelog_for_the_rest(self, lang):
         text = _PAGES[lang].read_text(encoding="utf-8")
         assert "CHANGELOG" in text, (
@@ -184,8 +203,7 @@ class TestTheUnmeasuredPromiseSaysSo:
         text = _PAGES[lang].read_text(encoding="utf-8")
         assert promise in text, "обещание исчезло со страницы — предпосылка теста"
         assert caveat in text, (
-            "обещание экономии названо, а отсутствие числа не названо: "
-            "условие выпуска 1 нарушено"
+            "обещание экономии названо, а отсутствие числа не названо: условие выпуска 1 нарушено"
         )
         assert 0 < text.index(caveat) - text.index(promise) < self._NEAR, (
             "оговорка оторвана от обещания — читатель заберёт обещание"
@@ -194,7 +212,9 @@ class TestTheUnmeasuredPromiseSaysSo:
     @pytest.mark.parametrize("lang", ["ru", "en"])
     def test_the_numbers_are_there_and_sourced(self, lang):
         """AC-4: числа измерены сейчас, а не перенесены из смены #225."""
-        text = _PAGES[lang].read_text(encoding="utf-8").replace("\u00a0", " ").replace("\u202f", " ")
+        text = (
+            _PAGES[lang].read_text(encoding="utf-8").replace("\u00a0", " ").replace("\u202f", " ")
+        )
         assert "233" in text
         assert "57 251" in text or "57,251" in text
 

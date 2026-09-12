@@ -32,8 +32,9 @@ because "everything here is instructions" is untrue too on a host without hooks:
 closing a task IS refused there.
 
 Full list of changes: [CHANGELOG.md](../../CHANGELOG.md). This page is not a
-retelling: the Unreleased section holds 163 entries, and what is selected here is
-what changes the experience of UPGRADING.
+retelling: the Unreleased section holds 228 entries (the figure is counted by
+`tests/test_release_notes_1_9.py`), and what is selected here is what changes
+the experience of UPGRADING.
 
 ---
 
@@ -133,6 +134,32 @@ no row carrying a real number.
 |---|---|
 | `tausik coherence` | The repository-level question no gate was asking: what in the tree stopped adding up |
 | `tausik audit evidence` | Closure-receipt citations no longer rot in silence |
+
+### Context: across projects, across sessions, through compaction
+
+**The global config no longer carries another project.** In 1.8 the user-tier
+`~/.tausik/config.json` could bring a weakening enabled for one project into
+yours (`auto_verify: true` from a neighbour). User-tier weakening now lives in a
+`projects` section keyed by the project's absolute path; `tausik doctor` labels
+every effective weakening MACHINE-WIDE or project-scoped and lists foreign
+entries separately.
+
+**`task start` brings memory by relevance.** On top of the recency tail in
+CLAUDE.md, start, resume and `task show` print a `Relevant memory (N)` block
+built from the task's own declaration; an empty answer is named with the terms
+tried.
+
+**The rules file gained a compaction section.** It says what to carry verbatim
+through context compaction. The rules file is preserve-if-exists: on an
+already-bootstrapped project the section appears only after the generated file
+is deleted and bootstrap re-run.
+
+**`knowledge export --redacted`** masks paths, addresses, URLs and project names
+with typed placeholders before shared memory is published.
+
+**Caveman mode is a response contract**, not only a length: the shape
+`done → verified by → left → your call`, five named exceptions and a pre-send
+check — inside the same directive, no second mode.
 
 ### Output economy: two levers, both off on purpose
 

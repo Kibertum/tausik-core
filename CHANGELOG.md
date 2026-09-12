@@ -9,6 +9,16 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — what's new 1.9 counts its entries and names the context work
+
+The entry figure on `docs/{ru,en}/whats-new-1.9.md` is now the live count of
+Unreleased headings in the matching CHANGELOG and a test recounts it; a stale
+figure fails. A new section names what changes the upgrade experience since
+the page was written: project-scoped user-tier weakening, the Relevant memory
+block on task start, the compaction section in the regenerated rules file
+(preserve-if-exists), `knowledge export --redacted`, the response contract in
+caveman mode.
+
 ### Added — the generated half of CLAUDE.md is measured: cost per part and two usage proxies
 
 `scripts/context_block_audit.py` splits the rules file at the generator's own
