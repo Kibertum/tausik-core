@@ -144,10 +144,10 @@ Three layers, strict separation: **CLI never touches DB. Service validates. Back
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #250 (active) | Branch: v1-9-wave | Version: 1.9.0
-Tasks: 1471/1625 done, 1 active, 1 blocked
-Active: codex-live-acceptance-proves-the-host
-Blocked: v14b-rag-nudge-replay-benchmark
+Session: none | Branch: v1-9-wave | Version: 1.9.0
+Tasks: 1473/1628 done, 1 active, 2 blocked
+Active: codex-second-model-review-of-sessions-243-250
+Blocked: v14b-rag-nudge-replay-benchmark, codex-live-acceptance-proves-the-host
 
 ### Memory tail
 Context (5):
@@ -169,9 +169,9 @@ Conventions (5):
 - #669 Имя КЛАССА теста опаснее имени функции: оба выдуманных случая за две смены были классами
 - #664 Критерий, требующий НОВОЙ СУЩНОСТИ В ЗАКРЫТОМ ПЕРЕЧНЕ, проверяй на совместимость с критерием «схему 
 Dead ends (3):
+- #692 Capture Codex PreToolUse JSON through a temporary generated command hook
 - #689 Ограничить parent-tree претензии done-задач условием completed_at >= started_at верифицируемой задач
 - #688 Treat the scoped review pytest FAIL as a test failure, then re-run with TAUSIK_VERIFY_FULL=1.
-- #687 Use the standard MCP verify receipt as immediate closure evidence for verify-dynamic-state.
 
 **Shared knowledge — from other projects (11):**
 - [decision] v139-D (клиентский mux) НЕ делается в 1.3.9 как «фикс троттлинга». Предпосылка задачи неверна для на

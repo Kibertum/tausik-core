@@ -1,7 +1,7 @@
 ---
 slug: codex-first-class-19
 title: "Codex — полноценный хост: живые MCP, хуки, навыки, агенты и доказуемая матрица гарантий"
-status: active
+status: done
 epic: release-19-renar-conformance
 ---
 

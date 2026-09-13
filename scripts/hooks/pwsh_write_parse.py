@@ -248,7 +248,9 @@ def _parse(command: str, depth: int, base_dir: str | None = None) -> tuple[list[
         # keeps `python -m pytest x.py` from being read as running `x.py`. Only
         # WHICH TOKENS name the program differs between the dialects, and that
         # difference is `_script_argv`, which is all of this module's business.
-        out += python_source_writes.writes_in_script_file(_script_argv(stmt), base_dir)
+        argv = _script_argv(stmt)
+        out += python_source_writes.writes_in_inline_code(argv)
+        out += python_source_writes.writes_in_script_file(argv, base_dir)
         if depth < _MAX_WRAPPER_DEPTH:
             for payload in payloads(stmt):
                 inner, inner_conf = _parse(payload, depth + 1, base_dir)

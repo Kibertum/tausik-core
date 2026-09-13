@@ -92,6 +92,14 @@ def _gate(project, tool, command):
 
 
 class TestTheLiveGateOnThePowerShellChannel:
+    def test_an_inline_pathlib_write_outside_the_acl_is_refused(self, tmp_path):
+        project = _project(tmp_path, ["allowed/**"], _WRITES_OUTSIDE)
+        command = (
+            "python -c \"from pathlib import Path; "
+            "Path('secret.txt').write_text('x', encoding='utf-8')\""
+        )
+        assert _gate(project, "PowerShell", command) == 2
+
     @pytest.mark.parametrize(
         "command",
         [

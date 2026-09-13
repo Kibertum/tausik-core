@@ -9,6 +9,13 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — Codex PowerShell write gate reads inline Python mutations
+
+The shared shell gate now reads literal Python `-c` programs on the PowerShell
+channel as well as script files, so an out-of-ACL `Path(...).write_text(...)`
+operation is refused before it reaches the filesystem. The deployed profile was
+verified against a live Codex host with trusted hooks.
+
 ### Fixed — release roadmap is regenerated from live task state
 
 The committed release roadmap is refreshed after task lifecycle changes, so its

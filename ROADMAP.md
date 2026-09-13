@@ -16,10 +16,10 @@
 
 | История | Статус | Осталось | Заблокировано | Закрыто |
 |---|---|---|---|---|
-| `release19-proof-integrity`<br>1.9: квитанция и hard-гарантии не могут лгать | done | 2 | 0 | 21 |
+| `release19-proof-integrity`<br>1.9: квитанция и hard-гарантии не могут лгать | done | 0 | 0 | 23 |
 | `kb-docs`<br>Роевое комплексное обновление документации | done | 0 | 0 | 1 |
 | `release19-effective-context`<br>1.9: эффективный контекст и измеренная дисциплина ответа | active | 1 | 1 | 11 |
-| **Итого** | | **3** | **1** | **33** |
+| **Итого** | | **1** | **1** | **35** |
 
 ## Что в релиз НЕ входит
 
@@ -27,7 +27,7 @@
 
 | История | Статус | Осталось |
 |---|---|---|
-| `codex-first-class-19` | active | 1 |
+| `codex-first-class-19` | done | 0 |
 | `codex-is-a-first-class-host` | done | 0 |
 | `context-carries-over-between-sessions` | done | 0 |
 | `evidence-and-hygiene-debt-paid-in-19` | done | 0 |

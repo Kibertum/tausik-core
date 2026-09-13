@@ -11,6 +11,13 @@
 
 ## [Unreleased]
 
+### Исправлено — PowerShell write gate Codex читает inline-мутации Python
+
+Общий shell-gate теперь читает literal Python-программы `-c` на PowerShell-канале
+так же, как и файлы скриптов: операция `Path(...).write_text(...)` вне ACL
+отклоняется до записи в файловую систему. Развёрнутый профиль проверен на живом
+Codex с доверенными hooks.
+
 ### Исправлено — release roadmap регенерируется из live state задач
 
 Закоммиченный roadmap обновляется после lifecycle-изменений задач, поэтому его
