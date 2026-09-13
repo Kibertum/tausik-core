@@ -27,12 +27,13 @@ like "a feature nobody needed".
 
 **🖧 Guarantees are stated by rule, not by host.** Five environments were handed
 the same rules text promising automatic enforcement; on two of the five that was
-untrue. Each host now reads what is actually deployed for it — and by rule,
+untrue (measured in session #225; Codex became the sixth host later in the
+release, on the same terms — see below). Each host now reads what is actually deployed for it — and by rule,
 because "everything here is instructions" is untrue too on a host without hooks:
 closing a task IS refused there.
 
 Full list of changes: [CHANGELOG.md](../../CHANGELOG.md). This page is not a
-retelling: the Unreleased section holds 233 entries (the figure is counted by
+retelling: the Unreleased section holds 235 entries (the figure is counted by
 `tests/test_release_notes_1_9.py`), and what is selected here is what changes
 the experience of UPGRADING.
 
@@ -134,6 +135,27 @@ no row carrying a real number.
 |---|---|
 | `tausik coherence` | The repository-level question no gate was asking: what in the tree stopped adding up |
 | `tausik audit evidence` | Closure-receipt citations no longer rot in silence |
+
+### Codex is a sixth host — and the claim stops where the measurement stopped
+
+`bootstrap.py --ide codex` (and `--ide all`) scaffolds Codex CLI: the
+`tausik-project` MCP server registered in the PROJECT's `.codex/config.toml`,
+the same skill set as Claude under `.codex/skills/`, sub-agents generated from
+the canonical Markdown into `.codex/agents/*.toml`, and `.codex/hooks.json`
+built from the SAME hook declaration Claude's profile uses (absolute paths,
+because Codex has no workspace variable). Support is a release promise only
+because a real Codex host proved it, not because the files exist: in the live
+acceptance run Codex called `tausik_status` and got the structured reply, its
+catalog listed `i-have-adhd` and the `tausik-reviewer` agent, and the forbidden
+`Path('outside.txt').write_text(...)` was refused before the file existed.
+
+**The boundary, stated once here.** That refusal happened under a hook profile
+the user had TRUSTED in Codex. The same operation with the generated profile
+present but untrusted ran to completion — no hook fired. Nothing on disk tells
+the two states apart, so Rule 1 and the write ACL on Codex are hard *once you
+trust the project hooks*, and an untrusted profile enforces nothing. The
+[enforcement matrix](model-providers.md#codex-enforcement-matrix) carries that
+condition on both rows and a test keeps it there.
 
 ### Context: across projects, across sessions, through compaction
 

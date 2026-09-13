@@ -26,14 +26,14 @@ Hard workflow rules (`task_start` before edits, **`tausik_verify` before task cl
 
 TAUSIK was originally built around Claude Code conventions, but the framework is model-agnostic. If you are GPT (5.5+), Cursor Composer, OpenCode, Codex CLI, Qwen Code, Gemini CLI or any other agent, the surface you actually use is different:
 
-| Capability | Claude Code / VS Code Claude Extension | Cursor Composer / GPT-5.5 / OpenCode | Qwen Code |
-|---|---|---|---|
-| MCP tools (`tausik_*`) | Yes — preferred | **Yes — preferred and primary** | Yes — preferred |
-| Slash skills (`/start`, `/plan`, `/ship`) | Native | **Not native** — read `harness/skills/<name>/SKILL.md` and follow the algorithm yourself | Read `.qwen/skills/<name>/SKILL.md` |
-| PreToolUse hooks (`task_gate.py` etc.) | Yes (`.claude/settings.json`) | **No hooks API** — Rule 1 is enforced by you reading the rules | Yes (limited subset, see [r14-qwen-parity-or-honesty]) |
-| `~/.claude/...` auto-memory | Read/write | **Do not write here** — it is a Claude-only profile dir | Read only |
-| Session start | `session_start.py` hook injects status | **Run `tausik_status` and `tausik_session_start` yourself first** | hook (subset) |
-| `/checkpoint` reminder | Hook nudges every 30-50 calls | **You** must self-checkpoint via `tausik_session_handoff` | hook (subset) |
+| Capability | Claude Code / VS Code Claude Extension | Cursor Composer / GPT-5.5 / OpenCode | Qwen Code | Codex CLI |
+|---|---|---|---|---|
+| MCP tools (`tausik_*`) | Yes — preferred | **Yes — preferred and primary** | Yes — preferred | Yes — `.codex/config.toml` (project); live-verified in 1.9 |
+| Slash skills (`/start`, `/plan`, `/ship`) | Native | **Not native** — read `harness/skills/<name>/SKILL.md` and follow the algorithm yourself | Read `.qwen/skills/<name>/SKILL.md` | Skill catalog from `.codex/skills/<name>/SKILL.md`; sub-agents from `.codex/agents/*.toml` |
+| PreToolUse hooks (`task_gate.py` etc.) | Yes (`.claude/settings.json`) | **No hooks API** — Rule 1 is enforced by you reading the rules | Yes (limited subset, see [r14-qwen-parity-or-honesty]) | Yes (`.codex/hooks.json`, same declaration as Claude) — **only after the user has trusted the project hooks**; untrusted = nothing enforced |
+| `~/.claude/...` auto-memory | Read/write | **Do not write here** — it is a Claude-only profile dir | Read only | **Do not write here** |
+| Session start | `session_start.py` hook injects status | **Run `tausik_status` and `tausik_session_start` yourself first** | hook (subset) | hook when trusted; otherwise run `tausik_status` and `tausik_session_start` yourself |
+| `/checkpoint` reminder | Hook nudges every 30-50 calls | **You** must self-checkpoint via `tausik_session_handoff` | hook (subset) | hook when trusted; otherwise self-checkpoint |
 
 ### Model / host → tool surface (MCP)
 
@@ -44,7 +44,8 @@ Same governance everywhere; only the **wrapper** (hooks vs self-serve) changes. 
 | Claude (Code, VS Code Extension) | MCP `tausik-project` | **146** | Hooks + MCP |
 | Cursor / Composer / GPT-5.5+ / OpenCode | Same MCP (project MCP config); CLI fallback `.tausik/tausik` | **146** | Rule 1 self-serve if no hooks |
 | Qwen Code | MCP + skills under `.qwen/skills/` | **146** | Subset of hooks |
-| Codex CLI / headless agents | Prefer MCP if exposed; else mirror CLI | **146** | [docs/en/cli.md](docs/en/cli.md) |
+| Codex CLI | MCP `tausik-project` from `.codex/config.toml`; skills `.codex/skills/`; agents `.codex/agents/` | **146** | Hooks via `.codex/hooks.json` once trusted — [enforcement matrix](docs/en/model-providers.md#codex-enforcement-matrix) |
+| Headless agents | Mirror the CLI `.tausik/tausik` | **146** | [docs/en/cli.md](docs/en/cli.md) |
 
 **Optional `codebase-rag` server:** +7 tools → **153** total with the main server (not part of the baseline). Same numbers as the header in [docs/en/mcp.md](docs/en/mcp.md).
 

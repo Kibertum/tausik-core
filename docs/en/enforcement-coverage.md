@@ -115,6 +115,21 @@ reasoning about them: `tests/test_rule_coverage.py` closes a task through
 `.tausik/tausik doctor` prints both lines: coverage by host, and the split by
 rule.
 
+### Two conditions for an interception, and the scan sees one
+
+"Is that artifact in the profile" is the condition a scan can answer. On a
+host that guards its hook mechanism there is a second one the scan cannot: the
+host must be WILLING to run the project's hooks. Codex runs a project's
+`.codex/hooks.json` only after the user has trusted it, and the two states are
+byte-identical on disk. Measured live in the 1.9 acceptance run (session #251):
+with the generated profile present but untrusted, the forbidden
+`Path('outside.txt').write_text(...)` completed and the file existed — no hook
+ran; the same operation under a trusted profile was refused before the write.
+So for Rule 1 and Rule 2 on Codex the honest statement is "hard once the hooks
+are trusted", `doctor` reports only the first condition and says so, and an
+untrusted generated profile is NOT protected and is not described as such —
+see the [Codex enforcement matrix](model-providers.md#codex-enforcement-matrix).
+
 ## Channel-coverage matrix
 
 Supervision can be holed not only by RULE but by CHANNEL, and the second kind is

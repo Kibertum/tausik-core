@@ -155,9 +155,11 @@ TAUSIK создавался самим TAUSIK — каждая фича, реф�
 | **Kilo Code** (+ [z.ai GLM](docs/ru/kilo-zai.md)) | 146 | 13 core + по запросу | — (гейты на task start/done) | First-class через MCP |
 | **Cursor** | 146 | 13 core + по запросу | — (гейты на task start/done) | Через MCP |
 | VSCode + Claude Extension | 146 | 13 core + по запросу | 22 | Прогнано E2E |
-| Windsurf / Codex-подобные | MCP + правила | зависит от хоста | специфично для хоста | Ожидается / вручную |
+| **Codex CLI** | 146 | 13 core + по запросу | 22 (та же декларация, что у Claude; принуждают после того, как вы доверили хуки проекта в Codex) | First-class, подтверждено живьём в 1.9 |
+| **OpenCode** | 146 | 13 core + по запросу | — (один плагин QG-0; гейты на task start/done) | Через MCP |
+| Windsurf | MCP + правила | зависит от хоста | специфично для хоста | Ожидается / вручную |
 
-Хуки — это real-time-рельсы (нет кода без задачи, bash-firewall, push gate) — работают в **Claude Code и Qwen Code**. Kilo, Cursor, Windsurf и другие MCP-хосты получают те же 153 инструмента и скиллы, с quality gates на `task start` и `task done`.
+Хуки — это real-time-рельсы (нет кода без задачи, bash-firewall, push gate) — работают в **Claude Code, Qwen Code и Codex** (Codex исполняет хуки проекта только после того, как вы им доверили; недоверенный профиль не принуждает ничего — см. [матрицу принуждения Codex](docs/ru/model-providers.md#матрица-принуждения-codex)). Kilo, Cursor, OpenCode, Windsurf и другие MCP-хосты получают те же 146 инструментов и скиллы, с quality gates на `task start` и `task done`.
 
 **Kilo Code + z.ai (GLM):** bootstrap с `--ide kilo` — и TAUSIK работает как first-class MCP-хост на моделях GLM; роутинг рекомендует в рамках семейства активной модели (сессия `glm-*` получает вердикты по GLM), всё как данные, без правки кода. См. **[Kilo + z.ai →](docs/ru/kilo-zai.md)**.
 
@@ -171,7 +173,7 @@ git submodule add https://github.com/Kibertum/tausik-core .tausik-lib
 python .tausik-lib/bootstrap/bootstrap.py --init
 ```
 
-Bootstrap сам определит ваш стек и включит подходящие гейты; имя проекта берётся из папки. После установки перезапустите IDE, чтобы поднялись MCP-серверы. Конкретный хост — через `--ide claude|cursor|qwen|kilo` (например, `--ide kilo` для [Kilo Code + z.ai GLM](docs/ru/kilo-zai.md)).
+Bootstrap сам определит ваш стек и включит подходящие гейты; имя проекта берётся из папки. После установки перезапустите IDE, чтобы поднялись MCP-серверы. Конкретный хост — через `--ide claude|cursor|qwen|kilo|opencode|codex` (или `--ide all`; например, `--ide kilo` для [Kilo Code + z.ai GLM](docs/ru/kilo-zai.md), `--ide codex` для Codex CLI).
 
 **[Полный быстрый старт →](docs/ru/quickstart.md)**
 

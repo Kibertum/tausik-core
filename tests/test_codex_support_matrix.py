@@ -11,6 +11,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 _ROOT = Path(__file__).resolve().parents[1]
 for _path in (str(_ROOT / "scripts"), str(_ROOT / "bootstrap")):
     if _path not in sys.path:
@@ -57,9 +59,7 @@ def _generated_codex_profile(tmp_path: Path) -> Path:
 
 def test_codex_matrix_is_complete_and_language_paired():
     en_rows = _matrix_rows(_ROOT / "docs" / "en" / "model-providers.md", MATRIX_HEADING)
-    ru_rows = _matrix_rows(
-        _ROOT / "docs" / "ru" / "model-providers.md", RU_MATRIX_HEADING
-    )
+    ru_rows = _matrix_rows(_ROOT / "docs" / "ru" / "model-providers.md", RU_MATRIX_HEADING)
     assert tuple(en_rows) == PROMISED_RULES
     assert tuple(ru_rows) == PROMISED_RULES
     assert all(row[1] == "hard" for row in en_rows.values())
@@ -75,6 +75,39 @@ def test_every_hard_codex_row_has_a_mechanism_in_the_generated_profile(tmp_path)
             f"{promised} is documented hard but generated Codex has no mechanism: "
             f"{held[coverage_name]}"
         )
+
+
+# The two rows whose mechanism is the HOST intercepting its own action. A hook
+# file on disk is only half of that mechanism: Codex runs a project's hooks
+# only after the user has trusted them, and the live acceptance run measured
+# the other half — an untrusted generated profile let the forbidden write
+# through (session #251). The profile scan above cannot see trust, so the
+# precondition must be stated on the row itself, in both languages.
+HOST_INTERCEPTION_RULES = ("Rule 1 Task before code", "Rule 2 Scope Boundaries")
+TRUST_MARKERS = {"en": ("trusted",), "ru": ("довери",)}
+
+
+@pytest.mark.parametrize(("lang", "heading"), [("en", MATRIX_HEADING), ("ru", RU_MATRIX_HEADING)])
+def test_host_interception_rows_state_the_trust_precondition(lang, heading):
+    rows = _matrix_rows(_ROOT / "docs" / lang / "model-providers.md", heading)
+    for rule in HOST_INTERCEPTION_RULES:
+        mechanism = rows[rule][2].lower()
+        assert any(marker in mechanism for marker in TRUST_MARKERS[lang]), (
+            f"{lang}: {rule} is documented hard without naming the trusted-hooks "
+            "precondition — an untrusted Codex profile enforces nothing (measured live)"
+        )
+
+
+@pytest.mark.parametrize("lang", ["en", "ru"])
+def test_no_page_claims_codex_enforcement_without_the_precondition(lang):
+    """The prose above the matrix made the same claim in one sentence; that
+    sentence must carry the condition too, in the same paragraph."""
+    text = (_ROOT / "docs" / lang / "model-providers.md").read_text(encoding="utf-8")
+    key = "not merely instructed" if lang == "en" else "не просто предписываются"
+    para = next(p for p in text.split("\n>\n") if key in p)
+    assert any(m in para.lower() for m in TRUST_MARKERS[lang]), (
+        f"{lang}: the enforcement sentence stands without the trust precondition"
+    )
 
 
 def test_removing_the_generated_hooks_rejects_host_operation_hard_claims(tmp_path):

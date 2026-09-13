@@ -9,6 +9,41 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the front page, the agent onboarding and the release notes name Codex as a host
+
+Both READMEs filed Codex under "Windsurf / Codex-style … Expected / manual",
+said the real-time hooks run "in Claude Code and Qwen Code", and spelled the
+flag as `--ide claude|cursor|qwen|kilo` while `SCAFFOLD_IDES` had carried
+`opencode` and `codex` for weeks; AGENTS.md told a Codex agent to "prefer MCP
+if exposed; else mirror CLI"; the 1.9 notes did not contain the word Codex at
+all — with `codex-first-class-19` a release story (#360) and the live
+acceptance closed. Each now carries a Codex row or section with the boundary
+the live run measured: MCP, skills and agents proven on a real host; the native
+refusal proven only under a trusted hook profile, an untrusted profile
+enforcing nothing. OpenCode gets its own row (one QG-0 plugin) instead of
+hiding under "other MCP hosts". The `--ide` list on the front page is now read
+against `SCAFFOLD_IDES` by `tests/test_readme_names_every_scaffolded_host.py`,
+and `tests/test_release_notes_1_9.py` requires the Codex section to sit next
+to its boundary in both languages. The RU README also said "153 tools" where
+the EN said 146 — the two-server count from before the Notion removal.
+
+### Fixed — the Codex hard claim names its precondition: hooks enforce only once trusted
+
+The provider docs' Codex enforcement matrix said `Rule 1 — hard` and
+`Rule 2 — hard` with no condition, and the paragraph above it said the write ACL
+is "ENFORCED there, not merely instructed". The live acceptance run measured
+the missing half (session #251): Codex runs a project's `.codex/hooks.json` only
+after the user has trusted it, and with the generated profile present but
+untrusted the forbidden `Path('outside.txt').write_text(...)` completed — no
+hook fired, the file existed. The same operation under a trusted profile was
+refused before the write. The two states are byte-identical on disk, so no
+profile scan can tell them apart. Both host-interception rows, the paragraph
+and `enforcement-coverage` now say "hard once the user has trusted the project
+hooks in Codex; an untrusted profile enforces nothing", in both languages, and
+`tests/test_codex_support_matrix.py` fails when either row or the sentence
+loses the condition. Nothing about the generator changed; what changed is that
+the promise is no longer wider than the mechanism.
+
 ### Fixed — the release map read an additive decision as the whole composition
 
 `ROADMAP.md` took the newest decision that MENTIONS two or more story slugs as
@@ -298,7 +333,9 @@ The measurement came from `codex.exe` itself rather than from documentation.
 Codex HAS a hook API — `hooks.json`, `.codex/hooks`, `PreToolUse`, `PostToolUse`,
 `SessionStart`, `SessionEnd`, `UserPromptSubmit`, and the same
 `hook_event_name` / `hookSpecificOutput` / `permissionDecision` protocol Claude
-Code uses. So Rule 1 and the write ACL are HARD under Codex, not advisory.
+Code uses. So Rule 1 and the write ACL are HARD under Codex, not advisory —
+once the user has trusted the project's hooks in Codex; an untrusted generated
+profile enforces nothing (measured live, session #251).
 
 **And the same measurement found a live failure.** A `.codex/hooks.json` already
 sat in this repository — not ours; bootstrap never wrote it — with twenty-four

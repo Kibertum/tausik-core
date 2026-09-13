@@ -156,9 +156,11 @@ Multi-IDE by design, but we're honest about what's validated end-to-end.
 | **Kilo Code** (+ [z.ai GLM](docs/en/kilo-zai.md)) | 146 | 13 core + opt-in | — (gates at task start/done) | First-class via MCP |
 | **Cursor** | 146 | 13 core + opt-in | — (gates at task start/done) | Supported via MCP |
 | VSCode + Claude Extension | 146 | 13 core + opt-in | 22 | Tested E2E |
-| Windsurf / Codex-style | MCP + rules | host-dependent | host-specific | Expected / manual |
+| **Codex CLI** | 146 | 13 core + opt-in | 22 (same declaration as Claude; enforce once you trust the project hooks in Codex) | First-class, live-verified in 1.9 |
+| **OpenCode** | 146 | 13 core + opt-in | — (one QG-0 plugin; gates at task start/done) | Supported via MCP |
+| Windsurf | MCP + rules | host-dependent | host-specific | Expected / manual |
 
-Hooks — the real-time rails (no code without a task, bash firewall, push gate) — run in **Claude Code and Qwen Code**. Kilo, Cursor, Windsurf and other MCP hosts get the same 146 tools and skills, with quality gates applied at `task start` and `task done`.
+Hooks — the real-time rails (no code without a task, bash firewall, push gate) — run in **Claude Code, Qwen Code and Codex** (Codex runs a project's hooks only after you trust them; an untrusted profile enforces nothing — see the [Codex enforcement matrix](docs/en/model-providers.md#codex-enforcement-matrix)). Kilo, Cursor, OpenCode, Windsurf and other MCP hosts get the same 146 tools and skills, with quality gates applied at `task start` and `task done`.
 
 **Kilo Code + z.ai (GLM):** bootstrap with `--ide kilo` and TAUSIK runs as a first-class MCP host driven by GLM models — model routing recommends within the active model's family (a `glm-*` session gets GLM verdicts), all as data, no code change. See **[Kilo + z.ai →](docs/en/kilo-zai.md)**.
 
@@ -172,7 +174,7 @@ git submodule add https://github.com/Kibertum/tausik-core .tausik-lib
 python .tausik-lib/bootstrap/bootstrap.py --init
 ```
 
-Bootstrap auto-detects your stack and enables matching gates; the project name comes from the directory. Restart your IDE afterward so the MCP servers load. Target a specific host with `--ide claude|cursor|qwen|kilo` (e.g. `--ide kilo` for [Kilo Code + z.ai GLM](docs/en/kilo-zai.md)).
+Bootstrap auto-detects your stack and enables matching gates; the project name comes from the directory. Restart your IDE afterward so the MCP servers load. Target a specific host with `--ide claude|cursor|qwen|kilo|opencode|codex` (or `--ide all`; e.g. `--ide kilo` for [Kilo Code + z.ai GLM](docs/en/kilo-zai.md), `--ide codex` for Codex CLI).
 
 **[Full quick-start guide →](docs/en/quickstart.md)**
 

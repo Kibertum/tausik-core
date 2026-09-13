@@ -63,7 +63,16 @@ hand. The scaffolded set is the single source of truth in
 > Codex has a real hook API — `PreToolUse`, `PostToolUse`, `SessionStart`,
 > `SessionEnd`, `UserPromptSubmit`, `Stop`, and the same
 > `hook_event_name`/`permissionDecision` protocol — so Rule 1 and the write ACL
-> are ENFORCED there, not merely instructed.
+> are ENFORCED there, not merely instructed, **once the user has trusted the
+> project's hooks in Codex**. That precondition is the host's, not ours, and it
+> was measured live rather than assumed (session #251): with the generated
+> `.codex/hooks.json` present but NOT trusted, the exact forbidden
+> `Path('outside.txt').write_text(...)` ran to completion — no hook fired, no
+> refusal, the file existed. The same operation under a trusted profile was
+> refused before the file existed. Nothing on disk distinguishes the two
+> states, so no scan of the profile can report the second half; only the host
+> knows. An untrusted generated profile enforces NOTHING and must not be
+> described as protected.
 >
 > What it does NOT have is any workspace variable: `CLAUDE_PROJECT_DIR`,
 > `CODEX_PROJECT_ROOT` and `workspaceFolder` are all absent. Hook commands are
@@ -85,12 +94,15 @@ severity.
 | QG-0 Context Gate | hard | `tausik_task_start` refuses an incomplete task through MCP and CLI. |
 | QG-2 Implementation Gate / Verify-First | hard | `tausik_task_done` refuses closure without a fresh signed `tausik_verify` receipt. |
 | Rule 9.2 Session limit | hard | `tausik_task_start` refuses work past the active-time limit. |
-| Rule 1 Task before code | hard | `.codex/hooks.json` wires `task_gate.py` to Codex `PreToolUse`. |
-| Rule 2 Scope Boundaries | hard | `.codex/hooks.json` wires `scope_write_gate.py` and `bash_write_gate.py` to Codex `PreToolUse`; shell coverage is the declared catalogue, not a claim to interpret every program. |
+| Rule 1 Task before code | hard | `.codex/hooks.json` wires `task_gate.py` to Codex `PreToolUse` — **only after the user has trusted the project hooks in Codex**; an untrusted profile enforces nothing (measured live, session #251). |
+| Rule 2 Scope Boundaries | hard | `.codex/hooks.json` wires `scope_write_gate.py` and `bash_write_gate.py` to Codex `PreToolUse` — **only after the user has trusted the project hooks in Codex**; shell coverage is the declared catalogue, not a claim to interpret every program. |
 
 `tests/test_codex_support_matrix.py` reads both language tables, requires this
 complete list, and generates a Codex profile before accepting any `hard` row. A
-documentation edit cannot silently widen the promise beyond its mechanism.
+documentation edit cannot silently widen the promise beyond its mechanism — and
+the two host-interception rows must carry the trust precondition in both
+languages, because a `hard` that is true only under a condition the reader was
+not told is a claim wider than the mechanism.
 
 ## Using GigaChat (Sber)
 

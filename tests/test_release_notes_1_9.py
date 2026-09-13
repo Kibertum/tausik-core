@@ -190,22 +190,36 @@ class TestTheUnmeasuredPromiseSaysSo:
     ним, поэтому проверяется РАССТОЯНИЕ между обещанием и оговоркой.
     """
 
-    _NEAR = 1200
-
+    # The same shape guards the Codex claim (session #251): decision #360 made
+    # codex-first-class-19 a release story and tied it to a live acceptance run,
+    # and the run found the boundary — the native refusal happened only under a
+    # hook profile the user had TRUSTED; the untrusted generated profile let the
+    # write through. Naming the host without that sentence would promise more
+    # than the run proved, so the boundary must sit next to the claim too.
     @pytest.mark.parametrize(
-        "lang,promise,caveat",
+        "lang,promise,caveat,near",
         [
-            pytest.param("ru", "экономия токенов", "НЕ ИЗМЕРЕНО", id="ru"),
-            pytest.param("en", "token saving", "NOT YET MEASURED", id="en"),
+            pytest.param("ru", "экономия токенов", "НЕ ИЗМЕРЕНО", 1200, id="ru-saving"),
+            pytest.param("en", "token saving", "NOT YET MEASURED", 1200, id="en-saving"),
+            pytest.param(
+                "ru", "Codex — шестой хост", "недоверенный профиль не", 2500, id="ru-codex"
+            ),
+            pytest.param(
+                "en",
+                "Codex is a sixth host",
+                "untrusted profile enforces nothing",
+                2500,
+                id="en-codex",
+            ),
         ],
     )
-    def test_the_caveat_sits_next_to_the_promise(self, lang, promise, caveat):
+    def test_the_caveat_sits_next_to_the_promise(self, lang, promise, caveat, near):
         text = _PAGES[lang].read_text(encoding="utf-8")
         assert promise in text, "обещание исчезло со страницы — предпосылка теста"
         assert caveat in text, (
-            "обещание экономии названо, а отсутствие числа не названо: условие выпуска 1 нарушено"
+            "обещание названо, а его оговорка (нет числа / нужны доверенные хуки) не названа"
         )
-        assert 0 < text.index(caveat) - text.index(promise) < self._NEAR, (
+        assert 0 < text.index(caveat) - text.index(promise) < near, (
             "оговорка оторвана от обещания — читатель заберёт обещание"
         )
 
@@ -225,4 +239,16 @@ class TestTheUnmeasuredPromiseSaysSo:
         есть."""
         text = _PAGES[lang].read_text(encoding="utf-8")
         needle = "ОТСУТСТВИЕ величины" if lang == "ru" else "ABSENCE of a quantity"
+        assert needle in text
+
+
+class TestTheCodexHostIsNamedWithItsBoundary:
+    """The boundary sentence is guarded next to the claim above (the caveat
+    test); this holds the count — the page measured five hosts in session #225
+    and must say Codex made it six, not leave the five standing alone."""
+
+    @pytest.mark.parametrize("lang", ["ru", "en"])
+    def test_the_host_count_is_not_left_at_five(self, lang):
+        text = _PAGES[lang].read_text(encoding="utf-8")
+        needle = "шестым хостом" if lang == "ru" else "sixth host"
         assert needle in text
