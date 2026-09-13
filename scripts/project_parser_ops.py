@@ -459,3 +459,29 @@ def add_push_ok(sub: argparse._SubParsersAction) -> None:
         default=60,
         help="Ticket TTL in seconds (default: 60)",
     )
+
+
+def add_ops(sub: argparse._SubParsersAction) -> None:
+    """Register every ops subparser. One list, next to the parsers it names —
+    the caller in `project_parser` no longer re-types it."""
+    from project_parser_config import add_config
+    from project_parser_graph import add_graph
+    from project_parser_publish import add_publish
+
+    for add in (
+        add_dead_end,
+        add_explore,
+        add_audit,
+        add_skill,
+        add_metrics,
+        add_hygiene,
+        add_run,
+        add_doc,
+        add_review,
+        add_config,
+        add_push_ok,
+        add_redact,
+        add_graph,
+        add_publish,
+    ):
+        add(sub)

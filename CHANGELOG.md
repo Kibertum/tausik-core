@@ -9,6 +9,49 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — a quickstart written for the agent, held to the code
+
+`docs/{en,ru}/agent-quickstart.md`: the human quickstart began with "install
+Python, open VS Code" and its host list stopped at Windsurf, while
+`SCAFFOLD_IDES` carried six hosts; AGENTS.md oriented a newcomer but was not a
+procedure. The new page is the procedure, for an agent reading it first: the
+connect command per host (all six, Codex with its trust condition), the check,
+then one task's whole cycle as exact calls — MCP tool and CLI twin side by
+side — with the replies and the refusals the agent will actually see (QG-0
+without criteria, QG-0 without a negative case, QG-2 without `--ac-verified`,
+QG-2 without evidence, Rule 1 from the hook, the keyless verify line), each
+quoted from a live run in a fresh consumer project. `tests/test_agent_quickstart.py`
+holds every hard fact: the host list equals `SCAFFOLD_IDES`, every `tausik_*`
+named is in TOOLS, every CLI command parses, every quoted refusal is what the
+code prints. README, AGENTS.md, the docs index, the human quickstart (which
+now names all six hosts) and the 1.9 notes point at it.
+
+### Added — the public snapshot is a filtered tree built and verified by code (decision #368)
+
+Publication used to carry EVERYTHING git tracks — `tausik/` included, the
+project's own accounting: measured on the day the owner ruled, `github/main`
+held 2438 files of `tausik/` out of 3576, 70 % of what a consumer cloned, and
+the two leak classes the publication guard declares as a remainder lived in
+that accounting. GitLab keeps the whole history; GitHub receives only the tag
+of the final version, as a snapshot of the tree MINUS one declared exclusion
+list — `publication_snapshot.EXCLUDED_FROM_PUBLIC_SNAPSHOT`: the state
+projection (`tausik/{tasks,stories,epics,decisions,memory,graph-snapshots}`),
+`TODO.md`, `TAUSIK-plan-1.9.md`, `.gitlab-ci.yml`; the ratchet files
+`tausik/*.json` travel, gates and tests read them. `tausik publish snapshot
+--from <ref> --parent <public-head> [--dry-run]` builds the filtered tree
+through a temporary index (the working tree, the index and every ref
+untouched), commits it on top of the public head, and refuses when a leak
+class on the snapshot is not zero, when the parent is not a commit, or when
+the public head would stop being an ancestor; `tausik publish verify
+--snapshot <sha> --from <ref>` is the machine's word for "GitLab is identical
+to GitHub" — a tree comparison that names the paths when it fails. On the 1.9
+tree: 1308 files go out, 3090 stay; the whole-tree remainder pins moved down to
+what remains (internal host 5 → 4 files, dev-machine path 39 → 22) after 43
+sample paths in tests and docstrings and one fixture host were neutralised,
+and both classes are zero on the snapshot. Push and tag stay the owner's acts,
+by hand, after reading what the command printed; `publishing.md` describes the
+procedure in both languages.
+
 ### Fixed — every documentation link resolves on GitHub, not only on the site
 
 The language switcher on 65 pages of `docs/en` and `docs/ru` was written as a
@@ -2186,8 +2229,8 @@ that number was broken in five ways, three of which nobody had reported.
 - **The transcript finder returned other projects' conversations.** It derived a
   directory name from the CWD and, on no match, fell back to "the most recently
   touched project anywhere on this machine". On Windows the match never
-  succeeded — Claude Code writes `d--Work-…` for `D:\Work\…` while the derived
-  slug was `D-Work-…` — so the fallback was the normal path. Three consecutive
+  succeeded — Claude Code writes `c--Projects-…` for `C:\Projects\…` while the derived
+  slug was `C-Projects-…` — so the fallback was the normal path. Three consecutive
   ledger rebuilds read 42, then 32, then 10 transcripts from three different
   projects. Matching is now on the `cwd` each transcript records about itself,
   across every supported IDE profile rather than two written by hand; no match
@@ -4274,7 +4317,7 @@ Task `ar-existence-is-probed-by-three-guessed-table-names`.
 ### Fixed — tracebacks named a path that does not exist: stale bytecode is now reported and purgeable
 
 Session #187 read a traceback pointing at
-`D:\Work\Personal\claude\tests\...` — a directory that is not on the disk.
+`C:\Projects\Personal\claude\tests\...` — a directory that is not on the disk.
 The hypothesis (the repository once lived there, the tree moved, the caches
 under `__pycache__/` stayed, and CPython validates a `.pyc` by the source's
 mtime and size, never its path) was CHECKED before anything was written, by
@@ -5763,7 +5806,7 @@ Documented under QG-2 in `docs/ru/agent-contract.md`.
 ### Added — `doctor` tells a dead commit hook apart from one switched off on purpose
 
 `core.hooksPath` in this repository's `.git/config` pointed at
-`D:\Work\Personal\claude\.git\hooks` — a repository that does not exist on the
+`C:\Projects\Personal\claude\.git\hooks` — a repository that does not exist on the
 machine. Git treats a hook it cannot find exactly like a hook that is not there:
 it runs nothing and reports nothing. So every commit skipped `memory_route` (a
 BLOCKING control against project knowledge leaking into another agent's memory),

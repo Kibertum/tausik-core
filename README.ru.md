@@ -175,7 +175,7 @@ python .tausik-lib/bootstrap/bootstrap.py --init
 
 Bootstrap сам определит ваш стек и включит подходящие гейты; имя проекта берётся из папки. После установки перезапустите IDE, чтобы поднялись MCP-серверы. Конкретный хост — через `--ide claude|cursor|qwen|kilo|opencode|codex` (или `--ide all`; например, `--ide kilo` для [Kilo Code + z.ai GLM](docs/ru/kilo-zai.md), `--ide codex` для Codex CLI).
 
-**[Полный быстрый старт →](docs/ru/quickstart.md)**
+**[Полный быстрый старт →](docs/ru/quickstart.md)** · **[Быстрый старт для агента →](docs/ru/agent-quickstart.md)** (для ИИ-агента: подключение на своём хосте и цикл точными вызовами)
 
 ---
 

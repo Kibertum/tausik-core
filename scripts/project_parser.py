@@ -465,35 +465,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Number of most-recent backups to keep (default: 3, 0 = delete all)",
     )
 
-    # --- SENAR ops subparsers (delegated) ---
-    from project_parser_config import add_config
-    from project_parser_graph import add_graph
-    from project_parser_ops import (
-        add_audit,
-        add_dead_end,
-        add_doc,
-        add_explore,
-        add_hygiene,
-        add_metrics,
-        add_push_ok,
-        add_redact,
-        add_review,
-        add_run,
-        add_skill,
-    )
+    # --- SENAR ops subparsers (delegated; the list lives beside its parsers) ---
+    from project_parser_ops import add_ops
 
-    add_dead_end(sub)
-    add_explore(sub)
-    add_audit(sub)
-    add_skill(sub)
-    add_metrics(sub)
-    add_hygiene(sub)
-    add_run(sub)
-    add_doc(sub)
-    add_review(sub)
-    add_config(sub)
-    add_push_ok(sub)
-    add_redact(sub)
-    add_graph(sub)
+    add_ops(sub)
 
     return p

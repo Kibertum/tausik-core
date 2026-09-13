@@ -4,8 +4,8 @@
 The previous rule derived a directory name from the CWD (`path separators ->
 dashes`) and, failing to match, fell back to "the most recently touched project
 anywhere on this machine". On Windows the match NEVER succeeded: Claude Code
-mangles `D:\\Work\\...` to `d--Work-…` (both the colon and the backslash become
-a dash), while the derived slug was `D-Work-…`. So the fallback was not a rare
+mangles `C:\\Projects\\...` to `c--Projects-…` (both the colon and the backslash become
+a dash), while the derived slug was `C-Projects-…`. So the fallback was not a rare
 edge — it was the normal path, and it silently handed this project another
 project's conversation. Measured in session #227: three consecutive rebuilds of
 the token ledger read 42, then 32, then 10 transcripts, because between calls a

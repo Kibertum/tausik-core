@@ -225,6 +225,22 @@ VERIFICATION_RUNS_DDL = canonical_ddl("verification_runs")
 # `tests/test_no_silent_db_gated_skips.py` enforces.
 
 
+#: The public snapshot (decision #368) is the tracked tree MINUS the state
+#: projection and three internal files. A control whose SUBJECT is one of the
+#: excluded files — the GitLab pipeline, the release charter, a task's journal —
+#: has nothing to measure on that tree and says so with THIS reason, rostered
+#: like the DB-gated skips so the dormancy is declared, not silent. The
+#: predicate is the projection's own directory: a checkout without
+#: `tausik/tasks/` is a snapshot, a checkout with it is the development line.
+IS_PUBLIC_SNAPSHOT = not os.path.isdir(
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tausik", "tasks")
+)
+DORMANT_ON_PUBLIC_SNAPSHOT = (
+    "this checkout is the PUBLIC SNAPSHOT (decision #368): the state projection, "
+    "TODO.md, TAUSIK-plan-1.9.md and .gitlab-ci.yml stay on the development line, "
+    "so this control — whose subject is one of them — is DORMANT here, not passing."
+)
+
 #: The ONE reason string every control allowed to need a live database must
 #: give. A shared constant rather than a phrase each site retypes: the group in
 #: `test_claudemd_state_gate.py` went unnoticed for exactly that reason — it
@@ -336,7 +352,6 @@ def projected_task_status(slug: str) -> str | None:
 # guard starts killing healthy tests.
 
 _slowest_by_nodeid: dict[str, float] = {}
-
 
 
 class _NoRedHistory:
@@ -552,9 +567,7 @@ def pytest_runtest_call(item):
         yield
     finally:
         touched = observer.stop()
-        observed_coverage.record(
-            observed_coverage.output_path(root), item.nodeid, touched
-        )
+        observed_coverage.record(observed_coverage.output_path(root), item.nodeid, touched)
 
 
 # --- red history: which nodes have ever been observed FAILING ----------------

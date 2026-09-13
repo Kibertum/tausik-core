@@ -15,7 +15,13 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
+
+from conftest import DORMANT_ON_PUBLIC_SNAPSHOT, IS_PUBLIC_SNAPSHOT
+
 _ROOT = Path(__file__).resolve().parents[1]
+
+pytestmark = pytest.mark.skipif(IS_PUBLIC_SNAPSHOT, reason=DORMANT_ON_PUBLIC_SNAPSHOT)
 
 CROSSCUTTING_SCOPE = ["TAUSIK-plan-1.9.md", "ROADMAP.md"]
 

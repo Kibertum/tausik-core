@@ -35,7 +35,7 @@ because "everything here is instructions" is untrue too on a host without hooks:
 closing a task IS refused there.
 
 Full list of changes: [CHANGELOG.md](../../CHANGELOG.md). This page is not a
-retelling: the Unreleased section holds 241 entries (the figure is counted by
+retelling: the Unreleased section holds 243 entries (the figure is counted by
 `tests/test_release_notes_1_9.py`), and what is selected here is what changes
 the experience of UPGRADING.
 
@@ -167,6 +167,14 @@ the two states apart, so Rule 1 and the write ACL on Codex are hard *once you
 trust the project hooks*, and an untrusted profile enforces nothing. The
 [enforcement matrix](model-providers.md#codex-enforcement-matrix) carries that
 condition on both rows and a test keeps it there.
+
+### The agent's own quickstart
+
+[agent-quickstart.md](agent-quickstart.md) (EN/RU) is written for the agent
+reading it first: connect on its host — every host bootstrap scaffolds, Codex
+with its trust condition — check, then the cycle as exact calls with the
+replies and the refusals it will actually see, each quoted from a live run and
+held to the code by `tests/test_agent_quickstart.py`.
 
 ### Context: across projects, across sessions, through compaction
 

@@ -1,7 +1,7 @@
 ---
 slug: release19-clean-publication-and-onboarding
 title: "1.9: публикация чистого дерева тегом и вход нового агента — по указанию владельца в смене #251"
-status: active
+status: done
 epic: release-19-renar-conformance
 ---
 

@@ -179,8 +179,8 @@ def auto_find_transcript() -> str | None:
 
     This used to derive a directory name from the CWD and, when that failed to
     match, return the most recently touched project ANYWHERE on the machine. On
-    Windows the match never succeeded — Claude Code writes `d--Work-…` for
-    `D:\\Work\\…` while the derived slug was `D-Work-…` — so the fallback was the
+    Windows the match never succeeded — Claude Code writes `c--Projects-…` for
+    `C:\\Projects\\…` while the derived slug was `C-Projects-…` — so the fallback was the
     normal path, and this function routinely returned another project's
     conversation to the session-metrics parser, the token ledger and the model
     detector. Matching is now on the `cwd` a transcript records about itself;

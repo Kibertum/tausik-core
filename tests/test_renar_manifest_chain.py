@@ -36,6 +36,8 @@ if _SCRIPTS not in sys.path:
 
 import pytest  # noqa: E402
 
+from conftest import IS_PUBLIC_SNAPSHOT  # noqa: E402
+
 yaml = pytest.importorskip("yaml")
 
 import project_cli_renar  # noqa: E402
@@ -567,7 +569,10 @@ def test_the_committed_manifest_chain_resolves():
             continue
         old = yaml.safe_load(show.stdout) or {}
         seen.add((int(old.get("manifest-version", 0)), str(old.get("manifest-id"))))
-    if prev_id not in {mid for _v, mid in seen} and _is_shallow(root):
+    if prev_id not in {mid for _v, mid in seen} and (_is_shallow(root) or IS_PUBLIC_SNAPSHOT):
+        # A shallow clone, or the public snapshot whose history is one
+        # flattened commit per release (decision #368): the predecessor was
+        # never in this history, and "unreadable" is the honest answer.
         # The docstring promised a skip on a shallow checkout and delivered it
         # only when `git log` was EMPTY. With GIT_DEPTH=50 the previous version
         # sits past the horizon as soon as fifty commits separate two manifest

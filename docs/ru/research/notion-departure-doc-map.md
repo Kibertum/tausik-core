@@ -102,7 +102,7 @@ grep -rilE 'notion|shared brain|tausik-brain|brain_' docs README.md README.ru.md
 |---|---|---|
 | `gen_doc_constants --check` / `test_check_docs_hook` | S5 в README, AGENTS, architecture, mcp, cli, senar-matrix, agent-contract; табличные ячейки | не вписывать числа руками — `python scripts/gen_doc_constants.py --write` после правок |
 | `test_audit_translation_drift` | парность ru/en по заголовкам, таблицам, блокам кода | зеркало правит один владелец, одной правкой; удалять оба зеркала Z1 разом |
-| `test_publication_lines` | пути с машины разработчика (`D:/Work`) и прочие «остатки» не растут | примеры путей — `/home/me/...` |
+| `test_publication_lines` | пути с машины разработчика (`C:/Projects`) и прочие «остатки» не растут | примеры путей — `/home/me/...` |
 | `test_release_notes_1_9` | каждая BREAKING-запись CHANGELOG названа в whats-new-1.9 | §2 уже есть; новых BREAKING в этой работе не будет |
 | `test_cli_examples_parse` | примеры `tausik ...` в docs разбираются парсером | `tausik brain ...` в примерах недопустим — таких после `77703c4a` в cli.md нет; проверить quickstart/troubleshooting |
 | `test_doc_gate_list_parity` | упоминает `brain-db-schema.md` как пример **generic**-формулировки (строка 77) | после удаления файла тест ссылается на несуществующее имя только в комментарии — поправить комментарий в той же задаче, что удаляет Z1 |

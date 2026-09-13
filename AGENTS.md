@@ -16,6 +16,7 @@ TAUSIK implements [SENAR v1.3 Core](https://senar.tech) ([GitHub](https://github
 
 ## Your First 60 Seconds
 
+0. **New here?** [docs/en/agent-quickstart.md](docs/en/agent-quickstart.md) ([RU](docs/ru/agent-quickstart.md)) is this page as a PROCEDURE: connect on your host, check, then the cycle as exact calls with the replies and refusals you will see.
 1. **MCP-first** — use `tausik_*` tools (preferred). Full inventory + parameters live in **[docs/en/mcp.md](docs/en/mcp.md)**; for scripted hosts `tausik_status`/`status` accepts optional **compact JSON** (`compact` / `--compact`).
 2. **CLI fallback** — `.tausik/tausik <cmd>` mirrors MCP; cheatsheet **[docs/en/cli.md](docs/en/cli.md)**.
 3. **Skills / slash wrappers** — if `/start`, `/plan`, `/ship`, … are not expanded by your IDE, execute the numbered procedure inside `harness/skills/<name>/SKILL.md` (**[docs/en/skills.md](docs/en/skills.md)** lists triggers).
@@ -93,7 +94,8 @@ Canonical narrative + branching detail: **[docs/en/workflow.md](docs/en/workflow
 
 | Need | Go to |
 |------|-------|
-| **Quick start for agents** | [docs/en/quickstart.md](docs/en/quickstart.md) (EN) / [docs/ru/quickstart.md](docs/ru/quickstart.md) (RU) |
+| **Quick start for agents** | [docs/en/agent-quickstart.md](docs/en/agent-quickstart.md) (EN) / [docs/ru/agent-quickstart.md](docs/ru/agent-quickstart.md) (RU) — exact calls, replies and refusals |
+| **Quick start for people** | [docs/en/quickstart.md](docs/en/quickstart.md) (EN) / [docs/ru/quickstart.md](docs/ru/quickstart.md) (RU) |
 | **CLI command reference** | [docs/en/cli.md](docs/en/cli.md) (EN) / [docs/ru/cli.md](docs/ru/cli.md) (RU) |
 | **Architecture & internals** | [docs/en/architecture.md](docs/en/architecture.md) (EN) / [docs/ru/architecture.md](docs/ru/architecture.md) (RU) |
 | **Testing principles (scoped pytest, when to add tests)** | [docs/en/testing-principles.md](docs/en/testing-principles.md) (EN) / [docs/ru/testing-principles.md](docs/ru/testing-principles.md) (RU) |

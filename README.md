@@ -176,7 +176,7 @@ python .tausik-lib/bootstrap/bootstrap.py --init
 
 Bootstrap auto-detects your stack and enables matching gates; the project name comes from the directory. Restart your IDE afterward so the MCP servers load. Target a specific host with `--ide claude|cursor|qwen|kilo|opencode|codex` (or `--ide all`; e.g. `--ide kilo` for [Kilo Code + z.ai GLM](docs/en/kilo-zai.md), `--ide codex` for Codex CLI).
 
-**[Full quick-start guide →](docs/en/quickstart.md)**
+**[Full quick-start guide →](docs/en/quickstart.md)** · **[Agent quickstart →](docs/en/agent-quickstart.md)** (for the AI agent: connect on its host, then the cycle as exact calls)
 
 ---
 

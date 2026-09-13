@@ -54,7 +54,7 @@ class TestTheSlug:
         [
             ("github\thttps://github.com/Kibertum/tausik-core.git (fetch)", "Kibertum/tausik-core"),
             ("origin\tgit@github.com:Kibertum/tausik-core.git (push)", "Kibertum/tausik-core"),
-            ("origin\thttps://gitlab.yumash.ru/a/b/c.git (fetch)", None),
+            ("origin\thttps://gitlab.example.internal/a/b/c.git (fetch)", None),
             ("", None),
         ],
     )

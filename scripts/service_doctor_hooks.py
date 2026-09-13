@@ -1,7 +1,7 @@
 """Is the commit hook alive, switched off on purpose, or DEAD and silent?
 
 commit-hooks-are-dead-hookspath-points-at-a-missing-repo. This repository's
-`.git/config` carried `core.hooksPath = D:\\Work\\Personal\\claude\\.git\\hooks`
+`.git/config` carried `core.hooksPath = C:\\Projects\\Personal\\claude\\.git\\hooks`
 — a path to a repository that does not exist on the machine. Git treats a hook
 it cannot find exactly like a hook that is not there: it runs nothing and says
 nothing. So on every commit, three controls silently did not run — the

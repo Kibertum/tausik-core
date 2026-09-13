@@ -1,7 +1,7 @@
 """Stale bytecode: `.pyc` files that remember a path the tree no longer has.
 
 Session #187 read a traceback naming
-`D:\\Work\\Personal\\claude\\tests\\test_bootstrap_skills_coverage.py` — a path
+`C:\\Projects\\Personal\\claude\\tests\\test_bootstrap_skills_coverage.py` — a path
 that does not exist. The repository once lived there; the tree moved; the
 caches under `__pycache__/` stayed. CPython validates a `.pyc` against the
 SOURCE's mtime and size, never its path, so the cache is accepted and the

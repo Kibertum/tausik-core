@@ -70,6 +70,7 @@ def main() -> None:
         cmd_suggest_model,
     )
     from project_cli_events import cmd_events
+    from project_cli_publish import cmd_publish
     from project_cli_specs import cmd_spec
     from project_cli_state import cmd_state, cmd_sync
     from project_cli_actz import cmd_actz
@@ -144,6 +145,7 @@ def main() -> None:
         "config": cmd_config,
         "db": cmd_db,
         "push-ok": cmd_push_ok,
+        "publish": cmd_publish,
         "key": cmd_key,
         "receipt": cmd_receipt,
         "serve": cmd_serve,

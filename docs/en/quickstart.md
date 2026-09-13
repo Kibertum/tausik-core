@@ -7,6 +7,10 @@ TAUSIK — **T**ask **A**gent **U**nified **S**upervision, **I**nspection & **K*
 Step-by-step guide: from zero to your first task with an AI agent.
 Takes 10-15 minutes. No prior experience with AI tools required.
 
+> **Are you the agent?** Read [agent-quickstart.md](agent-quickstart.md)
+> instead — the same path as exact calls, with the replies and refusals you
+> will see, for every host bootstrap scaffolds.
+
 ---
 
 ## Step 0. What You'll Need
@@ -34,7 +38,9 @@ Make sure the following are installed on your computer:
    - **Cursor** — download from [cursor.com](https://cursor.com)
    - **Qwen Code (GigaCode)** — install from [qwen.ai/qwencode](https://qwen.ai/qwencode)
    - **Kilo Code** — VSCode addon; pairs with z.ai GLM models (see [Kilo + z.ai](kilo-zai.md))
-   - **Windsurf** — download from [windsurf.com](https://windsurf.com)
+   - **OpenCode** — `npm i -g opencode-ai`; bootstrap with `--ide opencode`
+   - **Codex CLI** — bootstrap with `--ide codex`; its hooks enforce only after you trust them in Codex (see [model-providers.md](model-providers.md#codex-enforcement-matrix))
+   - **Windsurf** — download from [windsurf.com](https://windsurf.com) (expected; not scaffolded by bootstrap)
    - You'll need an API key or subscription for your chosen IDE
 
 ## Step 1. Create a Repository

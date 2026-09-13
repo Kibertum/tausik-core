@@ -33,7 +33,7 @@ _TS = "2026-08-02T00:00:00Z"
 # Deliberately nasty: a Windows path (backslashes), an embedded newline, a quote,
 # a tab, and Cyrillic. Each is a real shape the store holds, and each breaks a
 # different naive reader.
-AWKWARD_ORIGIN = r"D:\Work\Kibertum\clients\acme\repo"
+AWKWARD_ORIGIN = r"C:\Projects\Kibertum\clients\acme\repo"
 AWKWARD_SOURCE_FILE = r"scripts\sub\dir\module.py"
 AWKWARD_CONTENT = 'Первая строка\nВторая "в кавычках"\tи табуляция\\плюс слэш'
 

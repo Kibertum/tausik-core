@@ -28,6 +28,10 @@ from pathlib import Path
 
 import pytest
 
+from conftest import DORMANT_ON_PUBLIC_SNAPSHOT, IS_PUBLIC_SNAPSHOT  # noqa: E402
+
+pytestmark = pytest.mark.skipif(IS_PUBLIC_SNAPSHOT, reason=DORMANT_ON_PUBLIC_SNAPSHOT)
+
 # The CI lane definitions this file reads. Declared so the scoped-pytest gate
 # runs these checks when a workflow changes — which is exactly when a lane can
 # stop bootstrapping or start swallowing an exit code, and precisely the change

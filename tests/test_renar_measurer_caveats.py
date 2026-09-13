@@ -26,7 +26,11 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_HERE)
 sys.path.insert(0, os.path.join(_ROOT, "scripts"))
 
-from conftest import projected_task_status  # noqa: E402
+from conftest import (  # noqa: E402
+    DORMANT_ON_PUBLIC_SNAPSHOT,
+    IS_PUBLIC_SNAPSHOT,
+    projected_task_status,
+)
 
 from renar_measurer_caveats import (  # noqa: E402
     DISCLAIMER,
@@ -98,6 +102,8 @@ def test_the_task_that_emptied_the_registry_is_real_and_underway():
     """
     if MEASURER_CAVEATS:
         pytest.skip("registry is not empty")
+    if IS_PUBLIC_SNAPSHOT:
+        pytest.skip(DORMANT_ON_PUBLIC_SNAPSHOT)
     status = projected_task_status(REGISTRY_EMPTIED_BY)
     assert status is not None, (
         f"REGISTRY_EMPTIED_BY names task {REGISTRY_EMPTIED_BY!r}, which does not exist"

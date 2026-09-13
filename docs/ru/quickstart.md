@@ -7,6 +7,10 @@ TAUSIK — **Т**ехнический **А**гент **У**нифицирова�
 Пошаговая инструкция: от нуля до первой задачи с ИИ-агентом.
 Занимает 10-15 минут. Никакого опыта с ИИ-инструментами не требуется.
 
+> **Вы — агент?** Читайте [agent-quickstart.md](agent-quickstart.md) — тот
+> же путь точными вызовами, с ответами и отказами, которые вы увидите, для
+> каждого хоста, который разворачивает bootstrap.
+
 ---
 
 ## Шаг 0. Что вам понадобится
@@ -33,7 +37,10 @@ TAUSIK — **Т**ехнический **А**гент **У**нифицирова�
    - **Claude Code** — расширение VSCode или CLI: `npm install -g @anthropic-ai/claude-code`
    - **Cursor** — скачайте с [cursor.com](https://cursor.com)
    - **Qwen Code (GigaCode)** — установите с [qwen.ai/qwencode](https://qwen.ai/qwencode)
-   - **Windsurf** — скачайте с [windsurf.com](https://windsurf.com)
+   - **Kilo Code** — дополнение VSCode; работает с моделями z.ai GLM (см. [Kilo + z.ai](kilo-zai.md))
+   - **OpenCode** — `npm i -g opencode-ai`; bootstrap с `--ide opencode`
+   - **Codex CLI** — bootstrap с `--ide codex`; его хуки принуждают только после того, как вы доверили их в Codex (см. [model-providers.md](model-providers.md#матрица-принуждения-codex))
+   - **Windsurf** — скачайте с [windsurf.com](https://windsurf.com) (ожидается; bootstrap его не разворачивает)
    - Вам понадобится API-ключ или подписка для выбранной среды
 
 ## Шаг 1. Создайте репозиторий

@@ -29,6 +29,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import DORMANT_ON_PUBLIC_SNAPSHOT, IS_PUBLIC_SNAPSHOT  # noqa: E402
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
 from doc_drift_common import _FOREIGN_VERSION_PREFIXES  # noqa: E402
@@ -226,6 +228,8 @@ class TestRegistriesAreAlive:
 
     @pytest.mark.parametrize("pattern,reason", EXEMPT_SURFACES)
     def test_every_exemption_matches_a_real_path(self, pattern, reason):
+        if IS_PUBLIC_SNAPSHOT and pattern.startswith("tausik/"):
+            pytest.skip(DORMANT_ON_PUBLIC_SNAPSHOT)
         matches = list(_REPO_ROOT.glob(pattern))
         assert matches, (
             f"exemption {pattern!r} matches no file in the tree; an exemption guarding "

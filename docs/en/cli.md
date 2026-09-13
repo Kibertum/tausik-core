@@ -766,6 +766,8 @@ redact --pattern <pattern>     # scrub a secret from the knowledge history (--ap
 redact list                    # show the redactions already applied
 
 # --- release and network ---
+publish snapshot --from <ref> --parent <sha> [--dry-run]   # the public snapshot: the filtered tree on top of the public head (decision #368)
+publish verify --snapshot <sha> --from <ref>               # snapshot == the filtered tree of the source, byte for byte
 push-ok [--ttl N]              # issue a git-push ticket (60 seconds by default)
 serve [--host H] [--port P]    # run the local receipt-verification endpoint
 ```

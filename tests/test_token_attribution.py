@@ -527,8 +527,8 @@ class TestTranscriptLocatorMatchesOnEvidence:
 
     The old rule derived a directory name from the CWD and, on no match, fell
     back to "the most recently touched project anywhere on this machine". On
-    Windows it NEVER matched — Claude Code writes `d--Work-…` for `D:\Work\…`
-    while the derived slug was `D-Work-…` — so the fallback was the normal path.
+    Windows it NEVER matched — Claude Code writes `c--Projects-…` for `C:\Projects\…`
+    while the derived slug was `C-Projects-…` — so the fallback was the normal path.
     Three consecutive rebuilds in session #227 read 42, 32 and 10 transcripts
     from three different projects before this was found.
     """

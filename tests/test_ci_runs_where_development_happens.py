@@ -39,6 +39,10 @@ from pathlib import Path
 
 import pytest
 
+from conftest import DORMANT_ON_PUBLIC_SNAPSHOT, IS_PUBLIC_SNAPSHOT  # noqa: E402
+
+pytestmark = pytest.mark.skipif(IS_PUBLIC_SNAPSHOT, reason=DORMANT_ON_PUBLIC_SNAPSHOT)
+
 # Cross-cutting: the subject is a CI configuration file, not a Python module, so
 # no import edge and no basename match can ever select this test. Without the
 # declaration a scoped run skips it in silence — which is the very failure mode

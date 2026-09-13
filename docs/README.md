@@ -11,6 +11,7 @@ TAUSIK is an engineering governance framework for AI coding agents. It forces pl
 | Document | Audience |
 |----------|----------|
 | **[Quick Start](en/quickstart.md)** | First setup — 10-15 minutes |
+| **[Agent quickstart](en/agent-quickstart.md)** | For the AI agent: connect on its host, check, the cycle as exact calls with the refusals it will see |
 | **[What is SENAR?](en/senar.md)** | The methodology behind TAUSIK |
 | **[Workflow](en/workflow.md)** | A typical day with TAUSIK |
 | **[Upgrade](en/upgrade.md)** | Migrating between TAUSIK versions |
@@ -108,6 +109,7 @@ These are agent-facing specifications consumed by AI assistants — not user-fac
 | Документ | Для кого |
 |----------|----------|
 | **[Быстрый старт](ru/quickstart.md)** | Первое знакомство — 10-15 минут |
+| **[Быстрый старт для агента](ru/agent-quickstart.md)** | Для ИИ-агента: подключение на своём хосте, проверка, цикл точными вызовами с отказами, которые он увидит |
 | **[Что такое SENAR?](ru/senar.md)** | Методология за TAUSIK |
 | **[Рабочий процесс](ru/workflow.md)** | Типичный день с TAUSIK |
 | **[Обновление](ru/upgrade.md)** | Миграция между версиями TAUSIK |

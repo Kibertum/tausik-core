@@ -27,7 +27,7 @@ from tausik_utils import ServiceError  # noqa: E402
 CROSSCUTTING_SCOPE = ["scripts/knowledge_origin.py", "scripts/knowledge_write.py"]
 
 _TS = "2026-08-03T00:00:00Z"
-CLIENT_PATH = r"D:\Work\Kibertum\clients\acme\repo"
+CLIENT_PATH = r"C:\Projects\Kibertum\clients\acme\repo"
 
 
 @pytest.fixture(autouse=True)
@@ -62,8 +62,8 @@ class TestTheLabelItself:
 
     def test_two_projects_with_the_same_basename_stay_distinguishable(self):
         """The reason the absolute root was stored in the first place."""
-        a = ko.origin_label_for(r"D:\Work\clientA\core")
-        b = ko.origin_label_for(r"D:\Work\clientB\core")
+        a = ko.origin_label_for(r"C:\Projects\clientA\core")
+        b = ko.origin_label_for(r"C:\Projects\clientB\core")
         assert a != b
         assert a.startswith("core@") and b.startswith("core@")
 
@@ -72,14 +72,14 @@ class TestTheLabelItself:
 
     def test_a_root_spelled_differently_is_still_the_same_project(self):
         """No mapping table can help here; canonicalisation has to."""
-        assert ko.origin_fingerprint(r"D:\Work\repo") == ko.origin_fingerprint("D:/Work/repo")
-        assert ko.origin_fingerprint(r"D:\Work\repo\\") == ko.origin_fingerprint(r"D:\Work\repo")
+        assert ko.origin_fingerprint(r"C:\Projects\repo") == ko.origin_fingerprint("C:/Projects/repo")
+        assert ko.origin_fingerprint(r"C:\Projects\repo\\") == ko.origin_fingerprint(r"C:\Projects\repo")
 
     def test_a_project_recognises_its_own_row_without_a_dictionary(self):
         """Why no reverse mapping is stored: the label is COMPUTED, not assigned."""
         mine = ko.origin_label_for(CLIENT_PATH)
         assert ko.origin_label_for(CLIENT_PATH) == mine
-        assert ko.origin_label_for(r"D:\Work\somebody-else\repo") != mine
+        assert ko.origin_label_for(r"C:\Projects\somebody-else\repo") != mine
 
     def test_a_root_with_no_basename_produces_a_well_formed_label(self):
         """AC9 boundary: a drive root must not yield a label starting with `@`."""
@@ -108,8 +108,8 @@ class TestWhatCountsAsAlreadyDone:
     @pytest.mark.parametrize(
         "value",
         [
-            r"D:\Work\Kibertum\clients\acme\repo",
-            "D:/Work/Kibertum/clients/acme/repo",
+            r"C:\Projects\Kibertum\clients\acme\repo",
+            "C:/Projects/Kibertum/clients/acme/repo",
             "/home/me/work/clients/acme/repo",
         ],
     )
@@ -140,8 +140,8 @@ class TestWhatCountsAsAlreadyDone:
     @pytest.mark.parametrize(
         ("a", "b"),
         [
-            (r"D:\Work\Kibertum\clients\acme\repo", "D:/Work/Kibertum/clients/acme/repo"),
-            (r"D:\Work\Repo", r"d:\work\repo"),
+            (r"C:\Projects\Kibertum\clients\acme\repo", "C:/Projects/Kibertum/clients/acme/repo"),
+            (r"C:\Projects\Repo", r"c:\projects\repo"),
         ],
     )
     def test_a_stored_path_fingerprints_the_same_on_any_platform(self, a, b):
@@ -357,8 +357,8 @@ class TestAbsolutenessIsSpellingNotInterpreterOpinion:
         """
         assert ko._ABSOLUTE_RE.match("/work/clients/acme/repo/a.py")
         assert ko._ABSOLUTE_RE.match(r"\work\clients\acme\repo\a.py")
-        assert ko._ABSOLUTE_RE.match(r"D:\Work\clients\acme")
-        assert ko._ABSOLUTE_RE.match("d:/Work/clients/acme")
+        assert ko._ABSOLUTE_RE.match(r"C:\Projects\clients\acme")
+        assert ko._ABSOLUTE_RE.match("c:/Projects/clients/acme")
         assert not ko._ABSOLUTE_RE.match("team/backend")
         assert not ko._ABSOLUTE_RE.match("already/relative.py")
 

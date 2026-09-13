@@ -12,8 +12,8 @@ over 4,208 tracked files rather than trusting the earlier number:
 
     local path with the user's name   12 files -> 0
     other clients' project names      44 files -> 0
-    internal host                     17 files -> 5 files, 8 occurrences
-    dev-machine path (D:\\Work)        not measured -> 39 files, 81 occurrences
+    internal host                     17 files -> 4 files (session #256)
+    dev-machine path (D:\\Work)        not measured -> 22 files (session #256)
 
 The first two are RATCHETS at zero. The last two are DECLARED REMAINDERS: they
 are weaker — a directory layout and an internal address, not an identity — and
@@ -34,6 +34,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import DORMANT_ON_PUBLIC_SNAPSHOT, IS_PUBLIC_SNAPSHOT  # noqa: E402
+
 _REPO = Path(__file__).resolve().parents[1]
 
 CROSSCUTTING_SCOPE = ["docs/", "tausik/"]
@@ -47,6 +49,9 @@ _MAY_DESCRIBE_LEAKS = frozenset(
         "docs/ru/publishing.md",
         "docs/en/publishing.md",
         "tests/test_publication_lines.py",
+        # The task that neutralised 43 sample paths names the class in its
+        # own journal — the "task about it" the paragraph above allows.
+        "tausik/tasks/public-snapshot-is-a-filtered-tree-not-the-working-tree.md",
     }
 )
 
@@ -59,8 +64,8 @@ _FORBIDDEN = {
 #: Not cleaned. Pinned at the measured size so growth is visible; shrinking is
 #: always allowed and the number is meant to come down.
 _DECLARED_REMAINDER = {
-    "internal host": (re.compile(r"gitlab\.yumash\.ru", re.I), 5),
-    "dev-machine path": (re.compile(r"[Dd]:[\\/]{1,2}Work", re.I), 39),
+    "internal host": (re.compile(r"gitlab\.yumash\.ru", re.I), 4),
+    "dev-machine path": (re.compile(r"[Dd]:[\\/]{1,2}Work", re.I), 22),
 }
 
 
@@ -130,6 +135,11 @@ class TestDeclaredRemaindersDoNotGrow:
 
     @pytest.mark.parametrize("label", sorted(_DECLARED_REMAINDER))
     def test_the_pin_is_not_far_above_reality(self, label):
+        if IS_PUBLIC_SNAPSHOT:
+            # The pin is a statement about the development tree; on the
+            # snapshot the remainder is zero by construction, which is the
+            # claim tests/test_publication_snapshot.py makes for it.
+            pytest.skip(DORMANT_ON_PUBLIC_SNAPSHOT)
         """A ceiling well above the truth is a ratchet that ratchets nothing.
 
         Not an equality: the count moves with ordinary work in `tausik/`, and a
@@ -220,8 +230,7 @@ class TestTheCheckNeedsNoNetwork:
         argv_lists = [
             node
             for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-            and getattr(node.func, "attr", None) == "run"
+            if isinstance(node, ast.Call) and getattr(node.func, "attr", None) == "run"
             for node in node.args[:1]
         ]
         assert argv_lists, "no subprocess found — the premise of this test is gone"

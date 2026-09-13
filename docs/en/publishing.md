@@ -25,36 +25,78 @@ v1-9-wave` is not a synchronisation — it carries 431 commits of the private
 archive into the public line.** Publication is an act upon the TREE, not upon a
 commit (decision #260).
 
-## The publication procedure
+## The publication procedure (decision #368)
 
-1. The release is built and closed on the development line (GitLab).
-2. Publication goes out as a **fast-forward child** on top of the confirmed
-   public head, built with `commit-tree` over the release tree. Force is refused
-   by the firewall and is not a fallback.
-3. External authorship survives: 1.9 lands on `main` as a merge of `release/1.9`
-   or as a squash carrying `Co-Authored-By` for the author of PR #5 — otherwise
-   the attribution is erased.
+GitLab keeps the whole history; GitHub receives **only the tag of the final
+version** — a flattened snapshot of the FILTERED tree, committed as a
+fast-forward child on top of the confirmed public head. "GitLab is identical
+to GitHub" means: the snapshot's content equals the filtered tree of the tag,
+byte for byte, and a machine checks that equality, not a memory.
 
-## Precondition: what goes out with the tree
+1. The release is assembled and closed on the development line (GitLab); the
+   full lane is green by the CI procedure (`.gitlab-ci.yml`: clone,
+   `bootstrap --no-detect --ide all`, `pytest -m ''`).
+2. The snapshot is built and verified by code — `scripts/publication_snapshot.py`,
+   the `tausik publish` command:
 
-Publication carries the WHOLE tracked tree, `tausik/` — the project's own
-accounting — included. So what is checked before publishing is not "did we
-forget anything" but named classes of leak, and it is checked by machine.
+   ```bash
+   # what goes in, what stays, the leak classes on the snapshot; no commit written
+   tausik publish snapshot --from v1.9.0 --parent github/main --dry-run
+   # the snapshot on top of the public head; prints the three checks and the next commands
+   tausik publish snapshot --from v1.9.0 --parent github/main
+   # "identical": the snapshot's tree == the filtered tree of the source
+   tausik publish verify --snapshot <sha> --from v1.9.0
+   ```
 
-Measured in session #233 over 4,208 tracked files (not recalled from #180):
+   The command acts on OBJECTS: the working tree, the index, branches and
+   remotes are not touched. It refuses when a leak class on the snapshot is not
+   zero, when `--parent` is not a commit, or when the snapshot does not equal
+   the filter. What it cannot know is the REMOTE's tip: a stale local
+   `github/main` is caught by git's fast-forward-only push in step 3, and the
+   answer to that refusal is to fetch and rebuild the snapshot on the new tip.
+   Force is not a flag the command has — and the firewall forbids it anyway.
+3. Push and tag are the owner's acts, by hand, after reading what the command
+   printed: `git push github <sha>:refs/heads/main` (fast-forward only), then
+   `git tag -a v<version> <sha>` and `git push github v<version>`, and in the
+   same pass `tausik/published_tags.json` (see "Tags" below).
+4. External authorship survives: a contributor's commits land by merge or by a
+   squash carrying their `Co-Authored-By` — otherwise the authorship is erased.
 
-| Class | Was (#180) | Now | Status |
-|---|---|---|---|
-| Local path carrying the user's name | 12 files | **0** | cleaned, held by a ratchet |
-| Other clients' project names | 44 files | **0** | cleaned, held by a ratchet |
-| Internal host `gitlab.yumash.ru` | 17 files | 5 files, 8 occurrences | declared remainder; growth is red |
-| Dev-machine path such as `D:\Work` | not measured | 39 files, 81 occurrences | declared remainder; growth is red |
+## What is published: a filter, not the whole tree
 
-The first two are held at zero: their return to a tracked file turns
-`tests/test_publication_lines.py` red. The last two are NOT cleaned — they are
-weaker (a directory layout and an internal server address, not an identity) and
-live mostly inside the project's own accounting. Their counts are pinned, and
-growth is red too: the gap is declared rather than quietly closed.
+Before #368 EVERYTHING git tracked went out, `tausik/` included — the
+project's own accounting. Measured in session #251: `github/main` carried
+2438 files of `tausik/` out of 3576, 70 % of what a consumer cloned — and the
+two leak classes declared below as a remainder lived in that accounting.
+
+The exclusions are now ONE declared constant,
+`publication_snapshot.EXCLUDED_FROM_PUBLIC_SNAPSHOT`, held by
+`tests/test_publication_snapshot.py`:
+
+| Stays on the development line | Why |
+|---|---|
+| `tausik/tasks/`, `tausik/stories/`, `tausik/epics/`, `tausik/decisions/`, `tausik/memory/`, `tausik/graph-snapshots/` | the state projection that carries state between machines on a branch; of no use to a consumer of the framework |
+| `TODO.md`, `TAUSIK-plan-1.9.md` | internal working documents |
+| `.gitlab-ci.yml` | the development line's pipeline |
+
+The ratchet files `tausik/*.json` (`gates`, `policy`, `published_tags`,
+`spec_coverage`) **travel**: gates and tests read them. Measured on the 1.9
+tree: 1308 files go out, 3090 stay.
+
+The leak classes are still checked by machine — over the WHOLE tree
+(`tests/test_publication_lines.py`) and over the SNAPSHOT (`tausik publish
+snapshot` refuses on a non-zero class). Measured in session #256:
+
+| Class | Was (#180) | Whole tree | Snapshot | Status |
+|---|---|---|---|---|
+| A local path carrying the user's name | 12 files | **0** | **0** | cleaned, held by a ratchet |
+| Another client's project name | 44 files | **0** | **0** | cleaned, held by a ratchet |
+| The internal host `gitlab.yumash.ru` | 17 files | 4 files | **0** | remainder declared on the tree, zero on the snapshot |
+| A dev-machine path such as `D:\Work` | not measured | 22 files | **0** | remainder declared on the tree, zero on the snapshot |
+
+The remainder on the whole tree lives in the accounting that does not go out;
+its count is pinned and growth is red. On the snapshot both classes are zero,
+and that is a refusal by the command, not a declaration.
 
 A file that DESCRIBES a leak — this page, the task about it, the decision, the
 test itself — is not a leak. Otherwise the check would forbid writing about the

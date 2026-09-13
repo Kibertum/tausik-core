@@ -5,7 +5,7 @@ function: no I/O, no Notion calls, deterministic on the same input.
 
 Four detectors, all `block` severity in v1:
   - filesystem_paths — absolute POSIX paths (/home/..., /Users/...) and
-    Windows drive-letter paths (D:\\Work\\..., C:\\Users\\...).
+    Windows drive-letter paths (C:\\Projects\\..., C:\\Users\\...).
   - emails — RFC5322-ish local@domain detection.
   - private_urls — any URL that matches one of the regexes configured in
     brain.private_url_patterns.
@@ -32,7 +32,7 @@ from urllib.parse import unquote
 # /var/..., /opt/... (common user locations that leak project layout).
 _POSIX_PATH = re.compile(r"(?:(?<![\w.-]))(?:/(?:home|Users|root|var|opt|srv|mnt)/[\w.\-/]{2,})")
 
-# Windows drive-letter paths: C:\Users\..., D:\Work\... (both slashes).
+# Windows drive-letter paths: C:\Users\..., C:\Projects\... (both slashes).
 _WINDOWS_PATH = re.compile(r"(?:(?<![\w.-]))[A-Za-z]:[\\/](?:[\w .\-]+[\\/])+[\w .\-]+")
 
 # Email — RFC5322-ish pragmatic form.
