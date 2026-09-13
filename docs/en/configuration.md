@@ -33,6 +33,21 @@ See also: [environment.md](environment.md) — env vars, [permissions.md](permis
 |---|---|---|
 | `gates` | `{}` | Per-gate overrides: `{ "pytest": { "enabled": true }, "filesize": { "max_lines": 600 } }`. Merges over `default_gates.py`. |
 
+## Agent-instruction files (the DYNAMIC block)
+
+`tausik update-claudemd` rewrites the block between `<!-- DYNAMIC:START -->`
+and `<!-- DYNAMIC:END -->` in CLAUDE.md and, when one sits beside it, in
+AGENTS.md. AGENTS.md is tracked in most projects, so what goes into it is a
+policy, not an accident (GitLab #14):
+
+| Key | Default | Purpose |
+|---|---|---|
+| `claudemd.sibling_dynamic` | `true` | `true`: AGENTS.md is refreshed with the block **minus** "Shared knowledge — from other projects" — other projects' knowledge never enters this repository's history, and a memory tail left with nothing under it is dropped. `false`: AGENTS.md is not written at all; CLAUDE.md is refreshed as before. Only the JSON boolean `false` turns it off — the string `"false"` or `0` is read as on. The key is read from the `.tausik/` beside the file being written. |
+
+The `claudemd_state` commit gate judges each file against the same plan the
+writer follows: a sibling the policy does not write is not judged, and a
+sibling whose only knowledge would be foreign owes no tail.
+
 ## Publication (what a redacted export hides)
 
 The shared store (`~/.tausik-knowledge`) needs no configuration: `--global` on
@@ -60,7 +75,8 @@ The shared store (`~/.tausik-knowledge`) needs no configuration: `--global` on
   "publication": {
     "project_names": ["acme"],
     "private_url_patterns": ["acme\\.internal"]
-  }
+  },
+  "claudemd": { "sibling_dynamic": false }
 }
 ```
 

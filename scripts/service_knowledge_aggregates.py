@@ -85,6 +85,14 @@ def entry_line(node_id: Any, text: str | None, limit: int, retired: dict[int, li
     return line
 
 
+# The two headings of the tail, named once: the state gate looks for the first
+# and the sibling trimming (claudemd_writer.strip_foreign_knowledge) drops the
+# section under the second — a tracked AGENTS.md must not carry other
+# projects' knowledge into a repository's history (GitLab #14).
+MEMORY_TAIL_HEADING = "### Memory tail"
+SHARED_KNOWLEDGE_HEADING = "**Shared knowledge — from other projects"
+
+
 def build_compact_memory_tail(be: Any) -> list[str]:
     """One-line-per-item memory recap for CLAUDE.md Current State.
 
@@ -101,9 +109,7 @@ def build_compact_memory_tail(be: Any) -> list[str]:
     # sections, which is harder to notice and no more true.
     try:
         decisions, sup_dec = live_head(be, lambda n: be.decision_list(n), "decision", 5)
-        conventions, sup_con = live_head(
-            be, lambda n: be.memory_list("convention", n), "memory", 5
-        )
+        conventions, sup_con = live_head(be, lambda n: be.memory_list("convention", n), "memory", 5)
         deadends, sup_de = live_head(be, lambda n: be.memory_list("dead_end", n), "memory", 3)
         # `context` = durable environment facts (hosts, machines, access, paths).
         # Surfaced every session so the agent never "forgets" them and asks the
@@ -121,7 +127,7 @@ def build_compact_memory_tail(be: Any) -> list[str]:
     if not any((decisions, conventions, deadends, contexts, shared, warning)):
         return []
 
-    out: list[str] = ["### Memory tail"]
+    out: list[str] = [MEMORY_TAIL_HEADING]
     if contexts:
         out.append(f"Context ({len(contexts)}):")
         for ctx in contexts:
@@ -279,7 +285,7 @@ def _shared_section(max_shared: int) -> tuple[list[str], list[str]]:
     out: list[str] = []
     if raw:
         out.append("")
-        out.append(f"**Shared knowledge — from other projects ({len(raw)}):**")
+        out.append(f"{SHARED_KNOWLEDGE_HEADING} ({len(raw)}):**")
         out.extend(f"- [{kind}] {flatten_for_injection(text, 100)}" for kind, text in raw)
 
     return out, ([" ", f"⚠ {warning}"] if warning else [])

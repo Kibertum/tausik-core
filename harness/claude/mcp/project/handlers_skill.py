@@ -219,7 +219,7 @@ def handle_update_claudemd(svc) -> str:
     (mcp-update-claudemd-erases-the-memory-tail).
     """
     from claudemd_state import build_dynamic_state, resolve_claudemd, resolve_project_dir
-    from claudemd_writer import apply_dynamic_section, resolve_sibling_targets
+    from claudemd_writer import apply_dynamic_section, plan_dynamic_writes
 
     # НЕ `_project_dir()`, то есть НЕ cwd. Адрес брался из текущего каталога
     # процесса, а содержимое — из `svc`: два источника вместо одного. Пока
@@ -244,7 +244,7 @@ def handle_update_claudemd(svc) -> str:
     dynamic_content = build_dynamic_state(svc, project_dir)
 
     messages = [
-        apply_dynamic_section(path, dynamic_content, False)[0]
-        for path in resolve_sibling_targets(claudemd)
+        apply_dynamic_section(path, content, False)[0]
+        for path, content in plan_dynamic_writes(claudemd, dynamic_content)
     ]
     return " ".join(messages)

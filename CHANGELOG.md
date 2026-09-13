@@ -9,6 +9,27 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the tracked AGENTS.md sibling no longer receives other projects' knowledge, and can opt out of the DYNAMIC block (GitLab #14)
+
+`tausik update-claudemd` wrote the whole DYNAMIC block — session number,
+counters, memory tail, "Shared knowledge — from other projects" — into the
+AGENTS.md beside CLAUDE.md. In a project that keeps CLAUDE.md out of git for
+the sake of auto-refresh, AGENTS.md stays tracked: `M AGENTS.md` after one
+/start, a verify warning nothing could honestly clear, and other projects'
+knowledge in this repository's history. Now the sibling receives the block
+TRIMMED — the shared section removed, a tail left with nothing under it
+dropped — and `claudemd.sibling_dynamic: false` in `.tausik/config.json`
+leaves AGENTS.md untouched altogether; the key is read from the `.tausik/`
+beside the file being written, and only the JSON boolean `false` turns it
+off. Both callers (CLI and MCP) and the `claudemd_state` commit gate go
+through one plan (`claudemd_writer.plan_dynamic_writes`), so a sibling the
+policy does not write is not judged, a sibling whose only knowledge would be
+foreign owes no tail, and a sibling that lost its OWN tail is still drift.
+`tests/test_sibling_dynamic_block.py` covers both knob values on both paths,
+the foreign section never in the sibling, the gate's agreement, and two
+mutations. `docs/{en,ru}/configuration.md`. Task
+`update-claudemd-writes-session-state-into-a-tracked-agents-md`.
+
 ### Fixed — the version stamp in a product's CLAUDE.md names its owner (GitLab #5)
 
 `tausik update-claudemd` writes `Session … | Branch … | Version: 1.8.0` into

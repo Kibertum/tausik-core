@@ -76,7 +76,9 @@ def cmd_knowledge(svc: ProjectService, args: Any) -> None:
         print(f"Backed up {total} record(s) to {args.to} ({detail}).")
         if redacted:
             hits = ", ".join(
-                f"{n} {k.removeprefix('redacted_')}" for k, n in counts.items() if k.startswith("redacted_")
+                f"{n} {k.removeprefix('redacted_')}"
+                for k, n in counts.items()
+                if k.startswith("redacted_")
             )
             print(f"Redacted: {hits or 'nothing matched'} — the manifest records it.")
         return
@@ -231,12 +233,12 @@ def cmd_update_claudemd(svc: ProjectService, args: Any) -> None:
 
     # Refresh CLAUDE.md AND its AGENTS.md sibling from the same dynamic source so
     # no IDE's onboarding file goes stale mid-session (v15p-agents-md-bootstrap).
-    from claudemd_writer import apply_dynamic_section, resolve_sibling_targets
+    from claudemd_writer import apply_dynamic_section, plan_dynamic_writes
 
     dry_run = getattr(args, "dry_run", False)
     any_change = False
-    for path in resolve_sibling_targets(claudemd):
-        msg, changed = apply_dynamic_section(path, dynamic_content, dry_run)
+    for path, content in plan_dynamic_writes(claudemd, dynamic_content):
+        msg, changed = apply_dynamic_section(path, content, dry_run)
         print(msg)
         any_change = any_change or changed
     if dry_run and any_change:

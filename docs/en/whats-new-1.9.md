@@ -35,7 +35,7 @@ because "everything here is instructions" is untrue too on a host without hooks:
 closing a task IS refused there.
 
 Full list of changes: [CHANGELOG.md](../../CHANGELOG.md). This page is not a
-retelling: the 1.9 section of the CHANGELOG holds 247 entries (the figure is counted by
+retelling: the 1.9 section of the CHANGELOG holds 248 entries (the figure is counted by
 `tests/test_release_notes_1_9.py`), and what is selected here is what changes
 the experience of UPGRADING.
 
