@@ -18,9 +18,7 @@ from project_service import ProjectService
 HOOK_PATH = os.path.join(
     os.path.dirname(__file__), "..", "scripts", "hooks", "task_call_counter.py"
 )
-SETTINGS_PATH = os.path.join(
-    os.path.dirname(__file__), "..", ".claude", "settings.json"
-)
+SETTINGS_PATH = os.path.join(os.path.dirname(__file__), "..", ".claude", "settings.json")
 
 
 def _make_service(db_path: str) -> ProjectService:
@@ -31,9 +29,7 @@ def _make_service(db_path: str) -> ProjectService:
 
 
 class TestIacExecutablesWhitelisted:
-    @pytest.mark.parametrize(
-        "exe", ["ansible-lint", "terraform", "helm", "kubeval", "hadolint"]
-    )
+    @pytest.mark.parametrize("exe", ["ansible-lint", "terraform", "helm", "kubeval", "hadolint"])
     def test_iac_exe_in_whitelist(self, exe):
         from project_config import ALLOWED_GATE_EXECUTABLES
 
@@ -86,7 +82,8 @@ def _run_hook(cwd: str, payload: dict | None = None) -> subprocess.CompletedProc
         [sys.executable, HOOK_PATH],
         input=json.dumps(payload or {}),
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         cwd=cwd,
         env={**os.environ, "CLAUDE_PROJECT_DIR": cwd},
         timeout=10,
@@ -181,16 +178,17 @@ class TestHookMatcher:
             entry
             for entry in post
             if any(
-                "task_call_counter.py" in (h.get("command") or "")
-                for h in entry.get("hooks", [])
+                "task_call_counter.py" in (h.get("command") or "") for h in entry.get("hooks", [])
             )
         ]
-        assert len(counter_entries) == 1
-        matcher = counter_entries[0]["matcher"]
+        # PR #5 registers the counter on a second entry for the MCP editors and
+        # shell; the built-in names must be on the union, and the read-only
+        # tools on NONE of the entries.
+        assert counter_entries
+        matcher = "|".join(e["matcher"] for e in counter_entries)
         assert "Write" in matcher
         assert "Edit" in matcher
         assert "Bash" in matcher
-        # Read/Grep/Glob explicitly NOT in matcher
-        assert "Read" not in matcher
-        assert "Grep" not in matcher
-        assert "Glob" not in matcher
+        for entry in counter_entries:
+            names = set(entry["matcher"].split("|"))
+            assert not names & {"Read", "Grep", "Glob"}, entry["matcher"]

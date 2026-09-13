@@ -9,6 +9,17 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the TAUSIK mark on the front pages
+
+Two renderings of the mark (a woman with a hairpin in a rounded frame) live
+under `docs/assets/`: the full-colour `tausik-logo.png` at the top of
+`README.md` / `README.ru.md` — the reader's first meeting with the project —
+and the monoline `tausik-mark.png` at the top of the docs index, where a
+single stroke stays crisp and does not compete with the page.
+`docs/assets/README.md` records which goes where and why;
+`tests/test_readme_logo.py` resolves every `<img>` on the three pages to a
+file. Task `the-tausik-logo-goes-into-the-readme-full-colour-o`.
+
 ### Fixed — guards see every tool their action is reachable with (GitHub PR #5, Okianiwa — ported)
 
 PR #5 measured, on Claude Code 2.1.215, that four hooks kept four private

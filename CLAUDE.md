@@ -31,15 +31,14 @@ Stack: Python 3.11+ stdlib | CLI `.tausik/tausik` | DB SQLite+FTS5 | Tests pytes
 - **Документируй dead ends.** `tausik dead-end "approach" "reason"`.
 - **Checkpoint каждые 30-50 tool calls.** `/checkpoint`, `/end`.
 - **Лимит сессии 180 мин ACTIVE** (пауза ≥10 мин = AFK).
-- **Знания фреймворка остаются здесь.** Не сохраняй инструкции TAUSIK в auto-memory.
 
 ## Память
 
 | Система | Когда |
 |---|---|
-| **TAUSIK memory** (`memory add`, `.tausik/tausik.db`) | Паттерны/dead ends/conventions ЭТОГО проекта — «здесь так принято» |
-| **Общая база знаний** (`memory add --global`, `~/.tausik-knowledge/knowledge.db`) | Факт об инструменте, верный за пределами проекта — «так устроен инструмент»; без секретов и имён клиентов |
-| **Claude auto-memory** (`~/.claude/`) | Кросс-проектные привычки пользователя — «так мне удобно работать» |
+| **TAUSIK memory** (`memory add`) | Паттерны/dead ends/conventions ЭТОГО проекта |
+| **Общая база** (`memory add --global`) | Факт об инструменте, верный вне проекта; без секретов |
+| **Claude auto-memory** (`~/.claude/`) | Привычки пользователя; НЕ знания и правила TAUSIK |
 
 Типы: `pattern`, `gotcha`, `convention`, `context`, `dead_end`.
 CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scripts/project.py` напрямую.
@@ -66,9 +65,9 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #258 (active) | Branch: v1-9-wave | TAUSIK: 1.9.0
-Tasks: 1497/1651 done, 1 active, 1 blocked
-Active: framework-version-stamp-reads-as-the-products-version
+Session: #259 (active) | Branch: v1-9-wave | TAUSIK: 1.9.0
+Tasks: 1502/1653 done, 1 active, 1 blocked
+Active: four-full-lane-findings-of-the-tracker-promises-ba
 Blocked: v14b-rag-nudge-replay-benchmark
 
 ### Memory tail

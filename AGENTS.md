@@ -147,9 +147,9 @@ Three layers, strict separation: **CLI never touches DB. Service validates. Back
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #258 (active) | Branch: v1-9-wave | TAUSIK: 1.9.0
-Tasks: 1497/1651 done, 1 active, 1 blocked
-Active: framework-version-stamp-reads-as-the-products-version
+Session: #259 (active) | Branch: v1-9-wave | TAUSIK: 1.9.0
+Tasks: 1502/1653 done, 1 active, 1 blocked
+Active: four-full-lane-findings-of-the-tracker-promises-ba
 Blocked: v14b-rag-nudge-replay-benchmark
 
 ### Memory tail
@@ -175,17 +175,4 @@ Dead ends (3):
 - #693 Verify review journal with tracked output documents as relevant files
 - #692 Capture Codex PreToolUse JSON through a temporary generated command hook
 - #689 Ограничить parent-tree претензии done-задач условием completed_at >= started_at верифицируемой задач
-
-**Shared knowledge — from other projects (11):**
-- [decision] v139-D (клиентский mux) НЕ делается в 1.3.9 как «фикс троттлинга». Предпосылка задачи неверна для на
-- [decision] Дефект brain move, найденный внутри задачи о property-тесте проекции, заведён отдельной задачей, а н
-- [decision] Коэффициент калибровки на окне n=10 непригоден для прогноза срока релиза: за одну сессию #153 он про
-- [convention] Windows: команду с вложенными кавычками писать ФАЙЛОМ, а не однострочником
-- [convention] TAUSIK 1.8: verify --task без --relevant-files не сертифицирует закрытие задачи
-- [gotcha] iptables-persistent и Docker на одной машине конфликтуют
-- [gotcha] Ansible copy кладёт файлы побайтово — CRLF ломает шебанг
-- [gotcha] Ansible молча игнорирует ansible.cfg в world-writable каталоге
-- [pattern] Проверять содержимое ответа, а не только HTTP-код
-- [pattern] Мониторинг без heartbeat неотличим от мёртвого
-- [pattern] TAUSIK 1.8: обёртка команды гейта обязана НАЗЫВАТЬСЯ именем инструмента
 <!-- DYNAMIC:END -->

@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/tausik-mark.png" width="120" alt="TAUSIK"></p>
+
 # TAUSIK Documentation / Документация TAUSIK
 
 TAUSIK is an engineering governance framework for AI coding agents. It forces planning before code, evidence before completion, and preserves project memory across sessions. Read more in the [main README](../README.md).

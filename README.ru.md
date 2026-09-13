@@ -1,5 +1,7 @@
 [English](README.md) | **Русский**
 
+<p align="center"><img src="docs/assets/tausik-logo.png" width="200" alt="TAUSIK"></p>
+
 # TAUSIK
 
 **AI-агенты, которые не соврут «готово» *незаметно*.**

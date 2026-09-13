@@ -1,5 +1,7 @@
 **English** | [Русский](README.ru.md)
 
+<p align="center"><img src="docs/assets/tausik-logo.png" width="200" alt="TAUSIK"></p>
+
 # TAUSIK
 
 **AI agents that can't *quietly* fake "done."**
