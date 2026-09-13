@@ -82,16 +82,25 @@ you want in the shared store.
 
 ## What else changes on upgrade
 
-### Database schema: 44 → 58
+### Database schema: 44 → 61
 
-Fourteen migrations apply automatically on first access. Each is preceded by a
-backup at `.tausik/tausik.db.bak.v<old>`; spares are cleared with
-`tausik db prune --keep N`.
+Seventeen migrations apply automatically on first access (the figures here are
+read from `SCHEMA_VERSION` by `tests/test_release_notes_1_9.py`, so the page
+cannot fall behind the tree again). Each is preceded by a backup at
+`.tausik/tausik.db.bak.v<old>`; spares are cleared with `tausik db prune --keep N`.
 
 The most visible is v58: the token and cost columns in `usage_events` became
 nullable. **NULL means "not measured", and that is not the same as 0.** The
 migration turned 55,307 rows — provably never measured — into NULL and touched
 no row carrying a real number.
+
+The last three are small and worth knowing: v59 lets a graph edge say it was
+OBSERVED rather than inferred; v60 records a test that was never seen red; v61
+adds `tasks.tracker_refs` — the first column added to `tasks` after v43, which
+is how the post-migration that rebuilt `tasks` from a frozen v43 column list
+was caught erasing any later column. That rebuild is fixed in the same release —
+it re-applies every later column after itself — so a database upgrading from
+before v43 keeps the column (`tests/test_migration_v43_model_mismatch.py`).
 
 ### Cost and model: what used to stay silent
 

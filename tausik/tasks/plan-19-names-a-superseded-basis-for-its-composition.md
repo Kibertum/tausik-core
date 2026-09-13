@@ -1,7 +1,7 @@
 ---
 slug: plan-19-names-a-superseded-basis-for-its-composition
 title: "TAUSIK-plan-1.9.md называет основанием состава решение #337 и «22 задачи», отменённые #360–#363"
-status: planning
+status: done
 epic: release-19-renar-conformance
 story: release19-proof-integrity
 complexity: simple
@@ -12,11 +12,13 @@ call_budget: 20
 defect_of: null
 scope: "TAUSIK-plan-1.9.md, tests/test_release_roadmap.py (или новый tests/test_plan_19_names_the_composition_in_force.py)"
 scope_exclude: "ROADMAP.md не редактируется руками; решения не переписываются."
-relevant_files: []
+relevant_files:
+  - TAUSIK-plan-1.9.md
+  - "tests/test_plan_19_names_the_composition_in_force.py"
 scope_paths: []
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-13T11:49:05Z"
 ---
 
 ## Goal
@@ -25,7 +27,7 @@ completed_at: null
 
 ## Acceptance Criteria
 
-AC-1: TAUSIK-plan-1.9.md в шапке называет действующие решения о составе (#360–#363 и решение-пересказ) и ROADMAP.md как источник счётчиков; §3 и §7 помечены датированной сноской «состав по #337 отменён». AC-2: тест: номер решения, из которого ROADMAP.md берёт состав в силе («Состав — из … решения … #N»), присутствует в TAUSIK-plan-1.9.md; мутация — заменить номер в плане — краснит. AC-3: числа плана, не подтверждённые сегодняшним замером, не переписаны под видом актуальных: §3 явно назван историческим. AC-4: signed verify.
+AC-1: TAUSIK-plan-1.9.md в шапке называет действующие решения о составе (#360–#369 и решение-пересказ) и ROADMAP.md как источник счётчиков; §3 и §7 помечены датированной сноской «состав по #337 отменён». AC-2: НЕГАТИВ: тест: номер решения, из которого ROADMAP.md берёт состав в силе («Состав — из … решения … #N»), присутствует в TAUSIK-plan-1.9.md; мутация — заменить номер в плане — даёт ошибку теста. AC-3: числа плана, не подтверждённые сегодняшним замером, не переписаны под видом актуальных: §3 явно назван историческим. AC-4: signed verify.
 
 ## Plan
 
@@ -34,3 +36,6 @@ AC-1: TAUSIK-plan-1.9.md в шапке называет действующие �
 git revert.
 
 ## Journal
+
+- 2026-09-13T11:48:47Z [implementation] — Сделано: датированная сноска в шапке (#337 отменено; цепочка #360→#369; действующий — #369; ROADMAP.md — источник счётчиков; §3/§7 — историческая запись), пометка в §3, правка §7. Тест tests/test_plan_19_names_the_composition_in_force.py: номер из ROADMAP.md («Состав — из последнего решения … #N») равен номеру в сноске плана; мутация «#337 в сноске» → 1 failed, возврат → 3 passed. Прошлый текст §3 (22 задачи, группы) не переписан — датированная запись.
+- 2026-09-13T11:49:02Z [implementation] — AC-1 ✓ TAUSIK-plan-1.9.md шапка: сноска от 13.09 называет #360–#369, действующее #369 и ROADMAP.md; §3 помечен «историческая запись», §7 называет объявляющее решение. AC-2 ✓ (НЕГАТИВ) tests/test_plan_19_names_the_composition_in_force.py::test_the_plan_names_the_decision_the_map_is_built_from (номер из ROADMAP.md = номер в сноске); ::test_a_stale_number_in_the_plan_is_caught; мутация «#337 в сноске» → 1 failed, возврат → 3 passed (журнал). AC-3 ✓ числа §3 не переписаны, раздел назван историческим (::test_the_plan_marks_its_september_7_composition_as_history). AC-4 ✓ verify #2583 подписан. Domain: читатель ТЗ на выпуск с первого абзаца узнаёт, что состав от 7 сентября отменён и где живёт действующий, а не принимает #337 и «22 задачи» за правду.

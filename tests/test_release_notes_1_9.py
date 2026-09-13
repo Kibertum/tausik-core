@@ -252,3 +252,45 @@ class TestTheCodexHostIsNamedWithItsBoundary:
         text = _PAGES[lang].read_text(encoding="utf-8")
         needle = "шестым хостом" if lang == "ru" else "sixth host"
         assert needle in text
+
+
+class TestTheSchemaFigureIsCounted:
+    """The page said "44 → 58, fourteen migrations" while the tree carried
+    SCHEMA_VERSION = 61 (session #251): three migrations landed after the
+    paragraph was written and nothing recounted it — convention #673, a number
+    in a document is counted by something or it rots. 44 is a literal on
+    purpose: it is what tag v1.8.0 shipped, a property of a published artifact
+    that cannot drift, and a CI clone may not carry the tag to read it from."""
+
+    _SHIPPED_IN_1_8 = 44
+    _FIGURE = {
+        "ru": re.compile(r"### Схема БД: (\d+) → (\d+)"),
+        "en": re.compile(r"### Database schema: (\d+) → (\d+)"),
+    }
+    _WORDS = {
+        "ru": {17: "Семнадцать", 18: "Восемнадцать", 19: "Девятнадцать", 20: "Двадцать"},
+        "en": {17: "Seventeen", 18: "Eighteen", 19: "Nineteen", 20: "Twenty"},
+    }
+
+    @staticmethod
+    def _schema_version() -> int:
+        src = (_REPO / "scripts" / "backend_schema.py").read_text(encoding="utf-8")
+        return int(re.search(r"^SCHEMA_VERSION = (\d+)", src, re.M).group(1))
+
+    @pytest.mark.parametrize("lang", ["ru", "en"])
+    def test_the_heading_ends_at_the_live_schema_version(self, lang):
+        m = self._FIGURE[lang].search(_PAGES[lang].read_text(encoding="utf-8"))
+        assert m, "the schema heading is gone — the figure this test reads"
+        assert int(m.group(1)) == self._SHIPPED_IN_1_8
+        assert int(m.group(2)) == self._schema_version(), (
+            f"{lang}: the page says the schema ends at {m.group(2)}, the tree says "
+            f"{self._schema_version()} — a migration landed and the notes did not move"
+        )
+
+    @pytest.mark.parametrize("lang", ["ru", "en"])
+    def test_the_migration_count_in_words_matches(self, lang):
+        n = self._schema_version() - self._SHIPPED_IN_1_8
+        word = self._WORDS[lang].get(n)
+        assert word, f"add the word for {n} to _WORDS — the count moved past the table"
+        text = _PAGES[lang].read_text(encoding="utf-8")
+        assert word in text, f"{lang}: {n} migrations, but the page does not say {word!r}"
