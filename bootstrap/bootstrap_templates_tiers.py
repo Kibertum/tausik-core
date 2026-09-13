@@ -22,14 +22,16 @@ Full diagram: [Workflow](docs/en/workflow.md) (or `docs/ru/workflow.md`).
 
 MINIMAL_MEMORY = """## Memory (minimal)
 
-- Project patterns / dead ends: TAUSIK `memory add` (SQLite `.tausik/tausik.db`).
-- Host prefs: agent-specific auto-memory (`~/.claude/` is Claude-only — see glossary).
+- **Project memory** — "here it is done this way": `memory add` (SQLite `.tausik/tausik.db`).
+- **Shared knowledge** — "the tool is built this way", true beyond this project: `memory add --global`
+  (`~/.tausik-knowledge/knowledge.db`; not redacted — never a secret or a client name).
+- **Agent auto-memory** — the user's own prefs: host-specific (`~/.claude/` is Claude-only — see glossary).
 - **Memory-first:** `memory_search` BEFORE asking the user for / guessing an
   established project fact (hosts, env, paths, decisions). Store env facts as `context`.
 - **Routing litmus:** would another agent, in another tool, need this to work on
-  THIS project? Then `memory add` — never your host's own memory. Foreign sinks
-  (`~/.claude/**/memory/`, `.cursor/rules/`, `.github/copilot-instructions.md`,
-  `.aider*`, …) are blocked by the `memory_route` gate.
+  THIS project? Then `memory add`; true of the tool beyond this project? `memory add --global` —
+  never your host's own memory. Foreign sinks (`~/.claude/**/memory/`, `.cursor/rules/`,
+  `.github/copilot-instructions.md`, `.aider*`, …) are blocked by the `memory_route` gate.
 """
 
 MINIMAL_COMMANDS = """## Commands (minimal)

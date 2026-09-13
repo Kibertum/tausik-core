@@ -54,7 +54,8 @@ class TestGenerateClaudeMd:
         assert "## Workflow" in text
         assert "start → plan → task" in text
         assert "## Memory" in text
-        assert "TAUSIK memory" in text
+        assert "Project memory" in text
+        assert "Shared knowledge" in text
         assert "Agent auto-memory" in text
 
     def test_contains_senar_rules_table(self, tmp_path):

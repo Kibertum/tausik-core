@@ -9,6 +9,34 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the version stamp in a product's CLAUDE.md names its owner (GitLab #5)
+
+`tausik update-claudemd` writes `Session … | Branch … | Version: 1.8.0` into
+the PRODUCT's CLAUDE.md and AGENTS.md, one line above the product's own tasks
+and next to its branch — and on a consumer at 0.1.0 the owner read 1.8.0 as
+the product's version, because nothing said whose number it was. The label now
+names the owner: `TAUSIK: 1.9.0` (`claudemd_state.STAMP_LABEL`). The ticket's
+second half — two copies of the format, CLI and MCP — was already one producer
+(`claudemd_state.build_dynamic_state`); `tests/test_claudemd_state_stamp.py`
+pins both: the stamp carries no bare `Version:` label, and neither caller
+spells the stamp itself. `docs/{en,ru}/skill-patterns.md` show the new line.
+Task `framework-version-stamp-reads-as-the-products-version`.
+
+### Fixed — the memory routing table bootstrap lays into every project names all three destinations (GitLab #6)
+
+The `## Memory` block of the generated CLAUDE.md / AGENTS.md / .cursorrules /
+QWEN.md said "two systems" and named two — project memory and the host's
+auto-memory — while 1.8's headline feature, the shared knowledge store
+(`memory add --global`), was absent from the one table an agent routes by, so
+a fact true beyond the project went into project memory and stayed there. The
+table now names three destinations with a criterion each ("here it is done
+this way" / "the tool is built this way" / "this is how I like to work"), the
+routing litmus routes to both stores, the heading states no count, and the
+minimal tier says the same. `tests/test_memory_template_names_three_stores.py`
+derives the row count from the code (the `--global` flag, the sinks list) and
+checks every generated body in both tiers. This repository's own CLAUDE.md
+table gained the same row. Task `claudemd-template-names-two-memory-stores-of-three`.
+
 ### Fixed — the closure auditor called 908 committed tests never-existed
 
 Since GitLab #16 (46161e24) the citation extractor reads a pytest node id

@@ -7,7 +7,9 @@ rather than one per project.
 
 This page answers two questions: **how it works** and **how it differs from the
 project database**. There are two stores and no third: the Notion transport that
-used to mirror this one outward left the framework in 1.9 (decision #358).
+used to mirror this one outward left the framework in 1.9 (decision #358). (The
+routing table bootstrap writes into a project names a third DESTINATION — the
+host's own auto-memory — but that one is the host's, not a TAUSIK store.)
 
 ---
 

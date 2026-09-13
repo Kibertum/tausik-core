@@ -45,6 +45,13 @@ def resolve_branch(project_dir: str) -> str:
         return "unknown"
 
 
+# The label names the OWNER of the number. This block lands in the PRODUCT's
+# CLAUDE.md / AGENTS.md, one line above the product's own tasks and next to its
+# branch; a bare `Version:` there was read as the product's version — measured
+# on a consumer at 0.1.0 whose CLAUDE.md declared 1.8.0 (GitLab #5).
+STAMP_LABEL = "TAUSIK"
+
+
 def resolve_version() -> str:
     try:
         from tausik_version import __version__
@@ -72,7 +79,7 @@ def build_dynamic_state(svc: Any, project_dir: str) -> str:
     lines = [
         "## Current State",
         f"Session: {session_info} | Branch: {resolve_branch(project_dir)} | "
-        f"Version: {resolve_version()}",
+        f"{STAMP_LABEL}: {resolve_version()}",
         f"Tasks: {done_count}/{len(tasks)} done, {len(active)} active, {len(blocked)} blocked",
     ]
     if active:

@@ -2,8 +2,8 @@
 slug: update-claudemd-writes-session-state-into-a-tracked-agents-md
 title: "GitLab #14: update-claudemd пишет DYNAMIC-блок (сессия, ветка, хвост памяти, чужие знания) в версионируемый AGENTS.md безусловно — грязное дерево и предупреждение, которое нечем снять"
 status: planning
-epic: release-110-deferred-from-19
-story: deferred-110-host-parity-refactors
+epic: release-19-renar-conformance
+story: release19-tracker-promises
 complexity: medium
 role: developer
 stack: python

@@ -75,7 +75,7 @@ def test_the_minimal_tier_carries_the_pointer_not_the_list():
 def test_the_contract_sits_after_memory_and_before_senar_rules():
     """Position is part of the contract: it is read as a memory rule, not as a footnote."""
     body = _body("standard")
-    memory = body.index("## Memory (two systems")
+    memory = body.index("## Memory (")
     contract = body.index("## Compaction contract")
     senar = body.index("## SENAR Rules Compliance")
     assert memory < contract < senar

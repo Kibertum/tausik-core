@@ -37,8 +37,9 @@ Stack: Python 3.11+ stdlib | CLI `.tausik/tausik` | DB SQLite+FTS5 | Tests pytes
 
 | Система | Когда |
 |---|---|
-| **TAUSIK memory** (`memory add`, `.tausik/tausik.db`) | Паттерны/dead ends/conventions ЭТОГО проекта |
-| **Claude auto-memory** (`~/.claude/`) | Кросс-проектные привычки пользователя |
+| **TAUSIK memory** (`memory add`, `.tausik/tausik.db`) | Паттерны/dead ends/conventions ЭТОГО проекта — «здесь так принято» |
+| **Общая база знаний** (`memory add --global`, `~/.tausik-knowledge/knowledge.db`) | Факт об инструменте, верный за пределами проекта — «так устроен инструмент»; без секретов и имён клиентов |
+| **Claude auto-memory** (`~/.claude/`) | Кросс-проектные привычки пользователя — «так мне удобно работать» |
 
 Типы: `pattern`, `gotcha`, `convention`, `context`, `dead_end`.
 CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scripts/project.py` напрямую.
@@ -65,34 +66,34 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: none | Branch: v1-9-wave | Version: 1.9.0
-Tasks: 1473/1628 done, 1 active, 2 blocked
-Active: codex-second-model-review-of-sessions-243-250
-Blocked: v14b-rag-nudge-replay-benchmark, codex-live-acceptance-proves-the-host
+Session: #258 (active) | Branch: v1-9-wave | TAUSIK: 1.9.0
+Tasks: 1497/1651 done, 1 active, 1 blocked
+Active: framework-version-stamp-reads-as-the-products-version
+Blocked: v14b-rag-nudge-replay-benchmark
 
 ### Memory tail
 Context (5):
+- #697 Трекеры перед тегом 1.9 (смена #255): 14 GitLab + 2 GitHub + PR #5 — каждому тикету назначено состоя
 - #691 Аудит SENAR 9.5 за смены #243-#250: улики закрытий, когерентность, полный прогон — три находки, ни о
 - #684 Трекеры на момент остановки смены #241: 13 открытых в GitLab, 2 в GitHub
 - #683 Большое ревью 1.9, смена #241: двенадцать осей проверено, мёртвого кода ноль, три оси дали находки
 - #677 Сверка шести условий выпуска 1.9, смена #239: четыре держатся, одно починено, одно у владельца
-- #674 Аудит SENAR 9.5 за смены #235-#238: одна новая находка, и она в файле, который инструктирует агентов
 Decisions (5):
-- #365 The declared closure-evidence remainder in tausik/gates.json is raised from rotted 31 / never-existed 20 to the measured
-- #364 RENAR re-assessment under corpus v1.1 goes by option (a): renar-version bumps to 1.1 with manifest-version incremented; 
-- #363 1.9 scope confirmed by the owner in session #244, three answers: (1) a project-scoped channel for user-tier weakening JO
-- #362 Backlog release map after owner confirmation: 1.9 is limited to owner decisions #358, #360 and #361 (Notion removal, pro
-- #361 1.9 scope is extended by owner approval: release19-proof-integrity and release19-effective-context join the release stor
+- #370 Состав 1.9 расширен по указанию владельца в смене #258 историей release19-tracker-promises: GitLab #5 (штамп версии), #6
+- #369 Состав 1.9 расширен по указанию владельца в смене #251 историей release19-clean-publication-and-onboarding (решение #368
+- #368 МОДЕЛЬ ПУБЛИКАЦИИ 1.9 УТОЧНЕНА ВЛАДЕЛЬЦЕМ, смена #251. (1) Сайт tausik.tech живёт ТОЛЬКО в отдельном репозитории GitLab 
+- #367 Состав релиза 1.9 пересказан ОДНОЙ строкой, потому что генератор ROADMAP.md читал дополняющее решение #363 как полный со
+- #366 Владелец, смена #251, разбор трекеров перед тегом 1.9: тикеты GitLab #13 (запятая в --relevant-files принимается как оди
 Conventions (5):
+- #701 Owner forbids external artifacts (claude.ai Artifact pages): reports are answered in the terminal or
+- #698 Текст отказа в документации для агента снимается с живого вызова и удерживается тестом по фразе из к
 - #686 Хост, добавляемый в SCAFFOLD_IDES, проверяется ЗАМЕРОМ БИНАРЯ, а не документацией
 - #682 Мёртвый код ищут по СИМВОЛАМ, а не по модулям, и повторяемо — потому что удаление обнажает следующий
 - #673 Столбец с числом в документе обязан быть СОСЧИТАН чем-то, иначе он гниёт молча
-- #669 Имя КЛАССА теста опаснее имени функции: оба выдуманных случая за две смены были классами
-- #664 Критерий, требующий НОВОЙ СУЩНОСТИ В ЗАКРЫТОМ ПЕРЕЧНЕ, проверяй на совместимость с критерием «схему 
 Dead ends (3):
+- #693 Verify review journal with tracked output documents as relevant files
 - #692 Capture Codex PreToolUse JSON through a temporary generated command hook
 - #689 Ограничить parent-tree претензии done-задач условием completed_at >= started_at верифицируемой задач
-- #688 Treat the scoped review pytest FAIL as a test failure, then re-run with TAUSIK_VERIFY_FULL=1.
 
 **Shared knowledge — from other projects (11):**
 - [decision] v139-D (клиентский mux) НЕ делается в 1.3.9 как «фикс троттлинга». Предпосылка задачи неверна для на

@@ -66,14 +66,13 @@ start → plan → task → [review | test] → commit → end
 **Cost-aware model selection:** `tausik suggest-model <complexity>` prints a recommended Claude model (Haiku for simple 1 SP tasks, Sonnet for medium 3 SP, Opus for complex 8 SP). Claude Code doesn't switch models programmatically — apply the suggestion manually via the IDE model picker, and persist your default for the next session with `tausik config set model_profile <slug>` (note: `/fast` only toggles fast-output on Opus, it does NOT downgrade to a smaller model).
 """
 
-MEMORY = """## Memory (two systems — use the right one)
+MEMORY = """## Memory (choose the destination by what the fact is about, not by where you are)
 
-| System | Where | When |
+| Destination | Where | What goes there |
 |---|---|---|
-| **TAUSIK memory** (`memory add`) | `.tausik/tausik.db` | Patterns, dead ends, conventions specific to THIS project |
-| **Agent auto-memory** | agent-specific (e.g. `~/.claude/...`) | User preferences, cross-project habits |
-
-Memory types: `pattern`, `gotcha`, `convention`, `context`, `dead_end`.
+| **Project memory** (`memory add`) | `.tausik/tausik.db` | "Here it is done this way": patterns, dead ends, conventions, environment facts of THIS project. Types: `pattern`, `gotcha`, `convention`, `context`, `dead_end` |
+| **Shared knowledge** (`memory add --global`) | `~/.tausik-knowledge/knowledge.db`, read back in every project as *Shared knowledge — from other projects* | "The tool is built this way": a gotcha of a library, a platform habit, a fact true outside this repository. Not redacted — never a secret or a client name |
+| **Agent auto-memory** | host-specific (e.g. `~/.claude/...`) | "This is how I like to work": the user's own preferences and cross-project habits — never a fact about a project |
 
 **Memory-first recall (hard rule).** Before asking the user for — or guessing — an established
 project fact (hosts, environments, where credentials live, paths, service URLs, prior decisions),
@@ -81,7 +80,8 @@ you MUST `memory_search` / `decisions_list` FIRST; asking for something already 
 process violation. Record durable environment facts as `context` so future sessions inherit them.
 
 **Routing litmus (hard).** *Would another agent, in another tool, need this to work on THIS
-project?* → yes = `memory add`. Never your host's own memory (`~/.claude/**/memory/`, `.cursor/rules/`,
+project?* → `memory add`. *Is it true beyond this project — of the tool, the platform, the library?*
+→ `memory add --global`. Never your host's own memory (`~/.claude/**/memory/`, `.cursor/rules/`,
 `.windsurf/rules/`, `.github/copilot-instructions.md`, `.github/instructions/`, `.clinerules`, `.roo/rules/`,
 `.continue/rules/`, `.aider*` — blocked by the `memory_route` gate); a cloud-side memory writes no
 file for any gate to see, so there this line is the only enforcement. Skills that need persistent
