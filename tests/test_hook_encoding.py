@@ -162,7 +162,7 @@ def _hook_commands(settings_path: str) -> list[str]:
         for entry in entries:
             for hook in entry.get("hooks") or []:
                 cmd = hook.get("command") or ""
-                if "hooks/" in cmd and cmd.endswith(".py"):
+                if "hooks/" in cmd and cmd.rstrip('"').endswith(".py"):
                     out.append(cmd)
     return out
 
@@ -228,7 +228,7 @@ class TestSettingsKeepTheFlag:
                 text = f.read()
             for line in text.splitlines():
                 # Строка, собирающая команду запуска хука.
-                if re.search(r'return f".*python.*\{.*hooks.*\}/\{script\}', line):
+                if re.search(r'return f[\'"].*python.*\{.*hooks.*\}/\{script\}', line):
                     builders.append(f"{os.path.basename(path)}: {line.strip()}")
                     if "-X utf8" not in line:
                         offenders.append(f"{os.path.basename(path)}: {line.strip()}")

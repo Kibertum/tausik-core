@@ -133,7 +133,79 @@ def test_claude_hooks_are_rename_proof(tmp_path):
     # autoloop package — what matters is that every path goes through the
     # variable, so renaming the project folder cannot break a hook.
     assert all("${CLAUDE_PROJECT_DIR}/.tausik-lib/scripts/" in c for c in cmds)
-    # No quotes around the path — else the hooks-parity tokenizer (splits on
-    # whitespace, matches *.py) would fail to extract script basenames.
-    assert all('"' not in c for c in cmds)
-    assert all(any(t.endswith(".py") for t in c.split()) for c in cmds)
+    # The script path is quoted as one shell word, the suffix (session_metrics'
+    # `--auto --record …`) stays outside the quotes.
+    assert all('"${CLAUDE_PROJECT_DIR}/.tausik-lib/scripts/' in c for c in cmds)
+    assert all(any(t.strip('"').endswith(".py") for t in c.split()) for c in cmds)
+    metrics = next(c for c in cmds if "session_metrics.py" in c)
+    assert 'session_metrics.py" --auto' in metrics
+
+
+def _git_bash() -> str | None:
+    import shutil
+
+    bash = shutil.which("bash")
+    # System32\bash.exe is WSL: it would resolve Windows paths as its own.
+    if bash is None or "system32" in bash.lower():
+        return None
+    return bash
+
+
+def test_claude_hooks_run_from_a_project_path_with_spaces(tmp_path):
+    """A space in the project path must not break the generated command.
+
+    Seen live on `D:\\...\\Path of the Ascended\\_tausik`: the unquoted
+    `${CLAUDE_PROJECT_DIR}` was word-split, python got `...\\versions\\Path`,
+    every hook failed with Errno 2 and UserPromptSubmit blocked the prompt.
+    The command is run through a real shell with the variable set the way the
+    host sets it; the unquoted twin must fail in the same directory, or the
+    test would pass on a path the shell never split.
+    """
+    import os
+    import subprocess
+    import sys
+
+    import pytest
+
+    from bootstrap_generate import generate_settings_claude
+
+    bash = _git_bash()
+    if bash is None:
+        pytest.skip("no POSIX bash to run the hook command through")
+
+    project = tmp_path / "Path of the Ascended" / "_tausik"
+    target = project / ".claude"
+    target.mkdir(parents=True)
+    hooks_dir = project / ".tausik-lib" / "scripts" / "hooks"
+    hooks_dir.mkdir(parents=True)
+    (hooks_dir / "user_prompt_submit.py").write_text("print('hook-ran')\n", encoding="utf-8")
+    generate_settings_claude(str(target), str(project), lib_dir=str(project / ".tausik-lib"))
+    settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+    cmd = settings["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
+    assert cmd.startswith("python ")
+    # Pin the interpreter: `python` on PATH under bash may be a store stub.
+    interpreter = '"' + sys.executable.replace("\\", "/") + '"'
+    runnable = interpreter + cmd[len("python") :]
+    env = {**os.environ, "CLAUDE_PROJECT_DIR": str(project)}
+
+    def run(command: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [bash, "-c", command],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            timeout=60,
+        )
+
+    ok = run(runnable)
+    assert ok.returncode == 0, ok.stderr
+    assert "hook-ran" in ok.stdout
+
+    broken = run(
+        runnable.replace('"${CLAUDE_PROJECT_DIR}', "${CLAUDE_PROJECT_DIR}").replace('.py"', ".py")
+    )
+    assert broken.returncode != 0 and "hook-ran" not in broken.stdout, (
+        "the unquoted command also ran — the fixture path is not exercising word splitting"
+    )

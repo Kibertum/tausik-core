@@ -96,7 +96,7 @@ SESSION_GUARD_MATCHER = (
     "|mcp__tausik-project__tausik_session_end)$"
 )
 SESSION_GUARD_COMMAND = (
-    "python -X utf8 ${CLAUDE_PROJECT_DIR}/.claude/scripts/autoloop/session_guard.py"
+    'python -X utf8 "${CLAUDE_PROJECT_DIR}/.claude/scripts/autoloop/session_guard.py"'
 )
 
 
@@ -113,8 +113,16 @@ def add_session_guard(profile: dict) -> dict:
     if not isinstance(pre, list):
         pre = []
         hooks["PreToolUse"] = pre
+    # Compared on the command field, not on a JSON dump: the dump escapes the
+    # quotes around the script path, so a substring test never matched and the
+    # guard was appended on every run.
     already = any(
-        SESSION_GUARD_COMMAND in json.dumps(entry, ensure_ascii=False) for entry in pre
+        isinstance(entry, dict)
+        and any(
+            isinstance(h, dict) and h.get("command") == SESSION_GUARD_COMMAND
+            for h in entry.get("hooks") or []
+        )
+        for entry in pre
     )
     if not already:
         pre.append(

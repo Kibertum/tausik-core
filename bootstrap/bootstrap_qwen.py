@@ -50,7 +50,9 @@ def generate_settings_qwen(
         # -X utf8 forces UTF-8 stdio for every hook (they run directly, not via
         # the CLI wrapper, so they don't inherit its PYTHONUTF8). One injection
         # point covers all hooks — no per-file fix_stdio_encoding() needed.
-        return f"python -X utf8 {abs_hooks}/{script}{suffix}"
+        # Quoted for the same reason as bootstrap_generate: a space in the
+        # absolute path would otherwise split the argument.
+        return f'python -X utf8 "{abs_hooks}/{script}"{suffix}'
 
     path = os.path.join(target_dir, "settings.json")
 

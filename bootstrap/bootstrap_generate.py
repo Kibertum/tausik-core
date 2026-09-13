@@ -36,8 +36,11 @@ def generate_settings_claude(target_dir: str, project_dir: str, lib_dir: str | N
 
     # Reference hooks via ${CLAUDE_PROJECT_DIR} when they live inside the project
     # (always set in the hook environment) so a folder rename doesn't break them;
-    # an external lib stays absolute. No quotes — a path with spaces is a
-    # pre-existing edge, and quotes would break the hooks-parity tokenizer.
+    # an external lib stays absolute. The script path is double-quoted: the host
+    # runs the command through a shell, and an unquoted `${CLAUDE_PROJECT_DIR}`
+    # is word-split on a space in the project path — python then gets a
+    # truncated path, every hook dies with Errno 2, and a dead UserPromptSubmit
+    # blocks the prompt outright.
     rel_hooks = portable_path(os.path.abspath(hooks_dir), project_dir, _CLAUDE_HOOK_VAR)
 
     # The autoloop package lives beside hooks/, not in it — its Stop hooks need
@@ -47,13 +50,13 @@ def generate_settings_claude(target_dir: str, project_dir: str, lib_dir: str | N
     )
 
     def _autoloop_cmd(script: str) -> str:
-        return f"python -X utf8 {rel_scripts}/autoloop/{script}"
+        return f'python -X utf8 "{rel_scripts}/autoloop/{script}"'
 
     def _hook_cmd(script: str, suffix: str = "") -> str:
         # -X utf8 forces UTF-8 stdio for every hook (they run directly, not via
         # the CLI wrapper, so they don't inherit its PYTHONUTF8). One injection
         # point covers all hooks — no per-file fix_stdio_encoding() needed.
-        return f"python -X utf8 {rel_hooks}/{script}{suffix}"
+        return f'python -X utf8 "{rel_hooks}/{script}"{suffix}'
 
     settings = {
         "permissions": {

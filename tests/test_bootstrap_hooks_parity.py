@@ -44,6 +44,7 @@ def _collect_hook_scripts(settings: dict) -> set[str]:
             for hook in entry.get("hooks", []):
                 cmd = hook.get("command", "")
                 for token in cmd.replace("\\", "/").split():
+                    token = token.strip('"')
                     if token.endswith(".py"):
                         scripts.add(os.path.basename(token))
     return scripts
@@ -178,7 +179,9 @@ def test_every_shell_gate_is_registered_for_every_shell_tool(claude_settings, qw
     }
     for label, settings in (("claude", claude_settings), ("qwen", qwen_settings)):
         for entry in settings.get("hooks", {}).get("PreToolUse", []):
-            scripts = {os.path.basename(h["command"].split()[-1]) for h in entry["hooks"]}
+            scripts = {
+                os.path.basename(h["command"].split()[-1].strip('"')) for h in entry["hooks"]
+            }
             for gate in scripts & command_reading_gates:
                 missing = {
                     t
