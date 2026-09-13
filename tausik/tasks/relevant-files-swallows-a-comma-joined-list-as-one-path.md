@@ -1,7 +1,7 @@
 ---
 slug: relevant-files-swallows-a-comma-joined-list-as-one-path
 title: "GitLab #13: --relevant-files \"a.py,b.py\" принимается как ОДИН путь — область QG-2 портится молча, а отказ приходит от verify как «на эти файлы нет тестов»"
-status: planning
+status: done
 epic: release-19-renar-conformance
 story: release19-proof-integrity
 complexity: simple
@@ -12,11 +12,24 @@ call_budget: 30
 defect_of: null
 scope: "scripts/project_parser_task.py, scripts/project_cli_task.py, scripts/service_task.py (или новый scripts/relevant_files_input.py), harness/claude/mcp/project/handlers_task*.py, tests/, docs/ru/cli.md, docs/en/cli.md, CHANGELOG.md, CHANGELOG.ru.md"
 scope_exclude: "Не разбивать по запятой тихо; не менять хранение (JSON-список в БД); не трогать scope_paths."
-relevant_files: []
+relevant_files:
+  - "scripts/relevant_files_input.py"
+  - "scripts/service_task.py"
+  - "scripts/task_done_scope.py"
+  - "scripts/service_task_done.py"
+  - "scripts/project_parser_task.py"
+  - "tests/test_relevant_files_input.py"
+  - "tests/test_task_done_scope.py"
+  - "docs/ru/cli.md"
+  - "docs/en/cli.md"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
+  - "docs/en/whats-new-1.9.md"
+  - "docs/ru/whats-new-1.9.md"
 scope_paths: []
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-13T12:25:13Z"
 ---
 
 ## Goal
@@ -34,3 +47,6 @@ AC-1: `task update <slug> --relevant-files "a.py,b.py"` (элемент с за�
 git revert; значения с запятой снова принимаются как один путь.
 
 ## Journal
+
+- 2026-09-13T12:22:44Z [implementation] — Сделано: scripts/relevant_files_input.py (check_declared_paths + notice_for_json_list) — один валидатор на три входа: service_task.task_update (CLI update, verify --relevant-files), task_done_scope.persist_declared_scope (task done CLI+MCP, пишет через backend; получил tausik_dir и notices, чтобы task done показывал ту же пометку). Отказ — элемент с запятой, не существующий на диске, ≥2 частей, каждая похожа на путь (/ или .); существующий путь с запятой принимается; несуществующий — NOTE (верхний регистр, как читает _print_with_warnings); обратные слэши нормализуются как в gate_test_resolver. state import объявлен намеренно непроверяемым (файл — экспорт строки, прошедшей проверку при объявлении). Справка update: SPACE-separated. ЖИВОЙ РЕПРО GitLab #13 на развёрнутом CLI: до bootstrap — принято (ловушка: .tausik/tausik исполняет .claude/scripts), после — Error с верной формой; правильная форма через пробел записана. Ревью tausik-reviewer: 1 high (state_import — документировано как trust-the-file), 2 medium (пометка терялась на task done — исправлено; эвристика могла отказать одиночному имени с запятой — сужена), 3 low (NOTE регистр, backslash, размер файлов 500/500) — все учтены. 21 тест, dedupe на базе.
+- 2026-09-13T12:25:10Z [implementation] — AC-1 ✓ живой развёрнутый CLI: `task update … --relevant-files "scripts/relevant_files_input.py,tests/test_relevant_files_input.py"` → Error с текстом «carries a comma … paths are passed SPACE-separated: --relevant-files a.py b.py»; relevant_files задачи не изменились (журнал); tests/test_relevant_files_input.py::TestACommaJoinedValueIsRefusedByTheRightForm::test_update_refuses_and_stores_nothing проверяет и отказ, и НЕзапись. AC-2 ✓ ::test_task_done_declaration_is_judged_the_same_way — persist_declared_scope (путь task done, CLI и MCP через backend) отвергает тем же RIGHT_FORM; одна реализация — relevant_files_input.check_declared_paths. AC-3 ✓ (НЕГАТИВ) ::TestTheCommaIsNotSplitSilently::test_an_existing_path_with_a_comma_in_its_name_is_accepted — существующий `scripts/a,b.py` принят как есть; ::test_a_single_not_yet_created_name_with_a_comma_is_a_note_not_a_refusal — граница эвристики. AC-4 ✓ ::test_the_help_text_no_longer_invites_the_comma — справка update говорит SPACE-separated и не говорит «JSON-list scope». AC-5 ✓ ::TestAMissingPathIsAWarningNotARefusal — NOTE о несуществующих путях, запись не блокируется; ::test_task_done_shows_the_same_note_as_update — та же пометка на закрытии. AC-6 ✓ verify #2585 подписан (scoped 86 файлов тестов, 6 прямых); CHANGELOG EN/RU; docs/{en,ru}/cli.md. Domain: агент, набравший список через запятую, получает отказ в момент ввода с верной формой, а не «нет тестов» от verify через полчаса; область QG-2 больше не может стать пустой молча.

@@ -1,7 +1,7 @@
 ---
 slug: dev-lane-tests-are-hostage-to-the-runner-environment
 title: "Лента GitLab на ветке разработки красная с 07.09: три теста читают состояние машины (реестр official, глубина клона, живая БД), а не своё"
-status: planning
+status: active
 epic: release-19-agent-effectiveness
 story: verification-off-the-critical-path
 complexity: medium
@@ -25,7 +25,7 @@ completed_at: null
 
 ## Acceptance Criteria
 
-AC-1: test_the_live_tree_counts_what_it_ships пропускается с причиной, когда реестр official отсутствует (None), и по-прежнему требует ≥20, когда он есть — оба пути доказаны (tmp без реестра / живое дерево). AC-2: test_the_committed_manifest_chain_resolves пропускается с причиной на shallow-клоне, где предыдущая версия за горизонтом, и по-прежнему падает в полном клоне, если replaces указывает в пустоту (мутация: подменить replaces во временном полном клоне). AC-3: test_живой_хук_по_прежнему_блокирует гоняет хук против временного проекта со своей БД: без активной задачи — блок (Rule 1); с активной задачей и scope_paths, не покрывающим цель, — блок (Rule 2); с активной задачей без scope — пропуск (legacy freedom) назван отдельным кейсом. Ни один кейс не читает .tausik/ этого репозитория. AC-4: полный прогон в свежем shallow-клоне (--depth 50) во временном каталоге после `bootstrap --no-detect --ide all` — та же процедура, что .gitlab-ci.yml, — зелёный на этой машине; число passed/skipped записано в журнал. AC-5: signed verify.
+AC-1: test_the_live_tree_counts_what_it_ships пропускается с причиной, когда реестр official отсутствует (None), и по-прежнему требует ≥20, когда он есть — оба пути доказаны (tmp без реестра / живое дерево). AC-2: НЕГАТИВ: test_the_committed_manifest_chain_resolves пропускается с причиной на shallow-клоне, где предыдущая версия за горизонтом, и по-прежнему даёт ошибку в полном клоне, если replaces указывает в пустоту (мутация: подменить replaces во временном полном клоне). AC-3: test_живой_хук_по_прежнему_блокирует гоняет хук против временного проекта со своей БД: без активной задачи — блок (Rule 1); с активной задачей и scope_paths, не покрывающим цель, — блок (Rule 2); с активной задачей без scope — пропуск (legacy freedom) назван отдельным кейсом. Ни один кейс не читает .tausik/ этого репозитория. AC-4: полный прогон в свежем shallow-клоне (--depth 50) во временном каталоге после bootstrap --no-detect --ide all — та же процедура, что .gitlab-ci.yml, — зелёный на этой машине; число passed/skipped записано в журнал. AC-5: signed verify.
 
 ## Plan
 

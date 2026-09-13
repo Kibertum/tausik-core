@@ -202,6 +202,16 @@ signed: it certifies emptiness. Before this flag the only working move
 while the warning offered a flag `verify` did not have — which made ignoring the
 warning the RATIONAL response rather than a careless one.
 
+**The paths are SPACE-separated** — `--relevant-files a.py b.py`, on `verify`,
+`task update` and `task done` alike; the list is stored as JSON, which is the
+storage shape, not the input format. A value like `"a.py,b.py"` is ONE argument
+to argparse and used to be stored as one path, so scoped gates ran over nothing
+and the refusal came from `verify` worded as "no tests mapped" (GitLab #13).
+Since 1.9 an element that carries a comma and resolves to no file is refused at
+the write, naming the right form; a path with a comma in its name that exists
+is accepted as it is, and a declared path that does not exist yet is accepted
+with a note — the task may be about to create it.
+
 **`--no-tests-expected`.** A run in which no gate actually executed (everything
 `[SKIP]`) blocks: it proves nothing, and a green recorded against it would stay
 valid for the whole TTL across arbitrary tree changes. For documentation,

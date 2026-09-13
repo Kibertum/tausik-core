@@ -167,7 +167,8 @@ class TaskDoneReportMixin:
             raise ServiceError(f"Task '{slug}' is already done")
         # Where the scope comes from — and when it is written down — lives in
         # `task_done_scope`; this function is about whether the task may CLOSE.
-        if persist_declared_scope(self.be, slug, relevant_files):
+        tdir = self.tausik_dir()  # type: ignore[attr-defined]
+        if persist_declared_scope(self.be, slug, relevant_files, tdir, report["warnings"]):
             task = self._require_task(slug)  # type: ignore[attr-defined]
         if relevant_files is None:
             relevant_files = scope_from_task_row(task)

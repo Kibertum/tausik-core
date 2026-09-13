@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from typing import TYPE_CHECKING, Any, cast
 
 from tausik_utils import (
@@ -151,7 +152,9 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         if task["status"] == "active":
             from memory_relevance import lines_for_task
 
-            return "\n".join([f"Task '{slug}' is already active (resumed).", *lines_for_task(self.be, slug)])
+            return "\n".join(
+                [f"Task '{slug}' is already active (resumed).", *lines_for_task(self.be, slug)]
+            )
         qg0_warnings: list[str] = []
         capacity_audit = ""
         if not _internal_force:
@@ -360,6 +363,14 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         for f in ("title", "goal"):
             if fields.get(f) is not None:
                 fields[f] = safe_single_line(fields[f]) or fields[f]
+        # GitLab #13: a comma-joined list stored as one path corrupted the QG-2
+        # scope silently; judged before the write by the shared validator.
+        if fields.get("relevant_files") is not None:
+            from relevant_files_input import notice_for_json_list
+
+            notice += notice_for_json_list(
+                fields["relevant_files"], os.path.dirname(self.tausik_dir())
+            )
         self._write_update_atomically(slug, budget_writes, fields)
         return self._task_updated(slug, notice)
 

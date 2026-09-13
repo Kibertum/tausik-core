@@ -252,7 +252,11 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         nargs="*",
         default=None,
         dest="update_relevant_files",
-        help="JSON-list scope for scoped verify / pytest gate (overwrites prior)",
+        help=(
+            "Scope for scoped verify / pytest gate, SPACE-separated paths "
+            "(--relevant-files a.py b.py); stored as a JSON list; overwrites prior. "
+            "A comma-joined value is refused (GitLab #13)."
+        ),
     )
     tupdate.add_argument(
         "--ticket",
