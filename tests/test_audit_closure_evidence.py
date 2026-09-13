@@ -24,6 +24,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
 from audit_closure_evidence import (
@@ -390,3 +392,176 @@ def test_an_example_costs_no_git_call(tmp_path: Path) -> None:
         probe=_probe,
     )
     assert asked == []
+
+
+# --- session #257: a node id is a CHAIN, not one name --------------------------
+
+
+class TestANodeIdIsAChainOfNames:
+    """`file::Class::method[param]` — the form the extractor reads whole since GitLab #16.
+
+    Measured before the fix (session #257): `tausik coherence` reported 908
+    citations as never having existed against a declared remainder of 39; 872
+    were `Class::method`, 10 were `[param]` — all committed tests, looked up as
+    one name `Class::method` that no module defines.
+    """
+
+    def test_class_and_method_both_defined_resolves(self, tmp_path: Path) -> None:
+        root = _tree(tmp_path)
+        report = audit_closure_evidence(
+            str(root),
+            [{"slug": "t", "notes": _note("tests/test_alpha.py::TestGroup::test_kept")}],
+            probe=_probe_saying(set()),
+        )
+        assert report["findings"] == [], report["findings"]
+        assert report["resolved_unique"] == 1
+
+    def test_a_parametrised_id_is_the_method_it_names(self, tmp_path: Path) -> None:
+        root = _tree(tmp_path)
+        report = audit_closure_evidence(
+            str(root),
+            [{"slug": "t", "notes": _note("tests/test_alpha.py::TestGroup::test_kept[en]")}],
+            probe=_probe_saying(set()),
+        )
+        assert report["findings"] == [], report["findings"]
+
+    def test_an_id_carrying_its_own_double_colon_is_cut_at_the_bracket(self) -> None:
+        from audit_closure_evidence import member_segments
+
+        assert member_segments("TestGroup::test_kept[tests/a.py::b-1]") == [
+            "TestGroup",
+            "test_kept",
+        ]
+        assert member_segments("test_kept[en]") == ["test_kept"]
+        assert member_segments("TestGroup::test_kept") == ["TestGroup", "test_kept"]
+
+    @pytest.mark.parametrize(
+        "chain,successor",
+        [
+            ("TestGroup::test_kep", "test_kept"),  # an invented leaf under a real class
+            ("TestNope::test_kept", "TestGroup"),  # a real leaf under a class the file never had
+        ],
+        ids=["invented-leaf", "invented-class"],
+    )
+    def test_one_invented_link_is_never_existed_with_its_successor(
+        self, tmp_path: Path, chain: str, successor: str
+    ) -> None:
+        """NEGATIVE: resolving the chain resolves neither an invented leaf nor an invented class."""
+        root = _tree(tmp_path)
+        report = audit_closure_evidence(
+            str(root),
+            [{"slug": "t", "notes": _note(f"tests/test_alpha.py::{chain}")}],
+            probe=_probe_saying(set()),
+        )
+        (finding,) = report["findings"]
+        assert finding["verdict"] == NEVER_EXISTED
+        assert finding["successor_candidate"] == successor
+
+    def test_the_old_single_name_lookup_is_what_produced_the_908(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The finding, reproduced on the auditor itself: with the tail read as ONE
+        name — what `_classify` did before — a committed `Class::method` is
+        reported never to have existed. Same input, same probe, other segmenter."""
+        import audit_closure_evidence as ace
+
+        root = _tree(tmp_path)
+        cite = [{"slug": "t", "notes": _note("tests/test_alpha.py::TestGroup::test_kept")}]
+        monkeypatch.setattr(ace, "member_segments", lambda member: [member])
+        (finding,) = ace.audit_closure_evidence(str(root), cite, probe=_probe_saying(set()))[
+            "findings"
+        ]
+        assert finding["verdict"] == NEVER_EXISTED
+        monkeypatch.undo()
+        assert (
+            ace.audit_closure_evidence(str(root), cite, probe=_probe_saying(set()))["findings"]
+            == []
+        )
+
+    def test_a_method_defined_elsewhere_than_under_the_named_class_is_not_resolved(
+        self, tmp_path: Path
+    ) -> None:
+        """NEGATIVE (review, session #257): `TestGroup::test_renamed_to_this` — the
+        leaf exists at module level, the chain does not. A flat set resolved it."""
+        root = _tree(tmp_path)
+        report = audit_closure_evidence(
+            str(root),
+            [{"slug": "t", "notes": _note("tests/test_alpha.py::TestGroup::test_renamed_to_this")}],
+            probe=_probe_saying({"tests/test_alpha.py::test_renamed_to_this"}),
+        )
+        (finding,) = report["findings"]
+        assert finding["verdict"] == ROTTED
+        assert finding["missing_segments"] == ["test_renamed_to_this"]
+
+    def test_an_invented_leaf_under_a_renamed_class_is_never_existed_not_rot(
+        self, tmp_path: Path
+    ) -> None:
+        """NEGATIVE (review, session #257): the WORST answer is the verdict — a
+        class git once held does not excuse a method git never held."""
+        root = _tree(tmp_path)
+        report = audit_closure_evidence(
+            str(root),
+            [{"slug": "t", "notes": _note("tests/test_alpha.py::TestOldGroup::test_invented")}],
+            probe=_probe_saying({"tests/test_alpha.py::TestOldGroup"}),
+        )
+        (finding,) = report["findings"]
+        assert finding["verdict"] == NEVER_EXISTED
+        assert finding["missing_segments"] == ["TestOldGroup", "test_invented"]
+
+    def test_a_bare_name_keeps_the_flat_lookup(self, tmp_path: Path) -> None:
+        """`file::test_kept` for a method inside a class — honest shorthand, accepted before."""
+        root = _tree(tmp_path)
+        report = audit_closure_evidence(
+            str(root),
+            [{"slug": "t", "notes": _note("tests/test_alpha.py::test_kept")}],
+            probe=_probe_saying(set()),
+        )
+        assert report["findings"] == []
+
+    def test_a_nested_class_chain_is_followed_link_by_link(self, tmp_path: Path) -> None:
+        tests = tmp_path / "tests"
+        tests.mkdir()
+        (tests / "test_nested.py").write_text(
+            "class TestOuter:\n"
+            "    class TestInner:\n"
+            "        def test_leaf(self):\n"
+            "            pass\n",
+            encoding="utf-8",
+        )
+        ok = audit_closure_evidence(
+            str(tmp_path),
+            [
+                {
+                    "slug": "t",
+                    "notes": _note("tests/test_nested.py::TestOuter::TestInner::test_leaf"),
+                }
+            ],
+            probe=_probe_saying(set()),
+        )
+        assert ok["findings"] == []
+        skipped_link = audit_closure_evidence(
+            str(tmp_path),
+            [{"slug": "t", "notes": _note("tests/test_nested.py::TestOuter::test_leaf")}],
+            probe=_probe_saying(set()),
+        )
+        (finding,) = skipped_link["findings"]
+        assert finding["missing_segments"] == ["test_leaf"]
+
+    def test_a_member_that_reduces_to_no_segment_is_not_vacuously_resolved(
+        self, tmp_path: Path
+    ) -> None:
+        """The extractor never yields `file::[en]`; if it did, an empty chain must
+        not read as verified — the raw member is asked of git instead."""
+        import audit_closure_evidence as ace
+
+        root = _tree(tmp_path)
+        assert ace.member_segments("[en]") == []
+        finding = ace._classify(
+            str(root),
+            "tests/test_alpha.py::[en]",
+            ace.index_test_files(str(root)),
+            {},
+            _probe_saying(set()),
+        )
+        assert finding["verdict"] == NEVER_EXISTED
+        assert finding["missing_segments"] == ["[en]"]

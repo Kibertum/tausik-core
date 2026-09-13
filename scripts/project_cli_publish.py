@@ -96,14 +96,37 @@ def _snapshot(root: str, args: Any) -> None:
     print(f"  {'OK ' if ok_base else 'BAD'} {why_base}")
     if not (ok_match and ok_base):
         sys.exit(1)
+    tag = _tag_named_by(root, source) or "v<version>"
     print(
         "Next (the owner's acts, by hand, after reading the above). The push is\n"
         "fast-forward only: if github/main moved since it was fetched, git refuses\n"
         "here and the snapshot is rebuilt on the new tip — never --force.\n"
         f"  git push github {commit}:refs/heads/main\n"
-        f"  git tag -a v<version> {commit} -m '<notes>' && git push github v<version>\n"
-        "  then record the tag in tausik/published_tags.json (publishing.md)"
+        f"  git push github {commit}:refs/tags/{tag}\n"
+        "  then record the tag in tausik/published_tags.json (publishing.md)\n"
+        "The tag is a refspec push, not `git tag -a`: the same NAME already names\n"
+        "the release commit on the development line, and git will not create it\n"
+        "twice. One name, two objects, one filtered tree — `publish verify` is the proof.\n"
+        "It lands on GitHub as a LIGHTWEIGHT tag (no tag object, no message): the\n"
+        "release notes are the CHANGELOG and the GitHub Release, not the tag."
     )
+
+
+def _tag_named_by(root: str, source: str) -> str | None:
+    """The tag name the printed act carries, read from `--from`.
+
+    `--from v1.9.0` names the tag itself; `--from <sha>` or a branch that a
+    single tag points at names it through `git tag --points-at`. Two or more
+    tags on the commit is an ambiguity, and a placeholder is printed rather
+    than a guess.
+    """
+    if scope._git(root, "rev-parse", "--verify", "--quiet", f"refs/tags/{source}").returncode == 0:
+        return source
+    commit = scope._git(root, "rev-parse", "--verify", "--quiet", f"{source}^{{commit}}")
+    if commit.returncode != 0:
+        return None
+    names = scope._git(root, "tag", "--points-at", commit.stdout.strip()).stdout.split()
+    return names[0] if len(names) == 1 else None
 
 
 def _verify(root: str, args: Any) -> None:

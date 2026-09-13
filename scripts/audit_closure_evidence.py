@@ -135,18 +135,79 @@ def resolve_path(repo_root: str, rel: str, index: dict[str, list[str]]) -> tuple
     return None, False
 
 
-def names_in(path: str) -> set[str] | None:
-    """Every def/async def/class name in a module, or None if it cannot be read."""
+def member_segments(member: str) -> list[str]:
+    """The names a node id asks of a module, in order: `TestA::test_b[en]` -> [TestA, test_b].
+
+    The extractor reads a citation whole since GitLab #16 — class chain and
+    parametrised id included — and a lookup of `TestA::test_b` as ONE name
+    matched nothing, so 872 committed tests were reported as never having
+    existed (session #257). The `[param]` suffix is pytest's, not the
+    module's: it is cut at the first bracket BEFORE the split, because an id
+    may itself carry `::` (`test_x[tests/a.py::b]`). No regex, by convention
+    #301 — the citation parser is the product's, this is a split.
+    """
+    head = member.split("[", 1)[0]
+    return [seg.strip() for seg in head.split("::") if seg.strip()]
+
+
+_DEFS = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+
+
+def module_of(path: str) -> ast.Module | None:
+    """The parsed module, or None if it cannot be read — never a guess about it."""
     try:
         with open(path, encoding="utf-8") as fh:
-            tree = ast.parse(fh.read())
+            return ast.parse(fh.read())
     except (OSError, SyntaxError, ValueError):
         return None
-    return {
-        node.name
-        for node in ast.walk(tree)
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
-    }
+
+
+def names_in(path: str) -> set[str] | None:
+    """Every def/async def/class name in a module, or None if it cannot be read."""
+    tree = module_of(path)
+    return None if tree is None else _flat_names(tree)
+
+
+def _flat_names(tree: ast.AST) -> set[str]:
+    return {node.name for node in ast.walk(tree) if isinstance(node, _DEFS)}
+
+
+def _child_named(scope: ast.AST, name: str) -> ast.AST | None:
+    """A def/class named `name` DIRECTLY in `scope`'s body — the chain's next link."""
+    for node in getattr(scope, "body", ()):
+        if isinstance(node, _DEFS) and node.name == name:
+            return node
+    return None
+
+
+def missing_in_chain(tree: ast.Module, segments: list[str]) -> list[str]:
+    """The segments the module does not define WHERE the chain says.
+
+    `TestA::test_b` needs `test_b` in the body of `TestA`, not merely somewhere
+    in the file: a flat lookup called `TestGroup::test_renamed_to_this` resolved
+    when the method lived at module level (review, session #257). A single
+    segment keeps the flat lookup — `file::test_x` for a method inside a class
+    is honest shorthand, and was accepted before. Once the chain breaks, the
+    remaining segments are checked flat: a leaf that exists nowhere is missing
+    in its own right, so an invented method under a renamed class is not
+    hidden behind the class's rot.
+    """
+    flat = _flat_names(tree)
+    if len(segments) <= 1:
+        return [seg for seg in segments if seg not in flat]
+    missing: list[str] = []
+    scope: ast.AST | None = tree
+    for seg in segments:
+        if scope is not None:
+            child = _child_named(scope, seg)
+            if child is not None:
+                scope = child
+                continue
+            scope = None
+            missing.append(seg)
+        elif seg not in flat:
+            missing.append(seg)
+    return missing
 
 
 def _git(repo_root: str, argv: list[str]) -> str | None:
@@ -210,11 +271,16 @@ def _history_verdict(probe: GitProbe | None, repo_root: str, rel: str, member: s
     return ROTTED if ever else NEVER_EXISTED
 
 
+# Worse first: a name history never held is a citation that was wrong when
+# written; a name history once held has merely rotted since.
+_VERDICT_RANK: Final[dict[str, int]] = {NEVER_EXISTED: 2, ROTTED: 1, UNKNOWN_HISTORY: 0}
+
+
 def _classify(
     repo_root: str,
     ref: str,
     index: dict[str, list[str]],
-    name_cache: dict[str, set[str] | None],
+    name_cache: dict[str, ast.Module | None],
     probe: GitProbe | None,
 ) -> dict[str, Any]:
     rel, _, member = ref.partition("::")
@@ -240,14 +306,26 @@ def _classify(
     if not member:
         return finding
     if path not in name_cache:
-        name_cache[path] = names_in(os.path.join(repo_root, path))
-    names = name_cache[path]
-    if names is None or member in names:
+        name_cache[path] = module_of(os.path.join(repo_root, path))
+    tree = name_cache[path]
+    if tree is None:
         # An unreadable module is not evidence of rot: say nothing rather than
-        # accuse. names is None only for a syntax error or an I/O failure.
+        # accuse. tree is None only for a syntax error or an I/O failure.
         return finding
-    finding["verdict"] = _history_verdict(probe, repo_root, path, member)
-    near = difflib.get_close_matches(member, sorted(names), n=1, cutoff=_SUCCESSOR_CUTOFF)
+    # A member with no name in it (`[en]` alone) is asked of git as written,
+    # never read as an empty — and therefore verified — chain.
+    missing = missing_in_chain(tree, member_segments(member) or [member])
+    if not missing:
+        return finding
+    # Every missing segment is asked of git, and the WORST answer is the
+    # verdict: a renamed class does not excuse an invented method under it.
+    # The successor is offered for the segment that decided the verdict.
+    verdicts = [(seg, _history_verdict(probe, repo_root, path, seg)) for seg in missing]
+    lost, verdict = max(verdicts, key=lambda sv: _VERDICT_RANK[sv[1]])
+    finding["verdict"] = verdict
+    finding["missing_segments"] = missing
+    names = _flat_names(tree)
+    near = difflib.get_close_matches(lost, sorted(names), n=1, cutoff=_SUCCESSOR_CUTOFF)
     finding["successor_candidate"] = near[0] if near else None
     return finding
 
@@ -267,7 +345,7 @@ def audit_closure_evidence(
     lands in UNKNOWN_HISTORY instead of being guessed at.
     """
     index = index_test_files(repo_root, test_roots)
-    name_cache: dict[str, set[str] | None] = {}
+    name_cache: dict[str, ast.Module | None] = {}
     per_ref: dict[str, dict[str, Any]] = {}
     scanned = with_refs = total = 0
 

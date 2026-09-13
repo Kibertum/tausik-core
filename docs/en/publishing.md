@@ -57,8 +57,19 @@ byte for byte, and a machine checks that equality, not a memory.
    Force is not a flag the command has — and the firewall forbids it anyway.
 3. Push and tag are the owner's acts, by hand, after reading what the command
    printed: `git push github <sha>:refs/heads/main` (fast-forward only), then
-   `git tag -a v<version> <sha>` and `git push github v<version>`, and in the
-   same pass `tausik/published_tags.json` (see "Tags" below).
+   `git push github <sha>:refs/tags/v1.9.0` — a **refspec push**, not a second
+   `git tag -a`: the name `v1.9.0` already names the release commit on the
+   development line (that is what step 2 built from), and git refuses to
+   create it twice. One name, two objects — the release commit on GitLab, the
+   snapshot on GitHub — and one filtered tree, which `publish verify` proved
+   equal. `tests/test_publish_cli.py` runs the printed acts against a bare
+   remote and holds that the remote's `main` and tag land on the snapshot
+   while the local name stays on the history. GitHub's tag is LIGHTWEIGHT
+   (a ref, no tag object, no message — the annotated tags up to 1.8.0 were
+   cut on the orphan line by hand); the release notes are the CHANGELOG and
+   the GitHub Release, and `published_tags.json` records the commit either
+   way. In the same pass, on the development line, `tausik/published_tags.json`
+   is updated (see "Tags" below).
 4. External authorship survives: a contributor's commits land by merge or by a
    squash carrying their `Co-Authored-By` — otherwise the authorship is erased.
 
@@ -155,10 +166,17 @@ check that passes without reaching the remote asserts what it never measured.
 
 ### The publication step added in 1.9
 
-The release tag is cut on the public line **as part of the publication**, in the
-same pass as the publication commit, and `tausik/published_tags.json` is updated
-in that same commit. Otherwise the next name diverges exactly as the previous
-eight did — not through malice, but because nobody remembered.
+From 1.9 the two objects behind one name are the MODEL, not an accident
+(decision #368): the name on the development line names the release commit
+with its history, the name on GitHub names the snapshot of that commit's
+filtered tree, and the trees agree under the filter by `publish verify`. What
+was an unexplained divergence in the eight rows above is a stated relation
+from `v1.9.0` on. `tausik/published_tags.json` is updated on the development
+line **in the same pass as the push**, as the commit right after it: the
+snapshot cannot carry its own sha, so the copy of that file inside the snapshot
+is by construction one release behind — a consumer's clone has no remote named
+`github`, and the promise check skips there with its reason rather than
+asserting a comparison it never made.
 
 ## See also
 

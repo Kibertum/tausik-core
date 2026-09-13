@@ -38,22 +38,46 @@ _CHANGELOGS = {
 }
 _BREAKING_HEADING = {"ru": "## ЛОМАЮЩИЕ ИЗМЕНЕНИЯ", "en": "## BREAKING CHANGES"}
 _BREAKING_ENTRY = {"ru": re.compile(r"^### ЛОМАЮЩЕЕ\b"), "en": re.compile(r"^### BREAKING\b")}
-# The sentence on each page that states the Unreleased entry count.
+# The sentence on each page that states the 1.9 section's entry count.
 _ENTRY_FIGURE = {
-    "ru": re.compile(r"в разделе Unreleased (\d+) записи"),
-    "en": re.compile(r"the Unreleased section holds (\d+) entries"),
+    "ru": re.compile(r"в разделе 1\.9 CHANGELOG (\d+) записей"),
+    "en": re.compile(r"the 1\.9 section of the CHANGELOG holds (\d+) entries"),
 }
+_RELEASE_HEADING = "## [1.9.0]"
+_UNRELEASED_HEADING = "## [Unreleased]"
 
 
-def _unreleased(lang: str) -> list[str]:
-    """The `### ` headings of the Unreleased section, in order."""
-    lines = _CHANGELOGS[lang].read_text(encoding="utf-8").splitlines()
-    start = next(i for i, ln in enumerate(lines) if ln.startswith("## [Unreleased]"))
+def _section(lines: list[str], heading: str) -> list[str] | None:
+    """The `### ` headings under `heading`, or None when the section is absent."""
+    start = next((i for i, ln in enumerate(lines) if ln.startswith(heading)), None)
+    if start is None:
+        return None
     end = next(
         (i for i in range(start + 1, len(lines)) if lines[i].startswith("## [")),
         len(lines),
     )
     return [ln for ln in lines[start:end] if ln.startswith("### ")]
+
+
+def _section_for_1_9(lines: list[str]) -> list[str]:
+    """The 1.9 entries: `## [1.9.0]` once the CHANGELOG is cut, `## [Unreleased]` before.
+
+    The 1.8.0 cut (aa10f3b4) left `## [Unreleased]` with "Nothing yet." above
+    `## [1.8.0]`; the same cut for 1.9 empties the section these tests read,
+    and a reader of Unreleased alone goes red on the release commit itself
+    (task the-1-9-notes-tests-read-only-unreleased-so-the-re).
+    """
+    released = _section(lines, _RELEASE_HEADING)
+    if released is not None:
+        return released
+    unreleased = _section(lines, _UNRELEASED_HEADING)
+    assert unreleased is not None, "neither [1.9.0] nor [Unreleased] is in the CHANGELOG"
+    return unreleased
+
+
+def _unreleased(lang: str) -> list[str]:
+    """The `### ` headings of the 1.9 section, in order (name kept for the callers)."""
+    return _section_for_1_9(_CHANGELOGS[lang].read_text(encoding="utf-8").splitlines())
 
 
 class TestThePagesExistInBothLanguagesAtOnce:
@@ -294,3 +318,46 @@ class TestTheSchemaFigureIsCounted:
         assert word, f"add the word for {n} to _WORDS — the count moved past the table"
         text = _PAGES[lang].read_text(encoding="utf-8")
         assert word in text, f"{lang}: {n} migrations, but the page does not say {word!r}"
+
+
+class TestTheReaderSurvivesTheReleaseCut:
+    """The cut `[Unreleased]` -> `[1.9.0]` is the release commit; the tests must not go red on it."""
+
+    _BEFORE = [
+        "# Changelog",
+        "## [Unreleased]",
+        "### Fixed — one",
+        "### Added — two",
+        "## [1.8.0] — 2026-08-03",
+        "### Fixed — old",
+    ]
+    _AFTER = [
+        "# Changelog",
+        "## [Unreleased]",
+        "Nothing yet.",
+        "## [1.9.0] — 2026-09-14",
+        "### Fixed — one",
+        "### Added — two",
+        "## [1.8.0] — 2026-08-03",
+        "### Fixed — old",
+    ]
+
+    @pytest.mark.parametrize("shape", ["before", "after"])
+    def test_the_same_entries_are_read_on_both_sides_of_the_cut(self, shape):
+        lines = self._BEFORE if shape == "before" else self._AFTER
+        assert _section_for_1_9(lines) == ["### Fixed — one", "### Added — two"]
+
+    def test_the_old_unreleased_only_reader_would_have_read_zero_after_the_cut(self):
+        """NEGATIVE: what the release commit would have produced under the old reader."""
+        assert _section(self._AFTER, _UNRELEASED_HEADING) == []
+        assert _section(self._BEFORE, _RELEASE_HEADING) is None
+
+    def test_the_live_changelogs_are_on_one_side_of_the_cut_in_both_languages(self):
+        sides = {
+            lang: _section(
+                _CHANGELOGS[lang].read_text(encoding="utf-8").splitlines(), _RELEASE_HEADING
+            )
+            is not None
+            for lang in _CHANGELOGS
+        }
+        assert len(set(sides.values())) == 1, f"one language is cut and the other is not: {sides}"

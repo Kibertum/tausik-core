@@ -9,6 +9,46 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the closure auditor called 908 committed tests never-existed
+
+Since GitLab #16 (46161e24) the citation extractor reads a pytest node id
+whole — `tests/x.py::TestA::test_b[en]` — and `audit_closure_evidence` still
+split it once and looked `TestA::test_b` up as ONE name of the module, then
+asked git for that string: nothing matched, and `tausik coherence` reported
+908 closure citations as naming tests git never had, against a declared
+remainder of 39 (872 were `Class::method`, 10 were parametrised ids); `task
+done` printed the same accusation on committed tests. The auditor now follows
+the chain link by link — `test_b` in the body of `TestA`, nested classes
+included, the `[param]` cut first — asks git about every missing link and
+gives the worst answer as the verdict, so a renamed class does not excuse an
+invented method under it; a bare `file::test_x` keeps the flat lookup it
+always had. The remainder in `tausik/gates.json` is re-measured at 99 rotted
+/ 36 never-existed and reconciled per citation against the 09-12 pair, which
+re-run today reproduces 87 / 39 exactly: the difference is the leaf the old
+extractor never read, and one journal (this task's) that quoted a wrong chain
+verbatim. `tests/test_audit_closure_evidence.py` reproduces the old lookup on
+the auditor itself. Task `the-closure-auditor-reads-class-method-and-param-c`.
+
+### Fixed — the printed release acts could not be executed in the order written
+
+`tausik publish snapshot` told the owner, after building the snapshot
+`--from v1.9.0`, to run `git tag -a v1.9.0 <snapshot>` — and git refuses that
+with "already exists", because the name already stands on the release commit
+of the development line, which is exactly what the snapshot was built from.
+The 1.8.0 precedent shows the model that works and nothing stated it: one
+NAME, two objects (`v1.8.0` = 3866702f on the history, 623fb4ee on GitHub).
+The banner now prints `git push github <sha>:refs/tags/<tag>` — a refspec
+push, the tag name read from `--from` (the name itself, or the single tag
+pointing at the resolved commit; a placeholder when two do) — and says that
+GitHub's tag is lightweight. `tests/test_publish_cli.py` reproduces the git
+refusal, then runs the printed acts verbatim against a bare remote: `main` and
+the tag land on the snapshot, the local name stays on the history.
+`docs/{en,ru}/publishing.md` step 3 and "the publication step added in 1.9"
+restated the same way, including that `published_tags.json` is updated on the
+development line as the commit after the push, so the snapshot's copy is one
+release behind by construction. Task
+`the-printed-release-acts-collide-with-the-dev-line`.
+
 ### Added — a quickstart written for the agent, held to the code
 
 `docs/{en,ru}/agent-quickstart.md`: the human quickstart began with "install

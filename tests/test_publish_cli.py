@@ -150,3 +150,86 @@ class TestTheHappyPathReportsAndWritesNoRef:
         assert _git(root, "rev-parse", "HEAD").stdout.strip() != commit, "no ref moved"
         code2, out2 = _run(root, _ns(publish_cmd="verify", snapshot=commit, source="HEAD"))
         assert code2 == 0 and out2.startswith("OK")
+
+
+def _printed_acts(out: str) -> list[str]:
+    """The `git …` lines under the banner, or a loud failure — never an empty list."""
+    assert "Next (" in out, out
+    return [ln.strip() for ln in out.split("Next (")[1].splitlines() if ln.startswith("  git ")]
+
+
+class TestTheTagActIsARefspecPushNotASecondLocalTag:
+    """The finding of session #257, reproduced before it is fixed.
+
+    The procedure builds the snapshot `--from v<version>` — a tag that already
+    names the release commit on the development line — and the first cut then
+    told the owner to `git tag -a v<version> <snapshot>`: git refuses, the name
+    exists. The 1.8.0 precedent shows the model that works: one NAME, two
+    objects (history on GitLab, snapshot on GitHub), reached by a refspec push.
+    """
+
+    def _snapshot_from_tag(self, root, head):
+        _git(root, "tag", "-a", "v1.0.0", "-m", "release", "HEAD")
+        code, out = _run(root, _ns(source="v1.0.0", parent=head))
+        assert code == 0, out
+        line = next(ln for ln in out.splitlines() if "snapshot commit:" in ln)
+        return line.split()[-1], out
+
+    def test_a_second_local_tag_of_the_same_name_is_what_git_refuses(self, repo):
+        """NEGATIVE: the instruction the first cut printed cannot be executed."""
+        root, head = repo
+        commit, _ = self._snapshot_from_tag(root, head)
+        r = _git(root, "tag", "-a", "v1.0.0", commit, "-m", "public")
+        assert r.returncode != 0 and "already exists" in r.stderr, r.stderr
+
+    def test_the_printed_acts_carry_the_tag_name_and_no_git_tag_a(self, repo):
+        root, head = repo
+        commit, out = self._snapshot_from_tag(root, head)
+        assert f"git push github {commit}:refs/tags/v1.0.0" in out, out
+        acts = _printed_acts(out)
+        assert len(acts) == 2, acts
+        assert not any(a.startswith("git tag") for a in acts), acts
+        assert "LIGHTWEIGHT" in out, "the trade-off (no tag object) is stated where it is read"
+
+    def test_the_printed_acts_executed_against_a_bare_remote_land_the_snapshot(
+        self, repo, tmp_path
+    ):
+        """Run exactly what was printed; the remote ends with main and the tag on the snapshot."""
+        root, head = repo
+        commit, out = self._snapshot_from_tag(root, head)
+        bare = tmp_path / "github.git"
+        assert _git(tmp_path, "init", "--bare", str(bare)).returncode == 0
+        _git(root, "remote", "add", "github", str(bare))
+        acts = _printed_acts(out)
+        assert len(acts) == 2, acts
+        for act in acts:
+            r = _git(root, *act.split()[1:])
+            assert r.returncode == 0, (act, r.stderr)
+        remote = dict(
+            reversed(ln.split("\t")) for ln in _git(root, "ls-remote", "github").stdout.splitlines()
+        )
+        assert remote["refs/heads/main"] == commit
+        assert remote["refs/tags/v1.0.0"] == commit
+        # The local name still names the release commit on the development line.
+        local_tag = _git(root, "rev-parse", "v1.0.0^{commit}").stdout.strip()
+        assert local_tag == _git(root, "rev-parse", "HEAD").stdout.strip() != commit
+
+    def test_a_source_that_is_not_a_tag_prints_a_placeholder(self, repo):
+        root, head = repo
+        code, out = _run(root, _ns(source="HEAD", parent=head))
+        assert code == 0 and ":refs/tags/v<version>" in out
+
+    def test_a_sha_that_one_tag_points_at_carries_that_name(self, repo):
+        """`--from <sha>` copied from CI still prints the real tag, not the placeholder."""
+        root, head = repo
+        _git(root, "tag", "-a", "v1.0.0", "-m", "release", "HEAD")
+        sha = _git(root, "rev-parse", "HEAD").stdout.strip()
+        code, out = _run(root, _ns(source=sha, parent=head))
+        assert code == 0 and ":refs/tags/v1.0.0" in out, out
+
+    def test_two_tags_on_the_commit_is_an_ambiguity_not_a_guess(self, repo):
+        root, head = repo
+        _git(root, "tag", "v1.0.0", "HEAD")
+        _git(root, "tag", "v1.0.1", "HEAD")
+        code, out = _run(root, _ns(source="HEAD", parent=head))
+        assert code == 0 and ":refs/tags/v<version>" in out, out
