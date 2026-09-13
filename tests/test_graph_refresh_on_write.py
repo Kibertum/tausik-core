@@ -164,19 +164,48 @@ class TestTheCostIsNamedAndGuarded:
     """AC3. A hook that slows every write gets switched off, and then the
     framework ships a stale index with the box ticked — the worst outcome."""
 
+    @staticmethod
+    def _commit_floor_ms(tmp_path) -> float:
+        """What ONE committed SQLite write costs on this disk — the environment's
+        floor. On WSL2 an fsync costs tens of milliseconds and a refresh measured
+        44.7 ms against a 10 ms bar (session #260): the disk, not a regression."""
+        db = str(tmp_path / "floor.db")
+        with sqlite3.connect(db) as conn:
+            conn.execute("CREATE TABLE t (x)")
+        started = time.perf_counter()
+        for i in range(10):
+            with sqlite3.connect(db) as conn:
+                conn.execute("INSERT INTO t VALUES (?)", (i,))
+        return (time.perf_counter() - started) * 100
+
     def test_one_refresh_stays_in_single_digit_milliseconds(self, tmp_path):
         root = _project(tmp_path)
         target = root / "app" / "orders.py"
         graph_refresh.refresh_one(str(root), str(target))  # warm the imports
+        floor = self._commit_floor_ms(tmp_path)
 
         started = time.perf_counter()
         for _ in range(10):
             graph_refresh.refresh_one(str(root), str(target))
         each = (time.perf_counter() - started) * 100
-        assert each < 10.0, (
-            f"{each:.1f} ms per refresh. Measured at 0.47 ms of work; a tenfold "
-            "threshold catches an order-of-magnitude regression, not noise"
+        bar = max(10.0, 20 * floor)
+        assert each < bar, (
+            f"{each:.1f} ms per refresh against a bar of {bar:.1f} ms (10 ms, or 20× this "
+            f"disk's {floor:.2f} ms commit floor). Measured at 0.47 ms of work on a fast "
+            "disk; the bar catches an order-of-magnitude regression, not the disk"
         )
+
+    def test_a_tenfold_regression_is_still_caught(self, tmp_path, monkeypatch):
+        """NEGATIVE: the floor-relative bar is not a blank cheque."""
+        floor = self._commit_floor_ms(tmp_path)
+        bar = max(10.0, 20 * floor)
+        slow = bar * 10 / 1000  # seconds per call — ten times the bar
+        monkeypatch.setattr(graph_refresh, "refresh_one", lambda *a, **k: time.sleep(slow))
+        started = time.perf_counter()
+        for _ in range(3):
+            graph_refresh.refresh_one("x", "y")
+        each = (time.perf_counter() - started) * 1000 / 3
+        assert each >= bar, "the mocked regression must exceed the bar, or the test proves nothing"
 
     def test_it_does_not_go_through_the_backend(self):
         """Going through `SQLiteBackend` put the hook at 301 ms against 68 ms:

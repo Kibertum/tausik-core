@@ -30,7 +30,6 @@ import pytest
 
 from conftest import DORMANT_ON_PUBLIC_SNAPSHOT, IS_PUBLIC_SNAPSHOT  # noqa: E402
 
-pytestmark = pytest.mark.skipif(IS_PUBLIC_SNAPSHOT, reason=DORMANT_ON_PUBLIC_SNAPSHOT)
 
 # The CI lane definitions this file reads. Declared so the scoped-pytest gate
 # runs these checks when a workflow changes — which is exactly when a lane can
@@ -45,7 +44,13 @@ CROSSCUTTING_SCOPE = [
 _ROOT = Path(__file__).resolve().parents[1]
 _WORKFLOW = _ROOT / ".github" / "workflows" / "tests.yml"
 
-pytestmark = pytest.mark.slow  # spawns pytest --collect-only subprocesses
+# ONE assignment: a second `pytestmark =` further down silently replaced the
+# dormancy mark, and the built snapshot ran these against a .gitlab-ci.yml it
+# does not carry (session #260).
+pytestmark = [
+    pytest.mark.slow,  # spawns pytest --collect-only subprocesses
+    pytest.mark.skipif(IS_PUBLIC_SNAPSHOT, reason=DORMANT_ON_PUBLIC_SNAPSHOT),
+]
 
 
 def _collect_count(marker_expr: str | None) -> int:

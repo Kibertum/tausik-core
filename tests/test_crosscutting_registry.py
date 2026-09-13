@@ -52,11 +52,21 @@ _SCRIPTS = os.path.join(_ROOT, "scripts")
 if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
 
+from conftest import IS_PUBLIC_SNAPSHOT  # noqa: E402
 from gate_test_resolver import (  # noqa: E402
     deferred_global_crosscutting_for_relevant,
     read_crosscutting_scope,
     resolve_test_files_for_relevant,
 )
+from publication_snapshot import is_excluded  # noqa: E402
+
+
+def _dormant_here(prefix: str) -> bool:
+    """On the public snapshot a prefix the filter leaves behind is not rot —
+    its test is dormant there (decision #368), and the registry says so instead
+    of reporting a dead binding for a file the snapshot never carried."""
+    return IS_PUBLIC_SNAPSHOT and is_excluded(prefix.replace(os.sep, "/"))
+
 
 # A test iterates a source tree if it walks/globs (ITER) a repo-root-anchored
 # (ANCHOR) path that names a source directory (SRC). Conservative by design: the
@@ -201,10 +211,21 @@ def _invisible_to_every_edge() -> set[str]:
     # Whole-tree declarations are not evidence from an ordinary scoped receipt,
     # but are explicit full/release-lane obligations, not invisible tests.
     selectable |= {
-        os.path.basename(p)
-        for p in deferred_global_crosscutting_for_relevant(sources, root=_ROOT)
+        os.path.basename(p) for p in deferred_global_crosscutting_for_relevant(sources, root=_ROOT)
     }
-    return {fn for fn in _test_files() if fn not in selectable}
+    invisible = {fn for fn in _test_files() if fn not in selectable}
+    if IS_PUBLIC_SNAPSHOT:
+        # A test whose whole declared scope stayed on the development line is
+        # dormant here, not invisible: nothing it guards is in this checkout.
+        invisible = {
+            fn
+            for fn in invisible
+            if not (
+                (scope := read_crosscutting_scope(os.path.join(_TESTS, fn)))
+                and all(_dormant_here(p) for p in scope)
+            )
+        }
+    return invisible
 
 
 def _iterates_source_tree(text: str) -> bool:
@@ -260,6 +281,8 @@ class TestDeclaredScopesDoNotRot:
             if not scope:
                 continue
             for prefix in scope:
+                if _dormant_here(prefix):
+                    continue
                 if not os.path.exists(
                     os.path.join(_ROOT, prefix.replace("/", os.sep).rstrip(os.sep))
                 ):

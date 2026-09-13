@@ -288,9 +288,16 @@ class TestProjectScopedEntries:
         monkeypatch.delenv("TAUSIK_MANAGED_CONFIG", raising=False)
 
     def test_entry_applies_to_its_project_however_the_path_is_spelled(self, tmp_path, monkeypatch):
+        """The spellings `normcase` equates ON THIS PLATFORM: separators and a
+        trailing slash everywhere, letter case only where the filesystem folds
+        it. The first cut uppercased the whole path and was red on the Linux
+        cell of the matrix — there `/HOME/X` is another directory, and the
+        entry rightly did not apply (session #260)."""
         project = tmp_path / "vaflower"
         project.mkdir()
-        spelled = str(project).replace(os.sep, "/").upper()
+        spelled = str(project).replace(os.sep, "/") + "/"
+        if os.path.normcase("A") == "a":  # a case-folding platform
+            spelled = spelled.upper()
         self._user_tier(
             tmp_path, monkeypatch, {"projects": {spelled: {"task_done": {"auto_verify": True}}}}
         )
@@ -301,12 +308,32 @@ class TestProjectScopedEntries:
         assert cfg["task_done"]["auto_verify"] is True
         assert "projects" not in cfg
 
-    @pytest.mark.parametrize("other", ["another-project", None], ids=["other-project", "unknown-project"])
+    @pytest.mark.skipif(os.path.normcase("A") == "a", reason="a case-folding platform equates them")
+    def test_on_a_case_sensitive_platform_another_case_is_another_project(
+        self, tmp_path, monkeypatch
+    ):
+        """NEGATIVE: what the old test assumed everywhere is false here, and the
+        entry must NOT apply — that is a different directory."""
+        project = tmp_path / "vaflower"
+        project.mkdir()
+        self._user_tier(
+            tmp_path,
+            monkeypatch,
+            {"projects": {str(project).upper(): {"task_done": {"auto_verify": True}}}},
+        )
+        cfg, _ = ct.resolve({}, project_dir=str(project))
+        assert "task_done" not in cfg
+
+    @pytest.mark.parametrize(
+        "other", ["another-project", None], ids=["other-project", "unknown-project"]
+    )
     def test_entry_does_not_leak_to_another_or_unknown_project(self, tmp_path, monkeypatch, other):
         project = tmp_path / "vaflower"
         project.mkdir()
         self._user_tier(
-            tmp_path, monkeypatch, {"projects": {str(project): {"task_done": {"auto_verify": True}}}}
+            tmp_path,
+            monkeypatch,
+            {"projects": {str(project): {"task_done": {"auto_verify": True}}}},
         )
         target = str(tmp_path / other) if other else None
 
@@ -326,7 +353,9 @@ class TestProjectScopedEntries:
     def test_malformed_scoping_is_ignored_not_elevated(self, tmp_path, monkeypatch, layer, caplog):
         project = tmp_path / "vaflower"
         project.mkdir()
-        rendered = json.loads(json.dumps(layer).replace("{project}", str(project).replace("\\", "/")))
+        rendered = json.loads(
+            json.dumps(layer).replace("{project}", str(project).replace("\\", "/"))
+        )
         self._user_tier(tmp_path, monkeypatch, rendered)
 
         with caplog.at_level("WARNING", logger="config_trust"):
@@ -341,11 +370,17 @@ class TestProjectScopedEntries:
         project.mkdir()
         monkeypatch.setenv(
             "TAUSIK_USER_CONFIG",
-            _write(str(tmp_path / "user.json"), {"projects": {str(project): {"qg0": {"scope_hard_gate": False}}}}),
+            _write(
+                str(tmp_path / "user.json"),
+                {"projects": {str(project): {"qg0": {"scope_hard_gate": False}}}},
+            ),
         )
         monkeypatch.setenv(
             "TAUSIK_MANAGED_CONFIG",
-            _write(str(tmp_path / "managed.json"), {"projects": {str(project): {"qg0": {"scope_hard_gate": True}}}}),
+            _write(
+                str(tmp_path / "managed.json"),
+                {"projects": {str(project): {"qg0": {"scope_hard_gate": True}}}},
+            ),
         )
 
         assert ct.load_trusted_layers(str(project))["qg0"]["scope_hard_gate"] is True
