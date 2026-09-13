@@ -1,3 +1,5 @@
+**English** | [Русский](../ru/model-providers.md)
+
 # Model Providers
 
 TAUSIK is model-agnostic. Skills work with any LLM that supports tool use.

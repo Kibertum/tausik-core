@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 
@@ -42,6 +43,7 @@ for _p in (os.path.join(_REPO, "scripts"), os.path.join(_REPO, "scripts", "hooks
 
 import argument_data as ad  # noqa: E402
 import bash_write_parse as bwp  # noqa: E402
+from conftest import canonical_ddl  # noqa: E402
 
 CROSSCUTTING_SCOPE = ["scripts/hooks/"]
 
@@ -74,7 +76,33 @@ IS_A_WRITE = (
 )
 
 
-def _hook_blocks(command: str) -> bool:
+@pytest.fixture(scope="module")
+def hook_project(tmp_path_factory):
+    """A project of the test's OWN: `.tausik/tausik.db` with one closed task
+    and nothing active, so Rule 1 is the verdict on any in-tree write.
+
+    The first version ran the hook against THIS repository — and the verdict
+    then depended on the machine: a CI clone after `bootstrap --no-detect` has
+    no database, so the hook allowed everything and twelve "still blocks" cases
+    went red on the runner (session #251); on a developer machine an active
+    task without `scope_paths` would have flipped them the same way. A test
+    about the hook must not read somebody else's project state.
+    """
+    root = tmp_path_factory.mktemp("prose_hook_project")
+    tausik = root / ".tausik"
+    tausik.mkdir()
+    conn = sqlite3.connect(str(tausik / "tausik.db"))
+    conn.execute(canonical_ddl("tasks"))
+    conn.execute(
+        "INSERT INTO tasks (slug, title, status, created_at, updated_at) "
+        "VALUES ('closed', 'closed', 'done', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')"
+    )
+    conn.commit()
+    conn.close()
+    return root
+
+
+def _hook_blocks(project_dir, command: str) -> bool:
     """Живой хук на настоящем вводе. Парсер может быть прав, а хук — нет."""
     payload = json.dumps(
         {"tool_name": "Bash", "session_id": "t", "tool_input": {"command": command}}
@@ -86,8 +114,13 @@ def _hook_blocks(command: str) -> bool:
         text=True,
         encoding="utf-8",
         errors="replace",
-        cwd=_REPO,
-        env={**os.environ, "PYTHONUTF8": "1", "CLAUDE_PROJECT_DIR": _REPO},
+        cwd=str(project_dir),
+        env={
+            **os.environ,
+            "PYTHONUTF8": "1",
+            "CLAUDE_PROJECT_DIR": str(project_dir),
+            "TAUSIK_SKIP_HOOKS": "",
+        },
         timeout=120,
     )
     return result.returncode != 0
@@ -106,8 +139,8 @@ class TestДанныеНеСтановятсяПеренаправлением:
         )
 
     @pytest.mark.parametrize("command", NOT_A_WRITE[:4])
-    def test_живой_хук_не_блокирует(self, command):
-        assert not _hook_blocks(command)
+    def test_живой_хук_не_блокирует(self, hook_project, command):
+        assert not _hook_blocks(hook_project, command)
 
 
 class TestДыраНеОткрыта:
@@ -124,8 +157,8 @@ class TestДыраНеОткрыта:
         assert "zzz.txt" in targets, f"настоящая запись перестала ловиться: {command!r}"
 
     @pytest.mark.parametrize("command", IS_A_WRITE)
-    def test_живой_хук_по_прежнему_блокирует(self, command):
-        assert _hook_blocks(command), f"хук пропустил настоящую запись: {command!r}"
+    def test_живой_хук_по_прежнему_блокирует(self, hook_project, command):
+        assert _hook_blocks(hook_project, command), f"хук пропустил настоящую запись: {command!r}"
 
     def test_одиночная_скобка_намеренно_не_освобождена(self):
         """`[` — обычная команда, и bash ДЕЙСТВИТЕЛЬНО читает `[ a > b ]` как

@@ -1,3 +1,5 @@
+**English** | [Русский](../ru/whats-new-1.9.md)
+
 # What changed in 1.9
 
 A page for whoever is upgrading. Before reading what breaks, it is worth knowing
@@ -33,7 +35,7 @@ because "everything here is instructions" is untrue too on a host without hooks:
 closing a task IS refused there.
 
 Full list of changes: [CHANGELOG.md](../../CHANGELOG.md). This page is not a
-retelling: the Unreleased section holds 235 entries (the figure is counted by
+retelling: the Unreleased section holds 241 entries (the figure is counted by
 `tests/test_release_notes_1_9.py`), and what is selected here is what changes
 the experience of UPGRADING.
 

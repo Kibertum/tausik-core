@@ -1,3 +1,5 @@
+**English** | [Русский](../ru/config-trust-tiers.md)
+
 # Configuration trust tiers
 
 Implementation: [`scripts/config_trust.py`](../../scripts/config_trust.py).

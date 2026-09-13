@@ -52,7 +52,13 @@ def live():
         pytest.skip("no project database in this checkout")
     svc = ProjectService(SQLiteBackend(db))
     try:
-        yield repo_coherence.collect(_ROOT, tasks=svc.be.task_list(limit=100000), service=svc)
+        tasks = svc.be.task_list(limit=100000)
+        if not tasks:
+            # A bootstrapped but empty database (a fresh clone, CI) is not
+            # this repository's record; the calibration below names defects
+            # that live in the bookkeeping, and an empty store has none to find.
+            pytest.skip("the project database holds no tasks — no record to calibrate against")
+        yield repo_coherence.collect(_ROOT, tasks=tasks, service=svc)
     finally:
         svc.be.close()
 

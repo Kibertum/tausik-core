@@ -115,4 +115,16 @@ def test_the_live_tree_counts_what_it_ships():
     """A floor, not an exact pin: these grow, and the point is that they are read."""
     assert count_roles(_REPO_ROOT) >= 6
     assert count_core_skills(_REPO_ROOT) >= 13
-    assert (count_official_skills(_REPO_ROOT) or 0) >= 20
+
+
+def test_the_official_registry_counts_when_it_is_here():
+    """`skills-official/` is a separate, gitignored repository: absent on every
+    clean clone, every CI runner included. The counter says None there, and
+    None means "the source is not here" — the module docstring above spells
+    that out. The first version of this floor read `(None or 0) >= 20` and
+    turned that answer into a failure on the GitLab lane for a week (session
+    #251). Absent is a skip with the reason; present is the floor."""
+    official = count_official_skills(_REPO_ROOT)
+    if official is None:
+        pytest.skip("skills-official/ is not checked out here — nothing to count")
+    assert official >= 20

@@ -1,3 +1,5 @@
+**English** | [Русский](../ru/sessions.md)
+
 # A "session" is TWO things
 
 Decision #223. The word "session" in TAUSIK fuses two concepts with different

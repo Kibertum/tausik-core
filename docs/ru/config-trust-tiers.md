@@ -1,3 +1,5 @@
+[English](../en/config-trust-tiers.md) | **Русский**
+
 # Трастовые тиры конфигурации
 
 Реализация: [`scripts/config_trust.py`](../../scripts/config_trust.py).

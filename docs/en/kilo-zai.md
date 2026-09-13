@@ -1,3 +1,5 @@
+**English** | [Русский](../ru/kilo-zai.md)
+
 # z.ai GLM under TAUSIK (Claude Code & Kilo)
 
 TAUSIK runs on **z.ai GLM** models under any Anthropic-compatible host. GLM is a

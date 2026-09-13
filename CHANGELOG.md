@@ -9,6 +9,115 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — every documentation link resolves on GitHub, not only on the site
+
+The language switcher on 65 pages of `docs/en` and `docs/ru` was written as a
+site route — `/ru/docs/quickstart`, `/docs/hooks` — for the VitePress site
+that has since moved to its own repository. On GitHub and in a checkout that
+was a dead link at the top of every page, and nothing said so: the full-tree
+link check was deferred in April and never arrived. Measured in session #251
+over 224 tracked Markdown files: 592 relative links, 116 unresolvable (73 of
+them switchers). The switchers are relative now (`../ru/<page>.md`), the 22
+paired pages that had no switcher got one, five research notes lost their
+last site routes, and `tests/test_docs_links_resolve.py` holds it: every
+relative link on the root pages and under `docs/` resolves, no site route
+remains, every page has its pair in the other language or is a declared
+singleton with its reason, and each pair's switcher points at the pair.
+CHANGELOG history and the research sinks are named as outside the check, on
+purpose.
+
+### Fixed — a test citation is read in the ecosystem's own form, not only `.py` (GitLab #16)
+
+`TEST_REF_RE` required `.py` in both of its branches, so a Rust project citing
+`src-tauri/src/commands/project_extras_tests.rs::name` — a file that existed,
+a test that was green — was refused on a `substantial` tier with "a path that
+does not resolve": untrue twice, since the path resolved and the FORM was what
+went unread, and it nudged agents toward Python-looking paths in a non-Python
+tree. The detector now reads one declared list of forms — a path under
+`tests/`, `test/`, `__tests__/` or `spec/`, or a file named as a test
+(`test_x.py`, `x_test.go`, `x_tests.rs`, `x.test.ts`, `x.spec.js`, `x_spec.rb`,
+`XTest.java`) anywhere in the project; the resolver accepts such a file beside
+the code even when the project has no `tests/` root, judged on the NORMALISED
+path so `tests/../src/x.py` stays a source file; a `::name` is checked in the
+language's idiom (`fn`, `func`, `def`, `it("…")`), the same floor Python's
+`def` sets. The refusal says which of two things went wrong — `CITED BUT FORM
+NOT RECOGNISED` or `CITED BUT NOT RESOLVED` — and the "requires test-ref
+evidence" note is no longer printed on a close accepted by a green
+`verification_run`.
+
+### Fixed — `verify` no longer prints a handle that `task done` is bound to refuse (GitLab #15)
+
+In a project without `tausik key init`, `verify --task` printed "Receipt: not
+emitted — no project key" and, two lines later, a verify handle with a
+ready-to-copy `task done … --verify-handle …` command; presenting it earned
+"verify run #N carries no receipt, so there is nothing to validate". The
+handle was minted on ENTITLEMENT — declared files, a gate that ran, exit 0 —
+with no regard to whether the receipt it stands for was ever signed. It is now
+minted only on a signed receipt; when the run was entitled and the receipt is
+missing, the report carries the reason (`no-key` / `error`) and the one shared
+renderer — CLI and `tausik_verify` alike — prints `Verify handle: none — no
+project key …` with the close command that works. A signing failure with a key
+present earns no handle either: the condition is "receipt signed", not "key
+exists".
+
+### Fixed — the slow lane was red at the tip and nobody had run it since the 7th
+
+`pytest -m ''` — the lane GitLab's `tests-full` job runs and the only one
+that reaches the slow-marked bootstrap and subprocess tests — carried 22
+failures at the tip of the branch, and the job had not executed since
+2026-09-07 because the fast job ahead of it was red. Fifteen were
+`test_caveman_wiring_integration.py` calling `bootstrap_ide(...,
+brain_enabled=False)`, a parameter that left with the Notion transport; the
+same file's rules-file map did not know Codex. Three were the skills-coverage
+suite waiting for a `brain` skill that no longer ships, or for the gitignored
+official registry. One asserted `_now_iso` is defined in two modules — it is
+defined in one now — and two calibrated against THIS repository's live
+database, which a bootstrapped clone has as an empty file. The tests now
+match the tree: no brain, Codex reads `AGENTS.md`, the registry-dependent
+check skips with the reason when the registry is absent, the premise
+parameter names a helper the tree still repeats, and the two live-database
+calibrations skip with the reason on a database that holds no record.
+Verified by the CI procedure on this machine (`--depth 50` clone,
+`bootstrap --no-detect --ide all`, `pytest -m ''`).
+
+### Fixed — a comma-joined `--relevant-files` value is refused instead of stored as one path (GitLab #13)
+
+`task update <slug> --relevant-files "a.py,b.py,c.py"` handed argparse one
+argument, stored it as one path and said "Task updated."; the refusal came
+later from `verify` as "No tests mapped for ['a.py,b.py,c.py']" — a project
+without tests, apparently, not a corrupted declaration — while the QG-2 scope
+was empty and every scoped gate ran over nothing. One validator
+(`relevant_files_input`) now stands on every path that writes the list: the
+service `task_update` (CLI update, `verify --relevant-files`) and the
+`task done` declaration (CLI and MCP, which write through the backend). An
+element that carries a comma and resolves to no file is refused before the
+write, naming the space-separated form; it is NOT split silently, because a
+comma is legal in a file name and an existing path that carries one is
+accepted as typed. A declared path that does not exist yet is a note, not a
+refusal. The `task update` help no longer says "JSON-list" for the input.
+
+### Fixed — three tests read the runner's environment instead of their own subject
+
+The development lane on GitLab had been red since 2026-09-07 for reasons that
+were not the code: `test_the_live_tree_counts_what_it_ships` turned the
+official-skill counter's `None` ("the registry is not checked out here" — the
+state of every clean clone) into `0 >= 20`; the RENAR manifest-chain test
+promised a skip on a shallow checkout and delivered it only when `git log` was
+empty, so `GIT_DEPTH=50` read a truncated history as a broken chain the moment
+fifty commits separated two manifest edits; and the "real redirection is still
+blocked" cases of `test_prose_arguments_are_not_redirections.py` ran the live
+`bash_write_gate` against THIS repository, whose verdict depends on the
+machine — a CI clone after `bootstrap --no-detect` has no database, so the
+hook allowed everything and twelve cases went red, while an active task
+without `scope_paths` would have flipped them the same way on a developer
+machine. Each now measures its own subject: the registry floor skips with the
+reason when the registry is absent and holds when present; the chain test
+skips with the reason only on a shallow clone whose horizon hides the
+predecessor and still fails on a dangling `replaces` in a full clone; the hook
+runs against a project the test builds itself. Verified by the CI procedure
+on this machine: a `--depth 50` clone, `bootstrap --no-detect --ide all`, the
+full lane.
+
 ### Fixed — the front page, the agent onboarding and the release notes name Codex as a host
 
 Both READMEs filed Codex under "Windsurf / Codex-style … Expected / manual",

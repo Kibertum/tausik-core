@@ -567,10 +567,35 @@ def test_the_committed_manifest_chain_resolves():
             continue
         old = yaml.safe_load(show.stdout) or {}
         seen.add((int(old.get("manifest-version", 0)), str(old.get("manifest-id"))))
+    if prev_id not in {mid for _v, mid in seen} and _is_shallow(root):
+        # The docstring promised a skip on a shallow checkout and delivered it
+        # only when `git log` was EMPTY. With GIT_DEPTH=50 the previous version
+        # sits past the horizon as soon as fifty commits separate two manifest
+        # edits — true on the GitLab lane in session #251 — and the guard read
+        # a truncated history as a broken chain. A shallow clone that cannot
+        # see the predecessor has not measured anything; say so. Keyed on the
+        # ID, not the (version, id) pair: an id that IS visible under another
+        # version is the same-day reuse defect this file exists to catch, and a
+        # truncated history is no excuse for it (review, session #251).
+        pytest.skip(f"shallow checkout: {link} is past the clone horizon (known: {sorted(seen)})")
     assert (int(prev_v), prev_id) in seen, (
         f"replaces names {link}, but git holds no manifest with that id and version; "
         f"known: {sorted(seen)}"
     )
+
+
+def _is_shallow(root: str) -> bool:
+    import subprocess
+
+    r = subprocess.run(
+        ["git", "rev-parse", "--is-shallow-repository"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    return r.returncode == 0 and r.stdout.strip() == "true"
 
 
 def test_the_committed_history_never_reuses_a_version_number():

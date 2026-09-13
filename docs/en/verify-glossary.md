@@ -1,4 +1,4 @@
-**English** | [Русский](/ru/docs/verify-glossary)
+**English** | [Русский](../ru/verify-glossary.md)
 
 # Verify / QG terminology — glossary
 

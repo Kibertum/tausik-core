@@ -1,3 +1,5 @@
+**English** | [Русский](../ru/environment.md)
+
 # Environment Variables and Shell Rules
 
 > Two scopes in this doc:

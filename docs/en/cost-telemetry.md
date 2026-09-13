@@ -1,3 +1,5 @@
+**English** | [Русский](../ru/cost-telemetry.md)
+
 # Cost Telemetry — Per-Task Token Attribution
 
 TAUSIK records LLM usage in two places that work together:

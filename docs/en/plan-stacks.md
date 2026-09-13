@@ -1,3 +1,5 @@
+**English** | [Русский](../ru/plan-stacks.md)
+
 # Stack Detection Tables
 
 Used by /plan skill to auto-detect project stacks. Each row maps a detection

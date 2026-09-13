@@ -249,6 +249,22 @@ def handle_lines(report: dict[str, Any], task_slug: str) -> list[str]:
     if not handle:
         # Silence here would read as "handles are off". The run that earns no
         # handle is exactly the run whose green certifies nothing.
+        reason = report.get("no_handle_reason")
+        if reason:
+            from verify_receipt_emit import STATUS_NO_KEY
+
+            # GitLab #15: the run WAS presentable; the receipt is what is
+            # missing. Say that, and give the command that will work — never a
+            # handle `task done` is bound to refuse.
+            why = (
+                "no project key, so no signed receipt (`tausik key init` enables them)"
+                if reason == STATUS_NO_KEY
+                else "the receipt could not be signed (see .tausik/tausik.log, `tausik key show`)"
+            )
+            return [
+                f"Verify handle: none — {why}. Close without --verify-handle: "
+                f"`{_CLI} task done {task_slug} --ac-verified` uses the freshness lookup."
+            ]
         return [
             "Verify handle: none — this run is not presentable (no declared "
             "files, all gates skipped, or a security-sensitive scope). "

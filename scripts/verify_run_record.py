@@ -162,7 +162,7 @@ def record_run(
         )
     conn.commit()
     if task_slug and gate_results is not None:
-        from verify_receipt_emit import emit_signed_receipt
+        from verify_receipt_emit import STATUS_SIGNED, emit_signed_receipt
 
         files, gate_signature, entitled = describe_run_command(command)
         entitled = entitled and exit_code == 0 and bool(files) and allow_handle
@@ -170,7 +170,7 @@ def record_run(
         # SIGNED. A durability policy stapled on afterwards could be edited
         # afterwards; inside the signature it cannot (SEP-2567).
         expires_at = _handle_expiry(conn, run_id) if entitled else None
-        emit_signed_receipt(
+        receipt_status, _fp = emit_signed_receipt(
             conn,
             run_id,
             task_slug=task_slug,
@@ -189,8 +189,15 @@ def record_run(
             undeclared_files=undeclared,
             undeclared_count=undeclared_count,
         )
-        if entitled and expires_at:
+        # GitLab #15: a handle is a claim on a SIGNED receipt — `task done`
+        # refuses one whose run carries none. Minting on entitlement alone
+        # printed a ready-to-copy command in a keyless project and that
+        # command was guaranteed to fail. The reason travels with the absence
+        # so the renderer can say why instead of listing three other causes.
+        if entitled and expires_at and receipt_status == STATUS_SIGNED:
             _mint(conn, run_id, expires_at=expires_at, handle_out=handle_out)
+        elif entitled and handle_out is not None:
+            handle_out["no_handle_reason"] = receipt_status if expires_at else "expiry-unavailable"
     return run_id
 
 
@@ -269,6 +276,8 @@ def _mint(
         logging.getLogger("tausik.gates").warning(
             "could not mint a verify handle for run #%s", run_id, exc_info=True
         )
+        if handle_out is not None:
+            handle_out["no_handle_reason"] = "mint-failed"
         return
     if handle_out is not None:
         handle_out["handle"] = handle
@@ -433,6 +442,8 @@ def _record_verification(
             if handle_out.get("handle"):
                 details["verify_handle"] = handle_out["handle"]
                 details["handle_expires_at"] = handle_out["expires_at"]
+            elif handle_out.get("no_handle_reason"):
+                details["no_handle_reason"] = handle_out["no_handle_reason"]
         return run_id
     raise AssertionError("unreachable")  # pragma: no cover — loop returns or raises
 

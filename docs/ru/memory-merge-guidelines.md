@@ -1,4 +1,4 @@
-**Русский** | [English](/docs/memory-merge-guidelines)
+**Русский** | [English](../en/memory-merge-guidelines.md)
 
 # Память: merge или новая запись
 

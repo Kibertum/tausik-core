@@ -18,6 +18,7 @@ RU mirror: [`../ru/publishing.md`](../ru/publishing.md).
 |---|---|---|
 | `origin` — GitLab | The development line | The full history: branches, waves, the project's own accounting. Every push goes here and every push builds CI (fast lane in stage `test`, full lane in `test-full`). |
 | `github` — GitHub | The release mirror | Releases only, as FLATTENED snapshots. Measured in #189: 16 commits against 405 on `origin/main`. The two lines share no history — `git merge-base` is empty and the roots differ. |
+| `tausik/site` — GitLab | The tausik.tech site | A separate repository (VitePress, build, nginx, the site's own CI). Neither core nor the public line carries a trace of it — measured over both trees in session #255 at zero, and `tests/test_site_lives_elsewhere.py` holds the zero (decision #368). A link to tausik.tech in the README is a pointer to the site, not a trace of it. |
 
 One practical rule follows, worth remembering verbatim: **`git push github
 v1-9-wave` is not a synchronisation — it carries 431 commits of the private

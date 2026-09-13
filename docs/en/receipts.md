@@ -1,3 +1,5 @@
+**English** | [Русский](../ru/receipts.md)
+
 # Signed verification receipts
 
 When `tausik verify` finishes, it writes a small, **ed25519-signed** record of
@@ -238,6 +240,16 @@ Every clause refuses; none passes silently:
 | the receipt's `files_hash` diverged from the run row | document and record describe different file sets |
 | the gate signature diverged from the row or from the live config | the receipt certifies a gate set that is no longer the one |
 | git sees a security file changed that the receipt does NOT name | gates scoped by the receipt's list never looked at that file |
+
+**And `verify` never hands out what this table would refuse.** A handle is
+minted only when the receipt it stands for was SIGNED (GitLab #15). Two distinct
+lines replace the ready-to-copy `--verify-handle` command that `task done` was
+bound to refuse: in a keyless project, "Verify handle: none — no project key,
+so no signed receipt (tausik key init enables them)"; when a key is present
+but signing failed, "Verify handle: none — the receipt could not be signed (see
+.tausik/tausik.log, tausik key show)". Both end with the close command that
+works — `task done <slug> --ac-verified`, the freshness lookup. The same
+renderer serves the CLI and `tausik_verify`.
 
 One divergence deliberately does NOT block: if git sees changes outside the
 receipt's scope but none of them is security-sensitive, the handle is honoured

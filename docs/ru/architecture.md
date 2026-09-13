@@ -1,4 +1,4 @@
-[English](/docs/architecture) | **Русский**
+[English](../en/architecture.md) | **Русский**
 
 # Архитектура TAUSIK
 

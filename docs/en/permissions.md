@@ -1,3 +1,5 @@
+**English** | [Русский](../ru/permissions.md)
+
 # Permission Strategies
 
 ## Permission File Location

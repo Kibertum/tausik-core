@@ -1,4 +1,4 @@
-**English** | [Русский](/ru/docs/skills)
+**English** | [Русский](../ru/skills.md)
 
 # Skills (v1.4)
 

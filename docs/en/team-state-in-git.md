@@ -1,3 +1,5 @@
+**English** | [Русский](../ru/team-state-in-git.md)
+
 # TAUSIK state in git — contract (team-state-in-git)
 
 > Format spec for the git-native projection of project state. Depended on by

@@ -185,7 +185,10 @@ class TestИмяИзНесколькихМодулейНеСчитаетсяМё
         "name",
         [
             pytest.param("_cmd_list", id="two_modules"),
-            pytest.param("_now_iso", id="two_modules_helper"),
+            # `_now_iso` stood here until the Notion removal left it in one
+            # module (session #253); the premise is re-checked by the first
+            # assert, so the name must be one the live tree still repeats.
+            pytest.param("_load_config_safe", id="three_modules_helper"),
             pytest.param("_LABEL", id="five_modules"),
             pytest.param("_validate_gates", id="two_modules_validator"),
         ],

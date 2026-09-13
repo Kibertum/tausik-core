@@ -1,4 +1,4 @@
-**English** | [Русский](/ru/docs/memory-merge-guidelines)
+**English** | [Русский](../ru/memory-merge-guidelines.md)
 
 # Memory: merge vs new entry
 

@@ -1,3 +1,5 @@
+**English** | [Русский](../ru/skill-spec.md)
+
 # Skill Specification
 
 Formal contract for SKILL.md files in the TAUSIK framework.

@@ -1,3 +1,5 @@
+**English** | [Русский](../ru/whats-new-1.8.md)
+
 # What changed in 1.8
 
 For anyone upgrading. But before reading what breaks, it is worth knowing what

@@ -1,3 +1,5 @@
+**English** | [Русский](../ru/plan-review.md)
+
 # Engineering Review Protocol
 
 Used by /plan skill for pre-planning engineering review.

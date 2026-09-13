@@ -69,10 +69,27 @@ def _test_ref_exists(ref: str, root: str | None = None) -> bool:
         return False
     base = os.path.abspath(_project_root(root))
     roots = [os.path.abspath(r) for r in test_roots(base)]
+    # GitLab #16: a Rust/Go/TS project keeps tests beside the code and may have
+    # no `tests/` root at all; a file NAMED as a test by its ecosystem
+    # (`x_tests.rs`, `x_test.go`, `x.test.ts`, …) that exists inside the
+    # project counts — the naming convention is the test-root equivalent there.
+    # The traversal rule still holds: the file must lie inside the project.
+    candidate = os.path.normpath(os.path.join(base, path))
+    # Judged on the NORMALISED path relative to the project, never on the
+    # citation as typed: `tests/../scripts/impl.py` is spelled with a test
+    # directory in it and normalises to a source file — the traversal this
+    # predicate closed once already must stay closed. Scoped the way root
+    # discovery is: a `tests/` inside node_modules, a venv or an IDE profile is
+    # not this project's (review, session #254). And a file that is merely
+    # NAMED as a test, cited without a `::name`, must carry a test marker —
+    # existence alone was the cheap citation this predicate exists to price.
+    if os.path.isfile(candidate) and _inside(candidate, base):
+        rel = os.path.relpath(candidate, base)
+        if _named_as_a_test(rel) and not _in_a_skipped_dir(rel) and _carries_a_test(candidate, ref):
+            return _named_test_defined(candidate, ref)
     if not roots:
         return False  # корней нет → цитату не с чем сверить → fail-closed
 
-    candidate = os.path.normpath(os.path.join(base, path))
     if not os.path.isfile(candidate):
         # `test_foo.py` written without its directory — resolved ONLY внутри
         # корней с тестами, никогда как свободное имя где угодно в дереве.
@@ -96,6 +113,50 @@ def _test_ref_exists(ref: str, root: str | None = None) -> bool:
     if not any(_inside(candidate, r) for r in roots):
         return False
     return _named_test_defined(candidate, ref)
+
+
+def _in_a_skipped_dir(rel: str) -> bool:
+    """A path segment root discovery would not enter (vendored, venv, IDE)."""
+    from gate_test_resolver import _discovery_skip
+
+    parts = rel.replace("\\", "/").split("/")[:-1]
+    return any(p in _discovery_skip() for p in parts)
+
+
+#: What a test file of each ecosystem declares at least once. Read only when
+#: the citation names no `::name` — then this is the whole content check.
+_TEST_MARKER_RE = re.compile(
+    r"(?:^\s*#\[test\]|^\s*#\[tokio::test\]"  # Rust
+    r"|^\s*func\s+Test\w*\s*\("  # Go
+    r"|^\s*(?:async\s+)?def\s+test_\w*\s*\("  # Python
+    r"|\b(?:it|test|describe)\s*\(\s*[\"'`]"  # JS/TS
+    r"|^\s*@Test\b"  # Java/Kotlin
+    r"|^\s*(?:RSpec\.)?describe\b|^\s*it\s+[\"']"  # Ruby
+    r"|^\s*\[(?:Test|Fact|Theory)\]|^\s*@testable|^\s*test\s*\(\s*[\"'])",  # C#/Swift/Dart
+    re.MULTILINE,
+)
+
+
+def _carries_a_test(path: str, ref: str) -> bool:
+    """With a `::name` the name check below is the content check; without one
+    the file must declare at least one test in its ecosystem's idiom."""
+    if "::" in ref:
+        return True
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            return _TEST_MARKER_RE.search(fh.read()) is not None
+    except OSError:
+        return False
+
+
+def _named_as_a_test(path: str) -> bool:
+    """True when the path, as written, is a test by the declared forms —
+    `ac_evidence_detectors.TEST_REF_RE` matched whole, so the resolver and the
+    detector cannot disagree on what a test file looks like."""
+    from ac_evidence_detectors import TEST_REF_RE
+
+    m = TEST_REF_RE.fullmatch(path.replace("\\", "/"))
+    return m is not None
 
 
 def _inside(path: str, root: str) -> bool:
@@ -128,14 +189,32 @@ def _named_test_defined(path: str, ref: str) -> bool:
             source = fh.read()
     except OSError:
         return False  # unreadable → unverifiable → fail closed
+    python = path.lower().endswith(".py")
+    if not python:
+        # Line comments are not declarations: `// TODO fn shadows_it` must not
+        # satisfy a citation of ::shadows_it (review, session #254).
+        source = re.sub(r"(?m)(?://|#|--)[^\n]*$", "", source)
     for segment in segments:
         name = segment.split("[", 1)[0].strip()
         if not name:
             continue
-        if not re.search(
-            rf"^\s*(?:async\s+)?(?:def|class)\s+{re.escape(name)}\s*[(:]",
-            source,
-            re.MULTILINE,
-        ):
+        if python:
+            pattern = rf"^\s*(?:async\s+)?(?:def|class)\s+{re.escape(name)}\s*[(:]"
+        else:
+            # GitLab #16, other ecosystems: `fn name(`, `func name(`, `def name`
+            # (Ruby), `public void name(`, `it("name"`, `test('name'`. The
+            # floor is the same as Python's: the NAME must be declared or
+            # quoted in the file, not merely mentioned in a comment.
+            # The name must FOLLOW its declaration keyword — `fn name(`,
+            # `func (r *T) name(`, `def name`, `void name(` — or be the STRING
+            # ARGUMENT of a test-registration call. Sharing a line with the
+            # keyword is not a declaration: `fn real() { log("name") }`.
+            keywords = r"\b(?:fn|func|def|function|void)\b"
+            receiver = r"(?:\([^)\n]*\)\s*)?"
+            pattern = (
+                rf"(?:{keywords}\s+{receiver}{re.escape(name)}\s*[(<:]?"
+                rf"|\b(?:it|test|describe)\s*\(\s*[\"'`]{re.escape(name)}[\"'`])"
+            )
+        if not re.search(pattern, source, re.MULTILINE):
             return False
     return True

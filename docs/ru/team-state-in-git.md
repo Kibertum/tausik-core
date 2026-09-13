@@ -1,3 +1,5 @@
+[English](../en/team-state-in-git.md) | **Русский**
+
 # Состояние TAUSIK в git — контракт (team-state-in-git)
 
 > Спека формата git-native проекции состояния проекта. На неё опираются

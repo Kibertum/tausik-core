@@ -56,7 +56,6 @@ def _run_bootstrap_ide(project, ide="claude"):
         venv_python=None,
         context_tier="standard",
         full_cfg=full_cfg,
-        brain_enabled=False,
     )
 
 
@@ -69,6 +68,10 @@ _RULES_FILE = {
     "cursor": ".cursorrules",
     "qwen": "QWEN.md",
     "opencode": os.path.join(".opencode", "tausik-rules.md"),
+    # Codex reads AGENTS.md natively; bootstrap_ide writes it through the
+    # shared generate_agents_md step (bootstrap_codex generates no rules file
+    # of its own on purpose — one place for the rules, not two).
+    "codex": "AGENTS.md",
 }
 
 

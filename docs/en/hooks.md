@@ -1,4 +1,4 @@
-**English** | [Русский](/ru/docs/hooks)
+**English** | [Русский](../ru/hooks.md)
 
 # Hooks
 

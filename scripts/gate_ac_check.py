@@ -264,7 +264,41 @@ def checklist_hard_block(
     real_test, _activity, total = _evidence_strength(task, verified_run_ids)
     if total and real_test:
         return False, ""
-    return True, _no_real_test_message(tier) + _no_test_roots_hint()
+    return True, _no_real_test_message(tier) + _citation_diagnosis(task) + _no_test_roots_hint()
+
+
+def _citation_diagnosis(task: dict[str, Any]) -> str:
+    """Say WHICH of two different things went wrong with the citations.
+
+    GitLab #16: a Rust project cited `src-tauri/.../project_extras_tests.rs::name`
+    — a real, green test — and the refusal said "a path that does not resolve",
+    which was false: the path resolved; the FORM was not recognised. The two
+    causes have two different fixes (create/spell the path vs. cite a form the
+    detector reads), so the message names the one that applies.
+    """
+    from ac_evidence_detectors import find_test_refs, find_unrecognised_refs
+
+    notes = task.get("notes") or ""
+    recognised = find_test_refs(notes)
+    if recognised:
+        unresolved = [r for r in recognised if not _test_ref_exists(r)]
+        if unresolved:
+            shown = ", ".join(sorted(set(unresolved))[:3])
+            return (
+                f"\nCITED BUT NOT RESOLVED: {shown} — the path does not exist under the "
+                "project root, or the ::name is not defined in that file."
+            )
+        return ""
+    looks_like = find_unrecognised_refs(notes)
+    if looks_like:
+        shown = ", ".join(sorted(set(looks_like))[:3])
+        return (
+            f"\nCITED BUT FORM NOT RECOGNISED: {shown} — the path resolves or not, the "
+            "detector never got that far: a test file is read under tests/, test/, "
+            "__tests__/ or spec/, or by name (test_x.py, x_test.go, x_tests.rs, "
+            "x.test.ts, x.spec.js, x_spec.rb, XTest.java), optionally ::name."
+        )
+    return ""
 
 
 def _no_test_roots_hint() -> str:
@@ -359,7 +393,14 @@ def check_verification_checklist(
                     f"(gaps: AC {gap_str}). Add 'AC-N: ✓ tested via tests/...' "
                     "lines via `task log`."
                 )
-            if tier in ("high", "critical") and report.covered_with_tests == 0:
+            # GitLab #16: a close accepted on a green verification_run printed
+            # this note anyway, at every successful close — noise that trains
+            # ignoring. A measured run IS the evidence the tier asks for.
+            if (
+                tier in ("high", "critical")
+                and report.covered_with_tests == 0
+                and not any(_measurement_verified(i, verified_run_ids) for i in report.items)
+            ):
                 warnings.append(
                     f"NOTE: tier={tier} requires test-ref evidence (e.g. "
                     "'tests/test_foo.py::test_bar') — none found in notes."

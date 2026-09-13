@@ -1,3 +1,5 @@
+**English** | [Русский](../ru/troubleshooting.md)
+
 # Troubleshooting Reference
 
 Machine-readable guide: error → diagnosis → fix.

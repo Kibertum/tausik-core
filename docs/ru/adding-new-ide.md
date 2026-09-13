@@ -1,4 +1,4 @@
-[English](/docs/adding-new-ide) | **Русский**
+[English](../en/adding-new-ide.md) | **Русский**
 
 # Добавление новой IDE в TAUSIK
 

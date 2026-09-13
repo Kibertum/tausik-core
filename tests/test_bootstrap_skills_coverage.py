@@ -51,20 +51,6 @@ def _run_bootstrap(
     )
 
 
-def _enable_brain_for_test(target: str) -> None:
-    """Pre-create .tausik/config.json with brain.enabled=true so the test
-    project doesn't trip the v14b-skill-core-cleanup gate that hides brain
-    from system-reminder when Notion isn't configured."""
-    import json
-
-    cfg_dir = os.path.join(target, ".tausik")
-    os.makedirs(cfg_dir, exist_ok=True)
-    cfg_path = os.path.join(cfg_dir, "config.json")
-    cfg = {"brain": {"enabled": True}}
-    with open(cfg_path, "w", encoding="utf-8") as f:
-        json.dump(cfg, f)
-
-
 class TestBootstrapSkillsCoverage:
     def test_i_have_adhd_skill_keeps_evidence_outside_presentation_rule(self):
         skill = os.path.join(_builtin_skills_dir, "i-have-adhd", "SKILL.md")
@@ -80,8 +66,6 @@ class TestBootstrapSkillsCoverage:
         """Codex receives the same skills, then its session rebuild applies its delta."""
         claude_project = tmp_path / "claude"
         codex_project = tmp_path / "codex"
-        _enable_brain_for_test(str(claude_project))
-        _enable_brain_for_test(str(codex_project))
         assert _run_bootstrap(str(claude_project)).returncode == 0
         assert _run_bootstrap(str(codex_project), ide="codex").returncode == 0
 
@@ -118,9 +102,6 @@ class TestBootstrapSkillsCoverage:
         builtin = _list_builtin_skills()
         assert builtin, "harness/skills/ should contain at least one built-in skill"
 
-        # Brain is gated on Notion config — enable it so this coverage smoke
-        # test still verifies the full source set deploys (v14b-skill-core-cleanup).
-        _enable_brain_for_test(str(tmp_path))
         result = _run_bootstrap(str(tmp_path))
         assert result.returncode == 0, f"bootstrap failed: {result.stderr}"
 
@@ -146,13 +127,13 @@ class TestBootstrapSkillsCoverage:
         assert not empty_dirs, f"Deployed skills with no SKILL.md: {empty_dirs}"
 
     def test_critical_skills_present(self, tmp_path):
-        """Hard list — the 12 always-on core skills + brain (conditional).
+        """Hard list — the always-on core skills.
 
         Workflow primitives: start/end/checkpoint (session), plan/task/ship/
         commit (task lifecycle), review/test/debug (quality), explore/
-        interview (SENAR primitives). Brain (cross-project knowledge UI)
-        is gated on Notion config since v14b-skill-core-cleanup — enable
-        it explicitly so this regression test still covers brain deployment.
+        interview (SENAR primitives), i-have-adhd (response shape). `brain`
+        left with the Notion transport (decision #358) and is no longer a
+        skill this test can wait for.
         """
         critical = {
             "review",
@@ -167,10 +148,8 @@ class TestBootstrapSkillsCoverage:
             "plan",
             "checkpoint",
             "explore",
-            "brain",
             "i-have-adhd",
         }
-        _enable_brain_for_test(str(tmp_path))
         result = _run_bootstrap(str(tmp_path))
         assert result.returncode == 0, f"bootstrap failed: {result.stderr}"
 
@@ -184,6 +163,8 @@ class TestBootstrapSkillsCoverage:
         are explicitly opted in via --include-official (v14b-skill-core-cleanup
         made registry stubs opt-in to cut system-reminder budget by ~−1k/turn).
         """
+        if not os.path.isfile(os.path.join(_repo_root, "skills-official", "registry.json")):
+            pytest.skip("skills-official/ (a separate, gitignored repo) is not checked out here")
         result = _run_bootstrap(str(tmp_path), "--include-official")
         assert result.returncode == 0, f"bootstrap failed: {result.stderr}"
 
@@ -217,32 +198,9 @@ class TestBootstrapSkillsCoverage:
             "Default since v1.4 must be source-only — opt in via --include-official."
         )
 
-    def test_brain_skipped_without_notion_config(self, tmp_path):
-        """v14b-skill-core-cleanup negative: brain stays in source but is NOT
-        deployed when the project has no .tausik/config.json brain.enabled."""
-        result = _run_bootstrap(str(tmp_path))
-        assert result.returncode == 0, f"bootstrap failed: {result.stderr}"
-        deployed = tmp_path / ".claude" / "skills"
-        deployed_names = {p.name for p in deployed.iterdir() if p.is_dir()}
-        assert "brain" not in deployed_names, (
-            "brain leaked into default deploy without Notion config — gating broken."
-        )
-
-    def test_brain_included_with_notion_config(self, tmp_path):
-        """v14b-skill-core-cleanup positive: brain deploys when brain.enabled
-        is set in .tausik/config.json (matches `tausik brain init` outcome)."""
-        _enable_brain_for_test(str(tmp_path))
-        result = _run_bootstrap(str(tmp_path))
-        assert result.returncode == 0, f"bootstrap failed: {result.stderr}"
-        deployed = tmp_path / ".claude" / "skills"
-        deployed_names = {p.name for p in deployed.iterdir() if p.is_dir()}
-        assert "brain" in deployed_names, (
-            "brain not deployed even with brain.enabled=true — gating logic broken."
-        )
-
     def test_corrupt_config_does_not_crash(self, tmp_path):
-        """v14b-skill-core-cleanup negative: missing/corrupt .tausik/config.json
-        falls back to brain disabled (no crash, no deploy)."""
+        """Negative: a corrupt .tausik/config.json must not crash bootstrap,
+        and the core skills must still deploy (the config is not what gates them)."""
         cfg_dir = tmp_path / ".tausik"
         cfg_dir.mkdir()
         (cfg_dir / "config.json").write_text("{not valid json")
@@ -250,8 +208,8 @@ class TestBootstrapSkillsCoverage:
         assert result.returncode == 0, f"bootstrap crashed on corrupt config: {result.stderr}"
         deployed = tmp_path / ".claude" / "skills"
         deployed_names = {p.name for p in deployed.iterdir() if p.is_dir()}
-        assert "brain" not in deployed_names, (
-            "brain leaked despite corrupt config — fallback should treat as disabled."
+        assert "start" in deployed_names and "plan" in deployed_names, (
+            "a corrupt config took the core skills down with it"
         )
 
 

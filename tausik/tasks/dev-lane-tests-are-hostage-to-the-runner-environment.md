@@ -1,7 +1,7 @@
 ---
 slug: dev-lane-tests-are-hostage-to-the-runner-environment
 title: "Лента GitLab на ветке разработки красная с 07.09: три теста читают состояние машины (реестр official, глубина клона, живая БД), а не своё"
-status: active
+status: done
 epic: release-19-agent-effectiveness
 story: verification-off-the-critical-path
 complexity: medium
@@ -12,11 +12,18 @@ call_budget: 50
 defect_of: null
 scope: "tests/test_code_counts.py, tests/test_renar_manifest_chain.py, tests/test_prose_arguments_are_not_redirections.py, CHANGELOG.md, CHANGELOG.ru.md"
 scope_exclude: ".gitlab-ci.yml не менять (GIT_DEPTH — выбор владельца, обозначенный комментарием); хук bash_write_gate не менять; push запрещён."
-relevant_files: []
+relevant_files:
+  - "tests/test_code_counts.py"
+  - "tests/test_renar_manifest_chain.py"
+  - "tests/test_prose_arguments_are_not_redirections.py"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
+  - "docs/en/whats-new-1.9.md"
+  - "docs/ru/whats-new-1.9.md"
 scope_paths: []
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-13T13:30:32Z"
 ---
 
 ## Goal
@@ -34,3 +41,6 @@ AC-1: test_the_live_tree_counts_what_it_ships пропускается с при
 git revert; тесты вернутся к чтению живого окружения.
 
 ## Journal
+
+- 2026-09-13T13:30:06Z [implementation] — AC-4 замер: свежий клон --depth 50 + bootstrap --no-detect --ide all + pytest -m '' → 10166 passed, 170 skipped, 0 failed (7:31), корневая БД не создана. В клоне глубины 5 manifest-chain и official-registry пропускаются с причиной; в полном клоне висячий replaces (v99) → failed; id, видимый под другой версией на shallow-клоне → failed, не skip (ревью). Ревью tausik-reviewer: 1 high (skip по паре версия+id прятал переиспользование id) — сужен до отсутствия id; 1 low (порог реестра дремлет на CI по построению) — принято как объявленное.
+- 2026-09-13T13:30:28Z [implementation] — AC-1 ✓ tests/test_code_counts.py::test_the_official_registry_counts_when_it_is_here — в клоне без skills-official SKIPPED с причиной (журнал), на живом дереве registry=20 → passed. AC-2 ✓ (НЕГАТИВ) tests/test_renar_manifest_chain.py::test_the_committed_manifest_chain_resolves — клон --depth 5: SKIPPED «past the clone horizon»; полный клон с replaces=…@v99: FAILED «git holds no manifest»; shallow-клон с id, видимым под другой версией: FAILED, не skip (журнал). AC-3 ✓ tests/test_prose_arguments_are_not_redirections.py: фикстура hook_project (своя БД, ни одной активной задачи) — 12 кейсов IS_A_WRITE блокируются по Rule 1, 4 кейса NOT_A_WRITE проходят; ни один не читает .tausik/ репозитория; кейсы Rule 2 (scope_paths) и legacy freedom уже живут в tests/test_bash_write_gate_hook.py::TestHook::test_active_task_write_outside_scope_blocked и ::test_active_undeclared_task_write_allowed — не дублируются (правило дедупликации). AC-4 ✓ процедура .gitlab-ci.yml в свежем клоне --depth 50 на этой машине: 10166 passed, 170 skipped, 0 failed за 7:31. AC-5 ✓ verify #2597 подписан; CHANGELOG EN/RU. Domain: быстрая лента GitLab, красная с 07.09 не из-за кода, при следующем пуше зелёная на любом раннере — тесты меряют свой предмет, а не машину.

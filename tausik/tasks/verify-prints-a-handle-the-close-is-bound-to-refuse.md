@@ -1,7 +1,7 @@
 ---
 slug: verify-prints-a-handle-the-close-is-bound-to-refuse
 title: "GitLab #15: в проекте без ключа verify чеканит и печатает verify-handle с готовой командой, а task done его отвергает «carries no receipt»"
-status: planning
+status: done
 epic: release-19-renar-conformance
 story: release19-proof-integrity
 complexity: medium
@@ -12,11 +12,21 @@ call_budget: 40
 defect_of: null
 scope: "scripts/verify_run_record.py, scripts/render_verify.py, harness/claude/mcp/project/ (рендер verify), tests/, docs/ru/receipts.md, docs/en/receipts.md, CHANGELOG.md, CHANGELOG.ru.md"
 scope_exclude: "Правила валидации handle (verify_handle_rules.py) не смягчать; freshness lookup не менять."
-relevant_files: []
+relevant_files:
+  - "scripts/verify_run_record.py"
+  - "scripts/render_verify.py"
+  - "scripts/service_gates.py"
+  - "tests/test_verify_handle_integration.py"
+  - "docs/en/receipts.md"
+  - "docs/ru/receipts.md"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
+  - "docs/en/whats-new-1.9.md"
+  - "docs/ru/whats-new-1.9.md"
 scope_paths: []
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-13T12:53:22Z"
 ---
 
 ## Goal
@@ -34,3 +44,6 @@ AC-1: в проекте без ключа `verify --task` не чеканит ha
 git revert; handle снова чеканится без квитанции (прежнее поведение).
 
 ## Journal
+
+- 2026-09-13T12:51:13Z [implementation] — Сделано: verify_run_record чеканит хендл только при receipt_status == STATUS_SIGNED; иначе handle_out['no_handle_reason'] = no-key | error | expiry-unavailable | mint-failed → details → service_gates report → render_verify.handle_lines печатает «Verify handle: none — no project key … Close without --verify-handle: task done <slug> --ac-verified» (одна строка для no-key, другая для провала подписи); CLI и MCP делят verify_lines — расхождения из тикета нет по построению. МУТАЦИЯ: возврат условия «entitled and expires_at» → 3 новых теста красные. Ревью tausik-reviewer: 2 high — вставка абзаца ломала таблицу receipts.md (обе языковые) и сливала два разных сообщения в одно; исправлено (абзац после таблицы, оба сообщения названы); medium — литерал 'no-key' заменён константой STATUS_NO_KEY; 2 low — причины для expiry-unavailable и mint-failed добавлены. docs/{en,ru}/receipts.md, CHANGELOG EN/RU, whats-new 239.
+- 2026-09-13T12:53:18Z [implementation] — AC-1 ✓ tests/test_verify_handle_integration.py::TestAKeylessRunEarnsNoHandle::test_no_key_means_no_handle_and_the_report_says_why — в проекте без ключа report без verify_handle, no_handle_reason == no-key; ::test_the_rendered_line_gives_the_command_that_works — «Verify handle: none — no project key …» и `task done t --ac-verified`, блока «Present it:» нет. AC-2 ✓ прежние 9 тестов файла (keyed project: чеканка, приём, одноразовость) зелёные без правок; verify этого (keyed) проекта чеканит #2587. AC-3 ✓ (НЕГАТИВ) ::test_a_signing_failure_with_a_key_present_earns_no_handle_either — STATUS_ERROR при наличии ключа → хендла нет, причина error; условие — «чек подписан», не «ключ есть». AC-4 ✓ CLI (project_cli_verify) и MCP (handlers_verification._handle_verify) рисуют одним render_verify.verify_lines — подтверждено ревьюером grep-ом по harness/claude/mcp/project: второго рендера хендла нет; тест рендера читает verify_lines той же фикстурой. AC-5 ✓ мутация «if entitled and expires_at:» → 3 failed, восстановление → 64 passed (журнал). AC-6 ✓ verify #2587 подписан; CHANGELOG EN/RU; docs/{en,ru}/receipts.md называют оба сообщения после таблицы отказов (ревью: абзац внутри таблицы ломал её — перенесён). Domain: агент в проекте без ключа больше не получает инструкцию, ведущую в гарантированный отказ; хендл — утверждение о подписанном чеке, и без чека его нет.

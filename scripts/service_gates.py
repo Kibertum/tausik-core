@@ -125,6 +125,9 @@ class GatesMixin:
             # (SEP-2567), which is the thing decision #218 removed.
             "verify_handle": details.get("verify_handle"),
             "handle_expires_at": details.get("handle_expires_at"),
+            # GitLab #15: why an otherwise entitled run earned no handle
+            # (no project key / signing failed), so the report says so.
+            "no_handle_reason": details.get("no_handle_reason"),
         }
 
     def _check_qg0_start(self, slug: str, task: dict[str, Any]) -> list[str]:

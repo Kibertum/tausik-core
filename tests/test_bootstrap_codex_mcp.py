@@ -80,8 +80,19 @@ class TestСерверДЕЙСТВИТЕЛЬНОЗапускается:
     эта история началась с файла, который перечислял гейты и не запускал ни
     одного."""
 
-    def test_ответ_на_initialize_командой_из_конфига(self, live):
+    def test_ответ_на_initialize_командой_из_конфига(self, live, tmp_path):
         cfg = live["mcp_servers"]["tausik-project"]
+        # Интерпретатор и server.py — из конфига, как записаны; ПРОЕКТ — временный.
+        # С `--project <корень репозитория>` сервер на initialize создавал
+        # `.tausik/tausik.db` в корне дерева, и каждая проверка, спящая без живой
+        # базы, дальше по прогону просыпалась над пустой — то ли пропуск, то ли
+        # красное, по порядку запуска (conftest, смена #203; пойман поимённо в
+        # смене #253). Предмет теста — что команда запускается и отвечает, а не
+        # чью базу она при этом заводит.
+        (tmp_path / ".tausik").mkdir()
+        args = list(cfg["args"])
+        if "--project" in args:
+            args[args.index("--project") + 1] = str(tmp_path)
         request = json.dumps(
             {
                 "jsonrpc": "2.0",
@@ -95,7 +106,7 @@ class TestСерверДЕЙСТВИТЕЛЬНОЗапускается:
             }
         )
         proc = subprocess.Popen(
-            [cfg["command"], *cfg["args"]],
+            [cfg["command"], *args],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

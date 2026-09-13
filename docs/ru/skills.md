@@ -1,4 +1,4 @@
-[English](/docs/skills) | **Русский**
+[English](../en/skills.md) | **Русский**
 
 # Навыки (v1.4)
 

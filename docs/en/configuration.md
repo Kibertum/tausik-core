@@ -1,4 +1,4 @@
-**English** | [Русский](/ru/docs/configuration)
+**English** | [Русский](../ru/configuration.md)
 
 # TAUSIK Configuration Reference
 

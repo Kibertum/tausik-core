@@ -1,4 +1,4 @@
-[English](/docs/hooks) | **Русский**
+[English](../en/hooks.md) | **Русский**
 
 # Хуки
 

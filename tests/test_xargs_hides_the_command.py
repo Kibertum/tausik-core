@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 
@@ -48,6 +49,7 @@ for _p in (os.path.join(_REPO, "scripts"), os.path.join(_REPO, "scripts", "hooks
 
 import bash_cmd_norm as norm  # noqa: E402
 import bash_write_parse as bwp  # noqa: E402
+from conftest import canonical_ddl  # noqa: E402
 
 CROSSCUTTING_SCOPE = ["scripts/hooks/"]
 
@@ -74,7 +76,26 @@ HARMLESS = (
 )
 
 
-def _hook_blocks(command: str) -> bool:
+@pytest.fixture(scope="module")
+def hook_project(tmp_path_factory):
+    """The test's own project (`.tausik/tausik.db`, one closed task, nothing
+    active): Rule 1 is then the verdict on any in-tree write. Against THIS
+    repository the verdict depended on the machine — no database on a CI clone
+    meant "allow" (session #254; same fix as test_prose_arguments…)."""
+    root = tmp_path_factory.mktemp("xargs_hook_project")
+    (root / ".tausik").mkdir()
+    conn = sqlite3.connect(str(root / ".tausik" / "tausik.db"))
+    conn.execute(canonical_ddl("tasks"))
+    conn.execute(
+        "INSERT INTO tasks (slug, title, status, created_at, updated_at) "
+        "VALUES ('closed', 'closed', 'done', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')"
+    )
+    conn.commit()
+    conn.close()
+    return root
+
+
+def _hook_blocks(project_dir, command: str) -> bool:
     payload = json.dumps(
         {"tool_name": "Bash", "session_id": "t", "tool_input": {"command": command}}
     )
@@ -85,8 +106,13 @@ def _hook_blocks(command: str) -> bool:
         text=True,
         encoding="utf-8",
         errors="replace",
-        cwd=_REPO,
-        env={**os.environ, "PYTHONUTF8": "1", "CLAUDE_PROJECT_DIR": _REPO},
+        cwd=str(project_dir),
+        env={
+            **os.environ,
+            "PYTHONUTF8": "1",
+            "CLAUDE_PROJECT_DIR": str(project_dir),
+            "TAUSIK_SKIP_HOOKS": "",
+        },
         timeout=120,
     )
     return result.returncode != 0
@@ -102,8 +128,8 @@ class TestДыраЗакрыта:
         assert confidence == "parsed"
 
     @pytest.mark.parametrize("command", HIDDEN_WRITES[:4])
-    def test_живой_хук_блокирует(self, command):
-        assert _hook_blocks(command), f"хук пропустил настоящую запись: {command!r}"
+    def test_живой_хук_блокирует(self, hook_project, command):
+        assert _hook_blocks(hook_project, command), f"хук пропустил настоящую запись: {command!r}"
 
     def test_та_же_команда_без_xargs_ловилась_и_раньше(self):
         """Предпосылка: дыру создавала именно обёртка, а не сама команда."""
@@ -120,8 +146,8 @@ class TestРасширениеНеСталоЛожнымБлоком:
         assert targets == [], f"фантом на безвредной команде: {command!r} -> {targets}"
 
     @pytest.mark.parametrize("command", HARMLESS)
-    def test_живой_хук_не_блокирует(self, command):
-        assert not _hook_blocks(command), f"ложный блок: {command!r}"
+    def test_живой_хук_не_блокирует(self, hook_project, command):
+        assert not _hook_blocks(hook_project, command), f"ложный блок: {command!r}"
 
     def test_слово_xargs_в_прозе_аргумента_не_обёртка(self):
         """`xargs` внутри закавыченного аргумента — данные. Проверяется вместе
@@ -178,7 +204,7 @@ class TestМутации:
 class TestНедоступноеОбъявлено:
     """AC-4. Что зависит от ПОТОКА, парсеру не видно, и это сказано вслух."""
 
-    def test_подстановка_остаётся_целью_и_команда_упирается(self):
+    def test_подстановка_остаётся_целью_и_команда_упирается(self, hook_project):
         """`xargs -I{} sh -c "echo x > {}"` пишет туда, что придёт из stdin.
 
         ПЕРВОЕ УТВЕРЖДЕНИЕ ЭТОГО ТЕСТА БЫЛО НЕВЕРНЫМ, и замер это показал. Он
@@ -198,7 +224,7 @@ class TestНедоступноеОбъявлено:
         )
         assert targets == ["{}"], "запись стала невидимой — это дыра, а не аккуратность"
         assert confidence == "parsed"
-        assert _hook_blocks('echo a | xargs -I{} sh -c "echo x > {}"'), (
+        assert _hook_blocks(hook_project, 'echo a | xargs -I{} sh -c "echo x > {}"'), (
             "неизвестная запись обязана упираться, а не проходить"
         )
 

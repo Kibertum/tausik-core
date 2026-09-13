@@ -1,3 +1,5 @@
+**English** | [Русский](../ru/upgrade.md)
+
 # Upgrade Safety
 
 What bootstrap touches, what it leaves alone, and how to upgrade without losing your work.

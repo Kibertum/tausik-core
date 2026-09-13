@@ -305,3 +305,75 @@ class TestDurabilityPolicyIsPublished:
             text = fh.read()
         assert "verify-handle" in text or "хендл" in text.lower()
         assert "3600" in text or "1 час" in text
+
+
+@pytest.mark.verify_first
+class TestAKeylessRunEarnsNoHandle:
+    """GitLab #15. `verify` in a project without `tausik key init` printed
+    "Receipt: not emitted — no project key" and two lines later a handle with
+    a ready-to-copy `task done --verify-handle …` — which `task done` then
+    refused with "carries no receipt". The handle was minted on ENTITLEMENT
+    (declared files, a gate that ran, exit 0) with no regard to whether the
+    receipt it stands for was ever signed. Now it is minted on the receipt.
+    """
+
+    @pytest.fixture
+    def keyless(self, tmp_path, monkeypatch):
+        """The same project as `svc`, minus the key — the state of every
+        consumer that never opted into signed receipts."""
+        monkeypatch.chdir(tmp_path)
+        for rel in _SCOPE:
+            path = tmp_path / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("# scoped file\n", encoding="utf-8")
+        s = ProjectService(SQLiteBackend(str(tmp_path / ".tausik" / "tausik.db")))
+        s.epic_add("e", "E")
+        s.story_add("e", "s", "S")
+        s.task_add("s", "t", "Implement X", goal="Implement X", role="developer")
+        s.task_update(
+            "t",
+            acceptance_criteria="1. X works\n2. Returns error on invalid input",
+            relevant_files=json.dumps(_SCOPE),
+        )
+        s.task_start("t")
+        return s
+
+    def test_no_key_means_no_handle_and_the_report_says_why(self, keyless, monkeypatch):
+        _verify_gate_only(monkeypatch)
+        _green_gates(monkeypatch)
+        report = keyless.run_verify_for_task("t", trigger="verify")
+        assert report["passed"] and report.get("run_id")
+        assert not report.get("verify_handle"), (
+            "a handle was minted for a run with no signed receipt — task done will refuse it"
+        )
+        assert report.get("no_handle_reason") == "no-key"
+
+    def test_the_rendered_line_gives_the_command_that_works(self, keyless, monkeypatch):
+        """CLI and MCP share `verify_lines`; one render, one answer."""
+        from render_verify import verify_lines
+
+        _verify_gate_only(monkeypatch)
+        _green_gates(monkeypatch)
+        report = keyless.run_verify_for_task("t", trigger="verify")
+        text = "\n".join(verify_lines(keyless, report, "t", "standard"))
+        assert "Verify handle: none" in text and "no project key" in text
+        assert "--verify-handle" not in text.split("Verify handle: none")[1].split("\n")[0].replace(
+            "Close without --verify-handle", ""
+        ), "the keyless line must not offer a handle to present"
+        assert "task done t --ac-verified" in text
+
+    def test_a_signing_failure_with_a_key_present_earns_no_handle_either(
+        self, task_ready, monkeypatch
+    ):
+        """Negative on the other side: the condition is 'receipt signed', not
+        'key exists'. A key that cannot sign must not mint."""
+        from verify_receipt_emit import STATUS_ERROR
+
+        _verify_gate_only(monkeypatch)
+        _green_gates(monkeypatch)
+        monkeypatch.setattr(
+            "verify_receipt_emit.emit_signed_receipt", lambda *a, **k: (STATUS_ERROR, "fp")
+        )
+        report = task_ready.run_verify_for_task("t", trigger="verify")
+        assert not report.get("verify_handle")
+        assert report.get("no_handle_reason") == "error"

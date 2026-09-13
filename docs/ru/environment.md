@@ -1,10 +1,10 @@
-[English](/docs/environment) | **Русский**
+[English](../en/environment.md) | **Русский**
 
 <!-- audit-translation-drift: skip -->
 
 # Правила окружения
 
-> Полный гайд по shell, virtualenv и Docker — на английском в [environment.md](/docs/environment).
+> Полный гайд по shell, virtualenv и Docker — на английском в [environment.md](../en/environment.md).
 
 ## Ключевые принципы
 
@@ -15,7 +15,7 @@
 
 ## Переменные окружения
 
-Сжатая выжимка. Полный список с описаниями — в [EN-версии (environment.md)](/docs/environment#tausik-environment-variables).
+Сжатая выжимка. Полный список с описаниями — в [EN-версии (environment.md)](../en/environment.md#tausik-environment-variables).
 
 ### Workflow control
 

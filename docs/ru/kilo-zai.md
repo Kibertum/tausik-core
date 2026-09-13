@@ -1,3 +1,5 @@
+[English](../en/kilo-zai.md) | **Русский**
+
 # z.ai GLM в TAUSIK (Claude Code и Kilo)
 
 TAUSIK работает на моделях **z.ai GLM** под любым Anthropic-совместимым хостом.

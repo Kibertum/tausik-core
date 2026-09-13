@@ -1,4 +1,4 @@
-**English** | [Русский](/ru/docs/senar-compliance-matrix)
+**English** | [Русский](../ru/senar-compliance-matrix.md)
 
 # SENAR v1.3 Core — Compliance Matrix
 

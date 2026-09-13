@@ -70,10 +70,78 @@ AC_SECTION_HEADING_RE = re.compile(r"^\s*AC[-\s]*(\d+)\b", re.IGNORECASE)
 # "AC-1:" token (which carries the number itself and is matched elsewhere).
 TIMESTAMP_PREFIX_RE = re.compile(r"^\s*\[[^\]]*\]\s*")
 AC_HEADER_PREFIX_RE = re.compile(r"^\s*AC(?:\s+[a-zA-Z]+)?\s*:\s*", re.IGNORECASE)
+# GitLab #16: the first form required `.py` in both branches, so a Rust/Go/TS
+# project could not cite a test that exists and is green — the gate then said
+# "a path that does not resolve", which was untrue (it resolved fine), and
+# nudged agents toward Python-looking paths in a non-Python tree. Two shapes
+# are read now, and the file forms are ONE declared list, not five spellings:
+#   * a path under a test DIRECTORY (`tests/`, `test/`, `__tests__/`, `spec/`),
+#     any recognised source extension;
+#   * a file NAMED as a test by its ecosystem's convention, anywhere in the
+#     tree — `test_x.py`, `x_test.go`, `x_tests.rs`, `x.test.ts`, `x.spec.js`,
+#     `x_spec.rb`, `XTest.java` — because Rust and Go keep tests beside code.
+# Either may carry `::name` segments (pytest node ids, `::Class::method`).
+TEST_SOURCE_EXTS = "py|rs|go|tsx|ts|mjs|cjs|js|java|kts|kt|rb|php|cs|swift|dart|exs|ex"
+TEST_DIR_SEGMENT = r"(?:tests?|__tests__|spec)/"
+TEST_FILE_NAME = (
+    r"(?:test_[\w\-]+\.py"
+    r"|[\w\-]+_tests?\.(?:rs|go|ex|exs)"
+    r"|[\w\-]+\.(?:test|spec)\.(?:tsx|ts|mjs|cjs|js)"
+    r"|[\w\-]+_spec\.rb"
+    r"|[\w\-]+Tests?\.(?:java|kts|kt|cs|swift|php|dart))"
+)
 TEST_REF_RE = re.compile(
-    r"(tests?/[\w/.\-]+\.py(?:::[\w_]+)?|test_[\w_]+\.py(?:::[\w_]+)?)",
+    r"("
+    rf"(?:[\w.\-]+/)*{TEST_DIR_SEGMENT}[\w/.\-]+\.(?:{TEST_SOURCE_EXTS})(?![\w.])"
+    rf"|(?:[\w.\-]+/)*{TEST_FILE_NAME}"
+    r")"
+    r"((?:::[\w_\-]+(?:\[[^\]\s]*\])?)*)",
     re.IGNORECASE,
 )
+# A citation that LOOKS like `path.ext::name` but is none of the forms above —
+# so the refusal can say "form not recognised" instead of "does not resolve".
+UNRECOGNISED_REF_RE = re.compile(r"[\w/.\-]+\.[a-z0-9]{1,5}::[\w_]+", re.IGNORECASE)
+
+# Punctuation a citation is wrapped in when it sits inside prose: `(…)`, a
+# trailing comma or full stop, backticks.
+_TOKEN_TRIM = "(){}<>`'\",;:!?"  # not [] — a pytest id carries `[case-3]`
+
+
+def find_test_refs(text: str) -> list[str]:
+    """Every test citation in `text`, as written, in order.
+
+    Token-wise rather than `TEST_REF_RE.findall(text)`: the path form carries a
+    repeated `segment/` prefix, and scanning it from every position of a
+    slash-heavy line cost the square of the line — 42 s over 40 KB of
+    `deep/deep/…` (review, session #254). Notes are the adversary's surface, so
+    the detector must not be the slow part. Each whitespace-delimited token is
+    trimmed of wrapping punctuation and matched WHOLE, from one anchor.
+    """
+    found: list[str] = []
+    for raw in text.split():
+        token = raw.strip(_TOKEN_TRIM)
+        if not token or "." not in token:
+            continue
+        m = TEST_REF_RE.fullmatch(token)
+        if m is not None:
+            found.append(token)
+    return found
+
+
+def find_unrecognised_refs(text: str) -> list[str]:
+    """Tokens shaped like `path.ext::name` that `find_test_refs` did not read."""
+    found: list[str] = []
+    for raw in text.split():
+        token = raw.strip(_TOKEN_TRIM)
+        if (
+            "::" in token
+            and UNRECOGNISED_REF_RE.fullmatch(token)
+            and not TEST_REF_RE.fullmatch(token)
+        ):
+            found.append(token)
+    return found
+
+
 # MEASUREMENT — the strongest evidence in the project (a real gate run) was the
 # ONLY kind the parser could not see (ac-evidence-parser-cannot-see-a-measurement):
 # a criterion proven by `5778 passed ... in 564s` / `verification_run #1285`
@@ -128,6 +196,7 @@ PROSE_DETECTORS: dict[str, re.Pattern[str]] = {
 STRUCTURAL_DETECTORS: dict[str, re.Pattern[str]] = {
     "CHECK_MARK_RE": CHECK_MARK_RE,
     "TEST_REF_RE": TEST_REF_RE,
+    "UNRECOGNISED_REF_RE": UNRECOGNISED_REF_RE,
     "AC_NUMBER_PREFIX_RE": AC_NUMBER_PREFIX_RE,
     "AC_SECTION_HEADING_RE": AC_SECTION_HEADING_RE,
     "AC_ITEM_BOUNDARY_RE": AC_ITEM_BOUNDARY_RE,

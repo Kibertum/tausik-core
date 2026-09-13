@@ -1,3 +1,5 @@
+**English** | [Русский](../ru/skill-patterns.md)
+
 # Shared Skill Patterns
 
 Common patterns used across multiple skills. Reference this instead of duplicating.

@@ -1,4 +1,4 @@
-[English](/docs/stacks) | **Русский**
+[English](../en/stacks.md) | **Русский**
 
 # Гайд по стек-плагинам
 

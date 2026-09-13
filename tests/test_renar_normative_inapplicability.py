@@ -208,6 +208,12 @@ class TestThePremiseIsWatched:
             pytest.skip("no live project database in this tree")
         conn = sqlite3.connect(f"file:{os.path.abspath(db)}?mode=ro", uri=True)
         try:
+            # A database that exists but holds no SPEC is a fresh clone's
+            # (CI bootstraps one, session #253): there is no ruling to hold
+            # the premise against, and "reach lost" would be a false verdict
+            # about an empty store, not about the declaration.
+            if not _has_rows(conn, "specs"):
+                pytest.skip("the live database carries no SPEC — nothing to hold the premise against")
             broken = ni.premise_broken(conn)
             assert broken == (), (
                 f"a ТЗ reference appeared on {list(broken)} — decision #307 must be "
@@ -216,6 +222,13 @@ class TestThePremiseIsWatched:
             assert ni.covered_specs(conn), "the declaration covers no live SPEC — reach lost"
         finally:
             conn.close()
+
+
+def _has_rows(conn: sqlite3.Connection, table: str) -> bool:
+    try:
+        return conn.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchone() is not None
+    except sqlite3.Error:
+        return False
 
 
 class TestADeclarationIsNotCompliance:

@@ -218,8 +218,17 @@ class TestItRunsOnThisRepositoryAndThroughTheCLI:
         symbols = si.build_index(_REPO)
         assert len(symbols) > 5000, f"only {len(symbols)} symbols — roots wrong?"
 
-    def test_the_cli_answers(self):
-        """The subject end to end: the command a reader actually types."""
+    def test_the_cli_answers(self, tmp_path):
+        """The subject end to end: the command a reader actually types.
+
+        The CLI boots a service and creates `.tausik/tausik.db` where it stands;
+        run at the repo root that left a database behind in every clean clone
+        and woke the controls that are dormant without one — over an empty
+        store, red or skipped by run order (conftest, session #203; caught by
+        name in session #254). TAUSIK_DIR sends the state to tmp; the CODE it
+        indexes is still this repository.
+        """
+        (tmp_path / ".tausik").mkdir()
         result = subprocess.run(
             [sys.executable, str(_REPO / "scripts" / "project.py"), "symbol", "tags_unmoved"],
             cwd=str(_REPO),
@@ -227,7 +236,11 @@ class TestItRunsOnThisRepositoryAndThroughTheCLI:
             text=True,
             encoding="utf-8",
             timeout=180,
-            env={**__import__("os").environ, "PYTHONUTF8": "1"},
+            env={
+                **__import__("os").environ,
+                "PYTHONUTF8": "1",
+                "TAUSIK_DIR": str(tmp_path / ".tausik"),
+            },
         )
         assert result.returncode == 0, result.stderr
         assert "def tags_unmoved" in result.stdout
