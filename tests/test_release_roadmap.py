@@ -27,6 +27,7 @@ sys.path.insert(0, os.path.join(_ROOT, "scripts"))
 from conftest import DORMANT_WITHOUT_LIVE_DB, canonical_schema_db  # noqa: E402
 
 import release_roadmap  # noqa: E402
+import release_roadmap_composition  # noqa: E402
 from release_roadmap import (  # noqa: E402
     OUTPUT_FILENAME,
     PDF_SNAPSHOT_DATE,
@@ -188,6 +189,158 @@ class TestCountsAreCounted:
         outside = text.split("## Что в релиз НЕ входит", 1)[1]
         assert "`gamma-story`" in outside
         assert "`alpha-story`" not in outside
+
+
+class TestDeclaredCompositionIsRead:
+    """The live defect: decision #363 answered three owner questions, happened to
+    mention three story slugs, and the inference read it as a full restatement —
+    the map shrank from thirteen stories to three while quoting #360, which
+    names ten of them, as the charter. A declaration is READ from a line written
+    as one; prose that mentions two slugs no longer restates the release."""
+
+    def test_a_later_mention_does_not_displace_a_declared_composition(self):
+        conn = _db()
+        _decide(conn, "ОБЪЁМ 9.9. Состав: alpha-story, beta-story")
+        _decide(conn, "Три ответа владельца: beta-story остаётся, gamma-story — 9.9 тоже")
+        comp = composition(conn)
+        assert [s["slug"] for s in comp["stories"]] == ["alpha-story", "beta-story"], (
+            "a decision that merely mentions two stories overrode the declared "
+            "composition — the exact reading that shrank 1.9 to three stories"
+        )
+        assert comp["declared"] is True
+        assert comp["basis"]["id"] == 1
+
+    def test_the_newest_declaration_wins_and_keeps_the_owner_s_order(self):
+        conn = _db()
+        _decide(conn, "Состав: alpha-story, beta-story")
+        _decide(conn, "Пересмотр. Состав: gamma-story, alpha-story")
+        assert [s["slug"] for s in composition(conn)["stories"]] == [
+            "gamma-story",
+            "alpha-story",
+        ]
+
+    def test_the_english_spelling_of_the_line_is_the_same_line(self):
+        conn = _db()
+        _decide(conn, "Scope 9.9. Composition: `beta-story`, `gamma-story`")
+        assert [s["slug"] for s in composition(conn)["stories"]] == ["beta-story", "gamma-story"]
+
+    def test_the_list_ends_at_the_sentence_and_prose_inside_it_is_loud(self):
+        conn = _db()
+        _decide(conn, "Состав: alpha-story, beta-story. Впредь состав меняется только строкой.")
+        assert [s["slug"] for s in composition(conn)["stories"]] == ["alpha-story", "beta-story"]
+        _decide(conn, "Состав: alpha-story, beta-story и gamma-story")
+        with pytest.raises(RoadmapUnreadable) as err:
+            composition(conn)
+        assert "beta-story и gamma-story" in str(err.value), (
+            "prose inside the list must surface as an unknown slug, not as a shorter release"
+        )
+
+    def test_an_unknown_slug_on_the_line_is_refused_by_name(self):
+        conn = _db()
+        _decide(conn, "Состав: alpha-story, delta-story")
+        with pytest.raises(RoadmapUnreadable) as err:
+            composition(conn)
+        assert "delta-story" in str(err.value), (
+            "a typo would otherwise drop a story from the release silently"
+        )
+
+    def test_an_empty_line_is_a_refusal_not_an_empty_release(self):
+        conn = _db()
+        _decide(conn, "ОБЪЁМ 9.9: alpha-story, beta-story")  # the inference would read this
+        _decide(conn, "Состав:   ")
+        with pytest.raises(RoadmapUnreadable) as err:
+            composition(conn)
+        assert "empty" in str(err.value)
+
+    def test_the_named_charter_is_followed(self):
+        conn = _db()
+        _decide(conn, "ЯДРО: два обещания, а не партия дефектов")  # id 1
+        _decide(conn, "ОБЪЁМ по #1: alpha-story, beta-story")  # id 2 — the chain would pick this
+        _decide(conn, "Пересказ. Устав: #1. Состав: alpha-story, beta-story, gamma-story")
+        assert composition(conn)["charter"]["id"] == 1
+
+    def test_the_named_charter_wins_where_the_chain_would_disagree(self):
+        conn = _db()
+        _decide(conn, "ЯДРО первое")  # id 1
+        _decide(conn, "ЯДРО второе, переопределяет #1")  # id 2
+        _decide(conn, "ОБЪЁМ по #1: alpha-story, beta-story")  # id 3 — the chain lands on 1
+        _decide(conn, "Устав: #2. Состав: alpha-story, beta-story")  # id 4
+        assert composition(conn)["charter"]["id"] == 2, (
+            "the explicit charter reference lost to the chain walk"
+        )
+
+    def test_the_line_is_read_in_any_case_and_a_repeat_is_refused(self):
+        conn = _db()
+        _decide(conn, "состав: alpha-story, beta-story")
+        _decide(conn, "Про beta-story и gamma-story: два упоминания, не объявление")
+        assert [s["slug"] for s in composition(conn)["stories"]] == ["alpha-story", "beta-story"], (
+            "a lowercase line fell through to the inference — the defect class, reopened"
+        )
+        _decide(conn, "Состав: alpha-story, beta-story, alpha-story")
+        with pytest.raises(RoadmapUnreadable) as err:
+            composition(conn)
+        assert "alpha-story" in str(err.value) and "more than once" in str(err.value)
+
+    def test_one_declared_story_is_a_release_of_one_story(self):
+        conn = _db()
+        _decide(conn, "ОБЪЁМ 9.9: alpha-story, beta-story")
+        _decide(conn, "Сужение. Состав: gamma-story")
+        assert [s["slug"] for s in composition(conn)["stories"]] == ["gamma-story"]
+
+    def test_a_dangling_charter_falls_back_to_the_chain(self):
+        conn = _db()
+        _decide(conn, "ЯДРО")  # id 1
+        _decide(conn, "ОБЪЁМ по #1: alpha-story, beta-story")  # id 2 cites 1
+        _decide(conn, "Устав: #999. Состав: alpha-story, beta-story")  # id 3
+        assert composition(conn)["charter"]["id"] == 1, (
+            "a reference to nothing must fall back to the record, not to an invented decision"
+        )
+
+    def test_a_journal_without_the_line_is_read_as_before_and_says_so(self):
+        conn = _db()
+        _decide(conn, "ОБЪЁМ 9.9 = 2: alpha-story и beta-story")
+        comp = composition(conn)
+        assert comp["declared"] is False
+        text = render(conn)
+        assert "вывод из прозы" in text
+        assert "ОБЪЯВИВШЕГО" not in text
+
+    def test_the_map_names_the_declaration_as_its_source(self):
+        conn = _db()
+        _decide(conn, "Состав: alpha-story, beta-story")
+        text = render(conn)
+        assert "ОБЪЯВИВШЕГО его строкой «Состав:»" in text
+        assert "вывод из прозы" not in text
+
+
+class TestOutsideTheReleaseOpenIsApartFromDone:
+    """One table called a closed story 'not in this version'. Its work IS in the
+    release tree; it is only not part of the promise. The deferred cost is the
+    open stories alone, so the two are shown apart."""
+
+    def test_an_open_story_carries_its_remainder_and_a_done_one_carries_none(self):
+        conn = _db(stories=("alpha-story", "beta-story", "gamma-story", "delta-story"))
+        conn.execute("UPDATE stories SET status='done' WHERE slug='delta-story'")
+        _decide(conn, "Состав: alpha-story")
+        _decide(conn, "Состав: alpha-story, beta-story")
+        _task(conn, "gamma-story", "planning")
+        _task(conn, "delta-story", "done")
+        _task(conn, "delta-story", "done")
+        text = render(conn)
+        outside = text.split("## Что в релиз НЕ входит", 1)[1].split("## Траектория", 1)[0]
+        open_part, done_part = outside.split("**Закрытые, составом не названные.**", 1)
+        assert "| `gamma-story` | active | 1 |" in open_part
+        assert "delta-story" not in open_part, "a closed story was listed as deferred cost"
+        assert "| `delta-story` | 2 |" in done_part
+        assert "не в этой версии" not in done_part
+
+    def test_no_open_story_outside_is_said_rather_than_left_blank(self):
+        conn = _db()
+        conn.execute("UPDATE stories SET status='done' WHERE slug='gamma-story'")
+        _decide(conn, "Состав: alpha-story, beta-story")
+        text = render(conn)
+        assert "Открытых историй вне состава нет." in text
+        assert "`gamma-story`" in text
 
 
 class TestTheMapMovesWithTheReleaseAndNotWithTheMinute:
@@ -388,7 +541,12 @@ def test_the_declaration_names_the_artifact():
 
 def test_the_module_never_reaches_for_the_clock():
     """Determinism is the whole basis of the freshness guard — hold it structurally."""
-    src = open(release_roadmap.__file__, encoding="utf-8").read()
+    # Both halves: the reader decides WHICH decision is in force, the renderer
+    # prints it, and a clock in either would make every reissue differ.
+    src = "".join(
+        open(m.__file__, encoding="utf-8").read()
+        for m in (release_roadmap, release_roadmap_composition)
+    )
     for forbidden in ("import time", "datetime.now", "utcnow"):
         assert forbidden not in src, (
             f"{forbidden} in the generator would make every reissue differ and "

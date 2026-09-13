@@ -10,9 +10,11 @@ to compare against.
 Everything here is therefore read, not written:
 
 * WHICH stories are in the release is the owner's declaration, and it is read
-  back out of the decisions — the newest decision that names two or more
-  stories is the composition in force. Naming them in this file would put the
-  owner's call in my source, where it would rot the same way the PDF did.
+  back out of the decisions — the newest decision that DECLARES the composition
+  («Состав: …»), or, in a journal that never wrote that line, the newest one
+  that names two or more stories (`release_roadmap_composition`). Naming them
+  in this file would put the owner's call in my source, where it would rot the
+  same way the PDF did.
 * HOW MANY tasks each story still holds is counted in the database at reissue
   time. A count typed into a document is true once.
 * WHY 1.9 is what it is comes from the charter decision, QUOTED from the row —
@@ -34,19 +36,16 @@ Reissue: ``tausik doc roadmap``. Check: ``tausik doc roadmap --check``.
 from __future__ import annotations
 
 import os
-import re
 import sqlite3
 from typing import Any
 
-from tausik_utils import ServiceError
+from release_roadmap_composition import (  # noqa: F401 — re-exported for callers and tests
+    RoadmapUnreadable,
+    _stories,
+    composition,
+)
 
 OUTPUT_FILENAME = "ROADMAP.md"
-
-#: A decision that names this many of the release stories is making a statement
-#: ABOUT THE COMPOSITION. One story is a decision about that story; two or more
-#: is a list. The threshold is what separates the two, and it is the only reason
-#: an ordinary per-story decision does not get mistaken for a scope declaration.
-COMPOSITION_MIN_STORIES = 2
 
 #: Task statuses that mean "still owed". Derived from the schema's CHECK rather
 #: than listed: everything that is not `done` is remaining work, and a new
@@ -59,10 +58,6 @@ DONE_STATUS = "done"
 #: task was started — see `_blocked`.
 BLOCKED_STATUS = "blocked"
 
-_VERSION_RE = re.compile(r"\d+\.\d+")
-_DECISION_REF_RE = re.compile(r"#(\d+)")
-_POINTS_RE = re.compile(r"(?:Точки|Points)\s*:\s*([\d]+(?:\s*,\s*[\d]+)*)")
-
 #: The snapshot paragraph. The date is a literal on purpose and it is the ONE
 #: literal in this file: it is a property of an artifact that will never be
 #: rebuilt, so it cannot drift. Reading it off the file's mtime was rejected —
@@ -70,109 +65,6 @@ _POINTS_RE = re.compile(r"(?:Точки|Points)\s*:\s*([\d]+(?:\s*,\s*[\d]+)*)")
 #: the machine instead of on the project, and the file is gitignored, so most
 #: clones do not have it at all.
 PDF_SNAPSHOT_DATE = "2026-08-12"
-
-
-class RoadmapUnreadable(ServiceError):
-    """The release composition could not be read. Not the same as "empty"."""
-
-
-def _stories(conn: sqlite3.Connection) -> dict[str, dict[str, Any]]:
-    cur = conn.execute(
-        "SELECT s.id, s.slug, s.title, s.status, e.slug AS epic_slug, "
-        "e.title AS epic_title FROM stories s JOIN epics e ON s.epic_id = e.id"
-    )
-    cols = [c[0] for c in cur.description]
-    return {row[1]: dict(zip(cols, row)) for row in cur.fetchall()}
-
-
-def _decisions(conn: sqlite3.Connection) -> list[dict[str, Any]]:
-    """Every decision, oldest first, as plain dicts."""
-    cur = conn.execute("SELECT id, decision, created_at FROM decisions ORDER BY id ASC")
-    cols = [c[0] for c in cur.description]
-    return [dict(zip(cols, row)) for row in cur.fetchall()]
-
-
-def _named_stories(text: str, known: dict[str, dict[str, Any]]) -> list[str]:
-    """Story slugs a decision names, in the order the decision names them.
-
-    The order is the owner's: a scope decision lists the stories in the order it
-    considers them, and re-sorting that alphabetically would substitute my
-    ordering for theirs in a document whose subject is their plan.
-    """
-    hits = [(text.index(slug), slug) for slug in known if slug in text]
-    hits.sort()
-    return [slug for _, slug in hits]
-
-
-def composition(conn: sqlite3.Connection) -> dict[str, Any]:
-    """The release composition in force, read out of the decisions.
-
-    The NEWEST decision naming two or more stories wins: scope is restated every
-    shift, and the last statement is the one that holds. Raises rather than
-    returning an empty composition — see the module docstring.
-    """
-    known = _stories(conn)
-    decisions = _decisions(conn)
-    basis = None
-    slugs: list[str] = []
-    for row in reversed(decisions):
-        named = _named_stories(row["decision"] or "", known)
-        if len(named) >= COMPOSITION_MIN_STORIES:
-            basis, slugs = row, named
-            break
-    if basis is None:
-        raise RoadmapUnreadable(
-            "no decision names two or more stories, so the release composition "
-            "is undeclared; refusing to publish a roadmap that would look like "
-            "a release with no stories in it"
-        )
-    charter = _charter(decisions, slugs, known)
-    version = _VERSION_RE.search(basis["decision"] or "")
-    return {
-        "basis": basis,
-        "charter": charter,
-        "stories": [known[s] for s in slugs],
-        "version": version.group(0) if version else None,
-        "points": _points(basis["decision"] or ""),
-    }
-
-
-def _charter(
-    decisions: list[dict[str, Any]],
-    slugs: list[str],
-    known: dict[str, dict[str, Any]],
-) -> dict[str, Any] | None:
-    """The decision that defined the release, found by following the record.
-
-    The EARLIEST decision naming this composition is the one that fixed it, and
-    it cites the charter by number in its own text — so the link is read, not
-    assumed. If that number resolves to no decision, the finder returns the
-    earliest composition decision itself rather than inventing a reference.
-    """
-    scope = {s: known[s] for s in slugs}
-    by_id = {d["id"]: d for d in decisions}
-    for row in decisions:
-        if len(_named_stories(row["decision"] or "", scope)) < COMPOSITION_MIN_STORIES:
-            continue
-        for ref in _DECISION_REF_RE.findall(row["decision"] or ""):
-            target = by_id.get(int(ref))
-            if target is not None and target["id"] != row["id"]:
-                return target
-        return row
-    return None
-
-
-def _points(text: str) -> list[str] | None:
-    """The scope trajectory a decision recorded, or None when it recorded none.
-
-    None is not []: a decision that never wrote the line and a decision that
-    wrote an empty one are different states, and a reader of the map must be
-    able to tell "no trajectory was recorded" from "the trajectory is empty".
-    """
-    m = _POINTS_RE.search(text)
-    if not m:
-        return None
-    return [p.strip() for p in m.group(1).split(",") if p.strip()]
 
 
 def _task_counts(conn: sqlite3.Connection, story_id: int) -> dict[str, int]:
@@ -275,12 +167,23 @@ def _scope_section(
     basis: dict[str, Any],
     version: str,
 ) -> list[str]:
+    if comp.get("declared"):
+        source = (
+            "Состав — из последнего решения, ОБЪЯВИВШЕГО его строкой «Состав:»: "
+            f"#{basis['id']} от {basis['created_at'][:10]}; решения после него, "
+            "которые лишь упоминают истории, состав не меняют."
+        )
+    else:
+        source = (
+            "Состав — из последнего решения, упоминающего две и более истории: "
+            f"#{basis['id']} от {basis['created_at'][:10]}. Явной строки "
+            "«Состав:» журнал не содержит, так что это вывод из прозы, а не "
+            "объявление; пересказ состава строкой снимет двусмысленность."
+        )
     lines = [
         f"## Что входит в {version}",
         "",
-        f"Состав — из последнего решения, называющего истории релиза: "
-        f"#{basis['id']} от {basis['created_at'][:10]}. Счётчики сняты с живой "
-        "базы в момент перевыпуска этого файла.",
+        f"{source} Счётчики сняты с живой базы в момент перевыпуска этого файла.",
         "",
         "| История | Статус | Осталось | Заблокировано | Закрыто |",
         "|---|---|---|---|---|",
@@ -307,24 +210,54 @@ def _scope_section(
 
 
 def _out_section(conn: sqlite3.Connection, comp: dict[str, Any]) -> list[str]:
+    """Stories the composition does not name — OPEN ones apart from DONE ones.
+
+    One table with one caption called both "not in this version", and for a
+    closed story that is false: its work is in the release tree, it is only not
+    part of what the release PROMISES. The deferred cost — the reason this
+    section exists — is carried by the open stories alone.
+    """
     outside = _out_of_scope(conn, comp)
     epics = ", ".join(sorted({s["epic_slug"] for s in comp["stories"]}))
     lines = [
         "## Что в релиз НЕ входит",
         "",
-        f"Истории эпика ({epics}), которых решение о составе не называет. Они "
-        "не отменены — они не в этой версии, и их счётчики здесь для того, "
-        "чтобы граница релиза была видна вместе с ценой, которую она отложила.",
+        f"Истории эпиков ({epics}), которых решение о составе не называет.",
         "",
     ]
     if not outside:
-        lines += ["Таких историй нет: эпик целиком в релизе.", ""]
+        lines += ["Таких историй нет: эпики целиком в релизе.", ""]
         return lines
-    lines += ["| История | Статус | Осталось |", "|---|---|---|"]
+    open_: list[dict[str, Any]] = []
+    done: list[dict[str, Any]] = []
     for st in outside:
-        counts = _task_counts(conn, st["id"])
-        lines.append(f"| `{st['slug']}` | {st['status']} | {_remaining(counts)} |")
-    lines += [""]
+        (done if st["status"] == DONE_STATUS else open_).append(st)
+    lines += [
+        "**Открытые — отложенная цена.** Они не отменены — они не в этой версии, "
+        "и их остаток здесь для того, чтобы граница релиза была видна вместе с "
+        "ценой, которую она отложила.",
+        "",
+    ]
+    if not open_:
+        lines += ["Открытых историй вне состава нет.", ""]
+    else:
+        lines += ["| История | Статус | Осталось |", "|---|---|---|"]
+        for st in open_:
+            counts = _task_counts(conn, st["id"])
+            lines.append(f"| `{st['slug']}` | {st['status']} | {_remaining(counts)} |")
+        lines += [""]
+    if done:
+        lines += [
+            "**Закрытые, составом не названные.** Их работа в дереве релиза, но "
+            "обещанием релиза она не объявлена; отложенной цены у них нет.",
+            "",
+            "| История | Закрыто |",
+            "|---|---|",
+        ]
+        for st in done:
+            counts = _task_counts(conn, st["id"])
+            lines.append(f"| `{st['slug']}` | {counts.get(DONE_STATUS, 0)} |")
+        lines += [""]
     return lines
 
 

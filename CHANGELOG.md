@@ -9,6 +9,26 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the release map read an additive decision as the whole composition
+
+`ROADMAP.md` took the newest decision that MENTIONS two or more story slugs as
+the composition in force. Decision #363 answered three owner questions and
+happened to mention three slugs, so the map shrank 1.9 from thirteen stories
+to three — while quoting #360, which names ten of them, as the charter one
+section above. `tausik doc roadmap --check` stayed green: it compares the file
+to the generator, and the generator was faithfully wrong. A composition is now
+READ from a line written as one: the newest decision carrying `Состав: a, b, c`
+(`Composition:`) is the composition, `Устав: #N` (`Charter:`) names the charter,
+an unknown slug on the line is a refusal by name and an empty line is a refusal,
+not an empty release. Prose that mentions two slugs no longer restates the
+release once any decision has declared one; the inference stays only as the
+fallback for a journal that never wrote the line, and the map says which of the
+two readings it used. The "not in the release" section shows OPEN stories (the
+deferred cost) apart from DONE stories the composition does not name — a closed
+story's work is in the release tree, and calling it "not in this version" was
+false. Decision #367 restates the 1.9 composition with both lines; the reader
+lives in `scripts/release_roadmap_composition.py`.
+
 ### Fixed — Codex PowerShell write gate reads inline Python mutations
 
 The shared shell gate now reads literal Python `-c` programs on the PowerShell

@@ -12,54 +12,74 @@
 
 ## Что входит в 1.9
 
-Состав — из последнего решения, называющего истории релиза: #363 от 2026-09-12. Счётчики сняты с живой базы в момент перевыпуска этого файла.
+Состав — из последнего решения, ОБЪЯВИВШЕГО его строкой «Состав:»: #367 от 2026-09-13; решения после него, которые лишь упоминают истории, состав не меняют. Счётчики сняты с живой базы в момент перевыпуска этого файла.
 
 | История | Статус | Осталось | Заблокировано | Закрыто |
 |---|---|---|---|---|
-| `release19-proof-integrity`<br>1.9: квитанция и hard-гарантии не могут лгать | done | 0 | 0 | 23 |
+| `agent-output-discipline`<br>Дисциплина ответа агента: форма, крышки вывода и измеренная цена инъекции | done | 0 | 0 | 10 |
+| `context-carries-over-between-sessions`<br>Контекст переживает границу сессии: ядро памяти, релевантное извлечение, инструктированная компакция, учение с холодным стартом | done | 0 | 0 | 3 |
+| `guarantees-are-not-claude-only`<br>Гарантии кроссмодельны или объявлены отсутствующими: хост без механизма не имеет права выглядеть как хост с механизмом | done | 0 | 0 | 7 |
+| `verification-off-the-critical-path`<br>A. Проверка уходит с критического пути: CI на рабочей ветке, лента параллельна, ничего не исключено молча | done | 1 | 0 | 13 |
+| `the-loop-closes-outward`<br>D. Петля замыкается наружу: связь задача-тикет и заметки к релизу | done | 0 | 0 | 4 |
+| `evidence-primitives`<br>Примитивы доказательства: один вердикт, три исхода, одна реализация | done | 0 | 0 | 27 |
+| `gates-declare-what-they-prevent`<br>Гейт объявляет предотвращаемый эффект и проверяется мутацией (SENAR 1.4) | done | 0 | 0 | 42 |
+| `renar-contract-contour`<br>Контрактный контур: ACTZ, итоговое ТЗ и приёмка от контракта | done | 0 | 0 | 11 |
+| `test-evidence-not-test-volume`<br>Доказательность теста вместо количества тестов | done | 0 | 0 | 5 |
+| `codex-first-class-19`<br>Codex — полноценный хост: живые MCP, хуки, навыки, агенты и доказуемая матрица гарантий | done | 2 | 0 | 8 |
+| `release19-proof-integrity`<br>1.9: квитанция и hard-гарантии не могут лгать | done | 5 | 0 | 24 |
+| `release19-effective-context`<br>1.9: эффективный контекст и измеренная дисциплина ответа | active | 2 | 1 | 11 |
+| `knowledge-sheds-notion-and-its-hygiene`<br>Знание расстаётся с Notion: одна граница публикации, один путь наружу, документация сведена | done | 0 | 0 | 5 |
 | `kb-docs`<br>Роевое комплексное обновление документации | done | 0 | 0 | 1 |
-| `release19-effective-context`<br>1.9: эффективный контекст и измеренная дисциплина ответа | active | 1 | 1 | 11 |
-| **Итого** | | **1** | **1** | **35** |
+| **Итого** | | **10** | **1** | **171** |
 
 ## Что в релиз НЕ входит
 
-Истории эпика (release-19-agent-effectiveness, release-19-renar-conformance, shared-knowledge), которых решение о составе не называет. Они не отменены — они не в этой версии, и их счётчики здесь для того, чтобы граница релиза была видна вместе с ценой, которую она отложила.
+Истории эпиков (landscape-2026-h2, release-19-agent-effectiveness, release-19-renar-conformance, shared-knowledge), которых решение о составе не называет.
 
-| История | Статус | Осталось |
-|---|---|---|
-| `codex-first-class-19` | done | 0 |
-| `codex-is-a-first-class-host` | done | 0 |
-| `context-carries-over-between-sessions` | done | 0 |
-| `evidence-and-hygiene-debt-paid-in-19` | done | 0 |
-| `evidence-is-durable` | done | 0 |
-| `evidence-is-substance-not-keywords` | done | 0 |
-| `evidence-primitives` | done | 0 |
-| `external-proof-and-open-axes` | done | 0 |
-| `gates-declare-what-they-prevent` | done | 0 |
-| `github-primary-gitlab-mirror` | done | 0 |
-| `guarantees-are-not-claude-only` | done | 0 |
-| `kb-git-sync` | done | 0 |
-| `kb-global` | done | 0 |
-| `kb-identity` | done | 0 |
-| `kb-notion` | done | 0 |
-| `km-knowledge-layer` | done | 0 |
-| `knowledge-records-what-failed-19` | done | 0 |
-| `knowledge-sheds-notion-and-its-hygiene` | done | 0 |
-| `memory-retrieves-by-relevance` | done | 0 |
-| `obligations-to-people-are-settled` | done | 0 |
-| `parallel-work-runs-without-collisions` | done | 0 |
-| `proof-and-positioning-outward` | done | 0 |
-| `renar-contract-contour` | done | 0 |
-| `renar-debt-implemented-wrong` | done | 0 |
-| `standards-drift-detection` | done | 0 |
-| `surfaces-do-not-diverge` | done | 0 |
-| `test-evidence-not-test-volume` | done | 0 |
-| `the-loop-closes-outward` | done | 0 |
-| `verification-off-the-critical-path` | done | 0 |
+**Открытые — отложенная цена.** Они не отменены — они не в этой версии, и их остаток здесь для того, чтобы граница релиза была видна вместе с ценой, которую она отложила.
+
+Открытых историй вне состава нет.
+
+**Закрытые, составом не названные.** Их работа в дереве релиза, но обещанием релиза она не объявлена; отложенной цены у них нет.
+
+| История | Закрыто |
+|---|---|
+| `bookmarks-2026-08` | 0 |
+| `borrow-cubest-onyx` | 4 |
+| `borrow-kaeru` | 0 |
+| `codex-is-a-first-class-host` | 0 |
+| `evidence-and-hygiene-debt-paid-in-19` | 1 |
+| `evidence-is-durable` | 0 |
+| `evidence-is-substance-not-keywords` | 0 |
+| `external-proof-and-open-axes` | 2 |
+| `github-primary-gitlab-mirror` | 3 |
+| `kb-git-sync` | 3 |
+| `kb-global` | 8 |
+| `kb-identity` | 0 |
+| `kb-notion` | 5 |
+| `km-knowledge-layer` | 1 |
+| `knowledge-records-what-failed-19` | 1 |
+| `l26-arch-debt` | 30 |
+| `l26-ecosystem` | 4 |
+| `l26-hygiene` | 8 |
+| `l26-mcp-spec` | 3 |
+| `l26-narrative` | 32 |
+| `l26-provable` | 10 |
+| `l26-silent-failures-in-shipped-commands` | 12 |
+| `l26-trust-boundary` | 14 |
+| `memory-retrieves-by-relevance` | 0 |
+| `obligations-to-people-are-settled` | 1 |
+| `parallel-work-runs-without-collisions` | 1 |
+| `proof-and-positioning-outward` | 0 |
+| `release-18-audit` | 1 |
+| `renar-debt-implemented-wrong` | 23 |
+| `repo-hygiene-19` | 1 |
+| `standards-drift-detection` | 7 |
+| `surfaces-do-not-diverge` | 0 |
 
 ## Траектория объёма
 
-Решение #363 траекторию не записало — не «ноль точек», а не записало. Ряд восстанавливается по журналу решений об объёме.
+Решение #367 траекторию не записало — не «ноль точек», а не записало. Ряд восстанавливается по журналу решений об объёме.
 
 ## TAUSIK-roadmap.pdf — снимок, который сознательно не переиздаётся
 
