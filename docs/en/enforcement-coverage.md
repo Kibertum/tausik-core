@@ -12,7 +12,16 @@ so **a file write through Bash bypassed both**: `cat > f <<EOF`, `sed -i`, `tee`
 `dd of=`, `python -c "open(f,'w')"` created and edited files with no active task
 and outside the declared `scope_paths` (demonstrated live in sessions #117/#118).
 Since 1.8 `bash_write_gate` closes that hole, and `MultiEdit`/`NotebookEdit` were
-added to the `task_gate`/`scope_write_gate` matchers.
+added to the `task_gate`/`scope_write_gate` matchers. Since 1.9 (GitHub PR #5,
+Okianiwa) every write guard reads ONE list of write tools —
+`scripts/hooks/write_tools.py`: the built-in editors plus the serena and
+windows-mcp editors — and one list of payload fields (`file_path`,
+`notebook_path`, `path`, `relative_path`, `destination`), so a notebook or an
+MCP edit reaches the same gates as a Write on the hook-bearing hosts (Claude,
+Qwen, Codex — the ones that take `build_hooks_dict`; OpenCode's QG-0 plugin
+keeps its own list of that host's editors); `tests/test_pr5_hook_coverage.py`
+holds the bootstrap matchers to that list and refuses an unlisted write without
+a task.
 
 **What the gate catches:** redirections (`>`, `>>`, `&>`, `N>`, including the
 heredoc header line), `tee`, `dd of=`, `sed -i` (GNU and the BSD `-i ''` form),

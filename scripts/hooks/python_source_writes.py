@@ -116,8 +116,10 @@ def _literal_path(node: ast.expr | None, bindings: dict[str, str]) -> str | None
 
 def _is_path_constructor(node: ast.expr) -> bool:
     """Whether *node* spells `Path`, directly or as `pathlib.Path`."""
-    return isinstance(node, ast.Name) and node.id == "Path" or (
-        isinstance(node, ast.Attribute) and node.attr == "Path"
+    return (
+        isinstance(node, ast.Name)
+        and node.id == "Path"
+        or (isinstance(node, ast.Attribute) and node.attr == "Path")
     )
 
 
@@ -180,7 +182,11 @@ def _mode_is_writing(call: ast.Call) -> bool:
 
 def _module_call_name(node: ast.expr, module: str) -> str | None:
     """Method name for a direct `module.method(...)` spelling, else None."""
-    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == module:
+    if (
+        isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == module
+    ):
         return node.attr
     return None
 

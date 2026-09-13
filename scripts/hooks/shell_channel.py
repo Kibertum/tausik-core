@@ -34,6 +34,8 @@ import pwsh_write_parse  # noqa: E402
 _DIALECTS = {
     "Bash": bash_write_parse,
     "PowerShell": pwsh_write_parse,
+    # The shell windows-mcp exposes (PR #5): same `command` field, same dialect.
+    "mcp__windows-mcp__PowerShell": pwsh_write_parse,
 }
 
 #: Tool name -> the scanner that separates that dialect's COMMANDS from the
@@ -43,6 +45,7 @@ _DIALECTS = {
 _SCANNERS = {
     "Bash": bash_cmd_scan.scan_target,
     "PowerShell": pwsh_cmd_norm.scan_target,
+    "mcp__windows-mcp__PowerShell": pwsh_cmd_norm.scan_target,
 }
 
 #: Every tool whose input is a shell command line. Hooks registered on these

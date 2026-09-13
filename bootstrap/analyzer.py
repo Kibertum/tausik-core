@@ -221,9 +221,7 @@ def detect_extension_skills(project_dir: str) -> dict[str, str]:
                 break
 
     # --- docs ---
-    has_docs_dir = _has_dir(project_dir, "docs") or _has_dir(
-        project_dir, "documentation"
-    )
+    has_docs_dir = _has_dir(project_dir, "docs") or _has_dir(project_dir, "documentation")
     readme = os.path.join(project_dir, "README.md")
     big_readme = False
     if os.path.isfile(readme):
@@ -255,5 +253,3 @@ def detect_extension_skills(project_dir: str) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 # Main analysis entry point
 # ---------------------------------------------------------------------------
-
-

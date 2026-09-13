@@ -36,11 +36,19 @@ def main() -> int:
     except (json.JSONDecodeError, EOFError):
         return 0
 
-    file_path = data.get("tool_input", {}).get("file_path", "")
-    if not file_path or not os.path.isfile(file_path):
-        return 0
+    # MultiEdit carries `file_path` too and was off this hook's matcher (PR #5);
+    # the field is read through the one helper so every editor's spelling counts.
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from write_tools import edited_path  # noqa: PLC0415
 
     project_dir = os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd())
+    file_path = edited_path(data.get("tool_input")) or ""
+    if file_path and not os.path.isabs(file_path):
+        # serena speaks project-relative paths; the hook's own cwd is not
+        # necessarily the project, so resolve before asking the filesystem.
+        file_path = os.path.normpath(os.path.join(project_dir, file_path))
+    if not file_path or not os.path.isfile(file_path):
+        return 0
 
     # Auto-format by extension
     _, ext = os.path.splitext(file_path)

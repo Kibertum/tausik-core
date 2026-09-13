@@ -21,18 +21,18 @@
 # `mandatory-clauses-basis` above.
 renar-version: '1.1'
 senar-version: '1.3'
-manifest-version: 22
-manifest-id: CFM-2026-09-12-tausik
+manifest-version: 23
+manifest-id: CFM-2026-09-13-tausik
 level: null
 level-target: null
 pre-adoption: false
 assessment-mode: self
-assessment-date: '2026-09-12'
+assessment-date: '2026-09-13'
 assessor:
-  id: Andrey Yumashev
+  id: TAUSIK CI
   role: architect
   signature-ref: null
-next-assessment-due: '2026-12-11'
+next-assessment-due: '2026-12-12'
 mandatory-clauses-confirmed:
   sot-inversion: true
   substrate-v1-v6: true
@@ -53,7 +53,7 @@ mandatory-clauses-basis:
     basis: machinery
     premise-watched-by: tests/test_renar_mandatory_clauses.py::test_the_machinery_sot_inversion_rests_on_is_switched_on
       (verify_first blocking and enabled in the live gate registry; task_gate.py wired
-      on Write|Edit in bootstrap_hooks)
+      on BUILTIN_WRITE_MATCHER in bootstrap_hooks)
   substrate-v1-v6:
     basis: machinery
     premise-watched-by: tests/test_events_chain.py (V1 hash-chain of the event journal)
@@ -181,9 +181,9 @@ assessment-evidence:
     adapts_approved_count: 0
     delta_adapts_count: 0
     task_specs_count: 3
-    reasoning_tasks_count: 5
+    reasoning_tasks_count: 6
     memory_edges_count: 27
-    verification_runs_count: 2538
+    verification_runs_count: 2632
   level-signals:
     substrate_v1_v6: true
     adapt_per_tz: false
@@ -276,7 +276,7 @@ assessment-evidence:
     citation: §13.3.7 (backward findings, SPEC types, lifecycle states closed)
     evidence: every adapts row is inside the declared list
 replaced-by: <unknown-state>
-replaces: CFM-2026-09-06-tausik@v21
+replaces: CFM-2026-09-12-tausik@v22
 conformance-declaration: non-conformant
 scope-exclusion:
   clause: §1.5.4

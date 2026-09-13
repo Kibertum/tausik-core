@@ -128,7 +128,7 @@ def quality_gates_clause(declared: dict[str, str]) -> dict[str, Any]:
 SOT_INVERSION_WATCH = (
     "tests/test_renar_mandatory_clauses.py::test_the_machinery_sot_inversion_rests_on_is_switched_on "
     "(verify_first blocking and enabled in the live gate registry; task_gate.py wired on "
-    "Write|Edit in bootstrap_hooks)"
+    "BUILTIN_WRITE_MATCHER in bootstrap_hooks)"
 )
 SUBSTRATE_WATCH = (
     "tests/test_events_chain.py (V1 hash-chain of the event journal) and "

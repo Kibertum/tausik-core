@@ -13,6 +13,14 @@ QG-0 (Rule 1) и scope-ACL (Rule 2) исторически висели толь
 без активной задачи и вне объявленного `scope_paths` (подтверждено вживую в
 сессиях #117/#118). С 1.8 эту дыру закрывает `bash_write_gate` (matcher `Bash`),
 а `MultiEdit`/`NotebookEdit` добавлены в matcher'ы `task_gate`/`scope_write_gate`.
+С 1.9 (GitHub PR #5, Okianiwa) каждый охранник записи читает ОДИН список пишущих
+инструментов — `scripts/hooks/write_tools.py`: встроенные редакторы плюс
+редакторы serena и windows-mcp — и один список полей payload (`file_path`,
+`notebook_path`, `path`, `relative_path`, `destination`), так что ноутбук или
+MCP-правка доходят до тех же гейтов, что и Write, на хостах с хуками (Claude,
+Qwen, Codex — те, что берут `build_hooks_dict`; плагин QG-0 OpenCode держит
+свой список редакторов того хоста); `tests/test_pr5_hook_coverage.py`
+держит matcher'ы bootstrap на этом списке и отказывает неучтённой записи без задачи.
 
 **Что гейт ловит:** редиректы (`>`, `>>`, `&>`, `N>`, включая heredoc-заголовок),
 `tee`, `dd of=`, `sed -i` (GNU и BSD-форма `-i ''`), `cp`/`mv`/`install`

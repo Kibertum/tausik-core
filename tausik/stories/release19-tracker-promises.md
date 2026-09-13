@@ -1,7 +1,7 @@
 ---
 slug: release19-tracker-promises
 title: "1.9: обещания трекерам исполнены до тега — GitLab #5, #6, #14 и перенос hook-coverage из GitHub PR #5 (по указанию владельца в смене #258)"
-status: active
+status: done
 epic: release-19-renar-conformance
 ---
 

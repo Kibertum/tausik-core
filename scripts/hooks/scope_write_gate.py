@@ -36,7 +36,10 @@ from hook_policy import (  # noqa: E402
     legacy_fail_secure_notice,
 )
 
-_GATED_TOOLS = ("Write", "Edit", "MultiEdit", "NotebookEdit")
+# One list, shared with every other write guard (PR #5): a private copy here
+# is how NotebookEdit and the MCP editors fell out of two guards at once.
+from write_tools import WRITE_TOOLS as _GATED_TOOLS  # noqa: E402
+from write_tools import edited_paths  # noqa: E402
 
 
 def _read_stdin_json() -> dict:
@@ -184,15 +187,18 @@ def main() -> int:
     if event.get("tool_name") not in _GATED_TOOLS:
         return 0
     tool_input = event.get("tool_input") if isinstance(event.get("tool_input"), dict) else {}
-    # NotebookEdit carries its target as `notebook_path`, not `file_path`
-    # (l26-hook-contract-review AC: NotebookEdit was previously ungated).
-    file_path = tool_input.get("file_path") or tool_input.get("notebook_path")
-    if not isinstance(file_path, str) or not file_path:
-        return 0
-
-    rel = _relative_to_project(file_path, project_dir)
-    if rel is None:
-        return 0  # outside the project root — not this hook's jurisdiction
+    # NotebookEdit says `notebook_path`, serena `relative_path`, a FileSystem
+    # move `path` and `destination` — `write_tools.edited_paths` knows the
+    # fields. EVERY in-project path is judged: judging the destination alone
+    # let a task scoped to src/a/** move .tausik/tausik.db into src/a/ (review,
+    # session #259).
+    rels = [
+        rel
+        for rel in (_relative_to_project(p, project_dir) for p in edited_paths(tool_input))
+        if rel is not None
+    ]
+    if not rels:
+        return 0  # nothing named, or everything outside the project root — not this hook's jurisdiction
 
     fail_open = fail_open_on_db_error()
     notice = legacy_fail_secure_notice()
@@ -241,8 +247,10 @@ def main() -> int:
     if not acls or not has_declared_scope(acls):
         return 0  # no active task, or nobody declared a scope — legacy freedom
 
-    if scope_allows(rel, acls):
+    outside = [rel for rel in rels if not scope_allows(rel, acls)]
+    if not outside:
         return 0
+    rel = outside[0]
 
     declared = declared_acls(acls)
     acl_lines = "\n".join(f"  {slug}: {patterns}" for slug, patterns in declared)

@@ -609,25 +609,24 @@ class TestSettingsGeneration:
         cfg = json.loads((target / "settings.json").read_text(encoding="utf-8"))
         hooks = cfg.get("hooks", {})
         assert "PreToolUse" in hooks
-        matched = False
-        for entry in hooks["PreToolUse"]:
-            if not any("memory_pretool_block.py" in h["command"] for h in entry["hooks"]):
-                continue
-            # The shell tools are on the matcher since memory-route-gate: a
-            # heredoc or a Set-Content writes exactly what the Write path
-            # refuses. The expected value is DERIVED from the parser's own
-            # dialect list rather than spelled out here — this assertion used to
-            # carry the literal "Write|Edit|MultiEdit|Bash", and that literal is
-            # precisely the shape that let a second shell tool go ungated: the
-            # test kept passing while the channel it named stopped being the
-            # only one.
-            sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks"))
-            import shell_channel
+        # The shell tools are on the matcher since memory-route-gate: a
+        # heredoc or a Set-Content writes exactly what the Write path
+        # refuses. The expected value is DERIVED from the producers' own lists
+        # rather than spelled out here — this assertion used to carry the
+        # literal "Write|Edit|MultiEdit|Bash", and that literal is precisely
+        # the shape that let a second shell tool go ungated. Since PR #5 the
+        # hook sits on two entries (built-in names, MCP names); the UNION is
+        # what must equal the lists.
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks"))
+        import shell_channel
+        import write_tools
 
-            expected = "Write|Edit|MultiEdit|" + "|".join(shell_channel.SHELL_TOOLS)
-            assert entry["matcher"] == expected, entry
-            matched = True
-        assert matched, "memory_pretool_block.py not registered in Claude PreToolUse"
+        registered: set[str] = set()
+        for entry in hooks["PreToolUse"]:
+            if any("memory_pretool_block.py" in h["command"] for h in entry["hooks"]):
+                registered |= set(entry["matcher"].split("|"))
+        assert registered, "memory_pretool_block.py not registered in Claude PreToolUse"
+        assert registered == set(write_tools.WRITE_TOOLS) | set(shell_channel.SHELL_TOOLS)
 
     def test_qwen_settings_registers_hook(self, tmp_path):
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bootstrap"))
@@ -639,25 +638,19 @@ class TestSettingsGeneration:
         cfg = json.loads((target / "settings.json").read_text(encoding="utf-8"))
         hooks = cfg.get("hooks", {})
         assert "PreToolUse" in hooks
-        matched = False
-        for entry in hooks["PreToolUse"]:
-            if not any("memory_pretool_block.py" in h["command"] for h in entry["hooks"]):
-                continue
-            # The shell tools are on the matcher since memory-route-gate: a
-            # heredoc or a Set-Content writes exactly what the Write path
-            # refuses. The expected value is DERIVED from the parser's own
-            # dialect list rather than spelled out here — this assertion used to
-            # carry the literal "Write|Edit|MultiEdit|Bash", and that literal is
-            # precisely the shape that let a second shell tool go ungated: the
-            # test kept passing while the channel it named stopped being the
-            # only one.
-            sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks"))
-            import shell_channel
+        # Same derivation as the Claude test above: the union over the hook's
+        # entries equals the producers' lists (PR #5 put the MCP names on a
+        # second entry).
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks"))
+        import shell_channel
+        import write_tools
 
-            expected = "Write|Edit|MultiEdit|" + "|".join(shell_channel.SHELL_TOOLS)
-            assert entry["matcher"] == expected, entry
-            matched = True
-        assert matched, "memory_pretool_block.py not registered in Qwen PreToolUse"
+        registered: set[str] = set()
+        for entry in hooks["PreToolUse"]:
+            if any("memory_pretool_block.py" in h["command"] for h in entry["hooks"]):
+                registered |= set(entry["matcher"].split("|"))
+        assert registered, "memory_pretool_block.py not registered in Qwen PreToolUse"
+        assert registered == set(write_tools.WRITE_TOOLS) | set(shell_channel.SHELL_TOOLS)
 
 
 class TestEdgeCases:

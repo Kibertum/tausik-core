@@ -23,7 +23,9 @@ from memory_markers import detect_markers  # noqa: E402
 from memory_pretool_block import is_in_claude_memory  # noqa: E402
 
 
-_AUDITED_TOOLS = ("Write", "Edit", "MultiEdit")
+from write_tools import WRITE_TOOLS as _AUDITED_TOOLS  # noqa: E402
+from write_tools import edited_path  # noqa: E402
+
 _MAX_REPORTED = 5
 
 
@@ -58,7 +60,7 @@ def main() -> int:
     tool_input = event.get("tool_input") or {}
     if not isinstance(tool_input, dict):
         return 0
-    file_path = tool_input.get("file_path") or ""
+    file_path = edited_path(tool_input) or ""
     if not isinstance(file_path, str):
         return 0
 
@@ -79,10 +81,7 @@ def main() -> int:
 
     head = matches[:_MAX_REPORTED]
     extra = len(matches) - len(head)
-    lines = [
-        f"AUDIT: auto-memory write at {file_path} contains {len(matches)} "
-        "project marker(s):"
-    ]
+    lines = [f"AUDIT: auto-memory write at {file_path} contains {len(matches)} project marker(s):"]
     for m in head:
         lines.append(f"  - [{m.kind}] {m.match}")
     if extra > 0:

@@ -77,16 +77,23 @@ def target_is_outside_project(raw_stdin: str, project_dir: str) -> bool:
         tool_input = payload.get("tool_input")
         if not isinstance(tool_input, dict):
             return False
-        path = tool_input.get("file_path") or tool_input.get("notebook_path")
-        if not isinstance(path, str) or not path.strip():
+        # Any field a write tool names its target by (PR #5): a serena edit
+        # says `relative_path`, a FileSystem move says `path` AND
+        # `destination`. EVERY named path must be outside for the exemption:
+        # judging the destination alone let a move of a project file to a
+        # foreign directory pass with no task at all (review, session #259).
+        from write_tools import edited_paths  # noqa: PLC0415
+
+        paths = [p for p in edited_paths(tool_input) if p.strip()]
+        if not paths:
             return False
         # A relative path belongs to the SHELL's cwd, which the payload carries
         # — not to the project by definition, which is what stood here. The two
         # part company as soon as the agent works in a second checkout, and the
         # containment test still runs on the resolved absolute path, so a
         # relative path that climbs back into the project stays gated.
-        verdict, _rel = classify_target(path, project_dir, cwd=shell_cwd(payload, project_dir))
-        return verdict == "outside"
+        cwd = shell_cwd(payload, project_dir)
+        return all(classify_target(p, project_dir, cwd=cwd)[0] == "outside" for p in paths)
     except Exception:  # noqa: BLE001 — any failure means "not proven outside" => keep gating
         return False
 

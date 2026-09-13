@@ -67,7 +67,6 @@ from python_source_writes import writes_in_text as _text_writes  # noqa: E402
 from python_invocation import python_stdin as _python_stdin  # noqa: E402
 
 
-
 # A token still carrying '$' or a backtick after posix tokenization is an
 # unexpanded variable or command substitution — genuinely unresolvable, the
 # documented residual (`echo > $SCRATCH/x`). We deliberately do NOT reject

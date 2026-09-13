@@ -19,7 +19,12 @@ from bootstrap_generate import _stdio_mcp_server, retire_managed_servers
 # second shell tool appeared, the Claude generator and this one would have had
 # to be edited in lockstep by whoever remembered. Sharing the constant makes
 # that impossible to get wrong.
-from bootstrap_hooks import SHELL_MATCHER, deployed_hooks_dir
+from bootstrap_hooks import (
+    BUILTIN_WRITE_MATCHER,
+    SHELL_MATCHER,
+    deployed_hooks_dir,
+    with_mcp_registrations,
+)
 
 
 def generate_settings_qwen(
@@ -86,7 +91,7 @@ def generate_settings_qwen(
         "PreToolUse": [
             {
                 # l26-hook-contract-review parity: MultiEdit/NotebookEdit also write.
-                "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+                "matcher": BUILTIN_WRITE_MATCHER,
                 "hooks": [
                     {
                         "type": "command",
@@ -98,7 +103,7 @@ def generate_settings_qwen(
             {
                 # v15-scope-enforce-write parity with bootstrap_hooks.py
                 # (+ l26-hook-contract-review: NotebookEdit added).
-                "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+                "matcher": BUILTIN_WRITE_MATCHER,
                 "hooks": [
                     {
                         "type": "command",
@@ -124,7 +129,7 @@ def generate_settings_qwen(
             {
                 # memory-route-gate: shell parity with bootstrap_hooks.py — a
                 # heredoc or a Set-Content writes what the Write path refuses.
-                "matcher": f"Write|Edit|MultiEdit|{SHELL_MATCHER}",
+                "matcher": f"{BUILTIN_WRITE_MATCHER}|{SHELL_MATCHER}",
                 "hooks": [
                     {
                         "type": "command",
@@ -137,7 +142,7 @@ def generate_settings_qwen(
                 # secret-scan-covers-no-shell-channel (Decision #178): shell
                 # parity with bootstrap_hooks.py — a heredoc or `Set-Content
                 # -Value 'AKIA...'` carries the secret the Write path warns on.
-                "matcher": f"Write|Edit|MultiEdit|{SHELL_MATCHER}",
+                "matcher": f"{BUILTIN_WRITE_MATCHER}|{SHELL_MATCHER}",
                 "hooks": [
                     {
                         "type": "command",
@@ -196,7 +201,7 @@ def generate_settings_qwen(
                 # tool, and it has nothing to say about a Write or a Read. It
                 # lands on BOTH hook-bearing hosts: a capability on one and not
                 # the other is what `cross_model_parity` refuses.
-                "matcher": "Bash|PowerShell",
+                "matcher": SHELL_MATCHER,
                 "hooks": [
                     {
                         "type": "command",
@@ -206,7 +211,7 @@ def generate_settings_qwen(
                 ],
             },
             {
-                "matcher": "Write|Edit",
+                "matcher": "Write|Edit|MultiEdit",  # MultiEdit was off this hook (PR #5)
                 "hooks": [
                     {
                         "type": "command",
@@ -216,7 +221,7 @@ def generate_settings_qwen(
                 ],
             },
             {
-                "matcher": "Write|Edit|MultiEdit",
+                "matcher": BUILTIN_WRITE_MATCHER,
                 "hooks": [
                     {
                         "type": "command",
@@ -324,7 +329,7 @@ def generate_settings_qwen(
         ],
     }
 
-    settings = {**existing, "mcpServers": servers, "hooks": hooks}
+    settings = {**existing, "mcpServers": servers, "hooks": with_mcp_registrations(hooks)}
     with open(path, "w", encoding="utf-8") as f:
         json.dump(settings, f, indent=2)
 
@@ -350,7 +355,7 @@ def generate_qwen_md(
         ide="qwen",
         context_tier=context_tier,
         output_mode=output_mode,
-       project_dir=project_dir,
+        project_dir=project_dir,
     )
     content = f"# QWEN.md\n\n{body}"
     path = os.path.join(project_dir, "QWEN.md")

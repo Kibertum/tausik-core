@@ -84,6 +84,79 @@ def assert_hooks_deployed(target_dir: str) -> str:
 #: memorial to.
 SHELL_MATCHER = "Bash|PowerShell"
 
+# ---- PR #5 (Okianiwa): every tool a guarded action is reachable with ---------
+#
+# How Claude Code reads a matcher, as measured by the PR's author on
+# Claude Code 2.1.215 (function B8y in the bundle, 2026-08): a matcher made
+# only of [A-Za-z0-9_|] is split on `|` and compared for EXACT equality; any
+# other character routes the whole line to `new RegExp(matcher).test(name)`,
+# an UNANCHORED search. The PR anchored every line as `^(?:...)$` so both
+# branches mean the same thing. That is NOT ported: Qwen Code and Codex read
+# this same dict, their matcher semantics are unmeasured, and an anchored
+# regex a host compares literally is a hook that silently never fires. What
+# is ported is the fact: the built-in lines below stay pure alternations (the
+# exact-match branch), and the MCP names — which carry `-` and therefore run
+# as unanchored regexes — are registered on SEPARATE entries, so they cannot
+# switch a built-in line to substring semantics; `tests/test_pr5_hook_coverage`
+# holds every regex-branch alternative to a name no other tool contains.
+#
+# The lists are restated from `scripts/hooks/write_tools` and
+# `scripts/hooks/shell_channel` (bootstrap must stay runnable without the hooks
+# package on sys.path); the same test pins the two copies against each other.
+BUILTIN_WRITE_MATCHER = "Write|Edit|MultiEdit|NotebookEdit"
+MCP_WRITE_MATCHER = (
+    "mcp__windows-mcp__FileSystem"
+    "|mcp__serena__replace_symbol_body"
+    "|mcp__serena__replace_content"
+    "|mcp__serena__insert_after_symbol"
+    "|mcp__serena__insert_before_symbol"
+    "|mcp__serena__rename_symbol"
+    "|mcp__serena__safe_delete_symbol"
+)
+MCP_SHELL_MATCHER = "mcp__windows-mcp__PowerShell"
+
+#: Script -> the MCP matcher it is ALSO registered for. One declaration; the
+#: entries are appended by `with_mcp_registrations`, on every host that takes
+#: `build_hooks_dict` (Claude, Codex) and on Qwen's mirror.
+MCP_COVERAGE: dict[str, str] = {
+    "task_gate.py": MCP_WRITE_MATCHER,
+    "scope_write_gate.py": MCP_WRITE_MATCHER,
+    "memory_pretool_block.py": f"{MCP_WRITE_MATCHER}|{MCP_SHELL_MATCHER}",
+    "secret_scan.py": f"{MCP_WRITE_MATCHER}|{MCP_SHELL_MATCHER}",
+    "bash_firewall.py": MCP_SHELL_MATCHER,
+    "bash_write_gate.py": MCP_SHELL_MATCHER,
+    "git_push_gate.py": MCP_SHELL_MATCHER,
+    "tool_choice_nudge.py": MCP_SHELL_MATCHER,
+    "auto_format.py": MCP_WRITE_MATCHER,
+    "memory_posttool_audit.py": MCP_WRITE_MATCHER,
+    "task_call_counter.py": f"{MCP_WRITE_MATCHER}|{MCP_SHELL_MATCHER}",
+    "activity_event.py": f"{MCP_WRITE_MATCHER}|{MCP_SHELL_MATCHER}",
+    "tool_output_truncation_nudge.py": MCP_SHELL_MATCHER,
+}
+
+
+def _script_of(hook: dict[str, Any]) -> str:
+    return os.path.basename(str(hook.get("command", "")).split()[-1]) if hook.get("command") else ""
+
+
+def with_mcp_registrations(hooks: dict[str, Any]) -> dict[str, Any]:
+    """Append, for every script in MCP_COVERAGE, an entry on its MCP matcher.
+
+    The built-in entry is left as it is: the MCP names run as regexes, and
+    sharing a line would put the built-in names on that branch too.
+    """
+    for entries in hooks.values():
+        extra: list[dict[str, Any]] = []
+        for entry in entries:
+            for hook in entry.get("hooks", []):
+                matcher = MCP_COVERAGE.get(_script_of(hook))
+                # "" and "*" already mean every tool (Qwen spells it "*"): a
+                # second, narrower entry beside one would fire the hook twice.
+                if matcher and str(entry.get("matcher", "")).strip() not in ("", "*"):
+                    extra.append({"matcher": matcher, "hooks": [dict(hook)]})
+        entries.extend(extra)
+    return hooks
+
 
 def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
     """Build the `hooks` block of .claude/settings.json.
@@ -91,13 +164,17 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
     `hook_cmd(script, suffix="")` returns the formatted command string
     (`python <abs path>/<script><suffix>`).
     """
+    return with_mcp_registrations(_builtin_hooks_dict(hook_cmd))
+
+
+def _builtin_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
     return {
         "PreToolUse": [
             {
                 # l26-hook-contract-review: MultiEdit and NotebookEdit also
                 # write files and were ungated by QG-0. bash_write_gate.py (on
                 # the Bash matcher below) covers the shell-write vector.
-                "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+                "matcher": BUILTIN_WRITE_MATCHER,
                 "hooks": [
                     {
                         "type": "command",
@@ -112,7 +189,7 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 # ACLs are blocked. l26-hook-contract-review AC3: a co-active
                 # undeclared task no longer nullifies a sibling's ACL; +
                 # NotebookEdit added (it was ungated).
-                "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+                "matcher": BUILTIN_WRITE_MATCHER,
                 "hooks": [
                     {
                         "type": "command",
@@ -145,7 +222,7 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 # `Set-Content` writes the exact content the Write path refuses.
                 # Same hole l26-hook-contract-review closed for QG-0; leaving it
                 # open would make the Write block a formality.
-                "matcher": f"Write|Edit|MultiEdit|{SHELL_MATCHER}",
+                "matcher": f"{BUILTIN_WRITE_MATCHER}|{SHELL_MATCHER}",
                 "hooks": [
                     {
                         "type": "command",
@@ -163,7 +240,7 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 # Decision #178): a heredoc or a `Set-Content -Value 'AKIA...'`
                 # carries the exact secret the Write path would warn on, and
                 # leaving it off one channel re-splits the two.
-                "matcher": f"Write|Edit|MultiEdit|{SHELL_MATCHER}",
+                "matcher": f"{BUILTIN_WRITE_MATCHER}|{SHELL_MATCHER}",
                 "hooks": [
                     {
                         "type": "command",
@@ -231,7 +308,7 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 # tool, and it has nothing to say about a Write or a Read. It
                 # lands on BOTH hook-bearing hosts: a capability on one and not
                 # the other is what `cross_model_parity` refuses.
-                "matcher": "Bash|PowerShell",
+                "matcher": SHELL_MATCHER,
                 "hooks": [
                     {
                         "type": "command",
@@ -241,7 +318,7 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 ],
             },
             {
-                "matcher": "Write|Edit",
+                "matcher": "Write|Edit|MultiEdit",  # MultiEdit was off this hook (PR #5)
                 "hooks": [
                     {
                         "type": "command",
@@ -251,7 +328,7 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 ],
             },
             {
-                "matcher": "Write|Edit|MultiEdit",
+                "matcher": BUILTIN_WRITE_MATCHER,
                 "hooks": [
                     {
                         "type": "command",
@@ -277,7 +354,7 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 # HIGH-5 review fix: only Write/Edit/MultiEdit + the shell tools
                 # count toward call_actual. Read/Grep/Glob are research, not
                 # work — including them inflates the calibration drift metric.
-                "matcher": f"Write|Edit|MultiEdit|{SHELL_MATCHER}",
+                "matcher": f"{BUILTIN_WRITE_MATCHER}|{SHELL_MATCHER}",
                 "hooks": [
                     {
                         "type": "command",
@@ -311,7 +388,7 @@ def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 # through the uncounted one reads as idle and the duration
                 # limit silently stops applying.
                 "matcher": (
-                    f"Write|Edit|MultiEdit|{SHELL_MATCHER}|Read|Grep|Glob|WebFetch|WebSearch"
+                    f"{BUILTIN_WRITE_MATCHER}|{SHELL_MATCHER}|Read|Grep|Glob|WebFetch|WebSearch"
                 ),
                 "hooks": [
                     {

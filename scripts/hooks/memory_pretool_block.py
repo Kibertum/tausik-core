@@ -60,7 +60,10 @@ from memory_sinks import (  # noqa: E402
 )
 
 _BYPASS_MARKER = "confirm: cross-project"
-_PATH_TOOLS = ("Write", "Edit", "MultiEdit")
+# The one list of write tools (PR #5): this copy lacked NotebookEdit, so a
+# notebook written into `~/.claude/**/memory/` passed the routing guard.
+from write_tools import WRITE_TOOLS as _PATH_TOOLS  # noqa: E402
+from write_tools import edited_paths  # noqa: E402
 
 
 def _read_stdin_json() -> dict:
@@ -135,8 +138,7 @@ def _targets(event: dict, project_dir: str) -> list[str]:
     if not isinstance(tool_input, dict):
         return []
     if tool in _PATH_TOOLS:
-        fp = tool_input.get("file_path")
-        return [fp] if isinstance(fp, str) and fp else []
+        return edited_paths(tool_input)
     # Which shells carry a command is `shell_channel`'s answer. The literal
     # `!= "Bash"` that stood here covered exactly one of the two shell tools the
     # agent is handed on win32, so `Set-Content ~/.claude/.../memory/x.md` — the

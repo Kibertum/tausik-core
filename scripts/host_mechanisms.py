@@ -115,6 +115,13 @@ def _hook_entries(settings: dict) -> Iterator[tuple[str, str]]:
                         yield f"{KIND_HOOK}:{event}:{os.path.basename(token)}", matcher
 
 
+def _merge_matchers(a: str, b: str) -> str:
+    """The matcher of a capability registered on two entries: the union of names."""
+    if a.strip() in ("", "*") or b.strip() in ("", "*"):
+        return ""
+    return "|".join(sorted(set(a.split("|")) | set(b.split("|"))))
+
+
 def _read_profile(profile_dir: str) -> dict[str, str]:
     """Capabilities visible in a host profile directory, mapped to their matcher.
 
@@ -136,7 +143,13 @@ def _read_profile(profile_dir: str) -> dict[str, str]:
         except (OSError, ValueError):
             continue
         if isinstance(data, dict):
-            found.update(dict(_hook_entries(data)))
+            for cap, matcher in _hook_entries(data):
+                # A hook may sit on more than one entry (PR #5 registers the
+                # MCP editors on their own line); the capability's matcher is
+                # the UNION, and "every tool" absorbs anything narrower. A dict
+                # update here kept only the LAST entry, which made two hosts
+                # look equal the moment both ended on the same MCP line.
+                found[cap] = _merge_matchers(found[cap], matcher) if cap in found else matcher
     plugins = os.path.join(profile_dir, "plugins")
     if os.path.isdir(plugins):
         try:

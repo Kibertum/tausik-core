@@ -9,6 +9,29 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — guards see every tool their action is reachable with (GitHub PR #5, Okianiwa — ported)
+
+PR #5 measured, on Claude Code 2.1.215, that four hooks kept four private
+copies of "which tools write", and that two live write paths — NotebookEdit
+and the MCP file editors of serena and windows-mcp — reached no guard at
+all; the PR itself had grown into a 65-commit fork with an unrelated
+subsystem, so the finding is ported and the fork is not merged. One list now
+(`scripts/hooks/write_tools.py`: the built-in editors, the PR's MCP editors,
+the windows-mcp shell, and the payload fields `file_path` / `notebook_path` /
+`path` / `relative_path` / `destination`), read by task_gate,
+scope_write_gate, secret_scan, memory_pretool_block, memory_posttool_audit
+and auto_format; the bootstrap matchers restate it and are pinned to it, with
+the MCP names on their own entries so the built-in lines stay on Claude's
+exact-match branch. A FileSystem move is judged by BOTH its paths — the
+first cut judged the destination alone, and a move of a project file to a
+foreign directory passed with no task (review). Anchoring `^(?:…)$` is NOT
+ported: Qwen Code and Codex read the same dict with unmeasured matcher
+semantics, and the fact is pinned by a test instead. The cross-model parity
+table now unions a hook's entries, so a second line cannot hide a host
+difference. `tests/test_pr5_hook_coverage.py`: the refusals through
+previously unseen tools, the interception ledger that only grows, and the
+Qwen wildcard that gets no second line. Task `port-external-pr5-hook-coverage`.
+
 ### Fixed — the tracked AGENTS.md sibling no longer receives other projects' knowledge, and can opt out of the DYNAMIC block (GitLab #14)
 
 `tausik update-claudemd` wrote the whole DYNAMIC block — session number,
