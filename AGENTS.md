@@ -148,15 +148,15 @@ Three layers, strict separation: **CLI never touches DB. Service validates. Back
 <!-- DYNAMIC:START -->
 ## Current State
 Session: #265 (active) | Branch: v1-9-wave | TAUSIK: 1.9.0
-Tasks: 1514/1665 done, 0 active, 0 blocked
+Tasks: 1514/1666 done, 0 active, 0 blocked
 
 ### Memory tail
 Context (5):
+- #716 Баг обновления 1.8→1.9 (владелец, консумер, 14.09.2026): init_schema создаёт actz_points с tz_ref до
 - #714 GitHub — публичная дорожная карта 1.10 и 2.0 (смена #265): milestones + issues + labels, каждая зада
 - #713 Выпуск 1.9.0 (смена #264): цепочка актов, доказательства и ловушка credential-manager при push из бе
 - #712 Трекеры перед тегом 1.9, смена #264: ответы опубликованы в GitLab #5/#6/#14 и GitHub PR #5, ничего н
 - #706 Парный replay rag-first подсказок, смены #261–#263: search_code = 0 в обоих условиях, экономии нет, 
-- #697 Трекеры перед тегом 1.9 (смена #255): 14 GitLab + 2 GitHub + PR #5 — каждому тикету назначено состоя
 Decisions (5):
 - #374 1.10 — СОСТАВ. Объявлен владельцем в смене #264 («да» на предложение из четырёх историй-обещаний; корзины deferred-110-*
 - #373 1.10 — УСТАВ. Владелец, смена #264, сразу после публикации 1.9.0. Вопрос версии: «Дисциплина стала дешёвой?» — фреймворк
