@@ -3,7 +3,7 @@ slug: ruff-format-is-not-gated-and-86-files-diverged
 title: "Формат кода не проверяется ни одним гейтом: 86 файлов разошлись с ruff format, и узнать об этом можно только вручную"
 status: planning
 epic: release-110-deferred-from-19
-story: deferred-110-audit-hygiene
+story: release110-verification-is-cheap
 complexity: medium
 role: developer
 stack: python

@@ -3,7 +3,7 @@ slug: rag-language-list-is-hardcoded-while-stacks-are-user-extensible
 title: "RAG не видит языки, которые TAUSIK признаёт стеками: список расширений захардкожен, ручки нет (GitLab #11)"
 status: planning
 epic: release-110-deferred-from-19
-story: deferred-110-outward-loop-and-test-authorship
+story: release110-tracker-promises
 complexity: medium
 role: developer
 stack: python

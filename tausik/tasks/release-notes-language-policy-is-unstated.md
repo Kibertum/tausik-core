@@ -3,7 +3,7 @@ slug: release-notes-language-policy-is-unstated
 title: "Процедура выпуска не говорит, на каком языке живут заметки к тегу — и 1.8 вышел одноязычным"
 status: planning
 epic: release-110-deferred-from-19
-story: deferred-110-audit-hygiene
+story: release110-the-update-reaches-the-user
 complexity: simple
 role: tech-writer
 stack: null

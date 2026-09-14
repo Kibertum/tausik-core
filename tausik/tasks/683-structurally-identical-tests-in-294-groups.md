@@ -3,7 +3,7 @@ slug: "683-structurally-identical-tests-in-294-groups"
 title: "683 структурно одинаковых теста в 294 группах: тестов много, а сколько из них разные — неизвестно"
 status: planning
 epic: release-110-deferred-from-19
-story: deferred-110-audit-hygiene
+story: release110-verification-is-cheap
 complexity: complex
 role: qa
 stack: null

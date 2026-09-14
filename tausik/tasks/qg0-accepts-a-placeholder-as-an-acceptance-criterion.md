@@ -3,7 +3,7 @@ slug: qg0-accepts-a-placeholder-as-an-acceptance-criterion
 title: "QG-0 принимает заглушку за критерий приёмки: он считает ключевые слова, но не вещество"
 status: planning
 epic: release-110-deferred-from-19
-story: deferred-110-audit-hygiene
+story: release110-verification-is-cheap
 complexity: medium
 role: backend
 stack: null

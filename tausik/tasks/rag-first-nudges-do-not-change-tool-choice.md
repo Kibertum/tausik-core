@@ -3,7 +3,7 @@ slug: rag-first-nudges-do-not-change-tool-choice
 title: "rag-first nudges do not change tool choice: 0 search_code calls in 62 with the nudges delivered, 0 in 76 without — decide whether the six injection sites earn their context"
 status: planning
 epic: release-110-deferred-from-19
-story: deferred-110-host-parity-refactors
+story: release110-rag-and-memory-tell-the-truth
 complexity: medium
 role: architect
 stack: python

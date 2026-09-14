@@ -3,7 +3,7 @@ slug: session-metrics-sums-usage-once-per-content-block
 title: "session_metrics.parse_transcript sums usage once per JSONL entry, and Claude Code writes one entry per content block — tokens_total is inflated ~1.8×"
 status: planning
 epic: release-110-deferred-from-19
-story: deferred-110-audit-hygiene
+story: release110-rag-and-memory-tell-the-truth
 complexity: medium
 role: developer
 stack: python

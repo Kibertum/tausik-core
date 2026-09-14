@@ -3,7 +3,7 @@ slug: hook-wall-clock-tax-per-bash-call-is-unmeasured
 title: "Надбавка хуков на вызов Bash не измерена никем: восемь процессов, 578 мс при последовательном исполнении"
 status: planning
 epic: release-110-deferred-from-19
-story: deferred-110-audit-hygiene
+story: release110-verification-is-cheap
 complexity: medium
 role: developer
 stack: python

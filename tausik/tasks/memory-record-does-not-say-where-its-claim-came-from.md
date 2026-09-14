@@ -3,7 +3,7 @@ slug: memory-record-does-not-say-where-its-claim-came-from
 title: "Запись памяти не говорит, откуда взялось её утверждение: выведенное агентом неотличимо от проверенного"
 status: planning
 epic: release-110-deferred-from-19
-story: deferred-110-knowledge-lifecycle
+story: release110-rag-and-memory-tell-the-truth
 complexity: medium
 role: backend
 stack: null

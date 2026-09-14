@@ -3,7 +3,7 @@ slug: checklist-warning-contradicts-the-evidence-it-reads
 title: "Предупреждение о чек-листе утверждает, что критерии не называют тестов, когда они их называют"
 status: planning
 epic: release-110-deferred-from-19
-story: deferred-110-audit-hygiene
+story: release110-verification-is-cheap
 complexity: simple
 role: developer
 stack: python

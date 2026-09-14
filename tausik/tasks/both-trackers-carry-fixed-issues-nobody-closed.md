@@ -2,8 +2,8 @@
 slug: both-trackers-carry-fixed-issues-nobody-closed
 title: "Оба трекера несут исправленные тикеты, которых никто не закрыл — и это не забывчивость, а отсутствие шага"
 status: done
-epic: release-19-renar-conformance
-story: obligations-to-people-are-settled
+epic: release-110-deferred-from-19
+story: release110-the-update-reaches-the-user
 complexity: medium
 role: developer
 stack: python

@@ -3,7 +3,7 @@ slug: refusal-does-not-separate-stale-from-failed
 title: "Отказ не отличает устаревшее от непрошедшего: stale и fail подаются одним словом"
 status: planning
 epic: release-110-deferred-from-19
-story: deferred-110-audit-hygiene
+story: release110-verification-is-cheap
 complexity: simple
 role: backend
 stack: null

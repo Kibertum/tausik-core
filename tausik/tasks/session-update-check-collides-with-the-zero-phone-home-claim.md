@@ -1,11 +1,11 @@
 ---
 slug: session-update-check-collides-with-the-zero-phone-home-claim
-title: "Проверка обновления раз в сессию сталкивается с обещанием README «0 обращений наружу»"
+title: "The update check from GitHub: a consumer learns of the next version at the start of the next session — and the README's outbound-calls sentence tells the truth"
 status: planning
 epic: release-110-deferred-from-19
-story: deferred-110-audit-hygiene
-complexity: complex
-role: architect
+story: release110-the-update-reaches-the-user
+complexity: medium
+role: developer
 stack: null
 tier: substantial
 call_budget: 80
@@ -27,18 +27,11 @@ completed_at: null
 
 ## Goal
 
-Пользователь узнаёт, что вышла новая версия, не позже начала следующей сессии — и при этом ни одно утверждение README о сети не становится ложным.
+Owner, session #264, after learning that no update notifier exists (none shipped in 1.8 either — the only outbound call in the product is push-ok reading the CI lane): the update check is MANDATORY in 1.10 and its source is GitHub. A consumer on 1.8 learns that 1.9 exists no later than the start of their next session — today they learn only by visiting github.com. Constraints that survive: README ×2 promise "0 phone-home calls / 0 обращений наружу", so the promise is restated to the truth of the mechanism (what goes out, to whom, how often, how to turn it off) in the same change — a check that the README denies is worse than no check. Source candidates, each measured before the pick: (a) `git ls-remote --tags https://github.com/Kibertum/tausik-core.git` — anonymous, no API quota, ~1 round trip, sends nothing but the URL; (b) GitHub REST releases/latest — anonymous 60 req/h, returns the release name and notes URL; (c) the consumer's own submodule remote (`.tausik-lib`), which may point at GitLab. The message names the CURRENT and the AVAILABLE version and links the release; cached beside the DB, at most one request per day across sessions; no network / no GitHub / garbage answer → the session starts within the hard timeout, the failure is logged, never faked as "up to date". Sends nothing about the project — no name, no path, no schema version — proven by intercepting the outgoing request in a test.
 
 ## Acceptance Criteria
 
-1. РЕШЕНО И ЗАПИСАНО столкновение: оба README сегодня утверждают «0 phone-home calls / 0 обращений наружу — всё работает и остаётся на вашей машине». Проверка обновления есть обращение наружу. Допустимы ровно два исхода, и выбор делается ЯВНО решением: либо проверка opt-in и по умолчанию выключена, а формулировка README уточняется до правды; либо проверка не ходит в сеть вовсе. Третьего — включить и промолчать — НЕТ.
-2. Способ проверки выбран из измеренных вариантов, а не из первого пришедшего: git ls-remote по УЖЕ настроенному remote субмодуля .tausik-lib; GitHub API releases/latest; локальное сравнение с закешированным ответом. Для каждого записаны задержка, требование токена и что именно уходит наружу.
-3. Результат кешируется: не более одного обращения в сутки независимо от числа сессий, кеш лежит рядом с базой и переживает перезапуск.
-4. Сообщение об обновлении называет ТЕКУЩУЮ и ДОСТУПНУЮ версии и ссылку на список изменений; молчаливое «доступно обновление» без номеров ЗАПРЕЩЕНО.
-5. НЕГАТИВНЫЙ сценарий: нет сети, нет токена, GitHub недоступен, ответ мусорный — старт сессии НЕ замедляется дольше жёсткого таймаута и НЕ падает; проверка провалилась молча для пользователя, но записала причину в лог, а не сделала вид, что всё в порядке.
-6. НЕГАТИВНЫЙ сценарий: проверка НЕ отправляет наружу ничего о проекте — ни имени, ни путей, ни версии схемы БД. Проверяется перехватом исходящего запроса в тесте, а не чтением кода.
-7. НЕГАТИВНЫЙ сценарий: тест доказывает, что при выключенной проверке сетевого вызова НЕТ ВОВСЕ — иначе «opt-in» станет утверждением без доказательства.
-8. Документация: docs/{ru,en}/environment.md и README приведены в соответствие с фактическим поведением; тест сверяет утверждение README о сети с реальным набором сетевых вызовов, чтобы обещание больше не могло разойтись с кодом молча.
+AC-1: an owner decision records the mechanism: GitHub is the source (decision of session #264), which of (a)/(b)/(c) was picked and why, with the measured latency and what leaves the machine; and whether it is on by default with an opt-out (`updates.check = false` in .tausik/config.json) or opt-in — the README ×2 sentence about outbound calls is rewritten in the same change to state exactly that (a test holds README and config default in agreement). AC-2: at session start a consumer whose __version__ is older than the newest published tag sees one line naming both versions and the release URL; the same or a newer version prints nothing. AC-3: the answer is cached beside the DB with a timestamp; a second session within 24 h makes no request (asserted by counting requests through the intercept). AC-4 (negative): with the network unreachable, a 5xx, or a non-version answer, session start finishes within the hard timeout (≤ 2 s budgeted for the check), prints nothing about updates, logs the reason, and the cache is not poisoned. AC-5 (negative): the outgoing request carries no project name, path, DB schema version or user identifier — asserted on the intercepted request, not by reading the code. AC-6: `tausik doctor` shows the check's state (on/off, last checked, last answer) so a silent failure is visible on demand.
 
 ## Plan
 

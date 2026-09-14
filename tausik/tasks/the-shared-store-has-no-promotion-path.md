@@ -3,7 +3,7 @@ slug: the-shared-store-has-no-promotion-path
 title: "Общая база знаний не принимала записей 26 дней: продвинуть существующую запись нечем"
 status: planning
 epic: release-110-deferred-from-19
-story: deferred-110-knowledge-lifecycle
+story: release110-rag-and-memory-tell-the-truth
 complexity: medium
 role: developer
 stack: python
