@@ -75,6 +75,35 @@ SECURITY_AC_KEYWORDS = (
 )
 
 
+_PROSE_SUFFIXES = (".md", ".txt", ".rst", ".png", ".jpg", ".jpeg", ".svg", ".gif", ".webp")
+
+
+def _prose_only_scope(task: dict[str, Any]) -> bool:
+    """True iff scope_paths is declared and every path is prose or an asset.
+
+    A test file BESIDE the prose is allowed — it is what holds the placement —
+    but a scope of tests alone is code and keeps the refusal.
+    """
+    try:
+        from scope_acl import _parse_list
+
+        paths = [
+            str(p).replace("\\", "/").strip().lower()
+            for p in _parse_list(task.get("scope_paths"), "scope_paths")
+        ]
+    except Exception:  # noqa: BLE001 — an unreadable scope is not a prose scope
+        return False
+    if not paths:
+        return False
+
+    def _prose(p: str) -> bool:
+        return p.endswith(_PROSE_SUFFIXES) or p.startswith("docs/") or "/docs/" in p
+
+    prose = [p for p in paths if _prose(p)]
+    rest = [p for p in paths if not _prose(p)]
+    return bool(prose) and all(p.startswith("tests/") for p in rest)
+
+
 def _has_scope_paths(raw: Any) -> bool:
     """True only for a NON-empty scope_paths ACL. A parsed-empty '[]' is NOT a
     valid declaration — it would pass QG-0 yet make the write-gate block every
@@ -198,8 +227,12 @@ def check_qg0_start(
     # QG-0: negative scenario required in AC (SENAR Core Start Gate #3).
     # v1.3.4 (med-batch-2-qg #1): use boundary-aware detection instead of
     # substring match. "Works without errors" no longer satisfies the gate.
+    # Verification is proportionate to the change (decision #371): a task whose
+    # declared scope is only prose and assets has no behaviour a negative case
+    # could exercise, so the refusal below is not raised for it. An undeclared
+    # scope, or any code path in it, keeps the refusal exactly as before.
     ac_text = task.get("acceptance_criteria") or ""
-    if ac_text and not has_negative_scenario(ac_text):
+    if ac_text and not has_negative_scenario(ac_text) and not _prose_only_scope(task):
         raise ServiceError(
             f"QG-0 Start Gate: '{slug}' AC has no negative scenario. "
             f"SENAR requires at least one error/boundary case in acceptance criteria. "

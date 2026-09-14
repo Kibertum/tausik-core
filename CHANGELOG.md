@@ -9,7 +9,26 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed — QG-0 asks a negative scenario only from work that changes behaviour
+
+The rule shipped in 1.9 (`HARD_CONSTRAINTS`, decision #371) says prose-only
+work need not name a negative scenario; the gate still refused the first
+such task after the release — a logo and README change — with "AC has no
+negative scenario". `gate_qg0_check` now skips that refusal when
+`scope_paths` is declared and every path is prose or an asset (`.md`, `.txt`,
+`.rst`, images, anything under `docs/`), with test files allowed beside them;
+an undeclared scope, any code path, or a scope of tests alone keeps the
+refusal, text unchanged. `tests/test_qg0_prose_only_scope.py`. Task
+`qg0-negative-scenario-only-for-behaviour`.
+
+### Changed — the monoline mark is the logo; the colour rendering is kept as `-full`
+
+`docs/assets/tausik-logo.png` is now the one-stroke orange mark (the former
+`tausik-mark.png`, byte-identical) and sits on `README.md`, `README.ru.md` and
+the docs index alike; the former full-colour `tausik-logo.png` is kept as
+`tausik-logo-full.png` and placed on no page. `docs/assets/README.md` says
+which is which; `tests/test_readme_logo.py` holds the placement. Owner's
+decision of 2026-09-14. Task `monoline-mark-becomes-the-main-logo`.
 
 ## [1.9.0] — 2026-09-14
 

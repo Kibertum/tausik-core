@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/tausik-mark.png" width="120" alt="TAUSIK"></p>
+<p align="center"><img src="assets/tausik-logo.png" width="120" alt="TAUSIK"></p>
 
 # TAUSIK Documentation / Документация TAUSIK
 

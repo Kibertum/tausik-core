@@ -1,7 +1,7 @@
 ---
 slug: deferred-110-outward-loop-and-test-authorship
 title: "1.10: остаток внешней петли и авторство тестов — включая публичное обещание, которому 25 дней"
-status: open
+status: active
 epic: release-110-deferred-from-19
 ---
 
