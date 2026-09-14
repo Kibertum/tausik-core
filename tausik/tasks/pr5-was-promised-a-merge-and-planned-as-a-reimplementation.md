@@ -1,7 +1,7 @@
 ---
 slug: pr5-was-promised-a-merge-and-planned-as-a-reimplementation
 title: "Внешнему автору публично обещан МЕРЖ его коммитов, а запланирован ПЕРЕНОС чужими руками — обещанию 25 дней, PR открыт"
-status: planning
+status: done
 epic: release-110-deferred-from-19
 story: deferred-110-outward-loop-and-test-authorship
 complexity: complex
@@ -12,12 +12,13 @@ call_budget: 50
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
+relevant_files:
+  - README.md
 scope_paths: []
 scope_tools: []
 depends_on:
   - github-is-primary-by-decision-and-gitlab-is-primary-in-practice
-completed_at: null
+completed_at: "2026-09-14T15:21:04Z"
 ---
 
 ## Goal
@@ -49,6 +50,8 @@ completed_at: null
 
 ## Acceptance Criteria
 
+AC-1: the author's finding ships on the development line with their Co-Authored-By. AC-2: the PR thread carries the answer (what was taken, what was not and why) and the PR is closed with the release link — not left open (negative: an open PR after the tag would break the public promise).
+
 ## Plan
 
 ## Rollback
@@ -56,3 +59,6 @@ completed_at: null
 Исход задачи — либо мерж коммитов автора, либо явное объяснение автору, почему перенос. Откат мержа — git revert коммитов с сохранением авторства (Co-Authored-By остаётся в истории). Откат объяснения не требуется: сказанное автору не отзывается, а дополняется.
 
 ## Journal
+
+- 2026-09-14T15:18:49Z [planning] — OBSOLETE, closed without work by the owner's decision (session #265): PR #5 was ported with the author's Co-Authored-By (1a32c19d), answered in its thread and closed with the 1.9.0 release link. No criterion was exercised; the premise of the task no longer holds.
+- 2026-09-14T15:20:56Z [planning] — Resolved by events, closed without new work (owner, session #265). AC-1: ✓ commit 1a32c19d 'fix(hooks): guards see every tool their action is reachable with — GitHub PR #5 ported, not merged', Co-Authored-By the author, in tag v1.9.0. AC-2: ✓ PR #5 answered (issuecomment-5657649753: what landed, what was not taken and why) and closed with the v1.9.0 release link (issuecomment-5658194173); gh pr view 5 → CLOSED. Negative held: the PR did not outlive the tag.

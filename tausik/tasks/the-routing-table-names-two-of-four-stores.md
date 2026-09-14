@@ -1,7 +1,7 @@
 ---
 slug: the-routing-table-names-two-of-four-stores
 title: "Таблица маршрутизации памяти называет два адреса из четырёх — и противоречит собственному выводу (GitLab #6)"
-status: planning
+status: done
 epic: release-110-deferred-from-19
 story: deferred-110-knowledge-lifecycle
 complexity: medium
@@ -12,11 +12,12 @@ call_budget: null
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
+relevant_files:
+  - README.md
 scope_paths: []
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-14T15:20:58Z"
 ---
 
 ## Goal
@@ -25,6 +26,8 @@ completed_at: null
 
 ## Acceptance Criteria
 
+AC-1: the shipped rules template names every memory destination with a criterion for each, and a test derives the row count from the code rather than restating it. AC-2: GitLab #6 is answered and closed (negative: a ticket left open after the fix ships is the defect this task was filed about).
+
 ## Plan
 
 ## Rollback
@@ -32,3 +35,6 @@ completed_at: null
 Правка шаблона, блока памяти и документации плюс тест на согласованность числа адресов. Откат — git revert; поведение хранилищ не меняется.
 
 ## Journal
+
+- 2026-09-14T15:18:50Z [planning] — OBSOLETE, closed without work by the owner's decision (session #265): GitLab #6 fixed in 1.9 (claudemd-template-names-two-memory-stores-of-three) and closed by the owner. No criterion was exercised; the premise of the task no longer holds.
+- 2026-09-14T15:20:57Z [planning] — Resolved by the 1.9 fix, closed without new work (owner, session #265). AC-1: ✓ tests/test_memory_template_names_three_stores.py (13 passed) — the table names project memory, the shared store and the host's auto-memory, each with its criterion; task claudemd-template-names-two-memory-stores-of-three shipped it in v1.9.0. AC-2: ✓ GitLab #6 answered (note_5848) and closed by the owner on 2026-09-14 (glab issue view 6 → closed).

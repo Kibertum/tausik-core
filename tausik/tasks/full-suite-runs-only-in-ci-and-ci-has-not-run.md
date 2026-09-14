@@ -1,7 +1,7 @@
 ---
 slug: full-suite-runs-only-in-ci-and-ci-has-not-run
 title: "Полный прогон живёт только в CI, а CI не запускался 13 дней и 11 коммитов"
-status: planning
+status: done
 epic: release-110-deferred-from-19
 story: deferred-110-audit-hygiene
 complexity: medium
@@ -21,7 +21,7 @@ scope_paths:
   - "docs/en/agent-contract.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-14T15:18:48Z"
 ---
 
 ## Goal
@@ -40,3 +40,5 @@ completed_at: null
 git revert коммита; ворота вводятся конфигурацией гейта и выключаются gates disable
 
 ## Journal
+
+- 2026-09-14T15:18:48Z [planning] — OBSOLETE, closed without work by the owner's decision (session #265): CI runs on every push since 2026-09-14 (GitLab #7722, #7726 green including tests-full); the 13-day gap the task measured is over. No criterion was exercised; the premise of the task no longer holds.

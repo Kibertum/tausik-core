@@ -1,7 +1,7 @@
 ---
 slug: deferred-110-audit-hygiene
 title: "1.10: гигиена доказательств и паритет документации — находки аудита SENAR 9.5, не держащие ни одного обещания 1.9"
-status: open
+status: active
 epic: release-110-deferred-from-19
 ---
 

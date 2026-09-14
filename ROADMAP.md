@@ -30,11 +30,11 @@
 
 | История | Статус | Осталось |
 |---|---|---|
-| `deferred-110-architecture-and-research` | open | 21 |
-| `deferred-110-audit-hygiene` | open | 33 |
+| `deferred-110-architecture-and-research` | open | 22 |
+| `deferred-110-audit-hygiene` | active | 31 |
 | `deferred-110-host-parity-refactors` | open | 17 |
-| `deferred-110-knowledge-lifecycle` | open | 24 |
-| `deferred-110-outward-loop-and-test-authorship` | active | 14 |
+| `deferred-110-knowledge-lifecycle` | open | 23 |
+| `deferred-110-outward-loop-and-test-authorship` | active | 13 |
 
 **Закрытые, составом не названные.** Их работа в дереве релиза, но обещанием релиза она не объявлена; отложенной цены у них нет.
 
