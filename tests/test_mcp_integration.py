@@ -121,12 +121,12 @@ class TestMCPServerStartup:
                     "clientInfo": {"name": "test", "version": "1.0"},
                 },
             )
-            proc.stdin.write(init_msg + "\n")
-            proc.stdin.flush()
-
-            # Wait for response
-            proc.stdin.close()
-            stdout, stderr = proc.communicate(timeout=5)
+            # One communicate() carries the message and closes stdin itself. A
+            # manual write/flush/close followed by communicate() raised ValueError
+            # on Linux - CPython's _communicate flushes stdin first and it was
+            # already closed; Windows takes the thread path and never flushed,
+            # which is why this was green here and red in CI (#7719).
+            stdout, stderr = proc.communicate(init_msg + "\n", timeout=5)
             # Server should have produced some output (even if error, it ran)
             assert proc.returncode is not None or stdout or stderr
         except subprocess.TimeoutExpired:
@@ -390,6 +390,13 @@ class TestMCPNewToolHandlers:
         assert "t-blocked" not in result
 
     def test_task_list_csv_status_schema_pattern(self):
+        # Every sibling inserts the MCP dir itself; this one relied on a
+        # sibling having run first on the same xdist worker (order-dependent —
+        # red in a two-file scoped run, green in the full lane by luck).
+        mcp_dir = os.path.join(
+            os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"
+        )
+        sys.path.insert(0, mcp_dir)
         from tools import TOOLS
 
         tool = next(t for t in TOOLS if t["name"] == "tausik_task_list")

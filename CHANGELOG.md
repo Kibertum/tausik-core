@@ -9,6 +9,20 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — two slow-lane tests were red only in CI, and said so about the wrong thing
+
+The published full lane (`pytest -m ''`, GitLab #7719) failed two tests that
+every developer machine passes. `tests/test_consumer_first_close.py` asserted
+"Memory tail" in a fresh consumer project's CLAUDE.md — the heading appears
+only when the tail has content, and on the author's machine the content was
+the shared knowledge store, which CI does not have; it now asserts the lines
+the block renders in an empty project. `tests/test_mcp_integration.py` closed
+the server's stdin and then called `communicate()`, which on Linux flushes
+stdin first and raises on the closed file (Windows never flushed); one
+`communicate(input=…)` now carries the message. Neither was a product defect;
+both were tests describing the machine they were written on. Task
+`two-slow-lane-tests-are-red-only-in-ci`.
+
 ### Changed — verification is proportionate to the change, and the rules say so
 
 Owner, session #263: "we are turning development into a hell of tests — in
