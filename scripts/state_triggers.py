@@ -28,12 +28,57 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from project_service import ProjectService
 
 _log = logging.getLogger("tausik.state.triggers")
+
+# The kinds whose status moves the counters ROADMAP.md prints.
+_ROADMAP_KINDS = ("epics", "stories", "tasks")
+# The first line the generator writes; a ROADMAP.md without it is somebody's
+# hand-written file and is never touched.
+_ROADMAP_MARK = "<!-- ПОРОЖДЁННЫЙ ФАЙЛ."
+
+
+def _reissue_roadmap(svc: ProjectService, root: str) -> bool:
+    """ROADMAP.md follows the counters it prints. Best-effort, never raises.
+
+    The map is rendered from the live database, and `tausik doc roadmap
+    --check` (and the test behind it) compares the committed file with a fresh
+    render — so every task, story or epic that changed status made the next
+    run RED until someone typed the reissue by hand: a generated file left for
+    a test to catch, when the act that moved its source could have rewritten
+    it (closing-a-task-reddens-the-next-verify-silently; four times in one
+    session, #241). Render costs 4-7 ms on 1654 tasks; unchanged content is not
+    rewritten. The write to a versioned file is announced on stderr, never on
+    stdout — this runs inside the MCP server too, where stdout is the protocol.
+    Returns True iff the file was rewritten.
+    """
+    try:
+        path = os.path.join(os.path.dirname(root), "ROADMAP.md")
+        if not os.path.isfile(path):
+            return False
+        with open(path, encoding="utf-8", newline="") as fh:
+            current = fh.read()
+        if _ROADMAP_MARK not in current[:512]:
+            return False
+        import release_roadmap
+
+        fresh = release_roadmap.render(svc.be._conn)
+        if fresh == current:
+            return False
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8", newline="") as fh:
+            fh.write(fresh)
+        os.replace(tmp, path)
+        print("ROADMAP.md reissued — the counters it prints moved", file=sys.stderr)
+        return True
+    except Exception as e:  # noqa: BLE001 — FAIL-OPEN, like the projection itself
+        _log.warning("roadmap reissue failed (non-fatal): %s", e)
+        return False
 
 
 def _auto_export_enabled(tausik_dir: str) -> bool:
@@ -175,6 +220,13 @@ def auto_export_entity(
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8", newline="\n") as fh:
             fh.write(content)
+        # Any epic/story/task projection write is a moment the map may have gone
+        # stale — a status change moves its counters, and a journal line is the
+        # cheapest recurring signal that heals a map already left stale. The
+        # render is compared before writing, so when nothing moved this costs
+        # one render (4-7 ms) and no write.
+        if kind in _ROADMAP_KINDS:
+            _reissue_roadmap(svc, root)
         return True
     except Exception as e:  # noqa: BLE001 — FAIL-OPEN: telemetry, never propagate
         _log.warning("auto-export %s/%s failed (non-fatal): %s", kind, slug, e)

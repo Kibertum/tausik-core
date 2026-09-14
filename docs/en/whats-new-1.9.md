@@ -12,14 +12,24 @@ question "does the framework enforce discipline". 1.9 asks no question — it ma
 two statements about the product and requires each to be measured: a substantial
 token saving, and higher development quality on any model.
 
-**And one of the two is NOT YET MEASURED, said here rather than in a footnote.**
-There is no token-saving figure. The instrument does not produce one today: of
+**And one of the two is MEASURED ONCE — and on this pair there is no saving;
+said here rather than in a footnote.** Telemetry still produces no figure: of
 57,251 telemetry rows, 233 (0%) carry input tokens, and no "without TAUSIK"
-baseline exists at all. In session #225 it was 0 rows out of 4,777 — the
-instrument moved, and did not reach a number. This is the ABSENCE of a quantity,
-not a measured zero and not a refutation: saying "there is no saving" would be
-as unverified as saying there is one. The promise stays what the release
-undertook to measure, and until the figure exists it is not published as fact.
+baseline exists in it at all. In session #225 it was 0 rows out of 4,777 — the
+instrument moved, and did not reach a number. For telemetry this is the
+ABSENCE of a quantity, not a measured zero. The figure came from a different
+instrument — a paired replay on a fixed corpus ([protocol §7, in
+Russian](../ru/research/rag-nudge-replay-protocol.md)): ten identical questions
+about the repository, one commit, one model, the harness with its rag-first
+nudges against the same harness without them. With the nudges it cost more:
+198,848 against 195,055 tokens of new context and output (+1.9%), 326,323
+against 292,715 bytes of exploration results (+11.5%), and `search_code`, the
+tool the nudges recommend, was never called with or without them (0 of 62 and
+0 of 76 calls). That is one reading on one corpus, in this pair — not a
+refutation of saving in general: a repeat of the same condition varied by 13%,
+more than the delta itself. The promise stays what the release undertook to
+measure; what is published as fact is only what was measured: no saving
+on this pair, and the nudges do not change tool choice.
 
 **🔢 Zero stopped passing itself off as a measurement.** A quantity that cannot
 be obtained is now ABSENT, not nought. That sounds like a nicety until you look
@@ -35,8 +45,8 @@ because "everything here is instructions" is untrue too on a host without hooks:
 closing a task IS refused there.
 
 Full list of changes: [CHANGELOG.md](../../CHANGELOG.md). This page is not a
-retelling: the 1.9 section of the CHANGELOG holds 250 entries (the figure is counted by
-`tests/test_release_notes_1_9.py`), and what is selected here is what changes
+retelling: the 1.9 section of the CHANGELOG holds more than 250 entries (the lower
+bound is held by `tests/test_release_notes_1_9.py`), and what is selected here is what changes
 the experience of UPGRADING.
 
 ---
@@ -84,9 +94,9 @@ you want in the shared store.
 
 ## What else changes on upgrade
 
-### Database schema: 44 → 61
+### Database schema: 44 → 62
 
-Seventeen migrations apply automatically on first access (the figures here are
+Eighteen migrations apply automatically on first access (the figures here are
 read from `SCHEMA_VERSION` by `tests/test_release_notes_1_9.py`, so the page
 cannot fall behind the tree again). Each is preceded by a backup at
 `.tausik/tausik.db.bak.v<old>`; spares are cleared with `tausik db prune --keep N`.
@@ -96,8 +106,12 @@ nullable. **NULL means "not measured", and that is not the same as 0.** The
 migration turned 55,307 rows — provably never measured — into NULL and touched
 no row carrying a real number.
 
-The last three are small and worth knowing: v59 lets a graph edge say it was
-OBSERVED rather than inferred; v60 records a test that was never seen red; v61
+The last ones are small and worth knowing: v59 lets a graph edge say it was
+OBSERVED rather than inferred; v60 records a test that was never seen red; v62
+puts an index on `tasks.defect_of` — without it `tausik status` on a database
+with a history (1,504 done tasks) spent 5.3 s in one `EXISTS`, and the
+SessionStart hook hit its 6 s timeout and silently delivered no context; with
+the index the query takes 5 ms, `status` 0.3 s, the hook 0.9 s; v61
 adds `tasks.tracker_refs` — the first column added to `tasks` after v43, which
 is how the post-migration that rebuilt `tasks` from a frozen v43 column list
 was caught erasing any later column. That rebuild is fixed in the same release —

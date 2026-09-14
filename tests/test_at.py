@@ -69,7 +69,9 @@ def test_migration_v54_creates_tables_clean(tmp_path):
     conn.isolation_level = None
     conn.execute("CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     conn.execute("INSERT INTO meta VALUES('schema_version', '35')")
-    conn.execute("CREATE TABLE tasks(slug TEXT PRIMARY KEY)")
+    conn.execute(
+        "CREATE TABLE tasks(slug TEXT PRIMARY KEY, defect_of TEXT)"
+    )  # defect_of: v10 column, indexed by v62
     conn.execute("CREATE TABLE verification_runs(id INTEGER PRIMARY KEY AUTOINCREMENT)")
     conn.execute("CREATE TABLE decisions(id INTEGER PRIMARY KEY AUTOINCREMENT)")
     conn.execute("CREATE TABLE memory(id INTEGER PRIMARY KEY AUTOINCREMENT)")

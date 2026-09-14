@@ -157,6 +157,29 @@ _TIER_COUNT = {"lightweight": 4, "standard": 10, "high": 18, "critical": 28}
 _HARD_CHECKLIST_TIERS = frozenset({"substantial", "deep"})
 
 
+_PROSE_SUFFIXES = (".md", ".txt", ".rst")
+
+
+def _prose_only(task: dict[str, Any]) -> bool:
+    """True iff the task declares relevant files and every one of them is prose.
+
+    Prose is a Markdown/text/reST file or anything under `docs/`. An empty or
+    undeclared scope is NOT prose-only — nothing is known about it, and the
+    notes must keep asking. A generated file (`ROADMAP.md`, the `tausik/`
+    projection) is prose by suffix and counts as such: nothing a test could
+    exercise lives in it either.
+    """
+    try:
+        rf_raw = task.get("relevant_files") or "[]"
+        rf = json.loads(rf_raw) if isinstance(rf_raw, str) else (rf_raw or [])
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return False
+    paths = [str(p).replace("\\", "/").strip().lower() for p in rf if p]
+    if not paths:
+        return False
+    return all(p.endswith(_PROSE_SUFFIXES) or p.startswith("docs/") or "/docs/" in p for p in paths)
+
+
 def _task_tier(task: dict[str, Any]) -> str:
     """The task's checklist tier, from complexity + security-sensitive files."""
     try:
@@ -368,7 +391,15 @@ def check_verification_checklist(
     tier = _task_tier(task)
 
     warnings: list[str] = []
-    if checklist_missing(task, verified_run_ids):
+    # Verification is proportionate to the change (owner, session #263): a task
+    # whose every relevant file is prose — docs, notes, changelogs, plans — has
+    # no behaviour a test could exercise, so the four test-shaped notes below
+    # (checklist-missing, test-ref, negative, domain) are not printed for it.
+    # They were: the close of a measurement task printed all of them, and each
+    # is an invitation to write a test that asserts a sentence. The AC-coverage
+    # note stays — evidence lines are meaningful for prose too.
+    prose_only = _prose_only(task)
+    if not prose_only and checklist_missing(task, verified_run_ids):
         warnings.append(
             f"NOTE: Verification checklist ({tier}, {_TIER_COUNT[tier]} items) — "
             "no acceptance criterion names a test, a manual run, a review or a "
@@ -397,7 +428,8 @@ def check_verification_checklist(
             # this note anyway, at every successful close — noise that trains
             # ignoring. A measured run IS the evidence the tier asks for.
             if (
-                tier in ("high", "critical")
+                not prose_only
+                and tier in ("high", "critical")
                 and report.covered_with_tests == 0
                 and not any(_measurement_verified(i, verified_run_ids) for i in report.items)
             ):
@@ -405,7 +437,7 @@ def check_verification_checklist(
                     f"NOTE: tier={tier} requires test-ref evidence (e.g. "
                     "'tests/test_foo.py::test_bar') — none found in notes."
                 )
-            if tier in ("high", "critical") and not report.has_negative_evidence:
+            if not prose_only and tier in ("high", "critical") and not report.has_negative_evidence:
                 warnings.append(
                     "NOTE: high/critical task should exercise the AC's "
                     "negative scenario — no `Negative:` evidence found in notes."
@@ -415,7 +447,7 @@ def check_verification_checklist(
             # make sense OUTSIDE the tests?" — guards against test-passing but
             # domain-meaningless outputs (arXiv 2605.30353).
             planning_tier = (task.get("tier") or "").strip().lower()
-            if planning_tier != "trivial" and not report.has_domain_evidence:
+            if not prose_only and planning_tier != "trivial" and not report.has_domain_evidence:
                 warnings.append(
                     "NOTE: domain challenge — does the result make sense OUTSIDE "
                     "the tests? Add a `Domain:` evidence line (e.g. 'Domain: output "

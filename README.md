@@ -221,10 +221,14 @@ nicety until you look at the numbers: the telemetry asserted 55,471 times that
 work had cost $0.00, and model pinning had never fired in 231 sessions. Both
 defects looked exactly like "a feature nobody needs".
 
-**The token-saving figure does NOT exist yet, and is not published as fact.**
-The instrument does not produce one: of 57,251 telemetry rows, 233 carry input
-tokens, and no "without TAUSIK" baseline exists at all. Saying "there is no
-saving" would be as unverified as claiming one.
+**The token-saving figure is MEASURED ONCE, and on this pair there is no saving.**
+Telemetry produces no figure (of 57,251 rows, 233 carry input tokens; no
+"without TAUSIK" baseline exists); the figure came from a paired replay on a
+fixed corpus ([protocol §7, in
+Russian](docs/ru/research/rag-nudge-replay-protocol.md)): with the rag-first
+nudges 198,848 against 195,055 tokens (+1.9%), 326,323 against 292,715 bytes of
+exploration results (+11.5%), and `search_code` never called with or without
+them. One reading on one corpus — that alone is published as fact.
 
 **[What changed in 1.9 →](docs/en/whats-new-1.9.md)**
 ([Русский](docs/ru/whats-new-1.9.md)) — including the breaking changes and their

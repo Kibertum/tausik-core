@@ -9,6 +9,85 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — verification is proportionate to the change, and the rules say so
+
+Owner, session #263: "we are turning development into a hell of tests — in
+TAUSIK and in every project it is applied to." Measured in that session: the
+full 10,480-test lane run locally four times as a search tool for bookkeeping
+reds, none finding a product defect; six close-time notes asking a docs task
+for test refs, a `Negative:` line and a `Domain:` line; a number on two pages
+retyped three times because a test re-asserted an exact count. Three things
+change. The shipped rules (`HARD_CONSTRAINTS`, every project's CLAUDE.md /
+AGENTS.md / QWEN.md) now state the rule next to the gates bullet: scoped
+`verify` for what you touched, the full suite in CI and at the release gate,
+a test asserts behaviour — never a number in a document, never a generated
+file's freshness — and QG-0 asks for a negative scenario only from work that
+changes behaviour. The close-time checklist (`gate_ac_check`) prints none of
+its four test-shaped notes for a task whose every relevant file is prose
+(`.md`/`.txt`/`.rst` or under `docs/`); a task with code in scope keeps them
+all. Decision #371 and convention #711 record the rule with the measurements.
+`tests/test_verification_is_proportionate.py`. Task
+`verification-is-proportionate-to-the-change`.
+
+### Fixed — a generated file is rewritten by the act that moves its source, not left for a test to catch
+
+Closing a task moved the counters `ROADMAP.md` prints, the committed map went
+stale, and the next `verify` was red on `tests/test_release_roadmap.py` until
+a human typed `tausik doc roadmap` — four times in session #241, three in
+#263. The projection trigger (`state_triggers.auto_export_entity`) now
+reissues the map whenever an epic, story or task projection changes: only a
+file carrying the generator's own marker is touched (a hand-written
+`ROADMAP.md` is left alone), unchanged content is not rewritten (one render,
+4-7 ms on 1654 tasks), and a rewrite of the versioned file is announced on
+stderr — never stdout, which is the MCP protocol channel. The same class on
+the notes pages: they stated the exact number of CHANGELOG entries and a test
+re-asserted it, so every entry turned the test red until the number was
+retyped on two pages; the pages now state a LOWER BOUND and the test holds
+that the section clears it. `tests/test_roadmap_follows_the_close.py`.
+Task `closing-a-task-reddens-the-next-verify-silently`.
+
+### Fixed — `tausik status` spent 5 s in one unindexed `EXISTS`, and the SessionStart hook timed out on it (v62)
+
+Measured on this project's database (1,654 tasks, 1,504 done): `status` took
+5.3 s, 5.04 s of it in `backend_defect_escape._done_rows` — its
+`EXISTS(SELECT 1 FROM tasks d WHERE d.defect_of = t.slug)` had no index on
+`tasks.defect_of` and scanned the wide `tasks` table per done row, while the
+sibling `EXISTS` over `verification_runs` took 0.0 s on `idx_verify_task`.
+The SessionStart and Stop hooks call `status`: 5.9 s against timeouts of 6 s
+and 5 s, and in a headless probe SessionStart was cancelled — the whole
+auto-injected context never reached the model, silently. Migration v62
+creates `idx_tasks_defect_of`; the same index joins the current set
+(`POST_MIGRATION_INDEXES_SQL`) for fresh installs — a migration is needed
+because `init_schema` runs no DDL on a database already at the current
+version. After: the query 5 ms, `status` 0.3 s, `session_start.py` 0.9 s,
+`session_cleanup_check.py` 0.7 s. `tests/test_migration_v62_defect_of_index.py`
+holds the query PLAN (the statement `_done_rows` issues uses the index on a
+fresh and on a migrated database) and goes red when the index is dropped.
+Task `status-takes-five-seconds-on-a-missing-defect-of-index`.
+
+### Changed — the saving promise is measured once, and the pages say so
+
+Release condition 1 held "no figure exists" until session #263 produced one:
+the paired replay of `docs/ru/research/rag-nudge-replay-protocol.md` (§7 —
+ten fixed read-only questions, one commit, one model, the harness with its
+rag-first nudges against the same harness without them) cost MORE with the
+nudges (Σ cache_creation + Σ output 198,848 vs 195,055, +1.9%; exploration
+result bytes 326,323 vs 292,715, +11.5%) and `search_code`, the tool the
+nudges recommend, was never called on either side. `README.md`,
+`README.ru.md` and the 1.9 notes now state that reading, its source and its
+limit — one pair, one corpus, no generalisation; a repeat of one condition
+varied by 13% — instead of "the figure does not exist yet". The telemetry
+sentence (233 of 57,251 rows carry input tokens; no "without TAUSIK"
+baseline) stays, scoped to telemetry. `tests/test_release_notes_1_9.py`
+reads the §7 table and refuses a page whose figures differ or whose
+"no saving" is not scoped to this pair. Six injection sites carry the
+nudge texts (the protocol named four); the meter `session_metrics.py`
+over-counts multi-block messages ~1.8×; `tausik status` spends 5 s in one
+unindexed `EXISTS` and the SessionStart hook times out on it — the three
+are filed for 1.10, not fixed here. `.agents/` (a host skills directory
+that appeared untracked) is ignored like the other host directories. Task
+`the-19-pages-still-say-no-saving-figure-exists`.
+
 ### Added — the TAUSIK mark on the front pages
 
 Two renderings of the mark (a woman with a hairpin in a rounded frame) live

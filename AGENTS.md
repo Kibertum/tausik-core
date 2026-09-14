@@ -147,30 +147,28 @@ Three layers, strict separation: **CLI never touches DB. Service validates. Back
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #259 (active) | Branch: v1-9-wave | TAUSIK: 1.9.0
-Tasks: 1502/1653 done, 1 active, 1 blocked
-Active: four-full-lane-findings-of-the-tracker-promises-ba
-Blocked: v14b-rag-nudge-replay-benchmark
+Session: #264 (active) | Branch: v1-9-wave | TAUSIK: 1.9.0
+Tasks: 1509/1659 done, 0 active, 0 blocked
 
 ### Memory tail
 Context (5):
+- #712 Трекеры перед тегом 1.9, смена #264: ответы опубликованы в GitLab #5/#6/#14 и GitHub PR #5, ничего н
+- #706 Парный replay rag-first подсказок, смены #261–#263: search_code = 0 в обоих условиях, экономии нет, 
 - #697 Трекеры перед тегом 1.9 (смена #255): 14 GitLab + 2 GitHub + PR #5 — каждому тикету назначено состоя
 - #691 Аудит SENAR 9.5 за смены #243-#250: улики закрытий, когерентность, полный прогон — три находки, ни о
 - #684 Трекеры на момент остановки смены #241: 13 открытых в GitLab, 2 в GitHub
-- #683 Большое ревью 1.9, смена #241: двенадцать осей проверено, мёртвого кода ноль, три оси дали находки
-- #677 Сверка шести условий выпуска 1.9, смена #239: четыре держатся, одно починено, одно у владельца
 Decisions (5):
+- #371 ПРОВЕРКА СОРАЗМЕРНА ПРАВКЕ. Владелец, смена #263, сказано не в первый раз и потому записано: «мы превращаем разработку в
 - #370 Состав 1.9 расширен по указанию владельца в смене #258 историей release19-tracker-promises: GitLab #5 (штамп версии), #6
 - #369 Состав 1.9 расширен по указанию владельца в смене #251 историей release19-clean-publication-and-onboarding (решение #368
 - #368 МОДЕЛЬ ПУБЛИКАЦИИ 1.9 УТОЧНЕНА ВЛАДЕЛЬЦЕМ, смена #251. (1) Сайт tausik.tech живёт ТОЛЬКО в отдельном репозитории GitLab 
 - #367 Состав релиза 1.9 пересказан ОДНОЙ строкой, потому что генератор ROADMAP.md читал дополняющее решение #363 как полный со
-- #366 Владелец, смена #251, разбор трекеров перед тегом 1.9: тикеты GitLab #13 (запятая в --relevant-files принимается как оди
 Conventions (5):
+- #711 Проверка соразмерна правке: полная лента — CI и релизный гейт, тест — на поведение, порождённое поро
 - #701 Owner forbids external artifacts (claude.ai Artifact pages): reports are answered in the terminal or
 - #698 Текст отказа в документации для агента снимается с живого вызова и удерживается тестом по фразе из к
 - #686 Хост, добавляемый в SCAFFOLD_IDES, проверяется ЗАМЕРОМ БИНАРЯ, а не документацией
 - #682 Мёртвый код ищут по СИМВОЛАМ, а не по модулям, и повторяемо — потому что удаление обнажает следующий
-- #673 Столбец с числом в документе обязан быть СОСЧИТАН чем-то, иначе он гниёт молча
 Dead ends (3):
 - #693 Verify review journal with tracked output documents as relevant files
 - #692 Capture Codex PreToolUse JSON through a temporary generated command hook

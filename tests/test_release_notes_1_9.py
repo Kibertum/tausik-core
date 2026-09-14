@@ -40,8 +40,8 @@ _BREAKING_HEADING = {"ru": "## ЛОМАЮЩИЕ ИЗМЕНЕНИЯ", "en": "## B
 _BREAKING_ENTRY = {"ru": re.compile(r"^### ЛОМАЮЩЕЕ\b"), "en": re.compile(r"^### BREAKING\b")}
 # The sentence on each page that states the 1.9 section's entry count.
 _ENTRY_FIGURE = {
-    "ru": re.compile(r"в разделе 1\.9 CHANGELOG (\d+) записей"),
-    "en": re.compile(r"the 1\.9 section of the CHANGELOG holds (\d+) entries"),
+    "ru": re.compile(r"в разделе 1\.9 CHANGELOG больше (\d+) записей"),
+    "en": re.compile(r"the 1\.9 section of the CHANGELOG holds more than (\d+) entries"),
 }
 _RELEASE_HEADING = "## [1.9.0]"
 _UNRELEASED_HEADING = "## [Unreleased]"
@@ -162,16 +162,22 @@ class TestThePageIsNotTheChangelog:
         )
 
     @pytest.mark.parametrize("lang", sorted(_PAGES))
-    def test_the_entry_figure_on_the_page_is_the_live_count(self, lang):
-        """The page states how many entries the Unreleased section holds. That
-        number was 163 when written and 227 when first recounted — a figure
-        nothing counts rots silently (convention #673), so this counts it."""
+    def test_the_entry_figure_on_the_page_is_a_bound_the_changelog_clears(self, lang):
+        """The page states a LOWER BOUND on the entries the 1.9 section holds.
+
+        It used to state the exact count, and the exact count was re-asserted
+        here — so every CHANGELOG entry turned this test red until someone
+        retyped a number on two pages (three times in session #263 alone). A
+        figure nothing counts rots (convention #673); a figure that must be
+        retyped per entry is a chore wearing a test's clothes. A bound rots in
+        neither direction: entries are never removed, so it stays true, and it
+        is raised by hand only when someone wants the page to say more."""
         page = _PAGES[lang].read_text(encoding="utf-8")
         stated = re.search(_ENTRY_FIGURE[lang], page)
-        assert stated, f"{_PAGES[lang].name} no longer states its entry figure"
-        assert int(stated.group(1)) == len(_unreleased(lang)), (
-            f"{_PAGES[lang].name} says {stated.group(1)} entries, the CHANGELOG holds "
-            f"{len(_unreleased(lang))} — recount the figure on the page"
+        assert stated, f"{_PAGES[lang].name} no longer states its entry bound"
+        assert len(_unreleased(lang)) >= int(stated.group(1)), (
+            f"{_PAGES[lang].name} says more than {stated.group(1)} entries, the CHANGELOG "
+            f"holds {len(_unreleased(lang))} — the bound overstates the section"
         )
 
     @pytest.mark.parametrize("lang", sorted(_PAGES))
@@ -208,6 +214,14 @@ class TestTheUnmeasuredPromiseSaysSo:
     (0%), базы сравнения «без TAUSIK» нет ни одной. Числа нет, а обещание на
     странице названо — значит рядом обязана стоять оговорка, и стоять ЗАМЕТНО.
 
+    ЧИСЛО ПОЯВИЛОСЬ (смена #263): парный replay протокола
+    docs/ru/research/rag-nudge-replay-protocol.md §7 дал один отсчёт на одном
+    корпусе — с подсказками дороже, search_code не вызван ни разу. Оговорка
+    поменяла смысл, но не место: теперь рядом с обещанием стоит «ИЗМЕРЕНО ОДИН
+    РАЗ», и страница обязана говорить «на этой паре», а не «экономии нет»
+    вообще — это держит класс ниже. Телеметрия числа по-прежнему не производит,
+    и фраза об ОТСУТСТВИИ величины остаётся о ней.
+
     ПОЧЕМУ РЯДОМ, А НЕ НИЖЕ. В этой же смене матрица соответствия чинилась ровно
     от этого: закрывающий абзац говорил «величину вычислить нельзя», а таблица
     прямо над ним печатала 100%. Читатель забирает утверждение, а не сноску под
@@ -223,8 +237,8 @@ class TestTheUnmeasuredPromiseSaysSo:
     @pytest.mark.parametrize(
         "lang,promise,caveat,near",
         [
-            pytest.param("ru", "экономия токенов", "НЕ ИЗМЕРЕНО", 1200, id="ru-saving"),
-            pytest.param("en", "token saving", "NOT YET MEASURED", 1200, id="en-saving"),
+            pytest.param("ru", "экономия токенов", "ИЗМЕРЕНО ОДИН РАЗ", 1200, id="ru-saving"),
+            pytest.param("en", "token saving", "MEASURED ONCE", 1200, id="en-saving"),
             pytest.param(
                 "ru", "Codex — шестой хост", "недоверенный профиль не", 2500, id="ru-codex"
             ),
@@ -258,12 +272,96 @@ class TestTheUnmeasuredPromiseSaysSo:
 
     @pytest.mark.parametrize("lang", ["ru", "en"])
     def test_absence_is_not_reported_as_a_refutation(self, lang):
-        """Решение #334: невычислимая величина ОТСУТСТВУЕТ. Сказать «экономии
-        нет» было бы таким же непроверенным утверждением, как сказать, что она
-        есть."""
+        """Решение #334: невычислимая величина ОТСУТСТВУЕТ. Телеметрия числа не
+        производит и после парного replay — та фраза остаётся о ней, а не
+        превращается в «экономии нет» вообще."""
         text = _PAGES[lang].read_text(encoding="utf-8")
         needle = "ОТСУТСТВИЕ величины" if lang == "ru" else "ABSENCE of a quantity"
         assert needle in text
+
+
+_PROTOCOL = _REPO / "docs" / "ru" / "research" / "rag-nudge-replay-protocol.md"
+_OUTWARD_PAGES = {
+    "readme-en": _REPO / "README.md",
+    "readme-ru": _REPO / "README.ru.md",
+    "notes-en": _PAGES["en"],
+    "notes-ru": _PAGES["ru"],
+}
+# The §7 rows every outward page quotes: the primary metric, the exploration
+# bytes and the search_code count — B, A and the percentage of B.
+_QUOTED_ROWS = {
+    "primary": "| основная: Σ cache_creation + Σ output |",
+    "bytes": "| байты результатов исследования |",
+    "search_code": "| — `search_code` |",
+}
+_SEP = r"[\s  ,]?"
+
+
+def _protocol_figures() -> dict[str, tuple[str, str, str]]:
+    """(B, A, % of B) per quoted row, digits only, read from the §7 table."""
+    text = _PROTOCOL.read_text(encoding="utf-8")
+    section = text[text.index("## 7.") :]
+    out = {}
+    for key, prefix in _QUOTED_ROWS.items():
+        row = next(ln for ln in section.splitlines() if ln.startswith(prefix))
+        cells = [c.strip() for c in row.strip("|").split("|")]
+        b, a, pct = cells[1], cells[2], cells[4]
+        out[key] = (re.sub(r"\D", "", b), re.sub(r"\D", "", a), pct.replace(" ", ""))
+    return out
+
+
+def _number_pattern(digits: str) -> re.Pattern:
+    """195055 -> 195 055 / 195,055 / 195 055 — any thousands separator, or none."""
+    groups = []
+    while len(digits) > 3:
+        groups.insert(0, digits[-3:])
+        digits = digits[:-3]
+    groups.insert(0, digits)
+    return re.compile(_SEP.join(re.escape(g) for g in groups))
+
+
+class TestTheMeasuredFigureIsCountedFromTheProtocol:
+    """Convention #673: a number in a document is counted by something. The
+    four outward pages quote the paired replay (protocol §7); the figures they
+    carry are read from that table here, not compared with a retyped copy —
+    so a page cannot keep an old number after the protocol's table moves."""
+
+    @pytest.mark.parametrize("page", sorted(_OUTWARD_PAGES))
+    def test_the_page_carries_the_protocol_figures(self, page):
+        text = _OUTWARD_PAGES[page].read_text(encoding="utf-8")
+        figures = _protocol_figures()
+        for key in ("primary", "bytes"):
+            b, a, pct = figures[key]
+            for digits in (b, a):
+                assert _number_pattern(digits).search(text), (
+                    f"{page}: §7 {key} figure {digits} is not on the page"
+                )
+            wanted = pct.replace(",", ".").replace("%", "")
+            assert re.search(re.escape(wanted) + r"\s?%", text.replace(",", ".")), (
+                f"{page}: §7 {key} percentage {pct} is not on the page"
+            )
+        b, a, _ = figures["search_code"]
+        assert (b, a) == ("0", "0"), "the protocol's search_code row moved — re-read the pages"
+        assert "search_code" in text
+
+    @pytest.mark.parametrize("page", sorted(_OUTWARD_PAGES))
+    def test_no_saving_is_said_only_about_this_pair(self, page):
+        """Protocol §6: one pair is one reading, no generalisation. Every
+        «экономии нет» / "there is no saving" on a page must sit within 120
+        characters of «на этой паре» / "on this pair"."""
+        text = _OUTWARD_PAGES[page].read_text(encoding="utf-8")
+        claim, scope = (
+            ("экономии нет", "на этой паре")
+            if page.endswith("ru")
+            else ("no saving", "on this pair")
+        )
+        hits = [m.start() for m in re.finditer(re.escape(claim), text)]
+        assert hits, f"{page}: the measured outcome is not stated at all"
+        for pos in hits:
+            window = text[max(0, pos - 120) : pos + len(claim) + 120]
+            assert scope in window, (
+                f"{page}: «{claim}» at {pos} is not scoped to this pair — that is a generalisation"
+            )
 
 
 class TestTheCodexHostIsNamedWithItsBoundary:

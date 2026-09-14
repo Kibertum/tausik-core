@@ -66,7 +66,9 @@ def test_migration_v35_creates_tables_clean(tmp_path):
     conn.isolation_level = None  # autocommit — run_migrations drives its own BEGIN
     conn.execute("CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     conn.execute("INSERT INTO meta VALUES('schema_version', '34')")
-    conn.execute("CREATE TABLE tasks(slug TEXT PRIMARY KEY)")  # FK target
+    conn.execute(
+        "CREATE TABLE tasks(slug TEXT PRIMARY KEY, defect_of TEXT)"
+    )  # defect_of: v10 column, indexed by v62  # FK target
     # ALTER target for v38 — run_migrations walks every version up to current,
     # not just the one under test here.
     conn.execute("CREATE TABLE verification_runs(id INTEGER PRIMARY KEY AUTOINCREMENT)")

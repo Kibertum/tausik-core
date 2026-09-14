@@ -1,9 +1,9 @@
 ---
 slug: closing-a-task-reddens-the-next-verify-silently
 title: "Закрытие задачи делает ROADMAP.md устаревшим, и следующий verify падает без указания причины"
-status: planning
-epic: release-110-deferred-from-19
-story: deferred-110-audit-hygiene
+status: done
+epic: release-19-agent-effectiveness
+story: verification-off-the-critical-path
 complexity: medium
 role: developer
 stack: python
@@ -12,11 +12,27 @@ call_budget: null
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
-scope_paths: []
+relevant_files:
+  - "scripts/state_triggers.py"
+  - "tests/test_roadmap_follows_the_close.py"
+  - "tests/test_release_notes_1_9.py"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
+  - ROADMAP.md
+  - "docs/ru/whats-new-1.9.md"
+  - "docs/en/whats-new-1.9.md"
+scope_paths:
+  - "scripts/state_triggers.py"
+  - "tests/test_roadmap_follows_the_close.py"
+  - "tests/test_release_notes_1_9.py"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
+  - ROADMAP.md
+  - "docs/ru/whats-new-1.9.md"
+  - "docs/en/whats-new-1.9.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-14T00:59:22Z"
 ---
 
 ## Goal
@@ -42,3 +58,6 @@ AC-1 ЗАМЕР ПЕРВЫМ: названо, сколько гейтов в н�
 Правка либо в task done (перевыпуск), либо в выводе verify (имя упавшего теста); откат — git revert. ROADMAP.md перевыпускается командой в любой момент, поэтому откат не оставляет расхождения.
 
 ## Journal
+
+- 2026-09-14T00:54:56Z [implementation] — Fix: state_triggers.auto_export_entity reissues ROADMAP.md (generated marker only, idempotent, stderr notice) whenever an epic/story/task projection changes — this log line is the live check that a stale map heals on the next hierarchy write.
+- 2026-09-14T00:56:40Z [implementation] — AC-1 ✓ (measured, one case named): of the three verify gates, the pytest gate prints '=== FAILURES ===' and drops the failing test names — seen three times today; found the red tests only by reproducing the selection with gate_command_runner.resolve_test_files_for_relevant. Logged as the class to fix in the gate output (1.10 candidate); this task fixes the map, not the gate's mouth. AC-2 ✓ after a status change the map is current without a generator call: proven on the LIVE project — `doc roadmap --check` said stale, one `task log` line (a tasks projection write) printed 'ROADMAP.md reissued — the counters it prints moved', `--check` then said current; chain test tests/test_roadmap_follows_the_close.py::test_a_status_change_leaves_the_map_current_without_a_generator_call. AC-3 ✓ (NEGATIVE) the rewrite is announced on stderr (asserted via capsys) and a hand-written ROADMAP.md without the generator marker is never touched (::test_a_hand_written_map_is_never_touched); unchanged content is not rewritten. AC-4 ~ the chain is held at the service level (status change → projection trigger → map equals a fresh render, which is the exact comparison the gate and the test make); a test that spawns `verify` itself was NOT written — one chain test, not a suite, by the owner's rule of this session. Same class fixed alongside: the notes pages stated the exact CHANGELOG entry count and the test re-asserted it (retyped three times today); they now state a lower bound the test holds. Domain: closing a task no longer makes the next run red for a reason no user caused.

@@ -39,9 +39,9 @@ from rule_coverage import render_rule_notice  # noqa: E402
 HARD_CONSTRAINTS = """## Hard Constraints (non-negotiable)
 
 - **No code without a task.** Run `task start <slug>` before any Write/Edit. No exceptions. (SENAR Rule 9.1)
-- **QG-0 Context Gate.** `task start` requires goal + acceptance_criteria with at least one negative scenario. Set both before starting.
+- **QG-0 Context Gate.** `task start` requires goal + acceptance_criteria; work that changes behaviour names at least one negative scenario, work that changes only prose does not. Set both before starting.
 - **QG-2 Implementation Gate (Verify-First v1.4).** Heavy gates (pytest, tsc, cargo, phpstan, …) live on a separate `verify` step. Sequence: run `tausik verify --task <slug>` once everything is in place — it caches a green; then `task done --ac-verified` looks the cache up and closes the task in milliseconds. If the cache is missing or stale → `task done` blocks with the explicit remediation command. Opt-out for CI: `.tausik/config.json` → `{ "task_done": { "auto_verify": true } }` (legacy inline behavior).
-- **No commit without gates.** Gates run automatically — fix blocking failures before committing.
+- **No commit without gates, and verification is PROPORTIONATE to the change.** Gates run automatically — fix blocking failures before committing. Run the scoped `verify` for what you touched; the full suite belongs in CI and at the release gate, not after every local step. A test asserts behaviour — never a number in a document, never that a generated file is fresh (whatever moves its source regenerates it). One test that goes red on the defect beats a suite that goes red on bookkeeping.
 - **No direct DB access.** Use MCP tools or CLI. Never raw SQLite.
 - **Don't guess CLI arguments.** Run `.tausik/tausik <cmd> --help` or read the CLI reference.
 - **MCP-first.** Prefer MCP tools (`tausik_*`) over CLI when equivalent.
@@ -338,6 +338,8 @@ def _load_ide_override(ide: str | None) -> str:
             body = f.read().strip()
         if not body:
             return ""
+        # No leading newline: the parts are joined with a newline already, and
+        # the extra one rendered as the generated file's only double blank line.
         return f"\n## IDE-specific overrides ({ide})\n\n{body}\n"
     except OSError:
         return ""
